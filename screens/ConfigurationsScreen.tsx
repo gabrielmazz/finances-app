@@ -32,6 +32,7 @@ import { auth } from '@/FirebaseConfig';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase } from '@/functions/RegisterUserFirebase';
+import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
 
 type AccordionItem = {
 	id: string;
@@ -39,6 +40,7 @@ type AccordionItem = {
 	content: string;
 	action?: { router: string; label: string };
 	showUsersTable?: boolean;
+	showBanksTable?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
@@ -58,18 +60,18 @@ const accordionItems: AccordionItem[] = [
 		title: 'Adicionar um novo banco ao aplicativo',
 		content:
 			'Para adicionar um novo banco, acesse a seção de configurações e clique em "Adicionar Banco". Insira os detalhes do banco e confirme para salvar.',
+		showBanksTable: true,
 		action: {
-			router: '/AddBank',
+			router: '/add-register-bank',
 			label: 'Adicionar Banco',
 		},
 	},
 ];
 
-
-// ======================================== Relacionamento de Admin ================================================= //
-
 // const ADMIN_EMAIL = 'admin@seu-dominio.com';
 const ADMIN_EMAIL = 'gabrielalvesmazzuco@gmail.com';
+
+// ================================= Relacionamento de Admin (Usuários) ============================================= //
 
 export async function fetchUserData(userId: string) {
 
@@ -87,6 +89,19 @@ export async function fetchUserData(userId: string) {
 	}
 }
 
+export async function handleDeleteUser(userId: string) {
+
+	const result = await deleteUserFirebase(userId);
+
+	if (result.success) {
+
+		console.log('Usuário deletado com sucesso:', userId);
+
+	} else {
+		
+		console.error('Erro ao deletar usuário:', result.error);
+	}
+}
 
 export async function fetchAllUsers() {
 
@@ -103,17 +118,49 @@ export async function fetchAllUsers() {
 	}
 }
 
-export async function handleDeleteUser(userId: string) {
+// ================================== Relacionamento de Admin (Bancos) ============================================== //
 
-	const result = await deleteUserFirebase(userId);
+export async function handleAddBank(bankName: string) {
+
+	const result = await addBankFirebase({ bankName });
 
 	if (result.success) {
 
-		console.log('Usuário deletado com sucesso:', userId);
+		console.log('Banco adicionado com sucesso:', result.bankId);
 
 	} else {
 		
-		console.error('Erro ao deletar usuário:', result.error);
+		console.error('Erro ao adicionar banco:', result.error);
+	}
+
+}
+
+export async function handleDeleteBank(bankId: string) {
+
+	const result = await deleteBankFirebase(bankId);
+
+	if (result.success) {
+
+		console.log('Banco deletado com sucesso:', bankId);
+
+	} else {
+
+		console.error('Erro ao deletar banco:', result.error);
+	}
+}
+
+export async function fetchAllBanks() {
+
+	const result = await getAllBanksFirebase();
+
+	if (result.success) {
+
+		return result.data;
+
+	} else {
+
+		console.error('Erro ao buscar todos os bancos:', result.error);
+		return null;
 	}
 }
 
@@ -124,13 +171,19 @@ export default function ConfigurationsScreen() {
 	// Verifica se o usuário atual é o administrador do sistema
 	const currentEmail = auth.currentUser?.email ?? '';
 	const isAdmin = currentEmail === ADMIN_EMAIL;
-	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 
+	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
+	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string }>>([]);
+
+	// Buscar todos as informações para mostrar na tabela de usuários, bancos
 	React.useEffect(() => {
+
 		let isMounted = true;
 
 		if (isAdmin) {
+
 			fetchAllUsers().then((users) => {
+
 				if (isMounted && users) {
 					const formattedUsers = users.map((user: any) => ({
 						id: user.id,
@@ -140,12 +193,30 @@ export default function ConfigurationsScreen() {
 					setUserData(formattedUsers);
 				}
 			});
+
+			fetchAllBanks().then((banks) => {
+
+				if (isMounted && banks) {
+					const formattedBanks = banks.map((bank: any) => ({
+						id: bank.id,
+						name: bank.name,
+					}));
+
+					setBankData(formattedBanks);
+				}
+			});
+
+
 		} else {
+
 			setUserData([]);
+			setBankData([]);
 		}
 
 		return () => {
+
 			isMounted = false;
+
 		};
 	}, [isAdmin]);
 
@@ -267,11 +338,95 @@ export default function ConfigurationsScreen() {
 																size="xs"
 																variant="link"
 																action="negative"
-																onPress={() => handleDeleteUser(user.id)}
+																onPress={
+																	() => handleDeleteUser(user.id)
+
+																	// Recarregar a pagina de configurações apos deletar o usuario
+																	.then(() => {
+																		router.replace('/Configurations');
+																	})
+																}
 															>
 																<ButtonIcon as={TrashIcon} />
 															</Button>
 															
+														</TableData>
+
+													</TableRow>
+												))}
+
+											</TableBody>
+
+										</Table>
+
+									</View>
+								)}
+
+								{item.showBanksTable && isAdmin && bankData.length > 0 && (
+									<View className="mt-6 mb-4">
+
+										<Table
+											className="
+												w-full
+												border
+												border-outline-200
+												rounded-lg
+												overflow-hidden
+											"
+										>
+
+											<TableHeader>
+
+												<TableRow>
+
+													<TableHead>
+														Banco cadastrado
+													</TableHead>
+
+													<TableHead
+														className="
+															text-center
+														"
+													>
+														Ações
+													</TableHead>
+
+												</TableRow>
+
+											</TableHeader>
+
+											<TableBody>
+
+												{bankData.map((bank) => (
+
+													<TableRow key={bank.id}>
+
+														<TableData>
+
+															<Text
+																size="md"
+															>
+																{bank.name}
+															</Text>
+
+														</TableData>
+
+														<TableData useRNView>
+
+															<Button
+																size="xs"
+																variant="link"
+																action="negative"
+																onPress={
+																	() => handleDeleteBank(bank.id)
+																		.then(() => {
+																			router.replace('/Configurations');
+																		})
+																}
+															>
+																<ButtonIcon as={TrashIcon} />
+															</Button>
+
 														</TableData>
 
 													</TableRow>

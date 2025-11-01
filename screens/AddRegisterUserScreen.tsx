@@ -14,6 +14,11 @@ import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
+// Componentes do Uiverse
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+
+// Importações relacionadas à navegação e autenticação
+import { router } from 'expo-router';
 
 export default function AddRegisterUserScreen() {
 
@@ -33,15 +38,33 @@ export default function AddRegisterUserScreen() {
 
     const registerUser = async () => {
 
+        Keyboard.dismiss();
+
         const result = await registerUserFirebase({ email, password });
 
         if (result.success) {
 
-            alert('Usuário registrado com sucesso!');
+            showFloatingAlert({
+                message: 'Usuário registrado com sucesso!',
+                action: 'success',
+                position: 'bottom',
+                offset: 40,
+            });
+
+            // Voltar para a tela de configurações após o registro bem-sucedido
+            setEmail('');
+            setPassword('');
+            router.back();
 
         } else {
-            
-            alert('Erro ao registrar usuário: ' + result.error);
+
+            showFloatingAlert({
+                message: 'Erro ao registrar usuário: ' + result.error,
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+
         }
     };
 
@@ -55,6 +78,8 @@ export default function AddRegisterUserScreen() {
                 mt-[64px]
                 items-center"
             >
+
+                <FloatingAlertViewport />
 
                 <Heading size="3xl" className="text-center mb-6">
                     Adição de um novo usuário
