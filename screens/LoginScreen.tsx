@@ -177,7 +177,6 @@ export default function LoginScreen() {
 
                     {/* Botão para efetuar o login */}
                     <Button
-                        className="w-fit self-end mt-4"
                         size="sm"
                         variant="outline"
                         onPress={singIn}

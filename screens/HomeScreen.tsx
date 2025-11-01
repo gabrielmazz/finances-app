@@ -1,4 +1,3 @@
-
 import { View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
@@ -14,8 +13,7 @@ export default function HomeScreen() {
 	// Lista com todos os bancos que serão vindos do configurador
 
 	return (
-		<View>
-
+		<View className="gap-4">
 			{/* Componentes que mostrara quando cada banco possui saldo,
 				como não tera interação com API, tera que adicionar manualmente
 				os valores no configurador dos bancos
@@ -34,7 +32,6 @@ export default function HomeScreen() {
 				<Heading>Banco C</Heading>
 				<Text>Saldo: R$ 2.000,00</Text>
 			</Card>
-
 		</View>
 	);
 }
