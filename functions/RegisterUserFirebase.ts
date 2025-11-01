@@ -4,7 +4,7 @@
 
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
@@ -40,7 +40,7 @@ export async function registerUserFirebase({ email, password }: RegisterUserPara
 export async function deleteUserFirebase(userId: string) {
     try {
         // Deleta o documento do usuário no Firestore
-        await setDoc(doc(db, 'users', userId), { deletedAt: new Date() }, { merge: true });
+        await deleteDoc(doc(db, 'users', userId));
 
         // Note: Deleting a user from Firebase Authentication requires the user to be signed in.
         // This function assumes that the user is already authenticated.
@@ -56,6 +56,8 @@ export async function deleteUserFirebase(userId: string) {
 
 
 // =========================================== Funções de consulta ================================================== //
+
+// Função para obter os dados de um usuário específico do Firebase
 export async function getUserDataFirebase(userId: string) {
 
     try {
@@ -80,6 +82,7 @@ export async function getUserDataFirebase(userId: string) {
 
 }
 
+// Função para obter todos os usuários registrados no Firebase
 export async function getAllUsersFirebase() {
 
     try {
@@ -133,3 +136,5 @@ export async function getAllUsersFirebase() {
     }
 
 }
+
+// ================================================================================================================= //
