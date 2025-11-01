@@ -1,15 +1,17 @@
 
 import { View } from 'react-native';
 
-// Componentes do gluestack-ui
+// Importações relacionadas ao Gluestack UI
 import { Card } from '@/components/ui/card';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 
+// Importações relacionadas ao Firebase
+import { auth } from '@/FirebaseConfig';
+import { getAuth } from 'firebase/auth';
+
 export default function HomeScreen() {
-
-
-	{/* Lista com todos os bancos que serão vindos do configurador */}
+	// Lista com todos os bancos que serão vindos do configurador
 
 	return (
 		<View>
