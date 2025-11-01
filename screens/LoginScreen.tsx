@@ -1,8 +1,9 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
+import { View } from 'react-native';
 
-// Componentes do gluestack-ui
+// Importações relacionadas ao Gluestack UI
 import {
     FormControl,
     FormControlLabel,
@@ -16,28 +17,32 @@ import {
 import { AlertCircleIcon } from '@/components/ui/icon';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
 
 // Importações relacionadas ao Firebase
 import { auth } from '@/FirebaseConfig';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 
-// Importação responsável pela navegação
-import { useNavigation } from '@react-navigation/native';
+// Importação responsável pela navegação pelo expo-router
+import { router } from 'expo-router';
+
 
 export default function LoginScreen() {
 
     // Variaveis relacionadas ao login
     const [email, setEmail] = useState('');
-    const [password, setPassword] =useState('');
+    const [password, setPassword] = useState('');
 
-    // Função para realizar o login
+    // ============================================= Funções para Login ============================================= //
+
+    // Função responsável por fazer login de um usuário já cadastrado, conectando-o ao Firebase Authentication
     const singIn = async () => {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
             if (userCredential) {
-                
+                router.replace('/home');
             }
 
         } catch (error) {
@@ -59,43 +64,132 @@ export default function LoginScreen() {
     }
 
     return (
-        <SafeAreaView>
-            <VStack>
-                <FormControl
-                    size="md"
-                    isDisabled={false}
-                    isReadOnly={false}
-                    isRequired={false}
+        <SafeAreaView
+            className="
+                flex-1
+            "
+        >
+            <View
+                className="
+                    flex-1
+                    justify-center
+                    px-6
+                "
+            >
+                <VStack
+                    space="lg"
                 >
-                    <FormControlLabel>
-                        <FormControlLabelText>Password</FormControlLabelText>
-                    </FormControlLabel>
-                    <Input className="my-1" size="md">
-                        <InputField
-                            type="password"
-                            placeholder="password"
-                        />
-                    </Input>
-                    <FormControlHelper>
-                        <FormControlHelperText>
-                            Must be at least 6 characters.
-                        </FormControlHelperText>
-                    </FormControlHelper>
-                    <FormControlError>
-                        <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
-                        <FormControlErrorText className="text-red-500">
-                            At least 6 characters are required.
-                        </FormControlErrorText>
-                    </FormControlError>
-                </FormControl>
-                <Button
-                    className="w-fit self-end mt-4"
-                    size="sm"
-                    variant="outline"
-                >
-                    <ButtonText>Submit</ButtonText>
-                </Button>
-            </VStack>
+
+                    <Heading
+                        size="3xl"
+                        className="mb-6"
+                    >
+                        Bem-vindo de volta!
+                    </Heading>
+
+                    {/* Campo responsável pelo login */}
+                    <FormControl
+                        size="lg"
+                        isDisabled={false}
+                        isReadOnly={false}
+                        isRequired={false}
+                    >
+                        <FormControlLabel>
+
+                            <FormControlLabelText>
+                                Login
+                            </FormControlLabelText>
+
+                        </FormControlLabel>
+
+                        <Input className="my-1" size="md">
+
+                            <InputField
+                                value={email}
+                                onChangeText={setEmail}
+                                autoCapitalize="none"
+                                keyboardType="email-address"
+                                placeholder="Digite seu login"
+                            />
+
+                        </Input>
+
+                        <FormControlHelper>
+
+                            <FormControlHelperText>
+                                Informe o login utilizado no cadastro.
+                            </FormControlHelperText>
+
+                        </FormControlHelper>
+
+                        <FormControlError>
+                            <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
+                            <FormControlErrorText className="text-red-500">
+                                Informe um login válido.
+                            </FormControlErrorText>
+
+                        </FormControlError>
+
+                    </FormControl>
+
+
+                    {/* Campo responsável pela senha */}
+                    <FormControl
+                        size="md"
+                        isDisabled={false}
+                        isReadOnly={false}
+                        isRequired={true}
+                    >
+                        <FormControlLabel>
+                            <FormControlLabelText>Senha</FormControlLabelText>
+                        </FormControlLabel>
+
+                        <Input className="my-1" size="md">
+                            <InputField
+                                type="password"
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Digite sua senha"
+                            />
+                        </Input>
+
+                        <FormControlHelper>
+
+                            <FormControlHelperText>
+                                Sua senha deve ter no mínimo 6 caracteres.
+                            </FormControlHelperText>
+
+                        </FormControlHelper>
+
+                        <FormControlError>
+
+                            <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
+
+                            <FormControlErrorText className="text-red-500">
+                                A senha deve ter pelo menos 6 caracteres.
+                            </FormControlErrorText>
+
+                        </FormControlError>
+
+                    </FormControl>
+
+
+
+                    {/* Botão para efetuar o login */}
+                    <Button
+                        className="w-fit self-end mt-4"
+                        size="sm"
+                        variant="outline"
+                        onPress={singIn}
+                    >
+                        <ButtonText>
+                            Entrar
+                        </ButtonText>
+
+                    </Button>
+
+                </VStack>
+            </View>
         </SafeAreaView>
     );
 }
