@@ -14,8 +14,8 @@ import {
 	AccordionIcon,
 } from '@/components/ui/accordion';
 import { Divider } from '@/components/ui/divider';
-import { Button, ButtonText } from '@/components/ui/button';
-import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
+import { Button, ButtonText, ButtonIcon } from '@/components/ui/button';
+import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '@/components/ui/icon';
 import {
 	Table,
 	TableHeader,
@@ -24,13 +24,14 @@ import {
 	TableData,
 	TableRow,
 } from '@/components/ui/table';
+import { Text } from '@/components/ui/text';
 
 // Importações relacionadas à navegação e autenticação
 import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
-import { getUserDataFirebase, getAllUsersFirebase } from '@/functions/RegisterUserFirebase';
+import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase } from '@/functions/RegisterUserFirebase';
 
 type AccordionItem = {
 	id: string;
@@ -99,6 +100,20 @@ export async function fetchAllUsers() {
 
 		console.error('Erro ao buscar todos os usuários:', result.error);
 		return null;
+	}
+}
+
+export async function handleDeleteUser(userId: string) {
+
+	const result = await deleteUserFirebase(userId);
+
+	if (result.success) {
+
+		console.log('Usuário deletado com sucesso:', userId);
+
+	} else {
+		
+		console.error('Erro ao deletar usuário:', result.error);
 	}
 }
 
@@ -199,23 +214,73 @@ export default function ConfigurationsScreen() {
 								{/* Conteúdo adicional visível apenas para administradores */}
 								{item.showUsersTable && isAdmin && userData.length > 0 && (
 									<View className="mt-6 mb-4">
-										<Table>
+
+										<Table
+											className="
+												w-full
+												border
+												border-outline-200
+												rounded-lg
+												overflow-hidden
+											"
+										>
+
 											<TableHeader>
+
 												<TableRow>
+
 													<TableHead>
-														Email cadastrado no sistema
+														Email cadastrado
 													</TableHead>
+
+													<TableHead
+														className="
+															text-center
+														"
+													>
+														Ações
+													</TableHead>
+
 												</TableRow>
+
 											</TableHeader>
 
 											<TableBody>
+
 												{userData.map((user) => (
+
 													<TableRow key={user.id}>
-														<TableData>{user.email}</TableData>
+
+														<TableData>
+
+															<Text
+																size="md"
+															>
+																{user.email}	
+															</Text>
+
+														</TableData>
+
+														<TableData useRNView>
+
+															<Button
+																size="xs"
+																variant="link"
+																action="negative"
+																onPress={() => handleDeleteUser(user.id)}
+															>
+																<ButtonIcon as={TrashIcon} />
+															</Button>
+															
+														</TableData>
+
 													</TableRow>
 												))}
+
 											</TableBody>
+
 										</Table>
+
 									</View>
 								)}
 
