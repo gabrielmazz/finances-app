@@ -2,8 +2,8 @@
 // Firebase Authentication e armazenar seus dados iniciais com nome, email
 // e a senha de login
 
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth, db } from '@/FirebaseConfig';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth, db, secondaryAuth } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
 
 // Define os parâmetros necessários para registrar um usuário
@@ -12,13 +12,18 @@ interface RegisterUserParams {
     password: string;
 }
 
+// =========================================== Funções de Registro ================================================== //
+
 // Função para registrar um novo usuário no Firebase
 export async function registerUserFirebase({ email, password }: RegisterUserParams) {
 
+    let shouldSignOutSecondary = false;
+
     try {
         // Cria o usuário no Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
         const user = userCredential.user;
+        shouldSignOutSecondary = true;
 
         // Armazena os dados iniciais do usuário no Firestore
         await setDoc(doc(db, 'users', user.uid), {
@@ -32,6 +37,16 @@ export async function registerUserFirebase({ email, password }: RegisterUserPara
         
         console.error('Erro ao registrar usuário:', error);
         return { success: false, error };
+        
+    } finally {
+        // Garante que a sessão utilizada para criação de usuário não interfira no usuário atual
+        if (shouldSignOutSecondary) {
+            try {
+                await signOut(secondaryAuth);
+            } catch (signOutError) {
+                console.warn('Erro ao encerrar sessão secundária de registro:', signOutError);
+            }
+        }
     }
 
 }
