@@ -32,10 +32,15 @@ export default function AddRegisterUserScreen() {
     const [password, setPassword] = React.useState('');
 
     const registerUser = async () => {
+
         const result = await registerUserFirebase({ email, password });
+
         if (result.success) {
+
             alert('Usuário registrado com sucesso!');
+
         } else {
+            
             alert('Erro ao registrar usuário: ' + result.error);
         }
     };
