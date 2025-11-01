@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Ignorar arquivos do Visual Studio Code
+.vscode/
+
+# Ignora os scripts do Git
+git-branch.sh
+git-commit.sh
+git-pull.sh
+git-revert.sh
