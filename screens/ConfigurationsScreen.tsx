@@ -135,7 +135,14 @@ export async function fetchAllUsers() {
 
 export async function handleAddBank(bankName: string) {
 
-	const result = await addBankFirebase({ bankName });
+	const personId = auth.currentUser?.uid;
+
+	if (!personId) {
+		console.error('Não foi possível identificar o usuário atual ao adicionar banco.');
+		return null;
+	}
+
+	const result = await addBankFirebase({ bankName, personId });
 
 	if (result.success) {
 

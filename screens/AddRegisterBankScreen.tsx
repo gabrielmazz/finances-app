@@ -14,6 +14,7 @@ import { Menu } from '@/components/uiverse/menu';
 
 // Importação das funções relacionadas a adição de banco ao Firebase
 import { addBankFirebase } from '@/functions/BankFirebase';
+import { auth } from '@/FirebaseConfig';
 
 export default function AddRegisterBankScreen() {
 
@@ -38,7 +39,20 @@ export default function AddRegisterBankScreen() {
         setIsSubmitting(true);
 
         try {
-            const result = await addBankFirebase({ bankName: trimmedName });
+            const personId = auth.currentUser?.uid;
+
+            if (!personId) {
+                showFloatingAlert({
+                    message: 'Não foi possível identificar o usuário atual.',
+                    action: 'error',
+                    position: 'bottom',
+                    offset: 40,
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            const result = await addBankFirebase({ bankName: trimmedName, personId });
 
             if (result.success) {
                 showFloatingAlert({

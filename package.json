@@ -23,6 +23,7 @@
     "expo-router": "~6.0.14",
     "expo-status-bar": "~3.0.8",
     "firebase": "^12.5.0",
+    "lucide-react-native": "^0.510.0",
     "nativewind": "^4.2.1",
     "react": "19.1.0",
     "react-aria": "^3.44.0",

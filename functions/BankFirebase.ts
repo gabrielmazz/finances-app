@@ -7,13 +7,14 @@ import { doc, setDoc, getDoc, getDocs, deleteDoc, collection } from 'firebase/fi
 // Define os parâmetros necessários para adicionar um banco
 interface AddBankParams {
     bankName: string;
+    personId: string;
 }
 
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo banco no Firestore
-export async function addBankFirebase({ bankName }: AddBankParams) {
+export async function addBankFirebase({ bankName, personId }: AddBankParams) {
     
     try {
 
@@ -22,6 +23,7 @@ export async function addBankFirebase({ bankName }: AddBankParams) {
 
         await setDoc(bankRef, {
             name: bankName,
+            personId,
             createdAt: new Date(),
         });
 

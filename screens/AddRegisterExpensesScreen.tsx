@@ -25,6 +25,7 @@ import { Menu } from '@/components/uiverse/menu';
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { auth } from '@/FirebaseConfig';
 
 type OptionItem = {
 	id: string;
@@ -308,12 +309,26 @@ export default function AddRegisterExpensesScreen() {
 		setIsSubmitting(true);
 
 		try {
+			const personId = auth.currentUser?.uid;
+
+			if (!personId) {
+				showFloatingAlert({
+					message: 'Não foi possível identificar o usuário atual.',
+					action: 'error',
+					position: 'bottom',
+					offset: 40,
+				});
+				setIsSubmitting(false);
+				return;
+			}
+
 			const result = await addExpenseFirebase({
 				name: expenseName.trim(),
 				valueInCents: expenseValueCents,
 				tagId: selectedTagId as string,
 				bankId: selectedBankId as string,
 				date: parsedDate,
+				personId,
 			});
 
 			if (!result.success) {

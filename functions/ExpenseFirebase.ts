@@ -10,12 +10,20 @@ interface AddExpenseParams {
 	tagId: string;
 	bankId: string;
 	date: Date;
+	personId: string;
 }
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar uma nova despesa no Firestore
-export async function addExpenseFirebase({ name, valueInCents, tagId, bankId, date }: AddExpenseParams) {
+export async function addExpenseFirebase({
+	name,
+	valueInCents,
+	tagId,
+	bankId,
+	date,
+	personId,
+}: AddExpenseParams) {
 	try {
 		const expenseRef = doc(collection(db, 'expenses'));
 
@@ -25,6 +33,7 @@ export async function addExpenseFirebase({ name, valueInCents, tagId, bankId, da
 			tagId,
 			bankId,
 			date,
+			personId,
 			createdAt: new Date(),
 		});
 

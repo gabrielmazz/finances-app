@@ -14,6 +14,7 @@ import { Menu } from '@/components/uiverse/menu';
 
 // Importação das funções relacionadas a adição de tag ao Firebase
 import { addTagFirebase } from '@/functions/TagFirebase';
+import { auth } from '@/FirebaseConfig';
 
 export default function AddRegisterTagScreen() {
 
@@ -38,7 +39,20 @@ export default function AddRegisterTagScreen() {
 
 		try {
 			
-			const result = await addTagFirebase({ tagName: trimmedName });
+			const personId = auth.currentUser?.uid;
+
+			if (!personId) {
+				showFloatingAlert({
+					message: 'Não foi possível identificar o usuário atual.',
+					action: 'error',
+					position: 'bottom',
+					offset: 40,
+				});
+				setIsSubmitting(false);
+				return;
+			}
+
+			const result = await addTagFirebase({ tagName: trimmedName, personId });
 
 			if (result.success) {
 				showFloatingAlert({

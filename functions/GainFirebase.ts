@@ -7,24 +7,39 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/fi
 interface AddGainParams {
 	name: string;
 	valueInCents: number;
+	paymentFormats?: string[];
+	explanation?: string | null;
 	tagId: string;
 	bankId: string;
 	date: Date;
+	personId: string;
 }
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo ganho no Firestore
-export async function addGainFirebase({ name, valueInCents, tagId, bankId, date }: AddGainParams) {
+export async function addGainFirebase({
+	name,
+	valueInCents,
+	paymentFormats,
+	explanation,
+	tagId,
+	bankId,
+	date,
+	personId,
+}: AddGainParams) {
 	try {
 		const gainRef = doc(collection(db, 'gains'));
 
 		await setDoc(gainRef, {
 			name,
 			valueInCents,
+			paymentFormats,
+			explanation: explanation || null,
 			tagId,
 			bankId,
 			date,
+			personId,
 			createdAt: new Date(),
 		});
 

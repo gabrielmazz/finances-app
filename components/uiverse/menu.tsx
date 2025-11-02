@@ -39,11 +39,6 @@ const buildDefaultGroups = (): MenuGroup[] => [
 		triggerLabel: 'Controle',
 		options: [
 			{
-				label: 'Adicionar Despesa',
-				value: 1,
-				onSelect: () => router.replace('/home?tab=1'),
-			},
-			{
 				label: 'Registrar Despesa',
 				value: 1,
 				onSelect: () => router.push('/add-register-expenses'),
@@ -62,21 +57,6 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				label: 'Configurações',
 				value: 2,
 				onSelect: () => router.replace('/home?tab=2'),
-			},
-			{
-				label: 'Registrar Usuário',
-				value: 2,
-				onSelect: () => router.push('/add-register-user'),
-			},
-			{
-				label: 'Registrar Banco',
-				value: 2,
-				onSelect: () => router.push('/add-register-bank'),
-			},
-			{
-				label: 'Registrar Tag',
-				value: 2,
-				onSelect: () => router.push('/add-register-tag'),
 			},
 		],
 	},
@@ -197,6 +177,7 @@ export const Menu: React.FC<MenuProps> = ({
 								<MenuItem
 									key={`${group.triggerLabel}-${option.label}`}
 									onPress={() => handleSelect(option)}
+									textValue={option.label}
 								>
 									<MenuItemLabel bold={option.value === activeValue}>
 										{option.label}

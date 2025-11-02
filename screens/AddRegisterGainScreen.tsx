@@ -1,6 +1,7 @@
 import React from 'react';
 import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
 
+// Importações relacionadas ao Gluestack UI
 import {
 	Select,
 	SelectBackdrop,
@@ -18,13 +19,28 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import {
+	Checkbox,
+	CheckboxGroup,
+	CheckboxIndicator,
+	CheckboxIcon,
+	CheckboxLabel,
+} from '@/components/ui/checkbox';
+import { HStack } from '@/components/ui/hstack';
+import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
+// Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
 
+// Importação das funções relacionadas a adição de ganho ao Firebase
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
+import { auth } from '@/FirebaseConfig';
+
+// Importação dos icones
+import { CheckIcon } from '@/components/ui/icon';
 
 type OptionItem = {
 	id: string;
@@ -106,6 +122,9 @@ export default function AddRegisterGainScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
+	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -255,12 +274,27 @@ export default function AddRegisterGainScreen() {
 		setIsSubmitting(true);
 
 		try {
+			const personId = auth.currentUser?.uid;
+
+			if (!personId) {
+				showFloatingAlert({
+					message: 'Não foi possível identificar o usuário atual.',
+					action: 'error',
+					position: 'bottom',
+				});
+				setIsSubmitting(false);
+				return;
+			}
+
 			const result = await addGainFirebase({
 				name: gainName.trim(),
 				valueInCents: gainValueCents,
+				paymentFormats: paymentFormat,
+				explanation: explanationGain?.trim() ? explanationGain.trim() : null,
 				tagId: selectedTagId as string,
 				bankId: selectedBankId as string,
 				date: parsedDate,
+				personId,
 			});
 
 			if (!result.success) {
@@ -294,8 +328,6 @@ export default function AddRegisterGainScreen() {
 		}
 	}, [gainDate, gainName, gainValueCents, selectedBankId, selectedTagId]);
 
-	const tagPlaceholder = 'Selecione uma tag';
-	const bankPlaceholder = 'Selecione um banco';
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -346,14 +378,82 @@ export default function AddRegisterGainScreen() {
 								/>
 							</Input>
 
+							<CheckboxGroup
+								value={paymentFormat}
+								onChange={(keys: string[]) => {
+									setPaymentFormat(keys);
+								}}
+							>
+								<HStack space="2xl">
+
+									<Checkbox
+										value="Salary"
+										isDisabled={
+											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable') || paymentFormat.includes('External')
+										}
+									>
+
+										<CheckboxIndicator>
+											<CheckboxIcon as={CheckIcon} />
+										</CheckboxIndicator>
+
+										<CheckboxLabel>Salário</CheckboxLabel>
+
+									</Checkbox>
+
+									<Checkbox 
+										value="Variable"
+										isDisabled={
+											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('External')
+										}>
+
+										<CheckboxIndicator>
+											<CheckboxIcon as={CheckIcon} />
+										</CheckboxIndicator>
+
+										<CheckboxLabel>Renda variável</CheckboxLabel>
+
+									</Checkbox>
+
+									<Checkbox 
+										value="External"
+										isDisabled={
+											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('Variable')
+										}>
+
+										<CheckboxIndicator>
+											<CheckboxIcon as={CheckIcon} />
+										</CheckboxIndicator>
+
+										<CheckboxLabel>Pagamento externo</CheckboxLabel>
+
+									</Checkbox>
+
+								</HStack>
+							</CheckboxGroup>
+
+							<Textarea
+								size="md"
+								isReadOnly={false}
+								isInvalid={false}
+								isDisabled={!paymentFormat || paymentFormat.length === 0}
+								className="h-32"
+							>
+								<TextareaInput 
+									placeholder="(Opcional) Explique sobre esse ganho..."
+									value={explanationGain ?? ''}
+									onChangeText={setExplanationGain} 
+								/>
+							</Textarea>
+
 							<Select
 								selectedValue={selectedTagId}
 								onValueChange={setSelectedTagId}
-								initialLabel={tagPlaceholder}
+								initialLabel="Selecione uma tag"
 								isDisabled={isLoadingTags || tags.length === 0}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder={tagPlaceholder} />
+									<SelectInput placeholder="Selecione uma tag" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -370,7 +470,6 @@ export default function AddRegisterGainScreen() {
 													key={tag.id}
 													label={tag.name}
 													value={tag.id}
-													textValue={tag.name}
 												/>
 											))
 										) : (
@@ -378,7 +477,6 @@ export default function AddRegisterGainScreen() {
 												key="no-tag"
 												label="Nenhuma tag disponível"
 												value="no-tag"
-												textValue="Nenhuma tag disponível"
 												isDisabled
 											/>
 										)}
@@ -389,11 +487,11 @@ export default function AddRegisterGainScreen() {
 							<Select
 								selectedValue={selectedBankId}
 								onValueChange={setSelectedBankId}
-								initialLabel={bankPlaceholder}
+								initialLabel="Selecione um banco"
 								isDisabled={isLoadingBanks || banks.length === 0}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder={bankPlaceholder} />
+									<SelectInput placeholder="Selecione um banco" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -410,7 +508,6 @@ export default function AddRegisterGainScreen() {
 													key={bank.id}
 													label={bank.name}
 													value={bank.id}
-													textValue={bank.name}
 												/>
 											))
 										) : (
@@ -418,7 +515,6 @@ export default function AddRegisterGainScreen() {
 												key="no-bank"
 												label="Nenhum banco disponível"
 												value="no-bank"
-												textValue="Nenhum banco disponível"
 												isDisabled
 											/>
 										)}
