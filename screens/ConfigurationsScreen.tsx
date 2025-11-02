@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -27,22 +27,29 @@ import {
 import { Text } from '@/components/ui/text';
 
 // Importações relacionadas à navegação e autenticação
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 
+// Componentes do Uiverse
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+
 // Importação das funções relacionadas a adição de usuário ao Firebase
-import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase } from '@/functions/RegisterUserFirebase';
+import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase, getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
 import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import { Input, InputField, InputIcon } from '@/components/ui/input';
+import { VStack } from '@/components/ui/vstack';
 
 type AccordionItem = {
 	id: string;
 	title: string;
 	content: string;
 	action?: { router: string; label: string };
+	actionRequiresAdmin?: boolean;
 	showUsersTable?: boolean;
 	showBanksTable?: boolean;
 	showTagsTable?: boolean;
+	showRelatedUsersTable?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
@@ -52,6 +59,7 @@ const accordionItems: AccordionItem[] = [
 		content:
 			'Para adicionar um novo usuário, vá para a seção de configurações e selecione "Adicionar Usuário". Preencha as informações necessárias e salve as alterações.',
 		showUsersTable: true,
+		actionRequiresAdmin: true,
 		action: {
 			router: '/add-register-user',
 			label: 'Registrar Usuário',
@@ -63,6 +71,7 @@ const accordionItems: AccordionItem[] = [
 		content:
 			'Para adicionar um novo banco, acesse a seção de configurações e clique em "Adicionar Banco". Insira os detalhes do banco e confirme para salvar.',
 		showBanksTable: true,
+		actionRequiresAdmin: true,
 		action: {
 			router: '/add-register-bank',
 			label: 'Adicionar Banco',
@@ -74,15 +83,25 @@ const accordionItems: AccordionItem[] = [
 		content:
 			'Para adicionar uma nova tag, acesse a seção de configurações e clique em "Adicionar Tag". Insira o nome desejado e confirme para salvar.',
 		showTagsTable: true,
+		actionRequiresAdmin: true,
 		action: {
 			router: '/add-register-tag',
 			label: 'Adicionar Tag',
 		},
 	},
+	{
+		id: 'item-4',
+		title: 'Relacionar outro usuário à sua conta',
+		content:
+			'Para compartilhar as movimentações financeiras com outra pessoa, informe o ID dela e confirme o vínculo.',
+		showRelatedUsersTable: true,
+		actionRequiresAdmin: false,
+		action: {
+			router: '/add-user-relation',
+			label: 'Relacionar Usuário',
+		},
+	},
 ];
-
-// const ADMIN_EMAIL = 'admin@seu-dominio.com';
-const ADMIN_EMAIL = 'gabrielalvesmazzuco@gmail.com';
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
 
@@ -104,6 +123,14 @@ export async function fetchUserData(userId: string) {
 
 export async function handleDeleteUser(userId: string) {
 
+	// Evita que o usuário atual se delete e se ele for um admin
+	const currentUser = auth.currentUser;
+
+	if (currentUser && currentUser.uid === userId) {
+		alert('Ação inválida: Você não pode deletar o usuário atualmente logado.');
+		return;
+	}
+
 	const result = await deleteUserFirebase(userId);
 
 	if (result.success) {
@@ -111,7 +138,7 @@ export async function handleDeleteUser(userId: string) {
 		console.log('Usuário deletado com sucesso:', userId);
 
 	} else {
-		
+
 		console.error('Erro ao deletar usuário:', result.error);
 	}
 }
@@ -129,6 +156,22 @@ export async function fetchAllUsers() {
 		console.error('Erro ao buscar todos os usuários:', result.error);
 		return null;
 	}
+}
+
+export async function fetchRelatedUsers(userId: string) {
+
+	const result = await getRelatedUsersFirebase(userId);
+
+	if (result.success) {
+
+		return result.data;
+
+	} else {
+
+		return null;
+
+	}
+
 }
 
 // ================================== Relacionamento de Admin (Bancos) ============================================== //
@@ -149,7 +192,7 @@ export async function handleAddBank(bankName: string) {
 		console.log('Banco adicionado com sucesso:', result.bankId);
 
 	} else {
-		
+
 		console.error('Erro ao adicionar banco:', result.error);
 	}
 
@@ -219,397 +262,596 @@ export async function fetchAllTags() {
 
 export default function ConfigurationsScreen() {
 
-	// Verifica se o usuário atual é o administrador do sistema
-	const currentEmail = auth.currentUser?.email ?? '';
-	const isAdmin = currentEmail === ADMIN_EMAIL;
-
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string }>>([]);
 	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string }>>([]);
+	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
+	const [userId, setUserId] = React.useState<string>('');
+	const [isAdmin, setIsAdmin] = React.useState(false);
+	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
+	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 
-	// Buscar todos as informações para mostrar na tabela de usuários, bancos
+	// Verifica se o usuário atual possui flag de administrador no Firestore
 	React.useEffect(() => {
-
 		let isMounted = true;
 
-		if (isAdmin) {
+		const loadAdminFlag = async () => {
+			try {
+				const currentUser = auth.currentUser;
 
-			fetchAllUsers().then((users) => {
-
-				if (isMounted && users) {
-					const formattedUsers = users.map((user: any) => ({
-						id: user.id,
-						email: user.email,
-					}));
-
-					setUserData(formattedUsers);
+				if (!currentUser) {
+					if (isMounted) {
+						setIsAdmin(false);
+					}
+					return;
 				}
-			});
 
-			fetchAllBanks().then((banks) => {
+				const result = await getUserDataFirebase(currentUser.uid);
 
-				if (isMounted && banks) {
-					const formattedBanks = banks.map((bank: any) => ({
-						id: bank.id,
-						name: bank.name,
-					}));
-
-					setBankData(formattedBanks);
+				if (!isMounted) {
+					return;
 				}
-			});
 
-			fetchAllTags().then((tags) => {
-
-				if (isMounted && tags) {
-					const formattedTags = tags.map((tag: any) => ({
-						id: tag.id,
-						name: tag.name,
-					}));
-
-					setTagData(formattedTags);
+				setIsAdmin(Boolean(result.success && (result.data as any)?.adminUser));
+			} catch (error) {
+				console.error('Erro ao verificar privilégios de administrador:', error);
+				if (isMounted) {
+					setIsAdmin(false);
 				}
-			});
+			} finally {
+				if (isMounted) {
+					setIsAdminLoading(false);
+				}
+			}
+		};
 
-
-		} else {
-
-			setUserData([]);
-			setBankData([]);
-			setTagData([]);
-		}
+		loadAdminFlag();
 
 		return () => {
-
 			isMounted = false;
-
 		};
-	}, [isAdmin]);
+	}, []);
+
+	// Buscar todos as informações para mostrar na tabela de usuários, bancos
+	useFocusEffect(
+		React.useCallback(() => {
+
+			let isMounted = true;
+
+			if (!isAdminLoading && isAdmin) {
+
+				fetchAllUsers().then((users) => {
+
+					if (isMounted && users) {
+						const formattedUsers = users.map((user: any) => ({
+							id: user.id,
+							email: user.email,
+						}));
+
+						setUserData(formattedUsers);
+					}
+				});
+
+				fetchAllBanks().then((banks) => {
+
+					if (isMounted && banks) {
+						const formattedBanks = banks.map((bank: any) => ({
+							id: bank.id,
+							name: bank.name,
+						}));
+
+						setBankData(formattedBanks);
+					}
+				});
+
+				fetchAllTags().then((tags) => {
+
+					if (isMounted && tags) {
+						const formattedTags = tags.map((tag: any) => ({
+							id: tag.id,
+							name: tag.name,
+						}));
+
+						setTagData(formattedTags);
+					}
+				});
+
+
+			} else {
+
+				if (isMounted) {
+					setUserData([]);
+					setBankData([]);
+					setTagData([]);
+				}
+			}
+
+			return () => {
+
+				isMounted = false;
+
+			};
+		}, [isAdmin, isAdminLoading]),
+	);
+
+	// ================================================================================================================= //
+
+	// Função para atualizar o userId com base no login do usuário, como o userId é o uid do usuário no Firebase Auth
+	React.useEffect(() => {
+
+		const fetchAndSetUserId = async () => {
+
+			const currentUser = auth.currentUser;
+
+			if (currentUser) {
+
+				setUserId(currentUser.uid);
+
+			} else {
+
+				setUserId('');
+
+			}
+		};
+
+		fetchAndSetUserId();
+
+	}, []);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			let isMounted = true;
+
+			const loadRelatedUsers = async () => {
+				if (!userId) {
+					if (isMounted) {
+						setRelatedUserData([]);
+						setIsLoadingRelatedUsers(false);
+					}
+					return;
+				}
+
+				setIsLoadingRelatedUsers(true);
+
+				try {
+					const relatedUsers = await fetchRelatedUsers(userId);
+
+					if (!isMounted) {
+						return;
+					}
+
+					if (Array.isArray(relatedUsers)) {
+						const formattedRelatedUsers = relatedUsers.map((user: any) => ({
+							id: user.id,
+							email: user.email,
+						}));
+
+						setRelatedUserData(formattedRelatedUsers);
+					} else {
+						setRelatedUserData([]);
+					}
+				} catch (error) {
+					console.error('Erro ao carregar usuários vinculados:', error);
+					if (isMounted) {
+						setRelatedUserData([]);
+					}
+				} finally {
+					if (isMounted) {
+						setIsLoadingRelatedUsers(false);
+					}
+				}
+			};
+
+			void loadRelatedUsers();
+
+			return () => {
+				isMounted = false;
+			};
+		}, [userId]),
+	);
 
 	return (
 
-		<View
-			className="
+		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+			<View
+				className="
 				flex-1 w-full h-full
 				mt-[64px]
-				items-center
+				pb-6
+				relative
 			"
-		>
+			>
 
-			<Heading
-				size="3xl"
-				className="
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+					}}
+				>
+
+					<View className="w-full px-6">
+
+
+						<Heading
+							size="3xl"
+							className="
 					text-center 
 					mb-6
 				"
-			>
-				Menu de Configurações
-			</Heading>
+						>
+							Menu de Configurações
+						</Heading>
 
-			<Accordion
-				size="md"
-				variant="unfilled"
-				type="single"
-				isCollapsible
-				className="w-[90%] border border-outline-200"
-			>
-				{accordionItems.map((item, index) => (
+						<VStack>
+							<Text className="text-typography-500">ID do Usuário Atual:</Text>
+							<Input
+								isDisabled={true}
+								className="w-full mb-4"
+							>
+								<InputField
+									type="text"
+									placeholder="ID do Usuário"
+									value={userId}
+									className="
+							vw-
+						"
+								/>
+							</Input>
+						</VStack>
 
-					<React.Fragment key={item.id}>
+						<Accordion
+							size="md"
+							variant="unfilled"
+							type="single"
+							isCollapsible
+							className="w-full border border-outline-200"
+						>
+							{accordionItems.map((item, index) => {
+								const requiresAdmin = item.actionRequiresAdmin !== false;
+								const canExecuteAction = !requiresAdmin || isAdmin;
 
-						<AccordionItem value={item.id}>
+								return (
+									<React.Fragment key={item.id}>
 
-							<AccordionHeader>
+										<AccordionItem value={item.id}>
 
-								<AccordionTrigger>
+											<AccordionHeader>
 
-									{({ isExpanded }: { isExpanded: boolean }) => (
-										<View className="flex-row items-center justify-between w-full">
+												<AccordionTrigger>
 
-											<AccordionTitleText className="font-semibold">
-												{item.title}
-											</AccordionTitleText>
+													{({ isExpanded }: { isExpanded: boolean }) => (
+														<View className="flex-row items-center justify-between w-full">
 
-											<AccordionIcon
-												as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-												className="text-typography-700 ml-3"
-											/>
+															<AccordionTitleText className="font-semibold">
+																{item.title}
+															</AccordionTitleText>
 
-										</View>
-									)}
+															<AccordionIcon
+																as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																className="text-typography-700 ml-3"
+															/>
 
-								</AccordionTrigger>
+														</View>
+													)}
 
-							</AccordionHeader>
+												</AccordionTrigger>
 
-							<AccordionContent>
+											</AccordionHeader>
 
-								<AccordionContentText>
-									{item.content}
-								</AccordionContentText>
+											<AccordionContent>
+
+												<AccordionContentText>
+													{item.content}
+												</AccordionContentText>
 
 
-								{/* Conteúdo adicional visível apenas para administradores */}
-								{item.showUsersTable && isAdmin && userData.length > 0 && (
-									<View className="mt-6 mb-4">
+												{/* Conteúdo adicional visível apenas para administradores */}
+												{item.showUsersTable && isAdmin && userData.length > 0 && (
+													<View className="mt-6 mb-4">
 
-										<Table
-											className="
+														<Table
+															className="
 												w-full
 												border
 												border-outline-200
 												rounded-lg
 												overflow-hidden
 											"
-										>
+														>
 
-											<TableHeader>
+															<TableHeader>
 
-												<TableRow>
+																<TableRow>
 
-													<TableHead>
-														Email cadastrado
-													</TableHead>
+																	<TableHead>
+																		Email cadastrado
+																	</TableHead>
 
-													<TableHead
-														className="
+																	<TableHead
+																		className="
 															text-center
 														"
-													>
-														Ações
-													</TableHead>
+																	>
+																		Ações
+																	</TableHead>
 
-												</TableRow>
+																</TableRow>
 
-											</TableHeader>
+															</TableHeader>
 
-											<TableBody>
+															<TableBody>
 
-												{userData.map((user) => (
+																{userData.map((user) => (
 
-													<TableRow key={user.id}>
+																	<TableRow key={user.id}>
 
-														<TableData>
+																		<TableData>
 
-															<Text
-																size="md"
-															>
-																{user.email}	
-															</Text>
+																			<Text
+																				size="md"
+																			>
+																				{user.email}
+																			</Text>
 
-														</TableData>
+																		</TableData>
 
-														<TableData useRNView>
+																		<TableData useRNView>
 
-															<Button
-																size="xs"
-																variant="link"
-																action="negative"
-																onPress={
-																	() => handleDeleteUser(user.id)
+																			<Button
+																				size="xs"
+																				variant="link"
+																				action="negative"
+																				onPress={
+																					() => handleDeleteUser(user.id)
 
-																	// Recarregar a pagina de configurações apos deletar o usuario
-																	.then(() => {
-																		router.replace('/Configurations');
-																	})
-																}
-															>
-																<ButtonIcon as={TrashIcon} />
-															</Button>
-															
-														</TableData>
+																						// Recarregar a pagina de configurações apos deletar o usuario
+																						.then(() => {
+																							router.replace('/Configurations');
+																						})
+																				}
+																			>
+																				<ButtonIcon as={TrashIcon} />
+																			</Button>
 
-													</TableRow>
-												))}
+																		</TableData>
 
-											</TableBody>
+																	</TableRow>
+																))}
 
-										</Table>
+															</TableBody>
 
-									</View>
-								)}
+														</Table>
 
-								{item.showBanksTable && isAdmin && bankData.length > 0 && (
-									<View className="mt-6 mb-4">
+													</View>
+												)}
 
-										<Table
-											className="
+												{item.showBanksTable && isAdmin && bankData.length > 0 && (
+													<View className="mt-6 mb-4">
+
+														<Table
+															className="
 												w-full
 												border
 												border-outline-200
 												rounded-lg
 												overflow-hidden
 											"
-										>
+														>
 
-											<TableHeader>
+															<TableHeader>
 
-												<TableRow>
+																<TableRow>
 
-													<TableHead>
-														Banco cadastrado
-													</TableHead>
+																	<TableHead>
+																		Banco cadastrado
+																	</TableHead>
 
-													<TableHead
-														className="
+																	<TableHead
+																		className="
 															text-center
 														"
-													>
-														Ações
-													</TableHead>
+																	>
+																		Ações
+																	</TableHead>
 
-												</TableRow>
+																</TableRow>
 
-											</TableHeader>
+															</TableHeader>
 
-											<TableBody>
+															<TableBody>
 
-												{bankData.map((bank) => (
+																{bankData.map((bank) => (
 
-													<TableRow key={bank.id}>
+																	<TableRow key={bank.id}>
 
-														<TableData>
+																		<TableData>
 
-															<Text
-																size="md"
-															>
-																{bank.name}
-															</Text>
+																			<Text
+																				size="md"
+																			>
+																				{bank.name}
+																			</Text>
 
-														</TableData>
+																		</TableData>
 
-														<TableData useRNView>
+																		<TableData useRNView>
 
-															<Button
-																size="xs"
-																variant="link"
-																action="negative"
-																onPress={
-																	() => handleDeleteBank(bank.id)
-																		.then(() => {
-																			router.replace('/Configurations');
-																		})
-																}
-															>
-																<ButtonIcon as={TrashIcon} />
-															</Button>
+																			<Button
+																				size="xs"
+																				variant="link"
+																				action="negative"
+																				onPress={
+																					() => handleDeleteBank(bank.id)
+																						.then(() => {
+																							router.replace('/Configurations');
+																						})
+																				}
+																			>
+																				<ButtonIcon as={TrashIcon} />
+																			</Button>
 
-														</TableData>
+																		</TableData>
 
-													</TableRow>
-												))}
+																	</TableRow>
+																))}
 
-											</TableBody>
+															</TableBody>
 
-										</Table>
+														</Table>
 
-									</View>
-								)}
+													</View>
+												)}
 
-								{item.showTagsTable && isAdmin && tagData.length > 0 && (
-									<View className="mt-6 mb-4">
+												{item.showTagsTable && isAdmin && tagData.length > 0 && (
+													<View className="mt-6 mb-4">
 
-										<Table
-											className="
+														<Table
+															className="
 												w-full
 												border
 												border-outline-200
 												rounded-lg
 												overflow-hidden
 											"
-										>
+														>
 
-											<TableHeader>
+															<TableHeader>
 
-												<TableRow>
+																<TableRow>
 
-													<TableHead>
-														Tag cadastrada
-													</TableHead>
+																	<TableHead>
+																		Tag cadastrada
+																	</TableHead>
 
-													<TableHead
-														className="
+																	<TableHead
+																		className="
 															text-center
 														"
-													>
-														Ações
-													</TableHead>
+																	>
+																		Ações
+																	</TableHead>
 
-												</TableRow>
+																</TableRow>
 
-											</TableHeader>
+															</TableHeader>
 
-											<TableBody>
+															<TableBody>
 
-												{tagData.map((tag) => (
+																{tagData.map((tag) => (
 
-													<TableRow key={tag.id}>
+																	<TableRow key={tag.id}>
 
-														<TableData>
+																		<TableData>
 
-															<Text
-																size="md"
-															>
-																{tag.name}
+																			<Text
+																				size="md"
+																			>
+																				{tag.name}
+																			</Text>
+
+																		</TableData>
+
+																		<TableData useRNView>
+
+																			<Button
+																				size="xs"
+																				variant="link"
+																				action="negative"
+																				onPress={
+																					() => handleDeleteTag(tag.id)
+																						.then(() => {
+																							router.replace('/Configurations');
+																						})
+																				}
+																			>
+																				<ButtonIcon as={TrashIcon} />
+																			</Button>
+
+																		</TableData>
+
+																	</TableRow>
+																))}
+
+															</TableBody>
+
+														</Table>
+
+													</View>
+												)}
+
+												{item.showRelatedUsersTable && (
+													<View className="mt-6 mb-4">
+														{isLoadingRelatedUsers ? (
+															<Text className="text-center text-typography-500">
+																Carregando usuários vinculados...
 															</Text>
-
-														</TableData>
-
-														<TableData useRNView>
-
-															<Button
-																size="xs"
-																variant="link"
-																action="negative"
-																onPress={
-																	() => handleDeleteTag(tag.id)
-																		.then(() => {
-																			router.replace('/Configurations');
-																		})
-																}
+														) : relatedUserData.length > 0 ? (
+															<Table
+																className="
+															w-full
+															border
+															border-outline-200
+															rounded-lg
+															overflow-hidden
+														"
 															>
-																<ButtonIcon as={TrashIcon} />
-															</Button>
+																<TableHeader>
+																	<TableRow>
+																		<TableHead>Usuário vinculado</TableHead>
+																	</TableRow>
+																</TableHeader>
 
-														</TableData>
+																<TableBody>
+																	{relatedUserData.map(relatedUser => (
+																		<TableRow key={relatedUser.id}>
+																			<TableData>
+																				<Text size="md">
+																					{relatedUser.email || relatedUser.id}
+																				</Text>
+																			</TableData>
+																		</TableRow>
+																	))}
+																</TableBody>
+															</Table>
+														) : (
+															<Text className="text-center text-typography-500">
+																Você ainda não vinculou nenhum usuário.
+															</Text>
+														)}
+													</View>
+												)}
 
-													</TableRow>
-												))}
 
-											</TableBody>
 
-										</Table>
+												{item.action ? (
+													<Button
+														size="sm"
+														variant="outline"
+														className="mt-4"
+														// isDisabled={!canExecuteAction}
+														onPress={() => {
+															router.push(item.action!.router);
+														}}
+													>
+														<ButtonText>{item.action.label}</ButtonText>
+													</Button>
+												) : null}
+											</AccordionContent>
 
-									</View>
-								)}
+										</AccordionItem>
 
-								{item.action ? (
-									<Button
-										size="sm"
-										variant="outline"
-										className="mt-4"
-										isDisabled={!isAdmin}
-										onPress={() => {
-											if (isAdmin) {
-												router.push(item.action!.router);
-											} else {
-												alert('Acesso negado: Você não tem permissão para realizar esta ação.');
-											}
-										}}
-									>
-										<ButtonText>{item.action.label}</ButtonText>
-									</Button>
-								) : null}
-							</AccordionContent>
+										{index < accordionItems.length - 1 ? <Divider /> : null}
 
-						</AccordionItem>
+									</React.Fragment>
+								);
+							})}
 
-						{index < accordionItems.length - 1 ? <Divider /> : null}
+						</Accordion>
+					</View>
 
-					</React.Fragment>
-				))}
-
-			</Accordion>
-
-		</View>
+				</ScrollView>
+			</View>
+		</TouchableWithoutFeedback>
 	);
 }

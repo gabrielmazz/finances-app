@@ -1,5 +1,6 @@
 import React from 'react';
 import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -126,75 +127,81 @@ export default function AddRegisterGainScreen() {
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
 
-	React.useEffect(() => {
-		let isMounted = true;
+	useFocusEffect(
+		React.useCallback(() => {
+			let isMounted = true;
 
-		const loadOptions = async () => {
-			setIsLoadingTags(true);
-			setIsLoadingBanks(true);
+			const loadOptions = async () => {
+				setIsLoadingTags(true);
+				setIsLoadingBanks(true);
 
-			try {
-				const [tagsResult, banksResult] = await Promise.all([
-					getAllTagsFirebase(),
-					getAllBanksFirebase(),
-				]);
+				try {
+					const [tagsResult, banksResult] = await Promise.all([
+						getAllTagsFirebase(),
+						getAllBanksFirebase(),
+					]);
 
-				if (!isMounted) {
-					return;
-				}
+					if (!isMounted) {
+						return;
+					}
 
-				if (tagsResult.success && Array.isArray(tagsResult.data)) {
-					const formattedTags = tagsResult.data.map((tag: any) => ({
-						id: tag.id,
-						name: tag.name,
-					}));
+					if (tagsResult.success && Array.isArray(tagsResult.data)) {
+						const formattedTags = tagsResult.data.map((tag: any) => ({
+							id: tag.id,
+							name: tag.name,
+						}));
 
-					setTags(formattedTags);
-					setSelectedTagId(current => current ?? (formattedTags[0]?.id ?? null));
-				} else {
+						setTags(formattedTags);
+						setSelectedTagId(current =>
+							current && formattedTags.some(tag => tag.id === current) ? current : null,
+						);
+					} else {
+						showFloatingAlert({
+							message: 'Não foi possível carregar as tags disponíveis.',
+							action: 'error',
+							position: 'bottom',
+						});
+					}
+
+					if (banksResult.success && Array.isArray(banksResult.data)) {
+						const formattedBanks = banksResult.data.map((bank: any) => ({
+							id: bank.id,
+							name: bank.name,
+						}));
+
+						setBanks(formattedBanks);
+						setSelectedBankId(current =>
+							current && formattedBanks.some(bank => bank.id === current) ? current : null,
+						);
+					} else {
+						showFloatingAlert({
+							message: 'Não foi possível carregar os bancos disponíveis.',
+							action: 'error',
+							position: 'bottom',
+						});
+					}
+				} catch (error) {
+					console.error('Erro ao carregar opções de ganhos:', error);
 					showFloatingAlert({
-						message: 'Não foi possível carregar as tags disponíveis.',
+						message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
 						action: 'error',
 						position: 'bottom',
 					});
+				} finally {
+					if (isMounted) {
+						setIsLoadingTags(false);
+						setIsLoadingBanks(false);
+					}
 				}
+			};
 
-				if (banksResult.success && Array.isArray(banksResult.data)) {
-					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name: bank.name,
-					}));
+			void loadOptions();
 
-					setBanks(formattedBanks);
-					setSelectedBankId(current => current ?? (formattedBanks[0]?.id ?? null));
-				} else {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os bancos disponíveis.',
-						action: 'error',
-						position: 'bottom',
-					});
-				}
-			} catch (error) {
-				console.error('Erro ao carregar opções de ganhos:', error);
-				showFloatingAlert({
-					message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
-				});
-			} finally {
-				if (isMounted) {
-					setIsLoadingTags(false);
-					setIsLoadingBanks(false);
-				}
-			}
-		};
-
-		loadOptions();
-
-		return () => {
-			isMounted = false;
-		};
-	}, []);
+			return () => {
+				isMounted = false;
+			};
+		}, []),
+	);
 
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
@@ -449,7 +456,6 @@ export default function AddRegisterGainScreen() {
 							<Select
 								selectedValue={selectedTagId}
 								onValueChange={setSelectedTagId}
-								initialLabel="Selecione uma tag"
 								isDisabled={isLoadingTags || tags.length === 0}
 							>
 								<SelectTrigger>
@@ -466,19 +472,10 @@ export default function AddRegisterGainScreen() {
 
 										{tags.length > 0 ? (
 											tags.map(tag => (
-												<SelectItem
-													key={tag.id}
-													label={tag.name}
-													value={tag.id}
-												/>
+												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
 											))
 										) : (
-											<SelectItem
-												key="no-tag"
-												label="Nenhuma tag disponível"
-												value="no-tag"
-												isDisabled
-											/>
+											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
 										)}
 									</SelectContent>
 								</SelectPortal>
@@ -487,7 +484,6 @@ export default function AddRegisterGainScreen() {
 							<Select
 								selectedValue={selectedBankId}
 								onValueChange={setSelectedBankId}
-								initialLabel="Selecione um banco"
 								isDisabled={isLoadingBanks || banks.length === 0}
 							>
 								<SelectTrigger>
@@ -504,19 +500,10 @@ export default function AddRegisterGainScreen() {
 
 										{banks.length > 0 ? (
 											banks.map(bank => (
-												<SelectItem
-													key={bank.id}
-													label={bank.name}
-													value={bank.id}
-												/>
+												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
 											))
 										) : (
-											<SelectItem
-												key="no-bank"
-												label="Nenhum banco disponível"
-												value="no-bank"
-												isDisabled
-											/>
+											<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
 										)}
 									</SelectContent>
 								</SelectPortal>
@@ -537,7 +524,14 @@ export default function AddRegisterGainScreen() {
 								size="sm"
 								variant="outline"
 								onPress={handleSubmit}
-								isDisabled={isSubmitting}
+								isDisabled={
+									isSubmitting ||
+									!gainName.trim() ||
+									gainValueCents === null ||
+									!selectedTagId ||
+									!selectedBankId ||
+									!gainDate
+								}
 							>
 								{isSubmitting ? (
 									<ButtonSpinner />

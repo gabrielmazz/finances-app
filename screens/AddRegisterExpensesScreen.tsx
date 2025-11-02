@@ -1,5 +1,6 @@
 import React from 'react';
 import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 import {
 	Select,
@@ -18,6 +19,7 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
@@ -115,99 +117,106 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 
-	React.useEffect(() => {
+	useFocusEffect(
+		React.useCallback(() => {
 
-		let isMounted = true;
+			let isMounted = true;
 
-		const loadOptions = async () => {
+			const loadOptions = async () => {
 
-			setIsLoadingTags(true);
-			setIsLoadingBanks(true);
+				setIsLoadingTags(true);
+				setIsLoadingBanks(true);
 
-			try {
+				try {
 
-				// Carrega as tags e bancos do Firebase
-				const [tagsResult, banksResult] = await Promise.all([
-					getAllTagsFirebase(),
-					getAllBanksFirebase(),
-				]);
+					// Carrega as tags e bancos do Firebase
+					const [tagsResult, banksResult] = await Promise.all([
+						getAllTagsFirebase(),
+						getAllBanksFirebase(),
+					]);
 
-				if (!isMounted) {
-					return;
-				}
+					if (!isMounted) {
+						return;
+					}
 
-				if (tagsResult.success && Array.isArray(tagsResult.data)) {
+					if (tagsResult.success && Array.isArray(tagsResult.data)) {
 
-					const formattedTags = tagsResult.data.map((tag: any) => ({
-						id: tag.id,
-						name: tag.name,
-					}));
+						const formattedTags = tagsResult.data.map((tag: any) => ({
+							id: tag.id,
+							name: tag.name,
+						}));
 
-					setTags(formattedTags);
-					setSelectedTagId(current => current ?? (formattedTags[0]?.id ?? null));
+						setTags(formattedTags);
+						setSelectedTagId(current =>
+							current && formattedTags.some(tag => tag.id === current) ? current : null,
+						);
 
-				} else {
+					} else {
+
+						showFloatingAlert({
+							message: 'Não foi possível carregar as tags disponíveis.',
+							action: 'error',
+							position: 'bottom',
+							offset: 40,
+						});
+						
+					}
+
+					if (banksResult.success && Array.isArray(banksResult.data)) {
+
+						const formattedBanks = banksResult.data.map((bank: any) => ({
+							id: bank.id,
+							name: bank.name,
+						}));
+
+						setBanks(formattedBanks);
+						setSelectedBankId(current =>
+							current && formattedBanks.some(bank => bank.id === current) ? current : null,
+						);
+
+					} else {
+
+						showFloatingAlert({
+							message: 'Não foi possível carregar os bancos disponíveis.',
+							action: 'error',
+							position: 'bottom',
+							offset: 40,
+						});
+
+					}
+
+				} catch (error) {
+
+					console.error('Erro ao carregar opções da despesa:', error);
 
 					showFloatingAlert({
-						message: 'Não foi possível carregar as tags disponíveis.',
+						message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
 						action: 'error',
 						position: 'bottom',
 						offset: 40,
-					});
-					
-				}
 
-				if (banksResult.success && Array.isArray(banksResult.data)) {
-
-					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name: bank.name,
-					}));
-
-					setBanks(formattedBanks);
-					setSelectedBankId(current => current ?? (formattedBanks[0]?.id ?? null));
-
-				} else {
-
-					showFloatingAlert({
-						message: 'Não foi possível carregar os bancos disponíveis.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
 					});
 
+				} finally {
+
+					if (isMounted) {
+
+						setIsLoadingTags(false);
+						setIsLoadingBanks(false);
+
+					}
 				}
+			};
 
-			} catch (error) {
+			void loadOptions();
 
-				console.error('Erro ao carregar opções da despesa:', error);
-
-				showFloatingAlert({
-					message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
-
-				});
-
-			} finally {
-
-				if (isMounted) {
-
-					setIsLoadingTags(false);
-					setIsLoadingBanks(false);
-
-				}
-			}
-		};
-
-		loadOptions();
-
-		return () => {
-			isMounted = false;
-		};
-	}, []);
+			return () => {
+				isMounted = false;
+			};
+		}, []),
+	);
 
 	// Manipula a mudança no campo de valor, formatando para moeda BRL
 	const handleValueChange = React.useCallback((input: string) => {
@@ -329,6 +338,7 @@ export default function AddRegisterExpensesScreen() {
 				bankId: selectedBankId as string,
 				date: parsedDate,
 				personId,
+				explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
 			});
 
 			if (!result.success) {
@@ -352,6 +362,7 @@ export default function AddRegisterExpensesScreen() {
 			setExpenseValueDisplay('');
 			setExpenseValueCents(null);
 			setExpenseDate(formatDateToBR(new Date()));
+			setExplanationExpense(null);
 		} catch (error) {
 			console.error('Erro ao registrar despesa:', error);
 			showFloatingAlert({
@@ -365,9 +376,6 @@ export default function AddRegisterExpensesScreen() {
 		}
 		
 	}, [expenseDate, expenseName, expenseValueCents, selectedBankId, selectedTagId]);
-
-	const tagPlaceholder = 'Selecione uma tag';
-	const bankPlaceholder = 'Selecione um banco';
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -418,14 +426,25 @@ export default function AddRegisterExpensesScreen() {
 								/>
 							</Input>
 
+							<Textarea
+								size="md"
+								isDisabled={!expenseValueDisplay}
+								className="h-32"
+							>
+								<TextareaInput
+									placeholder="(Opcional) Explique sobre essa despesa..."
+									value={explanationExpense ?? ''}
+									onChangeText={setExplanationExpense}
+								/>
+							</Textarea>
+
 							<Select
 								selectedValue={selectedTagId}
 								onValueChange={setSelectedTagId}
-								initialLabel={tagPlaceholder}
 								isDisabled={isLoadingTags || tags.length === 0}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder={tagPlaceholder} />
+									<SelectInput placeholder="Selecione uma tag" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -438,21 +457,10 @@ export default function AddRegisterExpensesScreen() {
 
 										{tags.length > 0 ? (
 											tags.map(tag => (
-												<SelectItem
-													key={tag.id}
-													label={tag.name}
-													value={tag.id}
-													textValue={tag.name}
-												/>
+												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
 											))
 										) : (
-											<SelectItem
-												key="no-tag"
-												label="Nenhuma tag disponível"
-												value="no-tag"
-												textValue="Nenhuma tag disponível"
-												isDisabled
-											/>
+											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
 										)}
 									</SelectContent>
 								</SelectPortal>
@@ -461,11 +469,10 @@ export default function AddRegisterExpensesScreen() {
 							<Select
 								selectedValue={selectedBankId}
 								onValueChange={setSelectedBankId}
-								initialLabel={bankPlaceholder}
 								isDisabled={isLoadingBanks || banks.length === 0}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder={bankPlaceholder} />
+									<SelectInput placeholder="Selecione um banco" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -482,7 +489,6 @@ export default function AddRegisterExpensesScreen() {
 													key={bank.id}
 													label={bank.name}
 													value={bank.id}
-													textValue={bank.name}
 												/>
 											))
 										) : (
@@ -490,7 +496,6 @@ export default function AddRegisterExpensesScreen() {
 												key="no-bank"
 												label="Nenhum banco disponível"
 												value="no-bank"
-												textValue="Nenhum banco disponível"
 												isDisabled
 											/>
 										)}
@@ -513,7 +518,14 @@ export default function AddRegisterExpensesScreen() {
 								size="sm"
 								variant="outline"
 								onPress={handleSubmit}
-								isDisabled={isSubmitting}
+								isDisabled={
+									isSubmitting ||
+									!expenseName.trim() ||
+									expenseValueCents === null ||
+									!selectedTagId || 
+									!selectedBankId ||
+									!expenseDate
+								}
 							>
 								{isSubmitting ? (
 									<ButtonSpinner />

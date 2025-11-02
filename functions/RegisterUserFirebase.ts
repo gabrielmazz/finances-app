@@ -4,22 +4,27 @@
 
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db, secondaryAuth } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUnion } from 'firebase/firestore';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
     email: string;
     password: string;
+    adminUser?: boolean;
+    relatedIdUsers?: string[];
 }
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo usuário no Firebase
-export async function registerUserFirebase({ email, password }: RegisterUserParams) {
+export async function registerUserFirebase({ email, password, adminUser = false, relatedIdUsers = [] }: RegisterUserParams) {
+
+    
 
     let shouldSignOutSecondary = false;
 
     try {
+
         // Cria o usuário no Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
         const user = userCredential.user;
@@ -29,13 +34,13 @@ export async function registerUserFirebase({ email, password }: RegisterUserPara
         await setDoc(doc(db, 'users', user.uid), {
             email,
             createdAt: new Date(),
+            adminUser,
         });
 
         return { success: true, user };
 
     } catch (error) {
         
-        console.error('Erro ao registrar usuário:', error);
         return { success: false, error };
         
     } finally {
@@ -69,23 +74,70 @@ export async function deleteUserFirebase(userId: string) {
     }
 }
 
+// Função para atualizar os dados de um usuário que está logado no Firebase, essa função irá relacionar ele com
+// outros usuários através dos IDs, essa relação é basicamente para que o usuário relacionado veja os gastos e receitas
+// um do outro, assim vice e versa, para isso é necessário o ID do usuário que será relacionado com o usuário logado;
+// Na função em especifico, o usuário logado será relacionado mas tambem irá ser atualizado o usuário relacionado para que
+// no Firabase tenha essa relação em ambos os sentidos
+export async function updateUserRelationsFirebase(relatedUserId: string) {
+
+    try {
+
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+            throw new Error('Nenhum usuário está logado.');
+        }
+
+        const currentUserRef = doc(db, 'users', currentUser.uid);
+        const relatedUserRef = doc(db, 'users', relatedUserId);
+
+        const currentUserDoc = await getDoc(currentUserRef);
+        const relatedUserDoc = await getDoc(relatedUserRef);
+
+        if (!currentUserDoc.exists()) {
+            throw new Error('Dados do usuário atual não foram encontrados.');
+        }
+
+        if (!relatedUserDoc.exists()) {
+            throw new Error('Usuário relacionado não encontrado.');
+        }
+
+        // Atualiza o usuário logado para adicionar o ID do usuário relacionado
+        await updateDoc(currentUserRef, {
+            relatedIdUsers: arrayUnion(relatedUserId),
+        });
+
+        // Atualiza o usuário relacionado para adicionar o ID do usuário logado
+        await updateDoc(relatedUserRef, {
+            relatedIdUsers: arrayUnion(currentUser.uid),
+        });
+
+        return { success: true };
+
+    } catch (error) {
+
+        console.error('Erro ao atualizar relações do usuário:', error);
+        return { success: false, error };
+
+    }
+
+}
 
 // =========================================== Funções de consulta ================================================== //
 
-// Função para obter os dados de um usuário específico do Firebase
+// Função para obter os dados de um usuário específico do Firebase, voltando todos os seus dados salvos no Firestore
 export async function getUserDataFirebase(userId: string) {
 
     try {
 
-        const userDoc = await getDoc(doc(db, 'users', userId));
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
-
-            return { success: true, data: userDoc.data() };
-        
+            return { success: true, data: { id: userDoc.id, ...userDoc.data() } };
         } else {
-
-            return { success: false, error: 'Usuário não encontrado' };
+            return { success: false, error: 'Usuário não encontrado.' };
         }
 
     } catch (error) {
@@ -150,6 +202,44 @@ export async function getAllUsersFirebase() {
 
     }
 
+}
+
+// Função para resgatar os dados de usuário relacionados ao usuário logado
+export async function getRelatedUsersFirebase(userId: string) {
+
+    try {
+
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            return { success: false, error: 'Usuário não encontrado.' };
+        }
+
+        const userData = userDoc.data();
+        const relatedIdUsers: string[] = userData.relatedIdUsers || [];
+
+        if (relatedIdUsers.length === 0) {
+            return { success: true, data: [] };
+        }
+
+        const relatedUsersPromises = relatedIdUsers.map(async (relatedIdUser) => {
+            const relatedUserDocRef = doc(db, 'users', relatedIdUser);
+            const relatedUserDoc = await getDoc(relatedUserDocRef);
+
+            if (relatedUserDoc.exists()) {
+                return { id: relatedUserDoc.id, ...relatedUserDoc.data() };
+            } else {
+                return null;
+            }
+        });
+
+        const relatedUsers = await Promise.all(relatedUsersPromises);
+        return { success: true, data: relatedUsers.filter((user) => user !== null) };
+    } catch (error) {
+        console.error('Erro ao buscar usuários relacionados:', error);
+        return { success: false, error };
+    }
 }
 
 // ================================================================================================================= //
