@@ -16,6 +16,7 @@ type FloatingAlertOptions = {
 	offset?: number;
 	containerClassName?: string;
 	alertClassName?: string;
+	persistAcrossScreens?: boolean;
 };
 
 type FloatingAlertState = FloatingAlertOptions & {
@@ -35,8 +36,10 @@ const DEFAULT_OFFSET = 112;
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<Listener>();
+let currentState: FloatingAlertState | null = null;
 
 const notifyListeners = (state: FloatingAlertState | null) => {
+	currentState = state;
 	listeners.forEach(listener => listener(state));
 };
 
@@ -90,7 +93,7 @@ const resolvePositionConfig = (
 		case 'bottom':
 		default:
 			return {
-				containerClass: 'absolute left-0 right-0 px-6 items-center',
+				containerClass: 'absolute left-0 right-0 px-6 pb-16 items-center',
 				containerStyle: { bottom: offset },
 			};
 	}
@@ -181,6 +184,10 @@ const FloatingAlertViewport: React.FC<FloatingAlertViewportProps> = ({
 		};
 
 		listeners.add(listener);
+
+		if (currentState?.persistAcrossScreens) {
+			listener(currentState);
+		}
 
 		return () => {
 			listeners.delete(listener);

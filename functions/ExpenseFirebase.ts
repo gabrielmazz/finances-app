@@ -11,6 +11,7 @@ interface AddExpenseParams {
 	bankId: string;
 	date: Date;
 	personId: string;
+	explanation?: string | null;
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -23,6 +24,7 @@ export async function addExpenseFirebase({
 	bankId,
 	date,
 	personId,
+	explanation,
 }: AddExpenseParams) {
 	try {
 		const expenseRef = doc(collection(db, 'expenses'));
@@ -34,6 +36,7 @@ export async function addExpenseFirebase({
 			bankId,
 			date,
 			personId,
+			explanation: explanation ?? null,
 			createdAt: new Date(),
 		});
 

@@ -15,6 +15,7 @@ import { Menu } from '@/components/uiverse/menu';
 // Importação das funções relacionadas a adição de banco ao Firebase
 import { addBankFirebase } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
+import { router } from 'expo-router';
 
 export default function AddRegisterBankScreen() {
 
@@ -63,6 +64,7 @@ export default function AddRegisterBankScreen() {
                 });
                 setNameBank('');
                 Keyboard.dismiss();
+                router.back();
             } else {
                 showFloatingAlert({
                     message: 'Erro ao registrar banco. Tente novamente mais tarde.',

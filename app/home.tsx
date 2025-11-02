@@ -51,8 +51,6 @@ export default function HomeRoute() {
 				className="
 					flex-1
 					justify-between
-					px-4
-					pb-6
 				"
 			>
 				<View className="flex-1">
