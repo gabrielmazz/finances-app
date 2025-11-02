@@ -31,7 +31,7 @@ type Listener = (state: FloatingAlertState | null) => void;
 
 const DEFAULT_DURATION = 3000;
 const DEFAULT_POSITION: FloatingAlertPosition = 'bottom';
-const DEFAULT_OFFSET = 40;
+const DEFAULT_OFFSET = 112;
 
 let hideTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<Listener>();

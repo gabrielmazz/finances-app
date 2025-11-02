@@ -10,9 +10,11 @@ import { VStack } from '@/components/ui/vstack';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { Menu } from '@/components/uiverse/menu';
 
 // Importação das funções relacionadas a adição de banco ao Firebase
 import { addBankFirebase } from '@/functions/BankFirebase';
+import { auth } from '@/FirebaseConfig';
 
 export default function AddRegisterBankScreen() {
 
@@ -37,7 +39,20 @@ export default function AddRegisterBankScreen() {
         setIsSubmitting(true);
 
         try {
-            const result = await addBankFirebase({ bankName: trimmedName });
+            const personId = auth.currentUser?.uid;
+
+            if (!personId) {
+                showFloatingAlert({
+                    message: 'Não foi possível identificar o usuário atual.',
+                    action: 'error',
+                    position: 'bottom',
+                    offset: 40,
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
+            const result = await addBankFirebase({ bankName: trimmedName, personId });
 
             if (result.success) {
                 showFloatingAlert({
@@ -78,45 +93,51 @@ export default function AddRegisterBankScreen() {
                     flex-1 w-full h-full
                     mt-[64px]
                     items-center
+                    justify-between
+                    pb-6
                     relative
                 "
             >
                 <FloatingAlertViewport />
 
-                <Heading size="3xl" className="text-center mb-6">
-                    Adição de um novo banco
-                </Heading>
+                <View className="w-full px-6 gap-4">
+                    <Heading size="3xl" className="text-center mb-6">
+                        Adição de um novo banco
+                    </Heading>
 
-                <VStack className="w-full px-6 gap-4">
-                    <Text className="mb-4">
-                        Preencha os campos abaixo para registrar um novo banco no aplicativo. Ele será adicionado
-                        ao sistema e poderá ser selecionado nas ações financeiras.
-                    </Text>
+                    <VStack className="gap-4">
+                        <Text>
+                            Preencha os campos abaixo para registrar um novo banco no aplicativo. Ele será adicionado
+                            ao sistema e poderá ser selecionado nas ações financeiras.
+                        </Text>
 
-                    <Input>
-                        <InputField
-                            placeholder="Nome do Banco"
-                            value={nameBank}
-                            onChangeText={setNameBank}
-                        />
-                    </Input>
+                        <Input>
+                            <InputField
+                                placeholder="Nome do Banco"
+                                value={nameBank}
+                                onChangeText={setNameBank}
+                            />
+                        </Input>
 
-                    <Button
-                        className="w-full"
-                        size="sm"
-                        variant="outline"
-                        onPress={registerBank}
-                        isDisabled={isSubmitting}
-                    >
-                        {isSubmitting ? (
-                            <ButtonSpinner />
-                        ) : (
-                            <ButtonText>
-                                Registrar Banco
-                            </ButtonText>
-                        )}
-                    </Button>
-                </VStack>
+                        <Button
+                            className="w-full mt-2"
+                            size="sm"
+                            variant="outline"
+                            onPress={registerBank}
+                            isDisabled={isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <ButtonSpinner />
+                            ) : (
+                                <ButtonText>
+                                    Registrar Banco
+                                </ButtonText>
+                            )}
+                        </Button>
+                    </VStack>
+                </View>
+
+                <Menu defaultValue={2} />
             </View>
         </TouchableWithoutFeedback>
     );

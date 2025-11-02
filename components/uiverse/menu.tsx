@@ -1,122 +1,193 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import styled from 'styled-components/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { BackHandler, View } from 'react-native';
+import { router } from 'expo-router';
 
-const TAB_WIDTH = 130;
-const TAB_HEIGHT = 28;
-const TAB_PADDING = 2;
-const DEFAULT_LABELS = ['Profile', 'Settings', 'Notifications'] as const;
+import { HStack } from '@/components/ui/hstack';
+import { Button, ButtonText } from '@/components/ui/button';
+import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 
-type MenuProps = {
-	labels?: readonly string[];
+export type MenuOption = {
+	label: string;
+	value?: number;
+	onSelect?: () => void;
+};
+
+export type MenuGroup = {
+	triggerLabel: string;
+	options: MenuOption[];
+};
+
+export type MenuProps = {
+	groups?: MenuGroup[];
 	defaultIndex?: number;
-	onChange?: (index: number, label: string) => void;
+	defaultValue?: number;
+	onChange?: (value: number, label: string) => void;
 };
 
-const normalizeIndex = (index: number, total: number) => {
-	if (total <= 0) {
-		return 0;
-	}
-	if (index < 0) {
-		return 0;
-	}
-	if (index >= total) {
-		return total - 1;
-	}
-	return index;
-};
+const buildDefaultGroups = (): MenuGroup[] => [
+	{
+		triggerLabel: 'Home',
+		options: [
+			{
+				label: 'Home',
+				value: 0,
+				onSelect: () => router.replace('/home?tab=0'),
+			},
+		],
+	},
+	{
+		triggerLabel: 'Controle',
+		options: [
+			{
+				label: 'Registrar Despesa',
+				value: 1,
+				onSelect: () => router.push('/add-register-expenses'),
+			},
+			{
+				label: 'Registrar Ganho',
+				value: 1,
+				onSelect: () => router.push('/add-register-gain'),
+			},
+		],
+	},
+	{
+		triggerLabel: 'Configurações',
+		options: [
+			{
+				label: 'Configurações',
+				value: 2,
+				onSelect: () => router.replace('/home?tab=2'),
+			},
+		],
+	},
+];
+
+const resolveAvailableValues = (groups: MenuGroup[]) =>
+	groups
+		.flatMap(group => group.options)
+		.filter(option => typeof option.value === 'number')
+		.map(option => option.value as number);
 
 export const Menu: React.FC<MenuProps> = ({
-	labels,
-	defaultIndex = 0,
+	groups,
+	defaultIndex,
+	defaultValue,
 	onChange,
 }) => {
-	const resolvedLabels = useMemo(
-		() => (labels && labels.length > 0 ? [...labels] : [...DEFAULT_LABELS]),
-		[labels],
-	);
-	const labelCount = resolvedLabels.length;
-	const [activeIndex, setActiveIndex] = useState(() =>
-		normalizeIndex(defaultIndex, labelCount),
+	const resolvedGroups = useMemo(
+		() => (groups && groups.length > 0 ? groups : buildDefaultGroups()),
+		[groups],
 	);
 
-	useEffect(() => {
-		setActiveIndex(prev => normalizeIndex(prev, labelCount));
-	}, [labelCount]);
+	const availableValues = useMemo(
+		() => resolveAvailableValues(resolvedGroups),
+		[resolvedGroups],
+	);
+
+	const incomingDefault = defaultValue ?? defaultIndex;
+	const normalizedDefault = useMemo(() => {
+		if (typeof incomingDefault === 'number' && availableValues.includes(incomingDefault)) {
+			return incomingDefault;
+		}
+		return availableValues[0] ?? 0;
+	}, [availableValues, incomingDefault]);
+
+	const [activeValue, setActiveValue] = useState<number>(normalizedDefault);
 
 	useEffect(() => {
-		setActiveIndex(normalizeIndex(defaultIndex, labelCount));
-	}, [defaultIndex, labelCount]);
+		setActiveValue(prev => {
+			if (availableValues.length === 0) {
+				return prev;
+			}
+			return availableValues.includes(prev) ? prev : availableValues[0];
+		});
+	}, [availableValues]);
 
-	if (resolvedLabels.length === 0) {
+	useEffect(() => {
+		setActiveValue(normalizedDefault);
+	}, [normalizedDefault]);
+
+	useEffect(() => {
+		const handleBackPress = () => {
+			if (router) {
+				router.replace('/home?tab=0');
+				return true;
+			}
+			return false;
+		};
+
+		const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+
+		return () => {
+			backHandler.remove();
+		};
+	}, []);
+
+	const handleSelect = useCallback(
+		(option: MenuOption) => {
+			if (typeof option.value === 'number') {
+				setActiveValue(option.value);
+				onChange?.(option.value, option.label);
+			}
+			option.onSelect?.();
+		},
+		[onChange],
+	);
+
+	const activeGroupIndex = useMemo(
+		() =>
+			resolvedGroups.findIndex(group =>
+				group.options.some(option => option.value === activeValue),
+			),
+		[resolvedGroups, activeValue],
+	);
+
+	if (resolvedGroups.length === 0) {
 		return null;
 	}
 
-	const handlePress = (index: number) => {
-		setActiveIndex(index);
-		onChange?.(index, resolvedLabels[index]);
-	};
-
 	return (
-		<StyledWrapper>
-			<TabContainer>
-				<Indicator left={TAB_PADDING + activeIndex * TAB_WIDTH} />
-				{resolvedLabels.map((label, index) => (
-					<TabButton
-						key={label}
-						accessibilityRole="tab"
-						accessibilityState={{ selected: activeIndex === index }}
-						onPress={() => handlePress(index)}
-					>
-						<TabLabel active={activeIndex === index}>{label}</TabLabel>
-					</TabButton>
-				))}
-			</TabContainer>
-		</StyledWrapper>
+		<View className="w-full items-center py-4 px-6">
+			<HStack space="md" className="w-full justify-center">
+				{resolvedGroups.map((group, groupIndex) => {
+					if (group.options.length === 0) {
+						return null;
+					}
+
+					const isActiveGroup = groupIndex === activeGroupIndex;
+
+					return (
+						<GluestackMenu
+							placement="top"
+							key={group.triggerLabel}
+							closeOnSelect
+							trigger={triggerProps => (
+								<Button
+									{...triggerProps}
+									size="sm"
+									variant={isActiveGroup ? 'solid' : 'outline'}
+									action="secondary"
+									className="min-w-[120px]"
+								>
+									<ButtonText>{group.triggerLabel}</ButtonText>
+								</Button>
+							)}
+						>
+							{group.options.map(option => (
+								<MenuItem
+									key={`${group.triggerLabel}-${option.label}`}
+									onPress={() => handleSelect(option)}
+									textValue={option.label}
+								>
+									<MenuItemLabel bold={option.value === activeValue}>
+										{option.label}
+									</MenuItemLabel>
+								</MenuItem>
+							))}
+						</GluestackMenu>
+					);
+				})}
+			</HStack>
+		</View>
 	);
 };
-
-const StyledWrapper = styled.View({
-	width: '100%',
-	alignItems: 'center',
-	paddingVertical: 16,
-});
-
-const TabContainer = styled.View({
-	position: 'relative',
-	flexDirection: 'row',
-	alignItems: 'center',
-	padding: TAB_PADDING,
-	backgroundColor: '#dadadb',
-	borderRadius: 9,
-});
-
-const Indicator = styled.View<{ left: number }>(({ left }) => ({
-	position: 'absolute',
-	top: TAB_PADDING,
-	left,
-	width: TAB_WIDTH,
-	height: TAB_HEIGHT,
-	backgroundColor: '#ffffff',
-	borderRadius: 7,
-	borderWidth: 0.5,
-	borderColor: 'rgba(0, 0, 0, 0.04)',
-	shadowColor: '#000',
-	shadowOpacity: 0.12,
-	shadowRadius: 8,
-	shadowOffset: { width: 0, height: 3 },
-	elevation: 3,
-}));
-
-const TabButton = styled.Pressable({
-	width: TAB_WIDTH,
-	height: TAB_HEIGHT,
-	alignItems: 'center',
-	justifyContent: 'center',
-});
-
-const TabLabel = styled.Text<{ active: boolean }>(({ active }) => ({
-	fontSize: 12,
-	opacity: active ? 1 : 0.6,
-	fontWeight: '500',
-	color: '#000',
-}));

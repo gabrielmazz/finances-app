@@ -33,6 +33,7 @@ import { auth } from '@/FirebaseConfig';
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase } from '@/functions/RegisterUserFirebase';
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
+import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 
 type AccordionItem = {
 	id: string;
@@ -41,6 +42,7 @@ type AccordionItem = {
 	action?: { router: string; label: string };
 	showUsersTable?: boolean;
 	showBanksTable?: boolean;
+	showTagsTable?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
@@ -64,6 +66,17 @@ const accordionItems: AccordionItem[] = [
 		action: {
 			router: '/add-register-bank',
 			label: 'Adicionar Banco',
+		},
+	},
+	{
+		id: 'item-3',
+		title: 'Adicionar uma nova tag ao aplicativo',
+		content:
+			'Para adicionar uma nova tag, acesse a seção de configurações e clique em "Adicionar Tag". Insira o nome desejado e confirme para salvar.',
+		showTagsTable: true,
+		action: {
+			router: '/add-register-tag',
+			label: 'Adicionar Tag',
 		},
 	},
 ];
@@ -122,7 +135,14 @@ export async function fetchAllUsers() {
 
 export async function handleAddBank(bankName: string) {
 
-	const result = await addBankFirebase({ bankName });
+	const personId = auth.currentUser?.uid;
+
+	if (!personId) {
+		console.error('Não foi possível identificar o usuário atual ao adicionar banco.');
+		return null;
+	}
+
+	const result = await addBankFirebase({ bankName, personId });
 
 	if (result.success) {
 
@@ -164,6 +184,37 @@ export async function fetchAllBanks() {
 	}
 }
 
+// ================================== Relacionamento de Admin (Tags) =============================================== //
+
+export async function handleDeleteTag(tagId: string) {
+
+	const result = await deleteTagFirebase(tagId);
+
+	if (result.success) {
+
+		console.log('Tag deletada com sucesso:', tagId);
+
+	} else {
+
+		console.error('Erro ao deletar tag:', result.error);
+	}
+}
+
+export async function fetchAllTags() {
+
+	const result = await getAllTagsFirebase();
+
+	if (result.success) {
+
+		return result.data;
+
+	} else {
+
+		console.error('Erro ao buscar todas as tags:', result.error);
+		return null;
+	}
+}
+
 // ================================================================================================================= //
 
 export default function ConfigurationsScreen() {
@@ -174,6 +225,7 @@ export default function ConfigurationsScreen() {
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string }>>([]);
+	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string }>>([]);
 
 	// Buscar todos as informações para mostrar na tabela de usuários, bancos
 	React.useEffect(() => {
@@ -206,11 +258,24 @@ export default function ConfigurationsScreen() {
 				}
 			});
 
+			fetchAllTags().then((tags) => {
+
+				if (isMounted && tags) {
+					const formattedTags = tags.map((tag: any) => ({
+						id: tag.id,
+						name: tag.name,
+					}));
+
+					setTagData(formattedTags);
+				}
+			});
+
 
 		} else {
 
 			setUserData([]);
 			setBankData([]);
+			setTagData([]);
 		}
 
 		return () => {
@@ -224,6 +289,7 @@ export default function ConfigurationsScreen() {
 
 		<View
 			className="
+				flex-1 w-full h-full
 				mt-[64px]
 				items-center
 			"
@@ -419,6 +485,83 @@ export default function ConfigurationsScreen() {
 																action="negative"
 																onPress={
 																	() => handleDeleteBank(bank.id)
+																		.then(() => {
+																			router.replace('/Configurations');
+																		})
+																}
+															>
+																<ButtonIcon as={TrashIcon} />
+															</Button>
+
+														</TableData>
+
+													</TableRow>
+												))}
+
+											</TableBody>
+
+										</Table>
+
+									</View>
+								)}
+
+								{item.showTagsTable && isAdmin && tagData.length > 0 && (
+									<View className="mt-6 mb-4">
+
+										<Table
+											className="
+												w-full
+												border
+												border-outline-200
+												rounded-lg
+												overflow-hidden
+											"
+										>
+
+											<TableHeader>
+
+												<TableRow>
+
+													<TableHead>
+														Tag cadastrada
+													</TableHead>
+
+													<TableHead
+														className="
+															text-center
+														"
+													>
+														Ações
+													</TableHead>
+
+												</TableRow>
+
+											</TableHeader>
+
+											<TableBody>
+
+												{tagData.map((tag) => (
+
+													<TableRow key={tag.id}>
+
+														<TableData>
+
+															<Text
+																size="md"
+															>
+																{tag.name}
+															</Text>
+
+														</TableData>
+
+														<TableData useRNView>
+
+															<Button
+																size="xs"
+																variant="link"
+																action="negative"
+																onPress={
+																	() => handleDeleteTag(tag.id)
 																		.then(() => {
 																			router.replace('/Configurations');
 																		})
