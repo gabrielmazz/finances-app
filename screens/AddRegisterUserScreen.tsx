@@ -19,6 +19,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 
 // Importações relacionadas à navegação e autenticação
 import { router } from 'expo-router';
+import { Menu } from '@/components/uiverse/menu';
 
 export default function AddRegisterUserScreen() {
 
@@ -76,58 +77,67 @@ export default function AddRegisterUserScreen() {
             <View className="
                 flex-1 w-full h-full
                 mt-[64px]
-                items-center"
+                items-center
+                justify-between
+                pb-6
+                "
             >
 
                 <FloatingAlertViewport />
 
-                <Heading size="3xl" className="text-center mb-6">
-                    Adição de um novo usuário
-                </Heading>
+                <View className="w-full px-6 gap-4">
 
-                <VStack className="w-full px-6 gap-4">
+                    <Heading size="3xl" className="text-center mb-6">
+                        Adição de um novo usuário
+                    </Heading>
 
-                    <Text className="mb-4">
-                        Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele será adicionado
-                        ao sistema e poderá fazer login utilizando as credenciais fornecidas.
-                    </Text>
+                    <VStack className="gap-4">
+
+                        <Text>
+                            Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele será adicionado
+                            ao sistema e poderá fazer login utilizando as credenciais fornecidas.
+                        </Text>
 
 
-                    <Input>
-                        <InputField
-                            placeholder="Email"
-                            value={email}
-                            onChangeText={setEmail}
-                        />
-                    </Input>
+                        <Input>
+                            <InputField
+                                placeholder="Email"
+                                value={email}
+                                onChangeText={setEmail}
+                            />
+                        </Input>
 
-                    <Input>
-                        <InputField
-                            placeholder="Senha"
-                            secureTextEntry={!showPassword}
-                            type={showPassword ? 'text' : 'password'}
-                            value={password}
-                            onChangeText={setPassword}
-                        />
-                        <InputSlot className="pr-3" onPress={handleState}>
-                            <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-                        </InputSlot>
-                    </Input>
+                        <Input>
+                            <InputField
+                                placeholder="Senha"
+                                secureTextEntry={!showPassword}
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChangeText={setPassword}
+                            />
+                            <InputSlot className="pr-3" onPress={handleState}>
+                                <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+                            </InputSlot>
+                        </Input>
 
-                    <Button
-                        className="w-full"
-                        size="sm"
-                        variant="outline"
-                        onPress={registerUser}
-                    >
+                        <Button
+                            className="w-full mt-2"
+                            size="sm"
+                            variant="outline"
+                            onPress={registerUser}
+                        >
 
-                        <ButtonText>
-                            Registrar Usuário
-                        </ButtonText>
+                            <ButtonText>
+                                Registrar Usuário
+                            </ButtonText>
 
-                    </Button>
+                        </Button>
 
-                </VStack>
+                    </VStack>
+
+                </View>
+
+                <Menu defaultValue={2} />
 
             </View>
 

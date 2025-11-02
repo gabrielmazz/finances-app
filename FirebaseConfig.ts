@@ -35,7 +35,14 @@ const secondaryAppInstance: FirebaseApp =
     getApps().some(existingApp => existingApp.name === 'SECONDARY')
         ? getApp('SECONDARY')
         : initializeApp(firebaseConfig, 'SECONDARY');
-const secondaryAuthInstance = getAuth(secondaryAppInstance);
+let secondaryAuthInstance;
+try {
+    secondaryAuthInstance = initializeAuth(secondaryAppInstance, {
+        persistence: getReactNativePersistence(AsyncStorage)
+    });
+} catch (_error) {
+    secondaryAuthInstance = getAuth(secondaryAppInstance);
+}
 
 export const app = appInstance;
 export const auth = authInstance;

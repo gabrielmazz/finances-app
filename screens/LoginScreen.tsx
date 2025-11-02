@@ -1,7 +1,7 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -26,7 +26,6 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 
 // Importação responsável pela navegação pelo expo-router
 import { router } from 'expo-router';
-
 
 export default function LoginScreen() {
 
@@ -64,131 +63,140 @@ export default function LoginScreen() {
     }
 
     return (
-        <SafeAreaView
-            className="
+
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+
+            <SafeAreaView
+                className="
                 flex-1
             "
-        >
-            <View
-                className="
-                    flex-1
-                    justify-center
-                    px-6
-                "
             >
-                <VStack
-                    space="lg"
-                >
-
-                    <Heading
-                        size="3xl"
-                        className="mb-6"
+                <View className="flex-1 justify-between pb-6">
+                    <View
+                        className="
+                        flex-1
+                        justify-center
+                        px-6
+                    "
                     >
-                        Bem-vindo de volta!
-                    </Heading>
+                        <VStack
+                            space="sm"
+                        >
 
-                    {/* Campo responsável pelo login */}
-                    <FormControl
-                        size="lg"
-                        isDisabled={false}
-                        isReadOnly={false}
-                        isRequired={false}
-                    >
-                        <FormControlLabel>
+                            <Heading
+                                size="3xl"
+                                className="mb-6"
+                            >
+                                Bem-vindo de volta!
+                            </Heading>
 
-                            <FormControlLabelText>
-                                Login
-                            </FormControlLabelText>
+                            {/* Campo responsável pelo login */}
+                            <FormControl
+                                size="lg"
+                                isDisabled={false}
+                                isReadOnly={false}
+                                isRequired={false}
+                            >
+                                <FormControlLabel>
 
-                        </FormControlLabel>
+                                    <FormControlLabelText>
+                                        Login
+                                    </FormControlLabelText>
 
-                        <Input className="my-1" size="md">
+                                </FormControlLabel>
 
-                            <InputField
-                                value={email}
-                                onChangeText={setEmail}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                                placeholder="Digite seu login"
-                            />
+                                <Input className="my-1" size="md">
 
-                        </Input>
+                                    <InputField
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                        placeholder="Digite seu login"
+                                    />
 
-                        <FormControlHelper>
+                                </Input>
 
-                            <FormControlHelperText>
-                                Informe o login utilizado no cadastro.
-                            </FormControlHelperText>
+                                <FormControlHelper>
 
-                        </FormControlHelper>
+                                    <FormControlHelperText>
+                                        Informe o login utilizado no cadastro.
+                                    </FormControlHelperText>
 
-                        <FormControlError>
-                            <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
-                            <FormControlErrorText className="text-red-500">
-                                Informe um login válido.
-                            </FormControlErrorText>
+                                </FormControlHelper>
 
-                        </FormControlError>
+                                <FormControlError>
+                                    <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
+                                    <FormControlErrorText className="text-red-500">
+                                        Informe um login válido.
+                                    </FormControlErrorText>
 
-                    </FormControl>
+                                </FormControlError>
 
-
-                    {/* Campo responsável pela senha */}
-                    <FormControl
-                        size="md"
-                        isDisabled={false}
-                        isReadOnly={false}
-                        isRequired={true}
-                    >
-                        <FormControlLabel>
-                            <FormControlLabelText>Senha</FormControlLabelText>
-                        </FormControlLabel>
-
-                        <Input className="my-1" size="md">
-                            <InputField
-                                type="password"
-                                value={password}
-                                onChangeText={setPassword}
-                                placeholder="Digite sua senha"
-                            />
-                        </Input>
-
-                        <FormControlHelper>
-
-                            <FormControlHelperText>
-                                Sua senha deve ter no mínimo 6 caracteres.
-                            </FormControlHelperText>
-
-                        </FormControlHelper>
-
-                        <FormControlError>
-
-                            <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
-
-                            <FormControlErrorText className="text-red-500">
-                                A senha deve ter pelo menos 6 caracteres.
-                            </FormControlErrorText>
-
-                        </FormControlError>
-
-                    </FormControl>
+                            </FormControl>
 
 
+                            {/* Campo responsável pela senha */}
+                            <FormControl
+                                size="md"
+                                isDisabled={false}
+                                isReadOnly={false}
+                                isRequired={true}
+                            >
+                                <FormControlLabel>
+                                    <FormControlLabelText>Senha</FormControlLabelText>
+                                </FormControlLabel>
 
-                    {/* Botão para efetuar o login */}
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onPress={singIn}
-                    >
-                        <ButtonText>
-                            Entrar
-                        </ButtonText>
+                                <Input className="my-1" size="md">
+                                    <InputField
+                                        type="password"
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        placeholder="Digite sua senha"
+                                    />
+                                </Input>
 
-                    </Button>
+                                <FormControlHelper>
 
-                </VStack>
-            </View>
-        </SafeAreaView>
+                                    <FormControlHelperText>
+                                        Sua senha deve ter no mínimo 6 caracteres.
+                                    </FormControlHelperText>
+
+                                </FormControlHelper>
+
+                                <FormControlError>
+
+                                    <FormControlErrorIcon as={AlertCircleIcon} className="text-red-500" />
+
+                                    <FormControlErrorText className="text-red-500">
+                                        A senha deve ter pelo menos 6 caracteres.
+                                    </FormControlErrorText>
+
+                                </FormControlError>
+
+                            </FormControl>
+
+
+
+                            {/* Botão para efetuar o login */}
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onPress={singIn}
+                            >
+                                <ButtonText>
+                                    Entrar
+                                </ButtonText>
+
+                            </Button>
+
+                        </VStack>
+                    </View>
+
+                </View>
+
+            </SafeAreaView>
+
+        </TouchableWithoutFeedback>
     );
 }
