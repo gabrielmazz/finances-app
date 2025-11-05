@@ -455,11 +455,11 @@ export default function ConfigurationsScreen() {
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
 			<View
 				className="
-				flex-1 w-full h-full
-				mt-[64px]
-				pb-6
-				relative
-			"
+					flex-1 w-full h-full
+					mt-[64px]
+					pb-6
+					relative
+				"
 			>
 
 				<ScrollView
@@ -476,9 +476,9 @@ export default function ConfigurationsScreen() {
 						<Heading
 							size="3xl"
 							className="
-					text-center 
-					mb-6
-				"
+								text-center 
+								mb-6
+							"
 						>
 							Menu de Configurações
 						</Heading>
@@ -494,8 +494,8 @@ export default function ConfigurationsScreen() {
 									placeholder="ID do Usuário"
 									value={userId}
 									className="
-							vw-
-						"
+										vw-full
+									"
 								/>
 							</Input>
 						</VStack>
@@ -552,12 +552,12 @@ export default function ConfigurationsScreen() {
 
 														<Table
 															className="
-												w-full
-												border
-												border-outline-200
-												rounded-lg
-												overflow-hidden
-											"
+																w-full
+																border
+																border-outline-200
+																rounded-lg
+																overflow-hidden
+															"
 														>
 
 															<TableHeader>
@@ -570,8 +570,8 @@ export default function ConfigurationsScreen() {
 
 																	<TableHead
 																		className="
-															text-center
-														"
+																			text-center
+																		"
 																	>
 																		Ações
 																	</TableHead>
@@ -631,12 +631,12 @@ export default function ConfigurationsScreen() {
 
 														<Table
 															className="
-												w-full
-												border
-												border-outline-200
-												rounded-lg
-												overflow-hidden
-											"
+																w-full
+																border
+																border-outline-200
+																rounded-lg
+																overflow-hidden
+															"
 														>
 
 															<TableHeader>
@@ -708,12 +708,12 @@ export default function ConfigurationsScreen() {
 
 														<Table
 															className="
-												w-full
-												border
-												border-outline-200
-												rounded-lg
-												overflow-hidden
-											"
+																w-full
+																border
+																border-outline-200
+																rounded-lg
+																overflow-hidden
+															"
 														>
 
 															<TableHeader>
@@ -789,12 +789,12 @@ export default function ConfigurationsScreen() {
 														) : relatedUserData.length > 0 ? (
 															<Table
 																className="
-															w-full
-															border
-															border-outline-200
-															rounded-lg
-															overflow-hidden
-														"
+																	w-full
+																	border
+																	border-outline-200
+																	rounded-lg
+																	overflow-hidden
+																"
 															>
 																<TableHeader>
 																	<TableRow>

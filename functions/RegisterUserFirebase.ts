@@ -242,4 +242,33 @@ export async function getRelatedUsersFirebase(userId: string) {
     }
 }
 
+// Função para resgatar os IDs dos usuários relacionados ao usuário passado por parâmetro, voltando o objeto
+// inteiro da consulta, necessário separa-los posteriormente para tratamentos mais específicos
+export async function getRelatedUsersIDsFirebase(userId: string) {
+
+    try {
+
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            return { success: false, error: 'Usuário não encontrado.' };
+        }
+
+        const userData = userDoc.data();
+        const relatedIdUsers = Array.isArray(userData.relatedIdUsers)
+            ? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+            : [];
+
+        if (relatedIdUsers.length === 0) {
+            return { success: true, data: [] };
+        }
+
+        return { success: true, data: relatedIdUsers };
+    } catch (error) {
+        console.error('Erro ao buscar usuários relacionados:', error);
+        return { success: false, error };
+    }
+}
+
 // ================================================================================================================= //
