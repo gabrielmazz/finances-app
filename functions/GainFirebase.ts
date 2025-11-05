@@ -2,7 +2,7 @@
 // aos ganhos registrados no aplicativo.
 
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 
 interface AddGainParams {
 	name: string;
@@ -91,6 +91,33 @@ export async function getGainDataFirebase(gainId: string) {
 		return { success: false, error: 'Ganho não encontrado' };
 	} catch (error) {
 		console.error('Erro ao obter dados do ganho:', error);
+		return { success: false, error };
+	}
+}
+
+interface GetLimitedGainsParams {
+	limit: number;
+	personId?: string;
+}
+
+// Função para obter um limite de ganhos registrados no Firestore, ordenados por data de criação (mais recentes primeiro)
+export async function getLimitedGainsFirebase({ limit, personId }: GetLimitedGainsParams) {
+	try {
+		const gainsCollection = collection(db, 'gains');
+
+		const gainsQuery = personId
+			? query(gainsCollection, where('personId', '==', personId), orderBy('createdAt', 'desc'), limitQuery(limit))
+			: query(gainsCollection, orderBy('createdAt', 'desc'), limitQuery(limit));
+
+		const gainsSnapshot = await getDocs(gainsQuery);
+		const gains = gainsSnapshot.docs.map(gainDoc => ({
+			id: gainDoc.id,
+			...gainDoc.data(),
+		}));
+
+		return { success: true, data: gains };
+	} catch (error) {
+		console.error('Erro ao obter ganhos limitados:', error);
 		return { success: false, error };
 	}
 }
