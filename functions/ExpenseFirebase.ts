@@ -2,7 +2,7 @@
 // às despesas registradas no aplicativo.
 
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 
 interface AddExpenseParams {
 	name: string;
@@ -88,6 +88,34 @@ export async function getExpenseDataFirebase(expenseId: string) {
 		return { success: false, error: 'Despesa não encontrada' };
 	} catch (error) {
 		console.error('Erro ao obter dados da despesa:', error);
+		return { success: false, error };
+	}
+}
+
+interface GetLimitedExpensesParams {
+	limit: number;
+	personId?: string;
+}
+
+// Função para obter um limite de despesas registradas no Firestore, ordenadas por data de criação (mais recentes primeiro)
+export async function getLimitedExpensesFirebase({ limit, personId }: GetLimitedExpensesParams) {
+	try {
+		const expensesCollection = collection(db, 'expenses');
+
+		const expensesQuery = personId
+			? query(expensesCollection, where('personId', '==', personId), orderBy('createdAt', 'desc'), limitQuery(limit))
+			: query(expensesCollection, orderBy('createdAt', 'desc'), limitQuery(limit));
+
+		const expensesSnapshot = await getDocs(expensesQuery);
+
+		const expenses = expensesSnapshot.docs.map(expenseDoc => ({
+			id: expenseDoc.id,
+			...expenseDoc.data(),
+		}));
+
+		return { success: true, data: expenses };
+	} catch (error) {
+		console.error('Erro ao obter despesas limitadas:', error);
 		return { success: false, error };
 	}
 }

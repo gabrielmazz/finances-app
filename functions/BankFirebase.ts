@@ -240,3 +240,73 @@ export async function getCurrentMonthSummaryByBankFirebaseExpanses(personId: str
     }
 
 }
+
+// Função para obter uma lista dos ganhos de um banco, por um range de datas entre o começo de
+// um mês e o final dele, apenas mostrando resgatando esses valores, automaticamente ele seleciona os dados do mês atual
+// da execução desse aplicativo, se por exemplo é setembro, ele busca do dia 1 de setembro até o dia 30 de setembro
+export async function getCurrentMonthSummaryByBankFirebaseGains(personId: string) {
+
+    try {
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Busca os bancos vinculados ao personId e aos seus usuarios relacionados
+        const banksResult = await getBanksWithUsersByPersonFirebase(personId);
+
+        if (!banksResult.success) {
+            throw new Error('Erro ao obter bancos vinculados.');
+        }
+
+        // Constante para separar os IDs dos bancos em uma array
+        const bankIds = Array.isArray(banksResult.data) ? banksResult.data.map((bank: any) => bank.id) : [];
+
+        if (bankIds.length === 0) {
+            return { success: true, data: [] }; // Nenhum banco vinculado encontrado
+        }
+
+        // Consulta as pessoas e os seus IDs relacionados para usar na query
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        // Constante para separar os IDs dos usuarios relacionados em uma array
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+
+        // Inclui o personId na lista de IDs para buscar seus ganhos também
+        relatedUserIds.push(personId);
+
+        // Monta a query para buscar os registros de ganhos com as listas obtidas e o range de datas
+        const gainsQuery = query(
+            collection(db, 'gains'),
+            where('bankId', 'in', bankIds),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(startOfMonth)),
+            where('date', '<=', Timestamp.fromDate(endOfMonth))
+        );
+
+        const gainsSnapshot = await getDocs(gainsQuery);
+
+        // Mapeia os resultados para um formato mais amigável
+        const gains = gainsSnapshot.docs.map(gainDoc => ({
+            id: gainDoc.id,
+            ...gainDoc.data(),
+        }));
+
+        console.log('Ganhos obtidos para o mês atual:', gains);
+
+        return { success: true, data: gains };
+
+    } catch (error) {
+
+        console.error('Erro ao obter resumo mensal por banco:', error);
+        return { success: false, error };
+
+    }
+
+}
+
+// ================================================================================================================= //
