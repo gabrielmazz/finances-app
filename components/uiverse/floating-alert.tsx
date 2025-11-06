@@ -1,6 +1,6 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import type { ViewStyle } from 'react-native';
-import { View } from 'react-native';
 import { Alert, AlertText, AlertIcon } from '@/components/ui/alert';
 import { InfoIcon } from '@/components/ui/icon';
 
@@ -133,7 +133,7 @@ const FloatingAlertView: React.FC<FloatingAlertViewProps> = ({ state }) => {
 		<View
 			pointerEvents="box-none"
 			className={composedContainerClass}
-			style={containerStyle}
+			style={[styles.alertContainer, containerStyle]}
 		>
 			<Alert
 				action={action}
@@ -198,8 +198,28 @@ const FloatingAlertViewport: React.FC<FloatingAlertViewportProps> = ({
 		return null;
 	}
 
-	return <FloatingAlertView state={state} />;
+	return (
+		<View pointerEvents="box-none" style={styles.viewport}>
+			<FloatingAlertView state={state} />
+		</View>
+	);
 };
+
+const styles = StyleSheet.create({
+	viewport: {
+		position: 'absolute',
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 0,
+		zIndex: 9999,
+		elevation: 9999,
+	},
+	alertContainer: {
+		zIndex: 9999,
+		elevation: 9999,
+	},
+});
 
 export { FloatingAlertViewport };
 export type { FloatingAlertOptions };

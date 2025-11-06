@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, View } from 'react-native';
+import { Alert, BackHandler, View } from 'react-native';
 import { router } from 'expo-router';
+import { signOut } from 'firebase/auth';
 
 import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
+import { auth } from '@/FirebaseConfig';
 
 export type MenuOption = {
 	label: string;
@@ -22,6 +24,16 @@ export type MenuProps = {
 	defaultIndex?: number;
 	defaultValue?: number;
 	onChange?: (value: number, label: string) => void;
+};
+
+const logoutUser = async () => {
+	try {
+		await signOut(auth);
+		router.replace('/');
+	} catch (error) {
+		console.error('Erro ao deslogar usuário:', error);
+		Alert.alert('Erro ao deslogar', 'Não foi possível encerrar a sessão. Tente novamente.');
+	}
 };
 
 const buildDefaultGroups = (): MenuGroup[] => [
@@ -57,6 +69,12 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				label: 'Configurações',
 				value: 2,
 				onSelect: () => router.replace('/home?tab=2'),
+			},
+			{
+				label: 'Sair',
+				onSelect: () => {
+					void logoutUser();
+				},
 			},
 		],
 	},
@@ -147,7 +165,7 @@ export const Menu: React.FC<MenuProps> = ({
 	}
 
 	return (
-		<View className="w-full items-center py-4 px-6">
+		<View className="w-full items-center py-4 px-6 mt-4">
 			<HStack space="md" className="w-full justify-center">
 				{resolvedGroups.map((group, groupIndex) => {
 					if (group.options.length === 0) {

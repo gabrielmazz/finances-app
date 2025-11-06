@@ -7,18 +7,20 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/fi
 interface AddTagParams {
 	tagName: string;
 	personId: string;
+	usageType: 'expense' | 'gain';
 }
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar uma nova tag no Firestore
-export async function addTagFirebase({ tagName, personId }: AddTagParams) {
+export async function addTagFirebase({ tagName, personId, usageType }: AddTagParams) {
 	try {
 		const tagRef = doc(collection(db, 'tags'));
 
 		await setDoc(tagRef, {
 			name: tagName,
 			personId,
+			usageType,
 			createdAt: new Date(),
 		});
 

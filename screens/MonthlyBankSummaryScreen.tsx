@@ -6,6 +6,7 @@ import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
+import { Menu } from '@/components/uiverse/menu';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -342,6 +343,8 @@ export default function MonthlyBankSummaryScreen() {
 						)}
 					</View>
 				</ScrollView>
+
+				<Menu defaultValue={0} />
 			</View>
 		</TouchableWithoutFeedback>
 	);

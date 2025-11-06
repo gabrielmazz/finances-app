@@ -46,6 +46,7 @@ import { CheckIcon } from '@/components/ui/icon';
 type OptionItem = {
 	id: string;
 	name: string;
+	usageType?: 'expense' | 'gain';
 };
 
 const formatCurrencyBRL = (valueInCents: number) =>
@@ -146,15 +147,29 @@ export default function AddRegisterGainScreen() {
 					}
 
 					if (tagsResult.success && Array.isArray(tagsResult.data)) {
-						const formattedTags = tagsResult.data.map((tag: any) => ({
-							id: tag.id,
-							name: tag.name,
-						}));
+						const formattedTags = tagsResult.data
+							.filter((tag: any) => {
+								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
+								return usageType === 'gain' || usageType === undefined || usageType === null;
+							})
+							.map((tag: any) => ({
+								id: tag.id,
+								name: tag.name,
+								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+							}));
 
 						setTags(formattedTags);
 						setSelectedTagId(current =>
 							current && formattedTags.some(tag => tag.id === current) ? current : null,
 						);
+
+						if (formattedTags.length === 0) {
+							showFloatingAlert({
+								message: 'Nenhuma tag de ganhos disponível. Cadastre uma tag marcada como ganho.',
+								action: 'warning',
+								position: 'bottom',
+							});
+						}
 					} else {
 						showFloatingAlert({
 							message: 'Não foi possível carregar as tags disponíveis.',
