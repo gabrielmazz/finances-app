@@ -123,24 +123,20 @@ export async function fetchUserData(userId: string) {
 
 export async function handleDeleteUser(userId: string) {
 
-	// Evita que o usuário atual se delete e se ele for um admin
-	const currentUser = auth.currentUser;
-
-	if (currentUser && currentUser.uid === userId) {
-		alert('Ação inválida: Você não pode deletar o usuário atualmente logado.');
-		return;
-	}
-
 	const result = await deleteUserFirebase(userId);
 
 	if (result.success) {
 
-		console.log('Usuário deletado com sucesso:', userId);
-
 	} else {
 
-		console.error('Erro ao deletar usuário:', result.error);
+		showFloatingAlert({
+			message: 'Erro ao deletar usuário. Tente novamente.',
+			action: 'error',
+			position: 'bottom',
+		});
 	}
+
+	return result;
 }
 
 export async function fetchAllUsers() {
@@ -189,11 +185,19 @@ export async function handleAddBank(bankName: string) {
 
 	if (result.success) {
 
-		console.log('Banco adicionado com sucesso:', result.bankId);
+		showFloatingAlert({
+			message: `Banco ${bankName} adicionado com sucesso.`,
+			action: 'success',
+			position: 'bottom',
+		});
 
 	} else {
 
-		console.error('Erro ao adicionar banco:', result.error);
+		showFloatingAlert({
+			message: 'Erro ao adicionar banco. Tente novamente.',
+			action: 'error',
+			position: 'bottom',
+		});
 	}
 
 }
@@ -204,12 +208,16 @@ export async function handleDeleteBank(bankId: string) {
 
 	if (result.success) {
 
-		console.log('Banco deletado com sucesso:', bankId);
-
 	} else {
 
-		console.error('Erro ao deletar banco:', result.error);
+		showFloatingAlert({
+			message: 'Erro ao deletar banco. Tente novamente.',
+			action: 'error',
+			position: 'bottom',
+		});
 	}
+
+	return result;
 }
 
 export async function fetchAllBanks() {
@@ -235,12 +243,16 @@ export async function handleDeleteTag(tagId: string) {
 
 	if (result.success) {
 
-		console.log('Tag deletada com sucesso:', tagId);
-
 	} else {
 
-		console.error('Erro ao deletar tag:', result.error);
+		showFloatingAlert({
+			message: 'Erro ao deletar tag. Tente novamente.',
+			action: 'error',
+			position: 'bottom',
+		});
 	}
+
+	return result;
 }
 
 export async function fetchAllTags() {
@@ -264,12 +276,79 @@ export default function ConfigurationsScreen() {
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string }>>([]);
-	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string }>>([]);
+	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string; usageType?: 'expense' | 'gain' }>>([]);
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
 	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
+
+	const handleUserRemoval = React.useCallback(
+		async (userId: string, identifier: string) => {
+
+			const result = await handleDeleteUser(userId);
+
+			if (result.success) {
+				setUserData(prev => prev.filter(user => user.id !== userId));
+				showFloatingAlert({
+					message: `Usuário ${identifier} foi excluído.`,
+					action: 'success',
+					position: 'bottom',
+				});
+			} else {
+				showFloatingAlert({
+					message: 'Não foi possível remover o usuário. Tente novamente.',
+					action: 'error',
+					position: 'bottom',
+				});
+			}
+		},
+		[],
+	);
+
+	const handleBankRemoval = React.useCallback(
+		async (bankId: string, bankName: string) => {
+			const result = await handleDeleteBank(bankId);
+
+			if (result.success) {
+				setBankData(prev => prev.filter(bank => bank.id !== bankId));
+				showFloatingAlert({
+					message: `Banco ${bankName || bankId} foi excluído.`,
+					action: 'success',
+					position: 'bottom',
+				});
+			} else {
+				showFloatingAlert({
+					message: 'Não foi possível remover o banco. Tente novamente.',
+					action: 'error',
+					position: 'bottom',
+				});
+			}
+		},
+		[],
+	);
+
+	const handleTagRemoval = React.useCallback(
+		async (tagId: string, tagName: string) => {
+			const result = await handleDeleteTag(tagId);
+
+			if (result.success) {
+				setTagData(prev => prev.filter(tag => tag.id !== tagId));
+				showFloatingAlert({
+					message: `Tag ${tagName || tagId} foi excluída.`,
+					action: 'success',
+					position: 'bottom',
+				});
+			} else {
+				showFloatingAlert({
+					message: 'Não foi possível remover a tag. Tente novamente.',
+					action: 'error',
+					position: 'bottom',
+				});
+			}
+		},
+		[setTagData],
+	);
 
 	// Verifica se o usuário atual possui flag de administrador no Firestore
 	React.useEffect(() => {
@@ -468,6 +547,8 @@ export default function ConfigurationsScreen() {
 						flexGrow: 1,
 						paddingBottom: 48,
 					}}
+					nestedScrollEnabled
+					showsVerticalScrollIndicator={false}
 				>
 
 					<View className="w-full px-6">
@@ -602,14 +683,9 @@ export default function ConfigurationsScreen() {
 																				size="xs"
 																				variant="link"
 																				action="negative"
-																				onPress={
-																					() => handleDeleteUser(user.id)
-
-																						// Recarregar a pagina de configurações apos deletar o usuario
-																						.then(() => {
-																							router.replace('/Configurations');
-																						})
-																				}
+																				onPress={() => {
+																					void handleUserRemoval(user.id, user.email ?? user.id);
+																				}}
 																			>
 																				<ButtonIcon as={TrashIcon} />
 																			</Button>
@@ -681,12 +757,9 @@ export default function ConfigurationsScreen() {
 																				size="xs"
 																				variant="link"
 																				action="negative"
-																				onPress={
-																					() => handleDeleteBank(bank.id)
-																						.then(() => {
-																							router.replace('/Configurations');
-																						})
-																				}
+																				onPress={() => {
+																					void handleBankRemoval(bank.id, bank.name);
+																				}}
 																			>
 																				<ButtonIcon as={TrashIcon} />
 																			</Button>
@@ -724,6 +797,10 @@ export default function ConfigurationsScreen() {
 																		Tag cadastrada
 																	</TableHead>
 
+																	<TableHead className="text-center">
+																		Tipo
+																	</TableHead>
+
 																	<TableHead
 																		className="
 															text-center
@@ -752,18 +829,27 @@ export default function ConfigurationsScreen() {
 
 																		</TableData>
 
+																		<TableData>
+
+																			<Text className="text-center">
+																				{tag.usageType === 'gain'
+																					? 'Ganhos'
+																					: tag.usageType === 'expense'
+																						? 'Despesas'
+																						: 'Não definido'}
+																			</Text>
+
+																		</TableData>
+
 																		<TableData useRNView>
 
 																			<Button
 																				size="xs"
 																				variant="link"
 																				action="negative"
-																				onPress={
-																					() => handleDeleteTag(tag.id)
-																						.then(() => {
-																							router.replace('/Configurations');
-																						})
-																				}
+																				onPress={() => {
+																					void handleTagRemoval(tag.id, tag.name);
+																				}}
 																			>
 																				<ButtonIcon as={TrashIcon} />
 																			</Button>

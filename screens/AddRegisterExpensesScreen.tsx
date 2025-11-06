@@ -32,6 +32,7 @@ import { auth } from '@/FirebaseConfig';
 type OptionItem = {
 	id: string;
 	name: string;
+	usageType?: 'expense' | 'gain';
 };
 
 // Formata um valor em centavos para o formato de moeda BRL
@@ -143,15 +144,30 @@ export default function AddRegisterExpensesScreen() {
 
 					if (tagsResult.success && Array.isArray(tagsResult.data)) {
 
-						const formattedTags = tagsResult.data.map((tag: any) => ({
-							id: tag.id,
-							name: tag.name,
-						}));
+						const formattedTags = tagsResult.data
+							.filter((tag: any) => {
+								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
+								return usageType === 'expense' || usageType === undefined || usageType === null;
+							})
+							.map((tag: any) => ({
+								id: tag.id,
+								name: tag.name,
+								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+							}));
 
 						setTags(formattedTags);
 						setSelectedTagId(current =>
 							current && formattedTags.some(tag => tag.id === current) ? current : null,
 						);
+
+						if (formattedTags.length === 0) {
+							showFloatingAlert({
+								message: 'Nenhuma tag de despesas disponível. Cadastre uma tag marcada como despesa.',
+								action: 'warning',
+								position: 'bottom',
+								offset: 40,
+							});
+						}
 
 					} else {
 

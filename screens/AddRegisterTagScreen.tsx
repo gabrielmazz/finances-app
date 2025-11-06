@@ -7,6 +7,15 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { HStack } from '@/components/ui/hstack';
+import {
+	Checkbox,
+	CheckboxGroup,
+	CheckboxIndicator,
+	CheckboxIcon,
+	CheckboxLabel,
+} from '@/components/ui/checkbox';
+import { CheckIcon } from '@/components/ui/icon';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -21,6 +30,25 @@ export default function AddRegisterTagScreen() {
 	// =========================================== Funções para Registro ============================================ //
 	const [tagName, setTagName] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isExpenseTag, setIsExpenseTag] = React.useState(false);
+	const [isGainTag, setIsGainTag] = React.useState(false);
+
+	const handleUsageSelection = React.useCallback((values: string[]) => {
+		if (values.includes('expense')) {
+			setIsExpenseTag(true);
+			setIsGainTag(false);
+			return;
+		}
+
+		if (values.includes('gain')) {
+			setIsGainTag(true);
+			setIsExpenseTag(false);
+			return;
+		}
+
+		setIsExpenseTag(false);
+		setIsGainTag(false);
+	}, []);
 
 	const registerTag = React.useCallback(async () => {
 		const trimmedName = tagName.trim();
@@ -28,6 +56,18 @@ export default function AddRegisterTagScreen() {
 		if (!trimmedName) {
 			showFloatingAlert({
 				message: 'Informe o nome da tag antes de registrar.',
+				action: 'error',
+				position: 'bottom',
+				offset: 40,
+			});
+			return;
+		}
+
+		const selectedUsageType = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
+
+		if (!selectedUsageType) {
+			showFloatingAlert({
+				message: 'Informe se a tag será utilizada para ganhos ou despesas.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
@@ -52,7 +92,7 @@ export default function AddRegisterTagScreen() {
 				return;
 			}
 
-			const result = await addTagFirebase({ tagName: trimmedName, personId });
+			const result = await addTagFirebase({ tagName: trimmedName, personId, usageType: selectedUsageType });
 
 			if (result.success) {
 				showFloatingAlert({
@@ -62,6 +102,8 @@ export default function AddRegisterTagScreen() {
 					offset: 40,
 				});
 				setTagName('');
+				setIsExpenseTag(true);
+				setIsGainTag(false);
 				Keyboard.dismiss();
 			} else {
 				showFloatingAlert({
@@ -81,8 +123,13 @@ export default function AddRegisterTagScreen() {
 			});
 		} finally {
 			setIsSubmitting(false);
+
+			// Limpar os campos após o registro
+			setTagName('');
+			setIsExpenseTag(false);
+			setIsGainTag(false);
 		}
-	}, [tagName]);
+	}, [tagName, isExpenseTag, isGainTag]);
 
 	return (
         
@@ -119,12 +166,45 @@ export default function AddRegisterTagScreen() {
 							/>
 						</Input>
 
+							<VStack className="gap-3">
+								<Text className="font-semibold">Tipo de utilização</Text>
+								<Text className="text-gray-600 dark:text-gray-400">
+									Selecione se essa tag será usada para ganhos ou despesas. Apenas uma opção pode ficar
+									ativa.
+								</Text>
+
+								<CheckboxGroup
+									value={isExpenseTag ? ['expense'] : isGainTag ? ['gain'] : []}
+									onChange={handleUsageSelection}
+								>
+									<HStack space="2xl" className="items-center">
+
+										<Checkbox value="expense" isDisabled={isGainTag}>
+											<CheckboxIndicator>
+												<CheckboxIcon as={CheckIcon} />
+											</CheckboxIndicator>
+											<CheckboxLabel>Tag para despesas</CheckboxLabel>
+										</Checkbox>
+
+										<Checkbox value="gain" isDisabled={isExpenseTag}>
+											<CheckboxIndicator>
+												<CheckboxIcon as={CheckIcon} />
+											</CheckboxIndicator>
+											<CheckboxLabel>Tag para ganhos</CheckboxLabel>
+										</Checkbox>
+
+									</HStack>
+								</CheckboxGroup>
+							</VStack>
+
 						<Button
 							className="w-full mt-2"
 							size="sm"
 							variant="outline"
 							onPress={registerTag}
-							isDisabled={isSubmitting}
+							isDisabled={
+								isSubmitting || !tagName.trim() || (!isExpenseTag && !isGainTag)
+							}
 						>
 							{isSubmitting ? (
 								<ButtonSpinner />

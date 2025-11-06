@@ -97,6 +97,7 @@ export default function HomeScreen() {
 	const [isLoadingMovements, setIsLoadingMovements] = React.useState(false);
 	const [movementsError, setMovementsError] = React.useState<string | null>(null);
 	const [bankNamesById, setBankNamesById] = React.useState<Record<string, string>>({});
+	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
 
 	const getBankName = React.useCallback(
 		(bankId: unknown) => {
@@ -217,146 +218,142 @@ export default function HomeScreen() {
 					return;
 				}
 
-				// Carrega e consulta para a busca do resumo semanal por banco (Despesas)
-				try {
+				const loadSummariesPromise = (async () => {
 
-					// Chama a função para obter o resumo mensal de despesas por banco
-					const resultExpanses = await getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid);
+					try {
 
-					// Verifica se o componente ainda está montado antes de atualizar o estado
-					if (!isMounted) {
-						return;
+						const [expensesSummary, gainsSummary] = await Promise.allSettled([
+							getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
+							getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
+						]);
+
+						if (!isMounted) {
+							return;
+						}
+
+						const summaryErrors: string[] = [];
+
+						if (expensesSummary.status === 'fulfilled' && expensesSummary.value) {
+							const resultExpansesValues = (expensesSummary.value?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
+							const summaryTotals = calculateMonthlyExpansesSummaryTotals(resultExpansesValues);
+							setTotalExpensesInCents(summaryTotals.totalExpensesInCents);
+							setExpenseCount(summaryTotals.expenseCount);
+						} else {
+							console.error(
+								'Erro ao carregar o resumo mensal de despesas:',
+								expensesSummary.status === 'rejected' ? expensesSummary.reason : 'Retorno inválido',
+							);
+							summaryErrors.push('Erro ao carregar o resumo mensal de despesas.');
+						}
+
+						if (gainsSummary.status === 'fulfilled' && gainsSummary.value) {
+							const resultGainsValues = (gainsSummary.value?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
+							const summaryTotals = calculateMonthlyGainsSummaryTotals(resultGainsValues);
+							setTotalGainsInCents(summaryTotals.totalGainsInCents);
+							setGainCount(summaryTotals.gainCount);
+						} else {
+							console.error(
+								'Erro ao carregar o resumo mensal de ganhos:',
+								gainsSummary.status === 'rejected' ? gainsSummary.reason : 'Retorno inválido',
+							);
+							summaryErrors.push('Erro ao carregar o resumo mensal de ganhos.');
+						}
+
+						if (summaryErrors.length > 0) {
+							setSummaryError(summaryErrors.join(' '));
+						}
+
+					} catch (error) {
+						console.error('Erro geral ao carregar o resumo mensal:', error);
+
+						if (isMounted) {
+							setSummaryError('Erro ao carregar o resumo mensal.');
+						}
+
+					} finally {
+						if (isMounted) {
+							setIsLoadingSummary(false);
+						}
 					}
 
-					// Separa os valores (valueInCents) num array para seja somado posteriormente
-					const resultExpansesValues = (resultExpanses?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
+				})();
 
-					// Calcula os totais do resumo mensal de despesas, chamando a função em tela mesmo
-					if (resultExpanses) {
-						const summaryTotals = calculateMonthlyExpansesSummaryTotals(resultExpansesValues);
-						setTotalExpensesInCents(summaryTotals.totalExpensesInCents);
-						setExpenseCount(summaryTotals.expenseCount);
+				const loadMovementsPromise = (async () => {
+
+					try {
+
+						const [expensesResult, gainsResult, banksResult] = await Promise.all([
+							getLimitedExpensesFirebase({ limit: 3, personId: currentUser.uid }),
+							getLimitedGainsFirebase({ limit: 3, personId: currentUser.uid }),
+							getBanksWithUsersByPersonFirebase(currentUser.uid),
+						]);
+
+						if (!isMounted) {
+							return;
+						}
+
+						let hasIssues = false;
+
+						if (banksResult?.success) {
+							const banksMap = Array.isArray(banksResult.data)
+								? banksResult.data.reduce((acc: Record<string, string>, bank: any) => {
+									if (bank && typeof bank.id === 'string') {
+										const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
+										acc[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
+									}
+									return acc;
+								}, {})
+								: {};
+
+							setBankNamesById(banksMap);
+						} else {
+							setBankNamesById({});
+							hasIssues = true;
+						}
+
+						// Verifica se os resultados do carregamento relacionados às despesas e ganhos foram bem-sucedidos
+						if (expensesResult?.success) {
+							setRecentExpenses(expensesResult.data ?? []);
+						} else {
+							setRecentExpenses([]);
+							hasIssues = true;
+						}
+
+						// Verifica se os resultados do carregamento relacionados às despesas e ganhos foram bem-sucedidos
+						if (gainsResult?.success) {
+							setRecentGains(gainsResult.data ?? []);
+						} else {
+							setRecentGains([]);
+							hasIssues = true;
+						}
+
+
+						if (hasIssues) {
+							setMovementsError('Não foi possível carregar alguns movimentos recentes.');
+						} else {
+							setMovementsError(null);
+						}
+
+					} catch (error) {
+						console.error('Erro ao carregar os últimos movimentos:', error);
+
+						if (isMounted) {
+							setMovementsError('Erro ao carregar os últimos movimentos.');
+							setRecentExpenses([]);
+							setRecentGains([]);
+						}
+
+					} finally {
+
+						if (isMounted) {
+							setIsLoadingMovements(false);
+						}
+
 					}
 
-				} catch (error) {
-					console.error('Erro ao carregar o resumo mensal de despesas:', error);
+				})();
 
-					if (isMounted) {
-						setSummaryError('Erro ao carregar o resumo mensal de despesas.');
-					}
-
-				} finally {
-					if (isMounted) {
-						setIsLoadingSummary(false);
-					}
-				}
-
-				// Carrega e consulta para a busca do resumo semanal por banco (Ganhos)
-				try {
-
-					// Chama a função para obter o resumo mensal de ganhos por banco
-					const resultGains = await getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid);
-
-					// Verifica se o componente ainda está montado antes de atualizar o estado
-					if (!isMounted) {
-						return;
-					}
-
-					// Separa os valores (valueInCents) num array para seja somado posteriormente
-					const resultGainsValues = (resultGains?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
-
-					// Calcula os totais do resumo mensal de ganhos, chamando a função em tela mesmo
-					if (resultGains) {
-						const summaryTotals = calculateMonthlyGainsSummaryTotals(resultGainsValues);
-						setTotalGainsInCents(summaryTotals.totalGainsInCents);
-						setGainCount(summaryTotals.gainCount);
-					}
-
-				} catch (error) {
-					console.error('Erro ao carregar o resumo mensal de ganhos:', error);
-
-					if (isMounted) {
-						setSummaryError('Erro ao carregar o resumo mensal de ganhos.');
-					}
-
-				} finally {
-					if (isMounted) {
-						setIsLoadingSummary(false);
-					}
-				}
-
-				// Carrega os movimentos mais recentes (despesas e ganhos)
-				// para exibir na tela inicial
-				try {
-
-					const [expensesResult, gainsResult, banksResult] = await Promise.all([
-						getLimitedExpensesFirebase({ limit: 3, personId: currentUser.uid }),
-						getLimitedGainsFirebase({ limit: 3, personId: currentUser.uid }),
-						getBanksWithUsersByPersonFirebase(currentUser.uid),
-					]);
-
-					if (!isMounted) {
-						return;
-					}
-
-					let hasIssues = false;
-
-					if (banksResult?.success) {
-						const banksMap = Array.isArray(banksResult.data)
-							? banksResult.data.reduce((acc: Record<string, string>, bank: any) => {
-								if (bank && typeof bank.id === 'string') {
-									const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
-									acc[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
-								}
-								return acc;
-							}, {})
-							: {};
-
-						setBankNamesById(banksMap);
-					} else {
-						setBankNamesById({});
-						hasIssues = true;
-					}
-
-					// Verifica se os resultados do carregamento relacionados às despesas e ganhos foram bem-sucedidos
-					if (expensesResult?.success) {
-						setRecentExpenses(expensesResult.data ?? []);
-					} else {
-						setRecentExpenses([]);
-						hasIssues = true;
-					}
-
-					// Verifica se os resultados do carregamento relacionados às despesas e ganhos foram bem-sucedidos
-					if (gainsResult?.success) {
-						setRecentGains(gainsResult.data ?? []);
-					} else {
-						setRecentGains([]);
-						hasIssues = true;
-					}
-
-
-					if (hasIssues) {
-						setMovementsError('Não foi possível carregar alguns movimentos recentes.');
-					} else {
-						setMovementsError(null);
-					}
-
-				} catch (error) {
-					console.error('Erro ao carregar os últimos movimentos:', error);
-
-					if (isMounted) {
-						setMovementsError('Erro ao carregar os últimos movimentos.');
-						setRecentExpenses([]);
-						setRecentGains([]);
-					}
-
-				} finally {
-
-					if (isMounted) {
-						setIsLoadingMovements(false);
-					}
-
-				}
+				await Promise.all([loadSummariesPromise, loadMovementsPromise]);
 			};
 
 			loadHomeData();
@@ -451,7 +448,7 @@ export default function HomeScreen() {
 
 									)}
 
-									<Text className="mt-4 text-sm text-emerald-600 dark:text-emerald-400">
+									<Text className="mt-4 text-sm text-gray-500 dark:text-emerald-400">
 										Toque para ver o resumo detalhado por banco
 									</Text>
 
@@ -470,12 +467,7 @@ export default function HomeScreen() {
 									"
 							>
 
-								<HStack
-									className="
-											justify-between
-											items-center
-										"
-								>
+								<HStack className="justify-between items-center">
 
 									<Heading
 										size="md"
@@ -484,118 +476,140 @@ export default function HomeScreen() {
 										Últimos movimentos
 									</Heading>
 
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={() => setIsMovementsExpanded((prev) => !prev)}
+									>
+										<Text className="text-sm text-gray-500 dark:text-emerald-400">
+											{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
+										</Text>
+									</TouchableOpacity>
+
 								</HStack>
 
-								{isLoadingMovements ? (
+								{isMovementsExpanded ? (
 
-									<Text className="mt-4 text-gray-600 dark:text-gray-400">
-										Carregando movimentos...
-									</Text>
+									isLoadingMovements ? (
 
-								) : movementsError ? (
+										<Text className="mt-4 text-gray-600 dark:text-gray-400">
+											Carregando movimentos...
+										</Text>
 
-									<Text className="mt-4 text-red-600 dark:text-red-400">
-										{movementsError}
-									</Text>
+									) : movementsError ? (
 
+										<Text className="mt-4 text-red-600 dark:text-red-400">
+											{movementsError}
+										</Text>
+
+									) : (
+
+										<>
+
+											<Box className="mt-4">
+
+												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+													Ganhos
+												</Text>
+
+												{recentGains.length === 0 ? (
+
+													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+														Nenhum ganho recente registrado.
+													</Text>
+
+												) : (
+
+													recentGains.map((gain, index) => (
+
+														<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
+
+															<HStack className="justify-between items-center">
+
+																<Text className="text-gray-800 dark:text-gray-200">
+																	{gain?.name ?? 'Ganho sem nome'}
+																</Text>
+
+																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+																	{formatCurrencyBRL(gain?.valueInCents ?? 0)}
+																</Text>
+
+															</HStack>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{`Banco: ${getBankName(gain?.bankId)}`}
+															</Text>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{formatMovementDate(gain?.createdAt ?? gain?.date)}
+															</Text>
+
+														</Box>
+
+													))
+
+												)}
+
+											</Box>
+
+											<Box className="mt-6">
+
+												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+													Despesas
+												</Text>
+
+												{recentExpenses.length === 0 ? (
+
+													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+														Nenhuma despesa recente registrada.
+													</Text>
+
+												) : (
+
+													recentExpenses.map((expense, index) => (
+
+														<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
+
+															<HStack className="justify-between items-center">
+
+																<Text className="text-gray-800 dark:text-gray-200">
+																	{expense?.name ?? 'Despesa sem nome'}
+																</Text>
+
+																<Text className="text-red-600 dark:text-red-400 font-semibold">
+																	{formatCurrencyBRL(expense?.valueInCents ?? 0)}
+																</Text>
+
+															</HStack>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{`Banco: ${getBankName(expense?.bankId)}`}
+															</Text>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{formatMovementDate(expense?.createdAt ?? expense?.date)}
+															</Text>
+
+														</Box>
+
+													))
+
+												)}
+
+											</Box>
+
+										</>
+
+									)
 								) : (
-
-									<>
-
-										<Box className="mt-4">
-
-											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-												Ganhos
-											</Text>
-
-											{recentGains.length === 0 ? (
-
-												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-													Nenhum ganho recente registrado.
-												</Text>
-
-											) : (
-
-												recentGains.map((gain, index) => (
-
-													<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
-
-														<HStack className="justify-between items-center">
-
-															<Text className="text-gray-800 dark:text-gray-200">
-																{gain?.name ?? 'Ganho sem nome'}
-															</Text>
-
-															<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-																{formatCurrencyBRL(gain?.valueInCents ?? 0)}
-															</Text>
-
-														</HStack>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{`Banco: ${getBankName(gain?.bankId)}`}
-														</Text>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{formatMovementDate(gain?.createdAt ?? gain?.date)}
-														</Text>
-
-													</Box>
-
-												))
-
-											)}
-
-										</Box>
-
-										<Box className="mt-6">
-
-											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-												Despesas
-											</Text>
-
-											{recentExpenses.length === 0 ? (
-
-												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-													Nenhuma despesa recente registrada.
-												</Text>
-
-											) : (
-
-												recentExpenses.map((expense, index) => (
-
-													<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
-
-														<HStack className="justify-between items-center">
-
-															<Text className="text-gray-800 dark:text-gray-200">
-																{expense?.name ?? 'Despesa sem nome'}
-															</Text>
-
-															<Text className="text-red-600 dark:text-red-400 font-semibold">
-																{formatCurrencyBRL(expense?.valueInCents ?? 0)}
-															</Text>
-
-														</HStack>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{`Banco: ${getBankName(expense?.bankId)}`}
-														</Text>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{formatMovementDate(expense?.createdAt ?? expense?.date)}
-														</Text>
-
-													</Box>
-
-												))
-
-											)}
-
-										</Box>
-
-									</>
-
+									<Text
+										className={
+											movementsError
+												? 'mt-4 text-red-600 dark:text-red-400'
+												: 'mt-4 text-gray-600 dark:text-gray-400'
+										}
+									>
+										{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
+									</Text>
 								)}
 
 							</Box>
