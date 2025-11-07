@@ -307,6 +307,95 @@ export async function getCurrentMonthSummaryByBankFirebaseGains(personId: string
 
 // ================================================================================================================= //
 
+interface GetCurrentYearMovementsParams {
+    personId: string;
+}
+
+export async function getCurrentYearMovementsFirebase({ personId }: GetCurrentYearMovementsParams) {
+
+    try {
+
+        const now = new Date();
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const endOfYear = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+
+        const banksResult = await getBanksWithUsersByPersonFirebase(personId);
+
+        if (!banksResult.success) {
+            throw new Error('Erro ao obter bancos vinculados.');
+        }
+
+        const bankIds = Array.isArray(banksResult.data) ? banksResult.data.map((bank: any) => bank.id) : [];
+
+        if (bankIds.length === 0) {
+            return { success: true, data: { expenses: [], gains: [] } };
+        }
+
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const normalizedStartOfYear = new Date(startOfYear);
+        normalizedStartOfYear.setHours(0, 0, 0, 0);
+
+        const normalizedEndOfYear = new Date(endOfYear);
+        normalizedEndOfYear.setHours(23, 59, 59, 999);
+
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('bankId', 'in', bankIds),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartOfYear)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndOfYear))
+        );
+
+        const gainsQuery = query(
+            collection(db, 'gains'),
+            where('bankId', 'in', bankIds),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartOfYear)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndOfYear))
+        );
+
+        const [expensesSnapshot, gainsSnapshot] = await Promise.all([
+            getDocs(expensesQuery),
+            getDocs(gainsQuery),
+        ]);
+
+        const expenses = expensesSnapshot.docs.map(expenseDoc => ({
+            id: expenseDoc.id,
+            ...expenseDoc.data(),
+        }));
+
+        const gains = gainsSnapshot.docs.map(gainDoc => ({
+            id: gainDoc.id,
+            ...gainDoc.data(),
+        }));
+
+        return {
+            success: true,
+            data: {
+                expenses,
+                gains,
+            },
+        };
+
+    } catch (error) {
+
+        console.error('Erro ao obter resumo anual por banco:', error);
+        return { success: false, error };
+
+    }
+
+}
+
+// ================================================================================================================= //
+
 interface GetBankMovementsByPeriodParams {
     personId: string;
     bankId: string;
