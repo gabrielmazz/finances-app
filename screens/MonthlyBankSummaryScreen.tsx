@@ -40,7 +40,7 @@ export default function MonthlyBankSummaryScreen() {
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [bankSummaries, setBankSummaries] = React.useState<BankSummary[]>([]);
 
-	const handleOpenBankMovements = React.useCallback((bankId: string, bankName: string) => {
+	const handleOpenBankMovements = React.useCallback((bankId: string, bankName: string, colorHex?: string | null) => {
 		if (!bankId) {
 			return;
 		}
@@ -49,7 +49,8 @@ export default function MonthlyBankSummaryScreen() {
 			pathname: '/bank-movements',
 			params: {
 				bankId,
-				bankName,
+				bankName: encodeURIComponent(bankName),
+				...(colorHex ? { bankColor: encodeURIComponent(colorHex) } : {}),
 			},
 		});
 	}, []);
@@ -249,7 +250,7 @@ export default function MonthlyBankSummaryScreen() {
 								<TouchableOpacity
 									key={bank.id || bank.name}
 									activeOpacity={0.9}
-									onPress={() => handleOpenBankMovements(bank.id, bank.name)}
+									onPress={() => handleOpenBankMovements(bank.id, bank.name, bank.colorHex)}
 								>
 									<Box
 										className="

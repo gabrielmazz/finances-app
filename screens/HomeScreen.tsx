@@ -689,7 +689,14 @@ export default function HomeScreen() {
 									p-4
 									mb-6
 								"
-									style={isLoadingSummary ? { opacity: 0.6 } : undefined}
+									style={{
+										...(isLoadingSummary ? { opacity: 0.6 } : null),
+										shadowColor: '#000',
+										shadowOpacity: 0.2,
+										shadowRadius: 6,
+										shadowOffset: { width: 0, height: 3 },
+										elevation: 4,
+									}}
 								>
 
 									<HStack
@@ -760,6 +767,13 @@ export default function HomeScreen() {
 							mb-6
 							shadow-sm
 						"
+							style={{
+								shadowColor: '#000',
+								shadowOpacity: 0.2,
+								shadowRadius: 6,
+								shadowOffset: { width: 0, height: 3 },
+								elevation: 4,
+							}}
 						>
 
 							<HStack className="justify-between items-center">
@@ -969,6 +983,13 @@ export default function HomeScreen() {
 										mb-6
 										shadow-sm
 									"
+							style={{
+								shadowColor: '#000',
+								shadowOpacity: 0.2,
+								shadowRadius: 6,
+								shadowOffset: { width: 0, height: 3 },
+								elevation: 4,
+							}}
 						>
 
 							<HStack className="justify-between items-center">

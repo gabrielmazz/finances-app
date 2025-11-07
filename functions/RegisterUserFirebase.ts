@@ -4,7 +4,7 @@
 
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db, secondaryAuth } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
@@ -122,6 +122,52 @@ export async function updateUserRelationsFirebase(relatedUserId: string) {
 
     }
 
+}
+
+export async function deleteUserRelationFirebase(relatedUserId: string) {
+
+    try {
+
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+            throw new Error('Nenhum usuário está logado.');
+        }
+
+        if (!relatedUserId) {
+            throw new Error('O ID do usuário a ser desvinculado é inválido.');
+        }
+
+        const currentUserRef = doc(db, 'users', currentUser.uid);
+        const relatedUserRef = doc(db, 'users', relatedUserId);
+
+        const [currentUserDoc, relatedUserDoc] = await Promise.all([getDoc(currentUserRef), getDoc(relatedUserRef)]);
+
+        if (!currentUserDoc.exists()) {
+            throw new Error('Dados do usuário atual não foram encontrados.');
+        }
+
+        if (!relatedUserDoc.exists()) {
+            throw new Error('Usuário relacionado não encontrado.');
+        }
+
+        await Promise.all([
+            updateDoc(currentUserRef, {
+                relatedIdUsers: arrayRemove(relatedUserId),
+            }),
+            updateDoc(relatedUserRef, {
+                relatedIdUsers: arrayRemove(currentUser.uid),
+            }),
+        ]);
+
+        return { success: true };
+
+    } catch (error) {
+
+        console.error('Erro ao remover relação de usuários:', error);
+        return { success: false, error };
+
+    }
 }
 
 // =========================================== Funções de consulta ================================================== //

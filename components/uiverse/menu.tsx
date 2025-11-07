@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, BackHandler, View } from 'react-native';
+import { Alert, BackHandler, LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { signOut } from 'firebase/auth';
 
@@ -7,12 +7,35 @@ import { HStack } from '@/components/ui/hstack';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { auth } from '@/FirebaseConfig';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type MenuOption = {
 	label: string;
 	value?: number;
 	onSelect?: () => void;
 };
+
+const styles = StyleSheet.create({
+	wrapper: {
+		width: '100%',
+		position: 'relative',
+	},
+	absoluteContainer: {
+		position: 'absolute',
+		left: 0,
+		right: 0,
+		bottom: 0,
+	},
+	buttonWrapper: {
+		flexShrink: 0,
+	},
+	edgeLeftMargin: {
+		marginLeft: 12,
+	},
+	edgeRightMargin: {
+		marginRight: 12,
+	},
+});
 
 export type MenuGroup = {
 	triggerLabel: string;
@@ -97,6 +120,7 @@ export const Menu: React.FC<MenuProps> = ({
 	defaultValue,
 	onChange,
 }) => {
+	const insets = useSafeAreaInsets();
 	const resolvedGroups = useMemo(
 		() => (groups && groups.length > 0 ? groups : buildDefaultGroups()),
 		[groups],
@@ -116,6 +140,7 @@ export const Menu: React.FC<MenuProps> = ({
 	}, [availableValues, incomingDefault]);
 
 	const [activeValue, setActiveValue] = useState<number>(normalizedDefault);
+	const [containerHeight, setContainerHeight] = useState(0);
 
 	useEffect(() => {
 		setActiveValue(prev => {
@@ -165,52 +190,97 @@ export const Menu: React.FC<MenuProps> = ({
 		[resolvedGroups, activeValue],
 	);
 
+	const effectiveBottomPadding = Math.max(insets.bottom, 16);
+
+	const handleContainerLayout = useCallback(
+		(event: LayoutChangeEvent) => {
+			const {
+				nativeEvent: {
+					layout: { height },
+				},
+			} = event;
+
+			setContainerHeight(prev => {
+				if (Math.abs(prev - height) < 1) {
+					return prev;
+				}
+				return height;
+			});
+		},
+		[],
+	);
+
 	if (resolvedGroups.length === 0) {
 		return null;
 	}
 
 	return (
-		<View className="w-full items-center py-4 px-6 mt-4">
-			<HStack space="md" className="w-full justify-center">
-				{resolvedGroups.map((group, groupIndex) => {
-					if (group.options.length === 0) {
-						return null;
-					}
+		<View style={styles.wrapper} pointerEvents="box-none">
+			<View style={{ height: containerHeight }} />
 
-					const isActiveGroup = groupIndex === activeGroupIndex;
+			<View
+				className="w-full items-center"
+				style={[
+					styles.absoluteContainer,
+					{
+						paddingHorizontal: 24,
+						paddingTop: 12,
+						paddingBottom: effectiveBottomPadding,
+					},
+				]}
+				onLayout={handleContainerLayout}
+			>
+				<HStack space="md" className="w-full justify-center">
+					{resolvedGroups.map((group, groupIndex) => {
+						if (group.options.length === 0) {
+							return null;
+						}
 
-					return (
-						<GluestackMenu
-							placement="top"
-							key={group.triggerLabel}
-							closeOnSelect
-							trigger={triggerProps => (
-								<Button
-									{...triggerProps}
-									size="sm"
-									variant={isActiveGroup ? 'solid' : 'outline'}
-									action="secondary"
-									className="min-w-[120px]"
+						const isActiveGroup = groupIndex === activeGroupIndex;
+						const isFirst = groupIndex === 0;
+						const isLast = groupIndex === resolvedGroups.length - 1;
+
+						return (
+							<View
+								key={group.triggerLabel}
+								style={[
+									styles.buttonWrapper,
+									isFirst && styles.edgeLeftMargin,
+									isLast && styles.edgeRightMargin,
+								]}
+							>
+								<GluestackMenu
+									placement="top"
+									closeOnSelect
+									trigger={triggerProps => (
+										<Button
+											{...triggerProps}
+											size="sm"
+											variant={isActiveGroup ? 'solid' : 'outline'}
+											action="secondary"
+											className="min-w-[120px]"
+										>
+											<ButtonText>{group.triggerLabel}</ButtonText>
+										</Button>
+									)}
 								>
-									<ButtonText>{group.triggerLabel}</ButtonText>
-								</Button>
-							)}
-						>
-							{group.options.map(option => (
-								<MenuItem
-									key={`${group.triggerLabel}-${option.label}`}
-									onPress={() => handleSelect(option)}
-									textValue={option.label}
-								>
-									<MenuItemLabel bold={option.value === activeValue}>
-										{option.label}
-									</MenuItemLabel>
-								</MenuItem>
-							))}
-						</GluestackMenu>
-					);
-				})}
-			</HStack>
+									{group.options.map(option => (
+										<MenuItem
+											key={`${group.triggerLabel}-${option.label}`}
+											onPress={() => handleSelect(option)}
+											textValue={option.label}
+										>
+											<MenuItemLabel bold={option.value === activeValue}>
+												{option.label}
+											</MenuItemLabel>
+										</MenuItem>
+									))}
+								</GluestackMenu>
+							</View>
+						);
+					})}
+				</HStack>
+			</View>
 		</View>
 	);
 };
