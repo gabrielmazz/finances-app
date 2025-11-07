@@ -228,8 +228,6 @@ export async function getCurrentMonthSummaryByBankFirebaseExpanses(personId: str
             ...expenseDoc.data(),
         }));
 
-        console.log('Despesas obtidas para o mês atual:', expenses);
-
         return { success: true, data: expenses };
 
     } catch (error) {
@@ -296,8 +294,6 @@ export async function getCurrentMonthSummaryByBankFirebaseGains(personId: string
             ...gainDoc.data(),
         }));
 
-        console.log('Ganhos obtidos para o mês atual:', gains);
-
         return { success: true, data: gains };
 
     } catch (error) {
@@ -310,3 +306,104 @@ export async function getCurrentMonthSummaryByBankFirebaseGains(personId: string
 }
 
 // ================================================================================================================= //
+
+interface GetBankMovementsByPeriodParams {
+    personId: string;
+    bankId: string;
+    startDate: Date;
+    endDate: Date;
+}
+
+export async function getBankMovementsByPeriodFirebase({
+    personId,
+    bankId,
+    startDate,
+    endDate,
+}: GetBankMovementsByPeriodParams) {
+
+    try {
+
+        if (!personId || !bankId) {
+            return { success: false, error: 'Usuário ou banco não informado.' };
+        }
+
+        // Confirma se o banco pertence ao usuário ou algum dos relacionados
+        const banksResult = await getBanksWithUsersByPersonFirebase(personId);
+
+        if (!banksResult.success) {
+            throw new Error('Erro ao validar bancos vinculados.');
+        }
+
+        const accessibleBankIds = Array.isArray(banksResult.data) ? banksResult.data.map((bank: any) => bank.id) : [];
+
+        if (accessibleBankIds.length === 0 || !accessibleBankIds.includes(bankId)) {
+            return { success: false, error: 'Banco não autorizado para este usuário.' };
+        }
+
+        // Consulta as pessoas e os seus IDs relacionados para usar na query
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const normalizedStartDate = new Date(startDate);
+        normalizedStartDate.setHours(0, 0, 0, 0);
+
+        const normalizedEndDate = new Date(endDate);
+        normalizedEndDate.setHours(23, 59, 59, 999);
+
+        if (normalizedEndDate < normalizedStartDate) {
+            return { success: false, error: 'O período selecionado é inválido.' };
+        }
+
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('bankId', '==', bankId),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const gainsQuery = query(
+            collection(db, 'gains'),
+            where('bankId', '==', bankId),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const [expensesSnapshot, gainsSnapshot] = await Promise.all([
+            getDocs(expensesQuery),
+            getDocs(gainsQuery),
+        ]);
+
+        const expenses = expensesSnapshot.docs.map(expenseDoc => ({
+            id: expenseDoc.id,
+            ...expenseDoc.data(),
+        }));
+
+        const gains = gainsSnapshot.docs.map(gainDoc => ({
+            id: gainDoc.id,
+            ...gainDoc.data(),
+        }));
+
+        return {
+            success: true,
+            data: {
+                expenses,
+                gains,
+            },
+        };
+
+    } catch (error) {
+
+        console.error('Erro ao obter movimentações do banco no período:', error);
+        return { success: false, error };
+
+    }
+
+}

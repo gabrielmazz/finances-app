@@ -1,6 +1,6 @@
 import React from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Keyboard, ScrollView, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -365,10 +365,7 @@ export default function HomeScreen() {
 	);
 
 	return (
-
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-
-			<View
+		<View
 				className="
                     flex-1 w-full h-full
                     mt-[64px]
@@ -379,7 +376,7 @@ export default function HomeScreen() {
                 "
 			>
 
-				<View className="w-full px-6 gap-4">
+			<View className="w-full px-6 gap-4">
 
 					<Heading size="3xl" className="text-center mb-6">
 						Resumo financeiro
@@ -620,9 +617,7 @@ export default function HomeScreen() {
 
 				</View>
 
-			</View>
-
-		</TouchableWithoutFeedback>
+		</View>
 
 	);
 }

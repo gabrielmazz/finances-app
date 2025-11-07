@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 
 // Componentes Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -143,9 +143,7 @@ export default function AddUserRelationScreen() {
 	}, [relatedUserId]);
 
 	return (
-
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<View
+		<View
 				className="
 					flex-1 w-full h-full
 					mt-[64px]
@@ -189,8 +187,7 @@ export default function AddUserRelationScreen() {
 					</VStack>
 				</View>
 
-				<Menu defaultValue={2} />
-			</View>
-		</TouchableWithoutFeedback>
+			<Menu defaultValue={2} />
+		</View>
 	);
 }
