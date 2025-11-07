@@ -10,13 +10,20 @@ import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions
 interface AddBankParams {
     bankName: string;
     personId: string;
+    colorHex?: string | null;
+}
+
+interface UpdateBankParams {
+    bankId: string;
+    bankName?: string;
+    colorHex?: string | null;
 }
 
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo banco no Firestore
-export async function addBankFirebase({ bankName, personId }: AddBankParams) {
+export async function addBankFirebase({ bankName, personId, colorHex = null }: AddBankParams) {
     
     try {
 
@@ -26,7 +33,9 @@ export async function addBankFirebase({ bankName, personId }: AddBankParams) {
         await setDoc(bankRef, {
             name: bankName,
             personId,
+            colorHex: colorHex ?? null,
             createdAt: new Date(),
+            updatedAt: new Date(),
         });
 
         return { success: true, bankId: bankRef.id };
@@ -35,6 +44,35 @@ export async function addBankFirebase({ bankName, personId }: AddBankParams) {
         
         console.error('Erro ao adicionar banco:', error);
         
+        return { success: false, error };
+
+    }
+}
+
+export async function updateBankFirebase({ bankId, bankName, colorHex }: UpdateBankParams) {
+    
+    try {
+
+        const bankRef = doc(db, 'banks', bankId);
+        const updates: Record<string, unknown> = {
+            updatedAt: new Date(),
+        };
+
+        if (typeof bankName === 'string') {
+            updates.name = bankName;
+        }
+
+        if (colorHex !== undefined) {
+            updates.colorHex = colorHex;
+        }
+
+        await setDoc(bankRef, updates, { merge: true });
+
+        return { success: true };
+
+    } catch (error) {
+
+        console.error('Erro ao atualizar banco:', error);
         return { success: false, error };
 
     }

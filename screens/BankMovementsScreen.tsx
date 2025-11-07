@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View, useColorScheme, TouchableOpacity } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
@@ -8,12 +8,25 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Divider } from '@/components/ui/divider';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+} from '@/components/ui/modal';
+import { EditIcon, TrashIcon } from '@/components/ui/icon';
 
 import { Menu } from '@/components/uiverse/menu';
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { auth } from '@/FirebaseConfig';
 import { getBankMovementsByPeriodFirebase } from '@/functions/BankFirebase';
+import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { PieChart } from 'react-native-gifted-charts';
 
 type FirestoreLikeTimestamp = {
@@ -26,7 +39,16 @@ type MovementRecord = {
 	valueInCents: number;
 	type: 'expense' | 'gain';
 	date: Date | null;
+	tagId?: string | null;
+	bankId?: string | null;
+	personId?: string | null;
+	explanation?: string | null;
+	paymentFormats?: string[] | null;
 };
+
+type PendingMovementAction =
+	| { type: 'edit'; movement: MovementRecord }
+	| { type: 'delete'; movement: MovementRecord };
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -179,6 +201,8 @@ export default function BankMovementsScreen() {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
+	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
+	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 
 	const handleDateChange = React.useCallback((value: string, type: 'start' | 'end') => {
 		const sanitized = sanitizeDateInput(value);
@@ -258,6 +282,10 @@ export default function BankMovementsScreen() {
 				valueInCents: typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0,
 				type: 'expense',
 				date: normalizeDate(expense?.date ?? expense?.createdAt ?? null),
+				tagId: typeof expense?.tagId === 'string' ? expense.tagId : null,
+				bankId: typeof expense?.bankId === 'string' ? expense.bankId : null,
+				personId: typeof expense?.personId === 'string' ? expense.personId : null,
+				explanation: typeof expense?.explanation === 'string' ? expense.explanation : null,
 			}));
 
 			const gainMovements: MovementRecord[] = gainsArray.map(gain => ({
@@ -269,6 +297,13 @@ export default function BankMovementsScreen() {
 				valueInCents: typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0,
 				type: 'gain',
 				date: normalizeDate(gain?.date ?? gain?.createdAt ?? null),
+				tagId: typeof gain?.tagId === 'string' ? gain.tagId : null,
+				bankId: typeof gain?.bankId === 'string' ? gain.bankId : null,
+				personId: typeof gain?.personId === 'string' ? gain.personId : null,
+				explanation: typeof gain?.explanation === 'string' ? gain.explanation : null,
+				paymentFormats: Array.isArray(gain?.paymentFormats)
+					? (gain?.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[]
+					: null,
 			}));
 
 			const combinedMovements = [...expenseMovements, ...gainMovements].sort((a, b) => {
@@ -353,6 +388,106 @@ export default function BankMovementsScreen() {
 
 	const hasTotalsPieData = totalsPieChartData.length > 0;
 
+	const handleCloseActionModal = React.useCallback(() => {
+		if (isProcessingAction) {
+			return;
+		}
+		setPendingAction(null);
+	}, [isProcessingAction]);
+
+	const handleConfirmAction = React.useCallback(async () => {
+		if (!pendingAction) {
+			return;
+		}
+
+		if (pendingAction.type === 'edit') {
+			const encodedId = encodeURIComponent(pendingAction.movement.id);
+			if (pendingAction.movement.type === 'gain') {
+				router.push({
+					pathname: '/add-register-gain',
+					params: { gainId: encodedId },
+				});
+			} else {
+				router.push({
+					pathname: '/add-register-expenses',
+					params: { expenseId: encodedId },
+				});
+			}
+			setPendingAction(null);
+			return;
+		}
+
+		setIsProcessingAction(true);
+
+		try {
+			let result: { success: boolean } | undefined;
+			if (pendingAction.movement.type === 'gain') {
+				result = await deleteGainFirebase(pendingAction.movement.id);
+			} else {
+				result = await deleteExpenseFirebase(pendingAction.movement.id);
+			}
+
+			if (!result?.success) {
+				showFloatingAlert({
+					message: 'Não foi possível excluir a movimentação. Tente novamente.',
+					action: 'error',
+					position: 'bottom',
+				});
+				return;
+			}
+
+			showFloatingAlert({
+				message: 'Movimentação excluída com sucesso!',
+				action: 'success',
+				position: 'bottom',
+			});
+			await fetchMovements();
+		} catch (error) {
+			console.error('Erro ao remover movimentação:', error);
+			showFloatingAlert({
+				message: 'Erro inesperado ao excluir a movimentação.',
+				action: 'error',
+				position: 'bottom',
+			});
+		} finally {
+			setIsProcessingAction(false);
+			setPendingAction(null);
+		}
+	}, [fetchMovements, pendingAction]);
+
+	const actionModalCopy = React.useMemo(() => {
+		if (!pendingAction) {
+			return {
+				title: '',
+				message: '',
+				confirmLabel: 'Confirmar',
+				isEdit: false,
+			};
+		}
+
+		const movementName = pendingAction.movement.name || 'movimentação selecionada';
+		const movementTypeLabel = pendingAction.movement.type === 'gain' ? 'ganho' : 'despesa';
+
+		if (pendingAction.type === 'edit') {
+			return {
+				title: 'Editar movimentação',
+				message: `Deseja editar o ${movementTypeLabel} "${movementName}"?`,
+				confirmLabel: 'Editar',
+				isEdit: true,
+			};
+		}
+
+		return {
+			title: 'Excluir movimentação',
+			message: `Tem certeza de que deseja excluir o ${movementTypeLabel} "${movementName}"? Essa ação não pode ser desfeita.`,
+			confirmLabel: 'Excluir',
+			isEdit: false,
+		};
+	}, [pendingAction]);
+
+	const isModalOpen = Boolean(pendingAction);
+	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
+
 	return (
 		<View
 			className="
@@ -362,6 +497,7 @@ export default function BankMovementsScreen() {
 					bg-gray-100 dark:bg-gray-950
 				"
 		>
+			<FloatingAlertViewport />
 			<ScrollView
 				keyboardShouldPersistTaps="handled"
 				keyboardDismissMode="on-drag"
@@ -430,13 +566,15 @@ export default function BankMovementsScreen() {
 
 							<Button
 								size="md"
-								variant="solid"
+								variant="outline"
 								onPress={() => {
 									if (!isLoading) {
 										void fetchMovements();
 									}
 								}}
-								disabled={isLoading}
+								isDisabled={
+									isLoading || !parseDateFromBR(startDateInput) || !parseDateFromBR(endDateInput)
+								}
 							>
 								{isLoading ? (
 									<>
@@ -607,6 +745,24 @@ export default function BankMovementsScreen() {
 									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 										Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
 									</Text>
+									<View className="mt-2 flex-row justify-end items-center gap-2">
+										<Button
+											size="xs"
+											variant="link"
+											action="primary"
+											onPress={() => setPendingAction({ type: 'edit', movement })}
+										>
+											<ButtonIcon as={EditIcon} />
+										</Button>
+										<Button
+											size="xs"
+											variant="link"
+											action="negative"
+											onPress={() => setPendingAction({ type: 'delete', movement })}
+										>
+											<ButtonIcon as={TrashIcon} />
+										</Button>
+									</View>
 								</Box>
 							))
 						)}
@@ -617,6 +773,39 @@ export default function BankMovementsScreen() {
 			<View className="w-full">
 				<Menu defaultValue={0} />
 			</View>
+
+			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[360px]">
+					<ModalHeader>
+						<Heading size="lg">{actionModalCopy.title}</Heading>
+						<ModalCloseButton onPress={handleCloseActionModal} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button
+							variant="solid"
+							action={confirmButtonAction}
+							onPress={handleConfirmAction}
+							isDisabled={isProcessingAction}
+						>
+							{isProcessingAction && pendingAction?.type === 'delete' ? (
+								<>
+									<ButtonSpinner color="white" />
+									<ButtonText>Processando</ButtonText>
+								</>
+							) : (
+								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+							)}
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
 		</View>
 	);
 }

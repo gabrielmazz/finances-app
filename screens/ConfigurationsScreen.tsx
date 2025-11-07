@@ -14,8 +14,8 @@ import {
 	AccordionIcon,
 } from '@/components/ui/accordion';
 import { Divider } from '@/components/ui/divider';
-import { Button, ButtonText, ButtonIcon } from '@/components/ui/button';
-import { ChevronDownIcon, ChevronUpIcon, TrashIcon } from '@/components/ui/icon';
+import { Button, ButtonText, ButtonIcon, ButtonSpinner } from '@/components/ui/button';
+import { ChevronDownIcon, ChevronUpIcon, TrashIcon, EditIcon } from '@/components/ui/icon';
 import {
 	Table,
 	TableHeader,
@@ -25,6 +25,15 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Text } from '@/components/ui/text';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+} from '@/components/ui/modal';
 
 // Importações relacionadas à navegação e autenticação
 import { router, useFocusEffect } from 'expo-router';
@@ -102,6 +111,24 @@ const accordionItems: AccordionItem[] = [
 		},
 	},
 ];
+
+type PendingAction =
+	| {
+			type: 'delete-user';
+			payload: { userId: string; identifier: string };
+	  }
+	| {
+			type: 'delete-bank';
+			payload: { bankId: string; bankName: string };
+	  }
+	| {
+			type: 'edit-bank';
+			payload: { bank: { id: string; name: string; colorHex?: string | null } };
+	  }
+	| {
+			type: 'delete-tag';
+			payload: { tagId: string; tagName: string };
+	  };
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
 
@@ -181,7 +208,7 @@ export async function handleAddBank(bankName: string) {
 		return null;
 	}
 
-	const result = await addBankFirebase({ bankName, personId });
+	const result = await addBankFirebase({ bankName, personId, colorHex: null });
 
 	if (result.success) {
 
@@ -275,13 +302,15 @@ export async function fetchAllTags() {
 export default function ConfigurationsScreen() {
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
-	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string }>>([]);
+	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null }>>([]);
 	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string; usageType?: 'expense' | 'gain' }>>([]);
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
 	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
+	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
+	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 
 	const handleUserRemoval = React.useCallback(
 		async (userId: string, identifier: string) => {
@@ -328,6 +357,27 @@ export default function ConfigurationsScreen() {
 		[],
 	);
 
+	const handleBankEdit = React.useCallback(
+		(bank: { id: string; name: string; colorHex?: string | null }) => {
+			if (!bank?.id) {
+				return;
+			}
+
+			const encodedName = encodeURIComponent(bank?.name ?? '');
+			const encodedColor = bank?.colorHex ? encodeURIComponent(bank.colorHex) : undefined;
+
+			router.push({
+				pathname: '/add-register-bank',
+				params: {
+					bankId: bank.id,
+					bankName: encodedName,
+					...(encodedColor ? { colorHex: encodedColor } : {}),
+				},
+			});
+		},
+		[router],
+	);
+
 	const handleTagRemoval = React.useCallback(
 		async (tagId: string, tagName: string) => {
 			const result = await handleDeleteTag(tagId);
@@ -349,6 +399,98 @@ export default function ConfigurationsScreen() {
 		},
 		[setTagData],
 	);
+
+	const handleCloseActionModal = React.useCallback(() => {
+		if (isProcessingAction) {
+			return;
+		}
+		setPendingAction(null);
+	}, [isProcessingAction]);
+
+	const handleConfirmAction = React.useCallback(async () => {
+		if (!pendingAction) {
+			return;
+		}
+
+		if (pendingAction.type === 'edit-bank') {
+			handleBankEdit(pendingAction.payload.bank);
+			setPendingAction(null);
+			return;
+		}
+
+		setIsProcessingAction(true);
+
+		try {
+			if (pendingAction.type === 'delete-user') {
+				await handleUserRemoval(pendingAction.payload.userId, pendingAction.payload.identifier);
+			} else if (pendingAction.type === 'delete-bank') {
+				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName);
+			} else if (pendingAction.type === 'delete-tag') {
+				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName);
+			}
+		} finally {
+			setIsProcessingAction(false);
+			setPendingAction(null);
+		}
+	}, [pendingAction, handleBankEdit, handleBankRemoval, handleTagRemoval, handleUserRemoval]);
+
+	const actionModalCopy = React.useMemo(() => {
+		if (!pendingAction) {
+			return {
+				title: '',
+				message: '',
+				confirmLabel: 'Confirmar',
+				isEdit: false,
+			};
+		}
+
+		switch (pendingAction.type) {
+			case 'delete-user':
+				return {
+					title: 'Remover usuário',
+					message: `Tem certeza de que deseja remover o usuário ${
+						pendingAction.payload.identifier || 'selecionado'
+					}? Esta ação não pode ser desfeita.`,
+					confirmLabel: 'Remover',
+					isEdit: false,
+				};
+			case 'delete-bank':
+				return {
+					title: 'Excluir banco',
+					message: `Tem certeza de que deseja excluir o banco ${
+						pendingAction.payload.bankName || 'selecionado'
+					}? Esta ação removerá todas as referências a ele.`,
+					confirmLabel: 'Excluir',
+					isEdit: false,
+				};
+			case 'edit-bank':
+				return {
+					title: 'Editar banco',
+					message: `Deseja editar o banco ${pendingAction.payload.bank.name}? Você será redirecionado para a tela de edição.`,
+					confirmLabel: 'Editar',
+					isEdit: true,
+				};
+			case 'delete-tag':
+				return {
+					title: 'Excluir tag',
+					message: `Tem certeza de que deseja excluir a tag ${
+						pendingAction.payload.tagName || 'selecionada'
+					}? Esta ação não pode ser desfeita.`,
+					confirmLabel: 'Excluir',
+					isEdit: false,
+				};
+			default:
+				return {
+					title: '',
+					message: '',
+					confirmLabel: 'Confirmar',
+					isEdit: false,
+				};
+		}
+	}, [pendingAction]);
+
+	const isModalOpen = Boolean(pendingAction);
+	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
 
 	// Verifica se o usuário atual possui flag de administrador no Firestore
 	React.useEffect(() => {
@@ -417,6 +559,7 @@ export default function ConfigurationsScreen() {
 						const formattedBanks = banks.map((bank: any) => ({
 							id: bank.id,
 							name: bank.name,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 						}));
 
 						setBankData(formattedBanks);
@@ -530,13 +673,14 @@ export default function ConfigurationsScreen() {
 	);
 
 	return (
-		<View
+		<>
+			<View
 				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					pb-6
-					relative
-				"
+						flex-1 w-full h-full
+						mt-[64px]
+						pb-6
+						relative
+					"
 			>
 
 				<ScrollView
@@ -648,13 +792,7 @@ export default function ConfigurationsScreen() {
 																		Email cadastrado
 																	</TableHead>
 
-																	<TableHead
-																		className="
-																			text-center
-																		"
-																	>
-																		Ações
-																	</TableHead>
+																	<TableHead className="text-right">Ações</TableHead>
 
 																</TableRow>
 
@@ -677,18 +815,24 @@ export default function ConfigurationsScreen() {
 																		</TableData>
 
 																		<TableData useRNView>
-
-																			<Button
-																				size="xs"
-																				variant="link"
-																				action="negative"
-																				onPress={() => {
-																					void handleUserRemoval(user.id, user.email ?? user.id);
-																				}}
-																			>
-																				<ButtonIcon as={TrashIcon} />
-																			</Button>
-
+																			<View className="flex-row justify-end items-center">
+																				<Button
+																					size="xs"
+																					variant="link"
+																					action="negative"
+																					onPress={() =>
+																						setPendingAction({
+																							type: 'delete-user',
+																							payload: {
+																								userId: user.id,
+																								identifier: user.email ?? user.id,
+																							},
+																						})
+																					}
+																				>
+																					<ButtonIcon as={TrashIcon} />
+																				</Button>
+																			</View>
 																		</TableData>
 
 																	</TableRow>
@@ -722,13 +866,7 @@ export default function ConfigurationsScreen() {
 																		Banco cadastrado
 																	</TableHead>
 
-																	<TableHead
-																		className="
-															text-center
-														"
-																	>
-																		Ações
-																	</TableHead>
+																	<TableHead className="text-right">Ações</TableHead>
 
 																</TableRow>
 
@@ -751,18 +889,37 @@ export default function ConfigurationsScreen() {
 																		</TableData>
 
 																		<TableData useRNView>
-
-																			<Button
-																				size="xs"
-																				variant="link"
-																				action="negative"
-																				onPress={() => {
-																					void handleBankRemoval(bank.id, bank.name);
-																				}}
-																			>
-																				<ButtonIcon as={TrashIcon} />
-																			</Button>
-
+																			<View className="flex-row justify-end items-center gap-2">
+																				<Button
+																					size="xs"
+																					variant="link"
+																					action="primary"
+																					onPress={() =>
+																						setPendingAction({
+																							type: 'edit-bank',
+																							payload: { bank },
+																						})
+																					}
+																				>
+																					<ButtonIcon as={EditIcon} />
+																				</Button>
+																				<Button
+																					size="xs"
+																					variant="link"
+																					action="negative"
+																					onPress={() =>
+																						setPendingAction({
+																							type: 'delete-bank',
+																							payload: {
+																								bankId: bank.id,
+																								bankName: bank.name,
+																							},
+																						})
+																					}
+																				>
+																					<ButtonIcon as={TrashIcon} />
+																				</Button>
+																			</View>
 																		</TableData>
 
 																	</TableRow>
@@ -800,13 +957,7 @@ export default function ConfigurationsScreen() {
 																		Tipo
 																	</TableHead>
 
-																	<TableHead
-																		className="
-															text-center
-														"
-																	>
-																		Ações
-																	</TableHead>
+																	<TableHead className="text-right">Ações</TableHead>
 
 																</TableRow>
 
@@ -841,18 +992,24 @@ export default function ConfigurationsScreen() {
 																		</TableData>
 
 																		<TableData useRNView>
-
-																			<Button
-																				size="xs"
-																				variant="link"
-																				action="negative"
-																				onPress={() => {
-																					void handleTagRemoval(tag.id, tag.name);
-																				}}
-																			>
-																				<ButtonIcon as={TrashIcon} />
-																			</Button>
-
+																			<View className="flex-row justify-end items-center">
+																				<Button
+																					size="xs"
+																					variant="link"
+																					action="negative"
+																					onPress={() =>
+																						setPendingAction({
+																							type: 'delete-tag',
+																							payload: {
+																								tagId: tag.id,
+																								tagName: tag.name,
+																							},
+																						})
+																					}
+																				>
+																					<ButtonIcon as={TrashIcon} />
+																				</Button>
+																			</View>
 																		</TableData>
 
 																	</TableRow>
@@ -936,6 +1093,40 @@ export default function ConfigurationsScreen() {
 					</View>
 
 				</ScrollView>
-		</View>
+			</View>
+
+			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[360px]">
+					<ModalHeader>
+						<Heading size="lg">{actionModalCopy.title}</Heading>
+						<ModalCloseButton onPress={handleCloseActionModal} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button
+							variant="solid"
+							action={confirmButtonAction}
+							onPress={handleConfirmAction}
+							isDisabled={isProcessingAction}
+						>
+							{isProcessingAction ? (
+								<>
+									<ButtonSpinner color="white" />
+									<ButtonText>Processando</ButtonText>
+								</>
+							) : (
+								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+							)}
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
+		</>
 	);
 }

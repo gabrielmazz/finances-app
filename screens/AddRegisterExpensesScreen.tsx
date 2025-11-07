@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
 	Select,
@@ -26,7 +26,7 @@ import { Menu } from '@/components/uiverse/menu';
 
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { auth } from '@/FirebaseConfig';
 
 type OptionItem = {
@@ -105,6 +105,39 @@ const mergeDateWithCurrentTime = (date: Date) => {
 	return dateWithTime;
 };
 
+const normalizeDateValue = (value: unknown): Date | null => {
+	if (!value) {
+		return null;
+	}
+
+	if (value instanceof Date) {
+		return value;
+	}
+
+	if (typeof value === 'object' && value !== null) {
+		if ('toDate' in value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+			return (value as { toDate?: () => Date }).toDate?.() ?? null;
+		}
+
+		if ('seconds' in value && typeof (value as { seconds?: number }).seconds === 'number') {
+			const secondsValue = (value as { seconds?: number }).seconds ?? 0;
+			const dateFromSeconds = new Date(secondsValue * 1000);
+			if (!Number.isNaN(dateFromSeconds.getTime())) {
+				return dateFromSeconds;
+			}
+		}
+	}
+
+	if (typeof value === 'string' || typeof value === 'number') {
+		const parsed = new Date(value);
+		if (!Number.isNaN(parsed.getTime())) {
+			return parsed;
+		}
+	}
+
+	return null;
+};
+
 export default function AddRegisterExpensesScreen() {
 
 	// Variaveis relacionadas ao registro de despesas
@@ -125,7 +158,15 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
+
+	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
+	const editingExpenseId = React.useMemo(() => {
+		const value = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
+		return value && value.trim().length > 0 ? value : null;
+	}, [params.expenseId]);
+	const isEditing = Boolean(editingExpenseId);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -356,6 +397,37 @@ export default function AddRegisterExpensesScreen() {
 				return;
 			}
 
+			if (isEditing && editingExpenseId) {
+				const result = await updateExpenseFirebase({
+					expenseId: editingExpenseId,
+					name: expenseName.trim(),
+					valueInCents: expenseValueCents ?? undefined,
+					tagId: selectedTagId ?? undefined,
+					bankId: selectedBankId ?? undefined,
+					date: dateWithCurrentTime,
+					explanation: explanationExpense?.trim() ?? null,
+				});
+
+				if (!result.success) {
+					showFloatingAlert({
+						message: 'Erro ao atualizar despesa. Tente novamente mais tarde.',
+						action: 'error',
+						position: 'bottom',
+						offset: 40,
+					});
+					return;
+				}
+
+				showFloatingAlert({
+					message: 'Despesa atualizada com sucesso!',
+					action: 'success',
+					position: 'bottom',
+					offset: 40,
+				});
+				router.back();
+				return;
+			}
+
 			const result = await addExpenseFirebase({
 				name: expenseName.trim(),
 				valueInCents: expenseValueCents,
@@ -388,10 +460,12 @@ export default function AddRegisterExpensesScreen() {
 			setExpenseValueCents(null);
 			setExpenseDate(formatDateToBR(new Date()));
 			setExplanationExpense(null);
+			setSelectedTagId(null);
+			setSelectedBankId(null);
 		} catch (error) {
-			console.error('Erro ao registrar despesa:', error);
+			console.error('Erro ao registrar/atualizar despesa:', error);
 			showFloatingAlert({
-				message: 'Erro inesperado ao registrar despesa.',
+				message: 'Erro inesperado ao salvar a despesa.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
@@ -400,7 +474,69 @@ export default function AddRegisterExpensesScreen() {
 			setIsSubmitting(false);
 		}
 
-	}, [expenseDate, expenseName, expenseValueCents, selectedBankId, selectedTagId]);
+	}, [editingExpenseId, expenseDate, expenseName, expenseValueCents, explanationExpense, isEditing, selectedBankId, selectedTagId]);
+
+	React.useEffect(() => {
+		if (!editingExpenseId) {
+			return;
+		}
+
+		let isMounted = true;
+		setIsLoadingExisting(true);
+
+		const loadExpense = async () => {
+			try {
+				const response = await getExpenseDataFirebase(editingExpenseId);
+
+				if (!isMounted) {
+					return;
+				}
+
+				if (!response.success || !response.data) {
+					showFloatingAlert({
+						message: 'Não foi possível carregar os dados da despesa selecionada.',
+						action: 'error',
+						position: 'bottom',
+						offset: 40,
+					});
+					return;
+				}
+
+				const data = response.data as Record<string, unknown>;
+				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+				setExpenseName(typeof data.name === 'string' ? data.name : '');
+				setExpenseValueCents(value);
+				setExpenseValueDisplay(formatCurrencyBRL(value));
+
+				const normalizedDate = normalizeDateValue(data.date) ?? new Date();
+				setExpenseDate(formatDateToBR(normalizedDate));
+
+				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+				setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
+			} catch (error) {
+				console.error('Erro ao carregar despesa para edição:', error);
+				if (isMounted) {
+					showFloatingAlert({
+						message: 'Erro inesperado ao carregar a despesa selecionada.',
+						action: 'error',
+						position: 'bottom',
+						offset: 40,
+					});
+				}
+			} finally {
+				if (isMounted) {
+					setIsLoadingExisting(false);
+				}
+			}
+		};
+
+		void loadExpense();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [editingExpenseId]);
 
 	return (
 		<View
@@ -425,11 +561,13 @@ export default function AddRegisterExpensesScreen() {
 			>
 				<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-6">
-						Registro de Despesas
+						{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
 					</Heading>
 
 					<Text className="mb-6 text-center">
-						Preencha os dados abaixo para cadastrar uma nova despesa no sistema.
+						{isEditing
+							? 'Atualize os dados da despesa selecionada e confirme para salvar.'
+							: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema.'}
 					</Text>
 
 					<VStack className="gap-5">
@@ -538,12 +676,19 @@ export default function AddRegisterExpensesScreen() {
 							/>
 						</Input>
 
+						{isEditing && isLoadingExisting && (
+							<Text className="text-sm text-gray-500 dark:text-gray-400">
+								Carregando dados da despesa selecionada...
+							</Text>
+						)}
+
 						<Button
 							className="w-full mt-2"
 							size="sm"
 							variant="outline"
 							onPress={handleSubmit}
 							isDisabled={
+								isLoadingExisting ||
 								isSubmitting ||
 								!expenseName.trim() ||
 								expenseValueCents === null ||
@@ -555,7 +700,7 @@ export default function AddRegisterExpensesScreen() {
 							{isSubmitting ? (
 								<ButtonSpinner />
 							) : (
-								<ButtonText>Registrar Despesa</ButtonText>
+								<ButtonText>{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}</ButtonText>
 							)}
 						</Button>
 					</VStack>

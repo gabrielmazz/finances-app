@@ -138,6 +138,7 @@ export default function HomeScreen() {
 	const [isLoadingMovements, setIsLoadingMovements] = React.useState(false);
 	const [movementsError, setMovementsError] = React.useState<string | null>(null);
 	const [bankNamesById, setBankNamesById] = React.useState<Record<string, string>>({});
+	const [bankColorsById, setBankColorsById] = React.useState<Record<string, string | null>>({});
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
 	const [yearlyStats, setYearlyStats] = React.useState<YearlyMonthStats[]>(() => createEmptyYearlyStats());
 	const [currentMonthExpensesByBank, setCurrentMonthExpensesByBank] = React.useState<BankMonthlyTotal[]>([]);
@@ -251,9 +252,14 @@ export default function HomeScreen() {
 	const buildPieSlices = React.useCallback(
 		(totals: BankMonthlyTotal[]) => {
 			const slices = totals
-				.filter((item) => item.totalInCents > 0)
+				.filter(item => item.totalInCents > 0)
 				.map((item, index) => {
-					const color = PIE_COLOR_PALETTE[index % PIE_COLOR_PALETTE.length];
+					const fallbackColor = PIE_COLOR_PALETTE[index % PIE_COLOR_PALETTE.length];
+					const customColor =
+						item.bankId && typeof bankColorsById[item.bankId] === 'string'
+							? bankColorsById[item.bankId]
+							: null;
+					const color = customColor ?? fallbackColor;
 					const name = bankNamesById[item.bankId] ?? 'Banco não identificado';
 
 					return {
@@ -272,11 +278,11 @@ export default function HomeScreen() {
 				});
 
 			return {
-				chartData: slices.map((slice) => slice.chartSlice),
-				legendData: slices.map((slice) => slice.legendSlice),
+				chartData: slices.map(slice => slice.chartSlice),
+				legendData: slices.map(slice => slice.legendSlice),
 			};
 		},
-		[bankNamesById],
+		[bankColorsById, bankNamesById],
 	);
 
 	const formatYAxisLabel = React.useCallback((label: string) => {
@@ -423,6 +429,7 @@ export default function HomeScreen() {
 				setRecentExpenses([]);
 				setRecentGains([]);
 				setBankNamesById({});
+				setBankColorsById({});
 				setChartsError(null);
 				setYearlyStats(createEmptyYearlyStats());
 				setCurrentMonthExpensesByBank([]);
@@ -439,6 +446,7 @@ export default function HomeScreen() {
 						setMovementsError(message);
 						setRecentExpenses([]);
 						setRecentGains([]);
+						setBankColorsById({});
 						setIsLoadingSummary(false);
 						setIsLoadingMovements(false);
 					}
@@ -557,19 +565,31 @@ export default function HomeScreen() {
 						let hasIssues = false;
 
 						if (banksResult?.success) {
-							const banksMap = Array.isArray(banksResult.data)
-								? banksResult.data.reduce((acc: Record<string, string>, bank: any) => {
-									if (bank && typeof bank.id === 'string') {
-										const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
-										acc[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
-									}
-									return acc;
-								}, {})
-								: {};
+							const { nameMap, colorMap } = Array.isArray(banksResult.data)
+								? banksResult.data.reduce(
+										(
+											acc: { nameMap: Record<string, string>; colorMap: Record<string, string | null> },
+											bank: any,
+										) => {
+											if (bank && typeof bank.id === 'string') {
+												const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
+												const rawColor =
+													typeof bank.colorHex === 'string' ? bank.colorHex.trim() : null;
+												acc.nameMap[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
+												acc.colorMap[bank.id] =
+													rawColor && rawColor.length > 0 ? rawColor : null;
+											}
+											return acc;
+										},
+										{ nameMap: {}, colorMap: {} },
+								  )
+								: { nameMap: {}, colorMap: {} };
 
-							setBankNamesById(banksMap);
+							setBankNamesById(nameMap);
+							setBankColorsById(colorMap);
 						} else {
 							setBankNamesById({});
+							setBankColorsById({});
 							hasIssues = true;
 						}
 
@@ -603,6 +623,8 @@ export default function HomeScreen() {
 							setMovementsError('Erro ao carregar os últimos movimentos.');
 							setRecentExpenses([]);
 							setRecentGains([]);
+							setBankNamesById({});
+							setBankColorsById({});
 						}
 
 					} finally {
@@ -699,11 +721,17 @@ export default function HomeScreen() {
 
 										<>
 											<Text className="mt-4 text-gray-700 dark:text-gray-300">
-												Total de ganhos: {formatCurrencyBRL(totalGainsInCents)}
+												Total de ganhos:{' '}
+												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+													{formatCurrencyBRL(totalGainsInCents)}
+												</Text>
 											</Text>
 
 											<Text className="mt-4 text-gray-700 dark:text-gray-300">
-												Total de despesas: {formatCurrencyBRL(totalExpensesInCents)}
+												Total de despesas:{' '}
+												<Text className="text-red-600 dark:text-red-400 font-semibold">
+													{formatCurrencyBRL(totalExpensesInCents)}
+												</Text>
 											</Text>
 										</>
 

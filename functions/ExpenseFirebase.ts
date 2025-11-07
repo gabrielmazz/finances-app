@@ -14,6 +14,16 @@ interface AddExpenseParams {
 	explanation?: string | null;
 }
 
+interface UpdateExpenseParams {
+	expenseId: string;
+	name?: string;
+	valueInCents?: number;
+	tagId?: string;
+	bankId?: string;
+	date?: Date;
+	explanation?: string | null;
+}
+
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar uma nova despesa no Firestore
@@ -38,11 +48,60 @@ export async function addExpenseFirebase({
 			personId,
 			explanation: explanation ?? null,
 			createdAt: new Date(),
+			updatedAt: new Date(),
 		});
 
 		return { success: true, expenseId: expenseRef.id };
 	} catch (error) {
 		console.error('Erro ao adicionar despesa:', error);
+		return { success: false, error };
+	}
+}
+
+export async function updateExpenseFirebase({
+	expenseId,
+	name,
+	valueInCents,
+	tagId,
+	bankId,
+	date,
+	explanation,
+}: UpdateExpenseParams) {
+	try {
+		const expenseRef = doc(db, 'expenses', expenseId);
+		const updates: Record<string, unknown> = {
+			updatedAt: new Date(),
+		};
+
+		if (typeof name === 'string') {
+			updates.name = name;
+		}
+
+		if (typeof valueInCents === 'number') {
+			updates.valueInCents = valueInCents;
+		}
+
+		if (typeof tagId === 'string') {
+			updates.tagId = tagId;
+		}
+
+		if (typeof bankId === 'string') {
+			updates.bankId = bankId;
+		}
+
+		if (date instanceof Date) {
+			updates.date = date;
+		}
+
+		if (explanation !== undefined) {
+			updates.explanation = explanation ?? null;
+		}
+
+		await setDoc(expenseRef, updates, { merge: true });
+
+		return { success: true };
+	} catch (error) {
+		console.error('Erro ao atualizar despesa:', error);
 		return { success: false, error };
 	}
 }

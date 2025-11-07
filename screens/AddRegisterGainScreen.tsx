@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -37,7 +37,7 @@ import { Menu } from '@/components/uiverse/menu';
 // Importação das funções relacionadas a adição de ganho ao Firebase
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import { addGainFirebase } from '@/functions/GainFirebase';
+import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { auth } from '@/FirebaseConfig';
 
 // Importação dos icones
@@ -116,6 +116,39 @@ const mergeDateWithCurrentTime = (date: Date) => {
 	return dateWithTime;
 };
 
+const normalizeDateValue = (value: unknown): Date | null => {
+	if (!value) {
+		return null;
+	}
+
+	if (value instanceof Date) {
+		return value;
+	}
+
+	if (typeof value === 'object' && value !== null) {
+		if ('toDate' in value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+			return (value as { toDate?: () => Date }).toDate?.() ?? null;
+		}
+
+		if ('seconds' in value && typeof (value as { seconds?: number }).seconds === 'number') {
+			const secondsValue = (value as { seconds?: number }).seconds ?? 0;
+			const dateFromSeconds = new Date(secondsValue * 1000);
+			if (!Number.isNaN(dateFromSeconds.getTime())) {
+				return dateFromSeconds;
+			}
+		}
+	}
+
+	if (typeof value === 'string' || typeof value === 'number') {
+		const parsed = new Date(value);
+		if (!Number.isNaN(parsed.getTime())) {
+			return parsed;
+		}
+	}
+
+	return null;
+};
+
 export default function AddRegisterGainScreen() {
 	const [gainName, setGainName] = React.useState('');
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
@@ -131,9 +164,17 @@ export default function AddRegisterGainScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
+
+	const params = useLocalSearchParams<{ gainId?: string | string[] }>();
+	const editingGainId = React.useMemo(() => {
+		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
+		return value && value.trim().length > 0 ? value : null;
+	}, [params.gainId]);
+	const isEditing = Boolean(editingGainId);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -317,6 +358,36 @@ export default function AddRegisterGainScreen() {
 				return;
 			}
 
+			if (isEditing && editingGainId) {
+				const result = await updateGainFirebase({
+					gainId: editingGainId,
+					name: gainName.trim(),
+					valueInCents: gainValueCents,
+					paymentFormats: paymentFormat,
+					explanation: explanationGain?.trim() ? explanationGain.trim() : null,
+					tagId: selectedTagId ?? undefined,
+					bankId: selectedBankId ?? undefined,
+					date: dateWithCurrentTime,
+				});
+
+				if (!result.success) {
+					showFloatingAlert({
+						message: 'Erro ao atualizar ganho. Tente novamente mais tarde.',
+						action: 'error',
+						position: 'bottom',
+					});
+					return;
+				}
+
+				showFloatingAlert({
+					message: 'Ganho atualizado com sucesso!',
+					action: 'success',
+					position: 'bottom',
+				});
+				router.back();
+				return;
+			}
+
 			const result = await addGainFirebase({
 				name: gainName.trim(),
 				valueInCents: gainValueCents,
@@ -347,17 +418,88 @@ export default function AddRegisterGainScreen() {
 			setGainValueDisplay('');
 			setGainValueCents(null);
 			setGainDate(formatDateToBR(new Date()));
+			setPaymentFormat([]);
+			setExplanationGain(null);
+			setSelectedTagId(null);
+			setSelectedBankId(null);
 		} catch (error) {
-			console.error('Erro ao registrar ganho:', error);
+			console.error('Erro ao registrar/atualizar ganho:', error);
 			showFloatingAlert({
-				message: 'Erro inesperado ao registrar ganho.',
+				message: 'Erro inesperado ao salvar o ganho.',
 				action: 'error',
 				position: 'bottom',
 			});
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [gainDate, gainName, gainValueCents, selectedBankId, selectedTagId]);
+	}, [editingGainId, gainDate, gainName, gainValueCents, isEditing, paymentFormat, selectedBankId, selectedTagId, explanationGain]);
+
+	React.useEffect(() => {
+		if (!editingGainId) {
+			return;
+		}
+
+		let isMounted = true;
+		setIsLoadingExisting(true);
+
+		const loadGain = async () => {
+			try {
+				const response = await getGainDataFirebase(editingGainId);
+				if (!isMounted) {
+					return;
+				}
+
+				if (!response.success || !response.data) {
+					showFloatingAlert({
+						message: 'Não foi possível carregar os dados do ganho selecionado.',
+						action: 'error',
+						position: 'bottom',
+					});
+					return;
+				}
+
+				const data = response.data as Record<string, unknown>;
+				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+				setGainName(typeof data.name === 'string' ? data.name : '');
+				setGainValueCents(value);
+				setGainValueDisplay(formatCurrencyBRL(value));
+
+				const normalizedDate = normalizeDateValue(data.date) ?? new Date();
+				setGainDate(formatDateToBR(normalizedDate));
+
+				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+
+				if (Array.isArray(data.paymentFormats)) {
+					const validFormats = (data.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[];
+					setPaymentFormat(validFormats);
+				} else {
+					setPaymentFormat([]);
+				}
+
+				setExplanationGain(typeof data.explanation === 'string' ? data.explanation : null);
+			} catch (error) {
+				console.error('Erro ao carregar ganho para edição:', error);
+				if (isMounted) {
+					showFloatingAlert({
+						message: 'Erro inesperado ao carregar os dados do ganho.',
+						action: 'error',
+						position: 'bottom',
+					});
+				}
+			} finally {
+				if (isMounted) {
+					setIsLoadingExisting(false);
+				}
+			}
+		};
+
+		void loadGain();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [editingGainId]);
 
 
 	return (
@@ -383,11 +525,13 @@ export default function AddRegisterGainScreen() {
 			>
 				<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-6">
-						Registro de Ganhos
+						{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
 					</Heading>
 
 					<Text className="mb-6 text-center">
-						Informe os dados abaixo para registrar um novo ganho no sistema.
+						{isEditing
+							? 'Atualize os dados do ganho selecionado e salve as alterações.'
+							: 'Informe os dados abaixo para registrar um novo ganho no sistema.'}
 					</Text>
 
 					<VStack className="gap-5">
@@ -543,12 +687,19 @@ export default function AddRegisterGainScreen() {
 							/>
 						</Input>
 
+						{isEditing && isLoadingExisting && (
+							<Text className="text-sm text-gray-500 dark:text-gray-400">
+								Carregando informações do ganho selecionado...
+							</Text>
+						)}
+
 						<Button
 							className="w-full mt-2"
 							size="sm"
 							variant="outline"
 							onPress={handleSubmit}
 							isDisabled={
+								isLoadingExisting ||
 								isSubmitting ||
 								!gainName.trim() ||
 								gainValueCents === null ||
@@ -560,7 +711,7 @@ export default function AddRegisterGainScreen() {
 							{isSubmitting ? (
 								<ButtonSpinner />
 							) : (
-								<ButtonText>Registrar Ganho</ButtonText>
+								<ButtonText>{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
 							)}
 						</Button>
 					</VStack>
