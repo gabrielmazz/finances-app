@@ -10,6 +10,12 @@ interface AddTagParams {
 	usageType: 'expense' | 'gain';
 }
 
+interface UpdateTagParams {
+	tagId: string;
+	tagName?: string;
+	usageType?: 'expense' | 'gain';
+}
+
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar uma nova tag no Firestore
@@ -22,11 +28,36 @@ export async function addTagFirebase({ tagName, personId, usageType }: AddTagPar
 			personId,
 			usageType,
 			createdAt: new Date(),
+			updatedAt: new Date(),
 		});
 
 		return { success: true, tagId: tagRef.id };
 	} catch (error) {
 		console.error('Erro ao adicionar tag:', error);
+		return { success: false, error };
+	}
+}
+
+export async function updateTagFirebase({ tagId, tagName, usageType }: UpdateTagParams) {
+	try {
+		const tagRef = doc(db, 'tags', tagId);
+		const updates: Record<string, unknown> = {
+			updatedAt: new Date(),
+		};
+
+		if (typeof tagName === 'string') {
+			updates.name = tagName;
+		}
+
+		if (usageType === 'expense' || usageType === 'gain') {
+			updates.usageType = usageType;
+		}
+
+		await setDoc(tagRef, updates, { merge: true });
+
+		return { success: true };
+	} catch (error) {
+		console.error('Erro ao atualizar tag:', error);
 		return { success: false, error };
 	}
 }

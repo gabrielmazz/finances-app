@@ -169,7 +169,7 @@ const PIE_TOTAL_COLORS = {
 export default function BankMovementsScreen() {
 	const colorScheme = useColorScheme();
 	const legendBorderColor = colorScheme === 'dark' ? '#374151' : '#E5E7EB';
-	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[] }>();
+	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[]; bankColor?: string | string[] }>();
 
 	const bankId = React.useMemo(() => {
 		const value = searchParams.bankId;
@@ -191,8 +191,34 @@ export default function BankMovementsScreen() {
 			return value;
 		}
 	}, [searchParams.bankName]);
+	const bankColorHex = React.useMemo(() => {
+		const value = Array.isArray(searchParams.bankColor) ? searchParams.bankColor[0] : searchParams.bankColor;
+		if (!value) {
+			return null;
+		}
+
+		try {
+			const decoded = decodeURIComponent(value);
+			return decoded ?? null;
+		} catch {
+			return value;
+		}
+	}, [searchParams.bankColor]);
 
 	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
+	const boxShadowStyle = React.useMemo(() => {
+		if (!bankColorHex) {
+			return undefined;
+		}
+
+		return {
+			shadowColor: bankColorHex,
+			shadowOpacity: 0.35,
+			shadowRadius: 6,
+			shadowOffset: { width: 0, height: 3 },
+			elevation: 6,
+		} as const;
+	}, [bankColorHex]);
 
 	const [startDateInput, setStartDateInput] = React.useState(formatDateToBR(start));
 	const [endDateInput, setEndDateInput] = React.useState(formatDateToBR(end));
@@ -527,6 +553,7 @@ export default function BankMovementsScreen() {
 								mb-6
 								shadow-sm
 							"
+						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Filtros do período
@@ -596,6 +623,7 @@ export default function BankMovementsScreen() {
 								mb-6
 								shadow-sm
 							"
+						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Resumo do período
@@ -639,6 +667,7 @@ export default function BankMovementsScreen() {
 								p-4
 								shadow-sm
 							"
+						style={boxShadowStyle}
 					>
 						<HStack className="justify-between items-center">
 							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -702,6 +731,7 @@ export default function BankMovementsScreen() {
 								mt-6
 								shadow-sm
 							"
+						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Movimentações encontradas

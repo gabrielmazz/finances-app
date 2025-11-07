@@ -43,7 +43,13 @@ import { auth } from '@/FirebaseConfig';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
-import { getUserDataFirebase, getAllUsersFirebase, deleteUserFirebase, getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
+import {
+	getUserDataFirebase,
+	getAllUsersFirebase,
+	deleteUserFirebase,
+	getRelatedUsersFirebase,
+	deleteUserRelationFirebase,
+} from '@/functions/RegisterUserFirebase';
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
 import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { Input, InputField, InputIcon } from '@/components/ui/input';
@@ -118,6 +124,10 @@ type PendingAction =
 			payload: { userId: string; identifier: string };
 	  }
 	| {
+			type: 'delete-related-user';
+			payload: { userId: string; identifier: string };
+	  }
+	| {
 			type: 'delete-bank';
 			payload: { bankId: string; bankName: string };
 	  }
@@ -128,6 +138,10 @@ type PendingAction =
 	| {
 			type: 'delete-tag';
 			payload: { tagId: string; tagName: string };
+	  }
+	| {
+			type: 'edit-tag';
+			payload: { tag: { id: string; name: string; usageType?: 'expense' | 'gain' } };
 	  };
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
@@ -400,6 +414,28 @@ export default function ConfigurationsScreen() {
 		[setTagData],
 	);
 
+	const handleRelatedUserRemoval = React.useCallback(
+		async (relatedUserId: string, identifier: string) => {
+			const result = await deleteUserRelationFirebase(relatedUserId);
+
+			if (result.success) {
+				setRelatedUserData(prev => prev.filter(user => user.id !== relatedUserId));
+				showFloatingAlert({
+					message: `Usuário ${identifier} foi desvinculado.`,
+					action: 'success',
+					position: 'bottom',
+				});
+			} else {
+				showFloatingAlert({
+					message: 'Não foi possível remover o vínculo. Tente novamente.',
+					action: 'error',
+					position: 'bottom',
+				});
+			}
+		},
+		[setRelatedUserData],
+	);
+
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
 			return;
@@ -418,6 +454,24 @@ export default function ConfigurationsScreen() {
 			return;
 		}
 
+		if (pendingAction.type === 'edit-tag') {
+			const encodedName = encodeURIComponent(pendingAction.payload.tag.name ?? '');
+			const encodedUsage = pendingAction.payload.tag.usageType
+				? encodeURIComponent(pendingAction.payload.tag.usageType)
+				: undefined;
+
+			router.push({
+				pathname: '/add-register-tag',
+				params: {
+					tagId: pendingAction.payload.tag.id,
+					tagName: encodedName,
+					...(encodedUsage ? { usageType: encodedUsage } : {}),
+				},
+			});
+			setPendingAction(null);
+			return;
+		}
+
 		setIsProcessingAction(true);
 
 		try {
@@ -427,12 +481,14 @@ export default function ConfigurationsScreen() {
 				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName);
 			} else if (pendingAction.type === 'delete-tag') {
 				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName);
+			} else if (pendingAction.type === 'delete-related-user') {
+				await handleRelatedUserRemoval(pendingAction.payload.userId, pendingAction.payload.identifier);
 			}
 		} finally {
 			setIsProcessingAction(false);
 			setPendingAction(null);
 		}
-	}, [pendingAction, handleBankEdit, handleBankRemoval, handleTagRemoval, handleUserRemoval]);
+	}, [pendingAction, handleBankEdit, handleBankRemoval, handleTagRemoval, handleUserRemoval, handleRelatedUserRemoval]);
 
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
@@ -454,6 +510,15 @@ export default function ConfigurationsScreen() {
 					confirmLabel: 'Remover',
 					isEdit: false,
 				};
+			case 'delete-related-user':
+				return {
+					title: 'Desvincular usuário',
+					message: `Tem certeza de que deseja remover o vínculo com ${
+						pendingAction.payload.identifier || 'o usuário selecionado'
+					}?`,
+					confirmLabel: 'Desvincular',
+					isEdit: false,
+				};
 			case 'delete-bank':
 				return {
 					title: 'Excluir banco',
@@ -467,6 +532,13 @@ export default function ConfigurationsScreen() {
 				return {
 					title: 'Editar banco',
 					message: `Deseja editar o banco ${pendingAction.payload.bank.name}? Você será redirecionado para a tela de edição.`,
+					confirmLabel: 'Editar',
+					isEdit: true,
+				};
+			case 'edit-tag':
+				return {
+					title: 'Editar tag',
+					message: `Deseja editar a tag ${pendingAction.payload.tag.name}? Você será redirecionado para a tela de edição.`,
 					confirmLabel: 'Editar',
 					isEdit: true,
 				};
@@ -572,6 +644,10 @@ export default function ConfigurationsScreen() {
 						const formattedTags = tags.map((tag: any) => ({
 							id: tag.id,
 							name: tag.name,
+							usageType:
+								typeof tag?.usageType === 'string' && (tag.usageType === 'gain' || tag.usageType === 'expense')
+									? tag.usageType
+									: undefined,
 						}));
 
 						setTagData(formattedTags);
@@ -729,7 +805,14 @@ export default function ConfigurationsScreen() {
 							variant="unfilled"
 							type="single"
 							isCollapsible
-							className="w-full border border-outline-200"
+							className="w-full border border-outline-200 bg-white dark:bg-gray-900 rounded-lg p-2"
+							style={{
+								shadowColor: '#000',
+								shadowOpacity: 0.2,
+								shadowRadius: 6,
+								shadowOffset: { width: 0, height: 3 },
+								elevation: 4,
+							}}
 						>
 							{accordionItems.map((item, index) => {
 								const requiresAdmin = item.actionRequiresAdmin !== false;
@@ -782,6 +865,13 @@ export default function ConfigurationsScreen() {
 																rounded-lg
 																overflow-hidden
 															"
+															style={{
+																shadowColor: '#000',
+																shadowOpacity: 0.15,
+																shadowRadius: 4,
+																shadowOffset: { width: 0, height: 2 },
+																elevation: 3,
+															}}
 														>
 
 															<TableHeader>
@@ -856,6 +946,13 @@ export default function ConfigurationsScreen() {
 																rounded-lg
 																overflow-hidden
 															"
+															style={{
+																shadowColor: '#000',
+																shadowOpacity: 0.15,
+																shadowRadius: 4,
+																shadowOffset: { width: 0, height: 2 },
+																elevation: 3,
+															}}
 														>
 
 															<TableHeader>
@@ -943,6 +1040,13 @@ export default function ConfigurationsScreen() {
 																rounded-lg
 																overflow-hidden
 															"
+															style={{
+																shadowColor: '#000',
+																shadowOpacity: 0.15,
+																shadowRadius: 4,
+																shadowOffset: { width: 0, height: 2 },
+																elevation: 3,
+															}}
 														>
 
 															<TableHeader>
@@ -992,7 +1096,30 @@ export default function ConfigurationsScreen() {
 																		</TableData>
 
 																		<TableData useRNView>
-																			<View className="flex-row justify-end items-center">
+																			<View className="flex-row justify-end items-center gap-2">
+																				<Button
+																					size="xs"
+																					variant="link"
+																					action="primary"
+																					onPress={() =>
+																						setPendingAction({
+																							type: 'edit-tag',
+																							payload: {
+																								tag: {
+																									id: tag.id,
+																									name: tag.name,
+																									usageType:
+																										tag.usageType === 'gain' ||
+																										tag.usageType === 'expense'
+																											? tag.usageType
+																											: undefined,
+																								},
+																							},
+																						})
+																					}
+																				>
+																					<ButtonIcon as={EditIcon} />
+																				</Button>
 																				<Button
 																					size="xs"
 																					variant="link"
@@ -1037,10 +1164,18 @@ export default function ConfigurationsScreen() {
 																	rounded-lg
 																	overflow-hidden
 																"
+																style={{
+																	shadowColor: '#000',
+																	shadowOpacity: 0.15,
+																	shadowRadius: 4,
+																	shadowOffset: { width: 0, height: 2 },
+																	elevation: 3,
+																}}
 															>
 																<TableHeader>
 																	<TableRow>
 																		<TableHead>Usuário vinculado</TableHead>
+																		<TableHead className="text-right">Ações</TableHead>
 																	</TableRow>
 																</TableHeader>
 
@@ -1051,6 +1186,26 @@ export default function ConfigurationsScreen() {
 																				<Text size="md">
 																					{relatedUser.email || relatedUser.id}
 																				</Text>
+																			</TableData>
+																			<TableData useRNView>
+																				<View className="flex-row justify-end items-center">
+																					<Button
+																						size="xs"
+																						variant="link"
+																						action="negative"
+																						onPress={() =>
+																							setPendingAction({
+																								type: 'delete-related-user',
+																								payload: {
+																									userId: relatedUser.id,
+																									identifier: relatedUser.email || relatedUser.id,
+																								},
+																							})
+																						}
+																					>
+																						<ButtonIcon as={TrashIcon} />
+																					</Button>
+																				</View>
 																			</TableData>
 																		</TableRow>
 																	))}

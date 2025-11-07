@@ -1,5 +1,6 @@
 import React from 'react';
 import { Keyboard, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -22,7 +23,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { Menu } from '@/components/uiverse/menu';
 
 // Importação das funções relacionadas a adição de tag ao Firebase
-import { addTagFirebase } from '@/functions/TagFirebase';
+import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { auth } from '@/FirebaseConfig';
 
 export default function AddRegisterTagScreen() {
@@ -32,6 +33,64 @@ export default function AddRegisterTagScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isExpenseTag, setIsExpenseTag] = React.useState(false);
 	const [isGainTag, setIsGainTag] = React.useState(false);
+
+	const params = useLocalSearchParams<{
+		tagId?: string | string[];
+		tagName?: string | string[];
+		usageType?: string | string[];
+	}>();
+
+	const editingTagId = React.useMemo(() => {
+		const value = Array.isArray(params.tagId) ? params.tagId[0] : params.tagId;
+		return value && value.trim().length > 0 ? value : null;
+	}, [params.tagId]);
+
+	const initialTagName = React.useMemo(() => {
+		const value = Array.isArray(params.tagName) ? params.tagName[0] : params.tagName;
+		if (!value) {
+			return '';
+		}
+
+		try {
+			return decodeURIComponent(value);
+		} catch {
+			return value;
+		}
+	}, [params.tagName]);
+
+	const initialUsageType = React.useMemo(() => {
+		const value = Array.isArray(params.usageType) ? params.usageType[0] : params.usageType;
+		if (!value) {
+		 return null;
+		}
+
+		try {
+			const decoded = decodeURIComponent(value);
+			return decoded ?? null;
+		} catch {
+			return value;
+		}
+	}, [params.usageType]);
+
+	const isEditing = Boolean(editingTagId);
+
+	React.useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
+
+		setTagName(initialTagName);
+		if (initialUsageType === 'expense') {
+			setIsExpenseTag(true);
+			setIsGainTag(false);
+		} else if (initialUsageType === 'gain') {
+			setIsGainTag(true);
+			setIsExpenseTag(false);
+		} else {
+			setIsExpenseTag(false);
+			setIsGainTag(false);
+		}
+	}, [initialTagName, initialUsageType, isEditing]);
 
 	const handleUsageSelection = React.useCallback((values: string[]) => {
 		if (values.includes('expense')) {
@@ -92,6 +151,34 @@ export default function AddRegisterTagScreen() {
 				return;
 			}
 
+			if (isEditing && editingTagId) {
+				const result = await updateTagFirebase({
+					tagId: editingTagId,
+					tagName: trimmedName,
+					usageType: selectedUsageType,
+				});
+
+				if (result.success) {
+					showFloatingAlert({
+						message: 'Tag atualizada com sucesso!',
+						action: 'success',
+						position: 'bottom',
+						offset: 40,
+					});
+					Keyboard.dismiss();
+					router.back();
+				} else {
+					showFloatingAlert({
+						message: 'Erro ao atualizar tag. Tente novamente mais tarde.',
+						action: 'error',
+						position: 'bottom',
+						offset: 40,
+					});
+				}
+
+				return;
+			}
+
 			const result = await addTagFirebase({ tagName: trimmedName, personId, usageType: selectedUsageType });
 
 			if (result.success) {
@@ -129,7 +216,7 @@ export default function AddRegisterTagScreen() {
 			setIsExpenseTag(false);
 			setIsGainTag(false);
 		}
-	}, [tagName, isExpenseTag, isGainTag]);
+	}, [editingTagId, isExpenseTag, isGainTag, isEditing, tagName]);
 
 	return (
 		<View
@@ -146,13 +233,14 @@ export default function AddRegisterTagScreen() {
 
 				<View className="w-full px-6 gap-4">
 					<Heading size="3xl" className="text-center mb-6">
-						Adição de nova tag
+						{isEditing ? 'Editar tag' : 'Adição de nova tag'}
 					</Heading>
 
 					<VStack className="gap-4">
 						<Text>
-							Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de
-							casa. Ela ficará disponível para seleção nas telas do aplicativo.
+							{isEditing
+								? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
+								: 'Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de casa. Ela ficará disponível para seleção nas telas do aplicativo.'}
 						</Text>
 
 						<Input>
@@ -207,9 +295,7 @@ export default function AddRegisterTagScreen() {
 							{isSubmitting ? (
 								<ButtonSpinner />
 							) : (
-								<ButtonText>
-									Registrar Tag
-								</ButtonText>
+								<ButtonText>{isEditing ? 'Atualizar Tag' : 'Registrar Tag'}</ButtonText>
 							)}
 						</Button>
 					</VStack>
