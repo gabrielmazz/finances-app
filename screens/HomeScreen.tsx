@@ -1,18 +1,20 @@
 import React from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
+import { Divider } from '@/components/ui/divider';
 
 import { auth } from '@/FirebaseConfig';
 import {
 	getCurrentMonthSummaryByBankFirebaseExpanses,
 	getCurrentMonthSummaryByBankFirebaseGains,
 	getBanksWithUsersByPersonFirebase,
+	getCurrentYearMovementsFirebase,
 } from '@/functions/BankFirebase';
 import { getLimitedExpensesFirebase } from '@/functions/ExpenseFirebase';
 import { getLimitedGainsFirebase } from '@/functions/GainFirebase';
@@ -20,8 +22,47 @@ import { getLimitedGainsFirebase } from '@/functions/GainFirebase';
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { VStack } from '@/components/ui/vstack';
+import { BarChart, PieChart } from 'react-native-gifted-charts';
+
+type YearlyMonthStats = {
+	monthIndex: number;
+	expensesInCents: number;
+	gainsInCents: number;
+};
+
+type BankMonthlyTotal = {
+	bankId: string;
+	totalInCents: number;
+};
+
+type PieLegendEntry = {
+	key: string;
+	name: string;
+	color: string;
+	totalInCents: number;
+};
+
+const BAR_CHART_COLORS = {
+	expenses: '#F97316',
+	gains: '#10B981',
+};
+
+const PIE_COLOR_PALETTE = ['#6366F1', '#F97316', '#22D3EE', '#F43F5E', '#10B981', '#FACC15', '#A855F7', '#0EA5E9'];
+
+const createEmptyYearlyStats = (): YearlyMonthStats[] =>
+	Array.from({ length: 12 }, (_, monthIndex) => ({
+		monthIndex,
+		expensesInCents: 0,
+		gainsInCents: 0,
+	}));
 
 export default function HomeScreen() {
+
+	const colorScheme = useColorScheme();
+	const isDarkMode = colorScheme === 'dark';
+	const axisColor = isDarkMode ? '#CBD5F5' : '#475569';
+	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
+	const currentYear = React.useMemo(() => new Date().getFullYear(), []);
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
 	const [summaryError, setSummaryError] = React.useState<string | null>(null);
@@ -98,6 +139,13 @@ export default function HomeScreen() {
 	const [movementsError, setMovementsError] = React.useState<string | null>(null);
 	const [bankNamesById, setBankNamesById] = React.useState<Record<string, string>>({});
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
+	const [yearlyStats, setYearlyStats] = React.useState<YearlyMonthStats[]>(() => createEmptyYearlyStats());
+	const [currentMonthExpensesByBank, setCurrentMonthExpensesByBank] = React.useState<BankMonthlyTotal[]>([]);
+	const [currentMonthGainsByBank, setCurrentMonthGainsByBank] = React.useState<BankMonthlyTotal[]>([]);
+	const [chartsError, setChartsError] = React.useState<string | null>(null);
+	const [isChartsExpanded, setIsChartsExpanded] = React.useState(false);
+	const [chartTab, setChartTab] = React.useState<'bar' | 'pie'>('bar');
+	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 
 	const getBankName = React.useCallback(
 		(bankId: unknown) => {
@@ -109,6 +157,181 @@ export default function HomeScreen() {
 		},
 		[bankNamesById],
 	);
+
+	const parseToDate = React.useCallback((value: unknown) => {
+		if (!value) {
+			return null;
+		}
+
+		if (value instanceof Date) {
+			return value;
+		}
+
+		if (typeof value === 'object' && value !== null) {
+			if ('toDate' in value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+				const parsedFromTimestamp = (value as { toDate?: () => Date }).toDate?.();
+				if (parsedFromTimestamp instanceof Date && !Number.isNaN(parsedFromTimestamp.getTime())) {
+					return parsedFromTimestamp;
+				}
+			}
+
+			if ('seconds' in value && typeof (value as { seconds?: number }).seconds === 'number') {
+				const secondsValue = (value as { seconds?: number }).seconds ?? 0;
+				const dateFromSeconds = new Date(secondsValue * 1000);
+				if (!Number.isNaN(dateFromSeconds.getTime())) {
+					return dateFromSeconds;
+				}
+			}
+		}
+
+		if (typeof value === 'string' || typeof value === 'number') {
+			const parsedDate = new Date(value);
+			if (!Number.isNaN(parsedDate.getTime())) {
+				return parsedDate;
+			}
+		}
+
+		return null;
+	}, []);
+
+	const buildYearlyStats = React.useCallback(
+		(expenses: any[], gains: any[]) => {
+			const stats = createEmptyYearlyStats();
+			const targetYear = new Date().getFullYear();
+
+			const accumulate = (items: any[], key: 'expensesInCents' | 'gainsInCents') => {
+				items?.forEach((item) => {
+					const timestamp = item?.date ?? item?.createdAt;
+					const parsedDate = parseToDate(timestamp);
+
+					if (!parsedDate || parsedDate.getFullYear() !== targetYear) {
+						return;
+					}
+
+					const monthIndex = parsedDate.getMonth();
+					const rawValue =
+						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+							? item.valueInCents
+							: 0;
+
+					stats[monthIndex][key] += Math.max(rawValue, 0);
+				});
+			};
+
+			accumulate(expenses ?? [], 'expensesInCents');
+			accumulate(gains ?? [], 'gainsInCents');
+
+			return stats;
+		},
+		[parseToDate],
+	);
+
+	const aggregateMonthlyValuesByBank = React.useCallback((items: any[]) => {
+		const totals: Record<string, number> = {};
+
+		items?.forEach((item) => {
+			const bankId =
+				typeof item?.bankId === 'string' && item.bankId.length > 0
+					? item.bankId
+					: 'banco-desconhecido';
+			const value =
+				typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+					? item.valueInCents
+					: 0;
+
+			totals[bankId] = (totals[bankId] ?? 0) + Math.max(value, 0);
+		});
+
+		return Object.entries(totals).map(([bankId, totalInCents]) => ({
+			bankId,
+			totalInCents,
+		}));
+	}, []);
+
+	const buildPieSlices = React.useCallback(
+		(totals: BankMonthlyTotal[]) => {
+			const slices = totals
+				.filter((item) => item.totalInCents > 0)
+				.map((item, index) => {
+					const color = PIE_COLOR_PALETTE[index % PIE_COLOR_PALETTE.length];
+					const name = bankNamesById[item.bankId] ?? 'Banco não identificado';
+
+					return {
+						chartSlice: {
+							value: Number((item.totalInCents / 100).toFixed(2)),
+							color,
+							text: name,
+						},
+						legendSlice: {
+							key: item.bankId || `bank-${index}`,
+							name,
+							color,
+							totalInCents: item.totalInCents,
+						} satisfies PieLegendEntry,
+					};
+				});
+
+			return {
+				chartData: slices.map((slice) => slice.chartSlice),
+				legendData: slices.map((slice) => slice.legendSlice),
+			};
+		},
+		[bankNamesById],
+	);
+
+	const formatYAxisLabel = React.useCallback((label: string) => {
+		const numericValue = Number(label);
+		if (Number.isNaN(numericValue)) {
+			return label;
+		}
+
+		if (Math.abs(numericValue) >= 1000) {
+			return `${(numericValue / 1000).toFixed(1).replace('.0', '')}k`;
+		}
+
+		return numericValue.toFixed(0);
+	}, []);
+
+	const barChartStackData = React.useMemo(() => {
+		const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short' });
+
+		return yearlyStats.map((item) => {
+			const label = formatter.format(new Date(currentYear, item.monthIndex, 1));
+			const normalizedLabel = label.replace('.', '').slice(0, 3).toUpperCase();
+			const expensesValue = Number((item.expensesInCents / 100).toFixed(2));
+			const gainsValue = Number((item.gainsInCents / 100).toFixed(2));
+
+			return {
+				label: normalizedLabel,
+				stacks: [
+					{ value: expensesValue, color: BAR_CHART_COLORS.expenses },
+					{ value: gainsValue, color: BAR_CHART_COLORS.gains },
+				],
+			};
+		});
+	}, [yearlyStats, currentYear]);
+
+	const hasYearlyActivity = React.useMemo(
+		() => yearlyStats.some((item) => item.expensesInCents > 0 || item.gainsInCents > 0),
+		[yearlyStats],
+	);
+
+	const expensesPieSlices = React.useMemo(
+		() => buildPieSlices(currentMonthExpensesByBank),
+		[currentMonthExpensesByBank, buildPieSlices],
+	);
+	const gainsPieSlices = React.useMemo(
+		() => buildPieSlices(currentMonthGainsByBank),
+		[currentMonthGainsByBank, buildPieSlices],
+	);
+
+	const expensePieChartData = expensesPieSlices.chartData;
+	const expensePieLegendData = expensesPieSlices.legendData;
+	const hasExpensePieData = expensePieChartData.length > 0;
+
+	const gainPieChartData = gainsPieSlices.chartData;
+	const gainPieLegendData = gainsPieSlices.legendData;
+	const hasGainPieData = gainPieChartData.length > 0;
 
 	// Função para receber os valores do resumo mensal (despesas) e assim soma-los para mostrar na tela
 	function calculateMonthlyExpansesSummaryTotals(expanses: any[]) {
@@ -200,6 +423,10 @@ export default function HomeScreen() {
 				setRecentExpenses([]);
 				setRecentGains([]);
 				setBankNamesById({});
+				setChartsError(null);
+				setYearlyStats(createEmptyYearlyStats());
+				setCurrentMonthExpensesByBank([]);
+				setCurrentMonthGainsByBank([]);
 
 				// Obtém o usuário atualmente autenticado
 				const currentUser = auth.currentUser;
@@ -222,9 +449,10 @@ export default function HomeScreen() {
 
 					try {
 
-						const [expensesSummary, gainsSummary] = await Promise.allSettled([
+						const [expensesSummary, gainsSummary, yearlySummary] = await Promise.allSettled([
 							getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
 							getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
+							getCurrentYearMovementsFirebase({ personId: currentUser.uid }),
 						]);
 
 						if (!isMounted) {
@@ -232,35 +460,65 @@ export default function HomeScreen() {
 						}
 
 						const summaryErrors: string[] = [];
+						const chartIssues: string[] = [];
 
-						if (expensesSummary.status === 'fulfilled' && expensesSummary.value) {
-							const resultExpansesValues = (expensesSummary.value?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
+						if (expensesSummary.status === 'fulfilled' && expensesSummary.value?.success !== false) {
+							const monthlyExpensesData = Array.isArray(expensesSummary.value?.data)
+								? expensesSummary.value.data
+								: [];
+							const resultExpansesValues = monthlyExpensesData.map((item: any) => item?.valueInCents ?? 0);
 							const summaryTotals = calculateMonthlyExpansesSummaryTotals(resultExpansesValues);
 							setTotalExpensesInCents(summaryTotals.totalExpensesInCents);
 							setExpenseCount(summaryTotals.expenseCount);
+							setCurrentMonthExpensesByBank(aggregateMonthlyValuesByBank(monthlyExpensesData));
 						} else {
 							console.error(
 								'Erro ao carregar o resumo mensal de despesas:',
-								expensesSummary.status === 'rejected' ? expensesSummary.reason : 'Retorno inválido',
+								expensesSummary.status === 'rejected' ? expensesSummary.reason : expensesSummary.value?.error ?? 'Retorno inválido',
 							);
 							summaryErrors.push('Erro ao carregar o resumo mensal de despesas.');
+							chartIssues.push('Não foi possível carregar as despesas do mês para o gráfico por banco.');
+							setCurrentMonthExpensesByBank([]);
 						}
 
-						if (gainsSummary.status === 'fulfilled' && gainsSummary.value) {
-							const resultGainsValues = (gainsSummary.value?.data ?? []).map((item: any) => item?.valueInCents ?? 0);
+						if (gainsSummary.status === 'fulfilled' && gainsSummary.value?.success !== false) {
+							const monthlyGainsData = Array.isArray(gainsSummary.value?.data) ? gainsSummary.value.data : [];
+							const resultGainsValues = monthlyGainsData.map((item: any) => item?.valueInCents ?? 0);
 							const summaryTotals = calculateMonthlyGainsSummaryTotals(resultGainsValues);
 							setTotalGainsInCents(summaryTotals.totalGainsInCents);
 							setGainCount(summaryTotals.gainCount);
+							setCurrentMonthGainsByBank(aggregateMonthlyValuesByBank(monthlyGainsData));
 						} else {
 							console.error(
 								'Erro ao carregar o resumo mensal de ganhos:',
-								gainsSummary.status === 'rejected' ? gainsSummary.reason : 'Retorno inválido',
+								gainsSummary.status === 'rejected' ? gainsSummary.reason : gainsSummary.value?.error ?? 'Retorno inválido',
 							);
 							summaryErrors.push('Erro ao carregar o resumo mensal de ganhos.');
+							chartIssues.push('Não foi possível carregar os ganhos do mês para o gráfico por banco.');
+							setCurrentMonthGainsByBank([]);
+						}
+
+						if (yearlySummary.status === 'fulfilled' && yearlySummary.value?.success) {
+							const yearlyExpenses = yearlySummary.value?.data?.expenses ?? [];
+							const yearlyGains = yearlySummary.value?.data?.gains ?? [];
+							setYearlyStats(buildYearlyStats(yearlyExpenses, yearlyGains));
+						} else {
+							console.error(
+								'Erro ao carregar o resumo anual:',
+								yearlySummary.status === 'rejected' ? yearlySummary.reason : yearlySummary.value?.error ?? 'Retorno inválido',
+							);
+							setYearlyStats(createEmptyYearlyStats());
+							chartIssues.push('Não foi possível carregar o histórico anual dos gráficos.');
 						}
 
 						if (summaryErrors.length > 0) {
 							setSummaryError(summaryErrors.join(' '));
+						}
+
+						if (chartIssues.length > 0) {
+							setChartsError(chartIssues.join(' '));
+						} else {
+							setChartsError(null);
 						}
 
 					} catch (error) {
@@ -268,6 +526,10 @@ export default function HomeScreen() {
 
 						if (isMounted) {
 							setSummaryError('Erro ao carregar o resumo mensal.');
+							setChartsError('Erro ao carregar os gráficos.');
+							setYearlyStats(createEmptyYearlyStats());
+							setCurrentMonthExpensesByBank([]);
+							setCurrentMonthGainsByBank([]);
 						}
 
 					} finally {
@@ -365,26 +627,31 @@ export default function HomeScreen() {
 	);
 
 	return (
-		<View
-				className="
-                    flex-1 w-full h-full
+		<View className="flex-1">
+			<ScrollView
+				className="flex-1 w-full"
+				contentContainerStyle={{ paddingBottom: 32 }}
+				showsVerticalScrollIndicator={false}
+				keyboardShouldPersistTaps="handled"
+			>
+				<View
+					className="
+                    w-full
                     mt-[64px]
                     items-center
-                    justify-between
+                    px-6
+                    gap-4
                     pb-6
-                    relative
                 "
-			>
-
-			<View className="w-full px-6 gap-4">
+				>
 
 					<Heading size="3xl" className="text-center mb-6">
 						Resumo financeiro
 					</Heading>
 
-					<VStack className="gap-4">
+					<VStack className="gap-4 w-full">
 
-						<View className="w-full">
+				<View className="w-full">
 
 							<TouchableOpacity
 								activeOpacity={0.85}
@@ -405,15 +672,12 @@ export default function HomeScreen() {
 
 									<HStack
 										className="
-										justify-between
-										items-center
-									"
+											justify-between
+											items-center
+										"
 									>
 
-										<Heading
-											size="md"
-											className="text-gray-800 dark:text-gray-200"
-										>
+										<Heading size="md" className="text-gray-800 dark:text-gray-200">
 											Resumo de {monthLabel}
 										</Heading>
 
@@ -452,9 +716,224 @@ export default function HomeScreen() {
 								</Box>
 							</TouchableOpacity>
 
-							{/* Card para mostrar os últimos movimentos de cada banco */}
-							<Box
-								className="
+					<View className="w-full relative">
+						{!isChartsExpanded && !isLoadingSummary && (
+							<Pressable
+								className="absolute inset-0 z-10"
+								onPress={() => setIsChartsExpanded(true)}
+							/>
+						)}
+						<Box
+							className="
+							w-full
+							bg-white dark:bg-gray-800
+							rounded-lg
+							p-4
+							mb-6
+							shadow-sm
+						"
+						>
+
+							<HStack className="justify-between items-center">
+
+								<Heading size="md" className="text-gray-800 dark:text-gray-200">
+									Visualização gráfica
+								</Heading>
+
+								<TouchableOpacity activeOpacity={0.85} onPress={() => setIsChartsExpanded((prev) => !prev)}>
+									<Text className="text-sm text-gray-500 dark:text-emerald-400">
+										{isChartsExpanded ? 'Ocultar' : 'Expandir'}
+									</Text>
+								</TouchableOpacity>
+
+							</HStack>
+
+							{isChartsExpanded ? (
+								isLoadingSummary ? (
+									<Text className="mt-4 text-gray-600 dark:text-gray-400">Carregando gráficos...</Text>
+								) : chartsError ? (
+									<Text className="mt-4 text-red-600 dark:text-red-400">{chartsError}</Text>
+								) : (
+									<>
+										<View className="mt-4">
+											<HStack className="bg-gray-100 dark:bg-gray-900 rounded-full p-1">
+												{[
+													{ key: 'bar', label: 'Valores Totais do ano' },
+													{ key: 'pie', label: 'Ganhos | Despesas por banco' },
+												].map((tab) => {
+													const active = chartTab === (tab.key as 'bar' | 'pie');
+													return (
+														<TouchableOpacity
+															key={tab.key}
+															style={{ flex: 1 }}
+															activeOpacity={0.9}
+															onPress={() => setChartTab(tab.key as 'bar' | 'pie')}
+														>
+															<View className={`py-2 rounded-full ${active ? 'bg-white dark:bg-gray-800' : ''}`}>
+																<Text
+																	className={`text-center text-sm ${
+																		active
+																			? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																			: 'text-gray-500'
+																	}`}
+																>
+																	{tab.label}
+																</Text>
+															</View>
+														</TouchableOpacity>
+													);
+												})}
+											</HStack>
+
+											{chartTab === 'bar' ? (
+												<View>
+													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+														Totais por mês ({currentYear})
+													</Text>
+
+													<View className="mt-3">
+														<BarChart
+															stackData={barChartStackData}
+															height={220}
+															spacing={14}
+															barWidth={16}
+															isAnimated
+															animationDuration={800}
+															yAxisThickness={0}
+															xAxisThickness={0}
+															formatYLabel={formatYAxisLabel}
+															yAxisLabelPrefix="R$ "
+															yAxisTextStyle={{ color: axisColor, fontSize: 10 }}
+															xAxisLabelTextStyle={{ color: axisColor, fontSize: 10 }}
+															showYAxisIndices={false}
+															hideRules={false}
+															noOfSections={4}
+															activeOpacity={1}
+														/>
+													</View>
+
+													{!hasYearlyActivity && (
+														<Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+															Ainda não há movimentações registradas neste ano.
+														</Text>
+													)}
+
+													<HStack className="mt-3 flex-wrap gap-4">
+														<View className="flex-row items-center">
+															<View
+																style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.expenses }}
+															/>
+															<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Despesas</Text>
+														</View>
+
+														<View className="flex-row items-center">
+															<View
+																style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.gains }}
+															/>
+															<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Ganhos</Text>
+														</View>
+													</HStack>
+												</View>
+											) : (
+												<View>
+
+													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+														Ganhos por banco ({monthLabel})
+													</Text>
+
+													{hasGainPieData ? (
+														<>
+															<View className="mt-4 items-center">
+																<PieChart data={gainPieChartData} radius={80} showText={false} isAnimated />
+															</View>
+
+															<View className="mt-4 gap-3">
+																{gainPieLegendData.map((slice) => (
+																	<HStack
+																		key={slice.key}
+																		className="justify-between items-center rounded-lg px-3 py-2"
+																		style={{ borderWidth: 1, borderColor: legendBorderColor }}
+																	>
+																		<HStack className="items-center">
+																			<View
+																				style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+																			/>
+																			<Text className="ml-2 text-gray-700 dark:text-gray-200">
+																				{slice.name}
+																			</Text>
+																		</HStack>
+
+																		<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+																			{formatCurrencyBRL(slice.totalInCents)}
+																		</Text>
+																	</HStack>
+																))}
+															</View>
+														</>
+													) : (
+														<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+															Ainda não há ganhos registrados neste mês.
+														</Text>
+													)}
+
+													<Divider className="my-4" />
+
+													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+														Despesas por banco ({monthLabel})
+													</Text>
+
+													{hasExpensePieData ? (
+														<>
+															<View className="mt-4 items-center">
+																<PieChart data={expensePieChartData} radius={80} showText={false} isAnimated />
+															</View>
+
+															<View className="mt-4 gap-3">
+																{expensePieLegendData.map((slice) => (
+																	<HStack
+																		key={slice.key}
+																		className="justify-between items-center rounded-lg px-3 py-2"
+																		style={{ borderWidth: 1, borderColor: legendBorderColor }}
+																	>
+																		<HStack className="items-center">
+																			<View
+																				style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+																			/>
+																			<Text className="ml-2 text-gray-700 dark:text-gray-200">
+																				{slice.name}
+																			</Text>
+																		</HStack>
+
+																		<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+																			{formatCurrencyBRL(slice.totalInCents)}
+																		</Text>
+																	</HStack>
+																))}
+															</View>
+														</>
+													) : (
+														<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+															Ainda não há despesas registradas neste mês.
+														</Text>
+													)}
+
+												</View>
+											)}
+										</View>
+									</>
+								)
+							) : (
+								<Text className="mt-4 text-gray-600 dark:text-gray-400">
+									Toque em "Expandir" para visualizar os gráficos anuais e do mês atual.
+								</Text>
+							)}
+
+						</Box>
+					</View>
+
+						{/* Card para mostrar os últimos movimentos de cada banco */}
+						<Box
+							className="
 										w-full
 										bg-white dark:bg-gray-800
 										rounded-lg
@@ -462,161 +941,162 @@ export default function HomeScreen() {
 										mb-6
 										shadow-sm
 									"
-							>
+						>
 
-								<HStack className="justify-between items-center">
+							<HStack className="justify-between items-center">
 
-									<Heading
-										size="md"
-										className="text-gray-800 dark:text-gray-200"
-									>
-										Últimos movimentos
-									</Heading>
+								<Heading
+									size="md"
+									className="text-gray-800 dark:text-gray-200"
+								>
+									Últimos movimentos
+								</Heading>
 
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={() => setIsMovementsExpanded((prev) => !prev)}
-									>
-										<Text className="text-sm text-gray-500 dark:text-emerald-400">
-											{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
-										</Text>
-									</TouchableOpacity>
-
-								</HStack>
-
-								{isMovementsExpanded ? (
-
-									isLoadingMovements ? (
-
-										<Text className="mt-4 text-gray-600 dark:text-gray-400">
-											Carregando movimentos...
-										</Text>
-
-									) : movementsError ? (
-
-										<Text className="mt-4 text-red-600 dark:text-red-400">
-											{movementsError}
-										</Text>
-
-									) : (
-
-										<>
-
-											<Box className="mt-4">
-
-												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-													Ganhos
-												</Text>
-
-												{recentGains.length === 0 ? (
-
-													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-														Nenhum ganho recente registrado.
-													</Text>
-
-												) : (
-
-													recentGains.map((gain, index) => (
-
-														<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
-
-															<HStack className="justify-between items-center">
-
-																<Text className="text-gray-800 dark:text-gray-200">
-																	{gain?.name ?? 'Ganho sem nome'}
-																</Text>
-
-																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-																	{formatCurrencyBRL(gain?.valueInCents ?? 0)}
-																</Text>
-
-															</HStack>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{`Banco: ${getBankName(gain?.bankId)}`}
-															</Text>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{formatMovementDate(gain?.createdAt ?? gain?.date)}
-															</Text>
-
-														</Box>
-
-													))
-
-												)}
-
-											</Box>
-
-											<Box className="mt-6">
-
-												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-													Despesas
-												</Text>
-
-												{recentExpenses.length === 0 ? (
-
-													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-														Nenhuma despesa recente registrada.
-													</Text>
-
-												) : (
-
-													recentExpenses.map((expense, index) => (
-
-														<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
-
-															<HStack className="justify-between items-center">
-
-																<Text className="text-gray-800 dark:text-gray-200">
-																	{expense?.name ?? 'Despesa sem nome'}
-																</Text>
-
-																<Text className="text-red-600 dark:text-red-400 font-semibold">
-																	{formatCurrencyBRL(expense?.valueInCents ?? 0)}
-																</Text>
-
-															</HStack>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{`Banco: ${getBankName(expense?.bankId)}`}
-															</Text>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{formatMovementDate(expense?.createdAt ?? expense?.date)}
-															</Text>
-
-														</Box>
-
-													))
-
-												)}
-
-											</Box>
-
-										</>
-
-									)
-								) : (
-									<Text
-										className={
-											movementsError
-												? 'mt-4 text-red-600 dark:text-red-400'
-												: 'mt-4 text-gray-600 dark:text-gray-400'
-										}
-									>
-										{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
+								<TouchableOpacity
+									activeOpacity={0.85}
+									onPress={() => setIsMovementsExpanded((prev) => !prev)}
+								>
+									<Text className="text-sm text-gray-500 dark:text-emerald-400">
+										{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
 									</Text>
-								)}
+								</TouchableOpacity>
 
-							</Box>
+							</HStack>
+
+							{isMovementsExpanded ? (
+
+								isLoadingMovements ? (
+
+									<Text className="mt-4 text-gray-600 dark:text-gray-400">
+										Carregando movimentos...
+									</Text>
+
+								) : movementsError ? (
+
+									<Text className="mt-4 text-red-600 dark:text-red-400">
+										{movementsError}
+									</Text>
+
+								) : (
+
+									<>
+
+										<Box className="mt-4">
+
+											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+												Ganhos
+											</Text>
+
+											{recentGains.length === 0 ? (
+
+												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+													Nenhum ganho recente registrado.
+												</Text>
+
+											) : (
+
+												recentGains.map((gain, index) => (
+
+													<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
+
+														<HStack className="justify-between items-center">
+
+															<Text className="text-gray-800 dark:text-gray-200">
+																{gain?.name ?? 'Ganho sem nome'}
+															</Text>
+
+															<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+																{formatCurrencyBRL(gain?.valueInCents ?? 0)}
+															</Text>
+
+														</HStack>
+
+														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+															{`Banco: ${getBankName(gain?.bankId)}`}
+														</Text>
+
+														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+															{formatMovementDate(gain?.createdAt ?? gain?.date)}
+														</Text>
+
+													</Box>
+
+												))
+
+											)}
+
+										</Box>
+
+										<Box className="mt-6">
+
+											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+												Despesas
+											</Text>
+
+											{recentExpenses.length === 0 ? (
+
+												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+													Nenhuma despesa recente registrada.
+												</Text>
+
+											) : (
+
+												recentExpenses.map((expense, index) => (
+
+													<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
+
+														<HStack className="justify-between items-center">
+
+															<Text className="text-gray-800 dark:text-gray-200">
+																{expense?.name ?? 'Despesa sem nome'}
+															</Text>
+
+															<Text className="text-red-600 dark:text-red-400 font-semibold">
+																{formatCurrencyBRL(expense?.valueInCents ?? 0)}
+															</Text>
+
+														</HStack>
+
+														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+															{`Banco: ${getBankName(expense?.bankId)}`}
+														</Text>
+
+														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+															{formatMovementDate(expense?.createdAt ?? expense?.date)}
+														</Text>
+
+													</Box>
+
+												))
+
+											)}
+
+										</Box>
+
+									</>
+
+								)
+							) : (
+								<Text
+									className={
+										movementsError
+											? 'mt-4 text-red-600 dark:text-red-400'
+											: 'mt-4 text-gray-600 dark:text-gray-400'
+									}
+								>
+									{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
+								</Text>
+							)}
+
+						</Box>
 
 						</View>
 
 					</VStack>
 
 				</View>
-
+			</ScrollView>
+			<FloatingAlertViewport />
 		</View>
 
 	);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, useColorScheme, TouchableOpacity } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Heading } from '@/components/ui/heading';
@@ -9,10 +9,12 @@ import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Divider } from '@/components/ui/divider';
 
 import { Menu } from '@/components/uiverse/menu';
 import { auth } from '@/FirebaseConfig';
 import { getBankMovementsByPeriodFirebase } from '@/functions/BankFirebase';
+import { PieChart } from 'react-native-gifted-charts';
 
 type FirestoreLikeTimestamp = {
 	toDate?: () => Date;
@@ -137,7 +139,14 @@ const getCurrentMonthBounds = () => {
 	};
 };
 
+const PIE_TOTAL_COLORS = {
+	expenses: '#F43F5E',
+	gains: '#10B981',
+};
+
 export default function BankMovementsScreen() {
+	const colorScheme = useColorScheme();
+	const legendBorderColor = colorScheme === 'dark' ? '#374151' : '#E5E7EB';
 	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[] }>();
 
 	const bankId = React.useMemo(() => {
@@ -169,6 +178,7 @@ export default function BankMovementsScreen() {
 	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 
 	const handleDateChange = React.useCallback((value: string, type: 'start' | 'end') => {
 		const sanitized = sanitizeDateInput(value);
@@ -299,203 +309,310 @@ export default function BankMovementsScreen() {
 
 	const balanceInCents = totals.totalGains - totals.totalExpenses;
 
+	const totalsPieSlices = React.useMemo(() => {
+		const slices: Array<{
+			key: string;
+			label: string;
+			color: string;
+			value: number;
+			rawInCents: number;
+		}> = [];
+
+		if (totals.totalGains > 0) {
+			slices.push({
+				key: 'gains',
+				label: 'Ganhos',
+				color: PIE_TOTAL_COLORS.gains,
+				value: Number((totals.totalGains / 100).toFixed(2)),
+				rawInCents: totals.totalGains,
+			});
+		}
+
+		if (totals.totalExpenses > 0) {
+			slices.push({
+				key: 'expenses',
+				label: 'Despesas',
+				color: PIE_TOTAL_COLORS.expenses,
+				value: Number((totals.totalExpenses / 100).toFixed(2)),
+				rawInCents: totals.totalExpenses,
+			});
+		}
+
+		return slices;
+	}, [totals.totalExpenses, totals.totalGains]);
+
+	const totalsPieChartData = React.useMemo(
+		() =>
+			totalsPieSlices.map(slice => ({
+				value: slice.value,
+				color: slice.color,
+				text: slice.label,
+			})),
+		[totalsPieSlices],
+	);
+
+	const hasTotalsPieData = totalsPieChartData.length > 0;
+
 	return (
 		<View
-				className="
+			className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
 					bg-gray-100 dark:bg-gray-950
 				"
+		>
+			<ScrollView
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+				style={{
+					flex: 1,
+					width: '100%',
+				}}
+				contentContainerStyle={{
+					flexGrow: 1,
+					width: '100%',
+					paddingBottom: 48,
+				}}
 			>
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{
-						flex: 1,
-						width: '100%',
-					}}
-					contentContainerStyle={{
-						flexGrow: 1,
-						width: '100%',
-						paddingBottom: 48,
-					}}
-				>
-					<View className="w-full px-6">
-						<Heading size="3xl" className="text-center mb-6">
-							Movimentações do banco
-						</Heading>
-						<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-							Selecione um período para visualizar todas as movimentações de {bankName}.
+				<View className="w-full px-6">
+					<Heading size="3xl" className="text-center mb-6">
+						Movimentações do banco
+					</Heading>
+					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
+						Selecione um período para visualizar todas as movimentações de {bankName}.
+					</Text>
+
+					<Box
+						className="
+								bg-white dark:bg-gray-800
+								rounded-lg
+								p-4
+								mb-6
+								shadow-sm
+							"
+					>
+						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+							Filtros do período
+						</Text>
+						<VStack space="md">
+							<HStack space="md" className="flex-wrap">
+								<VStack className="flex-1 min-w-[140px]">
+									<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+										Data inicial
+									</Text>
+									<Input>
+										<InputField
+											value={startDateInput}
+											onChangeText={value => handleDateChange(value, 'start')}
+											placeholder="dd/mm/aaaa"
+											keyboardType="numeric"
+											returnKeyType="next"
+										/>
+									</Input>
+								</VStack>
+
+								<VStack className="flex-1 min-w-[140px]">
+									<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+										Data final
+									</Text>
+									<Input>
+										<InputField
+											value={endDateInput}
+											onChangeText={value => handleDateChange(value, 'end')}
+											placeholder="dd/mm/aaaa"
+											keyboardType="numeric"
+											returnKeyType="done"
+										/>
+									</Input>
+								</VStack>
+							</HStack>
+
+							<Button
+								size="md"
+								variant="solid"
+								onPress={() => {
+									if (!isLoading) {
+										void fetchMovements();
+									}
+								}}
+								disabled={isLoading}
+							>
+								{isLoading ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Carregando movimentações</ButtonText>
+									</>
+								) : (
+									<ButtonText>Buscar movimentações</ButtonText>
+								)}
+							</Button>
+						</VStack>
+					</Box>
+
+					<Box
+						className="
+								bg-white dark:bg-gray-800
+								rounded-lg
+								p-4
+								mb-6
+								shadow-sm
+							"
+					>
+						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+							Resumo do período
+						</Text>
+						<VStack space="md">
+							<HStack className="justify-between">
+								<Text className="text-gray-700 dark:text-gray-300">Ganhos</Text>
+								<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+									{formatCurrencyBRL(totals.totalGains)}
+								</Text>
+							</HStack>
+							<HStack className="justify-between">
+								<Text className="text-gray-700 dark:text-gray-300">Despesas</Text>
+								<Text className="text-red-600 dark:text-red-400 font-semibold">
+									{formatCurrencyBRL(totals.totalExpenses)}
+								</Text>
+							</HStack>
+							<HStack className="justify-between">
+								<Text className="text-gray-700 dark:text-gray-300">Saldo</Text>
+								<Text
+									className={
+										balanceInCents >= 0
+											? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+											: 'text-red-600 dark:text-red-400 font-semibold'
+									}
+								>
+									{formatCurrencyBRL(balanceInCents)}
+								</Text>
+							</HStack>
+						</VStack>
+					</Box>
+
+					{errorMessage && (
+						<Text className="text-center text-red-600 dark:text-red-400 mb-4">{errorMessage}</Text>
+					)}
+
+					<Box
+						className="
+								bg-white dark:bg-gray-800
+								rounded-lg
+								p-4
+								shadow-sm
+							"
+					>
+						<HStack className="justify-between items-center">
+							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+								Comparativo de totais
+							</Text>
+							<TouchableOpacity activeOpacity={0.85} onPress={() => setIsTotalsExpanded(prev => !prev)}>
+								<Text className="text-sm text-gray-500 dark:text-emerald-400">
+									{isTotalsExpanded ? 'Ocultar' : 'Expandir'}
+								</Text>
+							</TouchableOpacity>
+						</HStack>
+
+						<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+							Baseado nos valores filtrados para {bankName}.
 						</Text>
 
-						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mb-6
-								shadow-sm
-							"
-						>
-							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-								Filtros do período
-							</Text>
-							<VStack space="md">
-								<HStack space="md" className="flex-wrap">
-									<VStack className="flex-1 min-w-[140px]">
-										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-											Data inicial
-										</Text>
-										<Input>
-											<InputField
-												value={startDateInput}
-												onChangeText={value => handleDateChange(value, 'start')}
-												placeholder="dd/mm/aaaa"
-												keyboardType="numeric"
-												returnKeyType="next"
-											/>
-										</Input>
-									</VStack>
+						{isTotalsExpanded ? (
+							hasTotalsPieData ? (
+								<>
+									<View className="mt-4 items-center">
+										<PieChart data={totalsPieChartData} radius={90} showText={false} isAnimated />
+									</View>
 
-									<VStack className="flex-1 min-w-[140px]">
-										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-											Data final
-										</Text>
-										<Input>
-											<InputField
-												value={endDateInput}
-												onChangeText={value => handleDateChange(value, 'end')}
-												placeholder="dd/mm/aaaa"
-												keyboardType="numeric"
-												returnKeyType="done"
-											/>
-										</Input>
-									</VStack>
-								</HStack>
-
-								<Button
-									size="md"
-									variant="solid"
-									onPress={() => {
-										if (!isLoading) {
-											void fetchMovements();
-										}
-									}}
-									disabled={isLoading}
-								>
-									{isLoading ? (
-										<>
-											<ButtonSpinner color="white" />
-											<ButtonText>Carregando movimentações</ButtonText>
-										</>
-									) : (
-										<ButtonText>Buscar movimentações</ButtonText>
-									)}
-								</Button>
-							</VStack>
-						</Box>
-
-						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mb-6
-								shadow-sm
-							"
-						>
-							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-								Resumo do período
-							</Text>
-							<VStack space="md">
-								<HStack className="justify-between">
-									<Text className="text-gray-700 dark:text-gray-300">Ganhos</Text>
-									<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-										{formatCurrencyBRL(totals.totalGains)}
-									</Text>
-								</HStack>
-								<HStack className="justify-between">
-									<Text className="text-gray-700 dark:text-gray-300">Despesas</Text>
-									<Text className="text-red-600 dark:text-red-400 font-semibold">
-										{formatCurrencyBRL(totals.totalExpenses)}
-									</Text>
-								</HStack>
-								<HStack className="justify-between">
-									<Text className="text-gray-700 dark:text-gray-300">Saldo</Text>
-									<Text
-										className={
-											balanceInCents >= 0
-												? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-												: 'text-red-600 dark:text-red-400 font-semibold'
-										}
-									>
-										{formatCurrencyBRL(balanceInCents)}
-									</Text>
-								</HStack>
-							</VStack>
-						</Box>
-
-						{errorMessage && (
-							<Text className="text-center text-red-600 dark:text-red-400 mb-4">{errorMessage}</Text>
-						)}
-
-						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								shadow-sm
-							"
-						>
-							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-								Movimentações encontradas
-							</Text>
-
-							{isLoading ? (
-								<Text className="text-center text-gray-700 dark:text-gray-300">
-									Carregando movimentações...
-								</Text>
-							) : movements.length === 0 ? (
-								<Text className="text-center text-gray-600 dark:text-gray-400">
-									Nenhuma movimentação foi registrada para o período informado.
-								</Text>
+									<View className="mt-4 gap-3">
+										{totalsPieSlices.map(slice => (
+											<HStack
+												key={slice.key}
+												className="justify-between items-center rounded-lg px-3 py-2"
+												style={{ borderWidth: 1, borderColor: legendBorderColor }}
+											>
+												<HStack className="items-center">
+													<View
+														style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+													/>
+													<Text className="ml-2 text-gray-700 dark:text-gray-200">{slice.label}</Text>
+												</HStack>
+												<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+													{formatCurrencyBRL(slice.rawInCents)}
+												</Text>
+											</HStack>
+										))}
+									</View>
+								</>
 							) : (
-								movements.map(movement => (
-									<Box
-										key={movement.id}
-										className="
+								<Text className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+									Nenhum ganho ou despesa foi encontrado dentro do período selecionado.
+								</Text>
+							)
+						) : (
+							<Text className="mt-4 text-gray-600 dark:text-gray-400">
+								Toque em &quot;Expandir&quot; para visualizar o gráfico com os totais do período.
+							</Text>
+						)}
+					</Box>
+
+					<Box
+						className="
+								bg-white dark:bg-gray-800
+								rounded-lg
+								p-4
+								mt-6
+								shadow-sm
+							"
+					>
+						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+							Movimentações encontradas
+						</Text>
+
+						{isLoading ? (
+							<Text className="text-center text-gray-700 dark:text-gray-300">
+								Carregando movimentações...
+							</Text>
+						) : movements.length === 0 ? (
+							<Text className="text-center text-gray-600 dark:text-gray-400">
+								Nenhuma movimentação foi registrada para o período informado.
+							</Text>
+						) : (
+							movements.map(movement => (
+								<Box
+									key={movement.id}
+									className="
 											mb-4
 											border-b border-gray-200 dark:border-gray-700
 											pb-3
 										"
-									>
-										<HStack className="justify-between items-center">
-											<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-												{movement.name}
-											</Text>
-											<Text
-												className={
-													movement.type === 'gain'
-														? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-														: 'text-red-600 dark:text-red-400 font-semibold'
-												}
-											>
-												{formatCurrencyBRL(movement.valueInCents)}
-											</Text>
-										</HStack>
-										<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-											{formatMovementDate(movement.date)}
+								>
+									<HStack className="justify-between items-center">
+										<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+											{movement.name}
 										</Text>
-										<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-											Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
+										<Text
+											className={
+												movement.type === 'gain'
+													? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+													: 'text-red-600 dark:text-red-400 font-semibold'
+											}
+										>
+											{formatCurrencyBRL(movement.valueInCents)}
 										</Text>
-									</Box>
-								))
-							)}
-						</Box>
-					</View>
-				</ScrollView>
+									</HStack>
+									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{formatMovementDate(movement.date)}
+									</Text>
+									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
+									</Text>
+								</Box>
+							))
+						)}
+					</Box>
+				</View>
+			</ScrollView>
 
 			<View className="w-full">
 				<Menu defaultValue={0} />
