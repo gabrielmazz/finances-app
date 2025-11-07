@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
@@ -107,6 +107,13 @@ const parseDateFromBR = (value: string) => {
 	}
 
 	return dateInstance;
+};
+
+const mergeDateWithCurrentTime = (date: Date) => {
+	const now = new Date();
+	const dateWithTime = new Date(date);
+	dateWithTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+	return dateWithTime;
 };
 
 export default function AddRegisterGainScreen() {
@@ -293,6 +300,8 @@ export default function AddRegisterGainScreen() {
 			return;
 		}
 
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
+
 		setIsSubmitting(true);
 
 		try {
@@ -315,7 +324,7 @@ export default function AddRegisterGainScreen() {
 				explanation: explanationGain?.trim() ? explanationGain.trim() : null,
 				tagId: selectedTagId as string,
 				bankId: selectedBankId as string,
-				date: parsedDate,
+				date: dateWithCurrentTime,
 				personId,
 			});
 
@@ -352,9 +361,8 @@ export default function AddRegisterGainScreen() {
 
 
 	return (
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<View
-				className="
+		<View
+			className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
@@ -362,204 +370,204 @@ export default function AddRegisterGainScreen() {
 					pb-6
 					relative
 				"
+		>
+			<FloatingAlertViewport />
+
+			<ScrollView
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+				contentContainerStyle={{
+					flexGrow: 1,
+					paddingBottom: 48,
+				}}
 			>
-				<FloatingAlertViewport />
+				<View className="w-full px-6">
+					<Heading size="3xl" className="text-center mb-6">
+						Registro de Ganhos
+					</Heading>
 
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-					}}
-				>
-					<View className="w-full px-6">
-						<Heading size="3xl" className="text-center mb-6">
-							Registro de Ganhos
-						</Heading>
+					<Text className="mb-6 text-center">
+						Informe os dados abaixo para registrar um novo ganho no sistema.
+					</Text>
 
-						<Text className="mb-6 text-center">
-							Informe os dados abaixo para registrar um novo ganho no sistema.
-						</Text>
+					<VStack className="gap-5">
+						<Input>
+							<InputField
+								placeholder="Nome do ganho"
+								value={gainName}
+								onChangeText={setGainName}
+								autoCapitalize="sentences"
+							/>
+						</Input>
 
-						<VStack className="gap-5">
-							<Input>
-								<InputField
-									placeholder="Nome do ganho"
-									value={gainName}
-									onChangeText={setGainName}
-									autoCapitalize="sentences"
-								/>
-							</Input>
+						<Input>
+							<InputField
+								placeholder="Valor do ganho"
+								value={gainValueDisplay}
+								onChangeText={handleValueChange}
+								keyboardType="numeric"
+							/>
+						</Input>
 
-							<Input>
-								<InputField
-									placeholder="Valor do ganho"
-									value={gainValueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-								/>
-							</Input>
+						<CheckboxGroup
+							value={paymentFormat}
+							onChange={(keys: string[]) => {
+								setPaymentFormat(keys);
+							}}
+						>
+							<HStack space="2xl">
 
-							<CheckboxGroup
-								value={paymentFormat}
-								onChange={(keys: string[]) => {
-									setPaymentFormat(keys);
-								}}
-							>
-								<HStack space="2xl">
+								<Checkbox
+									value="Salary"
+									isDisabled={
+										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable') || paymentFormat.includes('External')
+									}
+								>
 
-									<Checkbox
-										value="Salary"
-										isDisabled={
-											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable') || paymentFormat.includes('External')
-										}
-									>
+									<CheckboxIndicator>
+										<CheckboxIcon as={CheckIcon} />
+									</CheckboxIndicator>
 
-										<CheckboxIndicator>
-											<CheckboxIcon as={CheckIcon} />
-										</CheckboxIndicator>
+									<CheckboxLabel>Salário</CheckboxLabel>
 
-										<CheckboxLabel>Salário</CheckboxLabel>
+								</Checkbox>
 
-									</Checkbox>
+								<Checkbox
+									value="Variable"
+									isDisabled={
+										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('External')
+									}>
 
-									<Checkbox 
-										value="Variable"
-										isDisabled={
-											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('External')
-										}>
+									<CheckboxIndicator>
+										<CheckboxIcon as={CheckIcon} />
+									</CheckboxIndicator>
 
-										<CheckboxIndicator>
-											<CheckboxIcon as={CheckIcon} />
-										</CheckboxIndicator>
+									<CheckboxLabel>Renda variável</CheckboxLabel>
 
-										<CheckboxLabel>Renda variável</CheckboxLabel>
+								</Checkbox>
 
-									</Checkbox>
+								<Checkbox
+									value="External"
+									isDisabled={
+										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('Variable')
+									}>
 
-									<Checkbox 
-										value="External"
-										isDisabled={
-											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('Variable')
-										}>
+									<CheckboxIndicator>
+										<CheckboxIcon as={CheckIcon} />
+									</CheckboxIndicator>
 
-										<CheckboxIndicator>
-											<CheckboxIcon as={CheckIcon} />
-										</CheckboxIndicator>
+									<CheckboxLabel>Pagamento externo</CheckboxLabel>
 
-										<CheckboxLabel>Pagamento externo</CheckboxLabel>
+								</Checkbox>
 
-									</Checkbox>
+							</HStack>
+						</CheckboxGroup>
 
-								</HStack>
-							</CheckboxGroup>
+						<Textarea
+							size="md"
+							isReadOnly={false}
+							isInvalid={false}
+							isDisabled={!paymentFormat || paymentFormat.length === 0}
+							className="h-32"
+						>
+							<TextareaInput
+								placeholder="(Opcional) Explique sobre esse ganho..."
+								value={explanationGain ?? ''}
+								onChangeText={setExplanationGain}
+							/>
+						</Textarea>
 
-							<Textarea
-								size="md"
-								isReadOnly={false}
-								isInvalid={false}
-								isDisabled={!paymentFormat || paymentFormat.length === 0}
-								className="h-32"
-							>
-								<TextareaInput 
-									placeholder="(Opcional) Explique sobre esse ganho..."
-									value={explanationGain ?? ''}
-									onChangeText={setExplanationGain} 
-								/>
-							</Textarea>
+						<Select
+							selectedValue={selectedTagId}
+							onValueChange={setSelectedTagId}
+							isDisabled={isLoadingTags || tags.length === 0}
+						>
+							<SelectTrigger>
+								<SelectInput placeholder="Selecione uma tag" />
+								<SelectIcon />
+							</SelectTrigger>
 
-							<Select
-								selectedValue={selectedTagId}
-								onValueChange={setSelectedTagId}
-								isDisabled={isLoadingTags || tags.length === 0}
-							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione uma tag" />
-									<SelectIcon />
-								</SelectTrigger>
+							<SelectPortal>
+								<SelectBackdrop />
+								<SelectContent>
+									<SelectDragIndicatorWrapper>
+										<SelectDragIndicator />
+									</SelectDragIndicatorWrapper>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
+									{tags.length > 0 ? (
+										tags.map(tag => (
+											<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+										))
+									) : (
+										<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+									)}
+								</SelectContent>
+							</SelectPortal>
+						</Select>
 
-										{tags.length > 0 ? (
-											tags.map(tag => (
-												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-											))
-										) : (
-											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
+						<Select
+							selectedValue={selectedBankId}
+							onValueChange={setSelectedBankId}
+							isDisabled={isLoadingBanks || banks.length === 0}
+						>
+							<SelectTrigger>
+								<SelectInput placeholder="Selecione um banco" />
+								<SelectIcon />
+							</SelectTrigger>
 
-							<Select
-								selectedValue={selectedBankId}
-								onValueChange={setSelectedBankId}
-								isDisabled={isLoadingBanks || banks.length === 0}
-							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione um banco" />
-									<SelectIcon />
-								</SelectTrigger>
+							<SelectPortal>
+								<SelectBackdrop />
+								<SelectContent>
+									<SelectDragIndicatorWrapper>
+										<SelectDragIndicator />
+									</SelectDragIndicatorWrapper>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
+									{banks.length > 0 ? (
+										banks.map(bank => (
+											<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+										))
+									) : (
+										<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
+									)}
+								</SelectContent>
+							</SelectPortal>
+						</Select>
 
-										{banks.length > 0 ? (
-											banks.map(bank => (
-												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-											))
-										) : (
-											<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
+						<Input>
+							<InputField
+								placeholder="Data do ganho (DD/MM/AAAA)"
+								value={gainDate}
+								onChangeText={handleDateChange}
+								autoCorrect={false}
+								keyboardType="numbers-and-punctuation"
+							/>
+						</Input>
 
-							<Input>
-								<InputField
-									placeholder="Data do ganho (DD/MM/AAAA)"
-									value={gainDate}
-									onChangeText={handleDateChange}
-									autoCorrect={false}
-									keyboardType="numbers-and-punctuation"
-								/>
-							</Input>
+						<Button
+							className="w-full mt-2"
+							size="sm"
+							variant="outline"
+							onPress={handleSubmit}
+							isDisabled={
+								isSubmitting ||
+								!gainName.trim() ||
+								gainValueCents === null ||
+								!selectedTagId ||
+								!selectedBankId ||
+								!gainDate
+							}
+						>
+							{isSubmitting ? (
+								<ButtonSpinner />
+							) : (
+								<ButtonText>Registrar Ganho</ButtonText>
+							)}
+						</Button>
+					</VStack>
+				</View>
+			</ScrollView>
 
-							<Button
-								className="w-full mt-2"
-								size="sm"
-								variant="outline"
-								onPress={handleSubmit}
-								isDisabled={
-									isSubmitting ||
-									!gainName.trim() ||
-									gainValueCents === null ||
-									!selectedTagId ||
-									!selectedBankId ||
-									!gainDate
-								}
-							>
-								{isSubmitting ? (
-									<ButtonSpinner />
-								) : (
-									<ButtonText>Registrar Ganho</ButtonText>
-								)}
-							</Button>
-						</VStack>
-					</View>
-				</ScrollView>
-
-				<Menu defaultValue={1} />
-			</View>
-		</TouchableWithoutFeedback>
+			<Menu defaultValue={1} />
+		</View>
 	);
 }

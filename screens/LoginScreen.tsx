@@ -1,7 +1,7 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -62,13 +62,10 @@ export default function LoginScreen() {
         }
     }
 
-    return (
-
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-
-            <SafeAreaView
-                className="
-                flex-1
+	return (
+		<SafeAreaView
+				className="
+				flex-1
             "
             >
                 <View className="flex-1 justify-between pb-6">
@@ -195,8 +192,6 @@ export default function LoginScreen() {
 
                 </View>
 
-            </SafeAreaView>
-
-        </TouchableWithoutFeedback>
-    );
+		</SafeAreaView>
+	);
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -86,13 +86,10 @@ export default function AddRegisterBankScreen() {
         }
     }, [nameBank]);
 
-    return (
-        
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-
-            <View
-                className="
-                    flex-1 w-full h-full
+	return (
+		<View
+				className="
+					flex-1 w-full h-full
                     mt-[64px]
                     items-center
                     justify-between
@@ -140,7 +137,6 @@ export default function AddRegisterBankScreen() {
                 </View>
 
                 <Menu defaultValue={2} />
-            </View>
-        </TouchableWithoutFeedback>
-    );
+		</View>
+	);
 }

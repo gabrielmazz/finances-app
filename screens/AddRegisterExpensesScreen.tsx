@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
 import {
@@ -98,6 +98,13 @@ const parseDateFromBR = (value: string) => {
 	return dateInstance;
 };
 
+const mergeDateWithCurrentTime = (date: Date) => {
+	const now = new Date();
+	const dateWithTime = new Date(date);
+	dateWithTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+	return dateWithTime;
+};
+
 export default function AddRegisterExpensesScreen() {
 
 	// Variaveis relacionadas ao registro de despesas
@@ -177,7 +184,7 @@ export default function AddRegisterExpensesScreen() {
 							position: 'bottom',
 							offset: 40,
 						});
-						
+
 					}
 
 					if (banksResult.success && Array.isArray(banksResult.data)) {
@@ -236,7 +243,7 @@ export default function AddRegisterExpensesScreen() {
 
 	// Manipula a mudança no campo de valor, formatando para moeda BRL
 	const handleValueChange = React.useCallback((input: string) => {
-		
+
 		const digitsOnly = input.replace(/\D/g, '');
 		if (!digitsOnly) {
 			setExpenseValueDisplay('');
@@ -249,13 +256,13 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseValueCents(centsValue);
 	}, []);
 
-// Manipula a mudança no campo de data, sanitizando a entrada
+	// Manipula a mudança no campo de data, sanitizando a entrada
 	const handleDateChange = React.useCallback((value: string) => {
 		const sanitized = sanitizeDateInput(value);
 		setExpenseDate(formatDateInput(sanitized));
 	}, []);
 
-	
+
 	const handleSubmit = React.useCallback(async () => {
 
 		if (!expenseName.trim()) {
@@ -331,6 +338,8 @@ export default function AddRegisterExpensesScreen() {
 			return;
 		}
 
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
+
 		setIsSubmitting(true);
 
 		try {
@@ -352,7 +361,7 @@ export default function AddRegisterExpensesScreen() {
 				valueInCents: expenseValueCents,
 				tagId: selectedTagId as string,
 				bankId: selectedBankId as string,
-				date: parsedDate,
+				date: dateWithCurrentTime,
 				personId,
 				explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
 			});
@@ -390,13 +399,12 @@ export default function AddRegisterExpensesScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-		
+
 	}, [expenseDate, expenseName, expenseValueCents, selectedBankId, selectedTagId]);
 
 	return (
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<View
-				className="
+		<View
+			className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
@@ -404,157 +412,157 @@ export default function AddRegisterExpensesScreen() {
 					pb-6
 					relative
 				"
+		>
+			<FloatingAlertViewport />
+
+			<ScrollView
+				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+				contentContainerStyle={{
+					flexGrow: 1,
+					paddingBottom: 48,
+				}}
 			>
-				<FloatingAlertViewport />
+				<View className="w-full px-6">
+					<Heading size="3xl" className="text-center mb-6">
+						Registro de Despesas
+					</Heading>
 
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-					}}
-				>
-					<View className="w-full px-6">
-						<Heading size="3xl" className="text-center mb-6">
-							Registro de Despesas
-						</Heading>
+					<Text className="mb-6 text-center">
+						Preencha os dados abaixo para cadastrar uma nova despesa no sistema.
+					</Text>
 
-						<Text className="mb-6 text-center">
-							Preencha os dados abaixo para cadastrar uma nova despesa no sistema.
-						</Text>
+					<VStack className="gap-5">
+						<Input>
+							<InputField
+								placeholder="Nome da despesa"
+								value={expenseName}
+								onChangeText={setExpenseName}
+								autoCapitalize="sentences"
+							/>
+						</Input>
 
-						<VStack className="gap-5">
-							<Input>
-								<InputField
-									placeholder="Nome da despesa"
-									value={expenseName}
-									onChangeText={setExpenseName}
-									autoCapitalize="sentences"
-								/>
-							</Input>
+						<Input>
+							<InputField
+								placeholder="Valor da despesa"
+								value={expenseValueDisplay}
+								onChangeText={handleValueChange}
+								keyboardType="numeric"
+							/>
+						</Input>
 
-							<Input>
-								<InputField
-									placeholder="Valor da despesa"
-									value={expenseValueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-								/>
-							</Input>
+						<Textarea
+							size="md"
+							isDisabled={!expenseValueDisplay}
+							className="h-32"
+						>
+							<TextareaInput
+								placeholder="(Opcional) Explique sobre essa despesa..."
+								value={explanationExpense ?? ''}
+								onChangeText={setExplanationExpense}
+							/>
+						</Textarea>
 
-							<Textarea
-								size="md"
-								isDisabled={!expenseValueDisplay}
-								className="h-32"
-							>
-								<TextareaInput
-									placeholder="(Opcional) Explique sobre essa despesa..."
-									value={explanationExpense ?? ''}
-									onChangeText={setExplanationExpense}
-								/>
-							</Textarea>
+						<Select
+							selectedValue={selectedTagId}
+							onValueChange={setSelectedTagId}
+							isDisabled={isLoadingTags || tags.length === 0}
+						>
+							<SelectTrigger>
+								<SelectInput placeholder="Selecione uma tag" />
+								<SelectIcon />
+							</SelectTrigger>
 
-							<Select
-								selectedValue={selectedTagId}
-								onValueChange={setSelectedTagId}
-								isDisabled={isLoadingTags || tags.length === 0}
-							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione uma tag" />
-									<SelectIcon />
-								</SelectTrigger>
+							<SelectPortal>
+								<SelectBackdrop />
+								<SelectContent>
+									<SelectDragIndicatorWrapper>
+										<SelectDragIndicator />
+									</SelectDragIndicatorWrapper>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
+									{tags.length > 0 ? (
+										tags.map(tag => (
+											<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+										))
+									) : (
+										<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+									)}
+								</SelectContent>
+							</SelectPortal>
+						</Select>
 
-										{tags.length > 0 ? (
-											tags.map(tag => (
-												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-											))
-										) : (
-											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
+						<Select
+							selectedValue={selectedBankId}
+							onValueChange={setSelectedBankId}
+							isDisabled={isLoadingBanks || banks.length === 0}
+						>
+							<SelectTrigger>
+								<SelectInput placeholder="Selecione um banco" />
+								<SelectIcon />
+							</SelectTrigger>
 
-							<Select
-								selectedValue={selectedBankId}
-								onValueChange={setSelectedBankId}
-								isDisabled={isLoadingBanks || banks.length === 0}
-							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione um banco" />
-									<SelectIcon />
-								</SelectTrigger>
+							<SelectPortal>
+								<SelectBackdrop />
+								<SelectContent>
+									<SelectDragIndicatorWrapper>
+										<SelectDragIndicator />
+									</SelectDragIndicatorWrapper>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
-
-										{banks.length > 0 ? (
-											banks.map(bank => (
-												<SelectItem
-													key={bank.id}
-													label={bank.name}
-													value={bank.id}
-												/>
-											))
-										) : (
+									{banks.length > 0 ? (
+										banks.map(bank => (
 											<SelectItem
-												key="no-bank"
-												label="Nenhum banco disponível"
-												value="no-bank"
-												isDisabled
+												key={bank.id}
+												label={bank.name}
+												value={bank.id}
 											/>
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
+										))
+									) : (
+										<SelectItem
+											key="no-bank"
+											label="Nenhum banco disponível"
+											value="no-bank"
+											isDisabled
+										/>
+									)}
+								</SelectContent>
+							</SelectPortal>
+						</Select>
 
-							<Input>
-								<InputField
-									placeholder="Data da despesa (DD/MM/AAAA)"
-									value={expenseDate}
-									onChangeText={handleDateChange}
-									autoCorrect={false}
-									keyboardType="numbers-and-punctuation"
-								/>
-							</Input>
+						<Input>
+							<InputField
+								placeholder="Data da despesa (DD/MM/AAAA)"
+								value={expenseDate}
+								onChangeText={handleDateChange}
+								autoCorrect={false}
+								keyboardType="numbers-and-punctuation"
+							/>
+						</Input>
 
-							<Button
-								className="w-full mt-2"
-								size="sm"
-								variant="outline"
-								onPress={handleSubmit}
-								isDisabled={
-									isSubmitting ||
-									!expenseName.trim() ||
-									expenseValueCents === null ||
-									!selectedTagId || 
-									!selectedBankId ||
-									!expenseDate
-								}
-							>
-								{isSubmitting ? (
-									<ButtonSpinner />
-								) : (
-									<ButtonText>Registrar Despesa</ButtonText>
-								)}
-							</Button>
-						</VStack>
-					</View>
-				</ScrollView>
+						<Button
+							className="w-full mt-2"
+							size="sm"
+							variant="outline"
+							onPress={handleSubmit}
+							isDisabled={
+								isSubmitting ||
+								!expenseName.trim() ||
+								expenseValueCents === null ||
+								!selectedTagId ||
+								!selectedBankId ||
+								!expenseDate
+							}
+						>
+							{isSubmitting ? (
+								<ButtonSpinner />
+							) : (
+								<ButtonText>Registrar Despesa</ButtonText>
+							)}
+						</Button>
+					</VStack>
+				</View>
+			</ScrollView>
 
-				<Menu defaultValue={1} />
-			</View>
-		</TouchableWithoutFeedback>
+			<Menu defaultValue={1} />
+		</View>
 	);
 }

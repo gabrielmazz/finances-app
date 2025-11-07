@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, ScrollView, TouchableWithoutFeedback, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -530,9 +530,7 @@ export default function ConfigurationsScreen() {
 	);
 
 	return (
-
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<View
+		<View
 				className="
 					flex-1 w-full h-full
 					mt-[64px]
@@ -543,6 +541,7 @@ export default function ConfigurationsScreen() {
 
 				<ScrollView
 					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
 					contentContainerStyle={{
 						flexGrow: 1,
 						paddingBottom: 48,
@@ -937,7 +936,6 @@ export default function ConfigurationsScreen() {
 					</View>
 
 				</ScrollView>
-			</View>
-		</TouchableWithoutFeedback>
+		</View>
 	);
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -132,10 +132,8 @@ export default function AddRegisterTagScreen() {
 	}, [tagName, isExpenseTag, isGainTag]);
 
 	return (
-        
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<View
-				className="
+		<View
+			className="
                     flex-1 w-full h-full
                     mt-[64px]
                     items-center
@@ -219,6 +217,5 @@ export default function AddRegisterTagScreen() {
 
 				<Menu defaultValue={2} />
 			</View>
-		</TouchableWithoutFeedback>
 	);
 }
