@@ -60,6 +60,11 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				value: 1,
 				onSelect: () => router.push('/add-register-gain'),
 			},
+			{
+				label: 'Registrar saldo mensal',
+				value: 1,
+				onSelect: () => router.push('/register-monthly-balance'),
+			},
 		],
 	},
 	{

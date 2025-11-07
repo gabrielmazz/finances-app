@@ -14,13 +14,17 @@ import {
 	getCurrentMonthSummaryByBankFirebaseExpanses,
 	getCurrentMonthSummaryByBankFirebaseGains,
 } from '@/functions/BankFirebase';
+import { getMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
 
 type BankSummary = {
 	id: string;
 	name: string;
+	colorHex?: string | null;
 	totalExpensesInCents: number;
 	totalGainsInCents: number;
 	totalMovements: number;
+	initialBalanceInCents: number | null;
+	currentBalanceInCents: number | null;
 };
 
 function formatCurrencyBRL(valueInCents: number): string {
@@ -93,12 +97,59 @@ export default function MonthlyBankSummaryScreen() {
 					const gainsArray: any[] =
 						gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
 
+					const now = new Date();
+					const currentYear = now.getFullYear();
+					const currentMonth = now.getMonth() + 1;
+
+					const balanceResults = await Promise.all(
+						banksArray.map(async bank => {
+							const bankId = typeof bank?.id === 'string' ? bank.id : '';
+
+							if (!bankId) {
+								return { bankId, valueInCents: null };
+							}
+
+							try {
+								const balanceResponse = await getMonthlyBalanceFirebase({
+									personId: currentUser.uid,
+									bankId,
+									year: currentYear,
+									month: currentMonth,
+								});
+
+								if (balanceResponse.success && balanceResponse.data) {
+									const value =
+										typeof balanceResponse.data.valueInCents === 'number'
+											? balanceResponse.data.valueInCents
+											: 0;
+									return { bankId, valueInCents: value };
+								}
+
+								return { bankId, valueInCents: null };
+							} catch (error) {
+								console.error(`Erro ao obter saldo mensal para o banco ${bankId}:`, error);
+								return { bankId, valueInCents: null };
+							}
+						}),
+					);
+
+					const balancesByBank: Record<string, number | null> = {};
+					for (const result of balanceResults) {
+						if (result.bankId) {
+							balancesByBank[result.bankId] = result.valueInCents;
+						}
+					}
+
 					const summaries: BankSummary[] = banksArray.map(bank => {
 						const bankId = typeof bank?.id === 'string' ? bank.id : '';
 						const bankName =
 							typeof bank?.name === 'string' && bank.name.trim().length > 0
 								? bank.name.trim()
 								: 'Banco sem nome';
+						const colorHex =
+							typeof bank?.colorHex === 'string' && bank.colorHex.trim().length > 0
+								? bank.colorHex.trim()
+								: null;
 
 						const bankExpenses = expensesArray.filter(expense => expense?.bankId === bankId);
 						const bankGains = gainsArray.filter(gain => gain?.bankId === bankId);
@@ -114,13 +165,21 @@ export default function MonthlyBankSummaryScreen() {
 						}, 0);
 
 						const totalMovements = bankExpenses.length + bankGains.length;
+						const initialBalanceInCents = balancesByBank[bankId] ?? null;
+						const currentBalanceInCents =
+							typeof initialBalanceInCents === 'number'
+								? initialBalanceInCents + (totalGainsInCents - totalExpensesInCents)
+								: null;
 
 						return {
 							id: bankId,
 							name: bankName,
+							colorHex,
 							totalExpensesInCents,
 							totalGainsInCents,
 							totalMovements,
+							initialBalanceInCents,
+							currentBalanceInCents,
 						};
 					});
 
@@ -200,24 +259,73 @@ export default function MonthlyBankSummaryScreen() {
 												mb-4
 												shadow-sm
 											"
+										style={
+											bank.colorHex
+												? { shadowColor: bank.colorHex, elevation: 6 }
+												: undefined
+										}
 									>
 										<HStack className="justify-between items-center">
-											<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+											<Text
+												className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+												style={bank.colorHex ? { color: bank.colorHex } : undefined}
+											>
 												{bank.name}
 											</Text>
-											<Text className="text-sm text-emerald-600 dark:text-emerald-400">
+											<Text className="text-sm text-gray-600 dark:text-emerald-400">
 												Ver período
 											</Text>
 										</HStack>
 
-										<Text className="mt-3 text-gray-700 dark:text-gray-300">
-											Ganhos: {formatCurrencyBRL(bank.totalGainsInCents)}
-										</Text>
+											<Text className="mt-3 text-gray-700 dark:text-gray-300">
+												Ganhos:{' '}
+												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+													{formatCurrencyBRL(bank.totalGainsInCents)}
+												</Text>
+											</Text>
+											<Text className="mt-1 text-gray-700 dark:text-gray-300">
+												Despesas:{' '}
+												<Text className="text-red-600 dark:text-red-400 font-semibold">
+													{formatCurrencyBRL(bank.totalExpensesInCents)}
+												</Text>
+											</Text>
+											<Text className="mt-1 text-gray-700 dark:text-gray-300">
+												Saldo inicial:{' '}
+												<Text
+													className={
+														typeof bank.initialBalanceInCents === 'number'
+															? bank.initialBalanceInCents >= 0
+																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																: 'text-red-600 dark:text-red-400 font-semibold'
+															: 'text-gray-700 dark:text-gray-300'
+													}
+												>
+													{typeof bank.initialBalanceInCents === 'number'
+														? formatCurrencyBRL(bank.initialBalanceInCents)
+														: 'Não registrado'}
+												</Text>
+											</Text>
+											<Text className="mt-1 text-gray-700 dark:text-gray-300">
+												Saldo atual:{' '}
+												<Text
+													className={
+														typeof bank.currentBalanceInCents === 'number'
+															? bank.currentBalanceInCents >= 0
+																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																: 'text-red-600 dark:text-red-400 font-semibold'
+															: 'text-gray-700 dark:text-gray-300'
+													}
+												>
+													{typeof bank.currentBalanceInCents === 'number'
+														? formatCurrencyBRL(bank.currentBalanceInCents)
+														: 'Indisponível'}
+												</Text>
+											</Text>
 										<Text className="mt-1 text-gray-700 dark:text-gray-300">
-											Despesas: {formatCurrencyBRL(bank.totalExpensesInCents)}
-										</Text>
-										<Text className="mt-1 text-gray-700 dark:text-gray-300">
-											Movimentações no mês: {bank.totalMovements}
+											Movimentações no mês:{' '}
+											<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
+												{bank.totalMovements}
+											</Text>
 										</Text>
 
 										<Text className="mt-3 text-sm text-gray-500 dark:text-gray-400">

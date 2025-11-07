@@ -15,6 +15,17 @@ interface AddGainParams {
 	personId: string;
 }
 
+interface UpdateGainParams {
+	gainId: string;
+	name?: string;
+	valueInCents?: number;
+	paymentFormats?: string[];
+	explanation?: string | null;
+	tagId?: string;
+	bankId?: string;
+	date?: Date;
+}
+
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo ganho no Firestore
@@ -41,11 +52,65 @@ export async function addGainFirebase({
 			date,
 			personId,
 			createdAt: new Date(),
+			updatedAt: new Date(),
 		});
 
 		return { success: true, gainId: gainRef.id };
 	} catch (error) {
 		console.error('Erro ao adicionar ganho:', error);
+		return { success: false, error };
+	}
+}
+
+export async function updateGainFirebase({
+	gainId,
+	name,
+	valueInCents,
+	paymentFormats,
+	explanation,
+	tagId,
+	bankId,
+	date,
+}: UpdateGainParams) {
+	try {
+		const gainRef = doc(db, 'gains', gainId);
+		const updates: Record<string, unknown> = {
+			updatedAt: new Date(),
+		};
+
+		if (typeof name === 'string') {
+			updates.name = name;
+		}
+
+		if (typeof valueInCents === 'number') {
+			updates.valueInCents = valueInCents;
+		}
+
+		if (paymentFormats !== undefined) {
+			updates.paymentFormats = paymentFormats;
+		}
+
+		if (explanation !== undefined) {
+			updates.explanation = explanation ?? null;
+		}
+
+		if (typeof tagId === 'string') {
+			updates.tagId = tagId;
+		}
+
+		if (typeof bankId === 'string') {
+			updates.bankId = bankId;
+		}
+
+		if (date instanceof Date) {
+			updates.date = date;
+		}
+
+		await setDoc(gainRef, updates, { merge: true });
+
+		return { success: true };
+	} catch (error) {
+		console.error('Erro ao atualizar ganho:', error);
 		return { success: false, error };
 	}
 }
