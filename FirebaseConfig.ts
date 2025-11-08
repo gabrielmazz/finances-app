@@ -1,5 +1,5 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApp, getApps, type FirebaseApp } from "firebase/app";
+import { initializeApp, getApp, getApps, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -8,16 +8,27 @@ import { getFirestore } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
+/**
+ * Reads environment variables prefixed with EXPO_PUBLIC_ and fails fast if any is missing.
+ */
+const getEnvVar = (key: string): string => {
+    const value = process.env[key];
+    if (!value) {
+        throw new Error(`Missing environment variable: ${key}`);
+    }
+    return value;
+};
+
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-    apiKey: "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
-    authDomain: "finances-app-e8685.firebaseapp.com",
-    projectId: "finances-app-e8685",
-    storageBucket: "finances-app-e8685.firebasestorage.app",
-    messagingSenderId: "909478123750",
-    appId: "1:909478123750:web:bfe59f4e4d9682d20a4327",
-    measurementId: "G-TMN75L3YNW"
+const firebaseConfig: FirebaseOptions = {
+    apiKey: getEnvVar("EXPO_PUBLIC_FIREBASE_API_KEY"),
+    authDomain: getEnvVar("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+    projectId: getEnvVar("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
+    storageBucket: getEnvVar("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
+    messagingSenderId: getEnvVar("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
+    appId: getEnvVar("EXPO_PUBLIC_FIREBASE_APP_ID"),
+    measurementId: getEnvVar("EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID")
 };
 
 // Initialize Firebase
