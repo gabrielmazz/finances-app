@@ -110,7 +110,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 						}));
 						setBanks(formattedBanks);
 						setSelectedBankId(current =>
-							current && formattedBanks.some(bank => bank.id === current) ? current : formattedBanks[0]?.id ?? null,
+							current && formattedBanks.some(bank => bank.id === current) ? current : null,
 						);
 					} else {
 						showFloatingAlert({
@@ -308,12 +308,11 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		}
 	}, [selectedBankId, monthReference, balanceValueInCents]);
 
+	const hasValidMonthReference = parseMonthReference(monthReference) !== null;
+	const isBalanceInputDisabled = !selectedBankId || !hasValidMonthReference;
+
 	const isSaveDisabled =
-		!selectedBankId ||
-		!monthReference ||
-		parseMonthReference(monthReference) === null ||
-		balanceValueInCents === null ||
-		isSubmitting;
+		!selectedBankId || !monthReference || !hasValidMonthReference || balanceValueInCents === null || isSubmitting;
 
 	return (
 		<View
@@ -349,6 +348,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					<VStack className="gap-5">
 						<View>
 							<Select
+								selectedValue={selectedBankId}
 								onValueChange={value => setSelectedBankId(value)}
 								isDisabled={isLoadingBanks || banks.length === 0}
 							>
@@ -381,12 +381,13 @@ export default function AddRegisterMonthlyBalanceScreen() {
 							/>
 						</Input>
 
-						<Input>
+						<Input isDisabled={isBalanceInputDisabled}>
 							<InputField
 								placeholder="Saldo disponível"
 								value={balanceInputValue}
 								onChangeText={handleBalanceChange}
 								keyboardType="numeric"
+								editable={!isBalanceInputDisabled}
 							/>
 						</Input>
 

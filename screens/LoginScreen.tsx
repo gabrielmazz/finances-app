@@ -1,7 +1,7 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { View, Pressable } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -15,10 +15,22 @@ import {
     FormControlLabelText,
 } from '@/components/ui/form-control';
 import { AlertCircleIcon } from '@/components/ui/icon';
-import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
+import { Input, InputField } from '@/components/ui/input';
+import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
+import { Divider } from '@/components/ui/divider';
+import { Text } from '@/components/ui/text';
+import {
+    Modal,
+    ModalBackdrop,
+    ModalContent,
+    ModalHeader,
+    ModalCloseButton,
+    ModalBody,
+    ModalFooter,
+} from '@/components/ui/modal';
+import Loader from '@/components/uiverse/loader';
 
 // Importações relacionadas ao Firebase
 import { auth } from '@/FirebaseConfig';
@@ -32,6 +44,7 @@ export default function LoginScreen() {
     // Variaveis relacionadas ao login
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
 
     // ============================================= Funções para Login ============================================= //
 
@@ -62,6 +75,9 @@ export default function LoginScreen() {
         }
     }
 
+    const handleOpenCreditsModal = () => setIsCreditsModalOpen(true);
+    const handleCloseCreditsModal = () => setIsCreditsModalOpen(false);
+
 	return (
 		<SafeAreaView
 				className="
@@ -81,11 +97,27 @@ export default function LoginScreen() {
                         >
 
                             <Heading
+                                size="xl"
+                                className=""
+                            >
+                                Lumus Finances
+                            </Heading>
+
+                            <Heading
                                 size="3xl"
-                                className="mb-6"
+                                className=""
                             >
                                 Bem-vindo de volta!
                             </Heading>
+
+                            <Heading
+                                size="md"
+                                className="mb-4"
+                            >
+                                Faça login para continuar
+                            </Heading>
+
+                            <Divider />
 
                             {/* Campo responsável pelo login */}
                             <FormControl
@@ -190,7 +222,60 @@ export default function LoginScreen() {
                         </VStack>
                     </View>
 
+                    <Pressable
+                        accessibilityRole="button"
+                        onPress={handleOpenCreditsModal}
+                        className="items-center mt-10"
+                    >
+                        <Text className="text-xs text-slate-500 dark:text-slate-400">
+                            Desenvolvido por
+                        </Text>
+                        <Text className="text-sm font-semibold">
+                            Gabriel Mazzuco
+                        </Text>
+                        <Text className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            Toque para conhecer o Lumus Finance
+                        </Text>
+                    </Pressable>
+
                 </View>
+
+                <Modal isOpen={isCreditsModalOpen} onClose={handleCloseCreditsModal} size="md">
+                    <ModalBackdrop />
+                    <ModalContent className="max-w-[380px] w-[90%]">
+                        <ModalHeader>
+                            <ModalCloseButton onPress={handleCloseCreditsModal} />
+                        </ModalHeader>
+                        <ModalBody
+                            className="mt-4"
+                            contentContainerStyle={{ paddingBottom: 16 }}
+                        >
+                            <View className="items-center gap-4">
+                                <Text className="text-2xl mb-2 font-semibold text-gray-800 dark:text-gray-200">
+                                    Lumus Finance
+                                </Text>
+                                <Loader />
+                                <Text className="text-xs uppercase tracking-widest text-amber-500">
+                                    Desenvolvido por Gabriel Mazzuco
+                                </Text>
+                                <Text className="text-sm text-center text-gray-700 dark:text-gray-300">
+                                    O Lumus Finance nasceu para simplificar o controle de despesas
+                                    domésticas, ajudando você a visualizar gastos e ganhos da casa
+                                    em um só lugar.
+                                </Text>
+                                <Text className="text-sm text-center text-gray-700 dark:text-gray-300">
+                                    Explore seus bancos, categorize despesas e mantenha toda a
+                                    família alinhada com o orçamento mensal.
+                                </Text>
+                            </View>
+                        </ModalBody>
+                        <ModalFooter className="justify-center">
+                            <Button size="sm" variant="outline" className="w-full" onPress={handleCloseCreditsModal}>
+                                <ButtonText>Fechar</ButtonText>
+                            </Button>
+                        </ModalFooter>
+                    </ModalContent>
+                </Modal>
 
 		</SafeAreaView>
 	);

@@ -30,10 +30,10 @@ const styles = StyleSheet.create({
 		flexShrink: 0,
 	},
 	edgeLeftMargin: {
-		marginLeft: 12,
+		marginLeft: 0,
 	},
 	edgeRightMargin: {
-		marginRight: 12,
+		marginRight: 0,
 	},
 });
 
@@ -219,7 +219,7 @@ export const Menu: React.FC<MenuProps> = ({
 			<View style={{ height: containerHeight }} />
 
 			<View
-				className="w-full items-center"
+				className="items-center"
 				style={[
 					styles.absoluteContainer,
 					{
