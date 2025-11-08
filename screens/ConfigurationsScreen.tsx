@@ -141,7 +141,15 @@ type PendingAction =
 	  }
 	| {
 			type: 'edit-tag';
-			payload: { tag: { id: string; name: string; usageType?: 'expense' | 'gain' } };
+			payload: {
+				tag: {
+					id: string;
+					name: string;
+					usageType?: 'expense' | 'gain';
+					isMandatoryExpense?: boolean;
+					isMandatoryGain?: boolean;
+				};
+			};
 	  };
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
@@ -317,7 +325,15 @@ export default function ConfigurationsScreen() {
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null }>>([]);
-	const [tagData, setTagData] = React.useState<Array<{ id: string; name: string; usageType?: 'expense' | 'gain' }>>([]);
+const [tagData, setTagData] = React.useState<
+	Array<{
+		id: string;
+		name: string;
+		usageType?: 'expense' | 'gain';
+		isMandatoryExpense?: boolean;
+		isMandatoryGain?: boolean;
+	}>
+>([]);
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
@@ -459,6 +475,8 @@ export default function ConfigurationsScreen() {
 			const encodedUsage = pendingAction.payload.tag.usageType
 				? encodeURIComponent(pendingAction.payload.tag.usageType)
 				: undefined;
+			const mandatoryExpenseFlag = pendingAction.payload.tag.isMandatoryExpense ? 'true' : 'false';
+			const mandatoryGainFlag = pendingAction.payload.tag.isMandatoryGain ? 'true' : 'false';
 
 			router.push({
 				pathname: '/add-register-tag',
@@ -466,6 +484,8 @@ export default function ConfigurationsScreen() {
 					tagId: pendingAction.payload.tag.id,
 					tagName: encodedName,
 					...(encodedUsage ? { usageType: encodedUsage } : {}),
+					isMandatoryExpense: mandatoryExpenseFlag,
+					isMandatoryGain: mandatoryGainFlag,
 				},
 			});
 			setPendingAction(null);
@@ -648,6 +668,8 @@ export default function ConfigurationsScreen() {
 								typeof tag?.usageType === 'string' && (tag.usageType === 'gain' || tag.usageType === 'expense')
 									? tag.usageType
 									: undefined,
+							isMandatoryExpense: Boolean(tag?.isMandatoryExpense),
+							isMandatoryGain: Boolean(tag?.isMandatoryGain),
 						}));
 
 						setTagData(formattedTags);
@@ -1113,6 +1135,8 @@ export default function ConfigurationsScreen() {
 																										tag.usageType === 'expense'
 																											? tag.usageType
 																											: undefined,
+																									isMandatoryExpense: Boolean(tag.isMandatoryExpense),
+																									isMandatoryGain: Boolean(tag.isMandatoryGain),
 																								},
 																							},
 																						})

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/checkbox';
 import { HStack } from '@/components/ui/hstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
+import { Box } from '@/components/ui/box';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -39,6 +40,7 @@ import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { auth } from '@/FirebaseConfig';
+import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
 
 // Importação dos icones
 import { CheckIcon } from '@/components/ui/icon';
@@ -149,6 +151,18 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	return null;
 };
 
+const clampDayToMonth = (day: number, reference: Date) => {
+	const daysInMonth = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate();
+	return Math.min(Math.max(day, 1), daysInMonth);
+};
+
+const getSuggestedDateByDueDay = (dueDay: number) => {
+	const today = new Date();
+	const normalizedDay = clampDayToMonth(dueDay, today);
+	const date = new Date(today.getFullYear(), today.getMonth(), normalizedDay);
+	return formatDateToBR(date);
+};
+
 export default function AddRegisterGainScreen() {
 	const [gainName, setGainName] = React.useState('');
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
@@ -169,12 +183,119 @@ export default function AddRegisterGainScreen() {
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
 
-	const params = useLocalSearchParams<{ gainId?: string | string[] }>();
-	const editingGainId = React.useMemo(() => {
-		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
-		return value && value.trim().length > 0 ? value : null;
-	}, [params.gainId]);
-	const isEditing = Boolean(editingGainId);
+const params = useLocalSearchParams<{
+	gainId?: string | string[];
+	templateName?: string | string[];
+	templateValueInCents?: string | string[];
+	templateTagId?: string | string[];
+	templateDescription?: string | string[];
+	templateDueDay?: string | string[];
+	templateTagName?: string | string[];
+	templateMandatoryGainId?: string | string[];
+}>();
+const editingGainId = React.useMemo(() => {
+	const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
+	return value && value.trim().length > 0 ? value : null;
+}, [params.gainId]);
+const isEditing = Boolean(editingGainId);
+
+	const templateData = React.useMemo(() => {
+		const decodeParam = (value?: string | string[]) => {
+			const rawValue = Array.isArray(value) ? value[0] : value;
+			if (!rawValue) {
+				return undefined;
+			}
+			try {
+				return decodeURIComponent(rawValue);
+			} catch {
+				return rawValue;
+			}
+		};
+
+		const parseNumberParam = (value?: string | string[]) => {
+			const rawValue = Array.isArray(value) ? value[0] : value;
+			if (!rawValue) {
+				return undefined;
+			}
+			const parsed = Number(rawValue);
+			return Number.isNaN(parsed) ? undefined : parsed;
+		};
+
+		const name = decodeParam(params.templateName);
+		const description = decodeParam(params.templateDescription);
+		const tagId = decodeParam(params.templateTagId);
+		const tagName = decodeParam(params.templateTagName);
+		const valueInCents = parseNumberParam(params.templateValueInCents);
+		const dueDay = parseNumberParam(params.templateDueDay);
+		const mandatoryGainId = decodeParam(params.templateMandatoryGainId);
+
+		if (
+			!name &&
+			!description &&
+			typeof tagId === 'undefined' &&
+			typeof tagName === 'undefined' &&
+			typeof valueInCents === 'undefined' &&
+			typeof dueDay === 'undefined' &&
+			typeof mandatoryGainId === 'undefined'
+		) {
+			return null;
+		}
+
+		return {
+			name,
+			description,
+			tagId,
+			tagName,
+			valueInCents,
+			dueDay,
+			mandatoryGainId,
+		};
+	}, [
+		params.templateDescription,
+		params.templateDueDay,
+		params.templateTagName,
+		params.templateMandatoryGainId,
+		params.templateName,
+		params.templateTagId,
+		params.templateValueInCents,
+	]);
+
+	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
+const linkedMandatoryGainId = React.useMemo(
+	() => (templateData?.mandatoryGainId ? templateData.mandatoryGainId : null),
+	[templateData],
+);
+const templateTagDisplayName = templateData?.tagName ?? null;
+const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
+
+	React.useEffect(() => {
+		if (hasAppliedTemplate || isEditing || !templateData) {
+			return;
+		}
+
+		if (templateData.name) {
+			setGainName(templateData.name);
+		}
+
+		if (typeof templateData.valueInCents === 'number' && templateData.valueInCents > 0) {
+			setGainValueCents(templateData.valueInCents);
+			setGainValueDisplay(formatCurrencyBRL(templateData.valueInCents));
+		}
+
+		if (typeof templateData.dueDay === 'number') {
+			setGainDate(getSuggestedDateByDueDay(templateData.dueDay));
+		}
+
+		if (templateData.tagId) {
+			setSelectedTagId(templateData.tagId);
+		}
+
+		if (templateData.description) {
+			setExplanationGain(templateData.description ?? null);
+		}
+
+		setHasAppliedTemplate(true);
+	}, [hasAppliedTemplate, isEditing, templateData]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -198,7 +319,8 @@ export default function AddRegisterGainScreen() {
 						const formattedTags = tagsResult.data
 							.filter((tag: any) => {
 								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-								return usageType === 'gain' || usageType === undefined || usageType === null;
+								const isMandatoryGain = Boolean(tag?.isMandatoryGain);
+								return (usageType === 'gain' || usageType === undefined || usageType === null) && !isMandatoryGain;
 							})
 							.map((tag: any) => ({
 								id: tag.id,
@@ -207,9 +329,15 @@ export default function AddRegisterGainScreen() {
 							}));
 
 						setTags(formattedTags);
-						setSelectedTagId(current =>
-							current && formattedTags.some(tag => tag.id === current) ? current : null,
-						);
+						setSelectedTagId(current => {
+							if (current && formattedTags.some(tag => tag.id === current)) {
+								return current;
+							}
+							if (isTemplateLocked && templateData?.tagId) {
+								return templateData.tagId;
+							}
+							return null;
+						});
 
 						if (formattedTags.length === 0) {
 							showFloatingAlert({
@@ -263,7 +391,7 @@ export default function AddRegisterGainScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, []),
+		}, [isTemplateLocked, templateData?.tagId]),
 	);
 
 	const handleValueChange = React.useCallback((input: string) => {
@@ -408,11 +536,32 @@ export default function AddRegisterGainScreen() {
 				return;
 			}
 
+			if (linkedMandatoryGainId && result.gainId) {
+				const markResult = await markMandatoryGainReceiptFirebase({
+					gainTemplateId: linkedMandatoryGainId,
+					receiptGainId: result.gainId,
+					receiptDate: dateWithCurrentTime,
+				});
+
+				if (!markResult.success) {
+					showFloatingAlert({
+						message: 'Ganho registrado, mas não foi possível atualizar o ganho obrigatório.',
+						action: 'warning',
+						position: 'bottom',
+					});
+				}
+			}
+
 			showFloatingAlert({
 				message: 'Ganho registrado com sucesso!',
 				action: 'success',
 				position: 'bottom',
 			});
+
+			if (isTemplateLocked) {
+				router.back();
+				return;
+			}
 
 			setGainName('');
 			setGainValueDisplay('');
@@ -432,7 +581,19 @@ export default function AddRegisterGainScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [editingGainId, gainDate, gainName, gainValueCents, isEditing, paymentFormat, selectedBankId, selectedTagId, explanationGain]);
+	}, [
+		editingGainId,
+		explanationGain,
+		gainDate,
+		gainName,
+		gainValueCents,
+		isEditing,
+		isTemplateLocked,
+		linkedMandatoryGainId,
+		paymentFormat,
+		selectedBankId,
+		selectedTagId,
+	]);
 
 	React.useEffect(() => {
 		if (!editingGainId) {
@@ -535,7 +696,7 @@ export default function AddRegisterGainScreen() {
 					</Text>
 
 					<VStack className="gap-5">
-						<Input>
+						<Input isDisabled={isTemplateLocked}>
 							<InputField
 								placeholder="Nome do ganho"
 								value={gainName}
@@ -544,7 +705,7 @@ export default function AddRegisterGainScreen() {
 							/>
 						</Input>
 
-						<Input>
+						<Input isDisabled={isTemplateLocked}>
 							<InputField
 								placeholder="Valor do ganho"
 								value={gainValueDisplay}
@@ -621,33 +782,42 @@ export default function AddRegisterGainScreen() {
 							/>
 						</Textarea>
 
-						<Select
-							selectedValue={selectedTagId}
-							onValueChange={setSelectedTagId}
-							isDisabled={isLoadingTags || tags.length === 0}
-						>
-							<SelectTrigger>
-								<SelectInput placeholder="Selecione uma tag" />
-								<SelectIcon />
-							</SelectTrigger>
+						{isTemplateLocked ? (
+							<Box className="border border-outline-200 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+								<Text className="font-semibold mb-1">Tag do ganho obrigatório</Text>
+								<Text className="text-gray-700 dark:text-gray-300">
+									{templateTagDisplayName ?? 'Tag não encontrada'}
+								</Text>
+							</Box>
+						) : (
+							<Select
+								selectedValue={selectedTagId}
+								onValueChange={setSelectedTagId}
+								isDisabled={isLoadingTags || tags.length === 0}
+							>
+								<SelectTrigger>
+									<SelectInput placeholder="Selecione uma tag" />
+									<SelectIcon />
+								</SelectTrigger>
 
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
+								<SelectPortal>
+									<SelectBackdrop />
+									<SelectContent>
+										<SelectDragIndicatorWrapper>
+											<SelectDragIndicator />
+										</SelectDragIndicatorWrapper>
 
-									{tags.length > 0 ? (
-										tags.map(tag => (
-											<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-										))
-									) : (
-										<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
+										{tags.length > 0 ? (
+											tags.map(tag => (
+												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+											))
+										) : (
+											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+										)}
+									</SelectContent>
+								</SelectPortal>
+							</Select>
+						)}
 
 						<Select
 							selectedValue={selectedBankId}

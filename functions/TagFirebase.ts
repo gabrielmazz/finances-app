@@ -8,18 +8,28 @@ interface AddTagParams {
 	tagName: string;
 	personId: string;
 	usageType: 'expense' | 'gain';
+	isMandatoryExpense?: boolean;
+	isMandatoryGain?: boolean;
 }
 
 interface UpdateTagParams {
 	tagId: string;
 	tagName?: string;
 	usageType?: 'expense' | 'gain';
+	isMandatoryExpense?: boolean;
+	isMandatoryGain?: boolean;
 }
 
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar uma nova tag no Firestore
-export async function addTagFirebase({ tagName, personId, usageType }: AddTagParams) {
+export async function addTagFirebase({
+	tagName,
+	personId,
+	usageType,
+	isMandatoryExpense = false,
+	isMandatoryGain = false,
+}: AddTagParams) {
 	try {
 		const tagRef = doc(collection(db, 'tags'));
 
@@ -27,6 +37,8 @@ export async function addTagFirebase({ tagName, personId, usageType }: AddTagPar
 			name: tagName,
 			personId,
 			usageType,
+			isMandatoryExpense: usageType === 'expense' ? Boolean(isMandatoryExpense) : false,
+			isMandatoryGain: usageType === 'gain' ? Boolean(isMandatoryGain) : false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		});
@@ -38,7 +50,13 @@ export async function addTagFirebase({ tagName, personId, usageType }: AddTagPar
 	}
 }
 
-export async function updateTagFirebase({ tagId, tagName, usageType }: UpdateTagParams) {
+export async function updateTagFirebase({
+	tagId,
+	tagName,
+	usageType,
+	isMandatoryExpense,
+	isMandatoryGain,
+}: UpdateTagParams) {
 	try {
 		const tagRef = doc(db, 'tags', tagId);
 		const updates: Record<string, unknown> = {
@@ -51,6 +69,22 @@ export async function updateTagFirebase({ tagId, tagName, usageType }: UpdateTag
 
 		if (usageType === 'expense' || usageType === 'gain') {
 			updates.usageType = usageType;
+			if (usageType === 'gain') {
+				updates.isMandatoryExpense = false;
+			}
+			if (usageType === 'expense') {
+				updates.isMandatoryGain = false;
+			}
+		}
+
+		if (typeof isMandatoryExpense === 'boolean') {
+			const isGainTag = usageType === 'gain';
+			updates.isMandatoryExpense = isGainTag ? false : isMandatoryExpense;
+		}
+
+		if (typeof isMandatoryGain === 'boolean') {
+			const isExpenseTag = usageType === 'expense';
+			updates.isMandatoryGain = isExpenseTag ? false : isMandatoryGain;
 		}
 
 		await setDoc(tagRef, updates, { merge: true });
