@@ -21,6 +21,7 @@ import { CheckIcon } from '@/components/ui/icon';
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
+import { Switch } from '@/components/ui/switch';
 
 // Importação das funções relacionadas a adição de tag ao Firebase
 import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
@@ -33,11 +34,15 @@ export default function AddRegisterTagScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isExpenseTag, setIsExpenseTag] = React.useState(false);
 	const [isGainTag, setIsGainTag] = React.useState(false);
+	const [isMandatoryExpense, setIsMandatoryExpense] = React.useState(false);
+	const [isMandatoryGain, setIsMandatoryGain] = React.useState(false);
 
 	const params = useLocalSearchParams<{
 		tagId?: string | string[];
 		tagName?: string | string[];
 		usageType?: string | string[];
+		isMandatoryExpense?: string | string[];
+		isMandatoryGain?: string | string[];
 	}>();
 
 	const editingTagId = React.useMemo(() => {
@@ -72,6 +77,40 @@ export default function AddRegisterTagScreen() {
 		}
 	}, [params.usageType]);
 
+	const initialIsMandatoryExpense = React.useMemo(() => {
+		const value = Array.isArray(params.isMandatoryExpense) ? params.isMandatoryExpense[0] : params.isMandatoryExpense;
+		if (!value) {
+			return false;
+		}
+
+		if (value === 'true') {
+			return true;
+		}
+
+		if (value === 'false') {
+			return false;
+		}
+
+		return value === '1';
+	}, [params.isMandatoryExpense]);
+
+	const initialIsMandatoryGain = React.useMemo(() => {
+		const value = Array.isArray(params.isMandatoryGain) ? params.isMandatoryGain[0] : params.isMandatoryGain;
+		if (!value) {
+			return false;
+		}
+
+		if (value === 'true') {
+			return true;
+		}
+
+		if (value === 'false') {
+			return false;
+		}
+
+		return value === '1';
+	}, [params.isMandatoryGain]);
+
 	const isEditing = Boolean(editingTagId);
 
 	React.useEffect(() => {
@@ -83,30 +122,40 @@ export default function AddRegisterTagScreen() {
 		if (initialUsageType === 'expense') {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
+			setIsMandatoryExpense(initialIsMandatoryExpense);
+			setIsMandatoryGain(false);
 		} else if (initialUsageType === 'gain') {
 			setIsGainTag(true);
 			setIsExpenseTag(false);
+			setIsMandatoryExpense(false);
+			setIsMandatoryGain(initialIsMandatoryGain);
 		} else {
 			setIsExpenseTag(false);
 			setIsGainTag(false);
+			setIsMandatoryExpense(false);
+			setIsMandatoryGain(false);
 		}
-	}, [initialTagName, initialUsageType, isEditing]);
+	}, [initialTagName, initialUsageType, initialIsMandatoryExpense, initialIsMandatoryGain, isEditing]);
 
 	const handleUsageSelection = React.useCallback((values: string[]) => {
 		if (values.includes('expense')) {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
+			setIsMandatoryGain(false);
 			return;
 		}
 
 		if (values.includes('gain')) {
 			setIsGainTag(true);
 			setIsExpenseTag(false);
+			setIsMandatoryExpense(false);
 			return;
 		}
 
 		setIsExpenseTag(false);
 		setIsGainTag(false);
+		setIsMandatoryExpense(false);
+		setIsMandatoryGain(false);
 	}, []);
 
 	const registerTag = React.useCallback(async () => {
@@ -156,6 +205,8 @@ export default function AddRegisterTagScreen() {
 					tagId: editingTagId,
 					tagName: trimmedName,
 					usageType: selectedUsageType,
+					isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
+					isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
 				});
 
 				if (result.success) {
@@ -179,7 +230,13 @@ export default function AddRegisterTagScreen() {
 				return;
 			}
 
-			const result = await addTagFirebase({ tagName: trimmedName, personId, usageType: selectedUsageType });
+			const result = await addTagFirebase({
+				tagName: trimmedName,
+				personId,
+				usageType: selectedUsageType,
+				isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
+				isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
+			});
 
 			if (result.success) {
 				showFloatingAlert({
@@ -191,6 +248,7 @@ export default function AddRegisterTagScreen() {
 				setTagName('');
 				setIsExpenseTag(true);
 				setIsGainTag(false);
+				setIsMandatoryExpense(false);
 				Keyboard.dismiss();
 			} else {
 				showFloatingAlert({
@@ -215,8 +273,10 @@ export default function AddRegisterTagScreen() {
 			setTagName('');
 			setIsExpenseTag(false);
 			setIsGainTag(false);
+			setIsMandatoryExpense(false);
+			setIsMandatoryGain(false);
 		}
-	}, [editingTagId, isExpenseTag, isGainTag, isEditing, tagName]);
+	}, [editingTagId, isExpenseTag, isGainTag, isEditing, tagName, isMandatoryExpense, isMandatoryGain]);
 
 	return (
 		<View
@@ -282,6 +342,32 @@ export default function AddRegisterTagScreen() {
 									</HStack>
 								</CheckboxGroup>
 							</VStack>
+
+						{isExpenseTag && (
+							<View className="gap-2 border border-outline-200 rounded-lg p-4">
+								<Text className="font-semibold">Gasto obrigatório</Text>
+								<Text className="text-gray-600 dark:text-gray-400">
+									Ative esta opção para que a tag seja listada na tela de gastos obrigatórios.
+								</Text>
+								<HStack className="items-center justify-between">
+									<Text>Marcar como obrigatório</Text>
+									<Switch value={isMandatoryExpense} onValueChange={setIsMandatoryExpense} />
+								</HStack>
+							</View>
+						)}
+
+						{isGainTag && (
+							<View className="gap-2 border border-outline-200 rounded-lg p-4">
+								<Text className="font-semibold">Ganho obrigatório</Text>
+								<Text className="text-gray-600 dark:text-gray-400">
+									Ative esta opção para que a tag seja listada na tela de ganhos obrigatórios.
+								</Text>
+								<HStack className="items-center justify-between">
+									<Text>Marcar como obrigatório</Text>
+									<Switch value={isMandatoryGain} onValueChange={setIsMandatoryGain} />
+								</HStack>
+							</View>
+						)}
 
 						<Button
 							className="w-full mt-2"

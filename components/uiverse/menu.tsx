@@ -88,6 +88,16 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				value: 1,
 				onSelect: () => router.push('/register-monthly-balance'),
 			},
+			{
+				label: 'Gastos obrigatórios',
+				value: 1,
+				onSelect: () => router.push('/mandatory-expenses'),
+			},
+			{
+				label: 'Ganhos obrigatórios',
+				value: 1,
+				onSelect: () => router.push('/mandatory-gains'),
+			},
 		],
 	},
 	{

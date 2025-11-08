@@ -20,6 +20,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
+import { Box } from '@/components/ui/box';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
@@ -28,6 +29,7 @@ import { getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { auth } from '@/FirebaseConfig';
+import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 
 type OptionItem = {
 	id: string;
@@ -138,6 +140,18 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	return null;
 };
 
+const clampDayToMonth = (day: number, reference: Date) => {
+	const daysInMonth = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate();
+	return Math.min(Math.max(day, 1), daysInMonth);
+};
+
+const getSuggestedDateByDueDay = (dueDay: number) => {
+	const today = new Date();
+	const normalizedDay = clampDayToMonth(dueDay, today);
+	const date = new Date(today.getFullYear(), today.getMonth(), normalizedDay);
+	return formatDateToBR(date);
+};
+
 export default function AddRegisterExpensesScreen() {
 
 	// Variaveis relacionadas ao registro de despesas
@@ -161,12 +175,90 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 
-	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
+	const params = useLocalSearchParams<{
+		expenseId?: string | string[];
+		templateName?: string | string[];
+		templateValueInCents?: string | string[];
+		templateTagId?: string | string[];
+		templateDueDay?: string | string[];
+		templateDescription?: string | string[];
+		templateTagName?: string | string[];
+		templateMandatoryExpenseId?: string | string[];
+	}>();
 	const editingExpenseId = React.useMemo(() => {
 		const value = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
 		return value && value.trim().length > 0 ? value : null;
 	}, [params.expenseId]);
 	const isEditing = Boolean(editingExpenseId);
+
+	const templateData = React.useMemo(() => {
+		const decodeParam = (value?: string | string[]) => {
+			const rawValue = Array.isArray(value) ? value[0] : value;
+			if (!rawValue) {
+				return undefined;
+			}
+			try {
+				return decodeURIComponent(rawValue);
+			} catch {
+				return rawValue;
+			}
+		};
+
+		const parseNumberParam = (value?: string | string[]) => {
+			const rawValue = Array.isArray(value) ? value[0] : value;
+			if (!rawValue) {
+				return undefined;
+			}
+			const parsed = Number(rawValue);
+			return Number.isNaN(parsed) ? undefined : parsed;
+		};
+
+		const name = decodeParam(params.templateName);
+		const description = decodeParam(params.templateDescription);
+		const tagId = decodeParam(params.templateTagId);
+		const tagName = decodeParam(params.templateTagName);
+		const valueInCents = parseNumberParam(params.templateValueInCents);
+		const dueDay = parseNumberParam(params.templateDueDay);
+		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
+
+		if (
+			!name &&
+			!description &&
+			typeof tagId === 'undefined' &&
+			typeof tagName === 'undefined' &&
+			typeof valueInCents === 'undefined' &&
+			typeof dueDay === 'undefined' &&
+			typeof mandatoryExpenseId === 'undefined'
+		) {
+			return null;
+		}
+
+		return {
+			name,
+			description,
+			tagId,
+			tagName,
+			valueInCents,
+			dueDay,
+			mandatoryExpenseId,
+		};
+	}, [
+		params.templateDescription,
+		params.templateDueDay,
+		params.templateMandatoryExpenseId,
+		params.templateName,
+		params.templateTagId,
+		params.templateTagName,
+		params.templateValueInCents,
+	]);
+
+	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
+	const linkedMandatoryExpenseId = React.useMemo(
+		() => (templateData?.mandatoryExpenseId ? templateData.mandatoryExpenseId : null),
+		[templateData],
+	);
+	const templateTagDisplayName = templateData?.tagName ?? null;
+	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -195,18 +287,29 @@ export default function AddRegisterExpensesScreen() {
 						const formattedTags = tagsResult.data
 							.filter((tag: any) => {
 								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-								return usageType === 'expense' || usageType === undefined || usageType === null;
+								const isMandatoryExpense = Boolean(tag?.isMandatoryExpense);
+								const isExpenseTag = usageType === 'expense' || usageType === undefined || usageType === null;
+								return isExpenseTag && !isMandatoryExpense;
 							})
 							.map((tag: any) => ({
 								id: tag.id,
-								name: tag.name,
+								name:
+									typeof tag?.name === 'string' && tag.name.trim().length > 0
+										? tag.name.trim()
+										: 'Tag sem nome',
 								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
 							}));
 
 						setTags(formattedTags);
-						setSelectedTagId(current =>
-							current && formattedTags.some(tag => tag.id === current) ? current : null,
-						);
+						setSelectedTagId(current => {
+							if (current && formattedTags.some(tag => tag.id === current)) {
+								return current;
+							}
+							if (isTemplateLocked && templateData?.tagId) {
+								return templateData.tagId;
+							}
+							return null;
+						});
 
 						if (formattedTags.length === 0) {
 							showFloatingAlert({
@@ -279,8 +382,47 @@ export default function AddRegisterExpensesScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, []),
+		}, [isTemplateLocked, templateData?.tagId]),
 	);
+
+	React.useEffect(() => {
+		if (hasAppliedTemplate || isEditing || !templateData) {
+			return;
+		}
+
+		if (templateData.name) {
+			setExpenseName(templateData.name);
+		}
+
+		if (typeof templateData.valueInCents === 'number' && templateData.valueInCents > 0) {
+			setExpenseValueCents(templateData.valueInCents);
+			setExpenseValueDisplay(formatCurrencyBRL(templateData.valueInCents));
+		}
+
+		if (typeof templateData.dueDay === 'number') {
+			setExpenseDate(getSuggestedDateByDueDay(templateData.dueDay));
+		}
+
+		if (templateData.tagId) {
+			setSelectedTagId(templateData.tagId);
+		}
+
+		if (templateData.description) {
+			setExplanationExpense(templateData.description ?? null);
+		}
+
+		setHasAppliedTemplate(true);
+	}, [
+		hasAppliedTemplate,
+		isEditing,
+		setExplanationExpense,
+		setExpenseDate,
+		setExpenseName,
+		setExpenseValueCents,
+		setExpenseValueDisplay,
+		setSelectedTagId,
+		templateData,
+	]);
 
 	// Manipula a mudança no campo de valor, formatando para moeda BRL
 	const handleValueChange = React.useCallback((input: string) => {
@@ -448,12 +590,34 @@ export default function AddRegisterExpensesScreen() {
 				return;
 			}
 
+			if (linkedMandatoryExpenseId && result.expenseId) {
+				const markResult = await markMandatoryExpensePaymentFirebase({
+					expenseId: linkedMandatoryExpenseId,
+					paymentExpenseId: result.expenseId,
+					paymentDate: dateWithCurrentTime,
+				});
+
+				if (!markResult.success) {
+					showFloatingAlert({
+						message: 'Despesa registrada, mas não foi possível atualizar o status do gasto obrigatório.',
+						action: 'warning',
+						position: 'bottom',
+						offset: 40,
+					});
+				}
+			}
+
 			showFloatingAlert({
 				message: 'Despesa registrada com sucesso!',
 				action: 'success',
 				position: 'bottom',
 				offset: 40,
 			});
+
+			if (isTemplateLocked) {
+				router.back();
+				return;
+			}
 
 			setExpenseName('');
 			setExpenseValueDisplay('');
@@ -474,7 +638,18 @@ export default function AddRegisterExpensesScreen() {
 			setIsSubmitting(false);
 		}
 
-	}, [editingExpenseId, expenseDate, expenseName, expenseValueCents, explanationExpense, isEditing, selectedBankId, selectedTagId]);
+	}, [
+		editingExpenseId,
+		expenseDate,
+		expenseName,
+		expenseValueCents,
+		explanationExpense,
+		isEditing,
+		isTemplateLocked,
+		linkedMandatoryExpenseId,
+		selectedBankId,
+		selectedTagId,
+	]);
 
 	React.useEffect(() => {
 		if (!editingExpenseId) {
@@ -571,7 +746,7 @@ export default function AddRegisterExpensesScreen() {
 					</Text>
 
 					<VStack className="gap-5">
-						<Input>
+						<Input isDisabled={isTemplateLocked}>
 							<InputField
 								placeholder="Nome da despesa"
 								value={expenseName}
@@ -580,7 +755,7 @@ export default function AddRegisterExpensesScreen() {
 							/>
 						</Input>
 
-						<Input>
+						<Input isDisabled={isTemplateLocked}>
 							<InputField
 								placeholder="Valor da despesa"
 								value={expenseValueDisplay}
@@ -601,33 +776,42 @@ export default function AddRegisterExpensesScreen() {
 							/>
 						</Textarea>
 
-						<Select
-							selectedValue={selectedTagId}
-							onValueChange={setSelectedTagId}
-							isDisabled={isLoadingTags || tags.length === 0}
-						>
-							<SelectTrigger>
-								<SelectInput placeholder="Selecione uma tag" />
-								<SelectIcon />
-							</SelectTrigger>
+						{isTemplateLocked ? (
+							<Box className="border border-outline-200 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+								<Text className="font-semibold mb-1">Tag do gasto obrigatório</Text>
+								<Text className="text-gray-700 dark:text-gray-300">
+									{templateTagDisplayName ?? 'Tag não encontrada'}
+								</Text>
+							</Box>
+						) : (
+							<Select
+								selectedValue={selectedTagId}
+								onValueChange={setSelectedTagId}
+								isDisabled={isLoadingTags || tags.length === 0}
+							>
+								<SelectTrigger>
+									<SelectInput placeholder="Selecione uma tag" />
+									<SelectIcon />
+								</SelectTrigger>
 
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
+								<SelectPortal>
+									<SelectBackdrop />
+									<SelectContent>
+										<SelectDragIndicatorWrapper>
+											<SelectDragIndicator />
+										</SelectDragIndicatorWrapper>
 
-									{tags.length > 0 ? (
-										tags.map(tag => (
-											<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-										))
-									) : (
-										<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
+										{tags.length > 0 ? (
+											tags.map(tag => (
+												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+											))
+										) : (
+											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+										)}
+									</SelectContent>
+								</SelectPortal>
+							</Select>
+						)}
 
 						<Select
 							selectedValue={selectedBankId}
