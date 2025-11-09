@@ -777,7 +777,7 @@ export default function AddRegisterExpensesScreen() {
 						</Textarea>
 
 						{isTemplateLocked ? (
-							<Box className="border border-outline-200 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
 								<Text className="font-semibold mb-1">Tag do gasto obrigatório</Text>
 								<Text className="text-gray-700 dark:text-gray-300">
 									{templateTagDisplayName ?? 'Tag não encontrada'}

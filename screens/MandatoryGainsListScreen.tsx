@@ -62,9 +62,17 @@ const formatCurrencyBRL = (valueInCents: number) =>
 		currency: 'BRL',
 	}).format(valueInCents / 100);
 
-const getDueDayColorClass = (dueDay: number) => {
+const getDueDayColorClass = (dueDay: number, isReceivedForCurrentCycle?: boolean) => {
 	const today = new Date().getDate();
 	const difference = dueDay - today;
+
+	if (isReceivedForCurrentCycle) {
+		return 'text-emerald-600 dark:text-emerald-400';
+	}
+
+	if (difference < 0) {
+		return 'text-red-600 dark:text-red-400';
+	}
 
 	if (difference <= 3) {
 		return 'text-emerald-600 dark:text-emerald-400';
@@ -451,13 +459,6 @@ export default function MandatoryGainsListScreen() {
 										p-4
 										mb-6
 									"
-									style={{
-										shadowColor: '#000',
-										shadowOpacity: 0.2,
-										shadowRadius: 6,
-										shadowOffset: { width: 0, height: 3 },
-										elevation: 4,
-									}}
 								>
 									<HStack className="justify-between items-start mb-2">
 										<View className="flex-1 pr-3">
@@ -470,7 +471,7 @@ export default function MandatoryGainsListScreen() {
 											</Text>
 											<Text className="text-gray-700 dark:text-gray-300">
 												Recebimento: {''}
-												<Text className={getDueDayColorClass(gain.dueDay)}>
+												<Text className={getDueDayColorClass(gain.dueDay, gain.isReceivedForCurrentCycle)}>
 													dia {String(gain.dueDay).padStart(2, '0')}
 												</Text>
 											</Text>

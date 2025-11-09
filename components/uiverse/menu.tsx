@@ -167,11 +167,13 @@ export const Menu: React.FC<MenuProps> = ({
 
 	useEffect(() => {
 		const handleBackPress = () => {
-			if (router) {
-				router.replace('/home?tab=0');
+			if (router.canGoBack()) {
+				router.back();
 				return true;
 			}
-			return false;
+
+			router.replace('/home?tab=0');
+			return true;
 		};
 
 		const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);

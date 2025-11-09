@@ -828,13 +828,6 @@ const [tagData, setTagData] = React.useState<
 							type="single"
 							isCollapsible
 							className="w-full border border-outline-200 bg-white dark:bg-gray-900 rounded-lg p-2"
-							style={{
-								shadowColor: '#000',
-								shadowOpacity: 0.2,
-								shadowRadius: 6,
-								shadowOffset: { width: 0, height: 3 },
-								elevation: 4,
-							}}
 						>
 							{accordionItems.map((item, index) => {
 								const requiresAdmin = item.actionRequiresAdmin !== false;
@@ -887,13 +880,6 @@ const [tagData, setTagData] = React.useState<
 																rounded-lg
 																overflow-hidden
 															"
-															style={{
-																shadowColor: '#000',
-																shadowOpacity: 0.15,
-																shadowRadius: 4,
-																shadowOffset: { width: 0, height: 2 },
-																elevation: 3,
-															}}
 														>
 
 															<TableHeader>
@@ -968,13 +954,6 @@ const [tagData, setTagData] = React.useState<
 																rounded-lg
 																overflow-hidden
 															"
-															style={{
-																shadowColor: '#000',
-																shadowOpacity: 0.15,
-																shadowRadius: 4,
-																shadowOffset: { width: 0, height: 2 },
-																elevation: 3,
-															}}
 														>
 
 															<TableHeader>
@@ -1062,13 +1041,6 @@ const [tagData, setTagData] = React.useState<
 																rounded-lg
 																overflow-hidden
 															"
-															style={{
-																shadowColor: '#000',
-																shadowOpacity: 0.15,
-																shadowRadius: 4,
-																shadowOffset: { width: 0, height: 2 },
-																elevation: 3,
-															}}
 														>
 
 															<TableHeader>
@@ -1188,13 +1160,6 @@ const [tagData, setTagData] = React.useState<
 																	rounded-lg
 																	overflow-hidden
 																"
-																style={{
-																	shadowColor: '#000',
-																	shadowOpacity: 0.15,
-																	shadowRadius: 4,
-																	shadowOffset: { width: 0, height: 2 },
-																	elevation: 3,
-																}}
 															>
 																<TableHeader>
 																	<TableRow>

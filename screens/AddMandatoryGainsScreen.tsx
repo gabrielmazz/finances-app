@@ -628,7 +628,10 @@ export default function AddMandatoryGainsScreen() {
 							isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
 						>
 							<SelectTrigger>
-								<SelectInput placeholder="Selecione uma tag obrigatória" />
+								<SelectInput
+									placeholder="Selecione uma tag obrigatória"
+									value={selectedTagLabel ?? ''}
+								/>
 								<SelectIcon />
 							</SelectTrigger>
 							<SelectPortal>
@@ -662,6 +665,7 @@ export default function AddMandatoryGainsScreen() {
 								border border-gray-200 dark:border-gray-700
 								rounded-lg
 								p-4
+								bg-transparent
 							"
 						>
 							<Text className="font-semibold mb-2">Recebimento deste mês</Text>
@@ -697,7 +701,7 @@ export default function AddMandatoryGainsScreen() {
 										Registre este ganho como recebido para marcá-lo neste ciclo ({getCurrentCycleKey()}).
 									</Text>
 										<Button
-											variant="solid"
+											variant="outline"
 											action="primary"
 											onPress={handleRegisterReceiptNavigation}
 											isDisabled={isPrefilling || !selectedGainTemplateId || valueInCents === null || !selectedTagId}

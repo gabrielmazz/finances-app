@@ -460,13 +460,6 @@ export default function MandatoryExpensesListScreen() {
 										p-4
 										mb-6
 									"
-									style={{
-										shadowColor: '#000',
-										shadowOpacity: 0.2,
-										shadowRadius: 6,
-										shadowOffset: { width: 0, height: 3 },
-										elevation: 4,
-									}}
 								>
 									<HStack className="justify-between items-start mb-2">
 										<View className="flex-1 pr-3">
