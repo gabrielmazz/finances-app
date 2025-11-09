@@ -267,6 +267,7 @@ const linkedMandatoryGainId = React.useMemo(
 );
 const templateTagDisplayName = templateData?.tagName ?? null;
 const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
+const shouldShowPaymentFormatSelection = !isTemplateLocked;
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) {
@@ -684,7 +685,7 @@ const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 					paddingBottom: 48,
 				}}
 			>
-				<View className="w-full px-6">
+				<View className="w-full px-2">
 					<Heading size="3xl" className="text-center mb-6">
 						{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
 					</Heading>
@@ -714,65 +715,48 @@ const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 							/>
 						</Input>
 
-						<CheckboxGroup
-							value={paymentFormat}
-							onChange={(keys: string[]) => {
-								setPaymentFormat(keys);
-							}}
-						>
-							<HStack space="2xl">
+						{shouldShowPaymentFormatSelection && (
+							<CheckboxGroup
+								value={paymentFormat}
+								onChange={(keys: string[]) => {
+									setPaymentFormat(keys);
+								}}
+							>
+								<HStack space="2xl">
+									<Checkbox
+										value="Variable"
+										isDisabled={
+											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
+										}
+									>
+										<CheckboxIndicator>
+											<CheckboxIcon as={CheckIcon} />
+										</CheckboxIndicator>
 
-								<Checkbox
-									value="Salary"
-									isDisabled={
-										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable') || paymentFormat.includes('External')
-									}
-								>
+										<CheckboxLabel>Renda variável</CheckboxLabel>
+									</Checkbox>
 
-									<CheckboxIndicator>
-										<CheckboxIcon as={CheckIcon} />
-									</CheckboxIndicator>
+									<Checkbox
+										value="External"
+										isDisabled={
+											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
+										}
+									>
+										<CheckboxIndicator>
+											<CheckboxIcon as={CheckIcon} />
+										</CheckboxIndicator>
 
-									<CheckboxLabel>Salário</CheckboxLabel>
-
-								</Checkbox>
-
-								<Checkbox
-									value="Variable"
-									isDisabled={
-										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('External')
-									}>
-
-									<CheckboxIndicator>
-										<CheckboxIcon as={CheckIcon} />
-									</CheckboxIndicator>
-
-									<CheckboxLabel>Renda variável</CheckboxLabel>
-
-								</Checkbox>
-
-								<Checkbox
-									value="External"
-									isDisabled={
-										!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Salary') || paymentFormat.includes('Variable')
-									}>
-
-									<CheckboxIndicator>
-										<CheckboxIcon as={CheckIcon} />
-									</CheckboxIndicator>
-
-									<CheckboxLabel>Pagamento externo</CheckboxLabel>
-
-								</Checkbox>
-
-							</HStack>
-						</CheckboxGroup>
+										<CheckboxLabel>Pagamento externo</CheckboxLabel>
+									</Checkbox>
+								</HStack>
+							</CheckboxGroup>
+						)}
 
 						<Textarea
 							size="md"
 							isReadOnly={false}
 							isInvalid={false}
-							isDisabled={!paymentFormat || paymentFormat.length === 0}
+							isDisabled={shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false}
 							className="h-32"
 						>
 							<TextareaInput
@@ -783,7 +767,7 @@ const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 						</Textarea>
 
 						{isTemplateLocked ? (
-							<Box className="border border-outline-200 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
 								<Text className="font-semibold mb-1">Tag do ganho obrigatório</Text>
 								<Text className="text-gray-700 dark:text-gray-300">
 									{templateTagDisplayName ?? 'Tag não encontrada'}

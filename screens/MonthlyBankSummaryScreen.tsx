@@ -258,13 +258,7 @@ export default function MonthlyBankSummaryScreen() {
 												rounded-lg
 												p-4
 												mb-4
-												shadow-sm
 											"
-										style={
-											bank.colorHex
-												? { shadowColor: bank.colorHex, elevation: 6 }
-												: undefined
-										}
 									>
 										<HStack className="justify-between items-center">
 											<Text

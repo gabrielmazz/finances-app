@@ -619,7 +619,10 @@ export default function AddMandatoryExpensesScreen() {
 							isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
 						>
 							<SelectTrigger>
-								<SelectInput placeholder="Selecione uma tag obrigatória" />
+								<SelectInput
+									placeholder="Selecione uma tag obrigatória"
+									value={selectedTagLabel ?? ''}
+								/>
 								<SelectIcon />
 							</SelectTrigger>
 							<SelectPortal>
@@ -655,6 +658,7 @@ export default function AddMandatoryExpensesScreen() {
 								border border-gray-200 dark:border-gray-700
 								rounded-lg
 								p-4
+								bg-transparent
 							"
 						>
 							<Text className="font-semibold mb-2">Pagamento deste mês</Text>
@@ -690,7 +694,7 @@ export default function AddMandatoryExpensesScreen() {
 										Registre esta conta como uma despesa para marcá-la como paga neste ciclo ({getCurrentCycleKey()}).
 									</Text>
 									<Button
-										variant="solid"
+										variant="outline"
 										action="primary"
 										onPress={handleRegisterPaymentNavigation}
 										isDisabled={isPrefilling || !selectedExpenseId || valueInCents === null || !selectedTagId}

@@ -28,6 +28,9 @@ import { getBankMovementsByPeriodFirebase } from '@/functions/BankFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { PieChart } from 'react-native-gifted-charts';
+import { getMandatoryExpensesWithRelationsFirebase } from '@/functions/MandatoryExpenseFirebase';
+import { getMandatoryGainsWithRelationsFirebase } from '@/functions/MandatoryGainFirebase';
+import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 
 type FirestoreLikeTimestamp = {
 	toDate?: () => Date;
@@ -44,6 +47,8 @@ type MovementRecord = {
 	personId?: string | null;
 	explanation?: string | null;
 	paymentFormats?: string[] | null;
+	// true se esta movimentação for a ligada a um Gasto/Ganho Obrigatório do ciclo atual
+	isFromMandatory?: boolean;
 };
 
 type PendingMovementAction =
@@ -169,7 +174,7 @@ const PIE_TOTAL_COLORS = {
 export default function BankMovementsScreen() {
 	const colorScheme = useColorScheme();
 	const legendBorderColor = colorScheme === 'dark' ? '#374151' : '#E5E7EB';
-	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[]; bankColor?: string | string[] }>();
+	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[] }>();
 
 	const bankId = React.useMemo(() => {
 		const value = searchParams.bankId;
@@ -191,34 +196,7 @@ export default function BankMovementsScreen() {
 			return value;
 		}
 	}, [searchParams.bankName]);
-	const bankColorHex = React.useMemo(() => {
-		const value = Array.isArray(searchParams.bankColor) ? searchParams.bankColor[0] : searchParams.bankColor;
-		if (!value) {
-			return null;
-		}
-
-		try {
-			const decoded = decodeURIComponent(value);
-			return decoded ?? null;
-		} catch {
-			return value;
-		}
-	}, [searchParams.bankColor]);
-
 	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
-	const boxShadowStyle = React.useMemo(() => {
-		if (!bankColorHex) {
-			return undefined;
-		}
-
-		return {
-			shadowColor: bankColorHex,
-			shadowOpacity: 0.35,
-			shadowRadius: 6,
-			shadowOffset: { width: 0, height: 3 },
-			elevation: 6,
-		} as const;
-	}, [bankColorHex]);
 
 	const [startDateInput, setStartDateInput] = React.useState(formatDateToBR(start));
 	const [endDateInput, setEndDateInput] = React.useState(formatDateToBR(end));
@@ -279,12 +257,17 @@ export default function BankMovementsScreen() {
 		setErrorMessage(null);
 
 		try {
-			const result = await getBankMovementsByPeriodFirebase({
-				personId: currentUser.uid,
-				bankId,
-				startDate: normalizedStart,
-				endDate: normalizedEnd,
-			});
+			// Buscamos em paralelo as movimentações do banco e os obrigatórios
+			const [result, mandatoryExpensesRes, mandatoryGainsRes] = await Promise.all([
+				getBankMovementsByPeriodFirebase({
+					personId: currentUser.uid,
+					bankId,
+					startDate: normalizedStart,
+					endDate: normalizedEnd,
+				}),
+				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
+				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
+			]);
 
 			if (!result?.success || !result.data) {
 				setMovements([]);
@@ -299,6 +282,31 @@ export default function BankMovementsScreen() {
 			const expensesArray: any[] = Array.isArray(result.data.expenses) ? result.data.expenses : [];
 			const gainsArray: any[] = Array.isArray(result.data.gains) ? result.data.gains : [];
 
+			// Mapeia os IDs de despesas/ganhos que estão vinculados a obrigatórios no ciclo atual
+			const lockedExpenseIds = new Set<string>(
+				mandatoryExpensesRes?.success && Array.isArray(mandatoryExpensesRes.data)
+					? (mandatoryExpensesRes.data as Array<Record<string, any>>)
+						.filter(item =>
+							item &&
+							typeof item.lastPaymentExpenseId === 'string' &&
+							isCycleKeyCurrent(typeof item.lastPaymentCycle === 'string' ? item.lastPaymentCycle : undefined),
+						)
+						.map(item => item.lastPaymentExpenseId as string)
+					: [],
+			);
+
+			const lockedGainIds = new Set<string>(
+				mandatoryGainsRes?.success && Array.isArray(mandatoryGainsRes.data)
+					? (mandatoryGainsRes.data as Array<Record<string, any>>)
+						.filter(item =>
+							item &&
+							typeof item.lastReceiptGainId === 'string' &&
+							isCycleKeyCurrent(typeof item.lastReceiptCycle === 'string' ? item.lastReceiptCycle : undefined),
+						)
+						.map(item => item.lastReceiptGainId as string)
+					: [],
+			);
+
 			const expenseMovements: MovementRecord[] = expensesArray.map(expense => ({
 				id: typeof expense?.id === 'string' ? expense.id : `expense-${Math.random()}`,
 				name:
@@ -312,6 +320,7 @@ export default function BankMovementsScreen() {
 				bankId: typeof expense?.bankId === 'string' ? expense.bankId : null,
 				personId: typeof expense?.personId === 'string' ? expense.personId : null,
 				explanation: typeof expense?.explanation === 'string' ? expense.explanation : null,
+				isFromMandatory: typeof expense?.id === 'string' ? lockedExpenseIds.has(expense.id) : false,
 			}));
 
 			const gainMovements: MovementRecord[] = gainsArray.map(gain => ({
@@ -330,6 +339,7 @@ export default function BankMovementsScreen() {
 				paymentFormats: Array.isArray(gain?.paymentFormats)
 					? (gain?.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[]
 					: null,
+				isFromMandatory: typeof gain?.id === 'string' ? lockedGainIds.has(gain.id) : false,
 			}));
 
 			const combinedMovements = [...expenseMovements, ...gainMovements].sort((a, b) => {
@@ -427,6 +437,19 @@ export default function BankMovementsScreen() {
 		}
 
 		if (pendingAction.type === 'edit') {
+			// Impede edição de movimentações originadas de obrigatórios
+			if (pendingAction.movement.isFromMandatory) {
+				showFloatingAlert({
+					message:
+						pendingAction.movement.type === 'gain'
+							? 'Este ganho está vinculado a um ganho obrigatório deste mês. Edite/reivindique pela tela de Ganhos obrigatórios.'
+							: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Edite/reivindique pela tela de Gastos obrigatórios.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				setPendingAction(null);
+				return;
+			}
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
 				router.push({
@@ -446,6 +469,18 @@ export default function BankMovementsScreen() {
 		setIsProcessingAction(true);
 
 		try {
+			// Evita exclusão direta de lançamentos vinculados a obrigatórios (para não quebrar o vínculo)
+			if (pendingAction.movement.isFromMandatory && pendingAction.type === 'delete') {
+				showFloatingAlert({
+					message:
+						pendingAction.movement.type === 'gain'
+							? 'Exclusão bloqueada: este ganho pertence a um ganho obrigatório deste mês. Use a ação "Reivindicar" na tela de Ganhos obrigatórios.'
+							: 'Exclusão bloqueada: esta despesa pertence a um gasto obrigatório deste mês. Use a ação "Reivindicar" na tela de Gastos obrigatórios.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
 			let result: { success: boolean } | undefined;
 			if (pendingAction.movement.type === 'gain') {
 				result = await deleteGainFirebase(pendingAction.movement.id);
@@ -551,9 +586,7 @@ export default function BankMovementsScreen() {
 								rounded-lg
 								p-4
 								mb-6
-								shadow-sm
 							"
-						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Filtros do período
@@ -621,9 +654,7 @@ export default function BankMovementsScreen() {
 								rounded-lg
 								p-4
 								mb-6
-								shadow-sm
 							"
-						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Resumo do período
@@ -665,9 +696,7 @@ export default function BankMovementsScreen() {
 								bg-white dark:bg-gray-800
 								rounded-lg
 								p-4
-								shadow-sm
 							"
-						style={boxShadowStyle}
 					>
 						<HStack className="justify-between items-center">
 							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -729,9 +758,7 @@ export default function BankMovementsScreen() {
 								rounded-lg
 								p-4
 								mt-6
-								shadow-sm
 							"
-						style={boxShadowStyle}
 					>
 						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 							Movimentações encontradas
@@ -775,12 +802,45 @@ export default function BankMovementsScreen() {
 									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 										Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
 									</Text>
+									{movement.isFromMandatory && (
+										<>
+											<Text
+												className="
+													mt-1 text-[11px] text-yellow-600 dark:text-yellow-400
+												"
+											>
+												Vinculado a {movement.type === 'gain' ? 'ganho' : 'gasto'} obrigatório (mês atual).
+											</Text>
+											<Text
+												className="
+													mt-1 text-[9px] text-gray-500 dark:text-gray-400
+												"
+											>
+												Use a tela de {movement.type === 'gain' ? 'Ganhos obrigatórios' : 'Gastos obrigatórios'}.
+											</Text>
+										</>
+
+									)}
 									<View className="mt-2 flex-row justify-end items-center gap-2">
 										<Button
 											size="xs"
 											variant="link"
 											action="primary"
-											onPress={() => setPendingAction({ type: 'edit', movement })}
+											isDisabled={movement.isFromMandatory}
+											onPress={() => {
+												if (movement.isFromMandatory) {
+													showFloatingAlert({
+														message:
+															movement.type === 'gain'
+																? 'Este ganho pertence a um ganho obrigatório deste mês. Para alterar, use a tela de Ganhos obrigatórios.'
+																: 'Esta despesa pertence a um gasto obrigatório deste mês. Para alterar, use a tela de Gastos obrigatórios.',
+														action: 'warning',
+														position: 'bottom',
+													});
+													return;
+												}
+												setPendingAction({ type: 'edit', movement });
+											}}
 										>
 											<ButtonIcon as={EditIcon} />
 										</Button>
@@ -788,7 +848,21 @@ export default function BankMovementsScreen() {
 											size="xs"
 											variant="link"
 											action="negative"
-											onPress={() => setPendingAction({ type: 'delete', movement })}
+											isDisabled={movement.isFromMandatory}
+											onPress={() => {
+												if (movement.isFromMandatory) {
+													showFloatingAlert({
+														message:
+															movement.type === 'gain'
+																? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
+																: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
+														action: 'warning',
+														position: 'bottom',
+													});
+													return;
+												}
+												setPendingAction({ type: 'delete', movement });
+											}}
 										>
 											<ButtonIcon as={TrashIcon} />
 										</Button>

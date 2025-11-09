@@ -66,7 +66,7 @@ export default function AddRegisterTagScreen() {
 	const initialUsageType = React.useMemo(() => {
 		const value = Array.isArray(params.usageType) ? params.usageType[0] : params.usageType;
 		if (!value) {
-		 return null;
+			return null;
 		}
 
 		try {
@@ -186,7 +186,7 @@ export default function AddRegisterTagScreen() {
 		setIsSubmitting(true);
 
 		try {
-			
+
 			const personId = auth.currentUser?.uid;
 
 			if (!personId) {
@@ -288,106 +288,118 @@ export default function AddRegisterTagScreen() {
 					pb-6
                     relative
                 "
-			>
-				<FloatingAlertViewport />
+		>
+			<FloatingAlertViewport />
 
-				<View className="w-full px-6 gap-4">
-					<Heading size="3xl" className="text-center mb-6">
-						{isEditing ? 'Editar tag' : 'Adição de nova tag'}
-					</Heading>
+			<View className="w-full px-6 gap-4">
+				<Heading size="3xl" className="text-center mb-6">
+					{isEditing ? 'Editar tag' : 'Adição de nova tag'}
+				</Heading>
 
-					<VStack className="gap-4">
-						<Text>
-							{isEditing
-								? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
-								: 'Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de casa. Ela ficará disponível para seleção nas telas do aplicativo.'}
+				<VStack className="gap-4">
+					<Text>
+						{isEditing
+							? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
+							: 'Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de casa. Ela ficará disponível para seleção nas telas do aplicativo.'}
+					</Text>
+
+					<Input>
+						<InputField
+							placeholder="Nome da Tag"
+							value={tagName}
+							onChangeText={setTagName}
+							autoCapitalize="sentences"
+						/>
+					</Input>
+
+					<VStack className="gap-3">
+						<Text className="font-semibold">Tipo de utilização</Text>
+						<Text className="text-gray-600 dark:text-gray-400">
+							Selecione se essa tag será usada para ganhos ou despesas. Apenas uma opção pode ficar
+							ativa.
 						</Text>
 
-						<Input>
-							<InputField
-								placeholder="Nome da Tag"
-								value={tagName}
-								onChangeText={setTagName}
-								autoCapitalize="sentences"
-							/>
-						</Input>
-
-							<VStack className="gap-3">
-								<Text className="font-semibold">Tipo de utilização</Text>
-								<Text className="text-gray-600 dark:text-gray-400">
-									Selecione se essa tag será usada para ganhos ou despesas. Apenas uma opção pode ficar
-									ativa.
-								</Text>
-
-								<CheckboxGroup
-									value={isExpenseTag ? ['expense'] : isGainTag ? ['gain'] : []}
-									onChange={handleUsageSelection}
-								>
-									<HStack space="2xl" className="items-center">
-
-										<Checkbox value="expense" isDisabled={isGainTag}>
-											<CheckboxIndicator>
-												<CheckboxIcon as={CheckIcon} />
-											</CheckboxIndicator>
-											<CheckboxLabel>Tag para despesas</CheckboxLabel>
-										</Checkbox>
-
-										<Checkbox value="gain" isDisabled={isExpenseTag}>
-											<CheckboxIndicator>
-												<CheckboxIcon as={CheckIcon} />
-											</CheckboxIndicator>
-											<CheckboxLabel>Tag para ganhos</CheckboxLabel>
-										</Checkbox>
-
-									</HStack>
-								</CheckboxGroup>
-							</VStack>
-
-						{isExpenseTag && (
-							<View className="gap-2 border border-outline-200 rounded-lg p-4">
-								<Text className="font-semibold">Gasto obrigatório</Text>
-								<Text className="text-gray-600 dark:text-gray-400">
-									Ative esta opção para que a tag seja listada na tela de gastos obrigatórios.
-								</Text>
-								<HStack className="items-center justify-between">
-									<Text>Marcar como obrigatório</Text>
-									<Switch value={isMandatoryExpense} onValueChange={setIsMandatoryExpense} />
-								</HStack>
-							</View>
-						)}
-
-						{isGainTag && (
-							<View className="gap-2 border border-outline-200 rounded-lg p-4">
-								<Text className="font-semibold">Ganho obrigatório</Text>
-								<Text className="text-gray-600 dark:text-gray-400">
-									Ative esta opção para que a tag seja listada na tela de ganhos obrigatórios.
-								</Text>
-								<HStack className="items-center justify-between">
-									<Text>Marcar como obrigatório</Text>
-									<Switch value={isMandatoryGain} onValueChange={setIsMandatoryGain} />
-								</HStack>
-							</View>
-						)}
-
-						<Button
-							className="w-full mt-2"
-							size="sm"
-							variant="outline"
-							onPress={registerTag}
-							isDisabled={
-								isSubmitting || !tagName.trim() || (!isExpenseTag && !isGainTag)
-							}
+						<CheckboxGroup
+							value={isExpenseTag ? ['expense'] : isGainTag ? ['gain'] : []}
+							onChange={handleUsageSelection}
 						>
-							{isSubmitting ? (
-								<ButtonSpinner />
-							) : (
-								<ButtonText>{isEditing ? 'Atualizar Tag' : 'Registrar Tag'}</ButtonText>
-							)}
-						</Button>
-					</VStack>
-				</View>
+							<HStack space="2xl" className="items-center">
 
-				<Menu defaultValue={2} />
+								<Checkbox value="expense" isDisabled={isGainTag}>
+									<CheckboxIndicator>
+										<CheckboxIcon as={CheckIcon} />
+									</CheckboxIndicator>
+									<CheckboxLabel>Tag para despesas</CheckboxLabel>
+								</Checkbox>
+
+								<Checkbox value="gain" isDisabled={isExpenseTag}>
+									<CheckboxIndicator>
+										<CheckboxIcon as={CheckIcon} />
+									</CheckboxIndicator>
+									<CheckboxLabel>Tag para ganhos</CheckboxLabel>
+								</Checkbox>
+
+							</HStack>
+						</CheckboxGroup>
+					</VStack>
+
+					{isExpenseTag && (
+						<View className="gap-2 border border-outline-200 rounded-lg p-4">
+							<Text className="font-semibold">Gasto obrigatório</Text>
+							<Text className="text-gray-600 dark:text-gray-400">
+								Ative esta opção para que a tag seja listada na tela de gastos obrigatórios.
+							</Text>
+							<HStack className="items-center justify-between">
+								<Text>Marcar como obrigatório</Text>
+								<Switch
+									value={isMandatoryExpense}
+									onValueChange={setIsMandatoryExpense}
+									trackColor={{ false: '#d4d4d4', true: '#525252' }}
+									thumbColor="#fafafa"
+									ios_backgroundColor="#d4d4d4"
+								/>
+							</HStack>
+						</View>
+					)}
+
+					{isGainTag && (
+						<View className="gap-2 border border-outline-200 rounded-lg p-4">
+							<Text className="font-semibold">Ganho obrigatório</Text>
+							<Text className="text-gray-600 dark:text-gray-400">
+								Ative esta opção para que a tag seja listada na tela de ganhos obrigatórios.
+							</Text>
+							<HStack className="items-center justify-between">
+								<Text>Marcar como obrigatório</Text>
+								<Switch
+									value={isMandatoryGain}
+									onValueChange={setIsMandatoryGain}
+									trackColor={{ false: '#d4d4d4', true: '#525252' }}
+									thumbColor="#fafafa"
+									ios_backgroundColor="#d4d4d4"
+								/>
+							</HStack>
+						</View>
+					)}
+
+					<Button
+						className="w-full mt-2"
+						size="sm"
+						variant="outline"
+						onPress={registerTag}
+						isDisabled={
+							isSubmitting || !tagName.trim() || (!isExpenseTag && !isGainTag)
+						}
+					>
+						{isSubmitting ? (
+							<ButtonSpinner />
+						) : (
+							<ButtonText>{isEditing ? 'Atualizar Tag' : 'Registrar Tag'}</ButtonText>
+						)}
+					</Button>
+				</VStack>
 			</View>
+
+			<Menu defaultValue={2} />
+		</View>
 	);
 }
