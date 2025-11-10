@@ -49,3 +49,6 @@ git-branch.sh
 git-commit.sh
 git-pull.sh
 git-revert.sh
+
+# Ignorar arquivos do expo
+eas.json

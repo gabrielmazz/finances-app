@@ -22,13 +22,30 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gabrielmazz.lumusfinances"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "faae4c50-3b7d-456a-9bfb-e778efd29638"
+      },
+      "firebase": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "finances-app-e8685",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "finances-app-e8685.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "909478123750",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-TMN75L3YNW"
+      }
+    },
+    "owner": "gabrielmazz"
   }
 }
