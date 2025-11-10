@@ -1,58 +1,60 @@
-// Import the functions you need from the SDKs you need
+// FirebaseConfig.ts
 import { initializeApp, getApp, getApps, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
-
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import Constants from "expo-constants";
 
-/**
- * Reads environment variables prefixed with EXPO_PUBLIC_ and fails fast if any is missing.
- */
+// Lê do extra (dev: expoConfig; alguns runtimes: manifest/manifest2)
+const readFromExtra = (key: string): string | undefined => {
+  const extraDev = (Constants as any)?.expoConfig?.extra ?? {};
+  const extraProd =
+    (Constants as any)?.manifest?.extra ??
+    (Constants as any)?.manifest2?.extra ??
+    {};
+  const firebaseDev = extraDev?.firebase ?? {};
+  const firebaseProd = extraProd?.firebase ?? {};
+  return firebaseProd[key] ?? firebaseDev[key];
+};
+
 const getEnvVar = (key: string): string => {
-    const value = process.env[key];
-    if (!value) {
-        throw new Error(`Missing environment variable: ${key}`);
-    }
-    return value;
+  const fromEnv = process.env[key];
+  const fromExtra = readFromExtra(key);
+  const value = fromEnv ?? fromExtra;
+  if (!value) throw new Error(`Missing environment variable: ${key}`);
+  return value;
 };
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig: FirebaseOptions = {
-    apiKey: getEnvVar("EXPO_PUBLIC_FIREBASE_API_KEY"),
-    authDomain: getEnvVar("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
-    projectId: getEnvVar("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
-    storageBucket: getEnvVar("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-    messagingSenderId: getEnvVar("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
-    appId: getEnvVar("EXPO_PUBLIC_FIREBASE_APP_ID"),
-    measurementId: getEnvVar("EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID")
+  apiKey: getEnvVar("EXPO_PUBLIC_FIREBASE_API_KEY"),
+  authDomain: getEnvVar("EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"),
+  projectId: getEnvVar("EXPO_PUBLIC_FIREBASE_PROJECT_ID"),
+  storageBucket: getEnvVar("EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: getEnvVar("EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: getEnvVar("EXPO_PUBLIC_FIREBASE_APP_ID"),
+  measurementId: getEnvVar("EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID")
 };
 
-// Initialize Firebase
 const appInstance: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
 let authInstance;
 try {
-    authInstance = initializeAuth(appInstance, {
-        persistence: getReactNativePersistence(AsyncStorage)
-    });
-} catch (_error) {
-    authInstance = getAuth(appInstance);
+  authInstance = initializeAuth(appInstance, { persistence: getReactNativePersistence(AsyncStorage) });
+} catch {
+  authInstance = getAuth(appInstance);
 }
 
 const secondaryAppInstance: FirebaseApp =
-    getApps().some(existingApp => existingApp.name === 'SECONDARY')
-        ? getApp('SECONDARY')
-        : initializeApp(firebaseConfig, 'SECONDARY');
+  getApps().some(a => a.name === "SECONDARY")
+    ? getApp("SECONDARY")
+    : initializeApp(firebaseConfig, "SECONDARY");
+
 let secondaryAuthInstance;
 try {
-    secondaryAuthInstance = initializeAuth(secondaryAppInstance, {
-        persistence: getReactNativePersistence(AsyncStorage)
-    });
-} catch (_error) {
-    secondaryAuthInstance = getAuth(secondaryAppInstance);
+  secondaryAuthInstance = initializeAuth(secondaryAppInstance, { persistence: getReactNativePersistence(AsyncStorage) });
+} catch {
+  secondaryAuthInstance = getAuth(secondaryAppInstance);
 }
 
 export const app = appInstance;

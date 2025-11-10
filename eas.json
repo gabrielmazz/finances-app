@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 16.26.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "finances-app-e8685",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "finances-app-e8685.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "909478123750",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-TMN75L3YNW"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "finances-app-e8685",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "finances-app-e8685.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "909478123750",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-TMN75L3YNW"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
