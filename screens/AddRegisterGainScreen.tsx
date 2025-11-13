@@ -30,6 +30,7 @@ import {
 import { HStack } from '@/components/ui/hstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Box } from '@/components/ui/box';
+import { Switch } from '@/components/ui/switch';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -183,21 +184,23 @@ export default function AddRegisterGainScreen() {
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
 
-const params = useLocalSearchParams<{
-	gainId?: string | string[];
-	templateName?: string | string[];
-	templateValueInCents?: string | string[];
-	templateTagId?: string | string[];
-	templateDescription?: string | string[];
-	templateDueDay?: string | string[];
-	templateTagName?: string | string[];
-	templateMandatoryGainId?: string | string[];
-}>();
-const editingGainId = React.useMemo(() => {
-	const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
-	return value && value.trim().length > 0 ? value : null;
-}, [params.gainId]);
-const isEditing = Boolean(editingGainId);
+	const [moneyFormat, setMoneyFormat] = React.useState(false);
+
+	const params = useLocalSearchParams<{
+		gainId?: string | string[];
+		templateName?: string | string[];
+		templateValueInCents?: string | string[];
+		templateTagId?: string | string[];
+		templateDescription?: string | string[];
+		templateDueDay?: string | string[];
+		templateTagName?: string | string[];
+		templateMandatoryGainId?: string | string[];
+	}>();
+	const editingGainId = React.useMemo(() => {
+		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
+		return value && value.trim().length > 0 ? value : null;
+	}, [params.gainId]);
+	const isEditing = Boolean(editingGainId);
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -261,13 +264,13 @@ const isEditing = Boolean(editingGainId);
 	]);
 
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
-const linkedMandatoryGainId = React.useMemo(
-	() => (templateData?.mandatoryGainId ? templateData.mandatoryGainId : null),
-	[templateData],
-);
-const templateTagDisplayName = templateData?.tagName ?? null;
-const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
-const shouldShowPaymentFormatSelection = !isTemplateLocked;
+	const linkedMandatoryGainId = React.useMemo(
+		() => (templateData?.mandatoryGainId ? templateData.mandatoryGainId : null),
+		[templateData],
+	);
+	const templateTagDisplayName = templateData?.tagName ?? null;
+	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
+	const shouldShowPaymentFormatSelection = !isTemplateLocked;
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) {
@@ -522,6 +525,7 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 				valueInCents: gainValueCents,
 				paymentFormats: paymentFormat,
 				explanation: explanationGain?.trim() ? explanationGain.trim() : null,
+				moneyFormat,
 				tagId: selectedTagId as string,
 				bankId: selectedBankId as string,
 				date: dateWithCurrentTime,
@@ -570,6 +574,7 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 			setGainDate(formatDateToBR(new Date()));
 			setPaymentFormat([]);
 			setExplanationGain(null);
+			setMoneyFormat(false);
 			setSelectedTagId(null);
 			setSelectedBankId(null);
 		} catch (error) {
@@ -667,13 +672,13 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 	return (
 		<View
 			className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
+				flex-1 w-full h-full
+				mt-[64px]
+				items-center
+				justify-between
+				pb-6
+				relative
+			"
 		>
 			<FloatingAlertViewport />
 
@@ -715,42 +720,44 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 							/>
 						</Input>
 
-						{shouldShowPaymentFormatSelection && (
-							<CheckboxGroup
-								value={paymentFormat}
-								onChange={(keys: string[]) => {
-									setPaymentFormat(keys);
-								}}
-							>
-								<HStack space="2xl">
-									<Checkbox
-										value="Variable"
-										isDisabled={
-											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
-										}
-									>
-										<CheckboxIndicator>
-											<CheckboxIcon as={CheckIcon} />
-										</CheckboxIndicator>
+						<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+							{shouldShowPaymentFormatSelection && (
+								<CheckboxGroup
+									value={paymentFormat}
+									onChange={(keys: string[]) => {
+										setPaymentFormat(keys);
+									}}
+								>
+									<HStack space="2xl">
+										<Checkbox
+											value="Variable"
+											isDisabled={
+												!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
+											}
+										>
+											<CheckboxIndicator>
+												<CheckboxIcon as={CheckIcon} />
+											</CheckboxIndicator>
 
-										<CheckboxLabel>Renda variável</CheckboxLabel>
-									</Checkbox>
+											<CheckboxLabel>Renda variável</CheckboxLabel>
+										</Checkbox>
 
-									<Checkbox
-										value="External"
-										isDisabled={
-											!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
-										}
-									>
-										<CheckboxIndicator>
-											<CheckboxIcon as={CheckIcon} />
-										</CheckboxIndicator>
+										<Checkbox
+											value="External"
+											isDisabled={
+												!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
+											}
+										>
+											<CheckboxIndicator>
+												<CheckboxIcon as={CheckIcon} />
+											</CheckboxIndicator>
 
-										<CheckboxLabel>Pagamento externo</CheckboxLabel>
-									</Checkbox>
-								</HStack>
-							</CheckboxGroup>
-						)}
+											<CheckboxLabel>Pagamento externo</CheckboxLabel>
+										</Checkbox>
+									</HStack>
+								</CheckboxGroup>
+							)}
+						</View>
 
 						<Textarea
 							size="md"
@@ -765,6 +772,36 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 								onChangeText={setExplanationGain}
 							/>
 						</Textarea>
+
+						{/* Pergunta se foi recebido em dinheiro */}
+						<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+							<HStack className="items-center justify-between">
+								<View className="flex-1 mr-3">
+									<Text
+										className={`font-semibold ${
+											shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+										}`}
+									>
+										Pagamento em dinheiro
+									</Text>
+									<Text className={`text-gray-600 dark:text-gray-400 text-sm ${
+										shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+									}`}>
+										Indique se esse ganho foi recebido em dinheiro
+									</Text>
+								</View>
+								<Switch
+									value={moneyFormat}
+									onValueChange={setMoneyFormat}
+									disabled={
+										shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false
+									}
+									trackColor={{ false: '#d4d4d4', true: '#525252' }}
+									thumbColor="#fafafa"
+									ios_backgroundColor="#d4d4d4"
+								/>
+							</HStack>
+						</View>
 
 						{isTemplateLocked ? (
 							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
@@ -873,6 +910,7 @@ const shouldShowPaymentFormatSelection = !isTemplateLocked;
 			</ScrollView>
 
 			<Menu defaultValue={1} />
+
 		</View>
 	);
 }

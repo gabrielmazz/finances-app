@@ -188,7 +188,6 @@ export async function getMandatoryGainsWithRelationsFirebase(personId: string) {
 			.sort((a, b) =>
 				toComparableName(a as Record<string, unknown>).localeCompare(toComparableName(b as Record<string, unknown>)),
 			);
-
 		return { success: true, data: gains };
 	} catch (error) {
 		console.error('Erro ao obter ganhos obrigatórios:', error);

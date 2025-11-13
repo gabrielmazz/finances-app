@@ -9,6 +9,7 @@ interface AddGainParams {
 	valueInCents: number;
 	paymentFormats?: string[];
 	explanation?: string | null;
+	moneyFormat?: boolean;
 	tagId: string;
 	bankId: string;
 	date: Date;
@@ -21,6 +22,7 @@ interface UpdateGainParams {
 	valueInCents?: number;
 	paymentFormats?: string[];
 	explanation?: string | null;
+	moneyFormat?: boolean;
 	tagId?: string;
 	bankId?: string;
 	date?: Date;
@@ -34,6 +36,7 @@ export async function addGainFirebase({
 	valueInCents,
 	paymentFormats,
 	explanation,
+	moneyFormat,
 	tagId,
 	bankId,
 	date,
@@ -47,6 +50,7 @@ export async function addGainFirebase({
 			valueInCents,
 			paymentFormats,
 			explanation: explanation || null,
+			moneyFormat,
 			tagId,
 			bankId,
 			date,
@@ -68,6 +72,7 @@ export async function updateGainFirebase({
 	valueInCents,
 	paymentFormats,
 	explanation,
+	moneyFormat,
 	tagId,
 	bankId,
 	date,
@@ -94,6 +99,10 @@ export async function updateGainFirebase({
 			updates.explanation = explanation ?? null;
 		}
 
+		if (typeof moneyFormat === 'boolean') {
+			updates.moneyFormat = moneyFormat;
+		}
+
 		if (typeof tagId === 'string') {
 			updates.tagId = tagId;
 		}
@@ -109,9 +118,12 @@ export async function updateGainFirebase({
 		await setDoc(gainRef, updates, { merge: true });
 
 		return { success: true };
+		
 	} catch (error) {
+
 		console.error('Erro ao atualizar ganho:', error);
 		return { success: false, error };
+
 	}
 }
 
