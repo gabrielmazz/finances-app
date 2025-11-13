@@ -448,7 +448,7 @@ export default function MandatoryGainsListScreen() {
 					) : gains.length === 0 ? (
 						<Text className="text-center text-gray-500">Nenhum ganho obrigatório cadastrado até o momento.</Text>
 					) : (
-						<VStack className="gap-4">
+						<VStack className="">
 							{gains.map(gain => (
 								<Box
 									key={gain.id}
@@ -457,7 +457,7 @@ export default function MandatoryGainsListScreen() {
 										bg-white dark:bg-gray-800
 										rounded-lg
 										p-4
-										mb-6
+										mb-4
 									"
 								>
 									<HStack className="justify-between items-start mb-2">
