@@ -449,7 +449,7 @@ export default function MandatoryExpensesListScreen() {
 							Nenhum gasto obrigatório cadastrado até o momento.
 						</Text>
 					) : (
-						<VStack className="gap-4">
+						<VStack className="">
 							{expenses.map(expense => (
 								<Box
 									key={expense.id}
@@ -458,7 +458,7 @@ export default function MandatoryExpensesListScreen() {
 										bg-white dark:bg-gray-800
 										rounded-lg
 										p-4
-										mb-6
+										mb-4
 									"
 								>
 									<HStack className="justify-between items-start mb-2">

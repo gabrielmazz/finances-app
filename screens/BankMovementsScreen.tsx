@@ -1,7 +1,9 @@
 import React from 'react';
 import { ScrollView, View, useColorScheme, TouchableOpacity } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { GestureHandlerRootView, TapGestureHandler } from 'react-native-gesture-handler';
 
+// Componentes de UI
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
@@ -19,18 +21,33 @@ import {
 	ModalFooter,
 	ModalHeader,
 } from '@/components/ui/modal';
+import {
+	Drawer,
+	DrawerBackdrop,
+	DrawerContent,
+	DrawerHeader,
+	DrawerCloseButton,
+	DrawerBody,
+	DrawerFooter,
+} from '@/components/ui/drawer';
 import { EditIcon, TrashIcon } from '@/components/ui/icon';
+import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import { Menu } from '@/components/uiverse/menu';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { auth } from '@/FirebaseConfig';
-import { getBankMovementsByPeriodFirebase } from '@/functions/BankFirebase';
-import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
-import { deleteGainFirebase } from '@/functions/GainFirebase';
+
+// Gráfico de pizza
 import { PieChart } from 'react-native-gifted-charts';
+
+// Funções para buscar gastos/ganhos obrigatórios no firebase
 import { getMandatoryExpensesWithRelationsFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getMandatoryGainsWithRelationsFirebase } from '@/functions/MandatoryGainFirebase';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
+import { getBankMovementsByPeriodFirebase, getBankDataFirebase } from '@/functions/BankFirebase';
+import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { deleteGainFirebase } from '@/functions/GainFirebase';
+import { getTagDataFirebase } from '@/functions/TagFirebase';
 
 type FirestoreLikeTimestamp = {
 	toDate?: () => Date;
@@ -47,6 +64,7 @@ type MovementRecord = {
 	personId?: string | null;
 	explanation?: string | null;
 	paymentFormats?: string[] | null;
+	moneyFormat?: boolean | null;
 	// true se esta movimentação for a ligada a um Gasto/Ganho Obrigatório do ciclo atual
 	isFromMandatory?: boolean;
 };
@@ -196,6 +214,7 @@ export default function BankMovementsScreen() {
 			return value;
 		}
 	}, [searchParams.bankName]);
+
 	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
 
 	const [startDateInput, setStartDateInput] = React.useState(formatDateToBR(start));
@@ -207,6 +226,16 @@ export default function BankMovementsScreen() {
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+
+	// Controla qual movimentação deve aparecer no Drawer e quando ele está aberto
+	const [selectedMovement, setSelectedMovement] = React.useState<MovementRecord | null>(null);
+	const [isMovementDrawerOpen, setIsMovementDrawerOpen] = React.useState(false);
+
+	// Controla no nome da tag depois de buscado dentro do Firebase
+	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+
+	// Controla no nome do banco depois de buscado dentro do Firebase
+	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 
 	const handleDateChange = React.useCallback((value: string, type: 'start' | 'end') => {
 		const sanitized = sanitizeDateInput(value);
@@ -268,7 +297,7 @@ export default function BankMovementsScreen() {
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 			]);
-
+;
 			if (!result?.success || !result.data) {
 				setMovements([]);
 				setErrorMessage(
@@ -320,6 +349,7 @@ export default function BankMovementsScreen() {
 				bankId: typeof expense?.bankId === 'string' ? expense.bankId : null,
 				personId: typeof expense?.personId === 'string' ? expense.personId : null,
 				explanation: typeof expense?.explanation === 'string' ? expense.explanation : null,
+				moneyFormat: typeof expense?.moneyFormat === 'boolean' ? expense.moneyFormat : null,
 				isFromMandatory: typeof expense?.id === 'string' ? lockedExpenseIds.has(expense.id) : false,
 			}));
 
@@ -339,6 +369,7 @@ export default function BankMovementsScreen() {
 				paymentFormats: Array.isArray(gain?.paymentFormats)
 					? (gain?.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[]
 					: null,
+				moneyFormat: typeof gain?.moneyFormat === 'boolean' ? gain.moneyFormat : null,
 				isFromMandatory: typeof gain?.id === 'string' ? lockedGainIds.has(gain.id) : false,
 			}));
 
@@ -363,6 +394,78 @@ export default function BankMovementsScreen() {
 			void fetchMovements();
 		}, [fetchMovements]),
 	);
+
+	// UseFocusEffect visualizando o componente da tag dentro do Drawer, para
+	// assim buscar pelo ID da tag e mostrar o nome correto, consultando no
+	// Firebase a função getTagDataFirebase
+	React.useEffect(() => {
+
+		// Verifica se há uma movimentação selecionada e se ela possui tagId
+		if (!selectedMovement || !selectedMovement.tagId) {
+			return;
+		} else {
+			const fetchTagName = async () => {
+				try {
+
+					// Busca os dados da tag pelo ID
+					const tagResult = await getTagDataFirebase(selectedMovement.tagId!);
+
+					if (tagResult.success && tagResult.data) {
+						
+						// Atualiza o nome da tag com o valor buscado se houver
+						// um sucesso na busca
+						setSelectedMovementTagName(tagResult.data.name);
+
+					} else {
+
+						setSelectedMovementTagName(null);
+
+					}
+				} catch (error) {
+					console.error('Erro ao buscar dados da tag:', error);
+					setSelectedMovementTagName(null);
+				};
+			};
+			void fetchTagName();
+		}
+	}, [selectedMovement, setSelectedMovementTagName]);
+
+	// Da mesma forma que o useEffect da tag, é feito para o banco, sempre
+	// visualizando o componente do Drawer e buscando o nome do banco pelo ID
+	React.useEffect(() => {
+
+		// Verifica se há uma movimentação selecionada e se ela possui bankId
+		if (!selectedMovement || !selectedMovement.bankId) {
+			return;
+		} else {
+
+			const fetchBankName = async () => {
+
+				try {
+
+					// Busca os dados do banco pelo ID
+					const bankResult = await getBankDataFirebase(selectedMovement.bankId!);
+
+					if (bankResult.success && bankResult.data) {
+
+						// Atualiza o nome do banco com o valor buscado se houver
+						// um sucesso na busca
+						setSelectedMovementBankName(bankResult.data.name);
+					} else {
+
+						setSelectedMovementBankName(null);
+
+					}
+
+				} catch (error) {
+					console.error('Erro ao buscar dados do banco:', error);
+					setSelectedMovementBankName(null);
+				};
+			}
+			void fetchBankName();
+		}
+	}, [selectedMovement, setSelectedMovementBankName]);
+
 
 	const totals = React.useMemo(() => {
 		return movements.reduce(
@@ -430,6 +533,18 @@ export default function BankMovementsScreen() {
 		}
 		setPendingAction(null);
 	}, [isProcessingAction]);
+
+	// Abre o Drawer com os detalhes da movimentação tocada duas vezes
+	const handleMovementDoubleTap = React.useCallback((movement: MovementRecord) => {
+		setSelectedMovement(movement);
+		setIsMovementDrawerOpen(true);
+	}, []);
+
+	// Fecha o Drawer e limpa a movimentação para evitar dados antigos
+	const handleCloseMovementDrawer = React.useCallback(() => {
+		setIsMovementDrawerOpen(false);
+		setSelectedMovement(null);
+	}, []);
 
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
@@ -550,366 +665,548 @@ export default function BankMovementsScreen() {
 	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
 
 	return (
-		<View
-			className="
+		<GestureHandlerRootView style={{ flex: 1, width: '100%' }}>
+			{/* Root view do Gesture Handler garante o funcionamento do TapGestureHandler */}
+			<View
+				className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
 					bg-gray-100 dark:bg-gray-950
 				"
-		>
-			<FloatingAlertViewport />
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				style={{
-					flex: 1,
-					width: '100%',
-				}}
-				contentContainerStyle={{
-					flexGrow: 1,
-					width: '100%',
-					paddingBottom: 48,
-				}}
 			>
-				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-6">
-						Movimentações do banco
-					</Heading>
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Selecione um período para visualizar todas as movimentações de {bankName}.
-					</Text>
+				<FloatingAlertViewport />
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{
+						flex: 1,
+						width: '100%',
+					}}
+					contentContainerStyle={{
+						flexGrow: 1,
+						width: '100%',
+						paddingBottom: 48,
+					}}
+				>
+					<View className="w-full px-6">
+						<Heading size="3xl" className="text-center mb-6">
+							Movimentações do banco
+						</Heading>
+						<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
+							Selecione um período para visualizar todas as movimentações de {bankName}.
+						</Text>
 
-					<Box
-						className="
+						<Box
+							className="
 								bg-white dark:bg-gray-800
 								rounded-lg
 								p-4
 								mb-6
 							"
-					>
-						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-							Filtros do período
-						</Text>
-						<VStack space="md">
-							<HStack space="md" className="flex-wrap">
-								<VStack className="flex-1 min-w-[140px]">
-									<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-										Data inicial
-									</Text>
-									<Input>
-										<InputField
-											value={startDateInput}
-											onChangeText={value => handleDateChange(value, 'start')}
-											placeholder="dd/mm/aaaa"
-											keyboardType="numeric"
-											returnKeyType="next"
-										/>
-									</Input>
-								</VStack>
+						>
+							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+								Filtros do período
+							</Text>
+							<VStack space="md">
+								<HStack space="md" className="flex-wrap">
+									<VStack className="flex-1 min-w-[140px]">
+										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+											Data inicial
+										</Text>
+										<Input>
+											<InputField
+												value={startDateInput}
+												onChangeText={value => handleDateChange(value, 'start')}
+												placeholder="dd/mm/aaaa"
+												keyboardType="numeric"
+												returnKeyType="next"
+											/>
+										</Input>
+									</VStack>
 
-								<VStack className="flex-1 min-w-[140px]">
-									<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-										Data final
-									</Text>
-									<Input>
-										<InputField
-											value={endDateInput}
-											onChangeText={value => handleDateChange(value, 'end')}
-											placeholder="dd/mm/aaaa"
-											keyboardType="numeric"
-											returnKeyType="done"
-										/>
-									</Input>
-								</VStack>
-							</HStack>
+									<VStack className="flex-1 min-w-[140px]">
+										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+											Data final
+										</Text>
+										<Input>
+											<InputField
+												value={endDateInput}
+												onChangeText={value => handleDateChange(value, 'end')}
+												placeholder="dd/mm/aaaa"
+												keyboardType="numeric"
+												returnKeyType="done"
+											/>
+										</Input>
+									</VStack>
+								</HStack>
 
-							<Button
-								size="md"
-								variant="outline"
-								onPress={() => {
-									if (!isLoading) {
-										void fetchMovements();
-									}
-								}}
-								isDisabled={
-									isLoading || !parseDateFromBR(startDateInput) || !parseDateFromBR(endDateInput)
-								}
-							>
-								{isLoading ? (
-									<>
-										<ButtonSpinner color="white" />
-										<ButtonText>Carregando movimentações</ButtonText>
-									</>
-								) : (
-									<ButtonText>Buscar movimentações</ButtonText>
-								)}
-							</Button>
-						</VStack>
-					</Box>
-
-					<Box
-						className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mb-6
-							"
-					>
-						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-							Resumo do período
-						</Text>
-						<VStack space="md">
-							<HStack className="justify-between">
-								<Text className="text-gray-700 dark:text-gray-300">Ganhos</Text>
-								<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-									{formatCurrencyBRL(totals.totalGains)}
-								</Text>
-							</HStack>
-							<HStack className="justify-between">
-								<Text className="text-gray-700 dark:text-gray-300">Despesas</Text>
-								<Text className="text-red-600 dark:text-red-400 font-semibold">
-									{formatCurrencyBRL(totals.totalExpenses)}
-								</Text>
-							</HStack>
-							<HStack className="justify-between">
-								<Text className="text-gray-700 dark:text-gray-300">Saldo</Text>
-								<Text
-									className={
-										balanceInCents >= 0
-											? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-											: 'text-red-600 dark:text-red-400 font-semibold'
+								<Button
+									size="md"
+									variant="outline"
+									onPress={() => {
+										if (!isLoading) {
+											void fetchMovements();
+										}
+									}}
+									isDisabled={
+										isLoading || !parseDateFromBR(startDateInput) || !parseDateFromBR(endDateInput)
 									}
 								>
-									{formatCurrencyBRL(balanceInCents)}
-								</Text>
-							</HStack>
-						</VStack>
-					</Box>
+									{isLoading ? (
+										<>
+											<ButtonSpinner color="white" />
+											<ButtonText>Carregando movimentações</ButtonText>
+										</>
+									) : (
+										<ButtonText>Buscar movimentações</ButtonText>
+									)}
+								</Button>
+							</VStack>
+						</Box>
 
-					{errorMessage && (
-						<Text className="text-center text-red-600 dark:text-red-400 mb-4">{errorMessage}</Text>
-					)}
+						<Box
+							className="
+								bg-white dark:bg-gray-800
+								rounded-lg
+								p-4
+								mb-6
+							"
+						>
+							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+								Resumo do período
+							</Text>
+							<VStack space="md">
+								<HStack className="justify-between">
+									<Text className="text-gray-700 dark:text-gray-300">Ganhos</Text>
+									<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+										{formatCurrencyBRL(totals.totalGains)}
+									</Text>
+								</HStack>
+								<HStack className="justify-between">
+									<Text className="text-gray-700 dark:text-gray-300">Despesas</Text>
+									<Text className="text-red-600 dark:text-red-400 font-semibold">
+										{formatCurrencyBRL(totals.totalExpenses)}
+									</Text>
+								</HStack>
+								<HStack className="justify-between">
+									<Text className="text-gray-700 dark:text-gray-300">Saldo</Text>
+									<Text
+										className={
+											balanceInCents >= 0
+												? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+												: 'text-red-600 dark:text-red-400 font-semibold'
+										}
+									>
+										{formatCurrencyBRL(balanceInCents)}
+									</Text>
+								</HStack>
+							</VStack>
+						</Box>
 
-					<Box
-						className="
+						{errorMessage && (
+							<Text className="text-center text-red-600 dark:text-red-400 mb-4">{errorMessage}</Text>
+						)}
+
+						<Box
+							className="
 								bg-white dark:bg-gray-800
 								rounded-lg
 								p-4
 							"
-					>
-						<HStack className="justify-between items-center">
-							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-								Comparativo de totais
-							</Text>
-							<TouchableOpacity activeOpacity={0.85} onPress={() => setIsTotalsExpanded(prev => !prev)}>
-								<Text className="text-sm text-gray-500 dark:text-emerald-400">
-									{isTotalsExpanded ? 'Ocultar' : 'Expandir'}
+						>
+							<HStack className="justify-between items-center">
+								<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+									Comparativo de totais
 								</Text>
-							</TouchableOpacity>
-						</HStack>
+								<TouchableOpacity activeOpacity={0.85} onPress={() => setIsTotalsExpanded(prev => !prev)}>
+									<Text className="text-sm text-gray-500 dark:text-emerald-400">
+										{isTotalsExpanded ? 'Ocultar' : 'Expandir'}
+									</Text>
+								</TouchableOpacity>
+							</HStack>
 
-						<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-							Baseado nos valores filtrados para {bankName}.
-						</Text>
+							<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+								Baseado nos valores filtrados para {bankName}.
+							</Text>
 
-						{isTotalsExpanded ? (
-							hasTotalsPieData ? (
-								<>
-									<View className="mt-4 items-center">
-										<PieChart data={totalsPieChartData} radius={90} showText={false} isAnimated />
-									</View>
+							{isTotalsExpanded ? (
+								hasTotalsPieData ? (
+									<>
+										<View className="mt-4 items-center">
+											<PieChart data={totalsPieChartData} radius={90} showText={false} isAnimated />
+										</View>
 
-									<View className="mt-4 gap-3">
-										{totalsPieSlices.map(slice => (
-											<HStack
-												key={slice.key}
-												className="justify-between items-center rounded-lg px-3 py-2"
-												style={{ borderWidth: 1, borderColor: legendBorderColor }}
-											>
-												<HStack className="items-center">
-													<View
-														style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
-													/>
-													<Text className="ml-2 text-gray-700 dark:text-gray-200">{slice.label}</Text>
+										<View className="mt-4 gap-3">
+											{totalsPieSlices.map(slice => (
+												<HStack
+													key={slice.key}
+													className="justify-between items-center rounded-lg px-3 py-2"
+													style={{ borderWidth: 1, borderColor: legendBorderColor }}
+												>
+													<HStack className="items-center">
+														<View
+															style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+														/>
+														<Text className="ml-2 text-gray-700 dark:text-gray-200">{slice.label}</Text>
+													</HStack>
+													<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+														{formatCurrencyBRL(slice.rawInCents)}
+													</Text>
 												</HStack>
-												<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-													{formatCurrencyBRL(slice.rawInCents)}
-												</Text>
-											</HStack>
-										))}
-									</View>
-								</>
+											))}
+										</View>
+									</>
+								) : (
+									<Text className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+										Nenhum ganho ou despesa foi encontrado dentro do período selecionado.
+									</Text>
+								)
 							) : (
-								<Text className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-									Nenhum ganho ou despesa foi encontrado dentro do período selecionado.
+								<Text className="mt-4 text-gray-600 dark:text-gray-400">
+									Toque em &quot;Expandir&quot; para visualizar o gráfico com os totais do período.
 								</Text>
-							)
-						) : (
-							<Text className="mt-4 text-gray-600 dark:text-gray-400">
-								Toque em &quot;Expandir&quot; para visualizar o gráfico com os totais do período.
-							</Text>
-						)}
-					</Box>
+							)}
+						</Box>
 
-					<Box
-						className="
+						<Box
+							className="
 								bg-white dark:bg-gray-800
 								rounded-lg
 								p-4
 								mt-6
 							"
-					>
-						<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-							Movimentações encontradas
-						</Text>
-
-						{isLoading ? (
-							<Text className="text-center text-gray-700 dark:text-gray-300">
-								Carregando movimentações...
-							</Text>
-						) : movements.length === 0 ? (
-							<Text className="text-center text-gray-600 dark:text-gray-400">
-								Nenhuma movimentação foi registrada para o período informado.
-							</Text>
-						) : (
-							movements.map(movement => (
-								<Box
-									key={movement.id}
-									className="
-											mb-4
-											border-b border-gray-200 dark:border-gray-700
-											pb-3
-										"
-								>
-									<HStack className="justify-between items-center">
-										<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-											{movement.name}
-										</Text>
-										<Text
-											className={
-												movement.type === 'gain'
-													? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-													: 'text-red-600 dark:text-red-400 font-semibold'
-											}
-										>
-											{formatCurrencyBRL(movement.valueInCents)}
-										</Text>
-									</HStack>
-									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										{formatMovementDate(movement.date)}
-									</Text>
-									<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
-									</Text>
-									{movement.isFromMandatory && (
-										<>
-											<Text
-												className="
-													mt-1 text-[11px] text-yellow-600 dark:text-yellow-400
-												"
-											>
-												Vinculado a {movement.type === 'gain' ? 'ganho' : 'gasto'} obrigatório (mês atual).
-											</Text>
-											<Text
-												className="
-													mt-1 text-[9px] text-gray-500 dark:text-gray-400
-												"
-											>
-												Use a tela de {movement.type === 'gain' ? 'Ganhos obrigatórios' : 'Gastos obrigatórios'}.
-											</Text>
-										</>
-
-									)}
-									<View className="mt-2 flex-row justify-end items-center gap-2">
-										<Button
-											size="xs"
-											variant="link"
-											action="primary"
-											isDisabled={movement.isFromMandatory}
-											onPress={() => {
-												if (movement.isFromMandatory) {
-													showFloatingAlert({
-														message:
-															movement.type === 'gain'
-																? 'Este ganho pertence a um ganho obrigatório deste mês. Para alterar, use a tela de Ganhos obrigatórios.'
-																: 'Esta despesa pertence a um gasto obrigatório deste mês. Para alterar, use a tela de Gastos obrigatórios.',
-														action: 'warning',
-														position: 'bottom',
-													});
-													return;
-												}
-												setPendingAction({ type: 'edit', movement });
-											}}
-										>
-											<ButtonIcon as={EditIcon} />
-										</Button>
-										<Button
-											size="xs"
-											variant="link"
-											action="negative"
-											isDisabled={movement.isFromMandatory}
-											onPress={() => {
-												if (movement.isFromMandatory) {
-													showFloatingAlert({
-														message:
-															movement.type === 'gain'
-																? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
-																: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
-														action: 'warning',
-														position: 'bottom',
-													});
-													return;
-												}
-												setPendingAction({ type: 'delete', movement });
-											}}
-										>
-											<ButtonIcon as={TrashIcon} />
-										</Button>
-									</View>
-								</Box>
-							))
-						)}
-					</Box>
-				</View>
-			</ScrollView>
-
-			<View className="w-full">
-				<Menu defaultValue={0} />
-			</View>
-
-			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">{actionModalCopy.title}</Heading>
-						<ModalCloseButton onPress={handleCloseActionModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button
-							variant="solid"
-							action={confirmButtonAction}
-							onPress={handleConfirmAction}
-							isDisabled={isProcessingAction}
 						>
-							{isProcessingAction && pendingAction?.type === 'delete' ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Processando</ButtonText>
-								</>
+							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+								Movimentações encontradas
+							</Text>
+
+							{isLoading ? (
+								<Text className="text-center text-gray-700 dark:text-gray-300">
+									Carregando movimentações...
+								</Text>
+							) : movements.length === 0 ? (
+								<Text className="text-center text-gray-600 dark:text-gray-400">
+									Nenhuma movimentação foi registrada para o período informado.
+								</Text>
 							) : (
-								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+								movements.map(movement => (
+									<TapGestureHandler
+										key={movement.id}
+										numberOfTaps={2}
+										onActivated={() => handleMovementDoubleTap(movement)}
+									>
+										<View>
+											{/* Duplo toque (TapGestureHandler) abre o Drawer desta movimentação */}
+											<Box
+												className="
+													mb-4
+													border-b border-gray-200 dark:border-gray-700
+													pb-3
+												"
+											>
+												<HStack className="justify-between items-center">
+													<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+														{movement.name}
+													</Text>
+													<Text
+														className={
+															movement.type === 'gain'
+																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																: 'text-red-600 dark:text-red-400 font-semibold'
+														}
+													>
+														{formatCurrencyBRL(movement.valueInCents)}
+													</Text>
+												</HStack>
+												<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+													{formatMovementDate(movement.date)}
+												</Text>
+												<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+													Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
+												</Text>
+												{movement.isFromMandatory && (
+													<>
+														<Text
+															className="
+															mt-1 text-[11px] text-yellow-600 dark:text-yellow-400
+														"
+														>
+															Vinculado a {movement.type === 'gain' ? 'ganho' : 'gasto'} obrigatório (mês atual).
+														</Text>
+														<Text
+															className="
+															mt-1 text-[9px] text-gray-500 dark:text-gray-400
+														"
+														>
+															Use a tela de {movement.type === 'gain' ? 'Ganhos obrigatórios' : 'Gastos obrigatórios'}.
+														</Text>
+													</>
+
+												)}
+												<View className="mt-2 flex-row justify-end items-center gap-2">
+													<Button
+														size="xs"
+														variant="link"
+														action="primary"
+														isDisabled={movement.isFromMandatory}
+														onPress={() => {
+															if (movement.isFromMandatory) {
+																showFloatingAlert({
+																	message:
+																		movement.type === 'gain'
+																			? 'Este ganho pertence a um ganho obrigatório deste mês. Para alterar, use a tela de Ganhos obrigatórios.'
+																			: 'Esta despesa pertence a um gasto obrigatório deste mês. Para alterar, use a tela de Gastos obrigatórios.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															setPendingAction({ type: 'edit', movement });
+														}}
+													>
+														<ButtonIcon as={EditIcon} />
+													</Button>
+													<Button
+														size="xs"
+														variant="link"
+														action="negative"
+														isDisabled={movement.isFromMandatory}
+														onPress={() => {
+															if (movement.isFromMandatory) {
+																showFloatingAlert({
+																	message:
+																		movement.type === 'gain'
+																			? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
+																			: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															setPendingAction({ type: 'delete', movement });
+														}}
+													>
+														<ButtonIcon as={TrashIcon} />
+													</Button>
+												</View>
+											</Box>
+										</View>
+									</TapGestureHandler>
+								))
 							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
-		</View>
+						</Box>
+					</View>
+				</ScrollView>
+
+				<View className="w-full">
+					<Menu defaultValue={0} />
+				</View>
+
+				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
+						<ModalHeader>
+							<Heading size="lg">{actionModalCopy.title}</Heading>
+							<ModalCloseButton onPress={handleCloseActionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								action={confirmButtonAction}
+								onPress={handleConfirmAction}
+								isDisabled={isProcessingAction}
+							>
+								{isProcessingAction && pendingAction?.type === 'delete' ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Processando</ButtonText>
+									</>
+								) : (
+									<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+
+				{/* Drawer fica responsável por mostrar detalhes da movimentação tocada duas vezes */}
+				<Drawer
+					isOpen={isMovementDrawerOpen}
+					onClose={handleCloseMovementDrawer}
+					size="lg"
+					anchor="right"
+				>
+					<DrawerBackdrop onPress={handleCloseMovementDrawer} />
+
+					<DrawerContent className="">
+
+						<DrawerHeader className="justify-between items-center ">
+
+							<Box
+								className="
+								w-full
+								mt-12
+							"
+							>
+								<Heading
+									size="lg"
+									className="
+								"
+
+								>
+									{selectedMovement ? selectedMovement.name : 'Movimentação selecionada'}
+								</Heading>
+							</Box>
+
+							<DrawerCloseButton onPress={handleCloseMovementDrawer} />
+
+						</DrawerHeader>
+
+						<DrawerBody>
+
+							<VStack space="md">
+
+								{/* Mostra o nome do movimento selecionado */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Nome da movimentação:</Text>
+									<Input
+										isDisabled={true}
+									>
+										<InputField
+											value={selectedMovement ? selectedMovement.name : ''}
+										/>
+									</Input>
+								</VStack>
+								
+
+								{/* Mostra o valor do movimento selecionado */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Valor da movimentação:</Text>
+									<Input
+										isDisabled={true}
+									>
+										<InputField
+											value={
+												selectedMovement
+													? formatCurrencyBRL(selectedMovement.valueInCents)
+													: ''
+											}
+										/>
+									</Input>
+								</VStack>
+
+								{/* Mostra se o ganho foi recebido em dinheiro */}
+								{selectedMovement?.type === 'gain' && (
+									<VStack space="xs">
+										<Text className="text-sm text-gray-600 dark:text-gray-400">
+											Pagamento em dinheiro:
+										</Text>
+										<Input isDisabled={true}>
+											<InputField
+												value={
+													typeof selectedMovement.moneyFormat === 'boolean'
+														? selectedMovement.moneyFormat
+															? 'Sim'
+															: 'Não'
+														: 'Não informado'
+												}
+											/>
+										</Input>
+									</VStack>
+								)}
+
+								{/* Mostra o tipo do movimento selecionado */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Tipo da movimentação:</Text>
+									<Input isDisabled={true}>
+										<InputField
+											value={
+												selectedMovement
+													? selectedMovement.type === 'gain'
+														? 'Ganho'
+														: 'Despesa'
+													: ''
+											}
+										/>
+									</Input>
+								</VStack>
+
+								{/* Mostra a explicação do movimento selecionado, se houver */}
+								{selectedMovement && selectedMovement.explanation && (
+									<VStack space="xs">
+										<Text className="text-sm text-gray-600 dark:text-gray-400">Descrição:</Text>
+										<Textarea
+											size="md"
+											isReadOnly={false}
+											isInvalid={false}
+											isDisabled={true}
+											className="h-32"
+										>
+											<TextareaInput value={selectedMovement.explanation} />
+										</Textarea>
+									</VStack>
+								)}
+
+								{/* Mostra a Tag que foi selecionada */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Tag selecionada:</Text>
+									<Input isDisabled={true}>
+										<InputField
+											value={
+												selectedMovement && selectedMovement.tagId
+													? `${selectedMovementTagName ?? selectedMovement.tagId}`
+													: 'Sem tag associada'
+											}
+										/>
+									</Input>
+								</VStack>
+
+								{/* Mostra o Banco que foi selecionado */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Banco selecionado:</Text>
+									<Input isDisabled={true}>
+										<InputField
+											value={
+												selectedMovement && selectedMovement.bankId
+													? `${selectedMovementBankName ?? selectedMovement.bankId}`
+													: 'Sem banco associado'
+											}
+										/>
+									</Input>
+								</VStack>
+
+								{/* Mostra a data do movimento selecionado */}
+								<VStack space="xs">
+									<Text className="text-sm text-gray-600 dark:text-gray-400">Data da movimentação:</Text>
+									<Input isDisabled={true}>
+										<InputField
+											value={
+												selectedMovement
+													? formatMovementDate(selectedMovement.date)
+													: ''
+											}
+										/>
+									</Input>
+								</VStack>
+
+							</VStack>
+
+
+						</DrawerBody>
+
+						<DrawerFooter />
+
+					</DrawerContent>
+
+				</Drawer>
+			</View>
+		</GestureHandlerRootView>
 	);
 }

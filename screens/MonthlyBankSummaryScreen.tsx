@@ -14,7 +14,7 @@ import {
 	getCurrentMonthSummaryByBankFirebaseExpanses,
 	getCurrentMonthSummaryByBankFirebaseGains,
 } from '@/functions/BankFirebase';
-import { getMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
+import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 type BankSummary = {
 	id: string;
@@ -102,16 +102,23 @@ export default function MonthlyBankSummaryScreen() {
 					const currentYear = now.getFullYear();
 					const currentMonth = now.getMonth() + 1;
 
+					// Obtém os saldos iniciais por banco, consultando para cada banco individualmente
 					const balanceResults = await Promise.all(
+
+						// Para cada banco, obtém o saldo mensal inicial
 						banksArray.map(async bank => {
+
+							// Extrai o ID do banco
 							const bankId = typeof bank?.id === 'string' ? bank.id : '';
 
+							// Se não houver ID do banco, retorna nulo diretamente
 							if (!bankId) {
 								return { bankId, valueInCents: null };
 							}
 
+							// Consulta o saldo mensal para o banco atual
 							try {
-								const balanceResponse = await getMonthlyBalanceFirebase({
+								const balanceResponse = await getMonthlyBalanceFirebaseRelatedToUser({
 									personId: currentUser.uid,
 									bankId,
 									year: currentYear,
@@ -132,7 +139,10 @@ export default function MonthlyBankSummaryScreen() {
 								return { bankId, valueInCents: null };
 							}
 						}),
+
 					);
+
+					console.log('Saldos iniciais por banco:', balanceResults);
 
 					const balancesByBank: Record<string, number | null> = {};
 					for (const result of balanceResults) {
@@ -141,7 +151,10 @@ export default function MonthlyBankSummaryScreen() {
 						}
 					}
 
+					// Monta o summary por banco, passando pelo array de bancos
 					const summaries: BankSummary[] = banksArray.map(bank => {
+
+						// Extrai os dados do banco
 						const bankId = typeof bank?.id === 'string' ? bank.id : '';
 						const bankName =
 							typeof bank?.name === 'string' && bank.name.trim().length > 0
@@ -152,21 +165,29 @@ export default function MonthlyBankSummaryScreen() {
 								? bank.colorHex.trim()
 								: null;
 
+						// Filtra as despesas e ganhos relacionados a esse banco
 						const bankExpenses = expensesArray.filter(expense => expense?.bankId === bankId);
 						const bankGains = gainsArray.filter(gain => gain?.bankId === bankId);
 
+						// Calcula os totais, saldos e movimentações
 						const totalExpensesInCents = bankExpenses.reduce((acc, expense) => {
 							const value = typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0;
 							return acc + value;
 						}, 0);
 
+						// Calcula o total de ganhos
 						const totalGainsInCents = bankGains.reduce((acc, gain) => {
 							const value = typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0;
 							return acc + value;
 						}, 0);
 
+						// Calcula o total de movimentações realizadas durante o mês
 						const totalMovements = bankExpenses.length + bankGains.length;
+
+						// Calcula os saldos inicial, registrado no início do mês na tela AddRegisterMonthlyBalanceScreen
 						const initialBalanceInCents = balancesByBank[bankId] ?? null;
+
+						// Calcula o saldo atual considerando o saldo inicial + ganhos - despesas
 						const currentBalanceInCents =
 							typeof initialBalanceInCents === 'number'
 								? initialBalanceInCents + (totalGainsInCents - totalExpensesInCents)
