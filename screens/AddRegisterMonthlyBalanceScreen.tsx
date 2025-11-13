@@ -24,7 +24,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { Menu } from '@/components/uiverse/menu';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import { getMonthlyBalanceFirebase, upsertMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
+import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser, upsertMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
 import { auth } from '@/FirebaseConfig';
 
 
@@ -157,22 +157,31 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, []);
 
 	const fetchExistingBalance = React.useCallback(
+
 		async (options?: { targetBankId?: string | null; targetMonthReference?: string }) => {
+
+			// Define o banco a ser usado na busca
 			const bankIdToUse = options?.targetBankId ?? selectedBankId;
 
+			// Se não houver banco selecionado, limpa o estado e retorna
 			if (!bankIdToUse) {
 				setExistingBalanceId(null);
 				return;
 			}
 
+			// Define o mês de referência a ser usado na busca
 			const monthReferenceToUse = options?.targetMonthReference ?? monthReference;
 
+			// Faz o parsing do mês de referência
 			const parsedMonth = parseMonthReference(monthReferenceToUse);
+
+			// Se o parsing falhar, limpa o estado e retorna
 			if (!parsedMonth) {
 				setExistingBalanceId(null);
 				return;
 			}
 
+			// Verifica se o usuário está autenticado
 			const currentUser = auth.currentUser;
 			if (!currentUser) {
 				showFloatingAlert({
@@ -183,16 +192,22 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				return;
 			}
 
+			// Inicia o carregamento do saldo existente
 			setIsLoadingExisting(true);
 
 			try {
-				const response = await getMonthlyBalanceFirebase({
+
+				// Realiza a busca do saldo mensal registrado para o usuário, usando como
+				// base os seus relacionados tambem, já que um usuário relacionado pode
+				// registrar um saldo em um banco e deve ser mostrado para os usuários relacionados
+				const response = await getMonthlyBalanceFirebaseRelatedToUser({
 					personId: currentUser.uid,
 					bankId: bankIdToUse,
 					year: parsedMonth.year,
 					month: parsedMonth.month,
 				});
 
+				// Atualiza o estado com base na resposta
 				if (response.success && response.data) {
 					const value = typeof response.data.valueInCents === 'number' ? response.data.valueInCents : 0;
 					setExistingBalanceId(response.data.id);
@@ -203,6 +218,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					setBalanceDisplay('');
 					setBalanceValueInCents(null);
 				}
+
 			} catch (error) {
 				console.error('Erro ao obter saldo mensal:', error);
 				showFloatingAlert({
@@ -237,6 +253,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, [fetchExistingBalance]);
 
 	const handleSubmit = React.useCallback(async () => {
+		
+		// Validação do campo banco
 		if (!selectedBankId) {
 			showFloatingAlert({
 				message: 'Selecione um banco para registrar o saldo.',
@@ -246,6 +264,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			return;
 		}
 
+		// Validação do campo mês de referência
 		const parsedMonth = parseMonthReference(monthReference);
 		if (!parsedMonth) {
 			showFloatingAlert({
@@ -256,6 +275,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			return;
 		}
 
+		// Validação do campo saldo
 		if (balanceValueInCents === null) {
 			showFloatingAlert({
 				message: 'Informe o saldo disponível no início do mês.',
@@ -265,6 +285,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			return;
 		}
 
+		// Verifica se o usuário está autenticado
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
 			showFloatingAlert({
@@ -275,9 +296,12 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			return;
 		}
 
+		// Inicia o processo de submissão
 		setIsSubmitting(true);
 
+		// Tenta registrar ou atualizar o saldo mensal
 		try {
+
 			const response = await upsertMonthlyBalanceFirebase({
 				personId: currentUser.uid,
 				bankId: selectedBankId,
@@ -291,11 +315,13 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			}
 
 			setExistingBalanceId(response.id);
+
 			showFloatingAlert({
 				message: 'Saldo mensal registrado com sucesso!',
 				action: 'success',
 				position: 'bottom',
 			});
+			
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showFloatingAlert({
