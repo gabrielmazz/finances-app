@@ -49,8 +49,10 @@ export default function HomeRoute() {
 		<SafeAreaView className="flex-1">
 			<View
 				className="
-					flex-1
+					flex-1 w-full h-full
 					justify-between
+					pb-2
+					relative
 				"
 			>
 				<View className="flex-1">

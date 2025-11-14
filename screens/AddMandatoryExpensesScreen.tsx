@@ -739,6 +739,7 @@ export default function AddMandatoryExpensesScreen() {
 			</ScrollView>
 
 			<Menu defaultValue={1} />
+			
 		</View>
 	);
 }
