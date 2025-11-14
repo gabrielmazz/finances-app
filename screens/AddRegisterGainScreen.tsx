@@ -37,7 +37,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { Menu } from '@/components/uiverse/menu';
 
 // Importação das funções relacionadas a adição de ganho ao Firebase
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
+import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -184,7 +184,14 @@ export default function AddRegisterGainScreen() {
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
 
+	// Formato de dinheiro, usado no switch de pagamento em dinheiro
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
+
+	// Constantes pós volta da consulta de ID de tag e banco, apenas para quando
+	// vier dos parâmetros, assim mostrando o nome correto no input
+	// Controla no nome da tag e banco depois de buscado dentro do Firebase
+	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 
 	const params = useLocalSearchParams<{
 		gainId?: string | string[];
@@ -668,13 +675,83 @@ export default function AddRegisterGainScreen() {
 		};
 	}, [editingGainId]);
 
+	// UseFocusEffect para quando vier os parametros do template para editar
+	// um registro, a tag ID vem como número, portanto faz uma consulta no
+	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
+	// React.useEffect(() => {
+	React.useEffect(() => {
+
+		try{
+
+			if (!selectedTagId || selectedMovementTagName) {
+				return;
+			} else {
+				const fetchTagName = async () => {
+
+					// Busca o nome da tag pelo ID
+					const tagResult = await getTagDataFirebase(selectedTagId);
+
+					if (tagResult.success && tagResult.data) {
+						
+						// Atualiza o nome da tag no estado com o nome buscado
+						setSelectedMovementTagName(tagResult.data.name);
+					} else {
+						setSelectedMovementTagName(null);
+					}
+				};
+				
+				void fetchTagName();
+			}
+		} catch (error) {
+			console.error('Erro ao buscar nome da tag:', error);
+		}
+
+	}, [selectedTagId, selectedMovementTagName]);
+
+	// UseFocusEffect para quando vier os parametros do template para editar
+	// um registro, o banco ID vem como número, portanto faz uma consulta no
+	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
+	React.useEffect(() => {
+
+		try{
+
+			if (!selectedBankId || selectedMovementBankName) {
+				return;
+			} else {
+				const fetchBankName = async () => {
+
+					// Busca o nome do banco pelo ID
+					const bankResult = await getAllBanksFirebase();
+
+					if (bankResult.success && Array.isArray(bankResult.data)) {
+						
+						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
+
+						if (bankData) {
+							// Atualiza o nome do banco no estado com o nome buscado
+							setSelectedMovementBankName(bankData.name);
+						} else {
+							setSelectedMovementBankName(null);
+						}
+					} else {
+						setSelectedMovementBankName(null);
+					}
+				};
+				
+				void fetchBankName();
+			}
+		} catch (error) {
+			console.error('Erro ao buscar nome do banco:', error);
+		}
+
+	}, [selectedBankId, selectedMovementBankName]);
+
 
 	return (
 		<View
 			className="
 				flex-1 w-full h-full
 				mt-[64px]
-				items-center
 				justify-between
 				pb-6
 				relative
@@ -690,7 +767,7 @@ export default function AddRegisterGainScreen() {
 					paddingBottom: 48,
 				}}
 			>
-				<View className="w-full px-2">
+				<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-6">
 						{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
 					</Heading>
@@ -812,7 +889,7 @@ export default function AddRegisterGainScreen() {
 							</Box>
 						) : (
 							<Select
-								selectedValue={selectedTagId}
+								selectedValue={selectedMovementTagName}
 								onValueChange={setSelectedTagId}
 								isDisabled={isLoadingTags || tags.length === 0}
 							>
@@ -841,7 +918,7 @@ export default function AddRegisterGainScreen() {
 						)}
 
 						<Select
-							selectedValue={selectedBankId}
+							selectedValue={selectedMovementBankName}
 							onValueChange={setSelectedBankId}
 							isDisabled={isLoadingBanks || banks.length === 0}
 						>

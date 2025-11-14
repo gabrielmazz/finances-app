@@ -142,8 +142,6 @@ export default function MonthlyBankSummaryScreen() {
 
 					);
 
-					console.log('Saldos iniciais por banco:', balanceResults);
-
 					const balancesByBank: Record<string, number | null> = {};
 					for (const result of balanceResults) {
 						if (result.bankId) {
