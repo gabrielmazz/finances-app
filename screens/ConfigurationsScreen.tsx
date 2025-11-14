@@ -16,14 +16,6 @@ import {
 import { Divider } from '@/components/ui/divider';
 import { Button, ButtonText, ButtonIcon, ButtonSpinner } from '@/components/ui/button';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon, EditIcon } from '@/components/ui/icon';
-import {
-	Table,
-	TableHeader,
-	TableBody,
-	TableHead,
-	TableData,
-	TableRow,
-} from '@/components/ui/table';
 import { Text } from '@/components/ui/text';
 import {
 	Modal,
@@ -34,6 +26,15 @@ import {
 	ModalFooter,
 	ModalHeader,
 } from '@/components/ui/modal';
+import {
+	Drawer,
+	DrawerBackdrop,
+	DrawerBody,
+	DrawerCloseButton,
+	DrawerContent,
+	DrawerFooter,
+	DrawerHeader,
+} from '@/components/ui/drawer';
 
 // Importações relacionadas à navegação e autenticação
 import { router, useFocusEffect } from 'expo-router';
@@ -55,6 +56,7 @@ import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField, InputIcon } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
+import { Box } from '@/components/ui/box';
 
 type AccordionItem = {
 	id: string;
@@ -121,37 +123,39 @@ const accordionItems: AccordionItem[] = [
 
 type PendingAction =
 	| {
-			type: 'delete-user';
-			payload: { userId: string; identifier: string };
-	  }
+		type: 'delete-user';
+		payload: { userId: string; identifier: string };
+	}
 	| {
-			type: 'delete-related-user';
-			payload: { userId: string; identifier: string };
-	  }
+		type: 'delete-related-user';
+		payload: { userId: string; identifier: string };
+	}
 	| {
-			type: 'delete-bank';
-			payload: { bankId: string; bankName: string };
-	  }
+		type: 'delete-bank';
+		payload: { bankId: string; bankName: string };
+	}
 	| {
-			type: 'edit-bank';
-			payload: { bank: { id: string; name: string; colorHex?: string | null } };
-	  }
+		type: 'edit-bank';
+		payload: { bank: { id: string; name: string; colorHex?: string | null } };
+	}
 	| {
-			type: 'delete-tag';
-			payload: { tagId: string; tagName: string };
-	  }
+		type: 'delete-tag';
+		payload: { tagId: string; tagName: string };
+	}
 	| {
-			type: 'edit-tag';
-			payload: {
-				tag: {
-					id: string;
-					name: string;
-					usageType?: 'expense' | 'gain';
-					isMandatoryExpense?: boolean;
-					isMandatoryGain?: boolean;
-				};
+		type: 'edit-tag';
+		payload: {
+			tag: {
+				id: string;
+				name: string;
+				usageType?: 'expense' | 'gain';
+				isMandatoryExpense?: boolean;
+				isMandatoryGain?: boolean;
 			};
-	  };
+		};
+	};
+
+type DrawerType = 'users' | 'banks' | 'tags' | 'related-users';
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
 
@@ -326,15 +330,15 @@ export default function ConfigurationsScreen() {
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null }>>([]);
-const [tagData, setTagData] = React.useState<
-	Array<{
-		id: string;
-		name: string;
-		usageType?: 'expense' | 'gain';
-		isMandatoryExpense?: boolean;
-		isMandatoryGain?: boolean;
-	}>
->([]);
+	const [tagData, setTagData] = React.useState<
+		Array<{
+			id: string;
+			name: string;
+			usageType?: 'expense' | 'gain';
+			isMandatoryExpense?: boolean;
+			isMandatoryGain?: boolean;
+		}>
+	>([]);
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
@@ -342,6 +346,7 @@ const [tagData, setTagData] = React.useState<
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+	const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
 
 	// Constante para armazenar o email do usuário logado atualmente
 	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
@@ -456,6 +461,14 @@ const [tagData, setTagData] = React.useState<
 		[setRelatedUserData],
 	);
 
+	const handleOpenDrawer = React.useCallback((drawerType: DrawerType) => {
+		setOpenDrawer(drawerType);
+	}, []);
+
+	const handleCloseDrawer = React.useCallback(() => {
+		setOpenDrawer(null);
+	}, []);
+
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
 			return;
@@ -528,27 +541,24 @@ const [tagData, setTagData] = React.useState<
 			case 'delete-user':
 				return {
 					title: 'Remover usuário',
-					message: `Tem certeza de que deseja remover o usuário ${
-						pendingAction.payload.identifier || 'selecionado'
-					}? Esta ação não pode ser desfeita.`,
+					message: `Tem certeza de que deseja remover o usuário ${pendingAction.payload.identifier || 'selecionado'
+						}? Esta ação não pode ser desfeita.`,
 					confirmLabel: 'Remover',
 					isEdit: false,
 				};
 			case 'delete-related-user':
 				return {
 					title: 'Desvincular usuário',
-					message: `Tem certeza de que deseja remover o vínculo com ${
-						pendingAction.payload.identifier || 'o usuário selecionado'
-					}?`,
+					message: `Tem certeza de que deseja remover o vínculo com ${pendingAction.payload.identifier || 'o usuário selecionado'
+						}?`,
 					confirmLabel: 'Desvincular',
 					isEdit: false,
 				};
 			case 'delete-bank':
 				return {
 					title: 'Excluir banco',
-					message: `Tem certeza de que deseja excluir o banco ${
-						pendingAction.payload.bankName || 'selecionado'
-					}? Esta ação removerá todas as referências a ele.`,
+					message: `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
+						}? Esta ação removerá todas as referências a ele.`,
 					confirmLabel: 'Excluir',
 					isEdit: false,
 				};
@@ -569,9 +579,8 @@ const [tagData, setTagData] = React.useState<
 			case 'delete-tag':
 				return {
 					title: 'Excluir tag',
-					message: `Tem certeza de que deseja excluir a tag ${
-						pendingAction.payload.tagName || 'selecionada'
-					}? Esta ação não pode ser desfeita.`,
+					message: `Tem certeza de que deseja excluir a tag ${pendingAction.payload.tagName || 'selecionada'
+						}? Esta ação não pode ser desfeita.`,
 					confirmLabel: 'Excluir',
 					isEdit: false,
 				};
@@ -587,6 +596,293 @@ const [tagData, setTagData] = React.useState<
 
 	const isModalOpen = Boolean(pendingAction);
 	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
+	const isDrawerOpen = Boolean(openDrawer);
+
+	const drawerCopy = React.useMemo(() => {
+		switch (openDrawer) {
+			case 'users':
+				return {
+					title: 'Usuários cadastrados',
+					subtitle: `${userData.length} registro(s) encontrados.`,
+				};
+			case 'banks':
+				return {
+					title: 'Bancos cadastrados',
+					subtitle: `${bankData.length} registro(s) encontrados.`,
+				};
+			case 'tags':
+				return {
+					title: 'Tags cadastradas',
+					subtitle: `${tagData.length} registro(s) encontrados.`,
+				};
+			case 'related-users':
+				return {
+					title: 'Usuários vinculados',
+					subtitle: `${relatedUserData.length} registro(s) encontrados.`,
+				};
+			default:
+				return {
+					title: '',
+					subtitle: '',
+				};
+		}
+	}, [openDrawer, userData.length, bankData.length, tagData.length, relatedUserData.length]);
+
+	const drawerContent = React.useMemo(() => {
+		const renderEmptyState = (message: string) => (
+			<View className="py-10 px-4">
+				<Text className="text-center text-typografia-500">{message}</Text>
+			</View>
+		);
+
+		const renderCardContainer = (children: React.ReactNode, key?: string) => (
+			<View
+				key={key}
+				className="border border-outline-200 rounded-2xl p-4 bg-white dark:bg-gray-900 shadow-sm"
+			>
+				{children}
+			</View>
+		);
+
+		if (!openDrawer) {
+			return renderEmptyState('Selecione uma lista para visualizar.');
+		}
+
+		if (openDrawer === 'users') {
+			if (!isAdmin) {
+				return renderEmptyState('Você precisa ser administrador para visualizar os usuários.');
+			}
+
+			if (!userData.length) {
+				return renderEmptyState('Nenhum usuário cadastrado até o momento.');
+			}
+
+			return (
+				<VStack space="md">
+					{userData.map(user =>
+						renderCardContainer(
+							<>
+								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+									Email cadastrado
+								</Text>
+								<Text className="text-lg font-medium mt-1">{user.email ?? user.id}</Text>
+								<View className="flex-row justify-end items-center mt-4">
+									<Button
+										size="xl"
+										variant="link"
+										action="negative"
+										onPress={() =>
+											setPendingAction({
+												type: 'delete-user',
+												payload: {
+													userId: user.id,
+													identifier: user.email ?? user.id,
+												},
+											})
+										}
+									>
+										<ButtonIcon as={TrashIcon} />
+									</Button>
+								</View>
+							</>,
+							user.id,
+						))}
+				</VStack>
+			);
+		}
+
+		if (openDrawer === 'banks') {
+			if (!isAdmin) {
+				return renderEmptyState('Você precisa ser administrador para visualizar os bancos.');
+			}
+
+			if (!bankData.length) {
+				return renderEmptyState('Nenhum banco cadastrado até o momento.');
+			}
+
+			return (
+				<VStack space="md">
+					{bankData.map(bank =>
+						renderCardContainer(
+							<>
+								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+									Banco cadastrado
+								</Text>
+								<Text className="text-lg font-medium mt-1">{bank.name}</Text>
+								<View className="flex-row justify-end items-center gap-2 mt-4">
+									<Button
+										size="xl"
+										variant="link"
+										action="primary"
+										onPress={() =>
+											setPendingAction({
+												type: 'edit-bank',
+												payload: { bank },
+											})
+										}
+									>
+										<ButtonIcon as={EditIcon} />
+									</Button>
+									<Button
+										size="xl"
+										variant="link"
+										action="negative"
+										onPress={() =>
+											setPendingAction({
+												type: 'delete-bank',
+												payload: {
+													bankId: bank.id,
+													bankName: bank.name,
+												},
+											})
+										}
+									>
+										<ButtonIcon as={TrashIcon} />
+									</Button>
+								</View>
+							</>,
+							bank.id,
+						))}
+				</VStack>
+			);
+		}
+
+		if (openDrawer === 'tags') {
+			if (!isAdmin) {
+				return renderEmptyState('Você precisa ser administrador para visualizar as tags.');
+			}
+
+			if (!tagData.length) {
+				return renderEmptyState('Nenhuma tag cadastrada até o momento.');
+			}
+
+			const getTagTypeLabel = (tag: (typeof tagData)[number]) => {
+				if (tag.usageType === 'gain') {
+					return 'Ganhos';
+				}
+				if (tag.usageType === 'expense') {
+					return 'Despesas';
+				}
+				return 'Não definido';
+			};
+
+			return (
+				<VStack space="md">
+					{tagData.map(tag =>
+						renderCardContainer(
+							<>
+								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+									Tag cadastrada
+								</Text>
+								<Text className="text-lg font-medium mt-1">{tag.name}</Text>
+								<Text className="text-sm text-typografia-500 mt-1">
+									Tipo: {getTagTypeLabel(tag)}
+								</Text>
+								<View className="flex-row justify-end items-center gap-2 mt-4">
+									<Button
+										size="xl"
+										variant="link"
+										action="primary"
+										onPress={() =>
+											setPendingAction({
+												type: 'edit-tag',
+												payload: {
+													tag: {
+														id: tag.id,
+														name: tag.name,
+														usageType:
+															tag.usageType === 'gain' || tag.usageType === 'expense'
+																? tag.usageType
+																: undefined,
+														isMandatoryExpense: Boolean(tag.isMandatoryExpense),
+														isMandatoryGain: Boolean(tag.isMandatoryGain),
+													},
+												},
+											})
+										}
+									>
+										<ButtonIcon as={EditIcon} />
+									</Button>
+									<Button
+										size="xl"
+										variant="link"
+										action="negative"
+										onPress={() =>
+											setPendingAction({
+												type: 'delete-tag',
+												payload: {
+													tagId: tag.id,
+													tagName: tag.name,
+												},
+											})
+										}
+									>
+										<ButtonIcon as={TrashIcon} />
+									</Button>
+								</View>
+							</>,
+							tag.id,
+						))}
+				</VStack>
+			);
+		}
+
+		if (openDrawer === 'related-users') {
+			if (isLoadingRelatedUsers) {
+				return renderEmptyState('Carregando usuários vinculados...');
+			}
+
+			if (!relatedUserData.length) {
+				return renderEmptyState('Você ainda não vinculou nenhum usuário.');
+			}
+
+			return (
+				<VStack space="md">
+					{relatedUserData.map(relatedUser =>
+						renderCardContainer(
+							<>
+								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+									Usuário vinculado
+								</Text>
+								<Text className="text-lg font-medium mt-1">
+									{relatedUser.email || relatedUser.id}
+								</Text>
+								<View className="flex-row justify-end items-center mt-4">
+									<Button
+										size="xl"
+										variant="link"
+										action="negative"
+										onPress={() =>
+											setPendingAction({
+												type: 'delete-related-user',
+												payload: {
+													userId: relatedUser.id,
+													identifier: relatedUser.email || relatedUser.id,
+												},
+											})
+										}
+									>
+										<ButtonIcon as={TrashIcon} />
+									</Button>
+								</View>
+							</>,
+							relatedUser.id,
+						))}
+				</VStack>
+			);
+		}
+
+		return null;
+	}, [
+		openDrawer,
+		isAdmin,
+		userData,
+		bankData,
+		tagData,
+		relatedUserData,
+		isLoadingRelatedUsers,
+		setPendingAction,
+	]);
 
 	// Verifica se o usuário atual possui flag de administrador no Firestore
 	React.useEffect(() => {
@@ -773,7 +1069,7 @@ const [tagData, setTagData] = React.useState<
 			};
 		}, [userId]),
 	);
-	
+
 	// Atualiza o nome do usuário logado atualmente com base na busca no Firebase
 	// com base no seu ID
 	React.useEffect(() => {
@@ -897,345 +1193,83 @@ const [tagData, setTagData] = React.useState<
 
 
 												{/* Conteúdo adicional visível apenas para administradores */}
-												{item.showUsersTable && isAdmin && userData.length > 0 && (
-													<View className="mt-6 mb-4">
-
-														<Table
-															className="
-																w-full
-																border
-																border-outline-200
-																rounded-lg
-																overflow-hidden
-															"
+												{item.showUsersTable && isAdmin && (
+													<View className="mt-6 space-y-2">
+														<Text className="text-typografia-500 text-gray-400 mb-2">
+															{userData.length > 0
+																? `${userData.length} usuário(s) cadastrados.`
+																: 'Nenhum usuário cadastrado até o momento.'}
+														</Text>
+														<Button
+															size="sm"
+															variant="outline"
+															onPress={() => handleOpenDrawer('users')}
 														>
-
-															<TableHeader>
-
-																<TableRow>
-
-																	<TableHead>
-																		Email cadastrado
-																	</TableHead>
-
-																	<TableHead className="text-right">Ações</TableHead>
-
-																</TableRow>
-
-															</TableHeader>
-
-															<TableBody>
-
-																{userData.map((user) => (
-
-																	<TableRow key={user.id}>
-
-																		<TableData>
-
-																			<Text
-																				size="md"
-																			>
-																				{user.email}
-																			</Text>
-
-																		</TableData>
-
-																		<TableData useRNView>
-																			<View className="flex-row justify-end items-center">
-																				<Button
-																					size="xs"
-																					variant="link"
-																					action="negative"
-																					onPress={() =>
-																						setPendingAction({
-																							type: 'delete-user',
-																							payload: {
-																								userId: user.id,
-																								identifier: user.email ?? user.id,
-																							},
-																						})
-																					}
-																				>
-																					<ButtonIcon as={TrashIcon} />
-																				</Button>
-																			</View>
-																		</TableData>
-
-																	</TableRow>
-																))}
-
-															</TableBody>
-
-														</Table>
-
+															<ButtonText>Visualizar usuários cadastrados</ButtonText>
+														</Button>
 													</View>
 												)}
 
-												{item.showBanksTable && isAdmin && bankData.length > 0 && (
-													<View className="mt-6 mb-4">
-
-														<Table
-															className="
-																w-full
-																border
-																border-outline-200
-																rounded-lg
-																overflow-hidden
-															"
+												{item.showBanksTable && isAdmin && (
+													<View className="mt-6 space-y-2">
+														<Text className="text-typografia-500 text-gray-400 mb-2">
+															{bankData.length > 0
+																? `${bankData.length} banco(s) cadastrados.`
+																: 'Nenhum banco cadastrado até o momento.'}
+														</Text>
+														<Button
+															size="sm"
+															variant="outline"
+															onPress={() => handleOpenDrawer('banks')}
 														>
-
-															<TableHeader>
-
-																<TableRow>
-
-																	<TableHead>
-																		Banco cadastrado
-																	</TableHead>
-
-																	<TableHead className="text-right">Ações</TableHead>
-
-																</TableRow>
-
-															</TableHeader>
-
-															<TableBody>
-
-																{bankData.map((bank) => (
-
-																	<TableRow key={bank.id}>
-
-																		<TableData>
-
-																			<Text
-																				size="md"
-																			>
-																				{bank.name}
-																			</Text>
-
-																		</TableData>
-
-																		<TableData useRNView>
-																			<View className="flex-row justify-end items-center gap-2">
-																				<Button
-																					size="xs"
-																					variant="link"
-																					action="primary"
-																					onPress={() =>
-																						setPendingAction({
-																							type: 'edit-bank',
-																							payload: { bank },
-																						})
-																					}
-																				>
-																					<ButtonIcon as={EditIcon} />
-																				</Button>
-																				<Button
-																					size="xs"
-																					variant="link"
-																					action="negative"
-																					onPress={() =>
-																						setPendingAction({
-																							type: 'delete-bank',
-																							payload: {
-																								bankId: bank.id,
-																								bankName: bank.name,
-																							},
-																						})
-																					}
-																				>
-																					<ButtonIcon as={TrashIcon} />
-																				</Button>
-																			</View>
-																		</TableData>
-
-																	</TableRow>
-																))}
-
-															</TableBody>
-
-														</Table>
-
+															<ButtonText>Visualizar bancos cadastrados</ButtonText>
+														</Button>
 													</View>
 												)}
 
-												{item.showTagsTable && isAdmin && tagData.length > 0 && (
-													<View className="mt-6 mb-4">
-
-														<Table
-															className="
-																w-full
-																border
-																border-outline-200
-																rounded-lg
-																overflow-hidden
-															"
+												{item.showTagsTable && isAdmin && (
+													<View className="mt-6 space-y-2">
+														<Text className="text-typografia-500 text-gray-400 mb-2">
+															{tagData.length > 0
+																? `${tagData.length} tag(s) cadastradas.`
+																: 'Nenhuma tag cadastrada até o momento.'}
+														</Text>
+														<Button
+															size="sm"
+															variant="outline"
+															onPress={() => handleOpenDrawer('tags')}
 														>
-
-															<TableHeader>
-
-																<TableRow>
-
-																	<TableHead>
-																		Tag cadastrada
-																	</TableHead>
-
-																	<TableHead className="text-center">
-																		Tipo
-																	</TableHead>
-
-																	<TableHead className="text-right">Ações</TableHead>
-
-																</TableRow>
-
-															</TableHeader>
-
-															<TableBody>
-
-																{tagData.map((tag) => (
-
-																	<TableRow key={tag.id}>
-
-																		<TableData>
-
-																			<Text
-																				size="md"
-																			>
-																				{tag.name}
-																			</Text>
-
-																		</TableData>
-
-																		<TableData>
-
-																			<Text className="text-center">
-																				{tag.usageType === 'gain'
-																					? 'Ganhos'
-																					: tag.usageType === 'expense'
-																						? 'Despesas'
-																						: 'Não definido'}
-																			</Text>
-
-																		</TableData>
-
-																		<TableData useRNView>
-																			<View className="flex-row justify-end items-center gap-2">
-																				<Button
-																					size="xs"
-																					variant="link"
-																					action="primary"
-																					onPress={() =>
-																						setPendingAction({
-																							type: 'edit-tag',
-																							payload: {
-																								tag: {
-																									id: tag.id,
-																									name: tag.name,
-																									usageType:
-																										tag.usageType === 'gain' ||
-																										tag.usageType === 'expense'
-																											? tag.usageType
-																											: undefined,
-																									isMandatoryExpense: Boolean(tag.isMandatoryExpense),
-																									isMandatoryGain: Boolean(tag.isMandatoryGain),
-																								},
-																							},
-																						})
-																					}
-																				>
-																					<ButtonIcon as={EditIcon} />
-																				</Button>
-																				<Button
-																					size="xs"
-																					variant="link"
-																					action="negative"
-																					onPress={() =>
-																						setPendingAction({
-																							type: 'delete-tag',
-																							payload: {
-																								tagId: tag.id,
-																								tagName: tag.name,
-																							},
-																						})
-																					}
-																				>
-																					<ButtonIcon as={TrashIcon} />
-																				</Button>
-																			</View>
-																		</TableData>
-
-																	</TableRow>
-																))}
-
-															</TableBody>
-
-														</Table>
-
+															<ButtonText>Visualizar tags cadastradas</ButtonText>
+														</Button>
 													</View>
 												)}
 
 												{item.showRelatedUsersTable && (
-													<View className="mt-6 mb-4">
-														{isLoadingRelatedUsers ? (
-															<Text className="text-center text-typography-500">
-																Carregando usuários vinculados...
-															</Text>
-														) : relatedUserData.length > 0 ? (
-															<Table
-																className="
-																	w-full
-																	border
-																	border-outline-200
-																	rounded-lg
-																	overflow-hidden
-																"
-															>
-																<TableHeader>
-																	<TableRow>
-																		<TableHead>Usuário vinculado</TableHead>
-																		<TableHead className="text-right">Ações</TableHead>
-																	</TableRow>
-																</TableHeader>
-
-																<TableBody>
-																	{relatedUserData.map(relatedUser => (
-																		<TableRow key={relatedUser.id}>
-																			<TableData>
-																				<Text size="md">
-																					{relatedUser.email || relatedUser.id}
-																				</Text>
-																			</TableData>
-																			<TableData useRNView>
-																				<View className="flex-row justify-end items-center">
-																					<Button
-																						size="xs"
-																						variant="link"
-																						action="negative"
-																						onPress={() =>
-																							setPendingAction({
-																								type: 'delete-related-user',
-																								payload: {
-																									userId: relatedUser.id,
-																									identifier: relatedUser.email || relatedUser.id,
-																								},
-																							})
-																						}
-																					>
-																						<ButtonIcon as={TrashIcon} />
-																					</Button>
-																				</View>
-																			</TableData>
-																		</TableRow>
-																	))}
-																</TableBody>
-															</Table>
-														) : (
-															<Text className="text-center text-typography-500">
-																Você ainda não vinculou nenhum usuário.
-															</Text>
-														)}
+													<View className="mt-6 space-y-2">
+														<Text className="text-typografia-500 text-gray-400 mb-2">
+															{isLoadingRelatedUsers
+																? 'Carregando usuários vinculados...'
+																: relatedUserData.length > 0
+																	? `${relatedUserData.length} usuário(s) vinculados.`
+																	: 'Você ainda não vinculou nenhum usuário.'}
+														</Text>
+														<Button
+															size="sm"
+															variant="outline"
+															onPress={() => handleOpenDrawer('related-users')}
+															isDisabled={isLoadingRelatedUsers}
+														>
+															{isLoadingRelatedUsers ? (
+																<>
+																	<ButtonSpinner />
+																	<ButtonText>Carregando</ButtonText>
+																</>
+															) : (
+																<ButtonText>Visualizar usuários vinculados</ButtonText>
+															)}
+														</Button>
 													</View>
 												)}
-
 
 
 												{item.action ? (
@@ -1299,6 +1333,39 @@ const [tagData, setTagData] = React.useState<
 					</ModalFooter>
 				</ModalContent>
 			</Modal>
+
+			<Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} size="lg" anchor="right">
+				<DrawerBackdrop onPress={handleCloseDrawer} />
+				<DrawerContent>
+					<DrawerHeader className="flex-row items-start justify-between gap-3">
+						<VStack className="flex-1 space-y-1">
+							
+							<Box
+								className="
+									w-full
+									mt-12
+								"
+							>
+								<Heading size="lg">
+									
+									{drawerCopy.title || 'Itens cadastrados'}
+
+								</Heading>
+
+							</Box>
+
+							{drawerCopy.subtitle ? (
+								<Text className="text-sm text-typografia-500">{drawerCopy.subtitle}</Text>
+							) : null}
+						</VStack>
+						<DrawerCloseButton onPress={handleCloseDrawer} />
+					</DrawerHeader>
+					<DrawerBody>
+						{drawerContent}
+					</DrawerBody>
+					<DrawerFooter />
+				</DrawerContent>
+			</Drawer>
 		</>
 	);
 }
