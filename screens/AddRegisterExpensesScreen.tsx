@@ -25,7 +25,7 @@ import { Box } from '@/components/ui/box';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
 
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
+import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -175,6 +175,12 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 
+	// Constantes pós volta da consulta de ID de tag e banco, apenas para quando
+	// vier dos parâmetros, assim mostrando o nome correto no input
+	// Controla no nome da tag e banco depois de buscado dentro do Firebase
+	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
 		templateName?: string | string[];
@@ -185,6 +191,7 @@ export default function AddRegisterExpensesScreen() {
 		templateTagName?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
 	}>();
+
 	const editingExpenseId = React.useMemo(() => {
 		const value = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
 		return value && value.trim().length > 0 ? value : null;
@@ -713,6 +720,78 @@ export default function AddRegisterExpensesScreen() {
 		};
 	}, [editingExpenseId]);
 
+	// UseFocusEffect para quando vier os parametros do template para editar
+	// um registro, a tag ID vem como número, portanto faz uma consulta no
+	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
+	// React.useEffect(() => {
+	React.useEffect(() => {
+
+		try{
+
+			if (!selectedTagId || selectedMovementTagName) {
+				return;
+			} else {
+				const fetchTagName = async () => {
+
+					// Busca o nome da tag pelo ID
+					const tagResult = await getTagDataFirebase(selectedTagId);
+
+					if (tagResult.success && tagResult.data) {
+						
+						// Atualiza o nome da tag no estado com o nome buscado
+						setSelectedMovementTagName(tagResult.data.name);
+					} else {
+						setSelectedMovementTagName(null);
+					}
+				};
+				
+				void fetchTagName();
+			}
+		} catch (error) {
+			console.error('Erro ao buscar nome da tag:', error);
+		}
+
+	}, [selectedTagId, selectedMovementTagName]);
+
+	// UseFocusEffect para quando vier os parametros do template para editar
+	// um registro, o banco ID vem como número, portanto faz uma consulta no
+	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
+	React.useEffect(() => {
+
+		try{
+
+			if (!selectedBankId || selectedMovementBankName) {
+				return;
+			} else {
+				const fetchBankName = async () => {
+
+					// Busca o nome do banco pelo ID
+					const bankResult = await getAllBanksFirebase();
+
+					if (bankResult.success && Array.isArray(bankResult.data)) {
+						
+						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
+
+						if (bankData) {
+							// Atualiza o nome do banco no estado com o nome buscado
+							setSelectedMovementBankName(bankData.name);
+						} else {
+							setSelectedMovementBankName(null);
+						}
+					} else {
+						setSelectedMovementBankName(null);
+					}
+				};
+				
+				void fetchBankName();
+			}
+		} catch (error) {
+			console.error('Erro ao buscar nome do banco:', error);
+		}
+
+	}, [selectedBankId, selectedMovementBankName]);
+			
+
 	return (
 		<View
 			className="
@@ -785,7 +864,7 @@ export default function AddRegisterExpensesScreen() {
 							</Box>
 						) : (
 							<Select
-								selectedValue={selectedTagId}
+								selectedValue={selectedMovementTagName}
 								onValueChange={setSelectedTagId}
 								isDisabled={isLoadingTags || tags.length === 0}
 							>
@@ -814,7 +893,7 @@ export default function AddRegisterExpensesScreen() {
 						)}
 
 						<Select
-							selectedValue={selectedBankId}
+							selectedValue={selectedMovementBankName}
 							onValueChange={setSelectedBankId}
 							isDisabled={isLoadingBanks || banks.length === 0}
 						>
