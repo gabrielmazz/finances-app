@@ -19,8 +19,6 @@ interface RegisterUserParams {
 // Função para registrar um novo usuário no Firebase
 export async function registerUserFirebase({ email, password, adminUser = false, relatedIdUsers = [] }: RegisterUserParams) {
 
-    
-
     let shouldSignOutSecondary = false;
 
     try {
@@ -189,6 +187,30 @@ export async function getUserDataFirebase(userId: string) {
     } catch (error) {
 
         console.error('Erro ao obter dados do usuário:', error);
+        return { success: false, error };
+
+    }
+
+}
+
+// Função para obter o email do usuário pelo ID
+export async function getUserNameByIdFirebase(userId: string) {
+
+    try {
+
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists()) {
+            const userData = userDoc.data();
+            return { success: true, data: userData.email || 'Desconhecido' };
+        } else {
+            return { success: false, error: 'Usuário não encontrado.' };
+        }
+
+    } catch (error) {
+
+        console.error('Erro ao obter nome do usuário:', error);
         return { success: false, error };
 
     }

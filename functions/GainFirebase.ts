@@ -3,6 +3,7 @@
 
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
+import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 
 interface AddGainParams {
 	name: string;
@@ -118,7 +119,7 @@ export async function updateGainFirebase({
 		await setDoc(gainRef, updates, { merge: true });
 
 		return { success: true };
-		
+
 	} catch (error) {
 
 		console.error('Erro ao atualizar ganho:', error);
@@ -195,6 +196,45 @@ export async function getLimitedGainsFirebase({ limit, personId }: GetLimitedGai
 		return { success: true, data: gains };
 	} catch (error) {
 		console.error('Erro ao obter ganhos limitados:', error);
+		return { success: false, error };
+	}
+}
+
+// Função para obter um limite de ganhos registrados no Firestore, ordenados por data de criação (mais recentes primeiro),
+// mas com a diferença que irá juntar os ganhos com os dados das pessoas relacionadas.
+export async function getLimitedGainsWithPeopleFirebase({ limit, personId }: GetLimitedGainsParams) {
+	
+	try {
+		// Primeiro, obterm os IDs dos usuários relacionados aos ganhos
+		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
+		
+		if (!relatedUserResult.success) {
+			throw new Error('Erro ao obter IDs de usuários relacionados');
+		}
+
+		// Inclui o personId na lista de IDs para buscar seus ganhos também
+		const relatedUserIds = Array.isArray(relatedUserResult.data) ? [...relatedUserResult.data] : [];
+		relatedUserIds.push(personId);
+
+		// Busca os ganhos do usuário e dos seus relacionado, semelhante à função getLimitedGainsFirebase
+		const gainsCollection = collection(db, 'gains');
+
+		const gainsQuery = query(
+			gainsCollection,
+			where('personId', 'in', relatedUserIds),
+			orderBy('createdAt', 'desc'),
+			limitQuery(limit)
+		);
+
+		const gainsSnapshot = await getDocs(gainsQuery);
+		const gains = gainsSnapshot.docs.map(gainDoc => ({
+			id: gainDoc.id,
+			...gainDoc.data(),
+		}));
+
+		return { success: true, data: gains };
+	} catch (error) {
+		console.error('Erro ao obter ganhos limitados com pessoas:', error);
 		return { success: false, error };
 	}
 }

@@ -3,6 +3,7 @@
 
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
+import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 
 interface AddExpenseParams {
 	name: string;
@@ -177,6 +178,72 @@ export async function getLimitedExpensesFirebase({ limit, personId }: GetLimited
 		console.error('Erro ao obter despesas limitadas:', error);
 		return { success: false, error };
 	}
+}
+
+// Função para obter um limite de despesas registradas no Firestore, ordenadas por data de criação (mais recentes primeiro),
+// mas com a diferença que irá juntar as despesas com os dados das pessoas relacionadas.
+export async function getLimitedExpensesWithPeopleFirebase({ limit, personId }: GetLimitedExpensesParams) {
+	
+	try {
+		
+		// Primeiro, obterm os IDs dos usuários relacionados às despesas
+		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
+
+		if (!relatedUserResult.success) {
+			throw new Error('Erro ao obter IDs de usuários relacionados');
+		}
+
+		// Constante para separar os IDs dos usuarios relacionados em uma array
+		const relatedUserIds = Array.isArray(relatedUserResult.data) ? [...relatedUserResult.data] : [];
+
+		// Inclui o personId na lista de IDs para buscar suas despesas também
+		relatedUserIds.push(personId);
+
+		// Busca as despesas do usuário e dos seus relacionado, semelhante à função getLimitedExpensesFirebase
+		const expensesCollection = collection(db, 'expenses');
+
+		const expensesQuery = query(
+			expensesCollection,
+			where('personId', 'in', relatedUserIds),
+			orderBy('createdAt', 'desc'),
+			limitQuery(limit)
+		);
+
+		const expensesSnapshot = await getDocs(expensesQuery);
+
+		const expenses = expensesSnapshot.docs.map(expenseDoc => ({
+			id: expenseDoc.id,
+			...expenseDoc.data(),
+		}));
+
+		// Agora, junta as despesas com os dados das pessoas relacionadas
+		const expensesWithPeople = await Promise.all(
+			expenses.map(async expense => {
+				const personDoc = await getDoc(doc(db, 'users', expense.personId));
+				const personData = personDoc.exists() ? personDoc.data() : null;
+
+				return {
+					...expense,
+					person: personData
+						? {
+								id: expense.personId,
+								name: personData.name,
+								email: personData.email,
+								avatarUrl: personData.avatarUrl || null,
+						  }
+						: null,
+				};
+			})
+		);
+
+		return { success: true, data: expensesWithPeople };
+
+		// return { success: true, data: expensesWithPeople };
+	} catch (error) {
+		console.error('Erro ao obter despesas com pessoas relacionadas:', error);
+		return { success: false, error };
+	}
+
 }
 
 // ================================================================================================================= //
