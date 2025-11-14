@@ -52,6 +52,7 @@ import {
 } from '@/functions/RegisterUserFirebase';
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
 import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField, InputIcon } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 
@@ -341,6 +342,9 @@ const [tagData, setTagData] = React.useState<
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+
+	// Constante para armazenar o email do usuário logado atualmente
+	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
 
 	const handleUserRemoval = React.useCallback(
 		async (userId: string, identifier: string) => {
@@ -769,6 +773,25 @@ const [tagData, setTagData] = React.useState<
 			};
 		}, [userId]),
 	);
+	
+	// Atualiza o nome do usuário logado atualmente com base na busca no Firebase
+	// com base no seu ID
+	React.useEffect(() => {
+		const fetchUserName = async () => {
+			if (userId) {
+				const result = await getUserNameByIdFirebase(userId);
+				if (result.success) {
+					setCurrentUserEmail(result.data || 'Desconhecido');
+				} else {
+					setCurrentUserEmail('Desconhecido');
+				}
+			} else {
+				setCurrentUserEmail('Desconhecido');
+			}
+		};
+
+		void fetchUserName();
+	}, [userId]);
 
 	return (
 		<>
@@ -806,20 +829,25 @@ const [tagData, setTagData] = React.useState<
 						</Heading>
 
 						<VStack>
-							<Text className="text-typography-500">ID do Usuário Atual:</Text>
+
+							<Text className="text-typography-500">Email do Usuário Atual e seu ID:</Text>
 							<Input
 								isDisabled={true}
 								className="w-full mb-4"
 							>
 								<InputField
 									type="text"
-									placeholder="ID do Usuário"
-									value={userId}
+									placeholder="Email do Usuário"
+									value={
+										currentUserEmail ? `${currentUserEmail} (ID: ${userId})` : `Desconhecido (ID: ${userId})`
+									}
 									className="
 										vw-full
+										text-[12px]
 									"
 								/>
 							</Input>
+
 						</VStack>
 
 						<Accordion

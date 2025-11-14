@@ -16,8 +16,8 @@ import {
 	getBanksWithUsersByPersonFirebase,
 	getCurrentYearMovementsFirebase,
 } from '@/functions/BankFirebase';
-import { getLimitedExpensesFirebase } from '@/functions/ExpenseFirebase';
-import { getLimitedGainsFirebase } from '@/functions/GainFirebase';
+import { getLimitedExpensesFirebase, getLimitedExpensesWithPeopleFirebase } from '@/functions/ExpenseFirebase';
+import { getLimitedGainsFirebase, getLimitedGainsWithPeopleFirebase } from '@/functions/GainFirebase';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -135,17 +135,37 @@ export default function HomeScreen() {
 	// Estado para armazenar os movimentos mais recentes de ganhos e despesas
 	const [recentExpenses, setRecentExpenses] = React.useState<any[]>([]);
 	const [recentGains, setRecentGains] = React.useState<any[]>([]);
+
+	// Estados relacionados ao carregamento dos movimentos e erros
 	const [isLoadingMovements, setIsLoadingMovements] = React.useState(false);
+
+	// Estados relacionados ao erro ao carregar os movimentos
 	const [movementsError, setMovementsError] = React.useState<string | null>(null);
+
+	// Estados relacionados aos nomes e cores dos bancos
 	const [bankNamesById, setBankNamesById] = React.useState<Record<string, string>>({});
 	const [bankColorsById, setBankColorsById] = React.useState<Record<string, string | null>>({});
+
+	// Estados relacionados aos gráficos e estatísticas
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
+
+	// Estatísticas anuais
 	const [yearlyStats, setYearlyStats] = React.useState<YearlyMonthStats[]>(() => createEmptyYearlyStats());
+
+	// Estatísticas mensais por banco para gráficos
 	const [currentMonthExpensesByBank, setCurrentMonthExpensesByBank] = React.useState<BankMonthlyTotal[]>([]);
 	const [currentMonthGainsByBank, setCurrentMonthGainsByBank] = React.useState<BankMonthlyTotal[]>([]);
+
+	// Estados relacionados a erros dos gráficos
 	const [chartsError, setChartsError] = React.useState<string | null>(null);
+
+	// Estados para controlar a expansão dos gráficos e totais
 	const [isChartsExpanded, setIsChartsExpanded] = React.useState(false);
+
+	// Estado para controlar a aba selecionada nos gráficos
 	const [chartTab, setChartTab] = React.useState<'bar' | 'pie'>('bar');
+
+	// Estado para controlar a expansão dos totais
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 
 	const getBankName = React.useCallback(
@@ -553,8 +573,8 @@ export default function HomeScreen() {
 					try {
 
 						const [expensesResult, gainsResult, banksResult] = await Promise.all([
-							getLimitedExpensesFirebase({ limit: 3, personId: currentUser.uid }),
-							getLimitedGainsFirebase({ limit: 3, personId: currentUser.uid }),
+							getLimitedExpensesWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
+							getLimitedGainsWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
 							getBanksWithUsersByPersonFirebase(currentUser.uid),
 						]);
 
@@ -1052,6 +1072,8 @@ export default function HomeScreen() {
 											)}
 
 										</Box>
+
+										<Divider className="mt-6" />
 
 										<Box className="mt-6">
 

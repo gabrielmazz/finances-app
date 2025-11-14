@@ -183,6 +183,7 @@ export async function getBanksWithUsersByPersonFirebase(personId: string) {
             throw new Error('Erro ao obter usuários relacionados.');
         }
 
+        // Constante para separar os IDs dos usuarios relacionados em uma array
         const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
 
         // Inclui o personId na lista de IDs para buscar seus bancos também
