@@ -297,7 +297,7 @@ export default function BankMovementsScreen() {
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 			]);
-;
+			;
 			if (!result?.success || !result.data) {
 				setMovements([]);
 				setErrorMessage(
@@ -411,7 +411,7 @@ export default function BankMovementsScreen() {
 					const tagResult = await getTagDataFirebase(selectedMovement.tagId!);
 
 					if (tagResult.success && tagResult.data) {
-						
+
 						// Atualiza o nome da tag com o valor buscado se houver
 						// um sucesso na busca
 						setSelectedMovementTagName(tagResult.data.name);
@@ -672,7 +672,9 @@ export default function BankMovementsScreen() {
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
-					bg-gray-100 dark:bg-gray-950
+					justify-between
+					pb-6
+					relative
 				"
 			>
 				<FloatingAlertViewport />
@@ -946,7 +948,7 @@ export default function BankMovementsScreen() {
 												)}
 												<View className="mt-2 flex-row justify-end items-center gap-2">
 													<Button
-														size="xs"
+														size="xl"
 														variant="link"
 														action="primary"
 														isDisabled={movement.isFromMandatory}
@@ -968,7 +970,7 @@ export default function BankMovementsScreen() {
 														<ButtonIcon as={EditIcon} />
 													</Button>
 													<Button
-														size="xs"
+														size="xl"
 														variant="link"
 														action="negative"
 														isDisabled={movement.isFromMandatory}
@@ -999,9 +1001,7 @@ export default function BankMovementsScreen() {
 					</View>
 				</ScrollView>
 
-				<View className="w-full">
-					<Menu defaultValue={0} />
-				</View>
+				<Menu defaultValue={0} />
 
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 					<ModalBackdrop />
@@ -1063,6 +1063,14 @@ export default function BankMovementsScreen() {
 								>
 									{selectedMovement ? selectedMovement.name : 'Movimentação selecionada'}
 								</Heading>
+
+								{/* Mostra se o gasto ou ganho é um gasto obrigatório */}
+								{selectedMovement?.isFromMandatory && (
+									<Text className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
+										Esta movimentação está vinculada a um gasto obrigatório deste mês.
+									</Text>
+								)}
+
 							</Box>
 
 							<DrawerCloseButton onPress={handleCloseMovementDrawer} />
@@ -1084,7 +1092,7 @@ export default function BankMovementsScreen() {
 										/>
 									</Input>
 								</VStack>
-								
+
 
 								{/* Mostra o valor do movimento selecionado */}
 								<VStack space="xs">
@@ -1207,6 +1215,8 @@ export default function BankMovementsScreen() {
 
 				</Drawer>
 			</View>
+
 		</GestureHandlerRootView>
+
 	);
 }

@@ -587,22 +587,22 @@ export default function HomeScreen() {
 						if (banksResult?.success) {
 							const { nameMap, colorMap } = Array.isArray(banksResult.data)
 								? banksResult.data.reduce(
-										(
-											acc: { nameMap: Record<string, string>; colorMap: Record<string, string | null> },
-											bank: any,
-										) => {
-											if (bank && typeof bank.id === 'string') {
-												const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
-												const rawColor =
-													typeof bank.colorHex === 'string' ? bank.colorHex.trim() : null;
-												acc.nameMap[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
-												acc.colorMap[bank.id] =
-													rawColor && rawColor.length > 0 ? rawColor : null;
-											}
-											return acc;
-										},
-										{ nameMap: {}, colorMap: {} },
-								  )
+									(
+										acc: { nameMap: Record<string, string>; colorMap: Record<string, string | null> },
+										bank: any,
+									) => {
+										if (bank && typeof bank.id === 'string') {
+											const rawName = typeof bank.name === 'string' ? bank.name.trim() : '';
+											const rawColor =
+												typeof bank.colorHex === 'string' ? bank.colorHex.trim() : null;
+											acc.nameMap[bank.id] = rawName.length > 0 ? rawName : 'Banco sem nome';
+											acc.colorMap[bank.id] =
+												rawColor && rawColor.length > 0 ? rawColor : null;
+										}
+										return acc;
+									},
+									{ nameMap: {}, colorMap: {} },
+								)
 								: { nameMap: {}, colorMap: {} };
 
 							setBankNamesById(nameMap);
@@ -693,7 +693,7 @@ export default function HomeScreen() {
 
 					<VStack className="gap-4 w-full">
 
-				<View className="w-full">
+						<View className="w-full">
 
 							<TouchableOpacity
 								activeOpacity={0.85}
@@ -764,379 +764,378 @@ export default function HomeScreen() {
 								</Box>
 							</TouchableOpacity>
 
-					<View className="w-full relative">
-						{!isChartsExpanded && !isLoadingSummary && (
-							<Pressable
-								className="absolute inset-0 z-10"
-								onPress={() => setIsChartsExpanded(true)}
-							/>
-						)}
-						<Box
-							className="
+							<View className="w-full relative">
+								{!isChartsExpanded && !isLoadingSummary && (
+									<Pressable
+										className="absolute inset-0 z-10"
+										onPress={() => setIsChartsExpanded(true)}
+									/>
+								)}
+								<Box
+									className="
 							w-full
 							bg-white dark:bg-gray-800
 							rounded-lg
 							p-4
 							mb-6
 						"
-						>
+								>
 
-							<HStack className="justify-between items-center">
+									<HStack className="justify-between items-center">
 
-								<Heading size="md" className="text-gray-800 dark:text-gray-200">
-									Visualização gráfica
-								</Heading>
+										<Heading size="md" className="text-gray-800 dark:text-gray-200">
+											Visualização gráfica
+										</Heading>
 
-								<TouchableOpacity activeOpacity={0.85} onPress={() => setIsChartsExpanded((prev) => !prev)}>
-									<Text className="text-sm text-gray-500 dark:text-emerald-400">
-										{isChartsExpanded ? 'Ocultar' : 'Expandir'}
-									</Text>
-								</TouchableOpacity>
+										<TouchableOpacity activeOpacity={0.85} onPress={() => setIsChartsExpanded((prev) => !prev)}>
+											<Text className="text-sm text-gray-500 dark:text-emerald-400">
+												{isChartsExpanded ? 'Ocultar' : 'Expandir'}
+											</Text>
+										</TouchableOpacity>
 
-							</HStack>
+									</HStack>
 
-							{isChartsExpanded ? (
-								isLoadingSummary ? (
-									<Text className="mt-4 text-gray-600 dark:text-gray-400">Carregando gráficos...</Text>
-								) : chartsError ? (
-									<Text className="mt-4 text-red-600 dark:text-red-400">{chartsError}</Text>
-								) : (
-									<>
-										<View className="mt-4">
-											<HStack className="bg-gray-100 dark:bg-gray-900 rounded-full p-1">
-												{[
-													{ key: 'bar', label: 'Valores Totais do ano' },
-													{ key: 'pie', label: 'Ganhos | Despesas por banco' },
-												].map((tab) => {
-													const active = chartTab === (tab.key as 'bar' | 'pie');
-													return (
-														<TouchableOpacity
-															key={tab.key}
-															style={{ flex: 1 }}
-															activeOpacity={0.9}
-															onPress={() => setChartTab(tab.key as 'bar' | 'pie')}
-														>
-															<View className={`py-2 rounded-full ${active ? 'bg-white dark:bg-gray-800' : ''}`}>
-																<Text
-																	className={`text-center text-sm ${
-																		active
-																			? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																			: 'text-gray-500'
-																	}`}
+									{isChartsExpanded ? (
+										isLoadingSummary ? (
+											<Text className="mt-4 text-gray-600 dark:text-gray-400">Carregando gráficos...</Text>
+										) : chartsError ? (
+											<Text className="mt-4 text-red-600 dark:text-red-400">{chartsError}</Text>
+										) : (
+											<>
+												<View className="mt-4">
+													<HStack className="bg-gray-100 dark:bg-gray-900 rounded-full p-1">
+														{[
+															{ key: 'bar', label: 'Valores Totais do ano' },
+															{ key: 'pie', label: 'Ganhos | Despesas por banco' },
+														].map((tab) => {
+															const active = chartTab === (tab.key as 'bar' | 'pie');
+															return (
+																<TouchableOpacity
+																	key={tab.key}
+																	style={{ flex: 1 }}
+																	activeOpacity={0.9}
+																	onPress={() => setChartTab(tab.key as 'bar' | 'pie')}
 																>
-																	{tab.label}
-																</Text>
-															</View>
-														</TouchableOpacity>
-													);
-												})}
-											</HStack>
-
-											{chartTab === 'bar' ? (
-												<View>
-													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-														Totais por mês ({currentYear})
-													</Text>
-
-													<View className="mt-3">
-														<BarChart
-															stackData={barChartStackData}
-															height={220}
-															spacing={14}
-															barWidth={16}
-															isAnimated
-															animationDuration={800}
-															yAxisThickness={0}
-															xAxisThickness={0}
-															formatYLabel={formatYAxisLabel}
-															yAxisLabelPrefix="R$ "
-															yAxisTextStyle={{ color: axisColor, fontSize: 10 }}
-															xAxisLabelTextStyle={{ color: axisColor, fontSize: 10 }}
-															showYAxisIndices={false}
-															hideRules={false}
-															noOfSections={4}
-															activeOpacity={1}
-														/>
-													</View>
-
-													{!hasYearlyActivity && (
-														<Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-															Ainda não há movimentações registradas neste ano.
-														</Text>
-													)}
-
-													<HStack className="mt-3 flex-wrap gap-4">
-														<View className="flex-row items-center">
-															<View
-																style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.expenses }}
-															/>
-															<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Despesas</Text>
-														</View>
-
-														<View className="flex-row items-center">
-															<View
-																style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.gains }}
-															/>
-															<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Ganhos</Text>
-														</View>
+																	<View className={`py-2 rounded-full ${active ? 'bg-white dark:bg-gray-800' : ''}`}>
+																		<Text
+																			className={`text-center text-sm ${active
+																					? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																					: 'text-gray-500'
+																				}`}
+																		>
+																			{tab.label}
+																		</Text>
+																	</View>
+																</TouchableOpacity>
+															);
+														})}
 													</HStack>
-												</View>
-											) : (
-												<View>
 
-													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-														Ganhos por banco ({monthLabel})
-													</Text>
+													{chartTab === 'bar' ? (
+														<View>
+															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+																Totais por mês ({currentYear})
+															</Text>
 
-													{hasGainPieData ? (
-														<>
-															<View className="mt-4 items-center">
-																<PieChart data={gainPieChartData} radius={80} showText={false} isAnimated />
+															<View className="mt-3">
+																<BarChart
+																	stackData={barChartStackData}
+																	height={220}
+																	spacing={14}
+																	barWidth={16}
+																	isAnimated
+																	animationDuration={800}
+																	yAxisThickness={0}
+																	xAxisThickness={0}
+																	formatYLabel={formatYAxisLabel}
+																	yAxisLabelPrefix="R$ "
+																	yAxisTextStyle={{ color: axisColor, fontSize: 10 }}
+																	xAxisLabelTextStyle={{ color: axisColor, fontSize: 10 }}
+																	showYAxisIndices={false}
+																	hideRules={false}
+																	noOfSections={4}
+																	activeOpacity={1}
+																/>
 															</View>
 
-															<View className="mt-4 gap-3">
-																{gainPieLegendData.map((slice) => (
-																	<HStack
-																		key={slice.key}
-																		className="justify-between items-center rounded-lg px-3 py-2"
-																		style={{ borderWidth: 1, borderColor: legendBorderColor }}
-																	>
-																		<HStack className="items-center">
-																			<View
-																				style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
-																			/>
-																			<Text className="ml-2 text-gray-700 dark:text-gray-200">
-																				{slice.name}
-																			</Text>
-																		</HStack>
+															{!hasYearlyActivity && (
+																<Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+																	Ainda não há movimentações registradas neste ano.
+																</Text>
+															)}
 
-																		<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-																			{formatCurrencyBRL(slice.totalInCents)}
-																		</Text>
-																	</HStack>
-																))}
-															</View>
-														</>
+															<HStack className="mt-3 flex-wrap gap-4">
+																<View className="flex-row items-center">
+																	<View
+																		style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.expenses }}
+																	/>
+																	<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Despesas</Text>
+																</View>
+
+																<View className="flex-row items-center">
+																	<View
+																		style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.gains }}
+																	/>
+																	<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Ganhos</Text>
+																</View>
+															</HStack>
+														</View>
 													) : (
-														<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-															Ainda não há ganhos registrados neste mês.
-														</Text>
+														<View>
+
+															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+																Ganhos por banco ({monthLabel})
+															</Text>
+
+															{hasGainPieData ? (
+																<>
+																	<View className="mt-4 items-center">
+																		<PieChart data={gainPieChartData} radius={80} showText={false} isAnimated />
+																	</View>
+
+																	<View className="mt-4 gap-3">
+																		{gainPieLegendData.map((slice) => (
+																			<HStack
+																				key={slice.key}
+																				className="justify-between items-center rounded-lg px-3 py-2"
+																				style={{ borderWidth: 1, borderColor: legendBorderColor }}
+																			>
+																				<HStack className="items-center">
+																					<View
+																						style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+																					/>
+																					<Text className="ml-2 text-gray-700 dark:text-gray-200">
+																						{slice.name}
+																					</Text>
+																				</HStack>
+
+																				<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+																					{formatCurrencyBRL(slice.totalInCents)}
+																				</Text>
+																			</HStack>
+																		))}
+																	</View>
+																</>
+															) : (
+																<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+																	Ainda não há ganhos registrados neste mês.
+																</Text>
+															)}
+
+															<Divider className="my-4" />
+
+															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
+																Despesas por banco ({monthLabel})
+															</Text>
+
+															{hasExpensePieData ? (
+																<>
+																	<View className="mt-4 items-center">
+																		<PieChart data={expensePieChartData} radius={80} showText={false} isAnimated />
+																	</View>
+
+																	<View className="mt-4 gap-3">
+																		{expensePieLegendData.map((slice) => (
+																			<HStack
+																				key={slice.key}
+																				className="justify-between items-center rounded-lg px-3 py-2"
+																				style={{ borderWidth: 1, borderColor: legendBorderColor }}
+																			>
+																				<HStack className="items-center">
+																					<View
+																						style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
+																					/>
+																					<Text className="ml-2 text-gray-700 dark:text-gray-200">
+																						{slice.name}
+																					</Text>
+																				</HStack>
+
+																				<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+																					{formatCurrencyBRL(slice.totalInCents)}
+																				</Text>
+																			</HStack>
+																		))}
+																	</View>
+																</>
+															) : (
+																<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+																	Ainda não há despesas registradas neste mês.
+																</Text>
+															)}
+
+														</View>
 													)}
-
-													<Divider className="my-4" />
-
-													<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-														Despesas por banco ({monthLabel})
-													</Text>
-
-													{hasExpensePieData ? (
-														<>
-															<View className="mt-4 items-center">
-																<PieChart data={expensePieChartData} radius={80} showText={false} isAnimated />
-															</View>
-
-															<View className="mt-4 gap-3">
-																{expensePieLegendData.map((slice) => (
-																	<HStack
-																		key={slice.key}
-																		className="justify-between items-center rounded-lg px-3 py-2"
-																		style={{ borderWidth: 1, borderColor: legendBorderColor }}
-																	>
-																		<HStack className="items-center">
-																			<View
-																				style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
-																			/>
-																			<Text className="ml-2 text-gray-700 dark:text-gray-200">
-																				{slice.name}
-																			</Text>
-																		</HStack>
-
-																		<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-																			{formatCurrencyBRL(slice.totalInCents)}
-																		</Text>
-																	</HStack>
-																))}
-															</View>
-														</>
-													) : (
-														<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-															Ainda não há despesas registradas neste mês.
-														</Text>
-													)}
-
 												</View>
-											)}
-										</View>
-									</>
-								)
-							) : (
-								<Text className="mt-4 text-gray-600 dark:text-gray-400">
-									Toque em "Expandir" para visualizar os gráficos anuais e do mês atual.
-								</Text>
-							)}
+											</>
+										)
+									) : (
+										<Text className="mt-4 text-gray-600 dark:text-gray-400">
+											Toque em "Expandir" para visualizar os gráficos anuais e do mês atual.
+										</Text>
+									)}
 
-						</Box>
-					</View>
+								</Box>
+							</View>
 
-						{/* Card para mostrar os últimos movimentos de cada banco */}
-						<Box
-							className="
+							{/* Card para mostrar os últimos movimentos de cada banco */}
+							<Box
+								className="
 										w-full
 										bg-white dark:bg-gray-800
 										rounded-lg
 										p-4
 										mb-6
 									"
-						>
+							>
 
-							<HStack className="justify-between items-center">
+								<HStack className="justify-between items-center">
 
-								<Heading
-									size="md"
-									className="text-gray-800 dark:text-gray-200"
-								>
-									Últimos movimentos
-								</Heading>
+									<Heading
+										size="md"
+										className="text-gray-800 dark:text-gray-200"
+									>
+										Últimos movimentos
+									</Heading>
 
-								<TouchableOpacity
-									activeOpacity={0.85}
-									onPress={() => setIsMovementsExpanded((prev) => !prev)}
-								>
-									<Text className="text-sm text-gray-500 dark:text-emerald-400">
-										{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
-									</Text>
-								</TouchableOpacity>
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={() => setIsMovementsExpanded((prev) => !prev)}
+									>
+										<Text className="text-sm text-gray-500 dark:text-emerald-400">
+											{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
+										</Text>
+									</TouchableOpacity>
 
-							</HStack>
+								</HStack>
 
-							{isMovementsExpanded ? (
+								{isMovementsExpanded ? (
 
-								isLoadingMovements ? (
+									isLoadingMovements ? (
 
-									<Text className="mt-4 text-gray-600 dark:text-gray-400">
-										Carregando movimentos...
-									</Text>
+										<Text className="mt-4 text-gray-600 dark:text-gray-400">
+											Carregando movimentos...
+										</Text>
 
-								) : movementsError ? (
+									) : movementsError ? (
 
-									<Text className="mt-4 text-red-600 dark:text-red-400">
-										{movementsError}
-									</Text>
+										<Text className="mt-4 text-red-600 dark:text-red-400">
+											{movementsError}
+										</Text>
 
+									) : (
+
+										<>
+
+											<Box className="mt-4">
+
+												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+													Ganhos
+												</Text>
+
+												{recentGains.length === 0 ? (
+
+													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+														Nenhum ganho recente registrado.
+													</Text>
+
+												) : (
+
+													recentGains.map((gain, index) => (
+
+														<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
+
+															<HStack className="justify-between items-center">
+
+																<Text className="text-gray-800 dark:text-gray-200">
+																	{gain?.name ?? 'Ganho sem nome'}
+																</Text>
+
+																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+																	{formatCurrencyBRL(gain?.valueInCents ?? 0)}
+																</Text>
+
+															</HStack>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{`Banco: ${getBankName(gain?.bankId)}`}
+															</Text>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{formatMovementDate(gain?.createdAt ?? gain?.date)}
+															</Text>
+
+														</Box>
+
+													))
+
+												)}
+
+											</Box>
+
+											<Divider className="mt-6" />
+
+											<Box className="mt-6">
+
+												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+													Despesas
+												</Text>
+
+												{recentExpenses.length === 0 ? (
+
+													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+														Nenhuma despesa recente registrada.
+													</Text>
+
+												) : (
+
+													recentExpenses.map((expense, index) => (
+
+														<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
+
+															<HStack className="justify-between items-center">
+
+																<Text className="text-gray-800 dark:text-gray-200">
+																	{expense?.name ?? 'Despesa sem nome'}
+																</Text>
+
+																<Text className="text-red-600 dark:text-red-400 font-semibold">
+																	{formatCurrencyBRL(expense?.valueInCents ?? 0)}
+																</Text>
+
+															</HStack>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{`Banco: ${getBankName(expense?.bankId)}`}
+															</Text>
+
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{formatMovementDate(expense?.createdAt ?? expense?.date)}
+															</Text>
+
+														</Box>
+
+													))
+
+												)}
+
+											</Box>
+
+										</>
+
+									)
 								) : (
+									<Text
+										className={
+											movementsError
+												? 'mt-4 text-red-600 dark:text-red-400'
+												: 'mt-4 text-gray-600 dark:text-gray-400'
+										}
+									>
+										{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
+									</Text>
+								)}
 
-									<>
-
-										<Box className="mt-4">
-
-											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-												Ganhos
-											</Text>
-
-											{recentGains.length === 0 ? (
-
-												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-													Nenhum ganho recente registrado.
-												</Text>
-
-											) : (
-
-												recentGains.map((gain, index) => (
-
-													<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
-
-														<HStack className="justify-between items-center">
-
-															<Text className="text-gray-800 dark:text-gray-200">
-																{gain?.name ?? 'Ganho sem nome'}
-															</Text>
-
-															<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-																{formatCurrencyBRL(gain?.valueInCents ?? 0)}
-															</Text>
-
-														</HStack>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{`Banco: ${getBankName(gain?.bankId)}`}
-														</Text>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{formatMovementDate(gain?.createdAt ?? gain?.date)}
-														</Text>
-
-													</Box>
-
-												))
-
-											)}
-
-										</Box>
-
-										<Divider className="mt-6" />
-
-										<Box className="mt-6">
-
-											<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-												Despesas
-											</Text>
-
-											{recentExpenses.length === 0 ? (
-
-												<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-													Nenhuma despesa recente registrada.
-												</Text>
-
-											) : (
-
-												recentExpenses.map((expense, index) => (
-
-													<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
-
-														<HStack className="justify-between items-center">
-
-															<Text className="text-gray-800 dark:text-gray-200">
-																{expense?.name ?? 'Despesa sem nome'}
-															</Text>
-
-															<Text className="text-red-600 dark:text-red-400 font-semibold">
-																{formatCurrencyBRL(expense?.valueInCents ?? 0)}
-															</Text>
-
-														</HStack>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{`Banco: ${getBankName(expense?.bankId)}`}
-														</Text>
-
-														<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-															{formatMovementDate(expense?.createdAt ?? expense?.date)}
-														</Text>
-
-													</Box>
-
-												))
-
-											)}
-
-										</Box>
-
-									</>
-
-								)
-							) : (
-								<Text
-									className={
-										movementsError
-											? 'mt-4 text-red-600 dark:text-red-400'
-											: 'mt-4 text-gray-600 dark:text-gray-400'
-									}
-								>
-									{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
-								</Text>
-							)}
-
-						</Box>
+							</Box>
 
 						</View>
 

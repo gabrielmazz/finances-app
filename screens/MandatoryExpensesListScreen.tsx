@@ -359,6 +359,11 @@ export default function MandatoryExpensesListScreen() {
 		}
 	}, [handleEdit, handleRegisterExpense, loadData, pendingAction]);
 
+	const handleBackToHome = React.useCallback(() => {
+		router.replace('/home?tab=0');
+		return true;
+	}, []);
+
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
 			return {
@@ -499,7 +504,7 @@ export default function MandatoryExpensesListScreen() {
 										</View>
 										<HStack className="gap-2">
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'register', expense })}
@@ -508,7 +513,7 @@ export default function MandatoryExpensesListScreen() {
 												<ButtonIcon as={AddIcon} />
 											</Button>
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'edit', expense })}
@@ -517,7 +522,7 @@ export default function MandatoryExpensesListScreen() {
 											</Button>
 											{expense.isPaidForCurrentCycle && (
 												<Button
-													size="xs"
+													size="sm"
 													variant="link"
 													action="secondary"
 													onPress={() => setPendingAction({ type: 'reclaim', expense })}
@@ -526,7 +531,7 @@ export default function MandatoryExpensesListScreen() {
 												</Button>
 											)}
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="negative"
 												onPress={() => setPendingAction({ type: 'delete', expense })}
@@ -542,7 +547,7 @@ export default function MandatoryExpensesListScreen() {
 				</View>
 			</ScrollView>
 
-			<Menu defaultValue={1} />
+			<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
 
 			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 				<ModalBackdrop />

@@ -47,6 +47,7 @@ export type MenuProps = {
 	defaultIndex?: number;
 	defaultValue?: number;
 	onChange?: (value: number, label: string) => void;
+	onHardwareBack?: () => boolean;
 };
 
 const logoutUser = async () => {
@@ -129,6 +130,7 @@ export const Menu: React.FC<MenuProps> = ({
 	defaultIndex,
 	defaultValue,
 	onChange,
+	onHardwareBack,
 }) => {
 	const insets = useSafeAreaInsets();
 	const resolvedGroups = useMemo(
@@ -167,6 +169,10 @@ export const Menu: React.FC<MenuProps> = ({
 
 	useEffect(() => {
 		const handleBackPress = () => {
+			if (typeof onHardwareBack === 'function') {
+				return onHardwareBack();
+			}
+
 			if (router.canGoBack()) {
 				router.back();
 				return true;
@@ -181,7 +187,7 @@ export const Menu: React.FC<MenuProps> = ({
 		return () => {
 			backHandler.remove();
 		};
-	}, []);
+	}, [onHardwareBack]);
 
 	const handleSelect = useCallback(
 		(option: MenuOption) => {

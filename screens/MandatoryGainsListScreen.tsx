@@ -360,6 +360,11 @@ export default function MandatoryGainsListScreen() {
 		}
 	}, [handleEdit, handleRegisterGain, loadData, pendingAction]);
 
+	const handleBackToHome = React.useCallback(() => {
+		router.replace('/home?tab=0');
+		return true;
+	}, []);
+
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
 			return {
@@ -496,7 +501,7 @@ export default function MandatoryGainsListScreen() {
 										</View>
 										<HStack className="gap-2">
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'register', gain })}
@@ -505,7 +510,7 @@ export default function MandatoryGainsListScreen() {
 												<ButtonIcon as={AddIcon} />
 											</Button>
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'edit', gain })}
@@ -514,7 +519,7 @@ export default function MandatoryGainsListScreen() {
 											</Button>
 											{gain.isReceivedForCurrentCycle && (
 												<Button
-													size="xs"
+													size="sm"
 													variant="link"
 													action="secondary"
 													onPress={() => setPendingAction({ type: 'reclaim', gain })}
@@ -523,7 +528,7 @@ export default function MandatoryGainsListScreen() {
 												</Button>
 											)}
 											<Button
-												size="xs"
+												size="sm"
 												variant="link"
 												action="negative"
 												onPress={() => setPendingAction({ type: 'delete', gain })}
@@ -539,7 +544,7 @@ export default function MandatoryGainsListScreen() {
 				</View>
 			</ScrollView>
 
-			<Menu defaultValue={1} />
+			<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
 
 			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 				<ModalBackdrop />
