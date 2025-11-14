@@ -7,6 +7,8 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { Box } from '@/components/ui/box';
+import { Divider } from '@/components/ui/divider';
 
 // Icones do Gluestack UI
 import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
@@ -20,6 +22,9 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 // Importações relacionadas à navegação e autenticação
 import { router } from 'expo-router';
 import { Menu } from '@/components/uiverse/menu';
+
+// Importação do SVG
+import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
 export default function AddRegisterUserScreen() {
 
@@ -69,73 +74,78 @@ export default function AddRegisterUserScreen() {
         }
     };
 
-	return (
-		<View className="
+    return (
+        <View className="
 				flex-1 w-full h-full
                 mt-[64px]
                 items-center
                 justify-between
                 pb-6
                 "
-            >
+        >
 
-                <FloatingAlertViewport />
+            <FloatingAlertViewport />
 
-                <View className="w-full px-6 gap-4">
+            <View className="w-full px-6 gap-4">
 
-                    <Heading size="3xl" className="text-center mb-6">
-                        Adição de um novo usuário
-                    </Heading>
+                <Heading size="3xl" className="text-center mb-2">
+                    Adição de um novo usuário
+                </Heading>
 
-                    <VStack className="gap-4">
+                <Box className="w-full items-center ">
+                    <AddRegisterUserScreenIllustration width={180} height={180} />
+                </Box>
 
-                        <Text>
-                            Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele será adicionado
-                            ao sistema e poderá fazer login utilizando as credenciais fornecidas.
-                        </Text>
+                <Text className="text-justify text-gray-600 dark:text-gray-400">
+                    Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele será adicionado
+                    ao sistema e poderá fazer login utilizando as credenciais fornecidas.
+                </Text>
 
+                <Divider className="my-6 mb-6" />
 
-                        <Input>
-                            <InputField
-                                placeholder="Email"
-                                value={email}
-                                onChangeText={setEmail}
-                            />
-                        </Input>
+                <VStack className="gap-4">
 
-                        <Input>
-                            <InputField
-                                placeholder="Senha"
-                                secureTextEntry={!showPassword}
-                                type={showPassword ? 'text' : 'password'}
-                                value={password}
-                                onChangeText={setPassword}
-                            />
-                            <InputSlot className="pr-3" onPress={handleState}>
-                                <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-                            </InputSlot>
-                        </Input>
+                    <Input>
+                        <InputField
+                            placeholder="Email"
+                            value={email}
+                            onChangeText={setEmail}
+                        />
+                    </Input>
 
-                        <Button
-                            className="w-full mt-2"
-                            size="sm"
-                            variant="outline"
-                            onPress={registerUser}
-                        >
+                    <Input>
+                        <InputField
+                            placeholder="Senha"
+                            secureTextEntry={!showPassword}
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChangeText={setPassword}
+                        />
+                        <InputSlot className="pr-3" onPress={handleState}>
+                            <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+                        </InputSlot>
+                    </Input>
 
-                            <ButtonText>
-                                Registrar Usuário
-                            </ButtonText>
+                    <Button
+                        className="w-full mt-2"
+                        size="sm"
+                        variant="outline"
+                        onPress={registerUser}
+                    >
 
-                        </Button>
+                        <ButtonText>
+                            Registrar Usuário
+                        </ButtonText>
 
-                    </VStack>
+                    </Button>
 
-                </View>
+                </VStack>
 
-                <Menu defaultValue={2} />
+            </View>
 
-		</View>
+            <Menu defaultValue={2} />
 
-	);
+        </View>
+
+    );
 }

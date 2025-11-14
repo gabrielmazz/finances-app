@@ -46,7 +46,7 @@ export default function HomeRoute() {
 	}, [parsedTabFromParams]);
 
 	return (
-		<SafeAreaView className="flex-1">
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']}>
 			<View
 				className="
 					flex-1 w-full h-full

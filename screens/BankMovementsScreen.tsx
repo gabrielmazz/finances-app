@@ -49,6 +49,10 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
 
+// Importação do SVG de ilustração
+import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
+
+
 type FirestoreLikeTimestamp = {
 	toDate?: () => Date;
 };
@@ -692,12 +696,21 @@ export default function BankMovementsScreen() {
 					}}
 				>
 					<View className="w-full px-6">
-						<Heading size="3xl" className="text-center mb-6">
+
+						<Heading size="3xl" className="text-center">
 							Movimentações do banco
 						</Heading>
-						<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-							Selecione um período para visualizar todas as movimentações de {bankName}.
+
+						<Box className="w-full items-center">
+							<BankMovementsIllustration width={170} height={170} />
+						</Box>
+
+						<Text className="text-justify text-gray-600 dark:text-gray-400">
+							Selecione um período para visualizar todas as movimentações de {bankName}. Aqui você pode
+							verificar ganhos, despesas e o saldo geral do período escolhido.
 						</Text>
+
+						<Divider className="my-6 mb-6" />
 
 						<Box
 							className="

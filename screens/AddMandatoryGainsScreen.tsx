@@ -44,6 +44,10 @@ import {
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 
+// Importação do SVG
+import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGainsScreen.svg';
+import { Divider } from '@/components/ui/divider';
+
 type TagOption = { id: string; name: string };
 type ReceiptInfo = {
 	gainId: string | null;
@@ -240,7 +244,7 @@ export default function AddMandatoryGainsScreen() {
 	useFocusEffect(
 		React.useCallback(() => {
 			void loadTags();
-			return () => {};
+			return () => { };
 		}, [loadTags]),
 	);
 
@@ -582,14 +586,21 @@ export default function AddMandatoryGainsScreen() {
 					paddingBottom: 48,
 				}}
 			>
-				<View className="w-full px-6 pb-2">
-					<Heading size="3xl" className="text-center mb-6">
+				<View className="w-full px-6">
+
+					<Heading size="3xl" className="text-center mb-4">
 						{selectedGainTemplateId ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório'}
 					</Heading>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Organize seus recebimentos recorrentes para garantir que os ganhos previstos sejam registrados em dia.
+					<Box className="w-full items-center mb-2">
+						<AddMandatoryGainListIllustration width={180} height={180} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						Organize seus recebimentos recorrentes para garantir que os ganhos previstos sejam registrados em dia. Você pode acompanhar e gerenciar seus ganhos obrigatórios facilmente aqui.
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-4">
 						<Input isDisabled={isPrefilling}>
@@ -700,14 +711,14 @@ export default function AddMandatoryGainsScreen() {
 									<Text className="text-gray-600 dark:text-gray-400 mb-3">
 										Registre este ganho como recebido para marcá-lo neste ciclo ({getCurrentCycleKey()}).
 									</Text>
-										<Button
-											variant="outline"
-											action="primary"
-											onPress={handleRegisterReceiptNavigation}
-											isDisabled={isPrefilling || !selectedGainTemplateId || valueInCents === null || !selectedTagId}
-										>
-											<ButtonText>Adicionar aos ganhos</ButtonText>
-										</Button>
+									<Button
+										variant="outline"
+										action="primary"
+										onPress={handleRegisterReceiptNavigation}
+										isDisabled={isPrefilling || !selectedGainTemplateId || valueInCents === null || !selectedTagId}
+									>
+										<ButtonText>Adicionar aos ganhos</ButtonText>
+									</Button>
 								</>
 							)}
 						</Box>
