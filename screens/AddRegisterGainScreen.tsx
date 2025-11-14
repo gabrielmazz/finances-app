@@ -45,6 +45,8 @@ import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFireb
 
 // Importação dos icones
 import { CheckIcon } from '@/components/ui/icon';
+import AddGainIllustration from '../assets/UnDraw/addRegisterGainScreen.svg';
+import { Divider } from '@/components/ui/divider';
 
 type OptionItem = {
 	id: string;
@@ -504,6 +506,7 @@ export default function AddRegisterGainScreen() {
 					valueInCents: gainValueCents,
 					paymentFormats: paymentFormat,
 					explanation: explanationGain?.trim() ? explanationGain.trim() : null,
+					moneyFormat,
 					tagId: selectedTagId ?? undefined,
 					bankId: selectedBankId ?? undefined,
 					date: dateWithCurrentTime,
@@ -599,6 +602,7 @@ export default function AddRegisterGainScreen() {
 		explanationGain,
 		gainDate,
 		gainName,
+		moneyFormat,
 		gainValueCents,
 		isEditing,
 		isTemplateLocked,
@@ -652,6 +656,7 @@ export default function AddRegisterGainScreen() {
 				}
 
 				setExplanationGain(typeof data.explanation === 'string' ? data.explanation : null);
+				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
 			} catch (error) {
 				console.error('Erro ao carregar ganho para edição:', error);
 				if (isMounted) {
@@ -768,15 +773,22 @@ export default function AddRegisterGainScreen() {
 				}}
 			>
 				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-6">
+
+					<Heading size="3xl" className="text-center">
 						{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
 					</Heading>
 
-					<Text className="mb-6 text-center">
+					<Box className="w-full items-center">
+						<AddGainIllustration width={180} height={180} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
 						{isEditing
-							? 'Atualize os dados do ganho selecionado e salve as alterações.'
-							: 'Informe os dados abaixo para registrar um novo ganho no sistema.'}
+							? 'Atualize os dados do ganho selecionado e salve as alterações. Podendo alterar qualquer informação previamente cadastrada.'
+							: 'Informe os dados abaixo para registrar um novo ganho no sistema. Podendo descrever ele pelo template já estabelecido.'}
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-5">
 						<Input isDisabled={isTemplateLocked}>

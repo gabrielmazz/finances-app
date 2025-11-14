@@ -58,6 +58,9 @@ import { Input, InputField, InputIcon } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
 
+// Importação do SVG
+import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
+
 type AccordionItem = {
 	id: string;
 	title: string;
@@ -1113,16 +1116,26 @@ export default function ConfigurationsScreen() {
 
 					<View className="w-full px-6">
 
-
 						<Heading
 							size="3xl"
 							className="
 								text-center 
-								mb-6
 							"
 						>
 							Menu de Configurações
 						</Heading>
+
+						<Box className="w-full items-center mt-4">
+							<ConfigurationIllustration width={160} height={160} />
+						</Box>
+
+						<Text className="text-justify text-gray-600 dark:text-gray-400 mt-4">
+							Neste menu de configurações, você pode gerenciar usuários, bancos e tags associados ao
+							aplicativo. Se você for um administrador, terá acesso a funcionalidades adicionais para
+							gerenciar o sistema de forma mais eficaz.
+						</Text>
+
+						<Divider className="my-6 mb-6" />
 
 						<VStack>
 
@@ -1339,7 +1352,7 @@ export default function ConfigurationsScreen() {
 				<DrawerContent>
 					<DrawerHeader className="flex-row items-start justify-between gap-3">
 						<VStack className="flex-1 space-y-1">
-							
+
 							<Box
 								className="
 									w-full
@@ -1347,7 +1360,7 @@ export default function ConfigurationsScreen() {
 								"
 							>
 								<Heading size="lg">
-									
+
 									{drawerCopy.title || 'Itens cadastrados'}
 
 								</Heading>

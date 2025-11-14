@@ -44,6 +44,10 @@ import {
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 
+// Importação do SVG
+import AddMandatoryExpensesListIllustration from '../assets/UnDraw/addMandatoryExpensesScreen.svg';
+import { Divider } from '@/components/ui/divider';
+
 type TagOption = { id: string; name: string };
 type PaymentInfo = {
 	expenseId: string | null;
@@ -573,14 +577,21 @@ export default function AddMandatoryExpensesScreen() {
 					paddingBottom: 48,
 				}}
 			>
-				<View className="w-full px-6 pb-2">
-					<Heading size="3xl" className="text-center mb-6">
+				<View className="w-full px-6">
+
+					<Heading size="3xl" className="text-center">
 						{selectedExpenseId ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório'}
 					</Heading>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Preencha os campos abaixo para manter seus pagamentos recorrentes organizados.
+					<Box className="w-full items-center mb-2">
+						<AddMandatoryExpensesListIllustration width={170} height={170} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						Preencha os campos abaixo para manter seus pagamentos recorrentes organizados. Quando registrados, você pode acompanhar e gerenciar facilmente seus gastos obrigatórios todos os meses.
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-4">
 						<Input isDisabled={isPrefilling}>

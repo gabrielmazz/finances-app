@@ -31,6 +31,10 @@ import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } fro
 import { auth } from '@/FirebaseConfig';
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 
+// Importação do SVG
+import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
+import { Divider } from '@/components/ui/divider';
+
 type OptionItem = {
 	id: string;
 	name: string;
@@ -726,7 +730,7 @@ export default function AddRegisterExpensesScreen() {
 	// React.useEffect(() => {
 	React.useEffect(() => {
 
-		try{
+		try {
 
 			if (!selectedTagId || selectedMovementTagName) {
 				return;
@@ -737,14 +741,14 @@ export default function AddRegisterExpensesScreen() {
 					const tagResult = await getTagDataFirebase(selectedTagId);
 
 					if (tagResult.success && tagResult.data) {
-						
+
 						// Atualiza o nome da tag no estado com o nome buscado
 						setSelectedMovementTagName(tagResult.data.name);
 					} else {
 						setSelectedMovementTagName(null);
 					}
 				};
-				
+
 				void fetchTagName();
 			}
 		} catch (error) {
@@ -758,7 +762,7 @@ export default function AddRegisterExpensesScreen() {
 	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
 	React.useEffect(() => {
 
-		try{
+		try {
 
 			if (!selectedBankId || selectedMovementBankName) {
 				return;
@@ -769,7 +773,7 @@ export default function AddRegisterExpensesScreen() {
 					const bankResult = await getAllBanksFirebase();
 
 					if (bankResult.success && Array.isArray(bankResult.data)) {
-						
+
 						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
 
 						if (bankData) {
@@ -782,7 +786,7 @@ export default function AddRegisterExpensesScreen() {
 						setSelectedMovementBankName(null);
 					}
 				};
-				
+
 				void fetchBankName();
 			}
 		} catch (error) {
@@ -790,7 +794,7 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 	}, [selectedBankId, selectedMovementBankName]);
-			
+
 
 	return (
 		<View
@@ -814,15 +818,22 @@ export default function AddRegisterExpensesScreen() {
 				}}
 			>
 				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-6">
+
+					<Heading size="3xl" className="text-center mb-4">
 						{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
 					</Heading>
 
-					<Text className="mb-6 text-center">
+					<Box className="w-full items-center mb-4">
+						<AddExpenseIllustration width={160} height={160} />
+					</Box>
+
+					<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
 						{isEditing
-							? 'Atualize os dados da despesa selecionada e confirme para salvar.'
-							: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema.'}
+							? 'Atualize os dados da despesa selecionada e confirme para salvar. Podendo alterar qualquer informação previamente cadastrada.'
+							: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema. Podendo descrever ela pelo template já estabelecido.'}
 					</Text>
+
+					<Divider className="mb-6" />
 
 					<VStack className="gap-5">
 						<Input isDisabled={isTemplateLocked}>

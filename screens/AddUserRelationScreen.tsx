@@ -7,6 +7,8 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { Box } from '@/components/ui/box';
+import { Divider } from '@/components/ui/divider';
 
 // Componentes Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -16,6 +18,9 @@ import { Menu } from '@/components/uiverse/menu';
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
+
+// Importação do SVG
+import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
 export default function AddUserRelationScreen() {
 	// Input do ID do usuário a ser relacionado
@@ -75,7 +80,7 @@ export default function AddUserRelationScreen() {
 				position: 'bottom',
 				offset: 40,
 			});
-			
+
 			return;
 		}
 
@@ -101,7 +106,7 @@ export default function AddUserRelationScreen() {
 
 
 			if (result.success) {
-				
+
 				showFloatingAlert({
 					message: 'Relação atualizada com sucesso!',
 					action: 'success',
@@ -144,7 +149,7 @@ export default function AddUserRelationScreen() {
 
 	return (
 		<View
-				className="
+			className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
@@ -152,40 +157,49 @@ export default function AddUserRelationScreen() {
 					pb-6
 					relative
 				"
-			>
-				<FloatingAlertViewport />
+		>
+			<FloatingAlertViewport />
 
-				<View className="w-full px-6 gap-4">
-					<Heading size="3xl" className="text-center mb-6">
-						Vincular usuário
-					</Heading>
+			<View className="w-full px-6">
 
-					<VStack className="gap-4">
-						<Text>
-							Informe o ID do usuário que deseja relacionar à sua conta. Ambos passarão a visualizar os
-							dados financeiros compartilhados.
-						</Text>
+				<Heading size="3xl" className="text-center">
+					Vincular usuário
+				</Heading>
 
-						<Input>
-							<InputField
-								placeholder="ID do usuário"
-								value={relatedUserId}
-								onChangeText={setRelatedUserId}
-								autoCapitalize="none"
-							/>
-						</Input>
+				<Box className="w-full items-center ">
+					<AddUserRelationScreenIllustration width={180} height={180} />
+				</Box>
 
-						<Button
-							className="w-full mt-2"
-							size="sm"
-							variant="outline"
-							onPress={handleLinkUsers}
-							isDisabled={isSubmitting}
-						>
-							{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
-						</Button>
-					</VStack>
-				</View>
+				<Text className="text-justify text-gray-600 dark:text-gray-400">
+					Informe o ID do usuário que deseja relacionar à sua conta. Ambos passarão a visualizar os
+					dados financeiros compartilhados.
+				</Text>
+
+				<Divider className="my-6 mb-6" />
+
+
+				<VStack className="gap-4">
+
+					<Input>
+						<InputField
+							placeholder="ID do usuário"
+							value={relatedUserId}
+							onChangeText={setRelatedUserId}
+							autoCapitalize="none"
+						/>
+					</Input>
+
+					<Button
+						className="w-full mt-2"
+						size="sm"
+						variant="outline"
+						onPress={handleLinkUsers}
+						isDisabled={isSubmitting}
+					>
+						{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
+					</Button>
+				</VStack>
+			</View>
 
 			<Menu defaultValue={2} />
 		</View>

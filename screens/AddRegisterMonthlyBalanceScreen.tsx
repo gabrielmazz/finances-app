@@ -27,6 +27,10 @@ import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser, upsertMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
 import { auth } from '@/FirebaseConfig';
 
+// Importação do SVG de ilustração
+import AddRegisterMonthlyBalanceScreenIllustration from '../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
+import { Box } from '@/components/ui/box';
+import { Divider } from '@/components/ui/divider';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -362,14 +366,21 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				}}
 			>
 				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-6">
+
+					<Heading size="3xl" className="text-center mb-4">
 						Saldo mensal por banco
 					</Heading>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
+					<Box className="w-full items-center ">
+						<AddRegisterMonthlyBalanceScreenIllustration width={140} height={140} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400 mt-6">
 						Registre o saldo disponível em cada banco no início de um mês específico. Caso já exista um registro,
 						você poderá atualizá-lo.
 					</Text>
+
+					<Divider className="my-6 mb-6"/>
 
 					<VStack className="gap-5">
 						<View>

@@ -36,6 +36,10 @@ import {
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 
+// Importação do SVG
+import MandatoryGainListIllustration from '../assets/UnDraw/mandatoryGainsListScreen.svg';
+import { Divider } from '@/components/ui/divider';
+
 type MandatoryGainItem = {
 	id: string;
 	name: string;
@@ -229,7 +233,7 @@ export default function MandatoryGainsListScreen() {
 			};
 
 			void fetch();
-			return () => {};
+			return () => { };
 		}, [loadData]),
 	);
 
@@ -435,14 +439,20 @@ export default function MandatoryGainsListScreen() {
 					paddingBottom: 48,
 				}}
 			>
-				<View className="w-full px-6 pb-2">
+				<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-6">
 						Ganhos obrigatórios
 					</Heading>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Acompanhe seus recebimentos recorrentes, registre-os como ganhos e mantenha tudo em dia.
+					<Box className="w-full items-center ">
+						<MandatoryGainListIllustration width={160} height={160} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400 mt-6">
+						Acompanhe seus recebimentos recorrentes, registre-os facilmente e nunca perca um vencimento. Sempre renovando a cada mês para manter suas finanças em dia.
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<Button className="mb-6" onPress={handleOpenCreate} variant="outline">
 						<ButtonText>Registrar novo ganho obrigatório</ButtonText>

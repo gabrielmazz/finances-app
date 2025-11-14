@@ -17,6 +17,8 @@ import {
 	CheckboxLabel,
 } from '@/components/ui/checkbox';
 import { CheckIcon } from '@/components/ui/icon';
+import { Divider } from '@/components/ui/divider';
+import { Box } from '@/components/ui/box';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -26,6 +28,10 @@ import { Switch } from '@/components/ui/switch';
 // Importação das funções relacionadas a adição de tag ao Firebase
 import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { auth } from '@/FirebaseConfig';
+
+// Importação do SVG
+import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
+
 
 export default function AddRegisterTagScreen() {
 
@@ -291,17 +297,25 @@ export default function AddRegisterTagScreen() {
 		>
 			<FloatingAlertViewport />
 
-			<View className="w-full px-6 gap-4">
-				<Heading size="3xl" className="text-center mb-6">
+			<View className="w-full px-6">
+
+				<Heading size="3xl" className="text-center">
 					{isEditing ? 'Editar tag' : 'Adição de nova tag'}
 				</Heading>
 
+				<Box className="w-full items-center ">
+					<AddRegisterTagScreenIllustration width={160} height={160} />
+				</Box>
+				
+				<Text className="text-justify text-gray-600 dark:text-gray-400">
+					{isEditing
+						? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
+						: 'Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de casa. Ela ficará disponível para seleção nas telas do aplicativo.'}
+				</Text>
+
+				<Divider className="my-6 mb-6" />
+
 				<VStack className="gap-4">
-					<Text>
-						{isEditing
-							? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
-							: 'Registre uma nova tag para categorizar as despesas, como investimento, mercado ou conta de casa. Ela ficará disponível para seleção nas telas do aplicativo.'}
-					</Text>
 
 					<Input>
 						<InputField

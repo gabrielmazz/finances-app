@@ -24,6 +24,8 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { VStack } from '@/components/ui/vstack';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 
+import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
+
 type YearlyMonthStats = {
 	monthIndex: number;
 	expensesInCents: number;
@@ -669,27 +671,43 @@ export default function HomeScreen() {
 	);
 
 	return (
-		<View className="flex-1">
+		<View className="
+				flex-1 w-full h-full
+				mt-[64px]
+				items-center
+				justify-between
+				pb-6
+				relative
+			"
+		>
 			<ScrollView
-				className="flex-1 w-full"
-				contentContainerStyle={{ paddingBottom: 32 }}
-				showsVerticalScrollIndicator={false}
 				keyboardShouldPersistTaps="handled"
+				keyboardDismissMode="on-drag"
+				style={{
+					flex: 1,
+					width: '100%',
+				}}
+				contentContainerStyle={{
+					flexGrow: 1,
+					width: '100%',
+					paddingBottom: 48,
+				}}
 			>
-				<View
-					className="
-                    w-full
-                    mt-[64px]
-                    items-center
-                    px-6
-                    gap-4
-                    pb-6
-                "
-				>
+				<View className="w-full px-6">
 
-					<Heading size="3xl" className="text-center mb-6">
+					<Heading size="3xl" className="text-center">
 						Resumo financeiro
 					</Heading>
+
+					<Box className="w-full items-center ">
+						<HomeScreenIllustration width={180} height={180} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						Veja uma visão geral dos seus ganhos e despesas deste mês. Contando com o resumo do mês atual, visualizações gráficas e os movimentos mais recentes registrados no aplicativo.
+					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-4 w-full">
 
@@ -819,8 +837,8 @@ export default function HomeScreen() {
 																	<View className={`py-2 rounded-full ${active ? 'bg-white dark:bg-gray-800' : ''}`}>
 																		<Text
 																			className={`text-center text-sm ${active
-																					? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																					: 'text-gray-500'
+																				? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																				: 'text-gray-500'
 																				}`}
 																		>
 																			{tab.label}

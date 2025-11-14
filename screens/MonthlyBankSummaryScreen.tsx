@@ -16,6 +16,10 @@ import {
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
+// Importação do SVG de ilustração
+import MonthlyBankMovementsIllustration from '../assets/UnDraw/monthlyBankSummaryScreen.svg';
+import { Divider } from '@/components/ui/divider';
+
 type BankSummary = {
 	id: string;
 	name: string;
@@ -247,13 +251,20 @@ export default function MonthlyBankSummaryScreen() {
 				}}
 			>
 				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-6">
+
+					<Heading size="3xl" className="text-center">
 						Resumo mensal por banco
 					</Heading>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Visualize os ganhos, despesas e movimentações do mês corrente para cada banco.
+					<Box className="w-full items-center">
+						<MonthlyBankMovementsIllustration width={180} height={180} />
+					</Box>
+
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						Visualize os ganhos, despesas e movimentações do mês corrente para cada banco. Toque em um banco para ver detalhes e selecionar períodos personalizados.
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					{isLoading ? (
 						<Text className="text-center text-gray-700 dark:text-gray-300">Carregando dados...</Text>
@@ -291,50 +302,50 @@ export default function MonthlyBankSummaryScreen() {
 											</Text>
 										</HStack>
 
-											<Text className="mt-3 text-gray-700 dark:text-gray-300">
-												Ganhos:{' '}
-												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-													{formatCurrencyBRL(bank.totalGainsInCents)}
-												</Text>
+										<Text className="mt-3 text-gray-700 dark:text-gray-300">
+											Ganhos:{' '}
+											<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+												{formatCurrencyBRL(bank.totalGainsInCents)}
 											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Despesas:{' '}
-												<Text className="text-red-600 dark:text-red-400 font-semibold">
-													{formatCurrencyBRL(bank.totalExpensesInCents)}
-												</Text>
+										</Text>
+										<Text className="mt-1 text-gray-700 dark:text-gray-300">
+											Despesas:{' '}
+											<Text className="text-red-600 dark:text-red-400 font-semibold">
+												{formatCurrencyBRL(bank.totalExpensesInCents)}
 											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Saldo inicial:{' '}
-												<Text
-													className={
-														typeof bank.initialBalanceInCents === 'number'
-															? bank.initialBalanceInCents >= 0
-																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																: 'text-red-600 dark:text-red-400 font-semibold'
-															: 'text-gray-700 dark:text-gray-300'
-													}
-												>
-													{typeof bank.initialBalanceInCents === 'number'
-														? formatCurrencyBRL(bank.initialBalanceInCents)
-														: 'Não registrado'}
-												</Text>
+										</Text>
+										<Text className="mt-1 text-gray-700 dark:text-gray-300">
+											Saldo inicial:{' '}
+											<Text
+												className={
+													typeof bank.initialBalanceInCents === 'number'
+														? bank.initialBalanceInCents >= 0
+															? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+															: 'text-red-600 dark:text-red-400 font-semibold'
+														: 'text-gray-700 dark:text-gray-300'
+												}
+											>
+												{typeof bank.initialBalanceInCents === 'number'
+													? formatCurrencyBRL(bank.initialBalanceInCents)
+													: 'Não registrado'}
 											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Saldo atual:{' '}
-												<Text
-													className={
-														typeof bank.currentBalanceInCents === 'number'
-															? bank.currentBalanceInCents >= 0
-																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																: 'text-red-600 dark:text-red-400 font-semibold'
-															: 'text-gray-700 dark:text-gray-300'
-													}
-												>
-													{typeof bank.currentBalanceInCents === 'number'
-														? formatCurrencyBRL(bank.currentBalanceInCents)
-														: 'Indisponível'}
-												</Text>
+										</Text>
+										<Text className="mt-1 text-gray-700 dark:text-gray-300">
+											Saldo atual:{' '}
+											<Text
+												className={
+													typeof bank.currentBalanceInCents === 'number'
+														? bank.currentBalanceInCents >= 0
+															? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+															: 'text-red-600 dark:text-red-400 font-semibold'
+														: 'text-gray-700 dark:text-gray-300'
+												}
+											>
+												{typeof bank.currentBalanceInCents === 'number'
+													? formatCurrencyBRL(bank.currentBalanceInCents)
+													: 'Indisponível'}
 											</Text>
+										</Text>
 										<Text className="mt-1 text-gray-700 dark:text-gray-300">
 											Movimentações no mês:{' '}
 											<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
