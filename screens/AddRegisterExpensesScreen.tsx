@@ -30,6 +30,7 @@ import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { auth } from '@/FirebaseConfig';
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
+import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 
 // Importação do SVG
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
@@ -194,6 +195,9 @@ export default function AddRegisterExpensesScreen() {
 		templateDescription?: string | string[];
 		templateTagName?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
+		templateLockTag?: string | string[];
+		investmentIdForAdjustment?: string | string[];
+		investmentDeltaInCents?: string | string[];
 	}>();
 
 	const editingExpenseId = React.useMemo(() => {
@@ -231,6 +235,9 @@ export default function AddRegisterExpensesScreen() {
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
+		const lockTagParam = decodeParam(params.templateLockTag);
+		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
+		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
 
 		if (
 			!name &&
@@ -252,15 +259,21 @@ export default function AddRegisterExpensesScreen() {
 			valueInCents,
 			dueDay,
 			mandatoryExpenseId,
+			lockTag: lockTagParam === '1',
+			investmentAdjustmentId,
+			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
 		};
 	}, [
 		params.templateDescription,
 		params.templateDueDay,
+		params.templateLockTag,
 		params.templateMandatoryExpenseId,
 		params.templateName,
 		params.templateTagId,
 		params.templateTagName,
 		params.templateValueInCents,
+		params.investmentDeltaInCents,
+		params.investmentIdForAdjustment,
 	]);
 
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
@@ -270,6 +283,23 @@ export default function AddRegisterExpensesScreen() {
 	);
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
+	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
+	const pendingInvestmentAdjustment = React.useMemo(() => {
+		if (isEditing) {
+			return null;
+		}
+		if (
+			templateData?.investmentAdjustmentId &&
+			typeof templateData.investmentDeltaInCents === 'number' &&
+			templateData.investmentDeltaInCents !== 0
+		) {
+			return {
+				investmentId: templateData.investmentAdjustmentId,
+				deltaInCents: templateData.investmentDeltaInCents,
+			};
+		}
+		return null;
+	}, [isEditing, templateData]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -316,7 +346,7 @@ export default function AddRegisterExpensesScreen() {
 							if (current && formattedTags.some(tag => tag.id === current)) {
 								return current;
 							}
-							if (isTemplateLocked && templateData?.tagId) {
+							if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
 								return templateData.tagId;
 							}
 							return null;
@@ -618,6 +648,22 @@ export default function AddRegisterExpensesScreen() {
 				}
 			}
 
+			if (pendingInvestmentAdjustment) {
+				const adjustResult = await adjustFinanceInvestmentValueFirebase({
+					investmentId: pendingInvestmentAdjustment.investmentId,
+					deltaInCents: pendingInvestmentAdjustment.deltaInCents,
+				});
+
+				if (!adjustResult.success) {
+					showFloatingAlert({
+						message: 'Despesa registrada, mas não foi possível atualizar o investimento.',
+						action: 'warning',
+						position: 'bottom',
+						offset: 40,
+					});
+				}
+			}
+
 			showFloatingAlert({
 				message: 'Despesa registrada com sucesso!',
 				action: 'success',
@@ -660,6 +706,7 @@ export default function AddRegisterExpensesScreen() {
 		linkedMandatoryExpenseId,
 		selectedBankId,
 		selectedTagId,
+		pendingInvestmentAdjustment,
 	]);
 
 	React.useEffect(() => {
@@ -866,9 +913,11 @@ export default function AddRegisterExpensesScreen() {
 							/>
 						</Textarea>
 
-						{isTemplateLocked ? (
+						{isTagSelectionLocked ? (
 							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-								<Text className="font-semibold mb-1">Tag do gasto obrigatório</Text>
+								<Text className="font-semibold mb-1">
+									{isTemplateLocked ? 'Tag do gasto obrigatório' : 'Tag definida automaticamente'}
+								</Text>
 								<Text className="text-gray-700 dark:text-gray-300">
 									{templateTagDisplayName ?? 'Tag não encontrada'}
 								</Text>
