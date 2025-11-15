@@ -11,6 +11,7 @@ import {
 	where,
 	updateDoc,
 	increment,
+	serverTimestamp,
 } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 import { RedemptionTerm } from '@/utils/finance';
@@ -56,8 +57,8 @@ export async function addFinanceInvestmentFirebase({
 			bankId,
 			personId,
 			description: description ?? null,
-			createdAt: new Date(),
-			updatedAt: new Date(),
+			createdAt: serverTimestamp(),
+			updatedAt: serverTimestamp(),
 		});
 
 		return { success: true, investmentId: investmentRef.id };
@@ -79,7 +80,7 @@ export async function updateFinanceInvestmentFirebase({
 	try {
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		const updates: Record<string, unknown> = {
-			updatedAt: new Date(),
+			updatedAt: serverTimestamp(),
 		};
 
 		if (typeof name === 'string') {
@@ -169,11 +170,36 @@ export async function adjustFinanceInvestmentValueFirebase({
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		await updateDoc(investmentRef, {
 			initialValueInCents: increment(deltaInCents),
-			updatedAt: new Date(),
+			updatedAt: serverTimestamp(),
 		});
 		return { success: true };
 	} catch (error) {
 		console.error('Erro ao ajustar o valor do investimento:', error);
+		return { success: false, error };
+	}
+}
+
+export async function syncFinanceInvestmentValueFirebase({
+	investmentId,
+	syncedValueInCents,
+}: {
+	investmentId: string;
+	syncedValueInCents: number;
+}) {
+	try {
+		const investmentRef = doc(db, COLLECTION, investmentId);
+		await setDoc(
+			investmentRef,
+			{
+				lastManualSyncValueInCents: syncedValueInCents,
+				lastManualSyncAt: serverTimestamp(),
+				updatedAt: serverTimestamp(),
+			},
+			{ merge: true },
+		);
+		return { success: true };
+	} catch (error) {
+		console.error('Erro ao sincronizar manualmente o investimento:', error);
 		return { success: false, error };
 	}
 }

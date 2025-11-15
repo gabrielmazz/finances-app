@@ -258,8 +258,8 @@ export default function AddFinanceScreen() {
 							</Box>
 
 							<Text className="text-justify text-gray-600 dark:text-gray-400">
-								Essa é uma tela simples e independente para você testar o cadastro de investimentos.
-								Todas as informações ficam apenas no dispositivo.
+								Adicione seus investimentos financeiros de forma independente. Eles ficarão disponíveis na
+								lista separada de investimentos, facilitando o acompanhamento.
 							</Text>
 
 						</VStack>

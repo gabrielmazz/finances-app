@@ -469,13 +469,7 @@ export default function MandatoryExpensesListScreen() {
 							{expenses.map(expense => (
 								<Box
 									key={expense.id}
-									className="
-										w-full
-										bg-white dark:bg-gray-800
-										rounded-lg
-										p-4
-										mb-4
-									"
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 								>
 									<HStack className="justify-between items-start mb-2">
 										<View className="flex-1 pr-3">
@@ -513,9 +507,13 @@ export default function MandatoryExpensesListScreen() {
 												<Text className="text-gray-600 mt-1">Observações: {expense.description}</Text>
 											)}
 										</View>
-										<HStack className="gap-2">
+										</HStack>
+										
+										<Divider className="my-4" />
+										
+										<HStack className="gap-3 flex-wrap justify-end">
 											<Button
-												size="sm"
+												size="md"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'register', expense })}
@@ -524,7 +522,7 @@ export default function MandatoryExpensesListScreen() {
 												<ButtonIcon as={AddIcon} />
 											</Button>
 											<Button
-												size="sm"
+												size="md"
 												variant="link"
 												action="primary"
 												onPress={() => setPendingAction({ type: 'edit', expense })}
@@ -533,7 +531,7 @@ export default function MandatoryExpensesListScreen() {
 											</Button>
 											{expense.isPaidForCurrentCycle && (
 												<Button
-													size="sm"
+													size="md"
 													variant="link"
 													action="secondary"
 													onPress={() => setPendingAction({ type: 'reclaim', expense })}
@@ -542,7 +540,7 @@ export default function MandatoryExpensesListScreen() {
 												</Button>
 											)}
 											<Button
-												size="sm"
+												size="md"
 												variant="link"
 												action="negative"
 												onPress={() => setPendingAction({ type: 'delete', expense })}
@@ -550,10 +548,9 @@ export default function MandatoryExpensesListScreen() {
 												<ButtonIcon as={TrashIcon} />
 											</Button>
 										</HStack>
-									</HStack>
-								</Box>
-							))}
-						</VStack>
+									</Box>
+								))}
+							</VStack>
 					)}
 				</View>
 			</ScrollView>

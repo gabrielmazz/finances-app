@@ -713,12 +713,7 @@ export default function BankMovementsScreen() {
 						<Divider className="my-6 mb-6" />
 
 						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mb-6
-							"
+							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 						>
 							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 								Filtros do período
@@ -781,12 +776,7 @@ export default function BankMovementsScreen() {
 						</Box>
 
 						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mb-6
-							"
+							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 						>
 							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
 								Resumo do período
@@ -824,11 +814,7 @@ export default function BankMovementsScreen() {
 						)}
 
 						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-							"
+							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full"
 						>
 							<HStack className="justify-between items-center">
 								<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -884,17 +870,9 @@ export default function BankMovementsScreen() {
 							)}
 						</Box>
 
-						<Box
-							className="
-								bg-white dark:bg-gray-800
-								rounded-lg
-								p-4
-								mt-6
-							"
-						>
-							<Text className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-								Movimentações encontradas
-							</Text>
+						<View className="w-full mb-6">
+							
+							<Divider className="my-4" />
 
 							{isLoading ? (
 								<Text className="text-center text-gray-700 dark:text-gray-300">
@@ -915,13 +893,15 @@ export default function BankMovementsScreen() {
 											{/* Duplo toque (TapGestureHandler) abre o Drawer desta movimentação */}
 											<Box
 												className="
-													mb-4
-													border-b border-gray-200 dark:border-gray-700
-													pb-3
+													bg-white dark:bg-gray-900
+													border border-gray-200 dark:border-gray-700
+													rounded-lg
+													px-4 py-3
+													w-full mb-4
 												"
 											>
-												<HStack className="justify-between items-center">
-													<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+												<HStack className="justify-between items-center pt-2">
+													<Text className="text-lg text-gray-900 dark:text-gray-100 font-semibold">
 														{movement.name}
 													</Text>
 													<Text
@@ -959,7 +939,10 @@ export default function BankMovementsScreen() {
 													</>
 
 												)}
-												<View className="mt-2 flex-row justify-end items-center gap-2">
+
+												<Divider className="my-4" />
+
+												<View className="flex-row justify-end items-center gap-2">
 													<Button
 														size="xl"
 														variant="link"
@@ -1010,7 +993,7 @@ export default function BankMovementsScreen() {
 									</TapGestureHandler>
 								))
 							)}
-						</Box>
+						</View>
 					</View>
 				</ScrollView>
 
