@@ -39,6 +39,7 @@ import { deleteGainFirebase } from '@/functions/GainFirebase';
 // Importação do SVG
 import MandatoryGainListIllustration from '../assets/UnDraw/mandatoryGainsListScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 type MandatoryGainItem = {
 	id: string;
@@ -59,12 +60,6 @@ type PendingGainAction =
 	| { type: 'edit'; gain: MandatoryGainItem }
 	| { type: 'delete'; gain: MandatoryGainItem }
 	| { type: 'reclaim'; gain: MandatoryGainItem };
-
-const formatCurrencyBRL = (valueInCents: number) =>
-	new Intl.NumberFormat('pt-BR', {
-		style: 'currency',
-		currency: 'BRL',
-	}).format(valueInCents / 100);
 
 const getDueDayColorClass = (dueDay: number, isReceivedForCurrentCycle?: boolean) => {
 	const today = new Date().getDate();
@@ -133,6 +128,20 @@ export default function MandatoryGainsListScreen() {
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingGainAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
+	const { shouldHideValues } = useValueVisibility();
+
+	const formatCurrencyBRL = React.useCallback(
+		(valueInCents: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return new Intl.NumberFormat('pt-BR', {
+				style: 'currency',
+				currency: 'BRL',
+			}).format(valueInCents / 100);
+		},
+		[shouldHideValues],
+	);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;

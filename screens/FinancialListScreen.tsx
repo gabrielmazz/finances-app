@@ -34,6 +34,7 @@ import {
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 import FinancialListIllustration from '../assets/UnDraw/financialListScreen.svg';
 
@@ -70,7 +71,7 @@ type BankMetadata = {
 
 const INVESTMENT_TAG_LABEL = 'Investimento';
 
-const formatCurrencyBRL = (value: number) =>
+const formatCurrencyBRLRaw = (value: number) =>
 	new Intl.NumberFormat('pt-BR', {
 		style: 'currency',
 		currency: 'BRL',
@@ -197,6 +198,17 @@ export default function FinancialListScreen() {
 	const [investmentForSync, setInvestmentForSync] = React.useState<FinanceInvestment | null>(null);
 	const [syncInput, setSyncInput] = React.useState('');
 	const [isSavingSync, setIsSavingSync] = React.useState(false);
+	const { shouldHideValues } = useValueVisibility();
+
+	const formatCurrencyBRL = React.useCallback(
+		(value: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return formatCurrencyBRLRaw(value);
+		},
+		[shouldHideValues],
+	);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;

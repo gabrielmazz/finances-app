@@ -39,6 +39,7 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 // Importação do SVG
 import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpensesListScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 type MandatoryExpenseItem = {
 	id: string;
@@ -60,7 +61,7 @@ type PendingExpenseAction =
 	| { type: 'delete'; expense: MandatoryExpenseItem }
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
 
-const formatCurrencyBRL = (valueInCents: number) =>
+const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
 		style: 'currency',
 		currency: 'BRL',
@@ -125,6 +126,17 @@ export default function MandatoryExpensesListScreen() {
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
+	const { shouldHideValues } = useValueVisibility();
+
+	const formatCurrencyBRL = React.useCallback(
+		(valueInCents: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return formatCurrencyBRLBase(valueInCents);
+		},
+		[shouldHideValues],
+	);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;

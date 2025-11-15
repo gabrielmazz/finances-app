@@ -23,6 +23,7 @@ import { getLimitedGainsFirebase, getLimitedGainsWithPeopleFirebase } from '@/fu
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { VStack } from '@/components/ui/vstack';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 
@@ -65,6 +66,7 @@ export default function HomeScreen() {
 	const axisColor = isDarkMode ? '#CBD5F5' : '#475569';
 	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const currentYear = React.useMemo(() => new Date().getFullYear(), []);
+	const { shouldHideValues } = useValueVisibility();
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
 	const [summaryError, setSummaryError] = React.useState<string | null>(null);
@@ -78,13 +80,19 @@ export default function HomeScreen() {
 		return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 	}, []);
 
-	const formatCurrencyBRL = React.useCallback((valueInCents: number) => {
-		return new Intl.NumberFormat('pt-BR', {
-			style: 'currency',
-			currency: 'BRL',
-			minimumFractionDigits: 2,
-		}).format(valueInCents / 100);
-	}, []);
+	const formatCurrencyBRL = React.useCallback(
+		(valueInCents: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return new Intl.NumberFormat('pt-BR', {
+				style: 'currency',
+				currency: 'BRL',
+				minimumFractionDigits: 2,
+			}).format(valueInCents / 100);
+		},
+		[shouldHideValues],
+	);
 
 	const formatMovementDate = React.useCallback((value: unknown) => {
 		if (!value) {

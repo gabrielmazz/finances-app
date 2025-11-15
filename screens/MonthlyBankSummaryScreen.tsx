@@ -7,6 +7,7 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { Menu } from '@/components/uiverse/menu';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -31,7 +32,7 @@ type BankSummary = {
 	currentBalanceInCents: number | null;
 };
 
-function formatCurrencyBRL(valueInCents: number): string {
+function formatCurrencyBRLBase(valueInCents: number): string {
 	return new Intl.NumberFormat('pt-BR', {
 		style: 'currency',
 		currency: 'BRL',
@@ -43,6 +44,27 @@ export default function MonthlyBankSummaryScreen() {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [bankSummaries, setBankSummaries] = React.useState<BankSummary[]>([]);
+	const { shouldHideValues } = useValueVisibility();
+
+	const formatCurrencyBRL = React.useCallback(
+		(valueInCents: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return formatCurrencyBRLBase(valueInCents);
+		},
+		[shouldHideValues],
+	);
+
+	const formatMovementsCount = React.useCallback(
+		(totalMovements: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return String(totalMovements);
+		},
+		[shouldHideValues],
+	);
 
 	const handleOpenBankMovements = React.useCallback((bankId: string, bankName: string, colorHex?: string | null) => {
 		if (!bankId) {
@@ -341,12 +363,12 @@ export default function MonthlyBankSummaryScreen() {
 													: 'Indisponível'}
 											</Text>
 										</Text>
-										<Text className="mt-1 text-gray-700 dark:text-gray-300">
-											Movimentações no mês:{' '}
-											<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
-												{bank.totalMovements}
-											</Text>
-										</Text>
+						<Text className="mt-1 text-gray-700 dark:text-gray-300">
+							Movimentações no mês:{' '}
+							<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
+								{formatMovementsCount(bank.totalMovements)}
+							</Text>
+						</Text>
 
 										<Text className="mt-3 text-sm text-gray-500 dark:text-gray-400">
 											Toque para selecionar um período personalizado e ver todas as
