@@ -36,6 +36,7 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Menu } from '@/components/uiverse/menu';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { auth } from '@/FirebaseConfig';
+import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 // Gráfico de pizza
 import { PieChart } from 'react-native-gifted-charts';
@@ -77,7 +78,7 @@ type PendingMovementAction =
 	| { type: 'edit'; movement: MovementRecord }
 	| { type: 'delete'; movement: MovementRecord };
 
-const formatCurrencyBRL = (valueInCents: number) =>
+const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
 		style: 'currency',
 		currency: 'BRL',
@@ -230,6 +231,17 @@ export default function BankMovementsScreen() {
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+	const { shouldHideValues } = useValueVisibility();
+
+	const formatCurrencyBRL = React.useCallback(
+		(valueInCents: number) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return formatCurrencyBRLBase(valueInCents);
+		},
+		[shouldHideValues],
+	);
 
 	// Controla qual movimentação deve aparecer no Drawer e quando ele está aberto
 	const [selectedMovement, setSelectedMovement] = React.useState<MovementRecord | null>(null);

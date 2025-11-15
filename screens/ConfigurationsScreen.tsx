@@ -57,6 +57,8 @@ import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField, InputIcon } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
+import { Switch } from '@/components/ui/switch';
+import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -350,6 +352,14 @@ export default function ConfigurationsScreen() {
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
+	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
+
+	const handleToggleValueVisibility = React.useCallback(
+		(value: boolean) => {
+			setShouldHideValues(value);
+		},
+		[setShouldHideValues],
+	);
 
 	// Constante para armazenar o email do usuário logado atualmente
 	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
@@ -1157,14 +1167,42 @@ export default function ConfigurationsScreen() {
 								/>
 							</Input>
 
-						</VStack>
+					</VStack>
 
-						<Accordion
+					<View className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
+						<View className="flex-row items-center justify-between">
+							<View className="flex-1 pr-4">
+								<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
+									Ocultar valores financeiros
+								</Text>
+								<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+									Ative esta opção para esconder totais de ganhos, despesas e saldos nas demais telas.
+								</Text>
+							</View>
+							<Switch
+								value={shouldHideValues}
+								onValueChange={handleToggleValueVisibility}
+								disabled={isLoadingPreference}
+								trackColor={{ false: '#d4d4d4', true: '#525252' }}
+								thumbColor="#fafafa"
+								ios_backgroundColor="#d4d4d4"
+							/>
+						</View>
+						<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+							{isLoadingPreference
+								? 'Verificando a preferência salva...'
+								: shouldHideValues
+									? 'Os valores financeiros estão ocultos.'
+									: 'Os valores financeiros estão visíveis.'}
+						</Text>
+					</View>
+
+					<Accordion
 							size="md"
 							variant="unfilled"
 							type="single"
 							isCollapsible
-							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
+							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mt-6"
 						>
 							{accordionItems.map((item, index) => {
 								const requiresAdmin = item.actionRequiresAdmin !== false;
