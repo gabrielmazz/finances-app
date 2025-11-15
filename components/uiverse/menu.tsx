@@ -99,6 +99,11 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				value: 1,
 				onSelect: () => router.push('/mandatory-gains'),
 			},
+			{
+				label: 'Investimentos',
+				value: 1,
+				onSelect: () => router.push('/financial-list'),
+			},
 		],
 	},
 	{

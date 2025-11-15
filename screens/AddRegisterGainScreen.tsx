@@ -42,6 +42,7 @@ import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { auth } from '@/FirebaseConfig';
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
+import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 
 // Importação dos icones
 import { CheckIcon } from '@/components/ui/icon';
@@ -204,6 +205,9 @@ export default function AddRegisterGainScreen() {
 		templateDueDay?: string | string[];
 		templateTagName?: string | string[];
 		templateMandatoryGainId?: string | string[];
+		templateLockTag?: string | string[];
+		investmentIdForAdjustment?: string | string[];
+		investmentDeltaInCents?: string | string[];
 	}>();
 	const editingGainId = React.useMemo(() => {
 		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
@@ -240,6 +244,9 @@ export default function AddRegisterGainScreen() {
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const mandatoryGainId = decodeParam(params.templateMandatoryGainId);
+		const lockTagParam = decodeParam(params.templateLockTag);
+		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
+		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
 
 		if (
 			!name &&
@@ -261,15 +268,21 @@ export default function AddRegisterGainScreen() {
 			valueInCents,
 			dueDay,
 			mandatoryGainId,
+			lockTag: lockTagParam === '1',
+			investmentAdjustmentId,
+			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
 		};
 	}, [
 		params.templateDescription,
 		params.templateDueDay,
+		params.templateLockTag,
 		params.templateTagName,
 		params.templateMandatoryGainId,
 		params.templateName,
 		params.templateTagId,
 		params.templateValueInCents,
+		params.investmentDeltaInCents,
+		params.investmentIdForAdjustment,
 	]);
 
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
@@ -279,7 +292,24 @@ export default function AddRegisterGainScreen() {
 	);
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
+	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
 	const shouldShowPaymentFormatSelection = !isTemplateLocked;
+	const pendingInvestmentAdjustment = React.useMemo(() => {
+		if (isEditing) {
+			return null;
+		}
+		if (
+			templateData?.investmentAdjustmentId &&
+			typeof templateData.investmentDeltaInCents === 'number' &&
+			templateData.investmentDeltaInCents !== 0
+		) {
+			return {
+				investmentId: templateData.investmentAdjustmentId,
+				deltaInCents: templateData.investmentDeltaInCents,
+			};
+		}
+		return null;
+	}, [isEditing, templateData]);
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) {
@@ -346,7 +376,7 @@ export default function AddRegisterGainScreen() {
 							if (current && formattedTags.some(tag => tag.id === current)) {
 								return current;
 							}
-							if (isTemplateLocked && templateData?.tagId) {
+							if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
 								return templateData.tagId;
 							}
 							return null;
@@ -567,6 +597,21 @@ export default function AddRegisterGainScreen() {
 				}
 			}
 
+			if (pendingInvestmentAdjustment) {
+				const adjustResult = await adjustFinanceInvestmentValueFirebase({
+					investmentId: pendingInvestmentAdjustment.investmentId,
+					deltaInCents: pendingInvestmentAdjustment.deltaInCents,
+				});
+
+				if (!adjustResult.success) {
+					showFloatingAlert({
+						message: 'Ganho registrado, mas não foi possível atualizar o investimento.',
+						action: 'warning',
+						position: 'bottom',
+					});
+				}
+			}
+
 			showFloatingAlert({
 				message: 'Ganho registrado com sucesso!',
 				action: 'success',
@@ -610,6 +655,7 @@ export default function AddRegisterGainScreen() {
 		paymentFormat,
 		selectedBankId,
 		selectedTagId,
+		pendingInvestmentAdjustment,
 	]);
 
 	React.useEffect(() => {
@@ -892,9 +938,11 @@ export default function AddRegisterGainScreen() {
 							</HStack>
 						</View>
 
-						{isTemplateLocked ? (
+						{isTagSelectionLocked ? (
 							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-								<Text className="font-semibold mb-1">Tag do ganho obrigatório</Text>
+								<Text className="font-semibold mb-1">
+									{isTemplateLocked ? 'Tag do ganho obrigatório' : 'Tag definida automaticamente'}
+								</Text>
 								<Text className="text-gray-700 dark:text-gray-300">
 									{templateTagDisplayName ?? 'Tag não encontrada'}
 								</Text>
