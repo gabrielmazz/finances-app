@@ -42,10 +42,12 @@ import {
 	deleteFinanceInvestmentFirebase,
 	getFinanceInvestmentsWithRelationsFirebase,
 	updateFinanceInvestmentFirebase,
+	syncFinanceInvestmentValueFirebase,
 } from '@/functions/FinancesFirebase';
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import { Divider } from '@/components/ui/divider';
 
 type FinanceInvestment = {
 	id: string;
@@ -56,6 +58,8 @@ type FinanceInvestment = {
 	bankId: string;
 	description?: string | null;
 	createdAtISO: string;
+	lastManualSyncValueInCents?: number | null;
+	lastManualSyncAtISO?: string | null;
 };
 
 type BankMetadata = {
@@ -135,6 +139,16 @@ const getDaysSinceDate = (isoDate: string) => {
 	return diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
 };
 
+const resolveBaseValueInCents = (investment: FinanceInvestment) => {
+	if (typeof investment.lastManualSyncValueInCents === 'number') {
+		return investment.lastManualSyncValueInCents;
+	}
+	return investment.initialValueInCents;
+};
+
+const resolveBaseDateISO = (investment: FinanceInvestment) =>
+	investment.lastManualSyncAtISO ?? investment.createdAtISO;
+
 const calculateDailyRate = (cdiPercentage: number) => {
 	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
 		return 0;
@@ -144,18 +158,18 @@ const calculateDailyRate = (cdiPercentage: number) => {
 };
 
 const simulateCurrentValue = (investment: FinanceInvestment) => {
-	const baseValue = convertCentsToBRL(investment.initialValueInCents);
+	const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 	const dailyRate = calculateDailyRate(investment.cdiPercentage);
 	if (dailyRate <= 0) {
 		return baseValue;
 	}
-	const days = getDaysSinceDate(investment.createdAtISO);
+	const days = getDaysSinceDate(resolveBaseDateISO(investment));
 	return baseValue * Math.pow(1 + dailyRate, days);
 };
 
 const simulateDailyYield = (investment: FinanceInvestment) => {
 	const dailyRate = calculateDailyRate(investment.cdiPercentage);
-	const baseValue = convertCentsToBRL(investment.initialValueInCents);
+	const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 	return dailyRate > 0 ? baseValue * dailyRate : 0;
 };
 
@@ -180,6 +194,9 @@ export default function FinancialListScreen() {
 	const [investmentForDeposit, setInvestmentForDeposit] = React.useState<FinanceInvestment | null>(null);
 	const [depositInput, setDepositInput] = React.useState('');
 	const [isSavingDeposit, setIsSavingDeposit] = React.useState(false);
+	const [investmentForSync, setInvestmentForSync] = React.useState<FinanceInvestment | null>(null);
+	const [syncInput, setSyncInput] = React.useState('');
+	const [isSavingSync, setIsSavingSync] = React.useState(false);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
@@ -232,6 +249,11 @@ export default function FinancialListScreen() {
 							? investment.description.trim()
 							: null,
 					createdAtISO: normalizeDate(investment.createdAt),
+					lastManualSyncValueInCents:
+						typeof investment.lastManualSyncValueInCents === 'number'
+							? investment.lastManualSyncValueInCents
+							: null,
+					lastManualSyncAtISO: investment.lastManualSyncAt ? normalizeDate(investment.lastManualSyncAt) : null,
 				}),
 			);
 
@@ -624,6 +646,66 @@ export default function FinancialListScreen() {
 		}
 	}, [ensureInvestmentTag, investmentForWithdrawal, withdrawInput]);
 
+	const handleOpenManualSyncModal = React.useCallback((investment: FinanceInvestment) => {
+		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+		setInvestmentForSync(investment);
+		setSyncInput(baseValue > 0 ? baseValue.toFixed(2).replace('.', ',') : '');
+	}, []);
+
+	const handleCloseManualSyncModal = React.useCallback(() => {
+		if (isSavingSync) {
+			return;
+		}
+		setInvestmentForSync(null);
+		setSyncInput('');
+	}, [isSavingSync]);
+
+	const handleConfirmManualSync = React.useCallback(async () => {
+		if (!investmentForSync) {
+			return;
+		}
+
+		const parsedValue = parseStringToNumber(syncInput);
+		if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+			showFloatingAlert({
+				message: 'Informe um valor válido para sincronizar.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		setIsSavingSync(true);
+		try {
+			const result = await syncFinanceInvestmentValueFirebase({
+				investmentId: investmentForSync.id,
+				syncedValueInCents: Math.round(parsedValue * 100),
+			});
+
+			if (!result.success) {
+				throw new Error('Erro ao sincronizar investimento.');
+			}
+
+			await loadData();
+			showFloatingAlert({
+				message: 'Valor sincronizado com sucesso!',
+				action: 'success',
+				position: 'bottom',
+			});
+			setInvestmentForSync(null);
+			setSyncInput('');
+		} catch (error) {
+			console.error(error);
+			showFloatingAlert({
+				message: 'Não foi possível sincronizar agora.',
+				action: 'error',
+				position: 'bottom',
+			});
+		} finally {
+			setIsSavingSync(false);
+		}
+	}, [investmentForSync, loadData, syncInput]);
+
 	return (
 		<View
 			className="
@@ -653,10 +735,15 @@ export default function FinancialListScreen() {
 						<FinancialListIllustration width={180} height={180} />
 					</Box>
 
-					<Text className="text-center text-gray-600 dark:text-gray-400 mb-6">
-						Acompanhe como cada banco está fazendo seu dinheiro render. Os dados são salvos no Firebase e
-						compartilhados entre seus usuários relacionados.
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						Acompanhe como cada banco está fazendo seu dinheiro render. Veja o total investido, o rendimento
+						{" "}
+						<Text className="font-semibold text-red-500 dark:text-red-400">
+							Lembrando que isso se baseia em uma estimativa e não reflete valores reais de mercado e nem os rendimentos, portanto exige incosistências em relação à realidade.
+						</Text>
 					</Text>
+
+					<Divider className="my-6 mb-6" />
 
 					<Box className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-4">
 						<VStack className="gap-2">
@@ -744,6 +831,20 @@ export default function FinancialListScreen() {
 													</Text>
 												</Text>
 												<Text className="text-gray-700 dark:text-gray-300">
+													Última sincronização manual:{' '}
+													{typeof investment.lastManualSyncValueInCents === 'number' &&
+													investment.lastManualSyncAtISO ? (
+														<Text className="font-semibold">
+															{formatCurrencyBRL(
+																convertCentsToBRL(investment.lastManualSyncValueInCents),
+															)}{' '}
+															em {formatDateToBR(investment.lastManualSyncAtISO)}
+														</Text>
+													) : (
+														<Text className="font-semibold">Nunca sincronizado</Text>
+													)}
+												</Text>
+												<Text className="text-gray-700 dark:text-gray-300">
 													Valor simulado hoje:{' '}
 													<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
 														{formatCurrencyBRL(simulatedValue)}
@@ -759,40 +860,51 @@ export default function FinancialListScreen() {
 													Registrado em {formatDateToBR(investment.createdAtISO)}
 												</Text>
 											</View>
-											<HStack className="gap-2">
-												<Button
-													size="sm"
-													variant="link"
-													action="primary"
-													onPress={() => handleOpenDepositModal(investment)}
-												>
-													<ButtonIcon as={AddIcon} />
-												</Button>
-												<Button
-													size="sm"
-													variant="link"
-													action="primary"
-													onPress={() => handleOpenWithdrawalModal(investment)}
-												>
-													<ButtonIcon as={ArrowDownIcon} />
-												</Button>
-												<Button
-													size="sm"
-													variant="link"
-													action="primary"
-													onPress={() => handleOpenEditModal(investment)}
-												>
-													<ButtonIcon as={EditIcon} />
-												</Button>
-												<Button
-													size="sm"
-													variant="link"
-													action="negative"
-													onPress={() => handleRequestDelete(investment)}
-												>
-													<ButtonIcon as={TrashIcon} />
-												</Button>
 											</HStack>
+
+											<Divider className="my-4" />
+
+											<HStack className="gap-3 flex-wrap justify-end">
+											<Button
+												size="md"
+												variant="link"
+												action="primary"
+												onPress={() => handleOpenDepositModal(investment)}
+											>
+												<ButtonIcon as={AddIcon} />
+											</Button>
+											<Button
+												size="md"
+												variant="link"
+												action="primary"
+												onPress={() => handleOpenWithdrawalModal(investment)}
+											>
+												<ButtonIcon as={ArrowDownIcon} />
+											</Button>
+											<Button
+												size="md"
+												variant="link"
+												action="primary"
+												onPress={() => handleOpenManualSyncModal(investment)}
+											>
+												<ButtonText>Sincronizar</ButtonText>
+											</Button>
+											<Button
+												size="md"
+												variant="link"
+												action="primary"
+												onPress={() => handleOpenEditModal(investment)}
+											>
+												<ButtonIcon as={EditIcon} />
+											</Button>
+											<Button
+												size="md"
+												variant="link"
+												action="negative"
+												onPress={() => handleRequestDelete(investment)}
+											>
+												<ButtonIcon as={TrashIcon} />
+											</Button>
 										</HStack>
 									</Box>
 								);
@@ -963,9 +1075,9 @@ export default function FinancialListScreen() {
 				</ModalContent>
 			</Modal>
 
-			<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
+				<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
 					<ModalHeader>
 						<Heading size="lg">Resgatar investimento</Heading>
 						<ModalCloseButton onPress={handleCloseWithdrawalModal} />
@@ -1002,8 +1114,48 @@ export default function FinancialListScreen() {
 							)}
 						</Button>
 					</ModalFooter>
-				</ModalContent>
-			</Modal>
+					</ModalContent>
+				</Modal>
+
+				<Modal isOpen={Boolean(investmentForSync)} onClose={handleCloseManualSyncModal}>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
+						<ModalHeader>
+							<Heading size="lg">Sincronizar valor real</Heading>
+							<ModalCloseButton onPress={handleCloseManualSyncModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className="text-gray-600 dark:text-gray-300 mb-3">
+								Informe o valor atual disponível em{' '}
+								<Text className="font-semibold">{investmentForSync?.name ?? 'seu investimento'}</Text>. Esse
+								valor passará a ser a base para o cálculo simulado até a próxima atualização manual.
+							</Text>
+							<Input>
+								<InputField
+									value={syncInput}
+									onChangeText={text => setSyncInput(sanitizeNumberInput(text))}
+									keyboardType="decimal-pad"
+									placeholder="Ex: 1.250,45"
+								/>
+							</Input>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseManualSyncModal} isDisabled={isSavingSync}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleConfirmManualSync} isDisabled={isSavingSync}>
+								{isSavingSync ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Sincronizando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Salvar valor</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
 			<Modal isOpen={Boolean(investmentPendingDeletion)} onClose={handleCloseDeleteModal}>
 				<ModalBackdrop />

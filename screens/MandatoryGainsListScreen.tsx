@@ -467,13 +467,7 @@ export default function MandatoryGainsListScreen() {
 							{gains.map(gain => (
 								<Box
 									key={gain.id}
-									className="
-										w-full
-										bg-white dark:bg-gray-800
-										rounded-lg
-										p-4
-										mb-4
-									"
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 								>
 									<HStack className="justify-between items-start mb-2">
 										<View className="flex-1 pr-3">
@@ -509,43 +503,46 @@ export default function MandatoryGainsListScreen() {
 												<Text className="text-gray-600 mt-1">Observações: {gain.description}</Text>
 											)}
 										</View>
-										<HStack className="gap-2">
+									</HStack>
+
+									<Divider className="my-4" />
+									
+									<HStack className="gap-3 flex-wrap justify-end">
+										<Button
+											size="md"
+											variant="link"
+											action="primary"
+											onPress={() => setPendingAction({ type: 'register', gain })}
+											isDisabled={gain.isReceivedForCurrentCycle}
+										>
+											<ButtonIcon as={AddIcon} />
+										</Button>
+										<Button
+											size="md"
+											variant="link"
+											action="primary"
+											onPress={() => setPendingAction({ type: 'edit', gain })}
+										>
+											<ButtonIcon as={EditIcon} />
+										</Button>
+										{gain.isReceivedForCurrentCycle && (
 											<Button
-												size="sm"
+												size="md"
 												variant="link"
-												action="primary"
-												onPress={() => setPendingAction({ type: 'register', gain })}
-												isDisabled={gain.isReceivedForCurrentCycle}
+												action="secondary"
+												onPress={() => setPendingAction({ type: 'reclaim', gain })}
 											>
-												<ButtonIcon as={AddIcon} />
+												<ButtonText>Reivindicar</ButtonText>
 											</Button>
-											<Button
-												size="sm"
-												variant="link"
-												action="primary"
-												onPress={() => setPendingAction({ type: 'edit', gain })}
-											>
-												<ButtonIcon as={EditIcon} />
-											</Button>
-											{gain.isReceivedForCurrentCycle && (
-												<Button
-													size="sm"
-													variant="link"
-													action="secondary"
-													onPress={() => setPendingAction({ type: 'reclaim', gain })}
-												>
-													<ButtonText>Reivindicar</ButtonText>
-												</Button>
-											)}
-											<Button
-												size="sm"
-												variant="link"
-												action="negative"
-												onPress={() => setPendingAction({ type: 'delete', gain })}
-											>
-												<ButtonIcon as={TrashIcon} />
-											</Button>
-										</HStack>
+										)}
+										<Button
+											size="md"
+											variant="link"
+											action="negative"
+											onPress={() => setPendingAction({ type: 'delete', gain })}
+										>
+											<ButtonIcon as={TrashIcon} />
+										</Button>
 									</HStack>
 								</Box>
 							))}

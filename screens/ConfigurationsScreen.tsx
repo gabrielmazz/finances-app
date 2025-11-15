@@ -1164,7 +1164,7 @@ export default function ConfigurationsScreen() {
 							variant="unfilled"
 							type="single"
 							isCollapsible
-							className="w-full border border-outline-200 bg-white dark:bg-gray-900 rounded-lg p-2"
+							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 						>
 							{accordionItems.map((item, index) => {
 								const requiresAdmin = item.actionRequiresAdmin !== false;

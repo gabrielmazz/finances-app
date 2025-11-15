@@ -720,13 +720,7 @@ export default function HomeScreen() {
 							>
 								{/* Box para mostrar a soma dos gastos e ganhos */}
 								<Box
-									className="
-									w-full
-									bg-white dark:bg-gray-800
-									rounded-lg
-									p-4
-									mb-6
-								"
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 									style={isLoadingSummary ? { opacity: 0.6 } : undefined}
 								>
 
@@ -751,21 +745,21 @@ export default function HomeScreen() {
 
 									) : summaryError ? (
 
-										<Text className="mt-4 text-red-600 dark:text-red-400">
+										<Text className="text-red-600 dark:text-red-400">
 											{summaryError}
 										</Text>
 
 									) : (
 
 										<>
-											<Text className="mt-4 text-gray-700 dark:text-gray-300">
+											<Text className="pt-4 text-gray-700 dark:text-gray-300">
 												Total de ganhos:{' '}
 												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
 													{formatCurrencyBRL(totalGainsInCents)}
 												</Text>
 											</Text>
 
-											<Text className="mt-4 text-gray-700 dark:text-gray-300">
+											<Text className="mt-2 text-gray-700 dark:text-gray-300">
 												Total de despesas:{' '}
 												<Text className="text-red-600 dark:text-red-400 font-semibold">
 													{formatCurrencyBRL(totalExpensesInCents)}
@@ -790,13 +784,7 @@ export default function HomeScreen() {
 									/>
 								)}
 								<Box
-									className="
-							w-full
-							bg-white dark:bg-gray-800
-							rounded-lg
-							p-4
-							mb-6
-						"
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"						
 								>
 
 									<HStack className="justify-between items-center">
@@ -997,13 +985,7 @@ export default function HomeScreen() {
 
 							{/* Card para mostrar os últimos movimentos de cada banco */}
 							<Box
-								className="
-										w-full
-										bg-white dark:bg-gray-800
-										rounded-lg
-										p-4
-										mb-6
-									"
+								className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 							>
 
 								<HStack className="justify-between items-center">
