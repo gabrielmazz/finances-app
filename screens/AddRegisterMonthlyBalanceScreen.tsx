@@ -257,7 +257,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, [fetchExistingBalance]);
 
 	const handleSubmit = React.useCallback(async () => {
-		
+
 		// Validação do campo banco
 		if (!selectedBankId) {
 			showFloatingAlert({
@@ -325,7 +325,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				action: 'success',
 				position: 'bottom',
 			});
-			
+
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showFloatingAlert({
@@ -380,10 +380,13 @@ export default function AddRegisterMonthlyBalanceScreen() {
 						você poderá atualizá-lo.
 					</Text>
 
-					<Divider className="my-6 mb-6"/>
+					<Divider className="my-6 mb-6" />
 
-					<VStack className="gap-5">
-						<View>
+					<VStack className="gap-4">
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Selecione o banco onde o saldo está registrado
+							</Text>
 							<Select
 								selectedValue={selectedBankId}
 								onValueChange={value => setSelectedBankId(value)}
@@ -407,26 +410,36 @@ export default function AddRegisterMonthlyBalanceScreen() {
 									</SelectContent>
 								</SelectPortal>
 							</Select>
-						</View>
+						</Box>
 
-						<Input>
-							<InputField
-								placeholder="Mês de referência (MM/AAAA)"
-								value={monthReference}
-								onChangeText={handleMonthChange}
-								keyboardType="numeric"
-							/>
-						</Input>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Mês de referência para o saldo
+							</Text>
+							<Input>
+								<InputField
+									placeholder="Mês de referência (MM/AAAA)"
+									value={monthReference}
+									onChangeText={handleMonthChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+						</Box>
 
-						<Input isDisabled={isBalanceInputDisabled}>
-							<InputField
-								placeholder="Saldo disponível"
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Saldo disponível
+							</Text>
+							<Input isDisabled={isBalanceInputDisabled}>
+								<InputField
+									placeholder="Saldo disponível"
 								value={balanceInputValue}
 								onChangeText={handleBalanceChange}
 								keyboardType="numeric"
 								editable={!isBalanceInputDisabled}
 							/>
-						</Input>
+							</Input>
+						</Box>
 
 						{isLoadingExisting ? (
 							<Text className="text-sm text-gray-500 dark:text-gray-400">

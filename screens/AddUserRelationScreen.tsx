@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
 
 // Componentes Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -148,6 +148,7 @@ export default function AddUserRelationScreen() {
 	}, [relatedUserId]);
 
 	return (
+		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
 		<View
 			className="
 					flex-1 w-full h-full
@@ -180,21 +181,26 @@ export default function AddUserRelationScreen() {
 
 				<VStack className="gap-4">
 
-					<Input>
-						<InputField
-							placeholder="ID do usuário"
-							value={relatedUserId}
-							onChangeText={setRelatedUserId}
-							autoCapitalize="none"
-						/>
-					</Input>
+					<Box>
+						<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+							ID do usuário a ser vinculado com você
+						</Text>
+						<Input>
+							<InputField
+								placeholder="ID do usuário que será vinculado com você e vice-versa"
+								value={relatedUserId}
+								onChangeText={setRelatedUserId}
+								autoCapitalize="none"
+							/>
+						</Input>
+					</Box>
 
 					<Button
 						className="w-full mt-2"
 						size="sm"
 						variant="outline"
 						onPress={handleLinkUsers}
-						isDisabled={isSubmitting}
+						isDisabled={isSubmitting || !relatedUserId.trim()}
 					>
 						{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
 					</Button>
@@ -203,5 +209,6 @@ export default function AddUserRelationScreen() {
 
 			<Menu defaultValue={2} />
 		</View>
+		</TouchableWithoutFeedback>
 	);
 }

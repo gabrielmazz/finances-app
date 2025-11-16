@@ -113,7 +113,7 @@ export default function AddMandatoryExpensesScreen() {
 	const [isPaymentActionLoading, setIsPaymentActionLoading] = React.useState(false);
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
-		 return null;
+			return null;
 		}
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? null;
 	}, [selectedTagId, tagOptions]);
@@ -163,17 +163,17 @@ export default function AddMandatoryExpensesScreen() {
 		setExpenseName('');
 		setValueDisplay('');
 		setValueInCents(null);
-			setDueDay('');
-			setDescription('');
-			setReminderEnabled(true);
-			setSelectedTagId(current => {
-				if (options?.keepTag && current) {
-					return current;
-				}
-				return null;
-			});
-			setCurrentPaymentInfo(null);
-		}, []);
+		setDueDay('');
+		setDescription('');
+		setReminderEnabled(true);
+		setSelectedTagId(current => {
+			if (options?.keepTag && current) {
+				return current;
+			}
+			return null;
+		});
+		setCurrentPaymentInfo(null);
+	}, []);
 
 	const loadTags = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
@@ -594,73 +594,99 @@ export default function AddMandatoryExpensesScreen() {
 					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-4">
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Nome do gasto"
-								value={expenseName}
-								onChangeText={setExpenseName}
-								autoCapitalize="sentences"
-							/>
-						</Input>
 
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Valor previsto"
-								value={valueDisplay}
-								onChangeText={handleValueChange}
-								keyboardType="numeric"
-							/>
-						</Input>
-
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Dia do vencimento (1-31)"
-								value={dueDay}
-								onChangeText={handleDueDayChange}
-								keyboardType="numeric"
-							/>
-						</Input>
-						{dueDay.length > 0 && !isDueDayValid && (
-							<Text className="text-sm text-error-600">Informe um dia válido entre 1 e 31.</Text>
-						)}
-
-						<Select
-							selectedValue={selectedTagId ?? undefined}
-							onValueChange={setSelectedTagId}
-							isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
-						>
-							<SelectTrigger>
-								<SelectInput
-									placeholder="Selecione uma tag obrigatória"
-									value={selectedTagLabel ?? ''}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor da despesa obrigatória
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Ex: Aluguel, Luz, Internet..."
+									value={expenseName}
+									onChangeText={setExpenseName}
+									autoCapitalize="sentences"
 								/>
-								<SelectIcon />
-							</SelectTrigger>
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
-									{tagOptions.length > 0 ? (
-										tagOptions.map(tag => (
-											<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-										))
-									) : (
-										<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
+							</Input>
+						</Box>
 
-						<Textarea className="h-28" isDisabled={isPrefilling}>
-							<TextareaInput
-								placeholder="Descrição ou observações (opcional)"
-								multiline
-								value={description}
-								onChangeText={setDescription}
-							/>
-						</Textarea>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor mensal da despesa obrigatória
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Ex: R$ 700,00"
+									value={valueDisplay}
+									onChangeText={handleValueChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Dia do vencimento mensal
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Dia do vencimento (1-31)"
+									value={dueDay}
+									onChangeText={handleDueDayChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+							{dueDay.length > 0 && !isDueDayValid && (
+								<Text className="text-sm text-error-600">Informe um dia válido entre 1 e 31.</Text>
+							)}
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Tag obrigatória da despesa
+							</Text>
+							<Select
+								selectedValue={selectedTagId ?? undefined}
+								onValueChange={setSelectedTagId}
+								isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
+							>
+								<SelectTrigger>
+									<SelectInput
+										placeholder="Selecione uma tag obrigatória"
+										value={selectedTagLabel ?? ''}
+									/>
+									<SelectIcon />
+								</SelectTrigger>
+								<SelectPortal>
+									<SelectBackdrop />
+									<SelectContent>
+										<SelectDragIndicatorWrapper>
+											<SelectDragIndicator />
+										</SelectDragIndicatorWrapper>
+										{tagOptions.length > 0 ? (
+											tagOptions.map(tag => (
+												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+											))
+										) : (
+											<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
+										)}
+									</SelectContent>
+								</SelectPortal>
+							</Select>
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Descrição ou observações
+							</Text>
+							<Textarea className="h-28" isDisabled={isPrefilling}>
+								<TextareaInput
+									placeholder="Descrição ou observações (opcional)"
+									multiline
+									value={description}
+									onChangeText={setDescription}
+								/>
+							</Textarea>
+						</Box>
 
 						<Box
 							className="
@@ -750,7 +776,7 @@ export default function AddMandatoryExpensesScreen() {
 			</ScrollView>
 
 			<Menu defaultValue={1} />
-			
+
 		</View>
 	);
 }

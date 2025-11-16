@@ -45,7 +45,11 @@ import { PieChart } from 'react-native-gifted-charts';
 import { getMandatoryExpensesWithRelationsFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getMandatoryGainsWithRelationsFirebase } from '@/functions/MandatoryGainFirebase';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { getBankMovementsByPeriodFirebase, getBankDataFirebase } from '@/functions/BankFirebase';
+import {
+	getBankMovementsByPeriodFirebase,
+	getBankDataFirebase,
+	getCashMovementsByPeriodFirebase,
+} from '@/functions/BankFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
@@ -197,7 +201,11 @@ const PIE_TOTAL_COLORS = {
 export default function BankMovementsScreen() {
 	const colorScheme = useColorScheme();
 	const legendBorderColor = colorScheme === 'dark' ? '#374151' : '#E5E7EB';
-	const searchParams = useLocalSearchParams<{ bankId?: string | string[]; bankName?: string | string[] }>();
+	const searchParams = useLocalSearchParams<{
+		bankId?: string | string[];
+		bankName?: string | string[];
+		cashView?: string | string[];
+	}>();
 
 	const bankId = React.useMemo(() => {
 		const value = searchParams.bankId;
@@ -207,7 +215,26 @@ export default function BankMovementsScreen() {
 		return value ?? '';
 	}, [searchParams.bankId]);
 
+	const cashViewParam = React.useMemo(() => {
+		const value = searchParams.cashView;
+		if (Array.isArray(value)) {
+			return value[0] ?? '';
+		}
+		return value ?? '';
+	}, [searchParams.cashView]);
+
+	const isCashView = React.useMemo(() => {
+		const normalized = typeof cashViewParam === 'string' ? cashViewParam.toLowerCase() : '';
+		if (normalized) {
+			return ['true', '1', 'cash', 'yes'].includes(normalized);
+		}
+		return bankId === 'cash' || bankId === 'cash-transactions';
+	}, [bankId, cashViewParam]);
+
 	const bankName = React.useMemo(() => {
+		if (isCashView) {
+			return 'Transações em dinheiro';
+		}
 		const value = Array.isArray(searchParams.bankName) ? searchParams.bankName[0] : searchParams.bankName;
 		if (!value) {
 			return 'Banco selecionado';
@@ -218,7 +245,7 @@ export default function BankMovementsScreen() {
 		} catch {
 			return value;
 		}
-	}, [searchParams.bankName]);
+	}, [searchParams.bankName, isCashView]);
 
 	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
 
@@ -264,7 +291,7 @@ export default function BankMovementsScreen() {
 	}, []);
 
 	const fetchMovements = React.useCallback(async () => {
-		if (!bankId) {
+		if (!bankId && !isCashView) {
 			setErrorMessage('Nenhum banco foi informado.');
 			setMovements([]);
 			return;
@@ -303,17 +330,24 @@ export default function BankMovementsScreen() {
 
 		try {
 			// Buscamos em paralelo as movimentações do banco e os obrigatórios
+			const movementsPromise = isCashView
+				? getCashMovementsByPeriodFirebase({
+						personId: currentUser.uid,
+						startDate: normalizedStart,
+						endDate: normalizedEnd,
+				  })
+				: getBankMovementsByPeriodFirebase({
+						personId: currentUser.uid,
+						bankId,
+						startDate: normalizedStart,
+						endDate: normalizedEnd,
+				  });
+
 			const [result, mandatoryExpensesRes, mandatoryGainsRes] = await Promise.all([
-				getBankMovementsByPeriodFirebase({
-					personId: currentUser.uid,
-					bankId,
-					startDate: normalizedStart,
-					endDate: normalizedEnd,
-				}),
+				movementsPromise,
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 			]);
-			;
 			if (!result?.success || !result.data) {
 				setMovements([]);
 				setErrorMessage(
@@ -403,7 +437,7 @@ export default function BankMovementsScreen() {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [bankId, startDateInput, endDateInput]);
+	}, [bankId, endDateInput, isCashView, startDateInput]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -679,6 +713,7 @@ export default function BankMovementsScreen() {
 
 	const isModalOpen = Boolean(pendingAction);
 	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
+	const screenTitle = isCashView ? 'Movimentações em dinheiro' : 'Movimentações do banco';
 
 	return (
 		<GestureHandlerRootView style={{ flex: 1, width: '100%' }}>
@@ -710,7 +745,7 @@ export default function BankMovementsScreen() {
 					<View className="w-full px-6">
 
 						<Heading size="3xl" className="text-center">
-							Movimentações do banco
+							{screenTitle}
 						</Heading>
 
 						<Box className="w-full items-center">

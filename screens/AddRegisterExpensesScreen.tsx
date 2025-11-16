@@ -882,54 +882,107 @@ export default function AddRegisterExpensesScreen() {
 
 					<Divider className="mb-6" />
 
-					<VStack className="gap-5">
-						<Input isDisabled={isTemplateLocked}>
-							<InputField
-								placeholder="Nome da despesa"
-								value={expenseName}
-								onChangeText={setExpenseName}
-								autoCapitalize="sentences"
-							/>
-						</Input>
+					<VStack className="gap-4">
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Nome da despesa
+							</Text>
+							<Input isDisabled={isTemplateLocked}>
+								<InputField
+									placeholder="Ex: Mercado, Combustível, Roupa..."
+									value={expenseName}
+									onChangeText={setExpenseName}
+									autoCapitalize="sentences"
+								/>
+							</Input>
+						</Box>
 
-						<Input isDisabled={isTemplateLocked}>
-							<InputField
-								placeholder="Valor da despesa"
-								value={expenseValueDisplay}
-								onChangeText={handleValueChange}
-								keyboardType="numeric"
-							/>
-						</Input>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor da despesa
+							</Text>
+							<Input isDisabled={isTemplateLocked}>
+								<InputField
+									placeholder="Ex: R$ 50,00"
+									value={expenseValueDisplay}
+									onChangeText={handleValueChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+						</Box>
 
-						<Textarea
-							size="md"
-							isDisabled={!expenseValueDisplay}
-							className="h-32"
-						>
-							<TextareaInput
-								placeholder="(Opcional) Explique sobre essa despesa..."
-								value={explanationExpense ?? ''}
-								onChangeText={setExplanationExpense}
-							/>
-						</Textarea>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Explicação da despesa
+							</Text>
+							<Textarea
+								size="md"
+								isDisabled={!expenseValueDisplay}
+								className="h-32"
+							>
+								<TextareaInput
+									placeholder="(Opcional) Explique sobre essa despesa..."
+									value={explanationExpense ?? ''}
+									onChangeText={setExplanationExpense}
+								/>
+							</Textarea>
+						</Box>
 
-						{isTagSelectionLocked ? (
-							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-								<Text className="font-semibold mb-1">
-									{isTemplateLocked ? 'Tag do gasto obrigatório' : 'Tag definida automaticamente'}
-								</Text>
-								<Text className="text-gray-700 dark:text-gray-300">
-									{templateTagDisplayName ?? 'Tag não encontrada'}
-								</Text>
-							</Box>
-						) : (
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Tag da despesa
+							</Text>
+							{isTagSelectionLocked ? (
+								<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
+									<Text className="font-semibold mb-1">
+										{isTemplateLocked ? 'Tag da despesa obrigatória' : 'Tag definida automaticamente'}
+									</Text>
+									<Text className="text-gray-700 dark:text-gray-300">
+										{templateTagDisplayName ?? 'Tag não encontrada'}
+									</Text>
+								</Box>
+							) : (
+								<Select
+									selectedValue={selectedMovementTagName}
+									onValueChange={setSelectedTagId}
+									isDisabled={isLoadingTags || tags.length === 0}
+								>
+									<SelectTrigger>
+										<SelectInput placeholder="Selecione uma tag para a despesa" />
+										<SelectIcon />
+									</SelectTrigger>
+
+									<SelectPortal>
+										<SelectBackdrop />
+										<SelectContent>
+											<SelectDragIndicatorWrapper>
+												<SelectDragIndicator />
+											</SelectDragIndicatorWrapper>
+
+											{tags.length > 0 ? (
+												tags.map(tag => (
+													<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+												))
+											) : (
+												<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+											)}
+										</SelectContent>
+									</SelectPortal>
+								</Select>
+							)}
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Banco da despesa
+							</Text>
 							<Select
-								selectedValue={selectedMovementTagName}
-								onValueChange={setSelectedTagId}
-								isDisabled={isLoadingTags || tags.length === 0}
+								selectedValue={selectedMovementBankName}
+								onValueChange={setSelectedBankId}
+								isDisabled={isLoadingBanks || banks.length === 0}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder="Selecione uma tag" />
+									<SelectInput placeholder="Selecione o banco onde a despesa foi registrada" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -940,64 +993,41 @@ export default function AddRegisterExpensesScreen() {
 											<SelectDragIndicator />
 										</SelectDragIndicatorWrapper>
 
-										{tags.length > 0 ? (
-											tags.map(tag => (
-												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+										{banks.length > 0 ? (
+											banks.map(bank => (
+												<SelectItem
+													key={bank.id}
+													label={bank.name}
+													value={bank.id}
+												/>
 											))
 										) : (
-											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+											<SelectItem
+												key="no-bank"
+												label="Nenhum banco disponível"
+												value="no-bank"
+												isDisabled
+											/>
 										)}
 									</SelectContent>
 								</SelectPortal>
 							</Select>
-						)}
+						</Box>
 
-						<Select
-							selectedValue={selectedMovementBankName}
-							onValueChange={setSelectedBankId}
-							isDisabled={isLoadingBanks || banks.length === 0}
-						>
-							<SelectTrigger>
-								<SelectInput placeholder="Selecione um banco" />
-								<SelectIcon />
-							</SelectTrigger>
-
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
-
-									{banks.length > 0 ? (
-										banks.map(bank => (
-											<SelectItem
-												key={bank.id}
-												label={bank.name}
-												value={bank.id}
-											/>
-										))
-									) : (
-										<SelectItem
-											key="no-bank"
-											label="Nenhum banco disponível"
-											value="no-bank"
-											isDisabled
-										/>
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
-
-						<Input>
-							<InputField
-								placeholder="Data da despesa (DD/MM/AAAA)"
-								value={expenseDate}
-								onChangeText={handleDateChange}
-								autoCorrect={false}
-								keyboardType="numbers-and-punctuation"
-							/>
-						</Input>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Data da despesa
+							</Text>
+							<Input>
+								<InputField
+									placeholder="Data da despesa (DD/MM/AAAA)"
+									value={expenseDate}
+									onChangeText={handleDateChange}
+									autoCorrect={false}
+									keyboardType="numbers-and-punctuation"
+								/>
+							</Input>
+						</Box>
 
 						{isEditing && isLoadingExisting && (
 							<Text className="text-sm text-gray-500 dark:text-gray-400">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -41,6 +41,18 @@ const presetBankColors = [
     { label: 'Amarelo', value: '#FACC15' },
     { label: 'Roxo', value: '#9333EA' },
     { label: 'Cinza', value: '#6B7280' },
+    { label: 'Laranja', value: '#F97316' },
+    { label: 'Rosa', value: '#EC4899' },
+    { label: 'Turquesa', value: '#14B8A6' },
+    { label: 'Marrom', value: '#A0522D' },
+    { label: 'Dourado', value: '#FFD700' },
+    { label: 'Prata', value: '#C0C0C0' },
+    { label: 'Verde Limão', value: '#32CD32' },
+    { label: 'Azul Celeste', value: '#87CEEB' },
+    { label: 'Vinho', value: '#800000' },
+    { label: 'Roxo Claro', value: '#D8BFD8' },
+    { label: 'Cinza Escuro', value: '#374151' },
+    { label: 'Azul Marinho', value: '#000080' },
 ];
 
 export default function AddRegisterBankScreen() {
@@ -204,6 +216,7 @@ export default function AddRegisterBankScreen() {
     }, [nameBank, selectedColor, isEditing, editingBankId]);
 
     return (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View
             className="
 					flex-1 w-full h-full
@@ -236,46 +249,56 @@ export default function AddRegisterBankScreen() {
 
                 <VStack className="gap-4">
 
-                    <Input>
-                        <InputField
-                            placeholder="Nome do Banco"
-                            value={nameBank}
-                            onChangeText={setNameBank}
-                        />
-                    </Input>
+                    <Box>
+                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+                            Nome do Banco
+                        </Text>
+                        <Input>
+                            <InputField
+                                placeholder="Ex: Banco do Brasil, Caixa Econômica, Itaú..."
+                                value={nameBank}
+                                onChangeText={setNameBank}
+                            />
+                        </Input>
+                    </Box>
 
+                    <Box>
+                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+                            Cor do Banco
+                        </Text>
                     <Select
-                        selectedValue={selectedColor ?? 'no-color'}
+                        selectedValue={selectedColor ?? undefined}
                         onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
                     >
-                        <SelectTrigger>
-                            <SelectInput placeholder="Cor do banco (opcional)" />
-                            <SelectIcon />
-                        </SelectTrigger>
-                        <SelectPortal>
-                            <SelectBackdrop />
-                            <SelectContent>
-                                <SelectDragIndicatorWrapper>
-                                    <SelectDragIndicator />
-                                </SelectDragIndicatorWrapper>
-                                <SelectItem label="Sem cor" value="no-color" />
-                                {colorOptions.map(option => (
-                                    <SelectItem
-                                        key={option.value}
-                                        label={`${option.label} (${option.value})`}
-                                        value={option.value}
-                                    />
-                                ))}
-                            </SelectContent>
-                        </SelectPortal>
-                    </Select>
+                            <SelectTrigger>
+                                <SelectInput placeholder="Cor do banco (opcional), apenas para fins visuais" />
+                                <SelectIcon />
+                            </SelectTrigger>
+                            <SelectPortal>
+                                <SelectBackdrop />
+                                <SelectContent>
+                                    <SelectDragIndicatorWrapper>
+                                        <SelectDragIndicator />
+                                    </SelectDragIndicatorWrapper>
+                                    <SelectItem label="Sem cor" value="no-color" />
+                                    {colorOptions.map(option => (
+                                        <SelectItem
+                                            key={option.value}
+                                            label={`${option.label} (${option.value})`}
+                                            value={option.value}
+                                        />
+                                    ))}
+                                </SelectContent>
+                            </SelectPortal>
+                        </Select>
+                    </Box>
 
                     <Button
                         className="w-full mt-2"
                         size="sm"
                         variant="outline"
                         onPress={registerBank}
-                        isDisabled={isSubmitting}
+                        isDisabled={isSubmitting || nameBank.trim().length === 0 || (isEditing && nameBank.trim() === initialBankName && selectedColor === initialColorHex)}
                     >
                         {isSubmitting ? (
                             <ButtonSpinner />
@@ -290,5 +313,6 @@ export default function AddRegisterBankScreen() {
 
             <Menu defaultValue={2} />
         </View>
+        </TouchableWithoutFeedback>
     );
 }

@@ -344,6 +344,86 @@ export async function getCurrentMonthSummaryByBankFirebaseGains(personId: string
 
 }
 
+export async function getCurrentMonthCashExpensesFirebase(personId: string) {
+
+    try {
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const cashExpensesQuery = query(
+            collection(db, 'expenses'),
+            where('bankId', '==', null),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(startOfMonth)),
+            where('date', '<=', Timestamp.fromDate(endOfMonth))
+        );
+
+        const cashExpensesSnapshot = await getDocs(cashExpensesQuery);
+
+        const expenses = cashExpensesSnapshot.docs.map(expenseDoc => ({
+            id: expenseDoc.id,
+            ...expenseDoc.data(),
+        }));
+
+        return { success: true, data: expenses };
+
+    } catch (error) {
+        console.error('Erro ao obter despesas em dinheiro no mês:', error);
+        return { success: false, error };
+    }
+}
+
+export async function getCurrentMonthCashGainsFirebase(personId: string) {
+
+    try {
+
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const cashGainsQuery = query(
+            collection(db, 'gains'),
+            where('bankId', '==', null),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(startOfMonth)),
+            where('date', '<=', Timestamp.fromDate(endOfMonth))
+        );
+
+        const cashGainsSnapshot = await getDocs(cashGainsQuery);
+
+        const gains = cashGainsSnapshot.docs.map(gainDoc => ({
+            id: gainDoc.id,
+            ...gainDoc.data(),
+        }));
+
+        return { success: true, data: gains };
+
+    } catch (error) {
+        console.error('Erro ao obter ganhos em dinheiro no mês:', error);
+        return { success: false, error };
+    }
+}
+
 // ================================================================================================================= //
 
 interface GetCurrentYearMovementsParams {
@@ -534,4 +614,88 @@ export async function getBankMovementsByPeriodFirebase({
 
     }
 
+}
+
+interface GetCashMovementsByPeriodParams {
+    personId: string;
+    startDate: Date;
+    endDate: Date;
+}
+
+export async function getCashMovementsByPeriodFirebase({
+    personId,
+    startDate,
+    endDate,
+}: GetCashMovementsByPeriodParams) {
+
+    try {
+
+        if (!personId) {
+            return { success: false, error: 'Usuário não informado.' };
+        }
+
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const normalizedStartDate = new Date(startDate);
+        normalizedStartDate.setHours(0, 0, 0, 0);
+
+        const normalizedEndDate = new Date(endDate);
+        normalizedEndDate.setHours(23, 59, 59, 999);
+
+        if (normalizedEndDate < normalizedStartDate) {
+            return { success: false, error: 'O período selecionado é inválido.' };
+        }
+
+        const expensesQuery = query(
+            collection(db, 'expenses'),
+            where('bankId', '==', null),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const gainsQuery = query(
+            collection(db, 'gains'),
+            where('bankId', '==', null),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const [expensesSnapshot, gainsSnapshot] = await Promise.all([
+            getDocs(expensesQuery),
+            getDocs(gainsQuery),
+        ]);
+
+        const expenses = expensesSnapshot.docs.map(expenseDoc => ({
+            id: expenseDoc.id,
+            ...expenseDoc.data(),
+        }));
+
+        const gains = gainsSnapshot.docs.map(gainDoc => ({
+            id: gainDoc.id,
+            ...gainDoc.data(),
+        }));
+
+        return {
+            success: true,
+            data: {
+                expenses,
+                gains,
+            },
+        };
+
+    } catch (error) {
+
+        console.error('Erro ao obter movimentações em dinheiro:', error);
+        return { success: false, error };
+
+    }
 }

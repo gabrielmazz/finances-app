@@ -18,6 +18,7 @@ import {
 } from '@/functions/BankFirebase';
 import { getLimitedExpensesFirebase, getLimitedExpensesWithPeopleFirebase } from '@/functions/ExpenseFirebase';
 import { getLimitedGainsFirebase, getLimitedGainsWithPeopleFirebase } from '@/functions/GainFirebase';
+import { getFinanceInvestmentsWithRelationsFirebase } from '@/functions/FinancesFirebase';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -44,6 +45,29 @@ type PieLegendEntry = {
 	color: string;
 	totalInCents: number;
 };
+
+type InvestmentHighlight = {
+	id: string;
+	name: string;
+	bankId: string | null;
+	appliedValueInCents: number;
+	simulatedValueInCents: number;
+};
+
+type NormalizedInvestmentSummary = {
+	id: string;
+	name: string;
+	initialValueInCents: number;
+	cdiPercentage: number;
+	bankId: string | null;
+	lastManualSyncValueInCents: number | null;
+	lastManualSyncAt: Date | null;
+	createdAt: Date | null;
+};
+
+const DAYS_IN_YEAR = 365;
+const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
+const BASE_CDI_ANNUAL_RATE = 0.1375;
 
 const BAR_CHART_COLORS = {
 	expenses: '#F97316',
@@ -133,6 +157,9 @@ export default function HomeScreen() {
 	const handleOpenMonthlySummary = React.useCallback(() => {
 		router.push('/bank-summary');
 	}, []);
+	const handleOpenInvestmentsList = React.useCallback(() => {
+		router.push('/financial-list');
+	}, []);
 
 	// Estado para armazenar o total de despesas
 	const [totalExpensesInCents, setTotalExpensesInCents] = React.useState(0);
@@ -178,6 +205,20 @@ export default function HomeScreen() {
 	// Estado para controlar a expansão dos totais
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 
+	const [investmentSummary, setInvestmentSummary] = React.useState<{
+		totalInvestedInCents: number;
+		totalSimulatedInCents: number;
+		investmentCount: number;
+		highlights: InvestmentHighlight[];
+	}>({
+		totalInvestedInCents: 0,
+		totalSimulatedInCents: 0,
+		investmentCount: 0,
+		highlights: [],
+	});
+	const [isLoadingInvestments, setIsLoadingInvestments] = React.useState(false);
+	const [investmentsError, setInvestmentsError] = React.useState<string | null>(null);
+
 	const getBankName = React.useCallback(
 		(bankId: unknown) => {
 			if (!bankId || typeof bankId !== 'string') {
@@ -189,10 +230,10 @@ export default function HomeScreen() {
 		[bankNamesById],
 	);
 
-	const parseToDate = React.useCallback((value: unknown) => {
-		if (!value) {
-			return null;
-		}
+const parseToDate = React.useCallback((value: unknown) => {
+	if (!value) {
+		return null;
+	}
 
 		if (value instanceof Date) {
 			return value;
@@ -223,7 +264,40 @@ export default function HomeScreen() {
 		}
 
 		return null;
-	}, []);
+}, []);
+
+const calculateInvestmentDailyRate = (cdiPercentage: number) => {
+	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
+		return 0;
+	}
+	const normalizedAnnualRate = BASE_CDI_ANNUAL_RATE * (cdiPercentage / 100);
+	return normalizedAnnualRate / DAYS_IN_YEAR;
+};
+
+const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSummary) => {
+	if (typeof investment.lastManualSyncValueInCents === 'number') {
+		return investment.lastManualSyncValueInCents;
+	}
+	return investment.initialValueInCents;
+};
+
+const resolveInvestmentBaseDate = (investment: NormalizedInvestmentSummary) => {
+	return investment.lastManualSyncAt ?? investment.createdAt ?? new Date();
+};
+
+const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary) => {
+	const baseValueInCents = resolveInvestmentBaseValueInCents(investment);
+	const dailyRate = calculateInvestmentDailyRate(investment.cdiPercentage);
+	if (dailyRate <= 0) {
+		return baseValueInCents;
+	}
+
+	const baseDate = resolveInvestmentBaseDate(investment);
+	const diff = Date.now() - baseDate.getTime();
+	const days = diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
+	const simulatedBRL = (baseValueInCents / 100) * Math.pow(1 + dailyRate, days);
+	return Math.round(simulatedBRL * 100);
+};
 
 	const buildYearlyStats = React.useCallback(
 		(expenses: any[], gains: any[]) => {
@@ -474,13 +548,26 @@ export default function HomeScreen() {
 						const message = 'Nenhum usuário autenticado foi identificado.';
 						setSummaryError(message);
 						setMovementsError(message);
+						setInvestmentsError(message);
 						setRecentExpenses([]);
 						setRecentGains([]);
 						setBankColorsById({});
 						setIsLoadingSummary(false);
 						setIsLoadingMovements(false);
+						setIsLoadingInvestments(false);
 					}
 					return;
+				}
+
+				if (isMounted) {
+					setIsLoadingInvestments(true);
+					setInvestmentsError(null);
+					setInvestmentSummary({
+						totalInvestedInCents: 0,
+						totalSimulatedInCents: 0,
+						investmentCount: 0,
+						highlights: [],
+					});
 				}
 
 				const loadSummariesPromise = (async () => {
@@ -667,7 +754,116 @@ export default function HomeScreen() {
 
 				})();
 
-				await Promise.all([loadSummariesPromise, loadMovementsPromise]);
+				const loadInvestmentsPromise = (async () => {
+					try {
+						const investmentsResult = await getFinanceInvestmentsWithRelationsFirebase(currentUser.uid);
+
+						if (!isMounted) {
+							return;
+						}
+
+						if (!investmentsResult?.success || !Array.isArray(investmentsResult.data)) {
+							setInvestmentSummary({
+								totalInvestedInCents: 0,
+								totalSimulatedInCents: 0,
+								investmentCount: 0,
+								highlights: [],
+							});
+							setInvestmentsError('Não foi possível carregar os investimentos.');
+							return;
+						}
+
+						const normalizedInvestments: NormalizedInvestmentSummary[] = (
+							investmentsResult.data as Array<Record<string, any>>
+						).map(investment => {
+							const id =
+								typeof investment.id === 'string'
+									? investment.id
+									: String(investment.id ?? Math.random().toString());
+							const name =
+								typeof investment.name === 'string' && investment.name.trim().length > 0
+									? investment.name.trim()
+									: 'Investimento sem nome';
+							const initialValueInCents =
+								typeof investment.initialValueInCents === 'number'
+									? investment.initialValueInCents
+									: 0;
+							const lastManualValue =
+								typeof investment.lastManualSyncValueInCents === 'number'
+									? investment.lastManualSyncValueInCents
+									: null;
+							const bankId = typeof investment.bankId === 'string' ? investment.bankId : null;
+							const cdiPercentage =
+								typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0;
+
+							return {
+								id,
+								name,
+								initialValueInCents,
+								cdiPercentage,
+								bankId,
+								lastManualSyncValueInCents: lastManualValue,
+								lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
+								createdAt: parseToDate(
+									investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc,
+								),
+							};
+						});
+
+						const totalInvestedInCents = normalizedInvestments.reduce(
+							(acc, investment) => acc + investment.initialValueInCents,
+							0,
+						);
+
+						const simulatedInvestments = normalizedInvestments.map(investment => ({
+							...investment,
+							appliedValueInCents: resolveInvestmentBaseValueInCents(investment),
+							simulatedValueInCents: simulateInvestmentValueInCents(investment),
+						}));
+
+						const totalSimulatedInCents = simulatedInvestments.reduce(
+							(acc, investment) => acc + investment.simulatedValueInCents,
+							0,
+						);
+
+						const highlights = simulatedInvestments
+							.slice()
+							.sort((a, b) => b.simulatedValueInCents - a.simulatedValueInCents)
+							.slice(0, 3)
+							.map(item => ({
+								id: item.id,
+								name: item.name,
+								bankId: item.bankId,
+								appliedValueInCents: item.appliedValueInCents,
+								simulatedValueInCents: item.simulatedValueInCents,
+							}));
+
+						setInvestmentSummary({
+							totalInvestedInCents,
+							totalSimulatedInCents,
+							investmentCount: normalizedInvestments.length,
+							highlights,
+						});
+						setInvestmentsError(null);
+					} catch (error) {
+						console.error('Erro ao carregar investimentos na Home:', error);
+						if (isMounted) {
+							setInvestmentSummary({
+								totalInvestedInCents: 0,
+								totalSimulatedInCents: 0,
+								investmentCount: 0,
+								highlights: [],
+							});
+							setInvestmentsError('Erro ao carregar os investimentos.');
+						}
+					} finally {
+						if (isMounted) {
+							setIsLoadingInvestments(false);
+						}
+					}
+				})();
+
+				await Promise.all([loadSummariesPromise, loadMovementsPromise, loadInvestmentsPromise]);
 			};
 
 			loadHomeData();
@@ -781,6 +977,87 @@ export default function HomeScreen() {
 										Toque para ver o resumo detalhado por banco
 									</Text>
 
+								</Box>
+							</TouchableOpacity>
+
+							<TouchableOpacity activeOpacity={0.85} onPress={handleOpenInvestmentsList}>
+								<Box
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
+								>
+									<HStack className="justify-between items-center">
+										<Heading size="md" className="text-gray-800 dark:text-gray-200">
+											Investimentos
+										</Heading>
+									</HStack>
+
+									{isLoadingInvestments ? (
+										<Text className="mt-4 text-gray-600 dark:text-gray-400">
+											Carregando dados de investimentos...
+										</Text>
+									) : investmentsError ? (
+										<Text className="mt-4 text-red-600 dark:text-red-400">{investmentsError}</Text>
+									) : investmentSummary.investmentCount === 0 ? (
+										<Text className="mt-4 text-gray-700 dark:text-gray-300">
+											Nenhum investimento registrado até o momento.
+										</Text>
+									) : (
+										<>
+											<Text className="pt-4 text-gray-700 dark:text-gray-300">
+												Investimentos ativos:{' '}
+												<Text className="text-gray-900 dark:text-gray-100 font-semibold">
+													{investmentSummary.investmentCount}
+												</Text>
+											</Text>
+											<Text className="mt-2 text-gray-700 dark:text-gray-300">
+												Valor aplicado:{' '}
+												<Text className="text-orange-600 dark:text-orange-300 font-semibold">
+													{formatCurrencyBRL(investmentSummary.totalInvestedInCents)}
+												</Text>
+											</Text>
+											<Text className="mt-2 text-gray-700 dark:text-gray-300">
+												Valor simulado acumulado:{' '}
+												<Text className="text-violet-600 dark:text-violet-400 font-semibold">
+													{formatCurrencyBRL(investmentSummary.totalSimulatedInCents)}
+												</Text>
+											</Text>
+
+											{investmentSummary.highlights.length > 0 && (
+												<View className="mt-4">
+													<Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+														Principais investimentos
+													</Text>
+													{investmentSummary.highlights.map(item => (
+														<View key={item.id} className="py-2 border-b border-gray-100 dark:border-gray-800 last:border-b-0">
+															<Text className="font-semibold text-gray-800 dark:text-gray-200">
+																{item.name}
+															</Text>
+															<Text className="text-xs text-gray-500 dark:text-gray-400">
+																{getBankName(item.bankId)}
+															</Text>
+															<HStack className="justify-between items-center mt-1">
+																<Text className="text-sm text-gray-700 dark:text-gray-300">
+																	Aplicado:{' '}
+																	<Text className="font-semibold text-orange-600 dark:text-orange-300">
+																		{formatCurrencyBRL(item.appliedValueInCents)}
+																	</Text>
+																</Text>
+																<Text className="text-sm text-gray-700 dark:text-gray-300 text-right">
+																	Simulado hoje:{' '}
+																	<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
+																		{formatCurrencyBRL(item.simulatedValueInCents)}
+																	</Text>
+																</Text>
+															</HStack>
+														</View>
+													))}
+												</View>
+											)}
+
+											<Text className="mt-4 text-sm text-gray-500 dark:text-emerald-400">
+												Toque para gerenciar a lista completa de investimentos.
+											</Text>
+										</>
+									)}
 								</Box>
 							</TouchableOpacity>
 
