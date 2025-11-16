@@ -12,7 +12,7 @@ interface AddGainParams {
 	explanation?: string | null;
 	moneyFormat?: boolean;
 	tagId: string;
-	bankId: string;
+	bankId?: string | null;
 	date: Date;
 	personId: string;
 }
@@ -25,7 +25,7 @@ interface UpdateGainParams {
 	explanation?: string | null;
 	moneyFormat?: boolean;
 	tagId?: string;
-	bankId?: string;
+	bankId?: string | null;
 	date?: Date;
 }
 
@@ -53,7 +53,7 @@ export async function addGainFirebase({
 			explanation: explanation || null,
 			moneyFormat,
 			tagId,
-			bankId,
+			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
 			personId,
 			createdAt: new Date(),
@@ -108,7 +108,7 @@ export async function updateGainFirebase({
 			updates.tagId = tagId;
 		}
 
-		if (typeof bankId === 'string') {
+		if (typeof bankId === 'string' || bankId === null) {
 			updates.bankId = bankId;
 		}
 

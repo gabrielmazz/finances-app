@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -75,6 +75,7 @@ export default function AddRegisterUserScreen() {
     };
 
     return (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View className="
 				flex-1 w-full h-full
                 mt-[64px]
@@ -86,13 +87,13 @@ export default function AddRegisterUserScreen() {
 
             <FloatingAlertViewport />
 
-            <View className="w-full px-6 gap-4">
+            <View className="w-full px-6">
 
                 <Heading size="3xl" className="text-center mb-2">
                     Adição de um novo usuário
                 </Heading>
 
-                <Box className="w-full items-center ">
+                <Box className="w-full items-center mb-2">
                     <AddRegisterUserScreenIllustration width={180} height={180} />
                 </Box>
 
@@ -105,32 +106,45 @@ export default function AddRegisterUserScreen() {
 
                 <VStack className="gap-4">
 
-                    <Input>
-                        <InputField
-                            placeholder="Email"
-                            value={email}
-                            onChangeText={setEmail}
-                        />
-                    </Input>
+                    <Box>
+                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+                            Email do usuário
+                        </Text>
+                        <Input>
+                            <InputField
+                                placeholder="Email do usuário que será registrado"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                value={email}
+                                onChangeText={setEmail}
+                            />
+                        </Input>
+                    </Box>
 
-                    <Input>
-                        <InputField
-                            placeholder="Senha"
-                            secureTextEntry={!showPassword}
-                            type={showPassword ? 'text' : 'password'}
-                            value={password}
-                            onChangeText={setPassword}
-                        />
-                        <InputSlot className="pr-3" onPress={handleState}>
-                            <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-                        </InputSlot>
-                    </Input>
+                    <Box>
+                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+                            Senha do usuário
+                        </Text>
+                        <Input>
+                            <InputField
+                                placeholder="Senha"
+                                secureTextEntry={!showPassword}
+                                type={showPassword ? 'text' : 'password'}
+                                value={password}
+                                onChangeText={setPassword}
+                            />
+                            <InputSlot className="pr-3" onPress={handleState}>
+                                <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+                            </InputSlot>
+                        </Input>
+                    </Box>
 
                     <Button
                         className="w-full mt-2"
                         size="sm"
                         variant="outline"
                         onPress={registerUser}
+                        isDisabled={email === '' || password === ''}
                     >
 
                         <ButtonText>
@@ -146,6 +160,7 @@ export default function AddRegisterUserScreen() {
             <Menu defaultValue={2} />
 
         </View>
+        </TouchableWithoutFeedback>
 
     );
 }

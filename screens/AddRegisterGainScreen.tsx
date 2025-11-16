@@ -483,7 +483,9 @@ export default function AddRegisterGainScreen() {
 			return;
 		}
 
-		if (!selectedBankId) {
+		const isBankSelectionRequired = !moneyFormat;
+
+		if (isBankSelectionRequired && !selectedBankId) {
 			showFloatingAlert({
 				message: 'Selecione um banco.',
 				action: 'error',
@@ -538,7 +540,7 @@ export default function AddRegisterGainScreen() {
 					explanation: explanationGain?.trim() ? explanationGain.trim() : null,
 					moneyFormat,
 					tagId: selectedTagId ?? undefined,
-					bankId: selectedBankId ?? undefined,
+					bankId: isBankSelectionRequired ? selectedBankId ?? null : null,
 					date: dateWithCurrentTime,
 				});
 
@@ -567,7 +569,7 @@ export default function AddRegisterGainScreen() {
 				explanation: explanationGain?.trim() ? explanationGain.trim() : null,
 				moneyFormat,
 				tagId: selectedTagId as string,
-				bankId: selectedBankId as string,
+				bankId: isBankSelectionRequired ? selectedBankId : null,
 				date: dateWithCurrentTime,
 				personId,
 			});
@@ -732,7 +734,7 @@ export default function AddRegisterGainScreen() {
 	// React.useEffect(() => {
 	React.useEffect(() => {
 
-		try{
+		try {
 
 			if (!selectedTagId || selectedMovementTagName) {
 				return;
@@ -743,14 +745,14 @@ export default function AddRegisterGainScreen() {
 					const tagResult = await getTagDataFirebase(selectedTagId);
 
 					if (tagResult.success && tagResult.data) {
-						
+
 						// Atualiza o nome da tag no estado com o nome buscado
 						setSelectedMovementTagName(tagResult.data.name);
 					} else {
 						setSelectedMovementTagName(null);
 					}
 				};
-				
+
 				void fetchTagName();
 			}
 		} catch (error) {
@@ -764,7 +766,7 @@ export default function AddRegisterGainScreen() {
 	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
 	React.useEffect(() => {
 
-		try{
+		try {
 
 			if (!selectedBankId || selectedMovementBankName) {
 				return;
@@ -775,7 +777,7 @@ export default function AddRegisterGainScreen() {
 					const bankResult = await getAllBanksFirebase();
 
 					if (bankResult.success && Array.isArray(bankResult.data)) {
-						
+
 						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
 
 						if (bankData) {
@@ -788,7 +790,7 @@ export default function AddRegisterGainScreen() {
 						setSelectedMovementBankName(null);
 					}
 				};
-				
+
 				void fetchBankName();
 			}
 		} catch (error) {
@@ -836,125 +838,195 @@ export default function AddRegisterGainScreen() {
 
 					<Divider className="my-6 mb-6" />
 
-					<VStack className="gap-5">
-						<Input isDisabled={isTemplateLocked}>
-							<InputField
-								placeholder="Nome do ganho"
-								value={gainName}
-								onChangeText={setGainName}
-								autoCapitalize="sentences"
-							/>
-						</Input>
+					<VStack className="gap-4">
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Nome do ganho
+							</Text>
+							<Input isDisabled={isTemplateLocked}>
+								<InputField
+									placeholder="Ex: Venda de produto, prestação de serviço..."
+									value={gainName}
+									onChangeText={setGainName}
+									autoCapitalize="sentences"
+								/>
+							</Input>
+						</Box>
 
-						<Input isDisabled={isTemplateLocked}>
-							<InputField
-								placeholder="Valor do ganho"
-								value={gainValueDisplay}
-								onChangeText={handleValueChange}
-								keyboardType="numeric"
-							/>
-						</Input>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor do ganho
+							</Text>
+							<Input isDisabled={isTemplateLocked}>
+								<InputField
+									placeholder="Ex: R$ 100,00"
+									value={gainValueDisplay}
+									onChangeText={handleValueChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+						</Box>
 
-						<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-							{shouldShowPaymentFormatSelection && (
-								<CheckboxGroup
-									value={paymentFormat}
-									onChange={(keys: string[]) => {
-										setPaymentFormat(keys);
-									}}
-								>
-									<HStack space="2xl">
-										<Checkbox
-											value="Variable"
-											isDisabled={
-												!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
-											}
-										>
-											<CheckboxIndicator>
-												<CheckboxIcon as={CheckIcon} />
-											</CheckboxIndicator>
+						{/* Seleção do formato de pagamento */}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Formato de pagamento
+							</Text>
+							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+								{shouldShowPaymentFormatSelection && (
+									<CheckboxGroup
+										value={paymentFormat}
+										onChange={(keys: string[]) => {
+											setPaymentFormat(keys);
+										}}
+									>
+										<HStack space="2xl">
+											<Checkbox
+												value="Variable"
+												isDisabled={
+													!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
+												}
+											>
+												<CheckboxIndicator>
+													<CheckboxIcon as={CheckIcon} />
+												</CheckboxIndicator>
 
-											<CheckboxLabel>Renda variável</CheckboxLabel>
-										</Checkbox>
+												<CheckboxLabel>Renda variável</CheckboxLabel>
+											</Checkbox>
 
-										<Checkbox
-											value="External"
-											isDisabled={
-												!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
-											}
-										>
-											<CheckboxIndicator>
-												<CheckboxIcon as={CheckIcon} />
-											</CheckboxIndicator>
+											<Checkbox
+												value="External"
+												isDisabled={
+													!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
+												}
+											>
+												<CheckboxIndicator>
+													<CheckboxIcon as={CheckIcon} />
+												</CheckboxIndicator>
 
-											<CheckboxLabel>Pagamento externo</CheckboxLabel>
-										</Checkbox>
-									</HStack>
-								</CheckboxGroup>
-							)}
-						</View>
+												<CheckboxLabel>Pagamento externo</CheckboxLabel>
+											</Checkbox>
+										</HStack>
+									</CheckboxGroup>
+								)}
+							</View>
+						</Box>
 
-						<Textarea
-							size="md"
-							isReadOnly={false}
-							isInvalid={false}
-							isDisabled={shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false}
-							className="h-32"
-						>
-							<TextareaInput
-								placeholder="(Opcional) Explique sobre esse ganho..."
-								value={explanationGain ?? ''}
-								onChangeText={setExplanationGain}
-							/>
-						</Textarea>
+						{/* Campo de explicação do ganho */}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Explicação do ganho
+							</Text>
+							<Textarea
+								size="md"
+								isReadOnly={false}
+								isInvalid={false}
+								isDisabled={shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false}
+								className="h-32"
+							>
+								<TextareaInput
+									placeholder="(Opcional) Descreva mais detalhes sobre esse ganho..."
+									value={explanationGain ?? ''}
+									onChangeText={setExplanationGain}
+								/>
+							</Textarea>
+						</Box>
+
 
 						{/* Pergunta se foi recebido em dinheiro */}
-						<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-							<HStack className="items-center justify-between">
-								<View className="flex-1 mr-3">
-									<Text
-										className={`font-semibold ${
-											shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
-										}`}
-									>
-										Pagamento em dinheiro
-									</Text>
-									<Text className={`text-gray-600 dark:text-gray-400 text-sm ${
-										shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
-									}`}>
-										Indique se esse ganho foi recebido em dinheiro
-									</Text>
-								</View>
-								<Switch
-									value={moneyFormat}
-									onValueChange={setMoneyFormat}
-									disabled={
-										shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false
-									}
-									trackColor={{ false: '#d4d4d4', true: '#525252' }}
-									thumbColor="#fafafa"
-									ios_backgroundColor="#d4d4d4"
-								/>
-							</HStack>
-						</View>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Pagamento em dinheiro
+							</Text>
+							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+								<HStack className="items-center justify-between">
+									<View className="flex-1 mr-3">
+										<Text
+											className={`font-semibold ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+												}`}
+										>
+											Pagamento em dinheiro
+										</Text>
+										<Text className={`text-gray-600 dark:text-gray-400 text-sm ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+											}`}>
+											Indique se esse ganho foi recebido em dinheiro
+										</Text>
+									</View>
+									<Switch
+										value={moneyFormat}
+										onValueChange={() => {
+											setMoneyFormat(!moneyFormat);
+											setSelectedBankId(null);
+											setSelectedMovementBankName(null);
+										}}
+										disabled={
+											shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false
+										}
+										trackColor={{ false: '#d4d4d4', true: '#525252' }}
+										thumbColor="#fafafa"
+										ios_backgroundColor="#d4d4d4"
+									/>
+								</HStack>
+							</View>
+						</Box>
 
-						{isTagSelectionLocked ? (
-							<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-								<Text className="font-semibold mb-1">
-									{isTemplateLocked ? 'Tag do ganho obrigatório' : 'Tag definida automaticamente'}
-								</Text>
-								<Text className="text-gray-700 dark:text-gray-300">
-									{templateTagDisplayName ?? 'Tag não encontrada'}
-								</Text>
-							</Box>
-						) : (
+						{/* Seleção da tag do ganho */}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Tag do ganho
+							</Text>
+							{isTagSelectionLocked ? (
+								<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
+									<Text className="font-semibold mb-1">
+										{isTemplateLocked ? 'Tag do ganho obrigatório' : 'Tag definida automaticamente'}
+									</Text>
+									<Text className="text-gray-700 dark:text-gray-300">
+										{templateTagDisplayName ?? 'Tag não encontrada'}
+									</Text>
+								</Box>
+							) : (
+								<Select
+									selectedValue={selectedMovementTagName}
+									onValueChange={setSelectedTagId}
+									isDisabled={isLoadingTags || tags.length === 0}
+								>
+									<SelectTrigger>
+										<SelectInput placeholder="Selecione uma tag para o ganho" />
+										<SelectIcon />
+									</SelectTrigger>
+
+									<SelectPortal>
+										<SelectBackdrop />
+										<SelectContent>
+											<SelectDragIndicatorWrapper>
+												<SelectDragIndicator />
+											</SelectDragIndicatorWrapper>
+
+											{tags.length > 0 ? (
+												tags.map(tag => (
+													<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+												))
+											) : (
+												<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+											)}
+										</SelectContent>
+									</SelectPortal>
+								</Select>
+							)}
+						</Box>
+
+						{/* Seleção do banco do ganho */}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Banco do ganho
+							</Text>
 							<Select
-								selectedValue={selectedMovementTagName}
-								onValueChange={setSelectedTagId}
-								isDisabled={isLoadingTags || tags.length === 0}
+								selectedValue={selectedMovementBankName}
+								onValueChange={setSelectedBankId}
+								isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
 							>
 								<SelectTrigger>
-									<SelectInput placeholder="Selecione uma tag" />
+									<SelectInput placeholder="Selecione o banco onde o ganho foi recebido" />
 									<SelectIcon />
 								</SelectTrigger>
 
@@ -965,55 +1037,33 @@ export default function AddRegisterGainScreen() {
 											<SelectDragIndicator />
 										</SelectDragIndicatorWrapper>
 
-										{tags.length > 0 ? (
-											tags.map(tag => (
-												<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+										{banks.length > 0 ? (
+											banks.map(bank => (
+												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
 											))
 										) : (
-											<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+											<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
 										)}
 									</SelectContent>
 								</SelectPortal>
 							</Select>
-						)}
+						</Box>
 
-						<Select
-							selectedValue={selectedMovementBankName}
-							onValueChange={setSelectedBankId}
-							isDisabled={isLoadingBanks || banks.length === 0}
-						>
-							<SelectTrigger>
-								<SelectInput placeholder="Selecione um banco" />
-								<SelectIcon />
-							</SelectTrigger>
-
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
-
-									{banks.length > 0 ? (
-										banks.map(bank => (
-											<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-										))
-									) : (
-										<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
-
-						<Input>
-							<InputField
-								placeholder="Data do ganho (DD/MM/AAAA)"
-								value={gainDate}
-								onChangeText={handleDateChange}
-								autoCorrect={false}
-								keyboardType="numbers-and-punctuation"
-							/>
-						</Input>
+						{/* Campo de data do ganho */}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Data do ganho
+							</Text>
+							<Input>
+								<InputField
+									placeholder="Data do ganho (DD/MM/AAAA)"
+									value={gainDate}
+									onChangeText={handleDateChange}
+									autoCorrect={false}
+									keyboardType="numbers-and-punctuation"
+								/>
+							</Input>
+						</Box>
 
 						{isEditing && isLoadingExisting && (
 							<Text className="text-sm text-gray-500 dark:text-gray-400">
@@ -1032,7 +1082,7 @@ export default function AddRegisterGainScreen() {
 								!gainName.trim() ||
 								gainValueCents === null ||
 								!selectedTagId ||
-								!selectedBankId ||
+									(!moneyFormat && !selectedBankId) ||
 								!gainDate
 							}
 						>

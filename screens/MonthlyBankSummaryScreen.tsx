@@ -14,6 +14,8 @@ import {
 	getBanksWithUsersByPersonFirebase,
 	getCurrentMonthSummaryByBankFirebaseExpanses,
 	getCurrentMonthSummaryByBankFirebaseGains,
+	getCurrentMonthCashExpensesFirebase,
+	getCurrentMonthCashGainsFirebase,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
@@ -30,6 +32,7 @@ type BankSummary = {
 	totalMovements: number;
 	initialBalanceInCents: number | null;
 	currentBalanceInCents: number | null;
+	isCashSummary?: boolean;
 };
 
 function formatCurrencyBRLBase(valueInCents: number): string {
@@ -81,6 +84,16 @@ export default function MonthlyBankSummaryScreen() {
 		});
 	}, []);
 
+	const handleOpenCashMovements = React.useCallback(() => {
+		router.push({
+			pathname: '/bank-movements',
+			params: {
+				cashView: 'true',
+				bankName: encodeURIComponent('Transações em dinheiro'),
+			},
+		});
+	}, []);
+
 	useFocusEffect(
 		React.useCallback(() => {
 			let isMounted = true;
@@ -101,10 +114,18 @@ export default function MonthlyBankSummaryScreen() {
 				}
 
 				try {
-					const [banksResult, expensesResult, gainsResult] = await Promise.all([
+					const [
+						banksResult,
+						expensesResult,
+						gainsResult,
+						cashExpensesResult,
+						cashGainsResult,
+					] = await Promise.all([
 						getBanksWithUsersByPersonFirebase(currentUser.uid),
 						getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
 						getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
+						getCurrentMonthCashExpensesFirebase(currentUser.uid),
+						getCurrentMonthCashGainsFirebase(currentUser.uid),
 					]);
 
 					if (!isMounted) {
@@ -123,6 +144,15 @@ export default function MonthlyBankSummaryScreen() {
 							: [];
 					const gainsArray: any[] =
 						gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
+
+					const cashExpensesArray =
+						cashExpensesResult?.success && Array.isArray(cashExpensesResult.data)
+							? cashExpensesResult.data
+							: [];
+					const cashGainsArray =
+						cashGainsResult?.success && Array.isArray(cashGainsResult.data)
+							? cashGainsResult.data
+							: [];
 
 					const now = new Date();
 					const currentYear = now.getFullYear();
@@ -229,7 +259,39 @@ export default function MonthlyBankSummaryScreen() {
 						};
 					});
 
-					setBankSummaries(summaries);
+					const sumValues = (items: any[]) =>
+						items.reduce((acc, item) => {
+							const value =
+								typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+									? item.valueInCents
+									: 0;
+							return acc + value;
+						}, 0);
+
+					const totalCashExpensesInCents = sumValues(cashExpensesArray);
+					const totalCashGainsInCents = sumValues(cashGainsArray);
+					const totalCashMovements = cashExpensesArray.length + cashGainsArray.length;
+
+					const hasCashTransactions = totalCashMovements > 0 || totalCashExpensesInCents > 0 || totalCashGainsInCents > 0;
+
+					const combinedSummaries = hasCashTransactions
+						? [
+								...summaries,
+								{
+									id: 'cash-transactions',
+									name: 'Transações em dinheiro',
+									colorHex: '#525252',
+									totalExpensesInCents: totalCashExpensesInCents,
+									totalGainsInCents: totalCashGainsInCents,
+									totalMovements: totalCashMovements,
+									initialBalanceInCents: null,
+									currentBalanceInCents: totalCashGainsInCents - totalCashExpensesInCents,
+									isCashSummary: true,
+								} as BankSummary,
+						  ]
+						: summaries;
+
+					setBankSummaries(combinedSummaries);
 				} catch (error) {
 					console.error('Erro ao carregar os resumos por banco:', error);
 					if (isMounted) {
@@ -250,7 +312,10 @@ export default function MonthlyBankSummaryScreen() {
 		}, []),
 	);
 
-	const hasNoBanks = !isLoading && !errorMessage && bankSummaries.length === 0;
+	const hasSummaries = bankSummaries.length > 0;
+	const hasBankEntries = bankSummaries.some(summary => !summary.isCashSummary);
+	const shouldShowEmptyState = !isLoading && !errorMessage && !hasSummaries;
+	const shouldShowNoBanksMessage = !isLoading && !errorMessage && !hasBankEntries;
 
 	return (
 		<View
@@ -275,7 +340,7 @@ export default function MonthlyBankSummaryScreen() {
 				<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center">
-						Resumo mensal por banco
+						Resumo mensal por banco e transações em dinheiro
 					</Heading>
 
 					<Box className="w-full items-center">
@@ -292,18 +357,21 @@ export default function MonthlyBankSummaryScreen() {
 						<Text className="text-center text-gray-700 dark:text-gray-300">Carregando dados...</Text>
 					) : errorMessage ? (
 						<Text className="text-center text-red-600 dark:text-red-400">{errorMessage}</Text>
-					) : hasNoBanks ? (
+					) : shouldShowEmptyState ? (
 						<Text className="text-center text-gray-700 dark:text-gray-300">
 							Nenhum banco vinculado foi encontrado para o usuário atual.
 						</Text>
 					) : (
-						bankSummaries.map(bank => {
-							return (
-								<TouchableOpacity
-									key={bank.id || bank.name}
-									activeOpacity={0.9}
-									onPress={() => handleOpenBankMovements(bank.id, bank.name, bank.colorHex)}
-								>
+						<>
+							{shouldShowNoBanksMessage && (
+								<Text className="text-center text-gray-700 dark:text-gray-300 mb-4">
+									Nenhum banco vinculado foi encontrado. Exibindo apenas movimentações em dinheiro.
+								</Text>
+							)}
+							{bankSummaries.map(bank => {
+								const isCashSummary = Boolean(bank.isCashSummary);
+
+								const cardContent = (
 									<Box
 										className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 									>
@@ -344,7 +412,9 @@ export default function MonthlyBankSummaryScreen() {
 											>
 												{typeof bank.initialBalanceInCents === 'number'
 													? formatCurrencyBRL(bank.initialBalanceInCents)
-													: 'Não registrado'}
+													: isCashSummary
+														? 'Não aplicável'
+														: 'Não registrado'}
 											</Text>
 										</Text>
 										<Text className="mt-1 text-gray-700 dark:text-gray-300">
@@ -363,21 +433,36 @@ export default function MonthlyBankSummaryScreen() {
 													: 'Indisponível'}
 											</Text>
 										</Text>
-						<Text className="mt-1 text-gray-700 dark:text-gray-300">
-							Movimentações no mês:{' '}
-							<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
-								{formatMovementsCount(bank.totalMovements)}
-							</Text>
-						</Text>
+										<Text className="mt-1 text-gray-700 dark:text-gray-300">
+											Movimentações no mês:{' '}
+											<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
+												{formatMovementsCount(bank.totalMovements)}
+											</Text>
+										</Text>
 
 										<Text className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-											Toque para selecionar um período personalizado e ver todas as
-											movimentações desse banco.
+											{isCashSummary
+												? 'Toque para visualizar apenas as movimentações realizadas em dinheiro.'
+												: `Toque para selecionar um período personalizado e ver todas as movimentações do banco ${bank.name}.`}
 										</Text>
 									</Box>
-								</TouchableOpacity>
-							);
-						})
+								);
+
+								return (
+									<TouchableOpacity
+										key={bank.id || bank.name}
+										activeOpacity={0.9}
+										onPress={() =>
+											isCashSummary
+												? handleOpenCashMovements()
+												: handleOpenBankMovements(bank.id, bank.name, bank.colorHex)
+										}
+									>
+										{cardContent}
+									</TouchableOpacity>
+								);
+							})}
+						</>
 					)}
 				</View>
 			</ScrollView>

@@ -5,6 +5,11 @@
     <img src="https://img.shields.io/badge/TypeScript-5.2-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript Badge" />
     <img src="https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=000" alt="Firebase Badge" />
 </p>
+<p align="center" style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+    <img src="https://img.shields.io/badge/Codex-ChatGPT%20API-10A37F?style=for-the-badge&logo=openai&logoColor=white" alt="OpenAI Codex Badge" />
+    <img src="https://img.shields.io/badge/Gluestack%20UI-NativeWind-7B61FF?style=for-the-badge&logo=gluestack&logoColor=white" alt="Gluestack UI Badge" />
+    <img src="https://img.shields.io/badge/react--native--gifted--charts-1.6.0-FF6C37?style=for-the-badge&logo=npm&logoColor=white" alt="Gifted Charts Badge" />
+</p>
 
 <p style="text-align:justify;">
     O aplicativo <strong>Lumus Finanças</strong> é uma solução mobile completa para a gestão financeira pessoal e familiar, criada para oferecer uma visão clara, organizada e acessível das finanças da casa. Com uma interface simples e intuitiva, pensada para todos os tipos de usuários, ele permite acompanhar de forma detalhada as despesas, os ganhos, os investimentos e as movimentações bancárias do dia a dia, do mês e do ano. Além do controle financeiro tradicional, o Lumus Finanças possibilita vincular todas as pessoas que compartilham as finanças da família, centralizando as informações em um único lugar. Assim, todos conseguem visualizar quanto está sendo gasto, o que está sendo recebido e como o dinheiro está sendo utilizado ao longo do tempo, tornando o planejamento financeiro mais transparente, colaborativo e eficiente.

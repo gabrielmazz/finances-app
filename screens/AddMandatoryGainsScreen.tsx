@@ -603,71 +603,97 @@ export default function AddMandatoryGainsScreen() {
 					<Divider className="my-6 mb-6" />
 
 					<VStack className="gap-4">
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Nome do ganho"
-								value={gainName}
-								onChangeText={setGainName}
-								autoCapitalize="sentences"
-							/>
-						</Input>
 
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Valor previsto"
-								value={valueDisplay}
-								onChangeText={handleValueChange}
-								keyboardType="numeric"
-							/>
-						</Input>
-
-						<Input isDisabled={isPrefilling}>
-							<InputField
-								placeholder="Dia do recebimento (1-31)"
-								value={dueDay}
-								onChangeText={handleDueDayChange}
-								keyboardType="numeric"
-							/>
-						</Input>
-						{dueDay.length > 0 && !isDueDayValid && (
-							<Text className="text-sm text-error-600">Informe um dia válido entre 1 e 31.</Text>
-						)}
-
-						<Select
-							selectedValue={selectedTagId ?? undefined}
-							onValueChange={setSelectedTagId}
-							isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
-						>
-							<SelectTrigger>
-								<SelectInput
-									placeholder="Selecione uma tag obrigatória"
-									value={selectedTagLabel ?? ''}
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor mensal do ganho obrigatório
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Ex: Salário, Aluguel, Freelance..."
+									value={gainName}
+									onChangeText={setGainName}
+									autoCapitalize="sentences"
 								/>
-								<SelectIcon />
-							</SelectTrigger>
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
-									{tagOptions.length > 0 ? (
-										tagOptions.map(tag => <SelectItem key={tag.id} label={tag.name} value={tag.id} />)
-									) : (
-										<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
-									)}
-								</SelectContent>
-							</SelectPortal>
-						</Select>
+							</Input>
+						</Box>
 
-						<Textarea className="h-28" isDisabled={isPrefilling}>
-							<TextareaInput
-								placeholder="Descrição ou observações (opcional)"
-								multiline
-								value={description}
-								onChangeText={setDescription}
-							/>
-						</Textarea>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Valor previsto para recebimento
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Ex: R$ 1.500,00"
+									value={valueDisplay}
+									onChangeText={handleValueChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Dia do mês para recebimento
+							</Text>
+							<Input isDisabled={isPrefilling}>
+								<InputField
+									placeholder="Dia do recebimento (1-31)"
+									value={dueDay}
+									onChangeText={handleDueDayChange}
+									keyboardType="numeric"
+								/>
+							</Input>
+							{dueDay.length > 0 && !isDueDayValid && (
+								<Text className="text-sm text-error-600">Informe um dia válido entre 1 e 31.</Text>
+							)}
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Tag obrigatória do ganho
+							</Text>
+							<Select
+								selectedValue={selectedTagId ?? undefined}
+								onValueChange={setSelectedTagId}
+								isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
+							>
+								<SelectTrigger>
+									<SelectInput
+										placeholder="Selecione uma tag obrigatória"
+										value={selectedTagLabel ?? ''}
+									/>
+									<SelectIcon />
+								</SelectTrigger>
+								<SelectPortal>
+									<SelectBackdrop />
+									<SelectContent>
+										<SelectDragIndicatorWrapper>
+											<SelectDragIndicator />
+										</SelectDragIndicatorWrapper>
+										{tagOptions.length > 0 ? (
+											tagOptions.map(tag => <SelectItem key={tag.id} label={tag.name} value={tag.id} />)
+										) : (
+											<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
+										)}
+									</SelectContent>
+								</SelectPortal>
+							</Select>
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Descrição ou observações
+							</Text>
+							<Textarea className="h-28" isDisabled={isPrefilling}>
+								<TextareaInput
+									placeholder="Descrição ou observações (opcional)"
+									multiline
+									value={description}
+									onChangeText={setDescription}
+								/>
+							</Textarea>
+						</Box>
 
 						<Box
 							className="
@@ -723,14 +749,14 @@ export default function AddMandatoryGainsScreen() {
 							)}
 						</Box>
 
-						<View className="border border-outline-200 rounded-lg px-4 py-3 opacity-100">
+						<Box className="border border-outline-200 rounded-lg px-4 py-3 opacity-100">
 							<HStack className="items-center justify-between">
-								<View className="flex-1 mr-3">
+								<Box className="flex-1 mr-3">
 									<Text className="font-semibold">Lembrete no dia previsto</Text>
 									<Text className="text-gray-600 dark:text-gray-400 text-sm">
 										Receba uma notificação quando o dia do ganho chegar para não esquecer o registro.
 									</Text>
-								</View>
+								</Box>
 								<Switch
 									value={reminderEnabled}
 									onValueChange={handleReminderToggle}
@@ -740,7 +766,7 @@ export default function AddMandatoryGainsScreen() {
 									ios_backgroundColor="#d4d4d4"
 								/>
 							</HStack>
-						</View>
+						</Box>
 
 						<Button onPress={handleSubmit} isDisabled={isSaveDisabled} variant="outline">
 							{isSubmitting ? (
