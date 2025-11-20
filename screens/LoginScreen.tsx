@@ -238,7 +238,7 @@ export default function LoginScreen() {
                             Toque para conhecer o Lumus Finance
                         </Text>
                         <Text className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                            Versão 1.4.0
+                            Versão 1.4.5
                         </Text>
                     </Pressable>
 

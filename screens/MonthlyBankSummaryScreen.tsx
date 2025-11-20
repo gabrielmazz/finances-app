@@ -18,6 +18,7 @@ import {
 	getCurrentMonthCashGainsFirebase,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
+import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 
 // Importação do SVG de ilustração
 import MonthlyBankMovementsIllustration from '../assets/UnDraw/monthlyBankSummaryScreen.svg';
@@ -114,6 +115,12 @@ export default function MonthlyBankSummaryScreen() {
 				}
 
 				try {
+					const now = new Date();
+					const currentYear = now.getFullYear();
+					const currentMonth = now.getMonth() + 1;
+					const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+					const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
 					const [
 						banksResult,
 						expensesResult,
@@ -153,10 +160,6 @@ export default function MonthlyBankSummaryScreen() {
 							cashGainsResult?.success && Array.isArray(cashGainsResult.data)
 								? cashGainsResult.data
 								: [];
-
-					const now = new Date();
-					const currentYear = now.getFullYear();
-					const currentMonth = now.getMonth() + 1;
 
 					// Obtém os saldos iniciais por banco, consultando para cada banco individualmente
 					const balanceResults = await Promise.all(
@@ -205,6 +208,42 @@ export default function MonthlyBankSummaryScreen() {
 						}
 					}
 
+					const investmentResults = await Promise.all(
+						banksArray.map(async bank => {
+							const bankId = typeof bank?.id === 'string' ? bank.id : '';
+							if (!bankId) {
+								return { bankId, investments: [] as any[] };
+							}
+							const response = await getFinanceInvestmentsByPeriodFirebase({
+								personId: currentUser.uid,
+								bankId,
+								startDate: startOfMonth,
+								endDate: endOfMonth,
+							});
+							if (response?.success && Array.isArray(response.data)) {
+								return { bankId, investments: response.data as any[] };
+							}
+							return { bankId, investments: [] as any[] };
+						}),
+					);
+
+					const investmentsByBank: Record<string, { total: number; count: number }> = {};
+					for (const item of investmentResults) {
+						const bankId = item.bankId;
+						const investments = Array.isArray(item.investments) ? item.investments : [];
+						const total = investments.reduce((acc, inv) => {
+							const value =
+								typeof inv?.initialValueInCents === 'number' && !Number.isNaN(inv.initialValueInCents)
+									? inv.initialValueInCents
+									: 0;
+							return acc + value;
+						}, 0);
+						investmentsByBank[bankId] = {
+							total,
+							count: investments.length,
+						};
+					}
+
 					// Monta o summary por banco, passando pelo array de bancos
 					const summaries: BankSummary[] = banksArray.map(bank => {
 
@@ -235,8 +274,10 @@ export default function MonthlyBankSummaryScreen() {
 							return acc + value;
 						}, 0);
 
+						const investmentSummary = investmentsByBank[bankId] ?? { total: 0, count: 0 };
+
 						// Calcula o total de movimentações realizadas durante o mês
-						const totalMovements = bankExpenses.length + bankGains.length;
+						const totalMovements = bankExpenses.length + bankGains.length + investmentSummary.count;
 
 						// Calcula os saldos inicial, registrado no início do mês na tela AddRegisterMonthlyBalanceScreen
 						const initialBalanceInCents = balancesByBank[bankId] ?? null;
@@ -244,14 +285,14 @@ export default function MonthlyBankSummaryScreen() {
 						// Calcula o saldo atual considerando o saldo inicial + ganhos - despesas
 						const currentBalanceInCents =
 							typeof initialBalanceInCents === 'number'
-								? initialBalanceInCents + (totalGainsInCents - totalExpensesInCents)
+								? initialBalanceInCents + (totalGainsInCents - (totalExpensesInCents + investmentSummary.total))
 								: null;
 
 						return {
 							id: bankId,
 							name: bankName,
 							colorHex,
-							totalExpensesInCents,
+							totalExpensesInCents: totalExpensesInCents + investmentSummary.total,
 							totalGainsInCents,
 							totalMovements,
 							initialBalanceInCents,
