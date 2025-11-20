@@ -35,6 +35,18 @@ import {
 	DrawerFooter,
 	DrawerHeader,
 } from '@/components/ui/drawer';
+import {
+	Select,
+	SelectBackdrop,
+	SelectContent,
+	SelectDragIndicator,
+	SelectDragIndicatorWrapper,
+	SelectIcon,
+	SelectInput,
+	SelectItem,
+	SelectPortal,
+	SelectTrigger,
+} from '@/components/ui/select';
 
 // Importações relacionadas à navegação e autenticação
 import { router, useFocusEffect } from 'expo-router';
@@ -73,6 +85,7 @@ type AccordionItem = {
 	showBanksTable?: boolean;
 	showTagsTable?: boolean;
 	showRelatedUsersTable?: boolean;
+	showValueVisibilitySwitch?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
@@ -123,6 +136,13 @@ const accordionItems: AccordionItem[] = [
 			router: '/add-user-relation',
 			label: 'Relacionar Usuário',
 		},
+	},
+	{
+		id: 'item-5',
+		title: 'Preferências de valores financeiros',
+		content: 'Ative ou desative a exibição de valores financeiros em todo o aplicativo.',
+		showValueVisibilitySwitch: true,
+		actionRequiresAdmin: false,
 	},
 ];
 
@@ -344,6 +364,16 @@ export default function ConfigurationsScreen() {
 			isMandatoryGain?: boolean;
 		}>
 	>([]);
+	const [tagFilter, setTagFilter] = React.useState<
+		'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain'
+	>('all');
+	const tagFilterLabels: Record<typeof tagFilter, string> = {
+		all: 'Todas',
+		expense: 'Despesas',
+		'mandatory-expense': 'Despesas obrigatórias',
+		gain: 'Ganhos',
+		'mandatory-gain': 'Ganhos obrigatórios',
+	};
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
@@ -360,6 +390,27 @@ export default function ConfigurationsScreen() {
 		},
 		[setShouldHideValues],
 	);
+
+	const filteredTags = React.useMemo(() => {
+		return tagData.filter(tag => {
+			if (tagFilter === 'all') {
+				return true;
+			}
+			if (tagFilter === 'expense') {
+				return tag.usageType === 'expense' && !tag.isMandatoryExpense;
+			}
+			if (tagFilter === 'mandatory-expense') {
+				return tag.usageType === 'expense' && Boolean(tag.isMandatoryExpense);
+			}
+			if (tagFilter === 'gain') {
+				return tag.usageType === 'gain' && !tag.isMandatoryGain;
+			}
+			if (tagFilter === 'mandatory-gain') {
+				return tag.usageType === 'gain' && Boolean(tag.isMandatoryGain);
+			}
+			return true;
+		});
+	}, [tagData, tagFilter]);
 
 	// Constante para armazenar o email do usuário logado atualmente
 	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
@@ -626,7 +677,7 @@ export default function ConfigurationsScreen() {
 			case 'tags':
 				return {
 					title: 'Tags cadastradas',
-					subtitle: `${tagData.length} registro(s) encontrados.`,
+					subtitle: `${filteredTags.length} registro(s) encontrados.`,
 				};
 			case 'related-users':
 				return {
@@ -639,7 +690,7 @@ export default function ConfigurationsScreen() {
 					subtitle: '',
 				};
 		}
-	}, [openDrawer, userData.length, bankData.length, tagData.length, relatedUserData.length]);
+	}, [openDrawer, userData.length, bankData.length, filteredTags.length, relatedUserData.length]);
 
 	const drawerContent = React.useMemo(() => {
 		const renderEmptyState = (message: string) => (
@@ -765,10 +816,6 @@ export default function ConfigurationsScreen() {
 				return renderEmptyState('Você precisa ser administrador para visualizar as tags.');
 			}
 
-			if (!tagData.length) {
-				return renderEmptyState('Nenhuma tag cadastrada até o momento.');
-			}
-
 			const getTagTypeLabel = (tag: (typeof tagData)[number]) => {
 				if (tag.usageType === 'gain') {
 					return 'Ganhos';
@@ -781,61 +828,101 @@ export default function ConfigurationsScreen() {
 
 			return (
 				<VStack space="md">
-					{tagData.map(tag =>
-						renderCardContainer(
-							<>
-								<Text className="text-xs uppercase tracking-wide text-typografia-500">
-									Tag cadastrada
-								</Text>
-								<Text className="text-lg font-medium mt-1">{tag.name}</Text>
-								<Text className="text-sm text-typografia-500 mt-1">
-									Tipo: {getTagTypeLabel(tag)}
-								</Text>
-								<View className="flex-row justify-end items-center gap-2 mt-4">
-									<Button
-										size="xl"
-										variant="link"
-										action="primary"
-										onPress={() =>
-											setPendingAction({
-												type: 'edit-tag',
-												payload: {
-													tag: {
-														id: tag.id,
-														name: tag.name,
-														usageType:
-															tag.usageType === 'gain' || tag.usageType === 'expense'
-																? tag.usageType
-																: undefined,
-														isMandatoryExpense: Boolean(tag.isMandatoryExpense),
-														isMandatoryGain: Boolean(tag.isMandatoryGain),
-													},
-												},
-											})
-										}
-									>
-										<ButtonIcon as={EditIcon} />
-									</Button>
-									<Button
-										size="xl"
-										variant="link"
-										action="negative"
-										onPress={() =>
-											setPendingAction({
-												type: 'delete-tag',
-												payload: {
-													tagId: tag.id,
-													tagName: tag.name,
-												},
-											})
-										}
-									>
-										<ButtonIcon as={TrashIcon} />
-									</Button>
-								</View>
-							</>,
-							tag.id,
-						))}
+					<Box className="border border-outline-200 rounded-2xl p-4 bg-white dark:bg-gray-900">
+						<Text className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">
+							Filtrar tags por tipo
+						</Text>
+						<Select selectedValue={tagFilter} onValueChange={value => setTagFilter(value as any)}>
+							<SelectTrigger>
+								<SelectInput placeholder="Selecione um filtro" value={tagFilterLabels[tagFilter]} />
+								<SelectIcon />
+							</SelectTrigger>
+							<SelectPortal>
+								<SelectBackdrop />
+								<SelectContent>
+									<SelectDragIndicatorWrapper>
+										<SelectDragIndicator />
+									</SelectDragIndicatorWrapper>
+									<SelectItem label="Todas" value="all" />
+									<SelectItem label="Despesas" value="expense" />
+									<SelectItem label="Despesas obrigatórias" value="mandatory-expense" />
+									<SelectItem label="Ganhos" value="gain" />
+									<SelectItem label="Ganhos obrigatórios" value="mandatory-gain" />
+								</SelectContent>
+							</SelectPortal>
+						</Select>
+					</Box>
+
+					<Divider className="my-2" />
+
+					{!filteredTags.length
+						? renderEmptyState('Nenhuma tag encontrada para o filtro selecionado.')
+						: filteredTags.map(tag =>
+								renderCardContainer(
+									<>
+										<Text className="text-xs uppercase tracking-wide text-typografia-500">
+											Tag cadastrada
+										</Text>
+										<Text className="text-lg font-medium mt-1">{tag.name}</Text>
+										<Text className="text-sm text-typografia-500 mt-1">
+											Tipo: {getTagTypeLabel(tag)}
+										</Text>
+										{tag.isMandatoryExpense && (
+											<Text className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+												Despesa obrigatória
+											</Text>
+										)}
+										{tag.isMandatoryGain && (
+											<Text className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+												Ganho obrigatório
+											</Text>
+										)}
+										<View className="flex-row justify-end items-center gap-2 mt-4">
+											<Button
+												size="xl"
+												variant="link"
+												action="primary"
+												onPress={() =>
+													setPendingAction({
+														type: 'edit-tag',
+														payload: {
+															tag: {
+																id: tag.id,
+																name: tag.name,
+																usageType:
+																	tag.usageType === 'gain' || tag.usageType === 'expense'
+																		? tag.usageType
+																		: undefined,
+																isMandatoryExpense: Boolean(tag.isMandatoryExpense),
+																isMandatoryGain: Boolean(tag.isMandatoryGain),
+															},
+														},
+													})
+												}
+											>
+												<ButtonIcon as={EditIcon} />
+											</Button>
+											<Button
+												size="xl"
+												variant="link"
+												action="negative"
+												onPress={() =>
+													setPendingAction({
+														type: 'delete-tag',
+														payload: {
+															tagId: tag.id,
+															tagName: tag.name,
+														},
+													})
+												}
+											>
+												<ButtonIcon as={TrashIcon} />
+											</Button>
+										</View>
+									</>,
+									tag.id,
+								),
+						  )}
 				</VStack>
 			);
 		}
@@ -892,6 +979,8 @@ export default function ConfigurationsScreen() {
 		userData,
 		bankData,
 		tagData,
+		tagFilter,
+		filteredTags,
 		relatedUserData,
 		isLoadingRelatedUsers,
 		setPendingAction,
@@ -1152,7 +1241,7 @@ export default function ConfigurationsScreen() {
 							<Text className="text-typography-500">Email do Usuário Atual e seu ID:</Text>
 							<Input
 								isDisabled={true}
-								className="w-full mb-4"
+								className="w-full"
 							>
 								<InputField
 									type="text"
@@ -1168,34 +1257,6 @@ export default function ConfigurationsScreen() {
 							</Input>
 
 					</VStack>
-
-					<View className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
-						<View className="flex-row items-center justify-between">
-							<View className="flex-1 pr-4">
-								<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
-									Ocultar valores financeiros
-								</Text>
-								<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-									Ative esta opção para esconder totais de ganhos, despesas e saldos nas demais telas.
-								</Text>
-							</View>
-							<Switch
-								value={shouldHideValues}
-								onValueChange={handleToggleValueVisibility}
-								disabled={isLoadingPreference}
-								trackColor={{ false: '#d4d4d4', true: '#525252' }}
-								thumbColor="#fafafa"
-								ios_backgroundColor="#d4d4d4"
-							/>
-						</View>
-						<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-							{isLoadingPreference
-								? 'Verificando a preferência salva...'
-								: shouldHideValues
-									? 'Os valores financeiros estão ocultos.'
-									: 'Os valores financeiros estão visíveis.'}
-						</Text>
-					</View>
 
 					<Accordion
 							size="md"
@@ -1319,6 +1380,36 @@ export default function ConfigurationsScreen() {
 																<ButtonText>Visualizar usuários vinculados</ButtonText>
 															)}
 														</Button>
+													</View>
+												)}
+
+												{item.showValueVisibilitySwitch && (
+													<View className="mt-6 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
+														<View className="flex-row items-center justify-between">
+															<View className="flex-1 pr-4">
+																<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
+																	Ocultar valores financeiros
+																</Text>
+																<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+																	Ative para esconder totais de ganhos, despesas e saldos nas demais telas.
+																</Text>
+															</View>
+															<Switch
+																value={shouldHideValues}
+																onValueChange={handleToggleValueVisibility}
+																disabled={isLoadingPreference}
+																trackColor={{ false: '#d4d4d4', true: '#525252' }}
+																thumbColor="#fafafa"
+																ios_backgroundColor="#d4d4d4"
+															/>
+														</View>
+														<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+															{isLoadingPreference
+																? 'Verificando a preferência salva...'
+																: shouldHideValues
+																	? 'Os valores financeiros estão ocultos.'
+																	: 'Os valores financeiros estão visíveis.'}
+														</Text>
 													</View>
 												)}
 

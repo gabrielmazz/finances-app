@@ -19,7 +19,7 @@ import {
 } from '@/functions/BankFirebase';
 import { getLimitedExpensesFirebase, getLimitedExpensesWithPeopleFirebase } from '@/functions/ExpenseFirebase';
 import { getLimitedGainsFirebase, getLimitedGainsWithPeopleFirebase } from '@/functions/GainFirebase';
-import { getFinanceInvestmentsWithRelationsFirebase } from '@/functions/FinancesFirebase';
+import { getFinanceInvestmentsByPeriodFirebase, getFinanceInvestmentsWithRelationsFirebase } from '@/functions/FinancesFirebase';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -176,6 +176,7 @@ export default function HomeScreen() {
 	// Estado para armazenar os movimentos mais recentes de ganhos e despesas
 	const [recentExpenses, setRecentExpenses] = React.useState<any[]>([]);
 	const [recentGains, setRecentGains] = React.useState<any[]>([]);
+	const [recentInvestments, setRecentInvestments] = React.useState<any[]>([]);
 
 	// Estados relacionados ao carregamento dos movimentos e erros
 	const [isLoadingMovements, setIsLoadingMovements] = React.useState(false);
@@ -536,6 +537,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 				setMovementsError(null);
 				setRecentExpenses([]);
 				setRecentGains([]);
+				setRecentInvestments([]);
 				setBankNamesById({});
 				setBankColorsById({});
 				setChartsError(null);
@@ -590,11 +592,11 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 
 						const summaryErrors: string[] = [];
 						const chartIssues: string[] = [];
+						let monthlyExpensesData: any[] = [];
+						let monthlyGainsData: any[] = [];
 
 						if (expensesSummary.status === 'fulfilled' && expensesSummary.value?.success !== false) {
-							const monthlyExpensesData = Array.isArray(expensesSummary.value?.data)
-								? expensesSummary.value.data
-								: [];
+							monthlyExpensesData = Array.isArray(expensesSummary.value?.data) ? expensesSummary.value.data : [];
 							const resultExpansesValues = monthlyExpensesData.map((item: any) => item?.valueInCents ?? 0);
 							const summaryTotals = calculateMonthlyExpansesSummaryTotals(resultExpansesValues);
 							setTotalExpensesInCents(summaryTotals.totalExpensesInCents);
@@ -611,7 +613,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 						}
 
 						if (gainsSummary.status === 'fulfilled' && gainsSummary.value?.success !== false) {
-							const monthlyGainsData = Array.isArray(gainsSummary.value?.data) ? gainsSummary.value.data : [];
+							monthlyGainsData = Array.isArray(gainsSummary.value?.data) ? gainsSummary.value.data : [];
 							const resultGainsValues = monthlyGainsData.map((item: any) => item?.valueInCents ?? 0);
 							const summaryTotals = calculateMonthlyGainsSummaryTotals(resultGainsValues);
 							setTotalGainsInCents(summaryTotals.totalGainsInCents);
@@ -649,7 +651,27 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 							const now = new Date();
 							const currentYear = now.getFullYear();
 							const currentMonth = now.getMonth() + 1;
+							const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+							const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
 							const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
+							const sumByBank = (items: any[]) =>
+								items.reduce<Record<string, number>>((acc, item) => {
+									const bankId = typeof item?.bankId === 'string' ? item.bankId : '';
+
+									if (!bankId) {
+										return acc;
+									}
+
+									const value =
+										typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+											? item.valueInCents
+											: 0;
+
+									acc[bankId] = (acc[bankId] ?? 0) + Math.max(value, 0);
+									return acc;
+								}, {});
+							const expensesByBank = sumByBank(monthlyExpensesData ?? []);
+							const gainsByBank = sumByBank(monthlyGainsData ?? []);
 
 							if (banksResult?.success && Array.isArray(banksResult.data)) {
 								const balances = await Promise.all(
@@ -658,21 +680,45 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 										if (!bankId) {
 											return null;
 										}
-										const balanceRes = await getMonthlyBalanceFirebaseRelatedToUser({
-											personId: currentUser.uid,
-											bankId,
-											year: currentYear,
-											month: currentMonth,
-										});
+										const [balanceRes, investmentsRes] = await Promise.all([
+											getMonthlyBalanceFirebaseRelatedToUser({
+												personId: currentUser.uid,
+												bankId,
+												year: currentYear,
+												month: currentMonth,
+											}),
+											getFinanceInvestmentsByPeriodFirebase({
+												personId: currentUser.uid,
+												bankId,
+												startDate: startOfMonth,
+												endDate: endOfMonth,
+											}),
+										]);
 										const balance =
 											balanceRes?.success && balanceRes.data && typeof balanceRes.data.valueInCents === 'number'
 												? balanceRes.data.valueInCents
+												: null;
+										const investmentsTotalInCents =
+											investmentsRes?.success && Array.isArray(investmentsRes.data)
+												? investmentsRes.data.reduce((acc, investment) => {
+														const value =
+															typeof investment?.initialValueInCents === 'number'
+																? investment.initialValueInCents
+																: 0;
+														return acc + value;
+												  }, 0)
+												: 0;
+										const totalExpensesInCents = expensesByBank[bankId] ?? 0;
+										const totalGainsInCents = gainsByBank[bankId] ?? 0;
+										const currentBalance =
+											typeof balance === 'number'
+												? balance + (totalGainsInCents - (totalExpensesInCents + investmentsTotalInCents))
 												: null;
 										const name =
 											typeof bank?.name === 'string' && bank.name.trim().length > 0
 												? bank.name.trim()
 												: 'Banco sem nome';
-										return { id: bankId, name, balanceInCents: balance };
+										return { id: bankId, name, balanceInCents: currentBalance };
 									}),
 								);
 								setBankBalances(balances.filter(Boolean) as { id: string; name: string; balanceInCents: number | null }[]);
@@ -713,10 +759,11 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 
 					try {
 
-						const [expensesResult, gainsResult, banksResult] = await Promise.all([
+						const [expensesResult, gainsResult, banksResult, investmentsResult] = await Promise.all([
 							getLimitedExpensesWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
 							getLimitedGainsWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
 							getBanksWithUsersByPersonFirebase(currentUser.uid),
+							getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
 						]);
 
 						if (!isMounted) {
@@ -777,6 +824,52 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 							setMovementsError(null);
 						}
 
+						if (investmentsResult?.success && Array.isArray(investmentsResult.data)) {
+							const normalizedInvestments = (investmentsResult.data as any[]).map(investment => {
+								const id =
+									typeof investment?.id === 'string'
+										? investment.id
+										: `investment-${Math.random().toString(36).slice(2)}`;
+								const name =
+									typeof investment?.name === 'string' && investment.name.trim().length > 0
+										? investment.name.trim()
+										: 'Investimento';
+								const value =
+									typeof investment?.initialValueInCents === 'number'
+										? investment.initialValueInCents
+										: 0;
+
+								const createdAt = parseToDate(
+									investment?.date ??
+										investment?.createdAt ??
+										investment?.createdAtISO ??
+										investment?.createdAtUtc,
+								);
+
+								return {
+									id,
+									name,
+									valueInCents: value,
+									bankId: typeof investment?.bankId === 'string' ? investment.bankId : null,
+									createdAt,
+								};
+							});
+
+							const sortedInvestments = normalizedInvestments
+								.slice()
+								.sort((a, b) => {
+									const timeA = a.createdAt ? a.createdAt.getTime() : 0;
+									const timeB = b.createdAt ? b.createdAt.getTime() : 0;
+									return timeB - timeA;
+								})
+								.slice(0, 3);
+
+							setRecentInvestments(sortedInvestments);
+						} else {
+							setRecentInvestments([]);
+							hasIssues = true;
+						}
+
 					} catch (error) {
 						console.error('Erro ao carregar os últimos movimentos:', error);
 
@@ -784,6 +877,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 							setMovementsError('Erro ao carregar os últimos movimentos.');
 							setRecentExpenses([]);
 							setRecentGains([]);
+							setRecentInvestments([]);
 							setBankNamesById({});
 							setBankColorsById({});
 						}
@@ -1476,6 +1570,39 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 
 												)}
 
+											</Box>
+
+											<Divider className="mt-6" />
+
+											<Box className="mt-6">
+												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
+													Investimentos
+												</Text>
+
+												{recentInvestments.length === 0 ? (
+													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+														Nenhum investimento recente registrado.
+													</Text>
+												) : (
+													recentInvestments.map((investment, index) => (
+														<Box key={investment?.id ?? `investment-${index}`} className="mt-3">
+															<HStack className="justify-between items-center">
+																<Text className="text-gray-800 dark:text-gray-200">
+																	{investment?.name ?? 'Investimento'}
+																</Text>
+																<Text className="text-indigo-600 dark:text-indigo-300 font-semibold">
+																	{formatCurrencyBRL(investment?.valueInCents ?? 0)}
+																</Text>
+															</HStack>
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{`Banco: ${getBankName(investment?.bankId)}`}
+															</Text>
+															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+																{formatMovementDate(investment?.createdAt ?? investment?.date)}
+															</Text>
+														</Box>
+													))
+												)}
 											</Box>
 
 										</>

@@ -27,13 +27,14 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { Menu } from '@/components/uiverse/menu';
 
 import {
-	getAllBanksFirebase,
 	addCashRescueFirebase,
 	getCurrentMonthSummaryByBankFirebaseExpanses,
 	getCurrentMonthSummaryByBankFirebaseGains,
+	getBanksWithUsersByPersonFirebase,
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
+import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -159,6 +160,21 @@ export default function AddRescueScreen() {
 
 		const loadBankBalance = async () => {
 			try {
+				const resolveBankId = (rawBankId: unknown) => {
+					if (typeof rawBankId === 'string') {
+						return rawBankId;
+					}
+					if (
+						rawBankId &&
+						typeof rawBankId === 'object' &&
+						'id' in rawBankId &&
+						typeof (rawBankId as { id?: unknown }).id === 'string'
+					) {
+						return (rawBankId as { id: string }).id;
+					}
+					return '';
+				};
+
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
 					showFloatingAlert({
@@ -172,8 +188,10 @@ export default function AddRescueScreen() {
 				const now = new Date();
 				const currentYear = now.getFullYear();
 				const currentMonth = now.getMonth() + 1;
+				const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+				const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
 
-				const [expensesResult, gainsResult, balanceResponse] = await Promise.all([
+				const [expensesResult, gainsResult, balanceResponse, investmentsResponse] = await Promise.all([
 					getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
 					getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
 					getMonthlyBalanceFirebaseRelatedToUser({
@@ -181,6 +199,12 @@ export default function AddRescueScreen() {
 						bankId: selectedBankId,
 						year: currentYear,
 						month: currentMonth,
+					}),
+					getFinanceInvestmentsByPeriodFirebase({
+						personId: currentUser.uid,
+						bankId: selectedBankId,
+						startDate: startOfMonth,
+						endDate: endOfMonth,
 					}),
 				]);
 
@@ -192,29 +216,36 @@ export default function AddRescueScreen() {
 					expensesResult?.success && Array.isArray(expensesResult.data) ? expensesResult.data : [];
 				const gainsArray: any[] =
 					gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
+				const investmentsArray: any[] =
+					investmentsResponse?.success && Array.isArray(investmentsResponse.data)
+						? investmentsResponse.data
+						: [];
 
-				const totalExpensesInCents = expensesArray.reduce((acc, item) => {
-					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
-					const value =
-						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
-							? item.valueInCents
-							: 0;
-					if (bankId === selectedBankId) {
-						return acc + value;
-					}
-					return acc;
-				}, 0);
+				const sumByBank = (items: any[]) =>
+					items.reduce<Record<string, number>>((acc, item) => {
+						const bankId = resolveBankId(item?.bankId);
+						if (!bankId) {
+							return acc;
+						}
 
-				const totalGainsInCents = gainsArray.reduce((acc, item) => {
-					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
+						const value =
+							typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+								? item.valueInCents
+								: 0;
+
+						acc[bankId] = (acc[bankId] ?? 0) + Math.max(value, 0);
+						return acc;
+					}, {});
+
+				const expensesByBank = sumByBank(expensesArray);
+				const gainsByBank = sumByBank(gainsArray);
+
+				const totalExpensesInCents = expensesByBank[selectedBankId] ?? 0;
+				const totalGainsInCents = gainsByBank[selectedBankId] ?? 0;
+				const totalInvestmentsInCents = investmentsArray.reduce((acc, investment) => {
 					const value =
-						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
-							? item.valueInCents
-							: 0;
-					if (bankId === selectedBankId) {
-						return acc + value;
-					}
-					return acc;
+						typeof investment?.initialValueInCents === 'number' ? investment.initialValueInCents : 0;
+					return acc + value;
 				}, 0);
 
 				const initialBalance =
@@ -223,7 +254,9 @@ export default function AddRescueScreen() {
 						: null;
 
 				const currentBalance =
-					typeof initialBalance === 'number' ? initialBalance + (totalGainsInCents - totalExpensesInCents) : null;
+					typeof initialBalance === 'number'
+						? initialBalance + (totalGainsInCents - (totalExpensesInCents + totalInvestmentsInCents))
+						: null;
 
 				setCurrentBankBalanceInCents(currentBalance);
 			} catch (error) {
@@ -261,7 +294,17 @@ export default function AddRescueScreen() {
 
 		const loadBanks = async () => {
 			try {
-				const banksResult = await getAllBanksFirebase();
+				const currentUser = auth.currentUser;
+				if (!currentUser) {
+					showFloatingAlert({
+						message: 'Nenhum usuário autenticado foi identificado.',
+						action: 'error',
+						position: 'bottom',
+					});
+					return;
+				}
+
+				const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
 				if (!isMounted) {
 					return;
 				}
