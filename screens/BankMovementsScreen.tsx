@@ -55,6 +55,18 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import {
+	Select,
+	SelectBackdrop,
+	SelectContent,
+	SelectDragIndicator,
+	SelectDragIndicatorWrapper,
+	SelectIcon,
+	SelectInput,
+	SelectItem,
+	SelectPortal,
+	SelectTrigger,
+} from '@/components/ui/select';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -267,6 +279,12 @@ export default function BankMovementsScreen() {
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
+	const [movementFilter, setMovementFilter] = React.useState<'all' | 'expense' | 'gain'>('all');
+	const movementFilterLabels: Record<typeof movementFilter, string> = {
+		all: 'Todos',
+		expense: 'Despesas',
+		gain: 'Ganhos',
+	};
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -572,8 +590,15 @@ export default function BankMovementsScreen() {
 	}, [selectedMovement, setSelectedMovementBankName]);
 
 
+	const visibleMovements = React.useMemo(() => {
+		if (movementFilter === 'all') {
+			return movements;
+		}
+		return movements.filter(movement => movement.type === movementFilter);
+	}, [movementFilter, movements]);
+
 	const totals = React.useMemo(() => {
-		return movements.reduce(
+		return visibleMovements.reduce(
 			(acc, movement) => {
 				if (movement.type === 'gain') {
 					acc.totalGains += movement.valueInCents;
@@ -584,7 +609,7 @@ export default function BankMovementsScreen() {
 			},
 			{ totalExpenses: 0, totalGains: 0 },
 		);
-	}, [movements]);
+	}, [visibleMovements]);
 
 	const balanceInCents = totals.totalGains - totals.totalExpenses;
 
@@ -928,6 +953,32 @@ export default function BankMovementsScreen() {
 											/>
 										</Input>
 									</VStack>
+
+									<VStack className="flex-1 min-w-[160px]">
+										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+											Tipo de movimentação
+										</Text>
+										<Select
+											selectedValue={movementFilter}
+											onValueChange={value => setMovementFilter((value as 'all' | 'expense' | 'gain') ?? 'all')}
+										>
+											<SelectTrigger>
+												<SelectInput placeholder="Selecione o tipo" value={movementFilterLabels[movementFilter]} />
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													<SelectItem label="Todos" value="all" />
+													<SelectItem label="Despesas" value="expense" />
+													<SelectItem label="Ganhos" value="gain" />
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
 								</HStack>
 
 								<Button
@@ -1057,12 +1108,12 @@ export default function BankMovementsScreen() {
 								<Text className="text-center text-gray-700 dark:text-gray-300">
 									Carregando movimentações...
 								</Text>
-							) : movements.length === 0 ? (
+							) : visibleMovements.length === 0 ? (
 								<Text className="text-center text-gray-600 dark:text-gray-400">
 									Nenhuma movimentação foi registrada para o período informado.
 								</Text>
 							) : (
-								movements.map(movement => (
+								visibleMovements.map(movement => (
 									<TapGestureHandler
 										key={movement.id}
 										numberOfTaps={2}
