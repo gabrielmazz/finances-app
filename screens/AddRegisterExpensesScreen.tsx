@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { BackHandler, ScrollView, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -303,6 +303,20 @@ export default function AddRegisterExpensesScreen() {
 		}
 		return null;
 	}, [isEditing, templateData]);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			const handleBackPress = () => {
+				router.replace('/home?tab=0');
+				return true;
+			};
+
+			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+			return () => {
+				subscription.remove();
+			};
+		}, []),
+	);
 
 	useFocusEffect(
 		React.useCallback(() => {

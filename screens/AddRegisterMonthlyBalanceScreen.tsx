@@ -1,6 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { BackHandler, ScrollView, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 
 import {
 	Select,
@@ -85,15 +85,29 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	const [balanceDisplay, setBalanceDisplay] = React.useState('');
 	const [balanceValueInCents, setBalanceValueInCents] = React.useState<number | null>(null);
 
-	const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
-	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const balanceInputValue = React.useMemo(
-		() => (balanceDisplay ? balanceDisplay : balanceValueInCents !== null ? formatCurrencyBRL(balanceValueInCents) : ''),
-		[balanceDisplay, balanceValueInCents],
-	);
+const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
+const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
+const [isSubmitting, setIsSubmitting] = React.useState(false);
+const balanceInputValue = React.useMemo(
+	() => (balanceDisplay ? balanceDisplay : balanceValueInCents !== null ? formatCurrencyBRL(balanceValueInCents) : ''),
+	[balanceDisplay, balanceValueInCents],
+);
 
 	useFocusEffect(
+		React.useCallback(() => {
+			const handleBackPress = () => {
+				router.replace('/home?tab=0');
+				return true;
+			};
+
+			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+			return () => {
+				subscription.remove();
+			};
+		}, []),
+	);
+
+useFocusEffect(
 		React.useCallback(() => {
 			let isMounted = true;
 

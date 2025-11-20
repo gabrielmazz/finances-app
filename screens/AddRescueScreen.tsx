@@ -1,6 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { BackHandler, ScrollView, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 
 import {
 	Select,
@@ -119,6 +119,19 @@ export default function AddRescueScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			const handleBackPress = () => {
+				router.replace('/home?tab=0');
+				return true;
+			};
+			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+			return () => {
+				subscription.remove();
+			};
+		}, []),
+	);
 
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
