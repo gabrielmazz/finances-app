@@ -30,8 +30,13 @@ import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { auth } from '@/FirebaseConfig';
-import { addFinanceInvestmentFirebase } from '@/functions/FinancesFirebase';
-import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
+import { addFinanceInvestmentFirebase, getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import {
+	getBanksWithUsersByPersonFirebase,
+	getCurrentMonthSummaryByBankFirebaseExpanses,
+	getCurrentMonthSummaryByBankFirebaseGains,
+} from '@/functions/BankFirebase';
+import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
@@ -55,13 +60,83 @@ const parseStringToNumber = (value: string) => {
 	return Number.isFinite(parsed) ? parsed : NaN;
 };
 
+const formatDateToBR = (date: Date) => {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${day}/${month}/${year}`;
+};
+
+const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
+
+const formatDateInput = (value: string) => {
+	if (value.length <= 2) {
+		return value;
+	}
+	if (value.length <= 4) {
+		return `${value.slice(0, 2)}/${value.slice(2)}`;
+	}
+	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
+};
+
+const parseDateFromBR = (value: string) => {
+	const [day, month, year] = value.split('/');
+	if (!day || !month || !year) {
+		return null;
+	}
+
+	const dayNumber = Number(day);
+	const monthNumber = Number(month);
+	const yearNumber = Number(year);
+
+	if (
+		Number.isNaN(dayNumber) ||
+		Number.isNaN(monthNumber) ||
+		Number.isNaN(yearNumber) ||
+		dayNumber <= 0 ||
+		monthNumber <= 0 ||
+		monthNumber > 12 ||
+		yearNumber < 1900
+	) {
+		return null;
+	}
+
+	const dateInstance = new Date(yearNumber, monthNumber - 1, dayNumber);
+
+	if (
+		dateInstance.getDate() !== dayNumber ||
+		dateInstance.getMonth() + 1 !== monthNumber ||
+		dateInstance.getFullYear() !== yearNumber
+	) {
+		return null;
+	}
+
+	return dateInstance;
+};
+
+const mergeDateWithCurrentTime = (date: Date) => {
+	const now = new Date();
+	const dateWithTime = new Date(date);
+	dateWithTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+	return dateWithTime;
+};
+
+const formatCurrencyBRL = (valueInCents: number) =>
+	new Intl.NumberFormat('pt-BR', {
+		style: 'currency',
+		currency: 'BRL',
+	}).format(valueInCents / 100);
+
 export default function AddFinanceScreen() {
 	// Estado para guardar o nome do investimento que o usuário está digitando.
 	const [investmentName, setInvestmentName] = React.useState('');
-	// Guardamos o valor inicial como string para facilitar a edição pelo usuário.
+	// Guardamos o valor inicial como string formatada e em centavos.
 	const [initialValueInput, setInitialValueInput] = React.useState('');
+	const [initialValueInCents, setInitialValueInCents] = React.useState<number | null>(null);
 	// Guardamos o percentual do CDI informado pelo usuário.
 	const [cdiInput, setCdiInput] = React.useState('');
+	// Data informada para o investimento, sempre no formato brasileiro.
+	const [investmentDate, setInvestmentDate] = React.useState(formatDateToBR(new Date()));
 	// Estado que guarda o prazo selecionado dentre as opções fixas.
 	const [selectedRedemptionTerm, setSelectedRedemptionTerm] = React.useState<RedemptionTerm>('anytime');
 	// Flag simples para saber se estamos salvando e evitar envio duplicado.
@@ -71,21 +146,53 @@ export default function AddFinanceScreen() {
 	const [bankOptions, setBankOptions] = React.useState<{ id: string; name: string }[]>([]);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
+	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
+	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+
+	const handleInitialValueChange = React.useCallback((value: string) => {
+		const digitsOnly = value.replace(/\D/g, '');
+		if (!digitsOnly) {
+			setInitialValueInput('');
+			setInitialValueInCents(null);
+			setHasSavedOnce(false);
+			return;
+		}
+
+		const centsValue = parseInt(digitsOnly, 10);
+		setInitialValueInCents(centsValue);
+		setInitialValueInput(formatCurrencyBRL(centsValue));
+		setHasSavedOnce(false);
+	}, []);
 
 	// Verificamos se todos os campos obrigatórios foram preenchidos.
 	const isFormValid = React.useMemo(() => {
-		const parsedInitial = parseStringToNumber(initialValueInput);
 		const parsedCdi = parseStringToNumber(cdiInput);
-		return investmentName.trim().length > 0 && parsedInitial > 0 && parsedCdi > 0 && Boolean(selectedBankId);
-	}, [investmentName, initialValueInput, cdiInput, selectedBankId]);
+		const initialCents = typeof initialValueInCents === 'number' ? initialValueInCents : 0;
+		const hasValidBalance =
+			typeof currentBankBalanceInCents === 'number'
+				? currentBankBalanceInCents >= 0 && initialCents > 0 && initialCents <= currentBankBalanceInCents
+				: initialCents > 0;
+		return (
+			investmentName.trim().length > 0 &&
+			initialCents > 0 &&
+			parsedCdi > 0 &&
+			Boolean(selectedBankId) &&
+			Boolean(parseDateFromBR(investmentDate)) &&
+			hasValidBalance
+		);
+	}, [investmentName, initialValueInCents, cdiInput, selectedBankId, investmentDate, currentBankBalanceInCents]);
 
 	// Função utilitária para limpar o formulário após o salvamento.
 	const resetForm = React.useCallback(() => {
 		setInvestmentName('');
 		setInitialValueInput('');
+		setInitialValueInCents(null);
 		setCdiInput('');
+		setInvestmentDate(formatDateToBR(new Date()));
 		setSelectedRedemptionTerm('anytime');
 		setSelectedBankId(null);
+		setCurrentBankBalanceInCents(null);
+		setIsLoadingBankBalance(false);
 	}, []);
 
 	const loadBanks = React.useCallback(async () => {
@@ -141,7 +248,141 @@ export default function AddFinanceScreen() {
 		}, [loadBanks]),
 	);
 
-// Função responsável por salvar o investimento simples no Firebase.
+	const handleDateChange = React.useCallback((value: string) => {
+		const sanitized = sanitizeDateInput(value);
+		setInvestmentDate(formatDateInput(sanitized));
+		setHasSavedOnce(false);
+	}, []);
+
+	React.useEffect(() => {
+		if (!selectedBankId) {
+			setCurrentBankBalanceInCents(null);
+			setIsLoadingBankBalance(false);
+			return;
+		}
+
+		let isMounted = true;
+		setIsLoadingBankBalance(true);
+		setCurrentBankBalanceInCents(null);
+
+		const loadBankBalance = async () => {
+			try {
+				const currentUser = auth.currentUser;
+				if (!currentUser) {
+					showFloatingAlert({
+						message: 'Usuário não autenticado. Faça login novamente.',
+						action: 'error',
+						position: 'bottom',
+					});
+					return;
+				}
+
+				const now = new Date();
+				const currentYear = now.getFullYear();
+				const currentMonth = now.getMonth() + 1;
+				const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+				const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+				const [expensesResult, gainsResult, balanceResponse, investmentsResult] = await Promise.all([
+					getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
+					getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
+					getMonthlyBalanceFirebaseRelatedToUser({
+						personId: currentUser.uid,
+						bankId: selectedBankId,
+						year: currentYear,
+						month: currentMonth,
+					}),
+					getFinanceInvestmentsByPeriodFirebase({
+						personId: currentUser.uid,
+						bankId: selectedBankId,
+						startDate: startOfMonth,
+						endDate: endOfMonth,
+					}),
+				]);
+
+				if (!isMounted) {
+					return;
+				}
+
+				const expensesArray: any[] =
+					expensesResult?.success && Array.isArray(expensesResult.data) ? expensesResult.data : [];
+				const gainsArray: any[] =
+					gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
+				const investmentsArray: any[] =
+					investmentsResult?.success && Array.isArray(investmentsResult.data) ? investmentsResult.data : [];
+
+				const totalExpensesInCents = expensesArray.reduce((acc, item) => {
+					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
+					const value =
+						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+							? item.valueInCents
+							: 0;
+					if (bankId === selectedBankId) {
+						return acc + value;
+					}
+					return acc;
+				}, 0);
+
+				const totalInvestmentInCents = investmentsArray.reduce((acc, item) => {
+					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
+					const value =
+						typeof item?.initialValueInCents === 'number' && !Number.isNaN(item.initialValueInCents)
+							? item.initialValueInCents
+							: 0;
+					if (bankId === selectedBankId) {
+						return acc + value;
+					}
+					return acc;
+				}, 0);
+
+				const totalGainsInCents = gainsArray.reduce((acc, item) => {
+					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
+					const value =
+						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+							? item.valueInCents
+							: 0;
+					if (bankId === selectedBankId) {
+						return acc + value;
+					}
+					return acc;
+				}, 0);
+
+				const initialBalance =
+					balanceResponse?.success && balanceResponse.data && typeof balanceResponse.data.valueInCents === 'number'
+						? balanceResponse.data.valueInCents
+						: null;
+
+				const currentBalance =
+					typeof initialBalance === 'number'
+						? initialBalance + (totalGainsInCents - (totalExpensesInCents + totalInvestmentInCents))
+						: null;
+
+				setCurrentBankBalanceInCents(currentBalance);
+			} catch (error) {
+				console.error('Erro ao carregar saldo do banco:', error);
+				if (isMounted) {
+					showFloatingAlert({
+						message: 'Não foi possível carregar o saldo atual do banco.',
+						action: 'error',
+						position: 'bottom',
+					});
+					setCurrentBankBalanceInCents(null);
+				}
+			} finally {
+				if (isMounted) {
+					setIsLoadingBankBalance(false);
+				}
+			}
+		};
+
+		void loadBankBalance();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [selectedBankId]);
+
+	// Função responsável por salvar o investimento simples no Firebase.
 	const handleSaveInvestment = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
@@ -157,16 +398,37 @@ export default function AddFinanceScreen() {
 			return;
 		}
 
-		const parsedInitial = parseStringToNumber(initialValueInput);
+		const parsedInitial = typeof initialValueInCents === 'number' ? initialValueInCents / 100 : NaN;
 		const parsedCdi = parseStringToNumber(cdiInput);
+		const initialInCents = typeof initialValueInCents === 'number' ? initialValueInCents : Math.round(parsedInitial * 100);
 
-		if (!Number.isFinite(parsedInitial) || parsedInitial <= 0) {
+		if (!Number.isFinite(parsedInitial) || parsedInitial <= 0 || !Number.isFinite(initialInCents) || initialInCents <= 0) {
 			showFloatingAlert({
 				message: 'Informe um valor inicial válido.',
 				action: 'warning',
 				position: 'bottom',
 			});
 			return;
+		}
+
+		if (typeof currentBankBalanceInCents === 'number') {
+			if (currentBankBalanceInCents < 0) {
+				showFloatingAlert({
+					message: 'O saldo do banco está negativo. Regularize antes de investir.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
+
+			if (initialInCents > currentBankBalanceInCents) {
+				showFloatingAlert({
+					message: 'Saldo insuficiente para registrar este investimento.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
 		}
 
 		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
@@ -178,15 +440,32 @@ export default function AddFinanceScreen() {
 			return;
 		}
 
+		const parsedDate = parseDateFromBR(investmentDate);
+		if (!parsedDate) {
+			showFloatingAlert({
+				message: 'Informe uma data válida (DD/MM/AAAA).',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
+		const bankSnapshotName = selectedBankId
+			? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null
+			: null;
+
 		setIsSaving(true);
 		try {
 			const result = await addFinanceInvestmentFirebase({
 				name: investmentName.trim(),
-				initialValueInCents: Math.round(parsedInitial * 100),
+				initialValueInCents: initialInCents,
 				cdiPercentage: parsedCdi,
 				redemptionTerm: selectedRedemptionTerm,
 				bankId: selectedBankId,
 				personId: currentUser.uid,
+				date: dateWithCurrentTime,
+				bankNameSnapshot: bankSnapshotName,
 			});
 
 			if (!result.success) {
@@ -221,6 +500,9 @@ export default function AddFinanceScreen() {
 		investmentName,
 		selectedRedemptionTerm,
 		resetForm,
+		investmentDate,
+		bankOptions,
+		selectedBankId,
 	]);
 
 	return (
@@ -293,13 +575,24 @@ export default function AddFinanceScreen() {
 								<Input>
 									<InputField
 										value={initialValueInput}
-										onChangeText={text => {
-											// Sanitizamos para aceitar apenas números, vírgula e ponto.
-											setInitialValueInput(sanitizeNumberInput(text));
-											setHasSavedOnce(false);
+										onChangeText={handleInitialValueChange}
+										placeholder="Ex: R$ 1.500,00"
+										keyboardType="numeric"
+									/>
+								</Input>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Dia do investimento</Text>
+								<Input>
+									<InputField
+										value={investmentDate}
+										onChangeText={value => {
+											handleDateChange(value);
 										}}
-										placeholder="Ex: 1500,00"
-										keyboardType="decimal-pad"
+										placeholder="dd/mm/aaaa"
+										keyboardType="numeric"
+										returnKeyType="next"
 									/>
 								</Input>
 							</Box>
@@ -395,6 +688,25 @@ export default function AddFinanceScreen() {
 										</SelectContent>
 									</SelectPortal>
 								</Select>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Saldo atual do banco
+								</Text>
+								<Input isDisabled>
+									<InputField
+										value={
+											!selectedBankId
+												? 'Selecione um banco para visualizar o saldo'
+												: isLoadingBankBalance
+													? 'Carregando saldo...'
+													: typeof currentBankBalanceInCents === 'number'
+														? formatCurrencyBRL(currentBankBalanceInCents)
+														: 'Saldo indisponível'
+										}
+									/>
+								</Input>
 							</Box>
 
 							<Button

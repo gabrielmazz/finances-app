@@ -54,6 +54,7 @@ import {
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
+import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -79,6 +80,9 @@ type MovementRecord = {
 	isFromMandatory?: boolean;
 	isCashRescue?: boolean;
 	cashRescueSourceBankName?: string | null;
+	isFinanceInvestment?: boolean;
+	investmentId?: string | null;
+	investmentBankNameSnapshot?: string | null;
 };
 
 type PendingMovementAction =
@@ -347,8 +351,18 @@ export default function BankMovementsScreen() {
 						endDate: normalizedEnd,
 				  });
 
-			const [result, mandatoryExpensesRes, mandatoryGainsRes] = await Promise.all([
+			const investmentsPromise = isCashView
+				? Promise.resolve(null)
+				: getFinanceInvestmentsByPeriodFirebase({
+						personId: currentUser.uid,
+						bankId,
+						startDate: normalizedStart,
+						endDate: normalizedEnd,
+				  });
+
+			const [result, investmentsRes, mandatoryExpensesRes, mandatoryGainsRes] = await Promise.all([
 				movementsPromise,
+				investmentsPromise,
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 			]);
@@ -364,6 +378,10 @@ export default function BankMovementsScreen() {
 
 			const expensesArray: any[] = Array.isArray(result.data.expenses) ? result.data.expenses : [];
 			const gainsArray: any[] = Array.isArray(result.data.gains) ? result.data.gains : [];
+			const investmentsArray: any[] =
+				!isCashView && investmentsRes?.success && Array.isArray(investmentsRes.data)
+					? investmentsRes.data
+					: [];
 
 			// Mapeia os IDs de despesas/ganhos que estão vinculados a obrigatórios no ciclo atual
 			const lockedExpenseIds = new Set<string>(
@@ -433,7 +451,34 @@ export default function BankMovementsScreen() {
 					typeof gain?.bankNameSnapshot === 'string' ? gain.bankNameSnapshot : null,
 			}));
 
-			const combinedMovements = [...expenseMovements, ...gainMovements].sort((a, b) => {
+			const investmentMovements: MovementRecord[] = investmentsArray.map(investment => ({
+				id: typeof investment?.id === 'string' ? investment.id : `investment-${Math.random()}`,
+				name:
+					typeof investment?.name === 'string' && investment.name.trim().length > 0
+						? investment.name.trim()
+						: 'Investimento registrado',
+				valueInCents:
+					typeof investment?.initialValueInCents === 'number' ? investment.initialValueInCents : 0,
+				type: 'expense',
+				date: normalizeDate(investment?.date ?? investment?.createdAt ?? null),
+				tagId: null,
+				bankId: typeof investment?.bankId === 'string' ? investment.bankId : null,
+				personId: typeof investment?.personId === 'string' ? investment.personId : null,
+				explanation:
+					typeof investment?.description === 'string' && investment.description.trim().length > 0
+						? investment.description
+						: null,
+				moneyFormat: null,
+				isFromMandatory: false,
+				isCashRescue: false,
+				cashRescueSourceBankName: null,
+				isFinanceInvestment: true,
+				investmentId: typeof investment?.id === 'string' ? investment.id : null,
+				investmentBankNameSnapshot:
+					typeof investment?.bankNameSnapshot === 'string' ? investment.bankNameSnapshot : null,
+			}));
+
+			const combinedMovements = [...expenseMovements, ...gainMovements, ...investmentMovements].sort((a, b) => {
 				const dateA = a.date ? a.date.getTime() : 0;
 				const dateB = b.date ? b.date.getTime() : 0;
 				return dateB - dateA;
@@ -634,6 +679,15 @@ export default function BankMovementsScreen() {
 				setPendingAction(null);
 				return;
 			}
+			if (pendingAction.movement.isFinanceInvestment) {
+				showFloatingAlert({
+					message: 'Edite este investimento pela tela de investimentos.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				setPendingAction(null);
+				return;
+			}
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
 				router.push({
@@ -701,6 +755,14 @@ export default function BankMovementsScreen() {
 			if (pendingAction.movement.isCashRescue) {
 				showFloatingAlert({
 					message: 'Saques em dinheiro não podem ser excluídos manualmente.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
+			if (pendingAction.movement.isFinanceInvestment) {
+				showFloatingAlert({
+					message: 'Use a tela de investimentos para remover ou ajustar este valor.',
 					action: 'warning',
 					position: 'bottom',
 				});
@@ -1035,7 +1097,12 @@ export default function BankMovementsScreen() {
 													{formatMovementDate(movement.date)}
 												</Text>
 												<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-													Tipo: {movement.type === 'gain' ? 'Ganho' : 'Despesa'}
+													Tipo:{' '}
+													{movement.isFinanceInvestment
+														? 'Investimento'
+														: movement.type === 'gain'
+															? 'Ganho'
+															: 'Despesa'}
 												</Text>
 												{movement.isFromMandatory && (
 													<>
@@ -1070,6 +1137,16 @@ export default function BankMovementsScreen() {
 														</Text>
 													</>
 												)}
+												{movement.isFinanceInvestment && (
+													<>
+														<Text className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-300">
+															Valor destinado a um investimento neste banco.
+														</Text>
+														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
+															Edite ou cancele o investimento na lista de investimentos.
+														</Text>
+													</>
+												)}
 
 												<Divider className="my-4" />
 
@@ -1078,7 +1155,9 @@ export default function BankMovementsScreen() {
 														size="xl"
 														variant="link"
 														action="primary"
-														isDisabled={movement.isFromMandatory || movement.isCashRescue}
+														isDisabled={
+															movement.isFromMandatory || movement.isCashRescue || movement.isFinanceInvestment
+														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
 																showFloatingAlert({
@@ -1095,6 +1174,15 @@ export default function BankMovementsScreen() {
 																showFloatingAlert({
 																	message:
 																		'Este lançamento representa um saque em dinheiro e não pode ser editado manualmente.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isFinanceInvestment) {
+																showFloatingAlert({
+																	message:
+																		'Edite este lançamento diretamente na lista de investimentos.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1119,7 +1207,9 @@ export default function BankMovementsScreen() {
 														size="xl"
 														variant="link"
 														action="negative"
-														isDisabled={movement.isFromMandatory || movement.isCashRescue}
+														isDisabled={
+															movement.isFromMandatory || movement.isCashRescue || movement.isFinanceInvestment
+														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
 																showFloatingAlert({
@@ -1136,6 +1226,15 @@ export default function BankMovementsScreen() {
 																showFloatingAlert({
 																	message:
 																		'Este lançamento representa um saque em dinheiro e não pode ser removido manualmente.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isFinanceInvestment) {
+																showFloatingAlert({
+																	message:
+																		'Remova ou ajuste este valor pela tela de investimentos.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1234,6 +1333,11 @@ export default function BankMovementsScreen() {
 										} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
 									</Text>
 								)}
+								{selectedMovement?.isFinanceInvestment && (
+									<Text className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
+										Movimentação criada a partir de um investimento.
+									</Text>
+								)}
 
 							</Box>
 
@@ -1301,9 +1405,11 @@ export default function BankMovementsScreen() {
 										<InputField
 											value={
 												selectedMovement
-													? selectedMovement.type === 'gain'
-														? 'Ganho'
-														: 'Despesa'
+													? selectedMovement.isFinanceInvestment
+														? 'Investimento'
+														: selectedMovement.type === 'gain'
+															? 'Ganho'
+															: 'Despesa'
 													: ''
 											}
 										/>

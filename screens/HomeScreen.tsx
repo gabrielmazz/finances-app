@@ -8,6 +8,7 @@ import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { Divider } from '@/components/ui/divider';
+import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -168,6 +169,9 @@ export default function HomeScreen() {
 	// Estado para armazenar o total de ganhos
 	const [totalGainsInCents, setTotalGainsInCents] = React.useState(0);
 	const [gainCount, setGainCount] = React.useState(0);
+	const [bankBalances, setBankBalances] = React.useState<
+		{ id: string; name: string; balanceInCents: number | null }[]
+	>([]);
 
 	// Estado para armazenar os movimentos mais recentes de ganhos e despesas
 	const [recentExpenses, setRecentExpenses] = React.useState<any[]>([]);
@@ -640,6 +644,46 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 							setSummaryError(summaryErrors.join(' '));
 						}
 
+						// Carrega saldos atuais por banco
+						try {
+							const now = new Date();
+							const currentYear = now.getFullYear();
+							const currentMonth = now.getMonth() + 1;
+							const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
+
+							if (banksResult?.success && Array.isArray(banksResult.data)) {
+								const balances = await Promise.all(
+									banksResult.data.map(async (bank: any) => {
+										const bankId = typeof bank?.id === 'string' ? bank.id : '';
+										if (!bankId) {
+											return null;
+										}
+										const balanceRes = await getMonthlyBalanceFirebaseRelatedToUser({
+											personId: currentUser.uid,
+											bankId,
+											year: currentYear,
+											month: currentMonth,
+										});
+										const balance =
+											balanceRes?.success && balanceRes.data && typeof balanceRes.data.valueInCents === 'number'
+												? balanceRes.data.valueInCents
+												: null;
+										const name =
+											typeof bank?.name === 'string' && bank.name.trim().length > 0
+												? bank.name.trim()
+												: 'Banco sem nome';
+										return { id: bankId, name, balanceInCents: balance };
+									}),
+								);
+								setBankBalances(balances.filter(Boolean) as { id: string; name: string; balanceInCents: number | null }[]);
+							} else {
+								setBankBalances([]);
+							}
+						} catch (error) {
+							console.error('Erro ao carregar saldos de bancos:', error);
+							setBankBalances([]);
+						}
+
 						if (chartIssues.length > 0) {
 							setChartsError(chartIssues.join(' '));
 						} else {
@@ -969,6 +1013,33 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 													{formatCurrencyBRL(totalExpensesInCents)}
 												</Text>
 											</Text>
+
+											{bankBalances.length > 0 && (
+												<>
+													<Divider className="my-3" />
+													<Text className="text-gray-700 dark:text-gray-300 mb-2">
+														Saldos atuais por banco
+													</Text>
+													{bankBalances.map(bank => (
+														<Text key={bank.id} className="text-gray-700 dark:text-gray-300 mb-1">
+															{bank.name}:{' '}
+															<Text
+																className={
+																	typeof bank.balanceInCents === 'number'
+																		? bank.balanceInCents >= 0
+																			? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+																			: 'text-red-600 dark:text-red-400 font-semibold'
+																		: 'text-gray-500 dark:text-gray-400'
+																}
+															>
+																{typeof bank.balanceInCents === 'number'
+																	? formatCurrencyBRL(bank.balanceInCents)
+																	: 'Saldo indisponível'}
+															</Text>
+														</Text>
+													))}
+												</>
+											)}
 										</>
 
 									)}
@@ -1021,8 +1092,10 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 												</Text>
 											</Text>
 
+											<Divider className="my-3 mt-3" />
+
 											{investmentSummary.highlights.length > 0 && (
-												<View className="mt-4">
+												<View className="">
 													<Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
 														Principais investimentos
 													</Text>

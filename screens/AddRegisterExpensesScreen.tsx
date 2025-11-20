@@ -1,5 +1,12 @@
 import React from 'react';
-import { BackHandler, ScrollView, View } from 'react-native';
+import {
+	BackHandler,
+	Keyboard,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	View,
+} from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -182,12 +189,52 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
+	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 
 	// Constantes pós volta da consulta de ID de tag e banco, apenas para quando
 	// vier dos parâmetros, assim mostrando o nome correto no input
 	// Controla no nome da tag e banco depois de buscado dentro do Firebase
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const inputPositions = React.useRef<Record<string, number>>({});
+
+	React.useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => setKeyboardHeight(e.endCoordinates?.height ?? 0));
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, []);
+
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 80), [keyboardHeight]);
+
+	const handleInputLayout = React.useCallback(
+		(id: string) => (event: { nativeEvent: { layout: { y: number } } }) => {
+			inputPositions.current[id] = event.nativeEvent.layout.y;
+		},
+		[],
+	);
+
+	const scrollToInput = React.useCallback(
+		(id: string) => {
+			if (!scrollViewRef.current) {
+				return;
+			}
+			const y = inputPositions.current[id];
+			if (typeof y === 'number') {
+				scrollViewRef.current.scrollTo({ y: Math.max(0, y - 32), animated: true });
+				return;
+			}
+			scrollViewRef.current.scrollToEnd({ animated: true });
+		},
+		[],
+	);
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
@@ -881,15 +928,21 @@ export default function AddRegisterExpensesScreen() {
 		>
 			<FloatingAlertViewport />
 
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+			<KeyboardAvoidingView
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+				className="flex-1 w-full"
 			>
-				<View className="w-full px-6">
+				<ScrollView
+					ref={scrollViewRef}
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
+					}}
+				>
+					<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center mb-4">
 						{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
@@ -914,10 +967,12 @@ export default function AddRegisterExpensesScreen() {
 							</Text>
 							<Input isDisabled={isTemplateLocked}>
 								<InputField
+									onLayout={handleInputLayout('expense-name')}
 									placeholder="Ex: Mercado, Combustível, Roupa..."
 									value={expenseName}
 									onChangeText={setExpenseName}
 									autoCapitalize="sentences"
+									onFocus={() => scrollToInput('expense-name')}
 								/>
 							</Input>
 						</Box>
@@ -928,10 +983,12 @@ export default function AddRegisterExpensesScreen() {
 							</Text>
 							<Input>
 								<InputField
+									onLayout={handleInputLayout('expense-value')}
 									placeholder="Ex: R$ 50,00"
 									value={expenseValueDisplay}
 									onChangeText={handleValueChange}
 									keyboardType="numeric"
+									onFocus={() => scrollToInput('expense-value')}
 								/>
 							</Input>
 						</Box>
@@ -946,9 +1003,11 @@ export default function AddRegisterExpensesScreen() {
 								className="h-32"
 							>
 								<TextareaInput
+									onLayout={handleInputLayout('expense-explanation')}
 									placeholder="(Opcional) Explique sobre essa despesa..."
 									value={explanationExpense ?? ''}
 									onChangeText={setExplanationExpense}
+									onFocus={() => scrollToInput('expense-explanation')}
 								/>
 							</Textarea>
 						</Box>
@@ -1072,11 +1131,13 @@ export default function AddRegisterExpensesScreen() {
 							</Text>
 							<Input>
 								<InputField
+									onLayout={handleInputLayout('expense-date')}
 									placeholder="Data da despesa (DD/MM/AAAA)"
 									value={expenseDate}
 									onChangeText={handleDateChange}
 									autoCorrect={false}
 									keyboardType="numbers-and-punctuation"
+									onFocus={() => scrollToInput('expense-date')}
 								/>
 							</Input>
 						</Box>
@@ -1109,8 +1170,9 @@ export default function AddRegisterExpensesScreen() {
 							)}
 						</Button>
 					</VStack>
-				</View>
-			</ScrollView>
+					</View>
+				</ScrollView>
+			</KeyboardAvoidingView>
 
 			<Menu defaultValue={1} />
 		</View>

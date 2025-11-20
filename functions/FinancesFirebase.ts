@@ -24,6 +24,8 @@ interface AddFinanceInvestmentParams {
 	bankId: string;
 	personId: string;
 	description?: string | null;
+	date: Date;
+	bankNameSnapshot?: string | null;
 }
 
 interface UpdateFinanceInvestmentParams {
@@ -46,6 +48,8 @@ export async function addFinanceInvestmentFirebase({
 	bankId,
 	personId,
 	description,
+	date,
+	bankNameSnapshot,
 }: AddFinanceInvestmentParams) {
 	try {
 		const investmentRef = doc(collection(db, COLLECTION));
@@ -57,6 +61,8 @@ export async function addFinanceInvestmentFirebase({
 			bankId,
 			personId,
 			description: description ?? null,
+			date,
+			bankNameSnapshot: bankNameSnapshot ?? null,
 			createdAt: serverTimestamp(),
 			updatedAt: serverTimestamp(),
 		});
@@ -200,6 +206,62 @@ export async function syncFinanceInvestmentValueFirebase({
 		return { success: true };
 	} catch (error) {
 		console.error('Erro ao sincronizar manualmente o investimento:', error);
+		return { success: false, error };
+	}
+}
+
+export async function getFinanceInvestmentsByPeriodFirebase({
+	personId,
+	bankId,
+	startDate,
+	endDate,
+}: {
+	personId: string;
+	bankId: string;
+	startDate: Date;
+	endDate: Date;
+}) {
+	try {
+		if (!personId || !bankId) {
+			return { success: false, error: 'Usuário ou banco não informado.' };
+		}
+
+		const relatedResult = await getRelatedUsersIDsFirebase(personId);
+
+		if (!relatedResult.success) {
+			throw new Error('Erro ao obter usuários relacionados.');
+		}
+
+		const relatedUserIds = Array.isArray(relatedResult.data) ? [...relatedResult.data] : [];
+		relatedUserIds.push(personId);
+
+		const normalizedStart = new Date(startDate);
+		normalizedStart.setHours(0, 0, 0, 0);
+
+		const normalizedEnd = new Date(endDate);
+		normalizedEnd.setHours(23, 59, 59, 999);
+
+		if (normalizedEnd < normalizedStart) {
+			return { success: false, error: 'O período selecionado é inválido.' };
+		}
+
+		const investmentsQuery = query(
+			collection(db, COLLECTION),
+			where('bankId', '==', bankId),
+			where('personId', 'in', relatedUserIds),
+			where('date', '>=', normalizedStart),
+			where('date', '<=', normalizedEnd),
+		);
+
+		const snapshot = await getDocs(investmentsQuery);
+		const investments = snapshot.docs.map(investmentDoc => ({
+			id: investmentDoc.id,
+			...investmentDoc.data(),
+		}));
+
+		return { success: true, data: investments };
+	} catch (error) {
+		console.error('Erro ao buscar investimentos por período:', error);
 		return { success: false, error };
 	}
 }
