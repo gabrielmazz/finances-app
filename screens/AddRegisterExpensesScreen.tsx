@@ -19,8 +19,10 @@ import { Text } from '@/components/ui/text';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { HStack } from '@/components/ui/hstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Box } from '@/components/ui/box';
+import { Switch } from '@/components/ui/switch';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
@@ -179,6 +181,7 @@ export default function AddRegisterExpensesScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
+	const [moneyFormat, setMoneyFormat] = React.useState(false);
 
 	// Constantes pós volta da consulta de ID de tag e banco, apenas para quando
 	// vier dos parâmetros, assim mostrando o nome correto no input
@@ -525,7 +528,9 @@ export default function AddRegisterExpensesScreen() {
 			return;
 		}
 
-		if (!selectedBankId) {
+		const isBankSelectionRequired = !moneyFormat;
+
+		if (isBankSelectionRequired && !selectedBankId) {
 
 			showFloatingAlert({
 				message: 'Selecione um banco.',
@@ -586,9 +591,10 @@ export default function AddRegisterExpensesScreen() {
 					name: expenseName.trim(),
 					valueInCents: expenseValueCents ?? undefined,
 					tagId: selectedTagId ?? undefined,
-					bankId: selectedBankId ?? undefined,
+					bankId: isBankSelectionRequired ? selectedBankId ?? null : null,
 					date: dateWithCurrentTime,
 					explanation: explanationExpense?.trim() ?? null,
+					moneyFormat,
 				});
 
 				if (!result.success) {
@@ -615,10 +621,11 @@ export default function AddRegisterExpensesScreen() {
 				name: expenseName.trim(),
 				valueInCents: expenseValueCents,
 				tagId: selectedTagId as string,
-				bankId: selectedBankId as string,
+				bankId: isBankSelectionRequired ? (selectedBankId as string) : null,
 				date: dateWithCurrentTime,
 				personId,
 				explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
+				moneyFormat,
 			});
 
 			if (!result.success) {
@@ -681,6 +688,7 @@ export default function AddRegisterExpensesScreen() {
 			setExpenseValueCents(null);
 			setExpenseDate(formatDateToBR(new Date()));
 			setExplanationExpense(null);
+			setMoneyFormat(false);
 			setSelectedTagId(null);
 			setSelectedBankId(null);
 		} catch (error) {
@@ -700,6 +708,7 @@ export default function AddRegisterExpensesScreen() {
 		expenseDate,
 		expenseName,
 		expenseValueCents,
+		moneyFormat,
 		explanationExpense,
 		isEditing,
 		isTemplateLocked,
@@ -747,6 +756,7 @@ export default function AddRegisterExpensesScreen() {
 				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
 				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
 				setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
+				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
 			} catch (error) {
 				console.error('Erro ao carregar despesa para edição:', error);
 				if (isMounted) {
@@ -823,9 +833,10 @@ export default function AddRegisterExpensesScreen() {
 
 						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
 
-						if (bankData) {
+						if (bankData && typeof (bankData as any).name === 'string') {
+							
 							// Atualiza o nome do banco no estado com o nome buscado
-							setSelectedMovementBankName(bankData.name);
+							setSelectedMovementBankName((bankData as any).name);
 						} else {
 							setSelectedMovementBankName(null);
 						}
@@ -901,7 +912,7 @@ export default function AddRegisterExpensesScreen() {
 							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
 								Valor da despesa
 							</Text>
-							<Input isDisabled={isTemplateLocked}>
+							<Input>
 								<InputField
 									placeholder="Ex: R$ 50,00"
 									value={expenseValueDisplay}
@@ -926,6 +937,33 @@ export default function AddRegisterExpensesScreen() {
 									onChangeText={setExplanationExpense}
 								/>
 							</Textarea>
+						</Box>
+
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Pagamento em dinheiro
+							</Text>
+							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+								<HStack className="items-center justify-between">
+									<View className="flex-1 mr-3">
+										<Text className="font-semibold">Pagamento em dinheiro</Text>
+										<Text className="text-gray-600 dark:text-gray-400 text-sm">
+											Indique se essa despesa foi paga em dinheiro
+										</Text>
+									</View>
+									<Switch
+										value={moneyFormat}
+										onValueChange={() => {
+											setMoneyFormat(!moneyFormat);
+											setSelectedBankId(null);
+											setSelectedMovementBankName(null);
+										}}
+										trackColor={{ false: '#d4d4d4', true: '#525252' }}
+										thumbColor="#fafafa"
+										ios_backgroundColor="#d4d4d4"
+									/>
+								</HStack>
+							</View>
 						</Box>
 
 						<Box>
@@ -979,7 +1017,7 @@ export default function AddRegisterExpensesScreen() {
 							<Select
 								selectedValue={selectedMovementBankName}
 								onValueChange={setSelectedBankId}
-								isDisabled={isLoadingBanks || banks.length === 0}
+								isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
 							>
 								<SelectTrigger>
 									<SelectInput placeholder="Selecione o banco onde a despesa foi registrada" />
@@ -1046,7 +1084,7 @@ export default function AddRegisterExpensesScreen() {
 								!expenseName.trim() ||
 								expenseValueCents === null ||
 								!selectedTagId ||
-								!selectedBankId ||
+								(!moneyFormat && !selectedBankId) ||
 								!expenseDate
 							}
 						>

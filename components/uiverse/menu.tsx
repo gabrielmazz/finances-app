@@ -90,6 +90,11 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				onSelect: () => router.push('/register-monthly-balance'),
 			},
 			{
+				label: 'Registrar saque em dinheiro',
+				value: 1,
+				onSelect: () => router.push('/add-rescue'),
+			},
+			{
 				label: 'Gastos obrigatórios',
 				value: 1,
 				onSelect: () => router.push('/mandatory-expenses'),

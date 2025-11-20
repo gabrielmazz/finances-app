@@ -149,10 +149,10 @@ export default function MonthlyBankSummaryScreen() {
 						cashExpensesResult?.success && Array.isArray(cashExpensesResult.data)
 							? cashExpensesResult.data
 							: [];
-					const cashGainsArray =
-						cashGainsResult?.success && Array.isArray(cashGainsResult.data)
-							? cashGainsResult.data
-							: [];
+						const cashGainsArray =
+							cashGainsResult?.success && Array.isArray(cashGainsResult.data)
+								? cashGainsResult.data
+								: [];
 
 					const now = new Date();
 					const currentYear = now.getFullYear();

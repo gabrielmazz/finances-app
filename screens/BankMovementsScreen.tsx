@@ -49,6 +49,7 @@ import {
 	getBankMovementsByPeriodFirebase,
 	getBankDataFirebase,
 	getCashMovementsByPeriodFirebase,
+	deleteCashRescueFirebase,
 } from '@/functions/BankFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
@@ -76,11 +77,14 @@ type MovementRecord = {
 	moneyFormat?: boolean | null;
 	// true se esta movimentação for a ligada a um Gasto/Ganho Obrigatório do ciclo atual
 	isFromMandatory?: boolean;
+	isCashRescue?: boolean;
+	cashRescueSourceBankName?: string | null;
 };
 
 type PendingMovementAction =
 	| { type: 'edit'; movement: MovementRecord }
-	| { type: 'delete'; movement: MovementRecord };
+	| { type: 'delete'; movement: MovementRecord }
+	| { type: 'revert-cash-rescue'; movement: MovementRecord };
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -401,6 +405,9 @@ export default function BankMovementsScreen() {
 				explanation: typeof expense?.explanation === 'string' ? expense.explanation : null,
 				moneyFormat: typeof expense?.moneyFormat === 'boolean' ? expense.moneyFormat : null,
 				isFromMandatory: typeof expense?.id === 'string' ? lockedExpenseIds.has(expense.id) : false,
+				isCashRescue: Boolean(expense?.isCashRescue),
+				cashRescueSourceBankName:
+					typeof expense?.bankNameSnapshot === 'string' ? expense.bankNameSnapshot : null,
 			}));
 
 			const gainMovements: MovementRecord[] = gainsArray.map(gain => ({
@@ -421,6 +428,9 @@ export default function BankMovementsScreen() {
 					: null,
 				moneyFormat: typeof gain?.moneyFormat === 'boolean' ? gain.moneyFormat : null,
 				isFromMandatory: typeof gain?.id === 'string' ? lockedGainIds.has(gain.id) : false,
+				isCashRescue: Boolean(gain?.isCashRescue),
+				cashRescueSourceBankName:
+					typeof gain?.bankNameSnapshot === 'string' ? gain.bankNameSnapshot : null,
 			}));
 
 			const combinedMovements = [...expenseMovements, ...gainMovements].sort((a, b) => {
@@ -615,6 +625,15 @@ export default function BankMovementsScreen() {
 				setPendingAction(null);
 				return;
 			}
+			if (pendingAction.movement.isCashRescue) {
+				showFloatingAlert({
+					message: 'Saques em dinheiro não podem ser editados manualmente.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				setPendingAction(null);
+				return;
+			}
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
 				router.push({
@@ -631,6 +650,39 @@ export default function BankMovementsScreen() {
 			return;
 		}
 
+		if (pendingAction.type === 'revert-cash-rescue') {
+			setIsProcessingAction(true);
+			try {
+				const result = await deleteCashRescueFirebase(pendingAction.movement.id);
+				if (!result.success) {
+					showFloatingAlert({
+						message: 'Não foi possível reivindicar o saque. Tente novamente.',
+						action: 'error',
+						position: 'bottom',
+					});
+					return;
+				}
+
+				showFloatingAlert({
+					message: 'Saque reivindicado e removido com sucesso!',
+					action: 'success',
+					position: 'bottom',
+				});
+				await fetchMovements();
+			} catch (error) {
+				console.error('Erro ao reivindicar saque em dinheiro:', error);
+				showFloatingAlert({
+					message: 'Erro inesperado ao reivindicar o saque.',
+					action: 'error',
+					position: 'bottom',
+				});
+			} finally {
+				setIsProcessingAction(false);
+				setPendingAction(null);
+			}
+			return;
+		}
+
 		setIsProcessingAction(true);
 
 		try {
@@ -641,6 +693,14 @@ export default function BankMovementsScreen() {
 						pendingAction.movement.type === 'gain'
 							? 'Exclusão bloqueada: este ganho pertence a um ganho obrigatório deste mês. Use a ação "Reivindicar" na tela de Ganhos obrigatórios.'
 							: 'Exclusão bloqueada: esta despesa pertence a um gasto obrigatório deste mês. Use a ação "Reivindicar" na tela de Gastos obrigatórios.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
+			if (pendingAction.movement.isCashRescue) {
+				showFloatingAlert({
+					message: 'Saques em dinheiro não podem ser excluídos manualmente.',
 					action: 'warning',
 					position: 'bottom',
 				});
@@ -687,7 +747,7 @@ export default function BankMovementsScreen() {
 				title: '',
 				message: '',
 				confirmLabel: 'Confirmar',
-				isEdit: false,
+				confirmAction: 'primary' as 'primary' | 'negative',
 			};
 		}
 
@@ -699,7 +759,17 @@ export default function BankMovementsScreen() {
 				title: 'Editar movimentação',
 				message: `Deseja editar o ${movementTypeLabel} "${movementName}"?`,
 				confirmLabel: 'Editar',
-				isEdit: true,
+				confirmAction: 'primary' as const,
+			};
+		}
+
+		if (pendingAction.type === 'revert-cash-rescue') {
+			const bankName = pendingAction.movement.cashRescueSourceBankName ?? 'não identificado';
+			return {
+				title: 'Reivindicar saque',
+				message: `Deseja reivindicar o saque realizado no banco ${bankName}?`,
+				confirmLabel: 'Reivindicar',
+				confirmAction: 'primary' as const,
 			};
 		}
 
@@ -707,12 +777,12 @@ export default function BankMovementsScreen() {
 			title: 'Excluir movimentação',
 			message: `Tem certeza de que deseja excluir o ${movementTypeLabel} "${movementName}"? Essa ação não pode ser desfeita.`,
 			confirmLabel: 'Excluir',
-			isEdit: false,
+			confirmAction: 'negative' as const,
 		};
 	}, [pendingAction]);
 
 	const isModalOpen = Boolean(pendingAction);
-	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
+	const confirmButtonAction = actionModalCopy.confirmAction;
 	const screenTitle = isCashView ? 'Movimentações em dinheiro' : 'Movimentações do banco';
 
 	return (
@@ -986,6 +1056,20 @@ export default function BankMovementsScreen() {
 													</>
 
 												)}
+												{movement.isCashRescue && (
+													<>
+														<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
+															{`${
+																isCashView
+																	? 'Valor sacado do banco'
+																	: 'Movimentação de saque do banco'
+															} ${movement.cashRescueSourceBankName ?? 'não identificado'}.`}
+														</Text>
+														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
+															Este registro não pode ser editado ou excluído manualmente.
+														</Text>
+													</>
+												)}
 
 												<Divider className="my-4" />
 
@@ -994,7 +1078,7 @@ export default function BankMovementsScreen() {
 														size="xl"
 														variant="link"
 														action="primary"
-														isDisabled={movement.isFromMandatory}
+														isDisabled={movement.isFromMandatory || movement.isCashRescue}
 														onPress={() => {
 															if (movement.isFromMandatory) {
 																showFloatingAlert({
@@ -1007,16 +1091,35 @@ export default function BankMovementsScreen() {
 																});
 																return;
 															}
+															if (movement.isCashRescue) {
+																showFloatingAlert({
+																	message:
+																		'Este lançamento representa um saque em dinheiro e não pode ser editado manualmente.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
 															setPendingAction({ type: 'edit', movement });
 														}}
 													>
 														<ButtonIcon as={EditIcon} />
 													</Button>
+													{movement.isCashRescue && (
+														<Button
+															size="xl"
+															variant="link"
+															action="secondary"
+															onPress={() => setPendingAction({ type: 'revert-cash-rescue', movement })}
+														>
+															<ButtonText>Reivindicar saque</ButtonText>
+														</Button>
+													)}
 													<Button
 														size="xl"
 														variant="link"
 														action="negative"
-														isDisabled={movement.isFromMandatory}
+														isDisabled={movement.isFromMandatory || movement.isCashRescue}
 														onPress={() => {
 															if (movement.isFromMandatory) {
 																showFloatingAlert({
@@ -1024,6 +1127,15 @@ export default function BankMovementsScreen() {
 																		movement.type === 'gain'
 																			? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
 																			: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isCashRescue) {
+																showFloatingAlert({
+																	message:
+																		'Este lançamento representa um saque em dinheiro e não pode ser removido manualmente.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1111,6 +1223,15 @@ export default function BankMovementsScreen() {
 								{selectedMovement?.isFromMandatory && (
 									<Text className="text-sm text-yellow-600 dark:text-yellow-400 mt-1">
 										Esta movimentação está vinculada a um gasto obrigatório deste mês.
+									</Text>
+								)}
+								{selectedMovement?.isCashRescue && (
+									<Text className="text-sm text-sky-700 dark:text-sky-400 mt-1">
+										{`${
+											isCashView
+												? 'Valor registrado como saque do banco'
+												: 'Movimentação de saque do banco'
+										} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
 									</Text>
 								)}
 

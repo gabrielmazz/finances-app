@@ -19,6 +19,27 @@ interface UpdateBankParams {
     colorHex?: string | null;
 }
 
+interface AddCashRescueParams {
+    bankId: string;
+    bankNameSnapshot: string | null;
+    valueInCents: number;
+    date: Date;
+    personId: string;
+    description?: string | null;
+}
+
+type CashRescueRecord = {
+    id: string;
+    bankId: string;
+    bankNameSnapshot?: string | null;
+    valueInCents: number;
+    date: Date | Timestamp;
+    personId: string;
+    description?: string | null;
+    createdAt?: Date;
+    updatedAt?: Date;
+};
+
 
 // =========================================== Funções de Registro ================================================== //
 
@@ -75,6 +96,44 @@ export async function updateBankFirebase({ bankId, bankName, colorHex }: UpdateB
         console.error('Erro ao atualizar banco:', error);
         return { success: false, error };
 
+    }
+}
+
+export async function addCashRescueFirebase({
+    bankId,
+    bankNameSnapshot,
+    valueInCents,
+    date,
+    personId,
+    description,
+}: AddCashRescueParams) {
+    try {
+        const rescueRef = doc(collection(db, 'cashRescues'));
+        await setDoc(rescueRef, {
+            name: 'Saque em dinheiro',
+            bankId,
+            bankNameSnapshot: bankNameSnapshot ?? null,
+            valueInCents,
+            date,
+            personId,
+            description: description ?? null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
+        return { success: true, cashRescueId: rescueRef.id };
+    } catch (error) {
+        console.error('Erro ao registrar saque em dinheiro:', error);
+        return { success: false, error };
+    }
+}
+
+export async function deleteCashRescueFirebase(cashRescueId: string) {
+    try {
+        await deleteDoc(doc(db, 'cashRescues', cashRescueId));
+        return { success: true };
+    } catch (error) {
+        console.error('Erro ao remover saque em dinheiro:', error);
+        return { success: false, error };
     }
 }
 
@@ -267,7 +326,19 @@ export async function getCurrentMonthSummaryByBankFirebaseExpanses(personId: str
             ...expenseDoc.data(),
         }));
 
-        return { success: true, data: expenses };
+        const cashRescues = await fetchCashRescuesWithinPeriod({
+            personId,
+            startDate: startOfMonth,
+            endDate: endOfMonth,
+            bankIds,
+        });
+
+        const normalizedRescues = cashRescues.map(rescue => ({
+            ...rescue,
+            isCashRescue: true,
+        }));
+
+        return { success: true, data: [...expenses, ...normalizedRescues] };
 
     } catch (error) {
 
@@ -416,7 +487,18 @@ export async function getCurrentMonthCashGainsFirebase(personId: string) {
             ...gainDoc.data(),
         }));
 
-        return { success: true, data: gains };
+        const cashRescues = await fetchCashRescuesWithinPeriod({
+            personId,
+            startDate: startOfMonth,
+            endDate: endOfMonth,
+        });
+
+        const normalizedRescues = cashRescues.map(rescue => ({
+            ...rescue,
+            isCashRescue: true,
+        }));
+
+        return { success: true, data: [...gains, ...normalizedRescues] };
 
     } catch (error) {
         console.error('Erro ao obter ganhos em dinheiro no mês:', error);
@@ -496,11 +578,23 @@ export async function getCurrentYearMovementsFirebase({ personId }: GetCurrentYe
             ...gainDoc.data(),
         }));
 
+        const cashRescues = await fetchCashRescuesWithinPeriod({
+            personId,
+            startDate: normalizedStartOfYear,
+            endDate: normalizedEndOfYear,
+            bankIds,
+        });
+
+        const normalizedRescues = cashRescues.map(rescue => ({
+            ...rescue,
+            isCashRescue: true,
+        }));
+
         return {
             success: true,
             data: {
                 expenses,
-                gains,
+                gains: [...gains, ...normalizedRescues],
             },
         };
 
@@ -514,6 +608,62 @@ export async function getCurrentYearMovementsFirebase({ personId }: GetCurrentYe
 }
 
 // ================================================================================================================= //
+
+interface FetchCashRescueParams {
+    personId: string;
+    startDate: Date;
+    endDate: Date;
+    bankId?: string;
+    bankIds?: string[];
+}
+
+async function fetchCashRescuesWithinPeriod({
+    personId,
+    startDate,
+    endDate,
+    bankId,
+    bankIds,
+}: FetchCashRescueParams): Promise<CashRescueRecord[]> {
+    try {
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+
+        const relatedUserIds = Array.isArray(relatedUsersResult.data) ? [...relatedUsersResult.data] : [];
+        relatedUserIds.push(personId);
+
+        const normalizedStartDate = new Date(startDate);
+        normalizedStartDate.setHours(0, 0, 0, 0);
+
+        const normalizedEndDate = new Date(endDate);
+        normalizedEndDate.setHours(23, 59, 59, 999);
+
+        const constraints: any[] = [
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate)),
+        ];
+
+        if (typeof bankId === 'string') {
+            constraints.push(where('bankId', '==', bankId));
+        } else if (Array.isArray(bankIds) && bankIds.length > 0) {
+            constraints.push(where('bankId', 'in', bankIds));
+        }
+
+        const rescuesQuery = query(collection(db, 'cashRescues'), ...constraints);
+        const rescuesSnapshot = await getDocs(rescuesQuery);
+
+        return rescuesSnapshot.docs.map(rescueDoc => ({
+            id: rescueDoc.id,
+            ...(rescueDoc.data() as Omit<CashRescueRecord, 'id'>),
+        }));
+    } catch (error) {
+        console.error('Erro ao buscar saques em dinheiro no período:', error);
+        return [];
+    }
+}
 
 interface GetBankMovementsByPeriodParams {
     personId: string;
@@ -599,10 +749,21 @@ export async function getBankMovementsByPeriodFirebase({
             ...gainDoc.data(),
         }));
 
+        const cashRescues = await fetchCashRescuesWithinPeriod({
+            personId,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+        });
+
+        const normalizedRescues = cashRescues.map(rescue => ({
+            ...rescue,
+            isCashRescue: true,
+        }));
+
         return {
             success: true,
             data: {
-                expenses,
+                expenses: [...expenses, ...normalizedRescues],
                 gains,
             },
         };
@@ -684,11 +845,22 @@ export async function getCashMovementsByPeriodFirebase({
             ...gainDoc.data(),
         }));
 
+        const cashRescues = await fetchCashRescuesWithinPeriod({
+            personId,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+        });
+
+        const normalizedRescues = cashRescues.map(rescue => ({
+            ...rescue,
+            isCashRescue: true,
+        }));
+
         return {
             success: true,
             data: {
                 expenses,
-                gains,
+                gains: [...gains, ...normalizedRescues],
             },
         };
 

@@ -778,9 +778,10 @@ export default function AddRegisterGainScreen() {
 
 					if (bankResult.success && Array.isArray(bankResult.data)) {
 
-						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
+						const bankData: any = bankResult.data.find((bank: any) => bank.id === selectedBankId);
 
-						if (bankData) {
+						if (bankData && typeof bankData.name === 'string') {
+							
 							// Atualiza o nome do banco no estado com o nome buscado
 							setSelectedMovementBankName(bankData.name);
 						} else {
@@ -857,7 +858,7 @@ export default function AddRegisterGainScreen() {
 							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
 								Valor do ganho
 							</Text>
-							<Input isDisabled={isTemplateLocked}>
+							<Input>
 								<InputField
 									placeholder="Ex: R$ 100,00"
 									value={gainValueDisplay}
@@ -868,12 +869,12 @@ export default function AddRegisterGainScreen() {
 						</Box>
 
 						{/* Seleção do formato de pagamento */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Formato de pagamento
-							</Text>
-							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-								{shouldShowPaymentFormatSelection && (
+						{shouldShowPaymentFormatSelection && (
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Formato de pagamento
+								</Text>
+								<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
 									<CheckboxGroup
 										value={paymentFormat}
 										onChange={(keys: string[]) => {
@@ -908,9 +909,9 @@ export default function AddRegisterGainScreen() {
 											</Checkbox>
 										</HStack>
 									</CheckboxGroup>
-								)}
-							</View>
-						</Box>
+								</View>
+							</Box>
+						)}
 
 						{/* Campo de explicação do ganho */}
 						<Box>
@@ -1082,7 +1083,7 @@ export default function AddRegisterGainScreen() {
 								!gainName.trim() ||
 								gainValueCents === null ||
 								!selectedTagId ||
-									(!moneyFormat && !selectedBankId) ||
+								(!moneyFormat && !selectedBankId) ||
 								!gainDate
 							}
 						>
