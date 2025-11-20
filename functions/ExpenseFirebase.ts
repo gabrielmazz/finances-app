@@ -9,10 +9,11 @@ interface AddExpenseParams {
 	name: string;
 	valueInCents: number;
 	tagId: string;
-	bankId: string;
+	bankId: string | null;
 	date: Date;
 	personId: string;
 	explanation?: string | null;
+	moneyFormat?: boolean;
 }
 
 interface UpdateExpenseParams {
@@ -20,9 +21,10 @@ interface UpdateExpenseParams {
 	name?: string;
 	valueInCents?: number;
 	tagId?: string;
-	bankId?: string;
+	bankId?: string | null;
 	date?: Date;
 	explanation?: string | null;
+	moneyFormat?: boolean;
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -36,6 +38,7 @@ export async function addExpenseFirebase({
 	date,
 	personId,
 	explanation,
+	moneyFormat,
 }: AddExpenseParams) {
 	try {
 		const expenseRef = doc(collection(db, 'expenses'));
@@ -44,10 +47,11 @@ export async function addExpenseFirebase({
 			name,
 			valueInCents,
 			tagId,
-			bankId,
+			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
 			personId,
 			explanation: explanation ?? null,
+			moneyFormat: typeof moneyFormat === 'boolean' ? moneyFormat : false,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		});
@@ -67,6 +71,7 @@ export async function updateExpenseFirebase({
 	bankId,
 	date,
 	explanation,
+	moneyFormat,
 }: UpdateExpenseParams) {
 	try {
 		const expenseRef = doc(db, 'expenses', expenseId);
@@ -86,7 +91,7 @@ export async function updateExpenseFirebase({
 			updates.tagId = tagId;
 		}
 
-		if (typeof bankId === 'string') {
+		if (bankId !== undefined) {
 			updates.bankId = bankId;
 		}
 
@@ -96,6 +101,10 @@ export async function updateExpenseFirebase({
 
 		if (explanation !== undefined) {
 			updates.explanation = explanation ?? null;
+		}
+
+		if (typeof moneyFormat === 'boolean') {
+			updates.moneyFormat = moneyFormat;
 		}
 
 		await setDoc(expenseRef, updates, { merge: true });
