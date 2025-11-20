@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { BackHandler, ScrollView, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
@@ -310,6 +310,19 @@ export default function AddRegisterGainScreen() {
 		}
 		return null;
 	}, [isEditing, templateData]);
+
+	useFocusEffect(
+		React.useCallback(() => {
+			const handleBackPress = () => {
+				router.replace('/home?tab=0');
+				return true;
+			};
+			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+			return () => {
+				subscription.remove();
+			};
+		}, []),
+	);
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) {
