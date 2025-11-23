@@ -715,7 +715,7 @@ const handleToggleDarkMode = React.useCallback(
 	const drawerContent = React.useMemo(() => {
 		const renderEmptyState = (message: string) => (
 			<View className="py-10 px-4">
-				<Text className="text-center text-typografia-500">{message}</Text>
+				<Text className="text-center text-gray-600 dark:text-gray-300">{message}</Text>
 			</View>
 		);
 
@@ -746,10 +746,12 @@ const handleToggleDarkMode = React.useCallback(
 					{userData.map(user =>
 						renderCardContainer(
 							<>
-								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
 									Email cadastrado
 								</Text>
-								<Text className="text-lg font-medium mt-1">{user.email ?? user.id}</Text>
+								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
+									{user.email ?? user.id}
+								</Text>
 								<View className="flex-row justify-end items-center mt-4">
 									<Button
 										size="xl"
@@ -789,10 +791,12 @@ const handleToggleDarkMode = React.useCallback(
 					{bankData.map(bank =>
 						renderCardContainer(
 							<>
-								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
 									Banco cadastrado
 								</Text>
-								<Text className="text-lg font-medium mt-1">{bank.name}</Text>
+								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
+									{bank.name}
+								</Text>
 								<View className="flex-row justify-end items-center gap-2 mt-4">
 									<Button
 										size="xl"
@@ -880,11 +884,13 @@ const handleToggleDarkMode = React.useCallback(
 						: filteredTags.map(tag =>
 								renderCardContainer(
 									<>
-										<Text className="text-xs uppercase tracking-wide text-typografia-500">
+										<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
 											Tag cadastrada
 										</Text>
-										<Text className="text-lg font-medium mt-1">{tag.name}</Text>
-										<Text className="text-sm text-typografia-500 mt-1">
+										<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
+											{tag.name}
+										</Text>
+										<Text className="text-sm text-gray-600 dark:text-gray-300 mt-1">
 											Tipo: {getTagTypeLabel(tag)}
 										</Text>
 										{tag.isMandatoryExpense && (
@@ -961,10 +967,10 @@ const handleToggleDarkMode = React.useCallback(
 					{relatedUserData.map(relatedUser =>
 						renderCardContainer(
 							<>
-								<Text className="text-xs uppercase tracking-wide text-typografia-500">
+								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
 									Usuário vinculado
 								</Text>
-								<Text className="text-lg font-medium mt-1">
+								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
 									{relatedUser.email || relatedUser.id}
 								</Text>
 								<View className="flex-row justify-end items-center mt-4">
@@ -1547,7 +1553,7 @@ const handleToggleDarkMode = React.useCallback(
 							</Box>
 
 							{drawerCopy.subtitle ? (
-								<Text className="text-sm text-typografia-500">{drawerCopy.subtitle}</Text>
+								<Text className="text-sm text-gray-600 dark:text-gray-300">{drawerCopy.subtitle}</Text>
 							) : null}
 						</VStack>
 						<DrawerCloseButton onPress={handleCloseDrawer} />
