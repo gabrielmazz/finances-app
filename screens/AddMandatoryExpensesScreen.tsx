@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -47,6 +48,7 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 // Importação do SVG
 import AddMandatoryExpensesListIllustration from '../assets/UnDraw/addMandatoryExpensesScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type TagOption = { id: string; name: string };
 type PaymentInfo = {
@@ -90,6 +92,8 @@ const normalizeDateValue = (value: unknown): Date | null => {
 };
 
 export default function AddMandatoryExpensesScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
 	const editingExpenseId = React.useMemo(() => {
 		const raw = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
@@ -557,27 +561,32 @@ export default function AddMandatoryExpensesScreen() {
 		!expenseName.trim() || valueInCents === null || !isDueDayValid || !selectedTagId || isSubmitting || isPrefilling;
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					mt-[64px]
+					items-center
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<View className="w-full px-6">
+				<FloatingAlertViewport />
+
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+						backgroundColor: pageBackground,
+					}}
+				>
+					<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center">
 						{selectedExpenseId ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório'}
@@ -773,10 +782,11 @@ export default function AddMandatoryExpensesScreen() {
 						</Button>
 					</VStack>
 				</View>
-			</ScrollView>
+				</ScrollView>
 
-			<Menu defaultValue={1} />
+				<Menu defaultValue={1} />
 
-		</View>
+			</View>
+		</SafeAreaView>
 	);
 }

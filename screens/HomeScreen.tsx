@@ -1,6 +1,6 @@
 import React from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Pressable, ScrollView, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Pressable, ScrollView, TouchableOpacity, View, SafeAreaView, StatusBar } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -26,6 +26,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { VStack } from '@/components/ui/vstack';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 
@@ -86,8 +87,8 @@ const createEmptyYearlyStats = (): YearlyMonthStats[] =>
 
 export default function HomeScreen() {
 
-	const colorScheme = useColorScheme();
-	const isDarkMode = colorScheme === 'dark';
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const axisColor = isDarkMode ? '#CBD5F5' : '#475569';
 	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const currentYear = React.useMemo(() => new Date().getFullYear(), []);
@@ -235,10 +236,10 @@ export default function HomeScreen() {
 		[bankNamesById],
 	);
 
-const parseToDate = React.useCallback((value: unknown) => {
-	if (!value) {
-		return null;
-	}
+	const parseToDate = React.useCallback((value: unknown) => {
+		if (!value) {
+			return null;
+		}
 
 		if (value instanceof Date) {
 			return value;
@@ -269,40 +270,40 @@ const parseToDate = React.useCallback((value: unknown) => {
 		}
 
 		return null;
-}, []);
+	}, []);
 
-const calculateInvestmentDailyRate = (cdiPercentage: number) => {
-	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
-		return 0;
-	}
-	const normalizedAnnualRate = BASE_CDI_ANNUAL_RATE * (cdiPercentage / 100);
-	return normalizedAnnualRate / DAYS_IN_YEAR;
-};
+	const calculateInvestmentDailyRate = (cdiPercentage: number) => {
+		if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
+			return 0;
+		}
+		const normalizedAnnualRate = BASE_CDI_ANNUAL_RATE * (cdiPercentage / 100);
+		return normalizedAnnualRate / DAYS_IN_YEAR;
+	};
 
-const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSummary) => {
-	if (typeof investment.lastManualSyncValueInCents === 'number') {
-		return investment.lastManualSyncValueInCents;
-	}
-	return investment.initialValueInCents;
-};
+	const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSummary) => {
+		if (typeof investment.lastManualSyncValueInCents === 'number') {
+			return investment.lastManualSyncValueInCents;
+		}
+		return investment.initialValueInCents;
+	};
 
-const resolveInvestmentBaseDate = (investment: NormalizedInvestmentSummary) => {
-	return investment.lastManualSyncAt ?? investment.createdAt ?? new Date();
-};
+	const resolveInvestmentBaseDate = (investment: NormalizedInvestmentSummary) => {
+		return investment.lastManualSyncAt ?? investment.createdAt ?? new Date();
+	};
 
-const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary) => {
-	const baseValueInCents = resolveInvestmentBaseValueInCents(investment);
-	const dailyRate = calculateInvestmentDailyRate(investment.cdiPercentage);
-	if (dailyRate <= 0) {
-		return baseValueInCents;
-	}
+	const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary) => {
+		const baseValueInCents = resolveInvestmentBaseValueInCents(investment);
+		const dailyRate = calculateInvestmentDailyRate(investment.cdiPercentage);
+		if (dailyRate <= 0) {
+			return baseValueInCents;
+		}
 
-	const baseDate = resolveInvestmentBaseDate(investment);
-	const diff = Date.now() - baseDate.getTime();
-	const days = diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
-	const simulatedBRL = (baseValueInCents / 100) * Math.pow(1 + dailyRate, days);
-	return Math.round(simulatedBRL * 100);
-};
+		const baseDate = resolveInvestmentBaseDate(investment);
+		const diff = Date.now() - baseDate.getTime();
+		const days = diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
+		const simulatedBRL = (baseValueInCents / 100) * Math.pow(1 + dailyRate, days);
+		return Math.round(simulatedBRL * 100);
+	};
 
 	const buildYearlyStats = React.useCallback(
 		(expenses: any[], gains: any[]) => {
@@ -672,6 +673,19 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 								}, {});
 							const expensesByBank = sumByBank(monthlyExpensesData ?? []);
 							const gainsByBank = sumByBank(monthlyGainsData ?? []);
+							const investmentRedemptionsByBank = (monthlyGainsData ?? []).reduce<Record<string, number>>(
+								(acc, item) => {
+									const bankId = typeof item?.bankId === 'string' ? item.bankId : '';
+									if (!bankId) {
+										return acc;
+									}
+									if (item?.isInvestmentRedemption && typeof item?.valueInCents === 'number') {
+										acc[bankId] = (acc[bankId] ?? 0) + Math.max(item.valueInCents, 0);
+									}
+									return acc;
+								},
+								{},
+							);
 
 							if (banksResult?.success && Array.isArray(banksResult.data)) {
 								const balances = await Promise.all(
@@ -701,18 +715,20 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 										const investmentsTotalInCents =
 											investmentsRes?.success && Array.isArray(investmentsRes.data)
 												? investmentsRes.data.reduce((acc, investment) => {
-														const value =
-															typeof investment?.initialValueInCents === 'number'
-																? investment.initialValueInCents
-																: 0;
-														return acc + value;
-												  }, 0)
+													const value =
+														typeof investment?.initialValueInCents === 'number'
+															? investment.initialValueInCents
+															: 0;
+													return acc + value;
+												}, 0)
 												: 0;
+										const redeemedInvestmentsInCents = investmentRedemptionsByBank[bankId] ?? 0;
+										const investmentOutflowInCents = investmentsTotalInCents + redeemedInvestmentsInCents;
 										const totalExpensesInCents = expensesByBank[bankId] ?? 0;
 										const totalGainsInCents = gainsByBank[bankId] ?? 0;
 										const currentBalance =
 											typeof balance === 'number'
-												? balance + (totalGainsInCents - (totalExpensesInCents + investmentsTotalInCents))
+												? balance + (totalGainsInCents - (totalExpensesInCents + investmentOutflowInCents))
 												: null;
 										const name =
 											typeof bank?.name === 'string' && bank.name.trim().length > 0
@@ -841,9 +857,9 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 
 								const createdAt = parseToDate(
 									investment?.date ??
-										investment?.createdAt ??
-										investment?.createdAtISO ??
-										investment?.createdAtUtc,
+									investment?.createdAt ??
+									investment?.createdAtISO ??
+									investment?.createdAtUtc,
 								);
 
 								return {
@@ -1013,7 +1029,8 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 	);
 
 	return (
-		<View className="
+		<View
+			className="
 				flex-1 w-full h-full
 				mt-[64px]
 				items-center
@@ -1021,6 +1038,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 				pb-6
 				relative
 			"
+			style={{ backgroundColor: pageBackground }}
 		>
 			<ScrollView
 				keyboardShouldPersistTaps="handled"
@@ -1028,16 +1046,18 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 				style={{
 					flex: 1,
 					width: '100%',
+					backgroundColor: pageBackground,
 				}}
 				contentContainerStyle={{
 					flexGrow: 1,
 					width: '100%',
 					paddingBottom: 48,
+					backgroundColor: pageBackground,
 				}}
 			>
 				<View className="w-full px-6">
 
-					<Heading size="3xl" className="text-center">
+					<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
 						Resumo financeiro
 					</Heading>
 
@@ -1045,7 +1065,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 						<HomeScreenIllustration width={180} height={180} />
 					</Box>
 
-					<Text className="text-justify text-gray-600 dark:text-gray-400">
+					<Text className="text-justify text-gray-700 dark:text-gray-200">
 						Veja uma visão geral dos seus ganhos e despesas deste mês. Contando com o resumo do mês atual, visualizações gráficas e os movimentos mais recentes registrados no aplicativo.
 					</Text>
 
@@ -1138,7 +1158,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 
 									)}
 
-									<Text className="mt-4 text-sm text-gray-500 dark:text-emerald-400">
+									<Text className="mt-4 text-sm text-gray-500 dark:text-slate-400">
 										Toque para ver o resumo detalhado por banco
 									</Text>
 
@@ -1220,7 +1240,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 												</View>
 											)}
 
-											<Text className="mt-4 text-sm text-gray-500 dark:text-emerald-400">
+											<Text className="mt-4 text-sm text-gray-500 dark:text-slate-400">
 												Toque para gerenciar a lista completa de investimentos.
 											</Text>
 										</>
@@ -1236,7 +1256,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 									/>
 								)}
 								<Box
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"						
+									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
 								>
 
 									<HStack className="justify-between items-center">
@@ -1246,7 +1266,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 										</Heading>
 
 										<TouchableOpacity activeOpacity={0.85} onPress={() => setIsChartsExpanded((prev) => !prev)}>
-											<Text className="text-sm text-gray-500 dark:text-emerald-400">
+											<Text className="text-sm text-gray-500 dark:text-slate-400">
 												{isChartsExpanded ? 'Ocultar' : 'Expandir'}
 											</Text>
 										</TouchableOpacity>
@@ -1453,7 +1473,7 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 										activeOpacity={0.85}
 										onPress={() => setIsMovementsExpanded((prev) => !prev)}
 									>
-										<Text className="text-sm text-gray-500 dark:text-emerald-400">
+										<Text className="text-sm text-gray-500 dark:text-slate-400">
 											{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
 										</Text>
 									</TouchableOpacity>
@@ -1511,6 +1531,14 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 																{`Banco: ${getBankName(gain?.bankId)}`}
 															</Text>
+
+															{gain?.isInvestmentRedemption && (
+																<Text className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+																	{gain?.investmentNameSnapshot
+																		? `Resgate do investimento "${gain.investmentNameSnapshot}".`
+																		: 'Resgate de investimento registrado.'}
+																</Text>
+															)}
 
 															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 																{formatMovementDate(gain?.createdAt ?? gain?.date)}
@@ -1630,6 +1658,5 @@ const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary)
 			</ScrollView>
 			<FloatingAlertViewport />
 		</View>
-
 	);
 }

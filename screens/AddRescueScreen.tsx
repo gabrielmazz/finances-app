@@ -1,5 +1,6 @@
 import React from 'react';
-import { BackHandler, ScrollView, View } from 'react-native';
+import { BackHandler, ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -35,6 +36,7 @@ import {
 import { auth } from '@/FirebaseConfig';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -110,6 +112,8 @@ const mergeDateWithCurrentTime = (date: Date) => {
 };
 
 export default function AddRescueScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [rescueValueDisplay, setRescueValueDisplay] = React.useState('');
@@ -453,8 +457,10 @@ export default function AddRescueScreen() {
 	}, [selectedBankId, rescueValueInCents, rescueDate, rescueDescription, banks]);
 
 	return (
-		<View
-			className="
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
 					flex-1 w-full h-full
 					mt-[64px]
 					items-center
@@ -462,18 +468,21 @@ export default function AddRescueScreen() {
 					pb-6
 					relative
 				"
-		>
-			<FloatingAlertViewport />
-
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+				style={{ backgroundColor: pageBackground }}
 			>
-				<View className="w-full px-6">
+				<FloatingAlertViewport />
+
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+						backgroundColor: pageBackground,
+					}}
+				>
+					<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-4">
 						Saque em dinheiro
 					</Heading>
@@ -605,9 +614,10 @@ export default function AddRescueScreen() {
 						</Button>
 					</VStack>
 				</View>
-			</ScrollView>
+				</ScrollView>
 
-			<Menu defaultValue={1} />
-		</View>
+				<Menu defaultValue={1} />
+			</View>
+		</SafeAreaView>
 	);
 }

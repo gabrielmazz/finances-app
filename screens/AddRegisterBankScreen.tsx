@@ -1,5 +1,6 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -25,6 +26,7 @@ import { Divider } from '@/components/ui/divider';
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Importação das funções relacionadas a adição de banco ao Firebase
 import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
@@ -56,6 +58,8 @@ const presetBankColors = [
 ];
 
 export default function AddRegisterBankScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 
     // =========================================== Funções para Registro ============================================ //
     const [nameBank, setNameBank] = React.useState('');
@@ -217,102 +221,106 @@ export default function AddRegisterBankScreen() {
 
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View
-            className="
-					flex-1 w-full h-full
-                    mt-[64px]
-                    items-center
-                    justify-between
-                    pb-6
-                    relative
-                "
-        >
-            <FloatingAlertViewport />
+        <SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+						flex-1 w-full h-full
+                        pt-[64px]
+                        items-center
+                        justify-between
+                        pb-6
+                        relative
+                    "
+				style={{ backgroundColor: pageBackground }}
+			>
+				<FloatingAlertViewport />
 
-            <View className="w-full px-6">
+				<View className="w-full px-6">
 
-                <Heading size="3xl" className="text-center">
-                    {isEditing ? 'Editar banco' : 'Adição de um novo banco'}
-                </Heading>
-                
-                <Box className="w-full items-center ">
-                    <AddRegisterBankScreenIllustration width={180} height={180} />
-				</Box>
+					<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
+						{isEditing ? 'Editar banco' : 'Adição de um novo banco'}
+					</Heading>
+					
+					<Box className="w-full items-center ">
+						<AddRegisterBankScreenIllustration width={180} height={180} />
+					</Box>
 
-                <Text className="text-justify text-gray-600 dark:text-gray-400">
-                    {isEditing
-                        ? 'Atualize as informações do banco selecionado. As alterações serão refletidas imediatamente após salvar.'
-                        : 'Preencha os campos abaixo para registrar um novo banco no aplicativo. Ele será adicionado ao sistema e poderá ser selecionado nas ações financeiras.'}
-                </Text>
+					<Text className="text-justify text-gray-600 dark:text-gray-400">
+						{isEditing
+							? 'Atualize as informações do banco selecionado. As alterações serão refletidas imediatamente após salvar.'
+							: 'Preencha os campos abaixo para registrar um novo banco no aplicativo. Ele será adicionado ao sistema e poderá ser selecionado nas ações financeiras.'}
+					</Text>
 
-                <Divider className="my-6 mb-6" />
+					<Divider className="my-6 mb-6" />
 
-                <VStack className="gap-4">
+					<VStack className="gap-4">
 
-                    <Box>
-                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-                            Nome do Banco
-                        </Text>
-                        <Input>
-                            <InputField
-                                placeholder="Ex: Banco do Brasil, Caixa Econômica, Itaú..."
-                                value={nameBank}
-                                onChangeText={setNameBank}
-                            />
-                        </Input>
-                    </Box>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Nome do Banco
+							</Text>
+							<Input>
+								<InputField
+									placeholder="Ex: Banco do Brasil, Caixa Econômica, Itaú..."
+									value={nameBank}
+									onChangeText={setNameBank}
+								/>
+							</Input>
+						</Box>
 
-                    <Box>
-                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-                            Cor do Banco
-                        </Text>
-                    <Select
-                        selectedValue={selectedColor ?? undefined}
-                        onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
-                    >
-                            <SelectTrigger>
-                                <SelectInput placeholder="Cor do banco (opcional), apenas para fins visuais" />
-                                <SelectIcon />
-                            </SelectTrigger>
-                            <SelectPortal>
-                                <SelectBackdrop />
-                                <SelectContent>
-                                    <SelectDragIndicatorWrapper>
-                                        <SelectDragIndicator />
-                                    </SelectDragIndicatorWrapper>
-                                    <SelectItem label="Sem cor" value="no-color" />
-                                    {colorOptions.map(option => (
-                                        <SelectItem
-                                            key={option.value}
-                                            label={`${option.label} (${option.value})`}
-                                            value={option.value}
-                                        />
-                                    ))}
-                                </SelectContent>
-                            </SelectPortal>
-                        </Select>
-                    </Box>
+						<Box>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+								Cor do Banco
+							</Text>
+						<Select
+							selectedValue={selectedColor ?? undefined}
+							onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
+						>
+								<SelectTrigger>
+									<SelectInput placeholder="Cor do banco (opcional), apenas para fins visuais" />
+									<SelectIcon />
+								</SelectTrigger>
+								<SelectPortal>
+									<SelectBackdrop />
+									<SelectContent>
+										<SelectDragIndicatorWrapper>
+											<SelectDragIndicator />
+										</SelectDragIndicatorWrapper>
+										<SelectItem label="Sem cor" value="no-color" />
+										{colorOptions.map(option => (
+											<SelectItem
+												key={option.value}
+												label={`${option.label} (${option.value})`}
+												value={option.value}
+											/>
+										))}
+									</SelectContent>
+								</SelectPortal>
+							</Select>
+						</Box>
 
-                    <Button
-                        className="w-full mt-2"
-                        size="sm"
-                        variant="outline"
-                        onPress={registerBank}
-                        isDisabled={isSubmitting || nameBank.trim().length === 0 || (isEditing && nameBank.trim() === initialBankName && selectedColor === initialColorHex)}
-                    >
-                        {isSubmitting ? (
-                            <ButtonSpinner />
-                        ) : (
-                            <ButtonText>
-                                {isEditing ? 'Atualizar Banco' : 'Registrar Banco'}
-                            </ButtonText>
-                        )}
-                    </Button>
-                </VStack>
-            </View>
+						<Button
+							className="w-full mt-2"
+							size="sm"
+							variant="outline"
+							onPress={registerBank}
+							isDisabled={isSubmitting || nameBank.trim().length === 0 || (isEditing && nameBank.trim() === initialBankName && selectedColor === initialColorHex)}
+						>
+							{isSubmitting ? (
+								<ButtonSpinner />
+							) : (
+								<ButtonText>
+									{isEditing ? 'Atualizar Banco' : 'Registrar Banco'}
+								</ButtonText>
+							)}
+						</Button>
+					</VStack>
+				</View>
 
-            <Menu defaultValue={2} />
-        </View>
+				<Menu defaultValue={2} />
+			</View>
+		</SafeAreaView>
         </TouchableWithoutFeedback>
     );
 }

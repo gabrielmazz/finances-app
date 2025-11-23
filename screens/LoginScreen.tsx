@@ -1,7 +1,7 @@
 
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
-import { View, Pressable, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Pressable, TouchableWithoutFeedback, Keyboard, StatusBar } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import {
@@ -31,6 +31,7 @@ import {
     ModalFooter,
 } from '@/components/ui/modal';
 import Loader from '@/components/uiverse/loader';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Importações relacionadas ao Firebase
 import { auth } from '@/FirebaseConfig';
@@ -40,6 +41,34 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
+
+	const { isDarkMode } = useAppTheme();
+	const theme = useMemo(
+		() => ({
+			pageBackground: isDarkMode ? '#0b1220' : '#f4f5f7',
+			cardBackground: isDarkMode ? 'bg-slate-900/85 border border-slate-700' : 'bg-white border border-slate-200',
+			headingText: isDarkMode ? 'text-slate-100' : 'text-slate-900',
+			bodyText: isDarkMode ? 'text-slate-300' : 'text-slate-700',
+			mutedText: isDarkMode ? 'text-slate-500' : 'text-slate-500',
+			helperText: isDarkMode ? 'text-slate-400' : '#fff763',
+			inputField: isDarkMode ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500',
+			button: isDarkMode ? '' : '',
+			buttonText: 'font-semibold',
+		}),
+		[isDarkMode],
+	);
+
+	const {
+		pageBackground,
+		cardBackground,
+		headingText,
+		bodyText,
+		mutedText,
+		helperText,
+		inputField,
+		button,
+		buttonText,
+	} = theme;
 
     // Variaveis relacionadas ao login
     const [email, setEmail] = useState('');
@@ -84,8 +113,10 @@ export default function LoginScreen() {
 				className="
 				flex-1
             "
+			style={{ backgroundColor: pageBackground }}
             >
-                <View className="flex-1 justify-between pb-6">
+				<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+                <View className="flex-1 justify-between pb-6" style={{ backgroundColor: pageBackground }}>
                     <View
                         className="
                         flex-1
@@ -93,27 +124,25 @@ export default function LoginScreen() {
                         px-6
                     "
                     >
-                        <VStack
-                            space="sm"
-                        >
+                        <VStack space="sm">
 
                             <Heading
                                 size="xl"
-                                className=""
+                                className={headingText}
                             >
                                 Lumus Finances
                             </Heading>
 
                             <Heading
                                 size="3xl"
-                                className=""
+                                className={headingText}
                             >
                                 Bem-vindo de volta!
                             </Heading>
 
                             <Heading
                                 size="md"
-                                className="mb-4"
+                                className={`mb-4 ${bodyText}`}
                             >
                                 Faça login para continuar
                             </Heading>
@@ -122,7 +151,7 @@ export default function LoginScreen() {
 
                             {/* Campo responsável pelo login */}
                             <FormControl
-                                size="lg"
+                                size="md"
                                 isDisabled={false}
                                 isReadOnly={false}
                                 isRequired={false}
@@ -143,13 +172,15 @@ export default function LoginScreen() {
                                         autoCapitalize="none"
                                         keyboardType="email-address"
                                         placeholder="Digite seu login"
+										className={inputField}
+										placeholderTextColor={isDarkMode ? '#94a3b8' : '#6b7280'}
                                     />
 
                                 </Input>
 
                                 <FormControlHelper>
 
-                                    <FormControlHelperText>
+                                    <FormControlHelperText className={`${helperText} text-sm`}>
                                         Informe o login utilizado no cadastro.
                                     </FormControlHelperText>
 
@@ -183,12 +214,14 @@ export default function LoginScreen() {
                                         value={password}
                                         onChangeText={setPassword}
                                         placeholder="Digite sua senha"
+										className={inputField}
+										placeholderTextColor={isDarkMode ? '#94a3b8' : '#6b7280'}
                                     />
                                 </Input>
 
                                 <FormControlHelper>
 
-                                    <FormControlHelperText>
+                                    <FormControlHelperText className={`${helperText} text-sm`}>
                                         Sua senha deve ter no mínimo 6 caracteres.
                                     </FormControlHelperText>
 
@@ -213,8 +246,9 @@ export default function LoginScreen() {
                                 size="sm"
                                 variant="outline"
                                 onPress={singIn}
+								className={button}
                             >
-                                <ButtonText>
+                                <ButtonText className={buttonText}>
                                     Entrar
                                 </ButtonText>
 
@@ -228,16 +262,16 @@ export default function LoginScreen() {
                         onPress={handleOpenCreditsModal}
                         className="items-center mt-10"
                     >
-                        <Text className="text-xs text-slate-500 dark:text-slate-400">
+                        <Text className={`text-xs ${mutedText}`}>
                             Desenvolvido por
                         </Text>
-                        <Text className="text-sm font-semibold">
+                        <Text className={`text-sm font-semibold ${headingText}`}>
                             Gabriel Mazzuco
                         </Text>
-                        <Text className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <Text className={`text-xs mt-1 ${mutedText}`}>
                             Toque para conhecer o Lumus Finance
                         </Text>
-                        <Text className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                        <Text className={`text-[10px] mt-1 ${mutedText}`}>
                             Versão 1.4.6
                         </Text>
                     </Pressable>
@@ -255,19 +289,19 @@ export default function LoginScreen() {
                             contentContainerStyle={{ paddingBottom: 16 }}
                         >
                             <View className="items-center gap-4">
-                                <Text className="text-2xl mb-2 font-semibold text-gray-800 dark:text-gray-200">
+                                <Text className={`text-2xl mb-2 font-semibold ${headingText}`}>
                                     Lumus Finance
                                 </Text>
                                 <Loader />
                                 <Text className="text-xs uppercase tracking-widest text-amber-500">
                                     Desenvolvido por Gabriel Mazzuco
                                 </Text>
-                                <Text className="text-sm text-center text-gray-700 dark:text-gray-300">
+                                <Text className={`text-sm text-center ${bodyText}`}>
                                     O Lumus Finance nasceu para simplificar o controle de despesas
                                     domésticas, ajudando você a visualizar gastos e ganhos da casa
                                     em um só lugar.
                                 </Text>
-                                <Text className="text-sm text-center text-gray-700 dark:text-gray-300">
+                                <Text className={`text-sm text-center ${bodyText}`}>
                                     Explore seus bancos, categorize despesas e mantenha toda a
                                     família alinhada com o orçamento mensal.
                                 </Text>

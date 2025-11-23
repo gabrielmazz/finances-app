@@ -8,6 +8,7 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { auth } from '@/FirebaseConfig';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 export type MenuOption = {
 	label: string;
@@ -142,6 +143,41 @@ export const Menu: React.FC<MenuProps> = ({
 	onChange,
 	onHardwareBack,
 }) => {
+	const { isDarkMode } = useAppTheme();
+	const theme = useMemo(
+		() => ({
+			pageBackground: isDarkMode ? '#0b1220' : '#f4f5f7',
+			activeButton: isDarkMode
+				? 'bg-slate-700 border-slate-600'
+				: 'bg-slate-800 border-slate-800',
+			inactiveButton: isDarkMode
+				? 'bg-slate-900/70 border-slate-700'
+				: 'bg-white border-slate-300',
+			activeText: isDarkMode ? 'text-white' : 'text-white',
+			inactiveText: isDarkMode ? 'text-white' : 'text-slate-700',
+			menuItemText: isDarkMode ? 'text-white' : 'text-slate-800',
+			menuItemActive: isDarkMode ? 'text-white' : 'text-slate-700',
+			menuSurface: isDarkMode
+				? 'bg-slate-900 border-slate-700 shadow-lg'
+				: 'bg-white border-slate-200 shadow-md',
+			menuItem: isDarkMode
+				? 'bg-slate-900 data-[hover=true]:bg-slate-800 data-[active=true]:bg-slate-700 data-[focus=true]:bg-slate-800'
+				: 'bg-white data-[hover=true]:bg-slate-100 data-[active=true]:bg-slate-200 data-[focus=true]:bg-slate-100',
+		}),
+		[isDarkMode],
+	);
+	const {
+		pageBackground,
+		activeButton,
+		inactiveButton,
+		activeText,
+		inactiveText,
+		menuItemText,
+		menuItemActive,
+		menuSurface,
+		menuItem,
+	} = theme;
+
 	const insets = useSafeAreaInsets();
 	const resolvedGroups = useMemo(
 		() => (groups && groups.length > 0 ? groups : buildDefaultGroups()),
@@ -243,7 +279,7 @@ export const Menu: React.FC<MenuProps> = ({
 	}
 
 	return (
-		<View style={styles.wrapper} pointerEvents="box-none">
+		<View style={[styles.wrapper, { backgroundColor: pageBackground }]} pointerEvents="box-none">
 			<View style={{ height: containerHeight }} />
 
 			<View
@@ -254,6 +290,7 @@ export const Menu: React.FC<MenuProps> = ({
 						paddingHorizontal: 24,
 						paddingTop: 12,
 						paddingBottom: effectiveBottomPadding,
+						backgroundColor: pageBackground,
 					},
 				]}
 				onLayout={handleContainerLayout}
@@ -280,15 +317,18 @@ export const Menu: React.FC<MenuProps> = ({
 								<GluestackMenu
 									placement="top"
 									closeOnSelect
+									className={menuSurface}
 									trigger={triggerProps => (
 										<Button
 											{...triggerProps}
 											size="sm"
 											variant={isActiveGroup ? 'solid' : 'outline'}
 											action="secondary"
-											className="min-w-[120px]"
+											className={`min-w-[120px] ${isActiveGroup ? activeButton : inactiveButton}`}
 										>
-											<ButtonText>{group.triggerLabel}</ButtonText>
+											<ButtonText className={isActiveGroup ? activeText : inactiveText}>
+												{group.triggerLabel}
+											</ButtonText>
 										</Button>
 									)}
 								>
@@ -297,8 +337,12 @@ export const Menu: React.FC<MenuProps> = ({
 											key={`${group.triggerLabel}-${option.label}`}
 											onPress={() => handleSelect(option)}
 											textValue={option.label}
+											className={menuItem}
 										>
-											<MenuItemLabel bold={option.value === activeValue}>
+											<MenuItemLabel
+												bold={option.value === activeValue}
+												className={option.value === activeValue ? menuItemActive : menuItemText}
+											>
 												{option.label}
 											</MenuItemLabel>
 										</MenuItem>

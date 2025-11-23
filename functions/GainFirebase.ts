@@ -15,6 +15,9 @@ interface AddGainParams {
 	bankId?: string | null;
 	date: Date;
 	personId: string;
+	isInvestmentRedemption?: boolean;
+	investmentId?: string | null;
+	investmentNameSnapshot?: string | null;
 }
 
 interface UpdateGainParams {
@@ -42,6 +45,9 @@ export async function addGainFirebase({
 	bankId,
 	date,
 	personId,
+	isInvestmentRedemption,
+	investmentId,
+	investmentNameSnapshot,
 }: AddGainParams) {
 	try {
 		const gainRef = doc(collection(db, 'gains'));
@@ -56,6 +62,9 @@ export async function addGainFirebase({
 			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
 			personId,
+			isInvestmentRedemption: Boolean(isInvestmentRedemption),
+			investmentId: investmentId ?? null,
+			investmentNameSnapshot: investmentNameSnapshot ?? null,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		});

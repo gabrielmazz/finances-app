@@ -6,7 +6,9 @@ import {
 	Platform,
 	ScrollView,
 	View,
+	StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -44,6 +46,7 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 // Importação do SVG
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type OptionItem = {
 	id: string;
@@ -167,6 +170,8 @@ const getSuggestedDateByDueDay = (dueDay: number) => {
 };
 
 export default function AddRegisterExpensesScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 
 	// Variaveis relacionadas ao registro de despesas
 	const [expenseName, setExpenseName] = React.useState('');
@@ -916,150 +921,189 @@ export default function AddRegisterExpensesScreen() {
 
 
 	return (
-		<View
-			className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-		>
-			<FloatingAlertViewport />
-
-			<KeyboardAvoidingView
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-				className="flex-1 w-full"
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+						flex-1 w-full h-full
+						pt-[64px]
+						items-center
+						justify-between
+						pb-6
+						relative
+					"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<ScrollView
-					ref={scrollViewRef}
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
-					}}
+				<FloatingAlertViewport />
+
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+					className="flex-1 w-full"
 				>
-					<View className="w-full px-6">
+					<ScrollView
+						ref={scrollViewRef}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 
-					<Heading size="3xl" className="text-center mb-4">
-						{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
-					</Heading>
+						<Heading size="3xl" className="text-center mb-4 text-gray-900 dark:text-gray-100">
+							{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
+						</Heading>
 
-					<Box className="w-full items-center mb-4">
-						<AddExpenseIllustration width={160} height={160} />
-					</Box>
-
-					<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
-						{isEditing
-							? 'Atualize os dados da despesa selecionada e confirme para salvar. Podendo alterar qualquer informação previamente cadastrada.'
-							: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema. Podendo descrever ela pelo template já estabelecido.'}
-					</Text>
-
-					<Divider className="mb-6" />
-
-					<VStack className="gap-4">
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Nome da despesa
-							</Text>
-							<Input isDisabled={isTemplateLocked}>
-								<InputField
-									onLayout={handleInputLayout('expense-name')}
-									placeholder="Ex: Mercado, Combustível, Roupa..."
-									value={expenseName}
-									onChangeText={setExpenseName}
-									autoCapitalize="sentences"
-									onFocus={() => scrollToInput('expense-name')}
-								/>
-							</Input>
+						<Box className="w-full items-center mb-4">
+							<AddExpenseIllustration width={160} height={160} />
 						</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Valor da despesa
-							</Text>
-							<Input>
-								<InputField
-									onLayout={handleInputLayout('expense-value')}
-									placeholder="Ex: R$ 50,00"
-									value={expenseValueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-									onFocus={() => scrollToInput('expense-value')}
-								/>
-							</Input>
-						</Box>
+						<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
+							{isEditing
+								? 'Atualize os dados da despesa selecionada e confirme para salvar. Podendo alterar qualquer informação previamente cadastrada.'
+								: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema. Podendo descrever ela pelo template já estabelecido.'}
+						</Text>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Explicação da despesa
-							</Text>
-							<Textarea
-								size="md"
-								isDisabled={!expenseValueDisplay}
-								className="h-32"
-							>
-								<TextareaInput
-									onLayout={handleInputLayout('expense-explanation')}
-									placeholder="(Opcional) Explique sobre essa despesa..."
-									value={explanationExpense ?? ''}
-									onChangeText={setExplanationExpense}
-									onFocus={() => scrollToInput('expense-explanation')}
-								/>
-							</Textarea>
-						</Box>
+						<Divider className="mb-6" />
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Pagamento em dinheiro
-							</Text>
-							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-								<HStack className="items-center justify-between">
-									<View className="flex-1 mr-3">
-										<Text className="font-semibold">Pagamento em dinheiro</Text>
-										<Text className="text-gray-600 dark:text-gray-400 text-sm">
-											Indique se essa despesa foi paga em dinheiro
-										</Text>
-									</View>
-									<Switch
-										value={moneyFormat}
-										onValueChange={() => {
-											setMoneyFormat(!moneyFormat);
-											setSelectedBankId(null);
-											setSelectedMovementBankName(null);
-										}}
-										trackColor={{ false: '#d4d4d4', true: '#525252' }}
-										thumbColor="#fafafa"
-										ios_backgroundColor="#d4d4d4"
+						<VStack className="gap-4">
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Nome da despesa
+								</Text>
+								<Input isDisabled={isTemplateLocked}>
+									<InputField
+										onLayout={handleInputLayout('expense-name')}
+										placeholder="Ex: Mercado, Combustível, Roupa..."
+										value={expenseName}
+										onChangeText={setExpenseName}
+										autoCapitalize="sentences"
+										onFocus={() => scrollToInput('expense-name')}
 									/>
-								</HStack>
-							</View>
-						</Box>
+								</Input>
+							</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Tag da despesa
-							</Text>
-							{isTagSelectionLocked ? (
-								<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-									<Text className="font-semibold mb-1">
-										{isTemplateLocked ? 'Tag da despesa obrigatória' : 'Tag definida automaticamente'}
-									</Text>
-									<Text className="text-gray-700 dark:text-gray-300">
-										{templateTagDisplayName ?? 'Tag não encontrada'}
-									</Text>
-								</Box>
-							) : (
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Valor da despesa
+								</Text>
+								<Input>
+									<InputField
+										onLayout={handleInputLayout('expense-value')}
+										placeholder="Ex: R$ 50,00"
+										value={expenseValueDisplay}
+										onChangeText={handleValueChange}
+										keyboardType="numeric"
+										onFocus={() => scrollToInput('expense-value')}
+									/>
+								</Input>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Explicação da despesa
+								</Text>
+								<Textarea
+									size="md"
+									isDisabled={!expenseValueDisplay}
+									className="h-32"
+								>
+									<TextareaInput
+										onLayout={handleInputLayout('expense-explanation')}
+										placeholder="(Opcional) Explique sobre essa despesa..."
+										value={explanationExpense ?? ''}
+										onChangeText={setExplanationExpense}
+										onFocus={() => scrollToInput('expense-explanation')}
+									/>
+								</Textarea>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Pagamento em dinheiro
+								</Text>
+								<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+									<HStack className="items-center justify-between">
+										<View className="flex-1 mr-3">
+											<Text className="font-semibold text-gray-800 dark:text-gray-200">Pagamento em dinheiro</Text>
+											<Text className="text-gray-600 dark:text-gray-400 text-sm">
+												Indique se essa despesa foi paga em dinheiro
+											</Text>
+										</View>
+										<Switch
+											value={moneyFormat}
+											onValueChange={() => {
+												setMoneyFormat(!moneyFormat);
+												setSelectedBankId(null);
+												setSelectedMovementBankName(null);
+											}}
+											trackColor={{ false: '#d4d4d4', true: '#525252' }}
+											thumbColor="#fafafa"
+											ios_backgroundColor="#d4d4d4"
+										/>
+									</HStack>
+								</View>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Tag da despesa
+								</Text>
+								{isTagSelectionLocked ? (
+									<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
+										<Text className="font-semibold mb-1 text-gray-800 dark:text-gray-200">
+											{isTemplateLocked ? 'Tag da despesa obrigatória' : 'Tag definida automaticamente'}
+										</Text>
+										<Text className="text-gray-700 dark:text-gray-300">
+											{templateTagDisplayName ?? 'Tag não encontrada'}
+										</Text>
+									</Box>
+								) : (
+									<Select
+										selectedValue={selectedMovementTagName}
+										onValueChange={setSelectedTagId}
+										isDisabled={isLoadingTags || tags.length === 0}
+									>
+										<SelectTrigger>
+											<SelectInput placeholder="Selecione uma tag para a despesa" />
+											<SelectIcon />
+										</SelectTrigger>
+
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+
+												{tags.length > 0 ? (
+													tags.map(tag => (
+														<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+													))
+												) : (
+													<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+								)}
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Banco da despesa
+								</Text>
 								<Select
-									selectedValue={selectedMovementTagName}
-									onValueChange={setSelectedTagId}
-									isDisabled={isLoadingTags || tags.length === 0}
+									selectedValue={selectedMovementBankName}
+									onValueChange={setSelectedBankId}
+									isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
 								>
 									<SelectTrigger>
-										<SelectInput placeholder="Selecione uma tag para a despesa" />
+										<SelectInput placeholder="Selecione o banco onde a despesa foi registrada" />
 										<SelectIcon />
 									</SelectTrigger>
 
@@ -1070,111 +1114,78 @@ export default function AddRegisterExpensesScreen() {
 												<SelectDragIndicator />
 											</SelectDragIndicatorWrapper>
 
-											{tags.length > 0 ? (
-												tags.map(tag => (
-													<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+											{banks.length > 0 ? (
+												banks.map(bank => (
+													<SelectItem
+														key={bank.id}
+														label={bank.name}
+														value={bank.id}
+													/>
 												))
 											) : (
-												<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+												<SelectItem
+													key="no-bank"
+													label="Nenhum banco disponível"
+													value="no-bank"
+													isDisabled
+												/>
 											)}
 										</SelectContent>
 									</SelectPortal>
 								</Select>
-							)}
-						</Box>
+							</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Banco da despesa
-							</Text>
-							<Select
-								selectedValue={selectedMovementBankName}
-								onValueChange={setSelectedBankId}
-								isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Data da despesa
+								</Text>
+								<Input>
+									<InputField
+										onLayout={handleInputLayout('expense-date')}
+										placeholder="Data da despesa (DD/MM/AAAA)"
+										value={expenseDate}
+										onChangeText={handleDateChange}
+										autoCorrect={false}
+										keyboardType="numbers-and-punctuation"
+										onFocus={() => scrollToInput('expense-date')}
+									/>
+								</Input>
+							</Box>
+
+							{isEditing && isLoadingExisting && (
+								<Text className="text-sm text-gray-500 dark:text-gray-400">
+									Carregando dados da despesa selecionada...
+								</Text>
+							)}
+
+							<Button
+								className="w-full mt-2"
+								size="sm"
+								variant="outline"
+								onPress={handleSubmit}
+								isDisabled={
+									isLoadingExisting ||
+									isSubmitting ||
+									!expenseName.trim() ||
+									expenseValueCents === null ||
+									!selectedTagId ||
+									(!moneyFormat && !selectedBankId) ||
+									!expenseDate
+								}
 							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione o banco onde a despesa foi registrada" />
-									<SelectIcon />
-								</SelectTrigger>
+								{isSubmitting ? (
+									<ButtonSpinner />
+								) : (
+									<ButtonText>{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}</ButtonText>
+								)}
+							</Button>
+						</VStack>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
-
-										{banks.length > 0 ? (
-											banks.map(bank => (
-												<SelectItem
-													key={bank.id}
-													label={bank.name}
-													value={bank.id}
-												/>
-											))
-										) : (
-											<SelectItem
-												key="no-bank"
-												label="Nenhum banco disponível"
-												value="no-bank"
-												isDisabled
-											/>
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Data da despesa
-							</Text>
-							<Input>
-								<InputField
-									onLayout={handleInputLayout('expense-date')}
-									placeholder="Data da despesa (DD/MM/AAAA)"
-									value={expenseDate}
-									onChangeText={handleDateChange}
-									autoCorrect={false}
-									keyboardType="numbers-and-punctuation"
-									onFocus={() => scrollToInput('expense-date')}
-								/>
-							</Input>
-						</Box>
-
-						{isEditing && isLoadingExisting && (
-							<Text className="text-sm text-gray-500 dark:text-gray-400">
-								Carregando dados da despesa selecionada...
-							</Text>
-						)}
-
-						<Button
-							className="w-full mt-2"
-							size="sm"
-							variant="outline"
-							onPress={handleSubmit}
-							isDisabled={
-								isLoadingExisting ||
-								isSubmitting ||
-								!expenseName.trim() ||
-								expenseValueCents === null ||
-								!selectedTagId ||
-								(!moneyFormat && !selectedBankId) ||
-								!expenseDate
-							}
-						>
-							{isSubmitting ? (
-								<ButtonSpinner />
-							) : (
-								<ButtonText>{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}</ButtonText>
-							)}
-						</Button>
-					</VStack>
-					</View>
-				</ScrollView>
-			</KeyboardAvoidingView>
-
-			<Menu defaultValue={1} />
-		</View>
+				<Menu defaultValue={1} />
+			</View>
+		</SafeAreaView>
 	);
 }

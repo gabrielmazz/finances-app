@@ -1,5 +1,6 @@
 import React from 'react';
-import { BackHandler, ScrollView, View } from 'react-native';
+import { BackHandler, ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -22,6 +23,7 @@ import { VStack } from '@/components/ui/vstack';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebase, getMonthlyBalanceFirebaseRelatedToUser, upsertMonthlyBalanceFirebase } from '@/functions/MonthlyBalanceFirebase';
@@ -77,6 +79,8 @@ type OptionItem = {
 };
 
 export default function AddRegisterMonthlyBalanceScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
@@ -359,138 +363,144 @@ useFocusEffect(
 		!selectedBankId || !monthReference || !hasValidMonthReference || balanceValueInCents === null || isSubmitting;
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					pt-[64px]
+					items-center
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<View className="w-full px-6">
+				<FloatingAlertViewport />
 
-					<Heading size="3xl" className="text-center mb-4">
-						Saldo mensal por banco
-					</Heading>
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+						backgroundColor: pageBackground,
+					}}
+				>
+					<View className="w-full px-6">
 
-					<Box className="w-full items-center ">
-						<AddRegisterMonthlyBalanceScreenIllustration width={140} height={140} />
-					</Box>
+						<Heading size="3xl" className="text-center mb-4 text-gray-900 dark:text-gray-100">
+							Saldo mensal por banco
+						</Heading>
 
-					<Text className="text-justify text-gray-600 dark:text-gray-400 mt-6">
-						Registre o saldo disponível em cada banco no início de um mês específico. Caso já exista um registro,
-						você poderá atualizá-lo.
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<VStack className="gap-4">
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Selecione o banco onde o saldo está registrado
-							</Text>
-							<Select
-								selectedValue={selectedBankId}
-								onValueChange={value => setSelectedBankId(value)}
-								isDisabled={isLoadingBanks || banks.length === 0}
-							>
-								<SelectTrigger className="">
-									<SelectInput placeholder="Selecione um banco" />
-									<SelectIcon />
-								</SelectTrigger>
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
-										{banks.length > 0 ? (
-											banks.map(bank => <SelectItem label={bank.name} value={bank.id} key={bank.id} />)
-										) : (
-											<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
+						<Box className="w-full items-center ">
+							<AddRegisterMonthlyBalanceScreenIllustration width={140} height={140} />
 						</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Mês de referência para o saldo
-							</Text>
-							<Input>
-								<InputField
-									placeholder="Mês de referência (MM/AAAA)"
-									value={monthReference}
-									onChangeText={handleMonthChange}
+						<Text className="text-justify text-gray-600 dark:text-gray-400 mt-6">
+							Registre o saldo disponível em cada banco no início de um mês específico. Caso já exista um registro,
+							você poderá atualizá-lo.
+						</Text>
+
+						<Divider className="my-6 mb-6" />
+
+						<VStack className="gap-4">
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Selecione o banco onde o saldo está registrado
+								</Text>
+								<Select
+									selectedValue={selectedBankId}
+									onValueChange={value => setSelectedBankId(value)}
+									isDisabled={isLoadingBanks || banks.length === 0}
+								>
+									<SelectTrigger className="">
+										<SelectInput placeholder="Selecione um banco" />
+										<SelectIcon />
+									</SelectTrigger>
+									<SelectPortal>
+										<SelectBackdrop />
+										<SelectContent>
+											<SelectDragIndicatorWrapper>
+												<SelectDragIndicator />
+											</SelectDragIndicatorWrapper>
+											{banks.length > 0 ? (
+												banks.map(bank => <SelectItem label={bank.name} value={bank.id} key={bank.id} />)
+											) : (
+												<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
+											)}
+										</SelectContent>
+									</SelectPortal>
+								</Select>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Mês de referência para o saldo
+								</Text>
+								<Input>
+									<InputField
+										placeholder="Mês de referência (MM/AAAA)"
+										value={monthReference}
+										onChangeText={handleMonthChange}
+										keyboardType="numeric"
+									/>
+								</Input>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Saldo disponível
+								</Text>
+								<Input isDisabled={isBalanceInputDisabled}>
+									<InputField
+										placeholder="Saldo disponível"
+									value={balanceInputValue}
+									onChangeText={handleBalanceChange}
 									keyboardType="numeric"
+									editable={!isBalanceInputDisabled}
 								/>
-							</Input>
-						</Box>
+								</Input>
+							</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Saldo disponível
-							</Text>
-							<Input isDisabled={isBalanceInputDisabled}>
-								<InputField
-									placeholder="Saldo disponível"
-								value={balanceInputValue}
-								onChangeText={handleBalanceChange}
-								keyboardType="numeric"
-								editable={!isBalanceInputDisabled}
-							/>
-							</Input>
-						</Box>
-
-						{isLoadingExisting ? (
-							<Text className="text-sm text-gray-500 dark:text-gray-400">
-								Verificando saldo registrado para este mês...
-							</Text>
-						) : existingBalanceId ? (
-							<Text className="text-sm text-emerald-600 dark:text-emerald-400">
-								Já existe um saldo registrado para este banco no mês informado. Ao salvar, o valor será atualizado.
-							</Text>
-						) : (
-							<Text className="text-sm text-gray-500 dark:text-gray-400">
-								Nenhum saldo registrado para este banco neste mês.
-							</Text>
-						)}
-
-						<Button
-							size="md"
-							variant="outline"
-							onPress={handleSubmit}
-							isDisabled={
-								isSaveDisabled || selectedBankId === null || monthReference.length < 7 || balanceValueInCents === null
-							}
-						>
-							{isSubmitting ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>{existingBalanceId ? 'Atualizando saldo' : 'Salvando saldo'}</ButtonText>
-								</>
+							{isLoadingExisting ? (
+								<Text className="text-sm text-gray-500 dark:text-gray-400">
+									Verificando saldo registrado para este mês...
+								</Text>
+							) : existingBalanceId ? (
+								<Text className="text-sm text-emerald-600 dark:text-emerald-400">
+									Já existe um saldo registrado para este banco no mês informado. Ao salvar, o valor será atualizado.
+								</Text>
 							) : (
-								<ButtonText>{existingBalanceId ? 'Editar saldo' : 'Registrar saldo'}</ButtonText>
+								<Text className="text-sm text-gray-500 dark:text-gray-400">
+									Nenhum saldo registrado para este banco neste mês.
+								</Text>
 							)}
-						</Button>
-					</VStack>
-				</View>
-			</ScrollView>
 
-			<Menu defaultValue={1} />
-		</View>
+							<Button
+								size="md"
+								variant="outline"
+								onPress={handleSubmit}
+								isDisabled={
+									isSaveDisabled || selectedBankId === null || monthReference.length < 7 || balanceValueInCents === null
+								}
+							>
+								{isSubmitting ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>{existingBalanceId ? 'Atualizando saldo' : 'Salvando saldo'}</ButtonText>
+									</>
+								) : (
+									<ButtonText>{existingBalanceId ? 'Editar saldo' : 'Registrar saldo'}</ButtonText>
+								)}
+							</Button>
+						</VStack>
+					</View>
+				</ScrollView>
+
+				<Menu defaultValue={1} />
+			</View>
+		</SafeAreaView>
 	);
 }

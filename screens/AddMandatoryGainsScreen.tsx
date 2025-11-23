@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -47,6 +48,7 @@ import { deleteGainFirebase } from '@/functions/GainFirebase';
 // Importação do SVG
 import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGainsScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type TagOption = { id: string; name: string };
 type ReceiptInfo = {
@@ -95,6 +97,8 @@ const normalizeDateValue = (value: unknown): Date | null => {
 };
 
 export default function AddMandatoryGainsScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const params = useLocalSearchParams<{ gainTemplateId?: string | string[] }>();
 	const editingGainTemplateId = React.useMemo(() => {
 		const raw = Array.isArray(params.gainTemplateId) ? params.gainTemplateId[0] : params.gainTemplateId;
@@ -566,27 +570,32 @@ export default function AddMandatoryGainsScreen() {
 		!gainName.trim() || valueInCents === null || !isDueDayValid || !selectedTagId || isSubmitting || isPrefilling;
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					mt-[64px]
+					items-center
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<View className="w-full px-6">
+				<FloatingAlertViewport />
+
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+						backgroundColor: pageBackground,
+					}}
+				>
+					<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center mb-4">
 						{selectedGainTemplateId ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório'}
@@ -780,9 +789,10 @@ export default function AddMandatoryGainsScreen() {
 						</Button>
 					</VStack>
 				</View>
-			</ScrollView>
+				</ScrollView>
 
-			<Menu defaultValue={1} />
-		</View>
+				<Menu defaultValue={1} />
+			</View>
+		</SafeAreaView>
 	);
 }

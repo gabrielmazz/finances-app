@@ -71,6 +71,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Box } from '@/components/ui/box';
 import { Switch } from '@/components/ui/switch';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -86,6 +87,7 @@ type AccordionItem = {
 	showTagsTable?: boolean;
 	showRelatedUsersTable?: boolean;
 	showValueVisibilitySwitch?: boolean;
+	showThemeSwitch?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
@@ -142,6 +144,13 @@ const accordionItems: AccordionItem[] = [
 		title: 'Preferências de valores financeiros',
 		content: 'Ative ou desative a exibição de valores financeiros em todo o aplicativo.',
 		showValueVisibilitySwitch: true,
+		actionRequiresAdmin: false,
+	},
+	{
+		id: 'item-6',
+		title: 'Tema do aplicativo',
+		content: 'Alterne entre o modo claro e escuro para personalizar a aparência do app.',
+		showThemeSwitch: true,
 		actionRequiresAdmin: false,
 	},
 ];
@@ -378,11 +387,12 @@ export default function ConfigurationsScreen() {
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
 	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
-	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
-	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
-	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
-	const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
-	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
+const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
+const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
+const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
+const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
+const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
 
 	const handleToggleValueVisibility = React.useCallback(
 		(value: boolean) => {
@@ -390,6 +400,16 @@ export default function ConfigurationsScreen() {
 		},
 		[setShouldHideValues],
 	);
+
+const handleToggleDarkMode = React.useCallback(
+	(value: boolean) => {
+		if (isLoadingTheme || value === isDarkMode) {
+			return;
+		}
+		setThemeMode(value ? 'dark' : 'light');
+	},
+	[isDarkMode, isLoadingTheme, setThemeMode],
+);
 
 	const filteredTags = React.useMemo(() => {
 		return tagData.filter(tag => {
@@ -1380,6 +1400,36 @@ export default function ConfigurationsScreen() {
 																<ButtonText>Visualizar usuários vinculados</ButtonText>
 															)}
 														</Button>
+													</View>
+												)}
+
+												{item.showThemeSwitch && (
+													<View className="mt-6 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
+														<View className="flex-row items-center justify-between">
+															<View className="flex-1 pr-4">
+																<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
+																	Modo escuro
+																</Text>
+																<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+																	Ative para usar a interface em tons escuros em todas as telas.
+																</Text>
+															</View>
+															<Switch
+																value={isDarkMode}
+																onValueChange={handleToggleDarkMode}
+																disabled={isLoadingTheme}
+																trackColor={{ false: '#d4d4d4', true: '#525252' }}
+																thumbColor="#fafafa"
+																ios_backgroundColor="#d4d4d4"
+															/>
+														</View>
+														<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+															{isLoadingTheme
+																? 'Carregando sua preferência de tema...'
+																: isDarkMode
+																	? 'Modo escuro ativado.'
+																	: 'Modo claro ativado.'}
+														</Text>
 													</View>
 												)}
 
