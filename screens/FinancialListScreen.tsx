@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, StatusBar } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
@@ -49,6 +49,7 @@ import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { Divider } from '@/components/ui/divider';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type FinanceInvestment = {
 	id: string;
@@ -175,6 +176,8 @@ const simulateDailyYield = (investment: FinanceInvestment) => {
 };
 
 export default function FinancialListScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const [investments, setInvestments] = React.useState<FinanceInvestment[]>([]);
 	const [banksMap, setBanksMap] = React.useState<Record<string, BankMetadata>>({});
 	const bankOptions = React.useMemo(() => Object.values(banksMap), [banksMap]);
@@ -623,6 +626,7 @@ export default function FinancialListScreen() {
 		}
 
 		const targetInvestment = investmentForWithdrawal;
+		const bankInfo = targetInvestment?.bankId ? banksMap[targetInvestment.bankId] : undefined;
 		setIsSavingWithdrawal(true);
 		try {
 			const tagInfo = await ensureInvestmentTag('gain');
@@ -644,6 +648,10 @@ export default function FinancialListScreen() {
 					templateLockTag: '1',
 					investmentIdForAdjustment: targetInvestment?.id ?? '',
 					investmentDeltaInCents: String(-withdrawCents),
+					templateBankId: targetInvestment?.bankId ?? '',
+					templateBankName: bankInfo?.name ?? '',
+					templateLockBank: '1',
+					templateInvestmentName: targetInvestment?.name ?? '',
 				},
 			});
 		} catch (error) {
@@ -656,7 +664,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingWithdrawal(false);
 		}
-	}, [ensureInvestmentTag, investmentForWithdrawal, withdrawInput]);
+	}, [banksMap, ensureInvestmentTag, investmentForWithdrawal, withdrawInput]);
 
 	const handleOpenManualSyncModal = React.useCallback((investment: FinanceInvestment) => {
 		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
@@ -728,14 +736,18 @@ export default function FinancialListScreen() {
 				pb-6
 				relative
 			"
+			style={{ backgroundColor: pageBackground }}
 		>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
 			<FloatingAlertViewport />
 
 			<ScrollView
 				keyboardShouldPersistTaps="handled"
+				style={{ backgroundColor: pageBackground }}
 				contentContainerStyle={{
 					flexGrow: 1,
 					paddingBottom: 48,
+					backgroundColor: pageBackground,
 				}}
 			>
 				<View className="w-full px-6">

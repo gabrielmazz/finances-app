@@ -1,5 +1,6 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
@@ -37,6 +38,7 @@ import {
 	getCurrentMonthSummaryByBankFirebaseGains,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
@@ -128,6 +130,8 @@ const formatCurrencyBRL = (valueInCents: number) =>
 	}).format(valueInCents / 100);
 
 export default function AddFinanceScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	// Estado para guardar o nome do investimento que o usuário está digitando.
 	const [investmentName, setInvestmentName] = React.useState('');
 	// Guardamos o valor inicial como string formatada e em centavos.
@@ -506,30 +510,35 @@ export default function AddFinanceScreen() {
 	]);
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-			<KeyboardAvoidingView
-				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-				className="flex-1 w-full"
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					mt-[64px]
+					items-center
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="interactive"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-					}}
+				<FloatingAlertViewport />
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+					className="flex-1 w-full"
 				>
-					<View className="w-full px-6">
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="interactive"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: 48,
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 						<VStack className="gap-4 items-center">
 							<Heading size="3xl" className="text-center">
 								Registrar investimento
@@ -736,11 +745,12 @@ export default function AddFinanceScreen() {
 								</HStack>
 							)}
 						</VStack>
-					</View>
-				</ScrollView>
-			</KeyboardAvoidingView>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
-			<Menu defaultValue={1} />
-		</View>
+				<Menu defaultValue={1} />
+			</View>
+		</SafeAreaView>
 	);
 }

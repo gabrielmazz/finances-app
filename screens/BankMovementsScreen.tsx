@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View, useColorScheme, TouchableOpacity } from 'react-native';
+import { ScrollView, View, TouchableOpacity, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView, TapGestureHandler } from 'react-native-gesture-handler';
 
@@ -37,6 +38,7 @@ import { Menu } from '@/components/uiverse/menu';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { auth } from '@/FirebaseConfig';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Gráfico de pizza
 import { PieChart } from 'react-native-gifted-charts';
@@ -95,6 +97,8 @@ type MovementRecord = {
 	isFinanceInvestment?: boolean;
 	investmentId?: string | null;
 	investmentBankNameSnapshot?: string | null;
+	isInvestmentRedemption?: boolean;
+	investmentNameSnapshot?: string | null;
 };
 
 type PendingMovementAction =
@@ -219,8 +223,9 @@ const PIE_TOTAL_COLORS = {
 };
 
 export default function BankMovementsScreen() {
-	const colorScheme = useColorScheme();
-	const legendBorderColor = colorScheme === 'dark' ? '#374151' : '#E5E7EB';
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
 		bankName?: string | string[];
@@ -467,6 +472,10 @@ export default function BankMovementsScreen() {
 				isCashRescue: Boolean(gain?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof gain?.bankNameSnapshot === 'string' ? gain.bankNameSnapshot : null,
+				isInvestmentRedemption: Boolean(gain?.isInvestmentRedemption),
+				investmentNameSnapshot:
+					typeof gain?.investmentNameSnapshot === 'string' ? gain.investmentNameSnapshot : null,
+				investmentId: typeof gain?.investmentId === 'string' ? gain.investmentId : null,
 			}));
 
 			const investmentMovements: MovementRecord[] = investmentsArray.map(investment => ({
@@ -713,6 +722,15 @@ export default function BankMovementsScreen() {
 				setPendingAction(null);
 				return;
 			}
+			if (pendingAction.movement.isInvestmentRedemption) {
+				showFloatingAlert({
+					message: 'Resgates de investimento são controlados pela tela de investimentos.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				setPendingAction(null);
+				return;
+			}
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
 				router.push({
@@ -788,6 +806,14 @@ export default function BankMovementsScreen() {
 			if (pendingAction.movement.isFinanceInvestment) {
 				showFloatingAlert({
 					message: 'Use a tela de investimentos para remover ou ajustar este valor.',
+					action: 'warning',
+					position: 'bottom',
+				});
+				return;
+			}
+			if (pendingAction.movement.isInvestmentRedemption) {
+				showFloatingAlert({
+					message: 'Use a tela de investimentos para remover ou ajustar este resgate.',
 					action: 'warning',
 					position: 'bottom',
 				});
@@ -873,48 +899,53 @@ export default function BankMovementsScreen() {
 	const screenTitle = isCashView ? 'Movimentações em dinheiro' : 'Movimentações do banco';
 
 	return (
-		<GestureHandlerRootView style={{ flex: 1, width: '100%' }}>
-			{/* Root view do Gesture Handler garante o funcionamento do TapGestureHandler */}
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-			>
-				<FloatingAlertViewport />
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{
-						flex: 1,
-						width: '100%',
-					}}
-					contentContainerStyle={{
-						flexGrow: 1,
-						width: '100%',
-						paddingBottom: 48,
-					}}
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<GestureHandlerRootView style={{ flex: 1, width: '100%', backgroundColor: pageBackground }}>
+				{/* Root view do Gesture Handler garante o funcionamento do TapGestureHandler */}
+				<View
+					className="
+						flex-1 w-full h-full
+						pt-[64px]
+						items-center
+						justify-between
+						pb-6
+						relative
+					"
+					style={{ backgroundColor: pageBackground }}
 				>
-					<View className="w-full px-6">
+					<FloatingAlertViewport />
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{
+							flex: 1,
+							width: '100%',
+							backgroundColor: pageBackground,
+						}}
+						contentContainerStyle={{
+							flexGrow: 1,
+							width: '100%',
+							paddingBottom: 48,
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 
-						<Heading size="3xl" className="text-center">
-							{screenTitle}
-						</Heading>
+							<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
+								{screenTitle}
+							</Heading>
 
-						<Box className="w-full items-center">
-							<BankMovementsIllustration width={170} height={170} />
-						</Box>
+							<Box className="w-full items-center">
+								<BankMovementsIllustration width={170} height={170} />
+							</Box>
 
-						<Text className="text-justify text-gray-600 dark:text-gray-400">
-							Selecione um período para visualizar todas as movimentações de {bankName}. Aqui você pode
-							verificar ganhos, despesas e o saldo geral do período escolhido.
-						</Text>
+							<Text className="text-justify text-gray-600 dark:text-gray-400">
+								Selecione um período para visualizar todas as movimentações de {bankName}. Aqui você pode
+								verificar ganhos, despesas e o saldo geral do período escolhido.
+							</Text>
 
-						<Divider className="my-6 mb-6" />
+							<Divider className="my-6 mb-6" />
 
 						<Box
 							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
@@ -1051,7 +1082,7 @@ export default function BankMovementsScreen() {
 									Comparativo de totais
 								</Text>
 								<TouchableOpacity activeOpacity={0.85} onPress={() => setIsTotalsExpanded(prev => !prev)}>
-									<Text className="text-sm text-gray-500 dark:text-emerald-400">
+									<Text className="text-sm text-gray-500 dark:text-salte-400">
 										{isTotalsExpanded ? 'Ocultar' : 'Expandir'}
 									</Text>
 								</TouchableOpacity>
@@ -1151,9 +1182,11 @@ export default function BankMovementsScreen() {
 													Tipo:{' '}
 													{movement.isFinanceInvestment
 														? 'Investimento'
-														: movement.type === 'gain'
-															? 'Ganho'
-															: 'Despesa'}
+														: movement.isInvestmentRedemption
+															? 'Resgate de investimento'
+															: movement.type === 'gain'
+																? 'Ganho'
+																: 'Despesa'}
 												</Text>
 												{movement.isFromMandatory && (
 													<>
@@ -1198,6 +1231,18 @@ export default function BankMovementsScreen() {
 														</Text>
 													</>
 												)}
+												{movement.isInvestmentRedemption && (
+													<>
+														<Text className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+															{movement.investmentNameSnapshot
+																? `Resgate do investimento "${movement.investmentNameSnapshot}".`
+																: 'Resgate de investimento registrado neste banco.'}
+														</Text>
+														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
+															O ajuste do investimento foi feito automaticamente.
+														</Text>
+													</>
+												)}
 
 												<Divider className="my-4" />
 
@@ -1206,8 +1251,11 @@ export default function BankMovementsScreen() {
 														size="xl"
 														variant="link"
 														action="primary"
-														isDisabled={
-															movement.isFromMandatory || movement.isCashRescue || movement.isFinanceInvestment
+													isDisabled={
+															movement.isFromMandatory ||
+															movement.isCashRescue ||
+															movement.isFinanceInvestment ||
+															movement.isInvestmentRedemption
 														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
@@ -1239,6 +1287,14 @@ export default function BankMovementsScreen() {
 																});
 																return;
 															}
+															if (movement.isInvestmentRedemption) {
+																showFloatingAlert({
+																	message: 'Resgates de investimento são controlados pela tela de investimentos.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
 															setPendingAction({ type: 'edit', movement });
 														}}
 													>
@@ -1259,7 +1315,10 @@ export default function BankMovementsScreen() {
 														variant="link"
 														action="negative"
 														isDisabled={
-															movement.isFromMandatory || movement.isCashRescue || movement.isFinanceInvestment
+															movement.isFromMandatory ||
+															movement.isCashRescue ||
+															movement.isFinanceInvestment ||
+															movement.isInvestmentRedemption
 														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
@@ -1286,6 +1345,14 @@ export default function BankMovementsScreen() {
 																showFloatingAlert({
 																	message:
 																		'Remova ou ajuste este valor pela tela de investimentos.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isInvestmentRedemption) {
+																showFloatingAlert({
+																	message: 'Resgates de investimento devem ser ajustados pela tela de investimentos.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1458,14 +1525,33 @@ export default function BankMovementsScreen() {
 												selectedMovement
 													? selectedMovement.isFinanceInvestment
 														? 'Investimento'
-														: selectedMovement.type === 'gain'
-															? 'Ganho'
-															: 'Despesa'
+														: selectedMovement.isInvestmentRedemption
+															? 'Resgate de investimento'
+															: selectedMovement.type === 'gain'
+																? 'Ganho'
+																: 'Despesa'
 													: ''
 											}
 										/>
 									</Input>
 								</VStack>
+
+								{selectedMovement?.isInvestmentRedemption && (
+									<VStack space="xs">
+										<Text className="text-sm text-gray-600 dark:text-gray-400">
+											Observação do resgate:
+										</Text>
+										<Textarea size="md" isReadOnly isDisabled className="h-20">
+											<TextareaInput
+												value={
+													selectedMovement.investmentNameSnapshot
+														? `Resgate do investimento "${selectedMovement.investmentNameSnapshot}".`
+														: 'Resgate de investimento registrado para este banco.'
+												}
+											/>
+										</Textarea>
+									</VStack>
+								)}
 
 								{/* Mostra a explicação do movimento selecionado, se houver */}
 								{selectedMovement && selectedMovement.explanation && (
@@ -1538,6 +1624,7 @@ export default function BankMovementsScreen() {
 			</View>
 
 		</GestureHandlerRootView>
+		</SafeAreaView>
 
 	);
 }

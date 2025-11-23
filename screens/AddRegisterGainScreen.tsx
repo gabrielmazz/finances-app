@@ -6,7 +6,9 @@ import {
 	Platform,
 	ScrollView,
 	View,
+	StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 // Importações relacionadas ao Gluestack UI
@@ -55,6 +57,7 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 import { CheckIcon } from '@/components/ui/icon';
 import AddGainIllustration from '../assets/UnDraw/addRegisterGainScreen.svg';
 import { Divider } from '@/components/ui/divider';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type OptionItem = {
 	id: string;
@@ -175,6 +178,8 @@ const getSuggestedDateByDueDay = (dueDay: number) => {
 };
 
 export default function AddRegisterGainScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const [gainName, setGainName] = React.useState('');
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
@@ -255,6 +260,10 @@ export default function AddRegisterGainScreen() {
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
 		investmentDeltaInCents?: string | string[];
+		templateBankId?: string | string[];
+		templateBankName?: string | string[];
+		templateLockBank?: string | string[];
+		templateInvestmentName?: string | string[];
 	}>();
 	const editingGainId = React.useMemo(() => {
 		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
@@ -294,6 +303,10 @@ export default function AddRegisterGainScreen() {
 		const lockTagParam = decodeParam(params.templateLockTag);
 		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
 		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
+		const bankId = decodeParam(params.templateBankId);
+		const bankName = decodeParam(params.templateBankName);
+		const lockBankParam = decodeParam(params.templateLockBank);
+		const investmentName = decodeParam(params.templateInvestmentName);
 
 		if (
 			!name &&
@@ -318,6 +331,10 @@ export default function AddRegisterGainScreen() {
 			lockTag: lockTagParam === '1',
 			investmentAdjustmentId,
 			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
+			bankId,
+			bankName,
+			lockBank: lockBankParam === '1',
+			investmentNameSnapshot: investmentName,
 		};
 	}, [
 		params.templateDescription,
@@ -330,6 +347,10 @@ export default function AddRegisterGainScreen() {
 		params.templateValueInCents,
 		params.investmentDeltaInCents,
 		params.investmentIdForAdjustment,
+		params.templateBankId,
+		params.templateBankName,
+		params.templateLockBank,
+		params.templateInvestmentName,
 	]);
 
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
@@ -340,6 +361,7 @@ export default function AddRegisterGainScreen() {
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
+	const isBankSelectionLocked = Boolean(isTemplateLocked || templateData?.lockBank || templateData?.bankId);
 	const shouldShowPaymentFormatSelection = !isTemplateLocked;
 	const pendingInvestmentAdjustment = React.useMemo(() => {
 		if (isEditing) {
@@ -357,6 +379,22 @@ export default function AddRegisterGainScreen() {
 		}
 		return null;
 	}, [isEditing, templateData]);
+	const lockedBankName = React.useMemo(() => {
+		if (selectedMovementBankName) {
+			return selectedMovementBankName;
+		}
+		if (templateData?.bankName) {
+			return templateData.bankName;
+		}
+		const targetId = selectedBankId ?? templateData?.bankId ?? null;
+		if (targetId) {
+			const matched = banks.find(bank => bank.id === targetId);
+			if (matched?.name) {
+				return matched.name;
+			}
+		}
+		return 'Banco não encontrado';
+	}, [banks, selectedBankId, selectedMovementBankName, templateData]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -397,6 +435,15 @@ export default function AddRegisterGainScreen() {
 			setExplanationGain(templateData.description ?? null);
 		}
 
+		if (templateData.bankId) {
+			setSelectedBankId(templateData.bankId);
+		}
+
+		if (templateData.bankName) {
+			setSelectedMovementBankName(templateData.bankName);
+		}
+
+		setMoneyFormat(false);
 		setHasAppliedTemplate(true);
 	}, [hasAppliedTemplate, isEditing, templateData]);
 
@@ -464,9 +511,24 @@ export default function AddRegisterGainScreen() {
 						}));
 
 						setBanks(formattedBanks);
-						setSelectedBankId(current =>
-							current && formattedBanks.some(bank => bank.id === current) ? current : null,
-						);
+						setSelectedBankId(current => {
+							const desiredId = current ?? templateData?.bankId ?? null;
+							if (desiredId && (formattedBanks.some(bank => bank.id === desiredId) || isBankSelectionLocked)) {
+								return desiredId;
+							}
+							return null;
+						});
+						setSelectedMovementBankName(currentName => {
+							if (currentName) {
+								return currentName;
+							}
+							if (templateData?.bankName) {
+								return templateData.bankName;
+							}
+							const desiredId = templateData?.bankId ?? null;
+							const matched = desiredId ? formattedBanks.find(bank => bank.id === desiredId) : null;
+							return matched?.name ?? null;
+						});
 					} else {
 						showFloatingAlert({
 							message: 'Não foi possível carregar os bancos disponíveis.',
@@ -494,7 +556,7 @@ export default function AddRegisterGainScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, [isTemplateLocked, templateData?.tagId]),
+		}, [isBankSelectionLocked, isTemplateLocked, templateData?.bankId, templateData?.bankName, templateData?.tagId]),
 	);
 
 	const handleValueChange = React.useCallback((input: string) => {
@@ -543,7 +605,7 @@ export default function AddRegisterGainScreen() {
 			return;
 		}
 
-		const isBankSelectionRequired = !moneyFormat;
+		const isBankSelectionRequired = isBankSelectionLocked ? true : !moneyFormat;
 
 		if (isBankSelectionRequired && !selectedBankId) {
 			showFloatingAlert({
@@ -632,6 +694,10 @@ export default function AddRegisterGainScreen() {
 				bankId: isBankSelectionRequired ? selectedBankId : null,
 				date: dateWithCurrentTime,
 				personId,
+				isInvestmentRedemption:
+					Boolean(pendingInvestmentAdjustment) && pendingInvestmentAdjustment.deltaInCents < 0,
+				investmentId: pendingInvestmentAdjustment?.investmentId ?? null,
+				investmentNameSnapshot: templateData?.investmentNameSnapshot ?? null,
 			});
 
 			if (!result.success) {
@@ -694,6 +760,7 @@ export default function AddRegisterGainScreen() {
 			setMoneyFormat(false);
 			setSelectedTagId(null);
 			setSelectedBankId(null);
+			setSelectedMovementBankName(null);
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showFloatingAlert({
@@ -718,6 +785,8 @@ export default function AddRegisterGainScreen() {
 		selectedBankId,
 		selectedTagId,
 		pendingInvestmentAdjustment,
+		isBankSelectionLocked,
+		templateData,
 	]);
 
 	React.useEffect(() => {
@@ -862,318 +931,345 @@ export default function AddRegisterGainScreen() {
 
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-
-			<KeyboardAvoidingView
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-				className="flex-1 w-full"
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					pt-[64px]
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<ScrollView
-					ref={scrollViewRef}
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
-					}}
+				<FloatingAlertViewport />
+
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+					className="flex-1 w-full"
 				>
-					<View className="w-full px-6">
+					<ScrollView
+						ref={scrollViewRef}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 
-					<Heading size="3xl" className="text-center">
-						{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
-					</Heading>
+						<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
+							{isEditing ? 'Editar ganho' : 'Registro de Ganhos'}
+						</Heading>
 
-					<Box className="w-full items-center">
-						<AddGainIllustration width={180} height={180} />
-					</Box>
-
-					<Text className="text-justify text-gray-600 dark:text-gray-400">
-						{isEditing
-							? 'Atualize os dados do ganho selecionado e salve as alterações. Podendo alterar qualquer informação previamente cadastrada.'
-							: 'Informe os dados abaixo para registrar um novo ganho no sistema. Podendo descrever ele pelo template já estabelecido.'}
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<VStack className="gap-4">
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Nome do ganho
-							</Text>
-							<Input isDisabled={isTemplateLocked}>
-								<InputField
-									placeholder="Ex: Venda de produto, prestação de serviço..."
-									value={gainName}
-									onChangeText={setGainName}
-									autoCapitalize="sentences"
-									onLayout={handleInputLayout('gain-name')}
-									onFocus={() => scrollToInput('gain-name')}
-								/>
-							</Input>
+						<Box className="w-full items-center">
+							<AddGainIllustration width={180} height={180} />
 						</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Valor do ganho
-							</Text>
-							<Input>
-								<InputField
-									placeholder="Ex: R$ 100,00"
-									value={gainValueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-									onLayout={handleInputLayout('gain-value')}
-									onFocus={() => scrollToInput('gain-value')}
-								/>
-							</Input>
-						</Box>
+						<Text className="text-justify text-gray-600 dark:text-gray-400">
+							{isEditing
+								? 'Atualize os dados do ganho selecionado e salve as alterações. Podendo alterar qualquer informação previamente cadastrada.'
+								: 'Informe os dados abaixo para registrar um novo ganho no sistema. Podendo descrever ele pelo template já estabelecido.'}
+						</Text>
 
-						{/* Seleção do formato de pagamento */}
-						{shouldShowPaymentFormatSelection && (
+						<Divider className="my-6 mb-6" />
+
+						<VStack className="gap-4">
 							<Box>
 								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Formato de pagamento
+									Nome do ganho
+								</Text>
+								<Input isDisabled={isTemplateLocked}>
+									<InputField
+										placeholder="Ex: Venda de produto, prestação de serviço..."
+										value={gainName}
+										onChangeText={setGainName}
+										autoCapitalize="sentences"
+										onLayout={handleInputLayout('gain-name')}
+										onFocus={() => scrollToInput('gain-name')}
+									/>
+								</Input>
+							</Box>
+
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Valor do ganho
+								</Text>
+								<Input>
+									<InputField
+										placeholder="Ex: R$ 100,00"
+										value={gainValueDisplay}
+										onChangeText={handleValueChange}
+										keyboardType="numeric"
+										onLayout={handleInputLayout('gain-value')}
+										onFocus={() => scrollToInput('gain-value')}
+									/>
+								</Input>
+							</Box>
+
+							{/* Seleção do formato de pagamento */}
+							{shouldShowPaymentFormatSelection && (
+								<Box>
+									<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+										Formato de pagamento
+									</Text>
+									<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
+										<CheckboxGroup
+											value={paymentFormat}
+											onChange={(keys: string[]) => {
+												setPaymentFormat(keys);
+											}}
+										>
+											<HStack space="2xl">
+												<Checkbox
+													value="Variable"
+													isDisabled={
+														!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
+													}
+												>
+													<CheckboxIndicator>
+														<CheckboxIcon as={CheckIcon} />
+													</CheckboxIndicator>
+
+													<CheckboxLabel>Renda variável</CheckboxLabel>
+												</Checkbox>
+
+												<Checkbox
+													value="External"
+													isDisabled={
+														!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
+													}
+												>
+													<CheckboxIndicator>
+														<CheckboxIcon as={CheckIcon} />
+													</CheckboxIndicator>
+
+													<CheckboxLabel>Pagamento externo</CheckboxLabel>
+												</Checkbox>
+											</HStack>
+										</CheckboxGroup>
+									</View>
+								</Box>
+							)}
+
+							{/* Campo de explicação do ganho */}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Explicação do ganho
+								</Text>
+								<Textarea
+									size="md"
+									isReadOnly={false}
+									isInvalid={false}
+									isDisabled={shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false}
+									className="h-32"
+								>
+									<TextareaInput
+										placeholder="(Opcional) Descreva mais detalhes sobre esse ganho..."
+										value={explanationGain ?? ''}
+										onChangeText={setExplanationGain}
+										onLayout={handleInputLayout('gain-explanation')}
+										onFocus={() => scrollToInput('gain-explanation')}
+									/>
+								</Textarea>
+							</Box>
+
+
+							{/* Pergunta se foi recebido em dinheiro */}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Pagamento em dinheiro
 								</Text>
 								<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-									<CheckboxGroup
-										value={paymentFormat}
-										onChange={(keys: string[]) => {
-											setPaymentFormat(keys);
-										}}
-									>
-										<HStack space="2xl">
-											<Checkbox
-												value="Variable"
-												isDisabled={
-													!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('External')
-												}
+									<HStack className="items-center justify-between">
+										<View className="flex-1 mr-3">
+											<Text
+												className={`font-semibold text-gray-800 dark:text-gray-200 ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+													}`}
 											>
-												<CheckboxIndicator>
-													<CheckboxIcon as={CheckIcon} />
-												</CheckboxIndicator>
-
-												<CheckboxLabel>Renda variável</CheckboxLabel>
-											</Checkbox>
-
-											<Checkbox
-												value="External"
-												isDisabled={
-													!gainValueDisplay || gainValueCents === 0 || paymentFormat.includes('Variable')
+												Pagamento em dinheiro
+											</Text>
+											<Text className={`text-gray-600 dark:text-gray-400 text-sm ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
+												}`}>
+												Indique se esse ganho foi recebido em dinheiro
+											</Text>
+										</View>
+										<Switch
+											value={moneyFormat}
+											onValueChange={() => {
+												if (isBankSelectionLocked) {
+													return;
 												}
-											>
-												<CheckboxIndicator>
-													<CheckboxIcon as={CheckIcon} />
-												</CheckboxIndicator>
-
-												<CheckboxLabel>Pagamento externo</CheckboxLabel>
-											</Checkbox>
-										</HStack>
-									</CheckboxGroup>
+												setMoneyFormat(!moneyFormat);
+												setSelectedBankId(null);
+												setSelectedMovementBankName(null);
+											}}
+											disabled={
+												isBankSelectionLocked ||
+												(shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false)
+											}
+											trackColor={{ false: '#d4d4d4', true: '#525252' }}
+											thumbColor="#fafafa"
+											ios_backgroundColor="#d4d4d4"
+										/>
+									</HStack>
 								</View>
 							</Box>
-						)}
 
-						{/* Campo de explicação do ganho */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Explicação do ganho
-							</Text>
-							<Textarea
-								size="md"
-								isReadOnly={false}
-								isInvalid={false}
-								isDisabled={shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false}
-								className="h-32"
-							>
-								<TextareaInput
-									placeholder="(Opcional) Descreva mais detalhes sobre esse ganho..."
-									value={explanationGain ?? ''}
-									onChangeText={setExplanationGain}
-									onLayout={handleInputLayout('gain-explanation')}
-									onFocus={() => scrollToInput('gain-explanation')}
-								/>
-							</Textarea>
-						</Box>
-
-
-						{/* Pergunta se foi recebido em dinheiro */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Pagamento em dinheiro
-							</Text>
-							<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-								<HStack className="items-center justify-between">
-									<View className="flex-1 mr-3">
-										<Text
-											className={`font-semibold ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
-												}`}
-										>
-											Pagamento em dinheiro
+							{/* Seleção da tag do ganho */}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Tag do ganho
+								</Text>
+								{isTagSelectionLocked ? (
+									<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
+										<Text className="font-semibold mb-1 text-gray-800 dark:text-gray-200">
+											{isTemplateLocked ? 'Tag do ganho obrigatório' : 'Tag definida automaticamente'}
 										</Text>
-										<Text className={`text-gray-600 dark:text-gray-400 text-sm ${shouldShowPaymentFormatSelection && paymentFormat.length === 0 ? 'opacity-50' : ''
-											}`}>
-											Indique se esse ganho foi recebido em dinheiro
+										<Text className="text-gray-700 dark:text-gray-300">
+											{templateTagDisplayName ?? 'Tag não encontrada'}
 										</Text>
-									</View>
-									<Switch
-										value={moneyFormat}
-										onValueChange={() => {
-											setMoneyFormat(!moneyFormat);
-											setSelectedBankId(null);
-											setSelectedMovementBankName(null);
+									</Box>
+								) : (
+									<Select
+										selectedValue={selectedMovementTagName}
+										onValueChange={setSelectedTagId}
+										isDisabled={isLoadingTags || tags.length === 0}
+									>
+										<SelectTrigger>
+											<SelectInput placeholder="Selecione uma tag para o ganho" />
+											<SelectIcon />
+										</SelectTrigger>
+
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+
+												{tags.length > 0 ? (
+													tags.map(tag => (
+														<SelectItem key={tag.id} label={tag.name} value={tag.id} />
+													))
+												) : (
+													<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+								)}
+							</Box>
+
+							{/* Seleção do banco do ganho */}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Banco do ganho
+								</Text>
+								{isBankSelectionLocked ? (
+									<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
+										<Text className="font-semibold mb-1 text-gray-800 dark:text-gray-200">
+											Banco definido automaticamente
+										</Text>
+										<Text className="text-gray-700 dark:text-gray-300">
+											{selectedMovementBankName ??
+												templateData?.bankName ??
+												(banks.find(bank => bank.id === templateData?.bankId)?.name ?? 'Banco não encontrado')}
+										</Text>
+									</Box>
+								) : (
+									<Select
+										selectedValue={selectedBankId ?? undefined}
+										onValueChange={value => {
+											setSelectedBankId(value);
+											const matched = banks.find(bank => bank.id === value);
+											setSelectedMovementBankName(matched?.name ?? null);
 										}}
-										disabled={
-											shouldShowPaymentFormatSelection ? paymentFormat.length === 0 : false
-										}
-										trackColor={{ false: '#d4d4d4', true: '#525252' }}
-										thumbColor="#fafafa"
-										ios_backgroundColor="#d4d4d4"
+										isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
+									>
+										<SelectTrigger>
+											<SelectInput placeholder="Selecione o banco onde o ganho foi recebido" />
+											<SelectIcon />
+										</SelectTrigger>
+
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+
+												{banks.length > 0 ? (
+													banks.map(bank => (
+														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													))
+												) : (
+													<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+								)}
+							</Box>
+
+							{/* Campo de data do ganho */}
+							<Box>
+								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+									Data do ganho
+								</Text>
+								<Input>
+									<InputField
+										placeholder="Data do ganho (DD/MM/AAAA)"
+										value={gainDate}
+										onChangeText={handleDateChange}
+										autoCorrect={false}
+										keyboardType="numbers-and-punctuation"
+										onLayout={handleInputLayout('gain-date')}
+										onFocus={() => scrollToInput('gain-date')}
 									/>
-								</HStack>
-							</View>
-						</Box>
+								</Input>
+							</Box>
 
-						{/* Seleção da tag do ganho */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Tag do ganho
-							</Text>
-							{isTagSelectionLocked ? (
-								<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-									<Text className="font-semibold mb-1">
-										{isTemplateLocked ? 'Tag do ganho obrigatório' : 'Tag definida automaticamente'}
-									</Text>
-									<Text className="text-gray-700 dark:text-gray-300">
-										{templateTagDisplayName ?? 'Tag não encontrada'}
-									</Text>
-								</Box>
-							) : (
-								<Select
-									selectedValue={selectedMovementTagName}
-									onValueChange={setSelectedTagId}
-									isDisabled={isLoadingTags || tags.length === 0}
-								>
-									<SelectTrigger>
-										<SelectInput placeholder="Selecione uma tag para o ganho" />
-										<SelectIcon />
-									</SelectTrigger>
-
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-
-											{tags.length > 0 ? (
-												tags.map(tag => (
-													<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-												))
-											) : (
-												<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-											)}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
+							{isEditing && isLoadingExisting && (
+								<Text className="text-sm text-gray-500 dark:text-gray-400">
+									Carregando informações do ganho selecionado...
+								</Text>
 							)}
-						</Box>
 
-						{/* Seleção do banco do ganho */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Banco do ganho
-							</Text>
-							<Select
-								selectedValue={selectedMovementBankName}
-								onValueChange={setSelectedBankId}
-								isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
+							<Button
+								className="w-full mt-2"
+								size="sm"
+								variant="outline"
+								onPress={handleSubmit}
+								isDisabled={
+									isLoadingExisting ||
+									isSubmitting ||
+									!gainName.trim() ||
+									gainValueCents === null ||
+									!selectedTagId ||
+									(!moneyFormat && !selectedBankId) ||
+									!gainDate
+								}
 							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione o banco onde o ganho foi recebido" />
-									<SelectIcon />
-								</SelectTrigger>
+								{isSubmitting ? (
+									<ButtonSpinner />
+								) : (
+									<ButtonText>{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
+								)}
+							</Button>
+						</VStack>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
+				<Menu defaultValue={1} />
 
-										{banks.length > 0 ? (
-											banks.map(bank => (
-												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-											))
-										) : (
-											<SelectItem key="no-bank" label="Nenhum banco disponível" value="no-bank" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
-						</Box>
-
-						{/* Campo de data do ganho */}
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Data do ganho
-							</Text>
-							<Input>
-								<InputField
-									placeholder="Data do ganho (DD/MM/AAAA)"
-									value={gainDate}
-									onChangeText={handleDateChange}
-									autoCorrect={false}
-									keyboardType="numbers-and-punctuation"
-									onLayout={handleInputLayout('gain-date')}
-									onFocus={() => scrollToInput('gain-date')}
-								/>
-							</Input>
-						</Box>
-
-						{isEditing && isLoadingExisting && (
-							<Text className="text-sm text-gray-500 dark:text-gray-400">
-								Carregando informações do ganho selecionado...
-							</Text>
-						)}
-
-						<Button
-							className="w-full mt-2"
-							size="sm"
-							variant="outline"
-							onPress={handleSubmit}
-							isDisabled={
-								isLoadingExisting ||
-								isSubmitting ||
-								!gainName.trim() ||
-								gainValueCents === null ||
-								!selectedTagId ||
-								(!moneyFormat && !selectedBankId) ||
-								!gainDate
-							}
-						>
-							{isSubmitting ? (
-								<ButtonSpinner />
-							) : (
-								<ButtonText>{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
-							)}
-						</Button>
-					</VStack>
-					</View>
-				</ScrollView>
-			</KeyboardAvoidingView>
-
-			<Menu defaultValue={1} />
-
-		</View>
+			</View>
+		</SafeAreaView>
 	);
 }

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Componentes Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -18,11 +19,14 @@ import { Menu } from '@/components/uiverse/menu';
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Importação do SVG
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
 export default function AddUserRelationScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	// Input do ID do usuário a ser relacionado
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -149,6 +153,8 @@ export default function AddUserRelationScreen() {
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+		<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
 		<View
 			className="
 					flex-1 w-full h-full
@@ -158,6 +164,7 @@ export default function AddUserRelationScreen() {
 					pb-6
 					relative
 				"
+			style={{ backgroundColor: pageBackground }}
 		>
 			<FloatingAlertViewport />
 
@@ -209,6 +216,7 @@ export default function AddUserRelationScreen() {
 
 			<Menu defaultValue={2} />
 		</View>
+		</SafeAreaView>
 		</TouchableWithoutFeedback>
 	);
 }

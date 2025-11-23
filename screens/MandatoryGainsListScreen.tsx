@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
@@ -40,6 +41,7 @@ import { deleteGainFirebase } from '@/functions/GainFirebase';
 import MandatoryGainListIllustration from '../assets/UnDraw/mandatoryGainsListScreen.svg';
 import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 type MandatoryGainItem = {
 	id: string;
@@ -123,6 +125,8 @@ const formatReceiptDate = (value: Date | null) => {
 };
 
 export default function MandatoryGainsListScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
@@ -428,27 +432,32 @@ export default function MandatoryGainsListScreen() {
 	const isModalOpen = Boolean(pendingAction);
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-		>
-			<FloatingAlertViewport />
-
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-				}}
+		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
+			<View
+				className="
+					flex-1 w-full h-full
+					mt-[64px]
+					items-center
+					justify-between
+					pb-6
+					relative
+				"
+				style={{ backgroundColor: pageBackground }}
 			>
-				<View className="w-full px-6">
+				<FloatingAlertViewport />
+
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{
+						flexGrow: 1,
+						paddingBottom: 48,
+						backgroundColor: pageBackground,
+					}}
+				>
+					<View className="w-full px-6">
 					<Heading size="3xl" className="text-center mb-6">
 						Ganhos obrigatórios
 					</Heading>
@@ -558,11 +567,11 @@ export default function MandatoryGainsListScreen() {
 						</VStack>
 					)}
 				</View>
-			</ScrollView>
+				</ScrollView>
 
-			<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
+				<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
 
-			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 				<ModalBackdrop />
 				<ModalContent className="max-w-[360px]">
 					<ModalHeader>
@@ -594,6 +603,7 @@ export default function MandatoryGainsListScreen() {
 					</ModalFooter>
 				</ModalContent>
 			</Modal>
-		</View>
+			</View>
+		</SafeAreaView>
 	);
 }

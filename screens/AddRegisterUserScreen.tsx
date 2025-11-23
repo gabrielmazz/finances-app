@@ -1,5 +1,6 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View } from 'react-native';
+import { Keyboard, TouchableWithoutFeedback, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -22,11 +23,14 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 // Importações relacionadas à navegação e autenticação
 import { router } from 'expo-router';
 import { Menu } from '@/components/uiverse/menu';
+import { useAppTheme } from '@/contexts/ThemeContext';
 
 // Importação do SVG
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
 export default function AddRegisterUserScreen() {
+	const { isDarkMode } = useAppTheme();
+	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 
     // Variavel resposável por mostrar ou não a senha do usuário
     const [showPassword, setShowPassword] = React.useState(false);
@@ -76,6 +80,8 @@ export default function AddRegisterUserScreen() {
 
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
+		<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
         <View className="
 				flex-1 w-full h-full
                 mt-[64px]
@@ -83,6 +89,7 @@ export default function AddRegisterUserScreen() {
                 justify-between
                 pb-6
                 "
+                style={{ backgroundColor: pageBackground }}
         >
 
             <FloatingAlertViewport />
@@ -160,6 +167,7 @@ export default function AddRegisterUserScreen() {
             <Menu defaultValue={2} />
 
         </View>
+        </SafeAreaView>
         </TouchableWithoutFeedback>
 
     );
