@@ -20,6 +20,7 @@ import {
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import { computeMonthlyBankBalances, MonthlyBankBalance } from '@/utils/monthlyBalance';
 
 // Importação do SVG de ilustração
 import MonthlyBankMovementsIllustration from '../assets/UnDraw/monthlyBankSummaryScreen.svg';
@@ -27,16 +28,8 @@ import { Divider } from '@/components/ui/divider';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
 type BankSummary = {
-	id: string;
-	name: string;
-	colorHex?: string | null;
-	totalExpensesInCents: number;
-	totalGainsInCents: number;
-	totalMovements: number;
-	initialBalanceInCents: number | null;
-	currentBalanceInCents: number | null;
 	isCashSummary?: boolean;
-};
+} & MonthlyBankBalance;
 
 function formatCurrencyBRLBase(valueInCents: number): string {
 	return new Intl.NumberFormat('pt-BR', {
@@ -165,153 +158,105 @@ export default function MonthlyBankSummaryScreen() {
 								? cashGainsResult.data
 								: [];
 
-					// Obtém os saldos iniciais por banco, consultando para cada banco individualmente
-					const balanceResults = await Promise.all(
+					const [balanceResults, investmentResults] = await Promise.all([
+						Promise.all(
+							banksArray.map(async bank => {
+								const bankId = typeof bank?.id === 'string' ? bank.id : '';
 
-						// Para cada banco, obtém o saldo mensal inicial
-						banksArray.map(async bank => {
-
-							// Extrai o ID do banco
-							const bankId = typeof bank?.id === 'string' ? bank.id : '';
-
-							// Se não houver ID do banco, retorna nulo diretamente
-							if (!bankId) {
-								return { bankId, valueInCents: null };
-							}
-
-							// Consulta o saldo mensal para o banco atual
-							try {
-								const balanceResponse = await getMonthlyBalanceFirebaseRelatedToUser({
-									personId: currentUser.uid,
-									bankId,
-									year: currentYear,
-									month: currentMonth,
-								});
-
-								if (balanceResponse.success && balanceResponse.data) {
-									const value =
-										typeof balanceResponse.data.valueInCents === 'number'
-											? balanceResponse.data.valueInCents
-											: 0;
-									return { bankId, valueInCents: value };
+								if (!bankId) {
+									return { bankId, valueInCents: null };
 								}
 
-								return { bankId, valueInCents: null };
-							} catch (error) {
-								console.error(`Erro ao obter saldo mensal para o banco ${bankId}:`, error);
-								return { bankId, valueInCents: null };
-							}
-						}),
+								try {
+									const balanceResponse = await getMonthlyBalanceFirebaseRelatedToUser({
+										personId: currentUser.uid,
+										bankId,
+										year: currentYear,
+										month: currentMonth,
+									});
 
-					);
+									if (
+										balanceResponse?.success &&
+										balanceResponse.data &&
+										typeof balanceResponse.data.valueInCents === 'number'
+									) {
+										return { bankId, valueInCents: balanceResponse.data.valueInCents };
+									}
 
-					const balancesByBank: Record<string, number | null> = {};
-					for (const result of balanceResults) {
-						if (result.bankId) {
-							balancesByBank[result.bankId] = result.valueInCents;
-						}
-					}
+									return { bankId, valueInCents: null };
+								} catch (error) {
+									console.error(`Erro ao obter saldo mensal para o banco ${bankId}:`, error);
+									return { bankId, valueInCents: null };
+								}
+							}),
+						),
+						Promise.all(
+							banksArray.map(async bank => {
+								const bankId = typeof bank?.id === 'string' ? bank.id : '';
 
-					const investmentResults = await Promise.all(
-						banksArray.map(async bank => {
-							const bankId = typeof bank?.id === 'string' ? bank.id : '';
-							if (!bankId) {
+								if (!bankId) {
+									return { bankId, investments: [] as any[] };
+								}
+
+								const response = await getFinanceInvestmentsByPeriodFirebase({
+									personId: currentUser.uid,
+									bankId,
+									startDate: startOfMonth,
+									endDate: endOfMonth,
+								});
+
+								if (response?.success && Array.isArray(response.data)) {
+									const normalizedInvestments = (response.data as any[]).map(raw => ({
+										...raw,
+										bankId,
+										initialValueInCents:
+											typeof raw?.initialValueInCents === 'number' ? raw.initialValueInCents : undefined,
+										valueInCents: typeof raw?.valueInCents === 'number' ? raw.valueInCents : undefined,
+										lastManualSyncValueInCents:
+											typeof raw?.lastManualSyncValueInCents === 'number'
+												? raw.lastManualSyncValueInCents
+												: null,
+									}));
+									return { bankId, investments: normalizedInvestments };
+								}
+
 								return { bankId, investments: [] as any[] };
-							}
-							const response = await getFinanceInvestmentsByPeriodFirebase({
-								personId: currentUser.uid,
-								bankId,
-								startDate: startOfMonth,
-								endDate: endOfMonth,
-							});
-							if (response?.success && Array.isArray(response.data)) {
-								return { bankId, investments: response.data as any[] };
-							}
-							return { bankId, investments: [] as any[] };
-						}),
-					);
+							}),
+						),
+					]);
 
-					const investmentsByBank: Record<string, { total: number; count: number }> = {};
-					for (const item of investmentResults) {
-						const bankId = item.bankId;
-						const investments = Array.isArray(item.investments) ? item.investments : [];
-						const total = investments.reduce((acc, inv) => {
-							const value =
-								typeof inv?.initialValueInCents === 'number' && !Number.isNaN(inv.initialValueInCents)
-									? inv.initialValueInCents
-									: 0;
-							return acc + value;
-						}, 0);
-						investmentsByBank[bankId] = {
-							total,
-							count: investments.length,
-						};
-					}
+					const balancesByBank = balanceResults.reduce<Record<string, number | null>>((acc, result) => {
+						if (result.bankId) {
+							acc[result.bankId] = typeof result.valueInCents === 'number' ? result.valueInCents : null;
+						}
+						return acc;
+					}, {});
 
-					// Monta o summary por banco, passando pelo array de bancos
-					const summaries: BankSummary[] = banksArray.map(bank => {
+					const investmentsByBank = investmentResults.reduce<Record<string, any[]>>((acc, item) => {
+						if (item.bankId) {
+							acc[item.bankId] = Array.isArray(item.investments) ? item.investments : [];
+						}
+						return acc;
+					}, {});
 
-						// Extrai os dados do banco
-						const bankId = typeof bank?.id === 'string' ? bank.id : '';
-						const bankName =
-							typeof bank?.name === 'string' && bank.name.trim().length > 0
-								? bank.name.trim()
-								: 'Banco sem nome';
-						const colorHex =
-							typeof bank?.colorHex === 'string' && bank.colorHex.trim().length > 0
-								? bank.colorHex.trim()
-								: null;
-
-						// Filtra as despesas e ganhos relacionados a esse banco
-						const bankExpenses = expensesArray.filter(expense => expense?.bankId === bankId);
-						const bankGains = gainsArray.filter(gain => gain?.bankId === bankId);
-
-						// Calcula os totais, saldos e movimentações
-						const totalExpensesInCents = bankExpenses.reduce((acc, expense) => {
-							const value = typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0;
-							return acc + value;
-						}, 0);
-
-						// Calcula o total de ganhos
-						const totalGainsInCents = bankGains.reduce((acc, gain) => {
-							const value = typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0;
-							return acc + value;
-						}, 0);
-
-						const investmentSummary = investmentsByBank[bankId] ?? { total: 0, count: 0 };
-						const redeemedFromInvestmentsInCents = bankGains.reduce((acc, gain) => {
-							if (gain?.isInvestmentRedemption && typeof gain?.valueInCents === 'number') {
-								return acc + gain.valueInCents;
-							}
-							return acc;
-						}, 0);
-
-						// Soma o que ainda está aplicado com o que já foi resgatado no mês para refletir o impacto no caixa
-						const investmentOutflowInCents = investmentSummary.total + redeemedFromInvestmentsInCents;
-
-						// Calcula o total de movimentações realizadas durante o mês
-						const totalMovements = bankExpenses.length + bankGains.length + investmentSummary.count;
-
-						// Calcula os saldos inicial, registrado no início do mês na tela AddRegisterMonthlyBalanceScreen
-						const initialBalanceInCents = balancesByBank[bankId] ?? null;
-
-						// Calcula o saldo atual considerando o saldo inicial + ganhos - despesas - aportes em investimentos
-						const totalExpensesIncludingInvestments = totalExpensesInCents + investmentOutflowInCents;
-						const currentBalanceInCents =
-							typeof initialBalanceInCents === 'number'
-								? initialBalanceInCents + (totalGainsInCents - totalExpensesIncludingInvestments)
-								: null;
-
-						return {
-							id: bankId,
-							name: bankName,
-							colorHex,
-							totalExpensesInCents: totalExpensesIncludingInvestments,
-							totalGainsInCents,
-							totalMovements,
-							initialBalanceInCents,
-							currentBalanceInCents,
-						};
+					const summaries: BankSummary[] = computeMonthlyBankBalances({
+						banks: banksArray
+							.map(bank => ({
+								id: typeof bank?.id === 'string' ? bank.id : '',
+								name:
+									typeof bank?.name === 'string' && bank.name.trim().length > 0
+										? bank.name.trim()
+										: 'Banco sem nome',
+								colorHex:
+									typeof bank?.colorHex === 'string' && bank.colorHex.trim().length > 0
+										? bank.colorHex.trim()
+										: null,
+							}))
+							.filter(bank => bank.id),
+						initialBalancesByBank: balancesByBank,
+						expenses: expensesArray,
+						gains: gainsArray,
+						investmentsByBank,
 					});
 
 					const sumValues = (items: any[]) =>
@@ -338,6 +283,8 @@ export default function MonthlyBankSummaryScreen() {
 									colorHex: '#525252',
 									totalExpensesInCents: totalCashExpensesInCents,
 									totalGainsInCents: totalCashGainsInCents,
+									totalInvestedInCents: 0,
+									totalInvestmentRedemptionsInCents: 0,
 									totalMovements: totalCashMovements,
 									initialBalanceInCents: null,
 									currentBalanceInCents: totalCashGainsInCents - totalCashExpensesInCents,
@@ -458,6 +405,16 @@ export default function MonthlyBankSummaryScreen() {
 													{formatCurrencyBRL(bank.totalExpensesInCents)}
 												</Text>
 											</Text>
+											{!isCashSummary && bank.totalInitialInvestedInCents > 0 && (
+												<>
+													<Text className="mt-1 text-gray-700 dark:text-gray-300">
+														Valor investido:{' '}
+														<Text className="text-indigo-600 dark:text-indigo-300 font-semibold">
+															{formatCurrencyBRL(bank.totalInitialInvestedInCents)}
+														</Text>
+													</Text>
+												</>
+											)}
 											<Text className="mt-1 text-gray-700 dark:text-gray-300">
 												Saldo inicial:{' '}
 												<Text

@@ -101,6 +101,27 @@ const BASE_CDI_ANNUAL_RATE = 0.1375;
 
 const convertCentsToBRL = (valueInCents: number) => valueInCents / 100;
 const sanitizeNumberInput = (value: string) => value.replace(/[^\d.,]/g, '');
+const extractDigits = (value: string) => value.replace(/\D/g, '');
+
+const formatCurrencyInputValue = (value: string) => {
+	const digits = extractDigits(value);
+	if (!digits) {
+		return { display: '', cents: null as number | null };
+	}
+	const cents = Number(digits);
+	return {
+		display: formatCurrencyBRLRaw(cents / 100),
+		cents,
+	};
+};
+
+const parseCurrencyInputToCents = (value: string) => {
+	const digits = extractDigits(value);
+	if (!digits) {
+		return null;
+	}
+	return Number(digits);
+};
 
 const parseStringToNumber = (value: string) => {
 	if (!value.trim()) {
@@ -193,9 +214,17 @@ export default function FinancialListScreen() {
 	const [investmentPendingDeletion, setInvestmentPendingDeletion] = React.useState<FinanceInvestment | null>(null);
 	const [isDeleting, setIsDeleting] = React.useState(false);
 	const [investmentForWithdrawal, setInvestmentForWithdrawal] = React.useState<FinanceInvestment | null>(null);
+	const [investmentForWithdrawalSync, setInvestmentForWithdrawalSync] = React.useState<FinanceInvestment | null>(null);
+	const [withdrawSyncInput, setWithdrawSyncInput] = React.useState('');
+	const [isSavingWithdrawalSync, setIsSavingWithdrawalSync] = React.useState(false);
+	const [syncedWithdrawalValueInCents, setSyncedWithdrawalValueInCents] = React.useState<number | null>(null);
 	const [withdrawInput, setWithdrawInput] = React.useState('');
 	const [isSavingWithdrawal, setIsSavingWithdrawal] = React.useState(false);
 	const [investmentForDeposit, setInvestmentForDeposit] = React.useState<FinanceInvestment | null>(null);
+	const [investmentForDepositSync, setInvestmentForDepositSync] = React.useState<FinanceInvestment | null>(null);
+	const [depositSyncInput, setDepositSyncInput] = React.useState('');
+	const [isSavingDepositSync, setIsSavingDepositSync] = React.useState(false);
+	const [syncedDepositValueInCents, setSyncedDepositValueInCents] = React.useState<number | null>(null);
 	const [depositInput, setDepositInput] = React.useState('');
 	const [isSavingDeposit, setIsSavingDeposit] = React.useState(false);
 	const [investmentForSync, setInvestmentForSync] = React.useState<FinanceInvestment | null>(null);
@@ -212,6 +241,30 @@ export default function FinancialListScreen() {
 		},
 		[shouldHideValues],
 	);
+
+	const handleEditInitialInputChange = React.useCallback((value: string) => {
+		setEditInitialInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleDepositInputChange = React.useCallback((value: string) => {
+		setDepositInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleDepositSyncInputChange = React.useCallback((value: string) => {
+		setDepositSyncInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleWithdrawInputChange = React.useCallback((value: string) => {
+		setWithdrawInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleWithdrawSyncInputChange = React.useCallback((value: string) => {
+		setWithdrawSyncInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleManualSyncInputChange = React.useCallback((value: string) => {
+		setSyncInput(formatCurrencyInputValue(value).display);
+	}, []);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
@@ -341,7 +394,7 @@ export default function FinancialListScreen() {
 	}, []);
 
 	const totalInvested = React.useMemo(
-		() => convertCentsToBRL(investments.reduce((total, current) => total + current.initialValueInCents, 0)),
+		() => convertCentsToBRL(investments.reduce((total, current) => total + resolveBaseValueInCents(current), 0)),
 		[investments],
 	);
 
@@ -384,7 +437,7 @@ export default function FinancialListScreen() {
 				};
 			}
 
-			summaries[bankKey].totalInvested += convertCentsToBRL(investment.initialValueInCents);
+			summaries[bankKey].totalInvested += convertCentsToBRL(resolveBaseValueInCents(investment));
 			summaries[bankKey].totalSimulated += simulateCurrentValue(investment);
 			summaries[bankKey].totalDailyYield += simulateDailyYield(investment);
 			summaries[bankKey].investmentCount += 1;
@@ -392,6 +445,20 @@ export default function FinancialListScreen() {
 
 		return Object.values(summaries).sort((a, b) => b.totalInvested - a.totalInvested);
 	}, [banksMap, investments]);
+
+	const syncedWithdrawalDisplayValue = React.useMemo(() => {
+		if (syncedWithdrawalValueInCents === null) {
+			return 'Sincronize o valor para continuar';
+		}
+		return formatCurrencyBRL(convertCentsToBRL(syncedWithdrawalValueInCents));
+	}, [formatCurrencyBRL, syncedWithdrawalValueInCents]);
+
+	const syncedDepositDisplayValue = React.useMemo(() => {
+		if (syncedDepositValueInCents === null) {
+			return 'Sincronize o valor para continuar';
+		}
+		return formatCurrencyBRL(convertCentsToBRL(syncedDepositValueInCents));
+	}, [formatCurrencyBRL, syncedDepositValueInCents]);
 
 	const handleNavigateToAdd = React.useCallback(() => {
 		router.push('/add-finance');
@@ -417,7 +484,7 @@ export default function FinancialListScreen() {
 	const handleOpenEditModal = React.useCallback((investment: FinanceInvestment) => {
 		setEditingInvestment(investment);
 		setEditName(investment.name);
-		setEditInitialInput((convertCentsToBRL(investment.initialValueInCents)).toString().replace('.', ','));
+		setEditInitialInput(formatCurrencyBRLRaw(convertCentsToBRL(investment.initialValueInCents)));
 		setEditCdiInput(investment.cdiPercentage.toString());
 		setEditTerm(investment.redemptionTerm);
 		setEditBankId(investment.bankId);
@@ -428,10 +495,10 @@ export default function FinancialListScreen() {
 			return;
 		}
 
-		const parsedInitial = parseStringToNumber(editInitialInput);
+		const parsedInitialCents = parseCurrencyInputToCents(editInitialInput);
 		const parsedCdi = parseStringToNumber(editCdiInput);
 
-		if (editName.trim().length === 0 || !Number.isFinite(parsedInitial) || parsedInitial <= 0) {
+		if (editName.trim().length === 0 || parsedInitialCents === null || parsedInitialCents <= 0) {
 			showFloatingAlert({
 				message: 'Informe um nome e um valor inicial válidos.',
 				action: 'warning',
@@ -454,7 +521,7 @@ export default function FinancialListScreen() {
 			const result = await updateFinanceInvestmentFirebase({
 				investmentId: editingInvestment.id,
 				name: editName.trim(),
-				initialValueInCents: Math.round(parsedInitial * 100),
+				initialValueInCents: parsedInitialCents,
 				cdiPercentage: parsedCdi,
 				redemptionTerm: editTerm,
 				bankId: editBankId,
@@ -524,8 +591,12 @@ export default function FinancialListScreen() {
 	}, [investmentPendingDeletion, loadData]);
 
 	const handleOpenDepositModal = React.useCallback((investment: FinanceInvestment) => {
-		setInvestmentForDeposit(investment);
+		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+		setInvestmentForDeposit(null);
+		setSyncedDepositValueInCents(null);
 		setDepositInput('');
+		setInvestmentForDepositSync(investment);
+		setDepositSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
 	}, []);
 
 	const handleCloseDepositModal = React.useCallback(() => {
@@ -534,14 +605,33 @@ export default function FinancialListScreen() {
 		}
 		setInvestmentForDeposit(null);
 		setDepositInput('');
+		setSyncedDepositValueInCents(null);
 	}, [isSavingDeposit]);
+
+	const handleCloseDepositSyncModal = React.useCallback(() => {
+		if (isSavingDepositSync) {
+			return;
+		}
+		setInvestmentForDepositSync(null);
+		setDepositSyncInput('');
+		setSyncedDepositValueInCents(null);
+	}, [isSavingDepositSync]);
 
 	const handleConfirmDeposit = React.useCallback(async () => {
 		if (!investmentForDeposit) {
 			return;
 		}
-		const parsedValue = parseStringToNumber(depositInput);
-		if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+		if (syncedDepositValueInCents === null) {
+			showFloatingAlert({
+				message: 'Sincronize o valor de hoje antes de adicionar.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		const parsedCents = parseCurrencyInputToCents(depositInput);
+		if (parsedCents === null || parsedCents <= 0) {
 			showFloatingAlert({
 				message: 'Informe um valor válido para adicionar.',
 				action: 'warning',
@@ -553,11 +643,12 @@ export default function FinancialListScreen() {
 		const targetInvestment = investmentForDeposit;
 		setIsSavingDeposit(true);
 		try {
-			const addedCents = Math.round(parsedValue * 100);
+			const addedCents = parsedCents;
 			const tagInfo = await ensureInvestmentTag('expense');
 
 			setInvestmentForDeposit(null);
 			setDepositInput('');
+			setSyncedDepositValueInCents(null);
 			showFloatingAlert({
 				message: 'Finalize o aporte registrando a despesa.',
 				action: 'info',
@@ -585,11 +676,63 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingDeposit(false);
 		}
-	}, [depositInput, ensureInvestmentTag, investmentForDeposit]);
+	}, [depositInput, ensureInvestmentTag, investmentForDeposit, syncedDepositValueInCents]);
+
+	const handleConfirmDepositSync = React.useCallback(async () => {
+		if (!investmentForDepositSync) {
+			return;
+		}
+
+		const parsedCents = parseCurrencyInputToCents(depositSyncInput);
+		if (parsedCents === null || parsedCents <= 0) {
+			showFloatingAlert({
+				message: 'Informe um valor válido para sincronizar.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		setIsSavingDepositSync(true);
+		try {
+			const result = await syncFinanceInvestmentValueFirebase({
+				investmentId: investmentForDepositSync.id,
+				syncedValueInCents: parsedCents,
+			});
+
+			if (!result.success) {
+				throw new Error('Erro ao sincronizar investimento.');
+			}
+
+			await loadData();
+			setSyncedDepositValueInCents(parsedCents);
+			setInvestmentForDeposit(investmentForDepositSync);
+			setInvestmentForDepositSync(null);
+			setDepositInput('');
+			showFloatingAlert({
+				message: 'Valor sincronizado! Agora informe o aporte.',
+				action: 'success',
+				position: 'bottom',
+			});
+		} catch (error) {
+			console.error(error);
+			showFloatingAlert({
+				message: 'Não foi possível sincronizar agora.',
+				action: 'error',
+				position: 'bottom',
+			});
+		} finally {
+			setIsSavingDepositSync(false);
+		}
+	}, [depositSyncInput, investmentForDepositSync, loadData]);
 
 	const handleOpenWithdrawalModal = React.useCallback((investment: FinanceInvestment) => {
-		setInvestmentForWithdrawal(investment);
+		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+		setInvestmentForWithdrawal(null);
+		setSyncedWithdrawalValueInCents(null);
 		setWithdrawInput('');
+		setInvestmentForWithdrawalSync(investment);
+		setWithdrawSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
 	}, []);
 
 	const handleCloseWithdrawalModal = React.useCallback(() => {
@@ -598,15 +741,76 @@ export default function FinancialListScreen() {
 		}
 		setInvestmentForWithdrawal(null);
 		setWithdrawInput('');
+		setSyncedWithdrawalValueInCents(null);
+		setInvestmentForWithdrawalSync(null);
+		setWithdrawSyncInput('');
 	}, [isSavingWithdrawal]);
+
+	const handleCloseWithdrawalSyncModal = React.useCallback(() => {
+		if (isSavingWithdrawalSync) {
+			return;
+		}
+		setInvestmentForWithdrawalSync(null);
+		setWithdrawSyncInput('');
+		setSyncedWithdrawalValueInCents(null);
+	}, [isSavingWithdrawalSync]);
+
+	const handleConfirmWithdrawalSync = React.useCallback(async () => {
+		if (!investmentForWithdrawalSync) {
+			return;
+		}
+
+		const parsedCents = parseCurrencyInputToCents(withdrawSyncInput);
+		if (parsedCents === null || parsedCents <= 0) {
+			showFloatingAlert({
+				message: 'Informe um valor válido para sincronizar.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		setIsSavingWithdrawalSync(true);
+		try {
+			const syncedCents = parsedCents;
+			const result = await syncFinanceInvestmentValueFirebase({
+				investmentId: investmentForWithdrawalSync.id,
+				syncedValueInCents: syncedCents,
+			});
+
+			if (!result.success) {
+				throw new Error('Erro ao sincronizar investimento.');
+			}
+
+			await loadData();
+			setSyncedWithdrawalValueInCents(syncedCents);
+			setInvestmentForWithdrawal(investmentForWithdrawalSync);
+			setInvestmentForWithdrawalSync(null);
+			setWithdrawInput('');
+			showFloatingAlert({
+				message: 'Valor sincronizado! Agora informe quanto deseja resgatar.',
+				action: 'success',
+				position: 'bottom',
+			});
+		} catch (error) {
+			console.error(error);
+			showFloatingAlert({
+				message: 'Não foi possível sincronizar agora.',
+				action: 'error',
+				position: 'bottom',
+			});
+		} finally {
+			setIsSavingWithdrawalSync(false);
+		}
+	}, [investmentForWithdrawalSync, loadData, withdrawSyncInput]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
 			return;
 		}
 
-		const parsedValue = parseStringToNumber(withdrawInput);
-		if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+		const parsedCents = parseCurrencyInputToCents(withdrawInput);
+		if (parsedCents === null || parsedCents <= 0) {
 			showFloatingAlert({
 				message: 'Informe um valor válido para resgatar.',
 				action: 'warning',
@@ -615,10 +819,20 @@ export default function FinancialListScreen() {
 			return;
 		}
 
-		const withdrawCents = Math.round(parsedValue * 100);
-		if (withdrawCents > investmentForWithdrawal.initialValueInCents) {
+		if (syncedWithdrawalValueInCents === null) {
 			showFloatingAlert({
-				message: 'O valor de resgate não pode ser maior que o total investido.',
+				message: 'Sincronize o valor de hoje antes de continuar o resgate.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		const withdrawCents = parsedCents;
+		const availableCents = syncedWithdrawalValueInCents ?? resolveBaseValueInCents(investmentForWithdrawal);
+		if (withdrawCents > availableCents) {
+			showFloatingAlert({
+				message: 'O valor de resgate não pode ser maior que o valor sincronizado.',
 				action: 'warning',
 				position: 'bottom',
 			});
@@ -629,10 +843,22 @@ export default function FinancialListScreen() {
 		const bankInfo = targetInvestment?.bankId ? banksMap[targetInvestment.bankId] : undefined;
 		setIsSavingWithdrawal(true);
 		try {
+			const remainingCents = Math.max(0, availableCents - withdrawCents);
+			const syncResult = await syncFinanceInvestmentValueFirebase({
+				investmentId: targetInvestment.id,
+				syncedValueInCents: remainingCents,
+			});
+
+			if (!syncResult.success) {
+				throw new Error('Erro ao sincronizar valor após resgate.');
+			}
+
+			await loadData();
 			const tagInfo = await ensureInvestmentTag('gain');
 
 			setInvestmentForWithdrawal(null);
 			setWithdrawInput('');
+			setSyncedWithdrawalValueInCents(null);
 			showFloatingAlert({
 				message: 'Finalize o resgate registrando o ganho.',
 				action: 'info',
@@ -664,12 +890,12 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingWithdrawal(false);
 		}
-	}, [banksMap, ensureInvestmentTag, investmentForWithdrawal, withdrawInput]);
+	}, [banksMap, ensureInvestmentTag, investmentForWithdrawal, loadData, syncedWithdrawalValueInCents, withdrawInput]);
 
 	const handleOpenManualSyncModal = React.useCallback((investment: FinanceInvestment) => {
 		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 		setInvestmentForSync(investment);
-		setSyncInput(baseValue > 0 ? baseValue.toFixed(2).replace('.', ',') : '');
+		setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
 	}, []);
 
 	const handleCloseManualSyncModal = React.useCallback(() => {
@@ -685,8 +911,8 @@ export default function FinancialListScreen() {
 			return;
 		}
 
-		const parsedValue = parseStringToNumber(syncInput);
-		if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+		const parsedCents = parseCurrencyInputToCents(syncInput);
+		if (parsedCents === null || parsedCents < 0) {
 			showFloatingAlert({
 				message: 'Informe um valor válido para sincronizar.',
 				action: 'warning',
@@ -699,7 +925,7 @@ export default function FinancialListScreen() {
 		try {
 			const result = await syncFinanceInvestmentValueFirebase({
 				investmentId: investmentForSync.id,
-				syncedValueInCents: Math.round(parsedValue * 100),
+				syncedValueInCents: parsedCents,
 			});
 
 			if (!result.success) {
@@ -730,7 +956,7 @@ export default function FinancialListScreen() {
 		<View
 			className="
 				flex-1 w-full h-full
-				mt-[64px]
+				pt-[64px]
 				items-center
 				justify-between
 				pb-6
@@ -842,6 +1068,12 @@ export default function FinancialListScreen() {
 													Valor investido:{' '}
 													<Text className="font-bold text-orange-600 dark:text-orange-300">
 														{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
+													</Text>
+												</Text>
+												<Text className="text-gray-700 dark:text-gray-300">
+													Valor sincronizado:{' '}
+													<Text className="font-bold text-emerald-600 dark:text-emerald-400">
+														{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
 													</Text>
 												</Text>
 												<Text className="text-gray-700 dark:text-gray-300">
@@ -969,8 +1201,8 @@ export default function FinancialListScreen() {
 								<Input>
 									<InputField
 										value={editInitialInput}
-										onChangeText={text => setEditInitialInput(sanitizeNumberInput(text))}
-										keyboardType="decimal-pad"
+										onChangeText={handleEditInitialInputChange}
+										keyboardType="numeric"
 									/>
 								</Input>
 							</Box>
@@ -1057,6 +1289,48 @@ export default function FinancialListScreen() {
 				</ModalContent>
 			</Modal>
 
+			<Modal isOpen={Boolean(investmentForDepositSync)} onClose={handleCloseDepositSyncModal}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[360px]">
+					<ModalHeader>
+						<Heading size="lg">Sincronizar antes de aportar</Heading>
+						<ModalCloseButton onPress={handleCloseDepositSyncModal} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className="text-gray-600 dark:text-gray-300 mb-3">
+							Confirme o valor disponível hoje em{' '}
+							<Text className="font-semibold">
+								{investmentForDepositSync?.name ?? 'seu investimento'}
+							</Text>
+							. Esse valor será a base do novo aporte.
+						</Text>
+						<Input>
+							<InputField
+								value={depositSyncInput}
+								onChangeText={handleDepositSyncInputChange}
+								keyboardType="numeric"
+								placeholder="Ex: 1.000,00"
+							/>
+						</Input>
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleCloseDepositSyncModal} isDisabled={isSavingDepositSync}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button onPress={handleConfirmDepositSync} isDisabled={isSavingDepositSync}>
+							{isSavingDepositSync ? (
+								<>
+									<ButtonSpinner color="white" />
+									<ButtonText>Sincronizando</ButtonText>
+								</>
+							) : (
+								<ButtonText>Sincronizar e continuar</ButtonText>
+							)}
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
+
 			<Modal isOpen={Boolean(investmentForDeposit)} onClose={handleCloseDepositModal}>
 				<ModalBackdrop />
 				<ModalContent className="max-w-[360px]">
@@ -1065,6 +1339,12 @@ export default function FinancialListScreen() {
 						<ModalCloseButton onPress={handleCloseDepositModal} />
 					</ModalHeader>
 					<ModalBody>
+						<Box className="mb-3">
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor sincronizado</Text>
+							<Input isDisabled>
+								<InputField value={syncedDepositDisplayValue} editable={false} />
+							</Input>
+						</Box>
 						<Text className="text-gray-600 dark:text-gray-300 mb-3">
 							Informe o valor que deseja acrescentar em{' '}
 							<Text className="font-semibold">
@@ -1075,8 +1355,8 @@ export default function FinancialListScreen() {
 						<Input>
 							<InputField
 								value={depositInput}
-								onChangeText={text => setDepositInput(sanitizeNumberInput(text))}
-								keyboardType="decimal-pad"
+								onChangeText={handleDepositInputChange}
+								keyboardType="numeric"
 								placeholder="Ex: 500,00"
 							/>
 						</Input>
@@ -1099,14 +1379,62 @@ export default function FinancialListScreen() {
 				</ModalContent>
 			</Modal>
 
-				<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
-					<ModalBackdrop />
-					<ModalContent className="max-w-[360px]">
+			<Modal isOpen={Boolean(investmentForWithdrawalSync)} onClose={handleCloseWithdrawalSyncModal}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[360px]">
+					<ModalHeader>
+						<Heading size="lg">Sincronizar antes de resgatar</Heading>
+						<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className="text-gray-600 dark:text-gray-300 mb-3">
+							Confirme o valor disponível hoje em{' '}
+							<Text className="font-semibold">
+								{investmentForWithdrawalSync?.name ?? 'seu investimento'}
+							</Text>
+							. Esse valor será usado como base do resgate.
+						</Text>
+						<Input>
+							<InputField
+								value={withdrawSyncInput}
+								onChangeText={handleWithdrawSyncInputChange}
+								keyboardType="numeric"
+								placeholder="Ex: 1.000,00"
+							/>
+						</Input>
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleCloseWithdrawalSyncModal} isDisabled={isSavingWithdrawalSync}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button onPress={handleConfirmWithdrawalSync} isDisabled={isSavingWithdrawalSync}>
+							{isSavingWithdrawalSync ? (
+								<>
+									<ButtonSpinner color="white" />
+									<ButtonText>Sincronizando</ButtonText>
+								</>
+							) : (
+								<ButtonText>Sincronizar e continuar</ButtonText>
+							)}
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
+
+			<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[360px]">
 					<ModalHeader>
 						<Heading size="lg">Resgatar investimento</Heading>
 						<ModalCloseButton onPress={handleCloseWithdrawalModal} />
 					</ModalHeader>
 					<ModalBody>
+						<Box className="mb-3">
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor sincronizado</Text>
+							<Input isDisabled>
+								<InputField value={syncedWithdrawalDisplayValue} editable={false} />
+							</Input>
+						</Box>
 						<Text className="text-gray-600 dark:text-gray-300 mb-3">
 							Quanto você deseja resgatar de{' '}
 							<Text className="font-semibold">
@@ -1117,8 +1445,8 @@ export default function FinancialListScreen() {
 						<Input>
 							<InputField
 								value={withdrawInput}
-								onChangeText={text => setWithdrawInput(sanitizeNumberInput(text))}
-								keyboardType="decimal-pad"
+								onChangeText={handleWithdrawInputChange}
+								keyboardType="numeric"
 								placeholder="Ex: 250,00"
 							/>
 						</Input>
@@ -1138,8 +1466,8 @@ export default function FinancialListScreen() {
 							)}
 						</Button>
 					</ModalFooter>
-					</ModalContent>
-				</Modal>
+				</ModalContent>
+			</Modal>
 
 				<Modal isOpen={Boolean(investmentForSync)} onClose={handleCloseManualSyncModal}>
 					<ModalBackdrop />
@@ -1157,8 +1485,8 @@ export default function FinancialListScreen() {
 							<Input>
 								<InputField
 									value={syncInput}
-									onChangeText={text => setSyncInput(sanitizeNumberInput(text))}
-									keyboardType="decimal-pad"
+									onChangeText={handleManualSyncInputChange}
+									keyboardType="numeric"
 									placeholder="Ex: 1.250,45"
 								/>
 							</Input>
