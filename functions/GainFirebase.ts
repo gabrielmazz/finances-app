@@ -11,13 +11,22 @@ interface AddGainParams {
 	paymentFormats?: string[];
 	explanation?: string | null;
 	moneyFormat?: boolean;
-	tagId: string;
+	tagId?: string | null;
 	bankId?: string | null;
 	date: Date;
 	personId: string;
 	isInvestmentRedemption?: boolean;
 	investmentId?: string | null;
 	investmentNameSnapshot?: string | null;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'incoming' | 'outgoing';
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
 }
 
 interface UpdateGainParams {
@@ -27,9 +36,18 @@ interface UpdateGainParams {
 	paymentFormats?: string[];
 	explanation?: string | null;
 	moneyFormat?: boolean;
-	tagId?: string;
+	tagId?: string | null;
 	bankId?: string | null;
 	date?: Date;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'incoming' | 'outgoing';
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -48,9 +66,19 @@ export async function addGainFirebase({
 	isInvestmentRedemption,
 	investmentId,
 	investmentNameSnapshot,
+	isBankTransfer,
+	bankTransferPairId,
+	bankTransferDirection,
+	bankTransferSourceBankId,
+	bankTransferTargetBankId,
+	bankTransferSourceBankNameSnapshot,
+	bankTransferTargetBankNameSnapshot,
+	bankTransferExpenseId,
+	bankTransferGainId,
 }: AddGainParams) {
 	try {
 		const gainRef = doc(collection(db, 'gains'));
+		const createdAt = new Date();
 
 		await setDoc(gainRef, {
 			name,
@@ -58,15 +86,24 @@ export async function addGainFirebase({
 			paymentFormats,
 			explanation: explanation || null,
 			moneyFormat,
-			tagId,
+			tagId: typeof tagId === 'string' ? tagId : null,
 			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
 			personId,
 			isInvestmentRedemption: Boolean(isInvestmentRedemption),
 			investmentId: investmentId ?? null,
 			investmentNameSnapshot: investmentNameSnapshot ?? null,
-			createdAt: new Date(),
-			updatedAt: new Date(),
+			isBankTransfer: Boolean(isBankTransfer),
+			bankTransferPairId: bankTransferPairId ?? null,
+			bankTransferDirection: bankTransferDirection ?? null,
+			bankTransferSourceBankId: bankTransferSourceBankId ?? null,
+			bankTransferTargetBankId: bankTransferTargetBankId ?? null,
+			bankTransferSourceBankNameSnapshot: bankTransferSourceBankNameSnapshot ?? null,
+			bankTransferTargetBankNameSnapshot: bankTransferTargetBankNameSnapshot ?? null,
+			bankTransferExpenseId: bankTransferExpenseId ?? null,
+			bankTransferGainId: bankTransferGainId ?? null,
+			createdAt,
+			updatedAt: createdAt,
 		});
 
 		return { success: true, gainId: gainRef.id };
@@ -115,6 +152,8 @@ export async function updateGainFirebase({
 
 		if (typeof tagId === 'string') {
 			updates.tagId = tagId;
+		} else if (tagId === null) {
+			updates.tagId = null;
 		}
 
 		if (typeof bankId === 'string' || bankId === null) {
@@ -123,6 +162,42 @@ export async function updateGainFirebase({
 
 		if (date instanceof Date) {
 			updates.date = date;
+		}
+
+		if (typeof isBankTransfer === 'boolean') {
+			updates.isBankTransfer = isBankTransfer;
+		}
+
+		if (bankTransferPairId !== undefined) {
+			updates.bankTransferPairId = bankTransferPairId ?? null;
+		}
+
+		if (typeof bankTransferDirection === 'string') {
+			updates.bankTransferDirection = bankTransferDirection;
+		}
+
+		if (bankTransferSourceBankId !== undefined) {
+			updates.bankTransferSourceBankId = bankTransferSourceBankId ?? null;
+		}
+
+		if (bankTransferTargetBankId !== undefined) {
+			updates.bankTransferTargetBankId = bankTransferTargetBankId ?? null;
+		}
+
+		if (bankTransferSourceBankNameSnapshot !== undefined) {
+			updates.bankTransferSourceBankNameSnapshot = bankTransferSourceBankNameSnapshot ?? null;
+		}
+
+		if (bankTransferTargetBankNameSnapshot !== undefined) {
+			updates.bankTransferTargetBankNameSnapshot = bankTransferTargetBankNameSnapshot ?? null;
+		}
+
+		if (bankTransferExpenseId !== undefined) {
+			updates.bankTransferExpenseId = bankTransferExpenseId ?? null;
+		}
+
+		if (bankTransferGainId !== undefined) {
+			updates.bankTransferGainId = bankTransferGainId ?? null;
 		}
 
 		await setDoc(gainRef, updates, { merge: true });

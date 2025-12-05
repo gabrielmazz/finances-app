@@ -74,16 +74,21 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
+	const isLoginDisabled = email.trim().length === 0 || password.trim().length < 6;
 
     // ============================================= Funções para Login ============================================= //
 
     // Função responsável por fazer login de um usuário já cadastrado, conectando-o ao Firebase Authentication
     const singIn = async () => {
+		if (isLoginDisabled) {
+			alert('Informe login e senha (mínimo 6 caracteres).');
+			return;
+		}
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
             if (userCredential) {
-                router.replace('/home');
+                router.replace({ pathname: '/home', params: { balanceReminder: '1' } });
             }
 
         } catch (error) {
@@ -247,6 +252,7 @@ export default function LoginScreen() {
                                 variant="outline"
                                 onPress={singIn}
 								className={button}
+								isDisabled={isLoginDisabled}
                             >
                                 <ButtonText className={buttonText}>
                                     Entrar
@@ -272,7 +278,7 @@ export default function LoginScreen() {
                             Toque para conhecer o Lumus Finance
                         </Text>
                         <Text className={`text-[10px] mt-1 ${mutedText}`}>
-                            Versão 1.5.0
+                            Versão 1.6.0
                         </Text>
                     </Pressable>
 

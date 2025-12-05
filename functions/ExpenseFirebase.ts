@@ -8,7 +8,7 @@ import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 interface AddExpenseParams {
 	name: string;
 	valueInCents: number;
-	tagId: string;
+	tagId?: string | null;
 	bankId: string | null;
 	date: Date;
 	personId: string;
@@ -17,17 +17,35 @@ interface AddExpenseParams {
 	isInvestmentDeposit?: boolean;
 	investmentId?: string | null;
 	investmentNameSnapshot?: string | null;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'outgoing' | 'incoming';
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
 }
 
 interface UpdateExpenseParams {
 	expenseId: string;
 	name?: string;
 	valueInCents?: number;
-	tagId?: string;
+	tagId?: string | null;
 	bankId?: string | null;
 	date?: Date;
 	explanation?: string | null;
 	moneyFormat?: boolean;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'outgoing' | 'incoming';
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -45,14 +63,24 @@ export async function addExpenseFirebase({
 	isInvestmentDeposit,
 	investmentId,
 	investmentNameSnapshot,
+	isBankTransfer,
+	bankTransferPairId,
+	bankTransferDirection,
+	bankTransferSourceBankId,
+	bankTransferTargetBankId,
+	bankTransferSourceBankNameSnapshot,
+	bankTransferTargetBankNameSnapshot,
+	bankTransferExpenseId,
+	bankTransferGainId,
 }: AddExpenseParams) {
 	try {
 		const expenseRef = doc(collection(db, 'expenses'));
+		const createdAt = new Date();
 
 		await setDoc(expenseRef, {
 			name,
 			valueInCents,
-			tagId,
+			tagId: typeof tagId === 'string' ? tagId : null,
 			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
 			personId,
@@ -61,8 +89,17 @@ export async function addExpenseFirebase({
 			isInvestmentDeposit: Boolean(isInvestmentDeposit),
 			investmentId: investmentId ?? null,
 			investmentNameSnapshot: investmentNameSnapshot ?? null,
-			createdAt: new Date(),
-			updatedAt: new Date(),
+			isBankTransfer: Boolean(isBankTransfer),
+			bankTransferPairId: bankTransferPairId ?? null,
+			bankTransferDirection: bankTransferDirection ?? null,
+			bankTransferSourceBankId: bankTransferSourceBankId ?? null,
+			bankTransferTargetBankId: bankTransferTargetBankId ?? null,
+			bankTransferSourceBankNameSnapshot: bankTransferSourceBankNameSnapshot ?? null,
+			bankTransferTargetBankNameSnapshot: bankTransferTargetBankNameSnapshot ?? null,
+			bankTransferExpenseId: bankTransferExpenseId ?? null,
+			bankTransferGainId: bankTransferGainId ?? null,
+			createdAt,
+			updatedAt: createdAt,
 		});
 
 		return { success: true, expenseId: expenseRef.id };
@@ -98,6 +135,8 @@ export async function updateExpenseFirebase({
 
 		if (typeof tagId === 'string') {
 			updates.tagId = tagId;
+		} else if (tagId === null) {
+			updates.tagId = null;
 		}
 
 		if (bankId !== undefined) {
@@ -114,6 +153,42 @@ export async function updateExpenseFirebase({
 
 		if (typeof moneyFormat === 'boolean') {
 			updates.moneyFormat = moneyFormat;
+		}
+
+		if (typeof isBankTransfer === 'boolean') {
+			updates.isBankTransfer = isBankTransfer;
+		}
+
+		if (bankTransferPairId !== undefined) {
+			updates.bankTransferPairId = bankTransferPairId ?? null;
+		}
+
+		if (typeof bankTransferDirection === 'string') {
+			updates.bankTransferDirection = bankTransferDirection;
+		}
+
+		if (bankTransferSourceBankId !== undefined) {
+			updates.bankTransferSourceBankId = bankTransferSourceBankId ?? null;
+		}
+
+		if (bankTransferTargetBankId !== undefined) {
+			updates.bankTransferTargetBankId = bankTransferTargetBankId ?? null;
+		}
+
+		if (bankTransferSourceBankNameSnapshot !== undefined) {
+			updates.bankTransferSourceBankNameSnapshot = bankTransferSourceBankNameSnapshot ?? null;
+		}
+
+		if (bankTransferTargetBankNameSnapshot !== undefined) {
+			updates.bankTransferTargetBankNameSnapshot = bankTransferTargetBankNameSnapshot ?? null;
+		}
+
+		if (bankTransferExpenseId !== undefined) {
+			updates.bankTransferExpenseId = bankTransferExpenseId ?? null;
+		}
+
+		if (bankTransferGainId !== undefined) {
+			updates.bankTransferGainId = bankTransferGainId ?? null;
 		}
 
 		await setDoc(expenseRef, updates, { merge: true });

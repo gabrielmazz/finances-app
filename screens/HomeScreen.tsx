@@ -1,5 +1,5 @@
 import React from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, TouchableOpacity, View, SafeAreaView, StatusBar } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
@@ -8,6 +8,16 @@ import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { Divider } from '@/components/ui/divider';
+import { Button, ButtonText } from '@/components/ui/button';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+} from '@/components/ui/modal';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 import { auth } from '@/FirebaseConfig';
@@ -96,9 +106,12 @@ export default function HomeScreen() {
 	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const currentYear = React.useMemo(() => new Date().getFullYear(), []);
 	const { shouldHideValues } = useValueVisibility();
+	const searchParams = useLocalSearchParams<{ balanceReminder?: string | string[] }>();
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
 	const [summaryError, setSummaryError] = React.useState<string | null>(null);
+	const [isBalanceReminderOpen, setIsBalanceReminderOpen] = React.useState(false);
+	const [banksMissingBalance, setBanksMissingBalance] = React.useState<Array<{ id: string; name: string }>>([]);
 
 	const monthLabel = React.useMemo(() => {
 		const formatted = new Intl.DateTimeFormat('pt-BR', {
@@ -165,6 +178,13 @@ export default function HomeScreen() {
 	const handleOpenInvestmentsList = React.useCallback(() => {
 		router.push('/financial-list');
 	}, []);
+	const handleCloseBalanceReminder = React.useCallback(() => {
+		setIsBalanceReminderOpen(false);
+	}, []);
+	const handleOpenBalanceRegistration = React.useCallback(() => {
+		setIsBalanceReminderOpen(false);
+		router.push('/register-monthly-balance');
+	}, []);
 
 	// Estado para armazenar o total de despesas
 	const [totalExpensesInCents, setTotalExpensesInCents] = React.useState(0);
@@ -229,6 +249,23 @@ export default function HomeScreen() {
 	});
 	const [isLoadingInvestments, setIsLoadingInvestments] = React.useState(false);
 	const [investmentsError, setInvestmentsError] = React.useState<string | null>(null);
+
+	const shouldForceBalanceReminder = React.useMemo(() => {
+		const value = Array.isArray(searchParams.balanceReminder)
+			? searchParams.balanceReminder[0]
+			: searchParams.balanceReminder;
+		if (!value) {
+			return false;
+		}
+		const normalized = String(value).toLowerCase();
+		return ['1', 'true', 'yes', 'sim'].includes(normalized);
+	}, [searchParams.balanceReminder]);
+
+	React.useEffect(() => {
+		if (shouldForceBalanceReminder && banksMissingBalance.length > 0) {
+			setIsBalanceReminderOpen(true);
+		}
+	}, [banksMissingBalance, shouldForceBalanceReminder]);
 
 	const getBankName = React.useCallback(
 		(bankId: unknown) => {
@@ -777,19 +814,41 @@ export default function HomeScreen() {
 									investmentsByBank,
 								});
 
-								setBankBalances(
-									bankSummaries.map(bank => ({
-										id: bank.id,
-										name: bank.name,
-										balanceInCents: bank.currentBalanceInCents,
-									})),
-								);
+								const balancesPayload = bankSummaries.map(bank => ({
+									id: bank.id,
+									name: bank.name,
+									balanceInCents: bank.currentBalanceInCents,
+								}));
+
+								if (isMounted) {
+									setBankBalances(balancesPayload);
+
+									const banksNeedingBalance = banksArray
+										.map((bank: any) => ({
+											id: typeof bank?.id === 'string' ? bank.id : '',
+											name:
+												typeof bank?.name === 'string' && bank.name.trim().length > 0
+													? bank.name.trim()
+													: 'Banco sem nome',
+										}))
+										.filter(
+											(bank: { id: string }) =>
+												bank.id &&
+												(initialBalancesByBank[bank.id] === null ||
+													initialBalancesByBank[bank.id] === undefined),
+										);
+
+									setBanksMissingBalance(banksNeedingBalance);
+
+								}
 							} else {
 								setBankBalances([]);
+								setBanksMissingBalance([]);
 							}
 						} catch (error) {
 							console.error('Erro ao carregar saldos de bancos:', error);
 							setBankBalances([]);
+							setBanksMissingBalance([]);
 						}
 
 						if (chartIssues.length > 0) {
@@ -1707,6 +1766,40 @@ export default function HomeScreen() {
 
 				</View>
 			</ScrollView>
+			<Modal isOpen={isBalanceReminderOpen} onClose={handleCloseBalanceReminder}>
+				<ModalBackdrop />
+				<ModalContent className="max-w-[380px]">
+					<ModalHeader>
+						<Heading size="lg">Registre o saldo dos bancos</Heading>
+						<ModalCloseButton onPress={handleCloseBalanceReminder} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className="text-gray-700 dark:text-gray-300">
+							Para evitar indisponibilidades, registre o saldo do mês atual nos bancos abaixo.
+						</Text>
+						{banksMissingBalance.length > 0 && (
+							<VStack className="mt-3 gap-2">
+								{banksMissingBalance.map(bank => (
+									<Box
+										key={bank.id}
+										className="bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700"
+									>
+										<Text className="text-gray-800 dark:text-gray-100">{bank.name}</Text>
+									</Box>
+								))}
+							</VStack>
+						)}
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleCloseBalanceReminder}>
+							<ButtonText>Agora não</ButtonText>
+						</Button>
+						<Button variant="solid" onPress={handleOpenBalanceRegistration}>
+							<ButtonText>Registrar saldo</ButtonText>
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
 			<FloatingAlertViewport />
 		</View>
 	);
