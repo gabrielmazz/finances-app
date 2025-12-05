@@ -248,7 +248,13 @@ export default function AddRescueScreen() {
 				const totalGainsInCents = gainsByBank[selectedBankId] ?? 0;
 				const totalInvestmentsInCents = investmentsArray.reduce((acc, investment) => {
 					const value =
-						typeof investment?.initialValueInCents === 'number' ? investment.initialValueInCents : 0;
+						typeof investment?.currentValueInCents === 'number'
+							? investment.currentValueInCents
+							: typeof investment?.lastManualSyncValueInCents === 'number'
+								? investment.lastManualSyncValueInCents
+								: typeof investment?.initialValueInCents === 'number'
+									? investment.initialValueInCents
+									: 0;
 					return acc + value;
 				}, 0);
 

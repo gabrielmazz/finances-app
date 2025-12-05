@@ -48,6 +48,8 @@ import {
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { addGainFirebase } from '@/functions/GainFirebase';
 import { Divider } from '@/components/ui/divider';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
@@ -55,6 +57,7 @@ type FinanceInvestment = {
 	id: string;
 	name: string;
 	initialValueInCents: number;
+	currentValueInCents: number;
 	cdiPercentage: number;
 	redemptionTerm: RedemptionTerm;
 	bankId: string;
@@ -163,6 +166,9 @@ const getDaysSinceDate = (isoDate: string) => {
 };
 
 const resolveBaseValueInCents = (investment: FinanceInvestment) => {
+	if (typeof investment.currentValueInCents === 'number') {
+		return investment.currentValueInCents;
+	}
 	if (typeof investment.lastManualSyncValueInCents === 'number') {
 		return investment.lastManualSyncValueInCents;
 	}
@@ -308,7 +314,19 @@ export default function FinancialListScreen() {
 							? investment.name.trim()
 							: 'Investimento sem nome',
 					initialValueInCents:
-						typeof investment.initialValueInCents === 'number' ? investment.initialValueInCents : 0,
+						typeof investment.initialValueInCents === 'number'
+							? investment.initialValueInCents
+							: typeof investment.initialInvestedInCents === 'number'
+								? investment.initialInvestedInCents
+								: 0,
+					currentValueInCents:
+						typeof investment.currentValueInCents === 'number'
+							? investment.currentValueInCents
+							: typeof investment.lastManualSyncValueInCents === 'number'
+								? investment.lastManualSyncValueInCents
+								: typeof investment.initialValueInCents === 'number'
+									? investment.initialValueInCents
+									: 0,
 					cdiPercentage: typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0,
 					redemptionTerm: (investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
 					bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
@@ -641,42 +659,59 @@ export default function FinancialListScreen() {
 		}
 
 		const targetInvestment = investmentForDeposit;
+		const personId = auth.currentUser?.uid;
+		if (!personId) {
+			showFloatingAlert({
+				message: 'Usuário não autenticado.',
+				action: 'error',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		const newCurrentValue = syncedDepositValueInCents + parsedCents;
 		setIsSavingDeposit(true);
 		try {
-			const addedCents = parsedCents;
 			const tagInfo = await ensureInvestmentTag('expense');
 
+			await syncFinanceInvestmentValueFirebase({
+				investmentId: targetInvestment.id,
+				syncedValueInCents: newCurrentValue,
+			});
+
+			await addExpenseFirebase({
+				name: `Aporte - ${targetInvestment?.name ?? 'Investimento'}`,
+				valueInCents: parsedCents,
+				tagId: tagInfo.id,
+				bankId: targetInvestment.bankId || null,
+				date: new Date(),
+				personId,
+				explanation: `Aporte automático para ${targetInvestment?.name ?? 'investimento'}.`,
+				isInvestmentDeposit: true,
+				investmentId: targetInvestment.id,
+				investmentNameSnapshot: targetInvestment?.name ?? null,
+			});
+
+			await loadData();
 			setInvestmentForDeposit(null);
 			setDepositInput('');
 			setSyncedDepositValueInCents(null);
 			showFloatingAlert({
-				message: 'Finalize o aporte registrando a despesa.',
-				action: 'info',
+				message: 'Aporte registrado e investimento atualizado.',
+				action: 'success',
 				position: 'bottom',
-			});
-			router.push({
-				pathname: '/add-register-expenses',
-				params: {
-					templateName: `Investimento - ${targetInvestment?.name ?? 'Investimento'}`,
-					templateValueInCents: String(addedCents),
-					templateTagId: tagInfo.id,
-					templateTagName: tagInfo.name,
-					templateLockTag: '1',
-					investmentIdForAdjustment: targetInvestment?.id ?? '',
-					investmentDeltaInCents: String(addedCents),
-				},
 			});
 		} catch (error) {
 			console.error(error);
 			showFloatingAlert({
-				message: 'Não foi possível preparar o aporte agora.',
+				message: 'Não foi possível registrar o aporte agora.',
 				action: 'error',
 				position: 'bottom',
 			});
 		} finally {
 			setIsSavingDeposit(false);
 		}
-	}, [depositInput, ensureInvestmentTag, investmentForDeposit, syncedDepositValueInCents]);
+	}, [depositInput, ensureInvestmentTag, investmentForDeposit, loadData, syncedDepositValueInCents]);
 
 	const handleConfirmDepositSync = React.useCallback(async () => {
 		if (!investmentForDepositSync) {
@@ -840,7 +875,16 @@ export default function FinancialListScreen() {
 		}
 
 		const targetInvestment = investmentForWithdrawal;
-		const bankInfo = targetInvestment?.bankId ? banksMap[targetInvestment.bankId] : undefined;
+		const personId = auth.currentUser?.uid;
+		if (!personId) {
+			showFloatingAlert({
+				message: 'Usuário não autenticado.',
+				action: 'error',
+				position: 'bottom',
+			});
+			return;
+		}
+
 		setIsSavingWithdrawal(true);
 		try {
 			const remainingCents = Math.max(0, availableCents - withdrawCents);
@@ -853,32 +897,28 @@ export default function FinancialListScreen() {
 				throw new Error('Erro ao sincronizar valor após resgate.');
 			}
 
-			await loadData();
 			const tagInfo = await ensureInvestmentTag('gain');
 
+			await addGainFirebase({
+				name: `Resgate - ${targetInvestment?.name ?? 'Investimento'}`,
+				valueInCents: withdrawCents,
+				tagId: tagInfo.id,
+				bankId: targetInvestment.bankId || null,
+				date: new Date(),
+				personId,
+				isInvestmentRedemption: true,
+				investmentId: targetInvestment.id,
+				investmentNameSnapshot: targetInvestment?.name ?? null,
+			});
+
+			await loadData();
 			setInvestmentForWithdrawal(null);
 			setWithdrawInput('');
 			setSyncedWithdrawalValueInCents(null);
 			showFloatingAlert({
-				message: 'Finalize o resgate registrando o ganho.',
-				action: 'info',
+				message: 'Resgate registrado e investimento atualizado.',
+				action: 'success',
 				position: 'bottom',
-			});
-			router.push({
-				pathname: '/add-register-gain',
-				params: {
-					templateName: `Resgate - ${targetInvestment?.name ?? 'Investimento'}`,
-					templateValueInCents: String(withdrawCents),
-					templateTagId: tagInfo.id,
-					templateTagName: tagInfo.name,
-					templateLockTag: '1',
-					investmentIdForAdjustment: targetInvestment?.id ?? '',
-					investmentDeltaInCents: String(-withdrawCents),
-					templateBankId: targetInvestment?.bankId ?? '',
-					templateBankName: bankInfo?.name ?? '',
-					templateLockBank: '1',
-					templateInvestmentName: targetInvestment?.name ?? '',
-				},
 			});
 		} catch (error) {
 			console.error(error);
@@ -890,7 +930,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingWithdrawal(false);
 		}
-	}, [banksMap, ensureInvestmentTag, investmentForWithdrawal, loadData, syncedWithdrawalValueInCents, withdrawInput]);
+	}, [ensureInvestmentTag, investmentForWithdrawal, loadData, syncedWithdrawalValueInCents, withdrawInput]);
 
 	const handleOpenManualSyncModal = React.useCallback((investment: FinanceInvestment) => {
 		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
@@ -1065,15 +1105,15 @@ export default function FinancialListScreen() {
 													<Text className="font-semibold">{bankInfo?.name ?? 'Não informado'}</Text>
 												</Text>
 												<Text className="text-gray-700 dark:text-gray-300">
-													Valor investido:{' '}
-													<Text className="font-bold text-orange-600 dark:text-orange-300">
-														{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
+													Valor atual do investimento:{' '}
+													<Text className="font-bold text-emerald-600 dark:text-emerald-400">
+														{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
 													</Text>
 												</Text>
 												<Text className="text-gray-700 dark:text-gray-300">
-													Valor sincronizado:{' '}
-													<Text className="font-bold text-emerald-600 dark:text-emerald-400">
-														{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
+													Valor inicial registrado:{' '}
+													<Text className="font-bold text-orange-600 dark:text-orange-300">
+														{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
 													</Text>
 												</Text>
 												<Text className="text-gray-700 dark:text-gray-300">
@@ -1340,7 +1380,7 @@ export default function FinancialListScreen() {
 					</ModalHeader>
 					<ModalBody>
 						<Box className="mb-3">
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor sincronizado</Text>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor atual (base)</Text>
 							<Input isDisabled>
 								<InputField value={syncedDepositDisplayValue} editable={false} />
 							</Input>
@@ -1430,7 +1470,7 @@ export default function FinancialListScreen() {
 					</ModalHeader>
 					<ModalBody>
 						<Box className="mb-3">
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor sincronizado</Text>
+							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor atual (base)</Text>
 							<Input isDisabled>
 								<InputField value={syncedWithdrawalDisplayValue} editable={false} />
 							</Input>

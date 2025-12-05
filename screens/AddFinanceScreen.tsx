@@ -330,9 +330,13 @@ export default function AddFinanceScreen() {
 				const totalInvestmentInCents = investmentsArray.reduce((acc, item) => {
 					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
 					const value =
-						typeof item?.initialValueInCents === 'number' && !Number.isNaN(item.initialValueInCents)
-							? item.initialValueInCents
-							: 0;
+						typeof item?.currentValueInCents === 'number' && !Number.isNaN(item.currentValueInCents)
+							? item.currentValueInCents
+							: typeof item?.lastManualSyncValueInCents === 'number' && !Number.isNaN(item.lastManualSyncValueInCents)
+								? item.lastManualSyncValueInCents
+								: typeof item?.initialValueInCents === 'number' && !Number.isNaN(item.initialValueInCents)
+									? item.initialValueInCents
+									: 0;
 					if (bankId === selectedBankId) {
 						return acc + value;
 					}
@@ -464,6 +468,7 @@ export default function AddFinanceScreen() {
 			const result = await addFinanceInvestmentFirebase({
 				name: investmentName.trim(),
 				initialValueInCents: initialInCents,
+				currentValueInCents: initialInCents,
 				cdiPercentage: parsedCdi,
 				redemptionTerm: selectedRedemptionTerm,
 				bankId: selectedBankId,

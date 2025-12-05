@@ -14,6 +14,9 @@ interface AddExpenseParams {
 	personId: string;
 	explanation?: string | null;
 	moneyFormat?: boolean;
+	isInvestmentDeposit?: boolean;
+	investmentId?: string | null;
+	investmentNameSnapshot?: string | null;
 }
 
 interface UpdateExpenseParams {
@@ -39,6 +42,9 @@ export async function addExpenseFirebase({
 	personId,
 	explanation,
 	moneyFormat,
+	isInvestmentDeposit,
+	investmentId,
+	investmentNameSnapshot,
 }: AddExpenseParams) {
 	try {
 		const expenseRef = doc(collection(db, 'expenses'));
@@ -52,6 +58,9 @@ export async function addExpenseFirebase({
 			personId,
 			explanation: explanation ?? null,
 			moneyFormat: typeof moneyFormat === 'boolean' ? moneyFormat : false,
+			isInvestmentDeposit: Boolean(isInvestmentDeposit),
+			investmentId: investmentId ?? null,
+			investmentNameSnapshot: investmentNameSnapshot ?? null,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		});

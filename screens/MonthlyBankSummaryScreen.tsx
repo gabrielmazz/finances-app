@@ -210,7 +210,23 @@ export default function MonthlyBankSummaryScreen() {
 										...raw,
 										bankId,
 										initialValueInCents:
-											typeof raw?.initialValueInCents === 'number' ? raw.initialValueInCents : undefined,
+											typeof raw?.initialValueInCents === 'number'
+												? raw.initialValueInCents
+												: typeof raw?.initialInvestedInCents === 'number'
+													? raw.initialInvestedInCents
+													: undefined,
+										initialInvestedInCents:
+											typeof raw?.initialInvestedInCents === 'number'
+												? raw.initialInvestedInCents
+												: undefined,
+										currentValueInCents:
+											typeof raw?.currentValueInCents === 'number'
+												? raw.currentValueInCents
+												: typeof raw?.lastManualSyncValueInCents === 'number'
+													? raw.lastManualSyncValueInCents
+													: typeof raw?.initialValueInCents === 'number'
+														? raw.initialValueInCents
+														: undefined,
 										valueInCents: typeof raw?.valueInCents === 'number' ? raw.valueInCents : undefined,
 										lastManualSyncValueInCents:
 											typeof raw?.lastManualSyncValueInCents === 'number'
