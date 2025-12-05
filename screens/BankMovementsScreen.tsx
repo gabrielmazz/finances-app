@@ -95,6 +95,15 @@ type MovementRecord = {
 	isFromMandatory?: boolean;
 	isCashRescue?: boolean;
 	cashRescueSourceBankName?: string | null;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'incoming' | 'outgoing' | null;
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
 	isFinanceInvestment?: boolean;
 	investmentId?: string | null;
 	investmentBankNameSnapshot?: string | null;
@@ -209,6 +218,13 @@ const normalizeDate = (value: unknown): Date | null => {
 	return null;
 };
 
+const normalizeTransferDirection = (value: unknown): 'incoming' | 'outgoing' | null => {
+	if (value === 'incoming' || value === 'outgoing') {
+		return value;
+	}
+	return null;
+};
+
 const getCurrentMonthBounds = () => {
 	const now = new Date();
 	const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -313,6 +329,31 @@ export default function BankMovementsScreen() {
 
 	// Controla no nome do banco depois de buscado dentro do Firebase
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+
+	const resolveMovementTypeLabel = React.useCallback((movement?: MovementRecord | null) => {
+		if (!movement) {
+			return '';
+		}
+		if (movement.isBankTransfer) {
+			if (movement.bankTransferDirection === 'outgoing') {
+				return 'Transferência enviada';
+			}
+			if (movement.bankTransferDirection === 'incoming') {
+				return 'Transferência recebida';
+			}
+			return 'Transferência entre bancos';
+		}
+		if (movement.isFinanceInvestment) {
+			return 'Investimento';
+		}
+		if (movement.isInvestmentDeposit) {
+			return 'Aporte de investimento';
+		}
+		if (movement.isInvestmentRedemption) {
+			return 'Resgate de investimento';
+		}
+		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
+	}, []);
 
 	const handleDateChange = React.useCallback((value: string, type: 'start' | 'end') => {
 		const sanitized = sanitizeDateInput(value);
@@ -463,6 +504,26 @@ export default function BankMovementsScreen() {
 				isCashRescue: Boolean(expense?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof expense?.bankNameSnapshot === 'string' ? expense.bankNameSnapshot : null,
+				isBankTransfer: Boolean(expense?.isBankTransfer),
+				bankTransferPairId:
+					typeof expense?.bankTransferPairId === 'string' ? expense.bankTransferPairId : null,
+				bankTransferDirection: normalizeTransferDirection(expense?.bankTransferDirection),
+				bankTransferSourceBankId:
+					typeof expense?.bankTransferSourceBankId === 'string' ? expense.bankTransferSourceBankId : null,
+				bankTransferTargetBankId:
+					typeof expense?.bankTransferTargetBankId === 'string' ? expense.bankTransferTargetBankId : null,
+				bankTransferSourceBankNameSnapshot:
+					typeof expense?.bankTransferSourceBankNameSnapshot === 'string'
+						? expense.bankTransferSourceBankNameSnapshot
+						: null,
+				bankTransferTargetBankNameSnapshot:
+					typeof expense?.bankTransferTargetBankNameSnapshot === 'string'
+						? expense.bankTransferTargetBankNameSnapshot
+						: null,
+				bankTransferExpenseId:
+					typeof expense?.bankTransferExpenseId === 'string' ? expense.bankTransferExpenseId : null,
+				bankTransferGainId:
+					typeof expense?.bankTransferGainId === 'string' ? expense.bankTransferGainId : null,
 				isInvestmentDeposit: Boolean(expense?.isInvestmentDeposit),
 				investmentId: typeof expense?.investmentId === 'string' ? expense.investmentId : null,
 				investmentNameSnapshot:
@@ -490,6 +551,24 @@ export default function BankMovementsScreen() {
 				isCashRescue: Boolean(gain?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof gain?.bankNameSnapshot === 'string' ? gain.bankNameSnapshot : null,
+				isBankTransfer: Boolean(gain?.isBankTransfer),
+				bankTransferPairId: typeof gain?.bankTransferPairId === 'string' ? gain.bankTransferPairId : null,
+				bankTransferDirection: normalizeTransferDirection(gain?.bankTransferDirection),
+				bankTransferSourceBankId:
+					typeof gain?.bankTransferSourceBankId === 'string' ? gain.bankTransferSourceBankId : null,
+				bankTransferTargetBankId:
+					typeof gain?.bankTransferTargetBankId === 'string' ? gain.bankTransferTargetBankId : null,
+				bankTransferSourceBankNameSnapshot:
+					typeof gain?.bankTransferSourceBankNameSnapshot === 'string'
+						? gain.bankTransferSourceBankNameSnapshot
+						: null,
+				bankTransferTargetBankNameSnapshot:
+					typeof gain?.bankTransferTargetBankNameSnapshot === 'string'
+						? gain.bankTransferTargetBankNameSnapshot
+						: null,
+				bankTransferExpenseId:
+					typeof gain?.bankTransferExpenseId === 'string' ? gain.bankTransferExpenseId : null,
+				bankTransferGainId: typeof gain?.bankTransferGainId === 'string' ? gain.bankTransferGainId : null,
 				isInvestmentRedemption: Boolean(gain?.isInvestmentRedemption),
 				investmentNameSnapshot:
 					typeof gain?.investmentNameSnapshot === 'string' ? gain.investmentNameSnapshot : null,
@@ -733,6 +812,17 @@ export default function BankMovementsScreen() {
 			return;
 		}
 
+		if (pendingAction.movement.isBankTransfer) {
+			showFloatingAlert({
+				message:
+					'Transferências entre bancos são criadas automaticamente e não podem ser editadas ou excluídas manualmente.',
+				action: 'warning',
+				position: 'bottom',
+			});
+			setPendingAction(null);
+			return;
+		}
+
 		if (pendingAction.type === 'edit') {
 			// Impede edição de movimentações originadas de obrigatórios
 			if (pendingAction.movement.isFromMandatory) {
@@ -908,7 +998,11 @@ export default function BankMovementsScreen() {
 		}
 
 		const movementName = pendingAction.movement.name || 'movimentação selecionada';
-		const movementTypeLabel = pendingAction.movement.type === 'gain' ? 'ganho' : 'despesa';
+		const movementTypeLabel = pendingAction.movement.isBankTransfer
+			? 'transferência'
+			: pendingAction.movement.type === 'gain'
+				? 'ganho'
+				: 'despesa';
 
 		if (pendingAction.type === 'edit') {
 			return {
@@ -1240,16 +1334,7 @@ export default function BankMovementsScreen() {
 													{formatMovementDate(movement.date)}
 												</Text>
 												<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-													Tipo:{' '}
-													{movement.isFinanceInvestment
-														? 'Investimento'
-														: movement.isInvestmentDeposit
-															? 'Aporte de investimento'
-														: movement.isInvestmentRedemption
-															? 'Resgate de investimento'
-															: movement.type === 'gain'
-																? 'Ganho'
-																: 'Despesa'}
+													Tipo: {resolveMovementTypeLabel(movement)}
 												</Text>
 												{movement.isFromMandatory && (
 													<>
@@ -1281,6 +1366,22 @@ export default function BankMovementsScreen() {
 														</Text>
 														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
 															Este registro não pode ser editado ou excluído manualmente.
+														</Text>
+													</>
+												)}
+												{movement.isBankTransfer && (
+													<>
+														<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
+															{movement.bankTransferDirection === 'outgoing'
+																? `Transferência enviada para ${
+																		movement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'
+																	}.`
+																: `Transferência recebida de ${
+																		movement.bankTransferSourceBankNameSnapshot ?? 'banco de origem'
+																	}.`}
+														</Text>
+														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
+															Movimentação criada automaticamente para manter os saldos entre bancos.
 														</Text>
 													</>
 												)}
@@ -1326,9 +1427,10 @@ export default function BankMovementsScreen() {
 														size="xl"
 														variant="link"
 														action="primary"
-													isDisabled={
+														isDisabled={
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
+															movement.isBankTransfer ||
 															movement.isFinanceInvestment ||
 															movement.isInvestmentRedemption ||
 															movement.isInvestmentDeposit
@@ -1349,6 +1451,15 @@ export default function BankMovementsScreen() {
 																showFloatingAlert({
 																	message:
 																		'Este lançamento representa um saque em dinheiro e não pode ser editado manualmente.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isBankTransfer) {
+																showFloatingAlert({
+																	message:
+																		'Transferências são registradas automaticamente e não podem ser editadas manualmente.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1401,6 +1512,7 @@ export default function BankMovementsScreen() {
 														isDisabled={
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
+															movement.isBankTransfer ||
 															movement.isFinanceInvestment ||
 															movement.isInvestmentRedemption ||
 															movement.isInvestmentDeposit
@@ -1421,6 +1533,15 @@ export default function BankMovementsScreen() {
 																showFloatingAlert({
 																	message:
 																		'Este lançamento representa um saque em dinheiro e não pode ser removido manualmente.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isBankTransfer) {
+																showFloatingAlert({
+																	message:
+																		'Transferências não podem ser removidas manualmente para manter os saldos alinhados.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1544,6 +1665,17 @@ export default function BankMovementsScreen() {
 										} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
 									</Text>
 								)}
+								{selectedMovement?.isBankTransfer && (
+									<Text className="text-sm text-sky-700 dark:text-sky-400 mt-1">
+										{selectedMovement.bankTransferDirection === 'outgoing'
+											? `Transferência enviada para ${
+													selectedMovement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'
+												}.`
+											: `Transferência recebida de ${
+													selectedMovement.bankTransferSourceBankNameSnapshot ?? 'banco de origem'
+												}.`}
+									</Text>
+								)}
 								{selectedMovement?.isFinanceInvestment && (
 									<Text className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
 										Movimentação criada a partir de um investimento.
@@ -1619,19 +1751,7 @@ export default function BankMovementsScreen() {
 									<Text className="text-sm text-gray-600 dark:text-gray-400">Tipo da movimentação:</Text>
 									<Input isDisabled={true}>
 										<InputField
-											value={
-												selectedMovement
-													? selectedMovement.isFinanceInvestment
-														? 'Investimento'
-														: selectedMovement.isInvestmentDeposit
-															? 'Aporte de investimento'
-														: selectedMovement.isInvestmentRedemption
-															? 'Resgate de investimento'
-															: selectedMovement.type === 'gain'
-																? 'Ganho'
-																: 'Despesa'
-													: ''
-											}
+											value={resolveMovementTypeLabel(selectedMovement)}
 										/>
 									</Input>
 								</VStack>
@@ -1696,6 +1816,21 @@ export default function BankMovementsScreen() {
 										/>
 									</Input>
 								</VStack>
+
+								{selectedMovement?.isBankTransfer && (
+									<VStack space="xs">
+										<Text className="text-sm text-gray-600 dark:text-gray-400">Banco de contraparte:</Text>
+										<Input isDisabled={true}>
+											<InputField
+												value={
+													selectedMovement.bankTransferDirection === 'outgoing'
+														? selectedMovement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
+														: selectedMovement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
+												}
+											/>
+										</Input>
+									</VStack>
+								)}
 
 								{/* Mostra a data do movimento selecionado */}
 								<VStack space="xs">

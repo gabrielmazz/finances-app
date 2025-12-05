@@ -2,7 +2,7 @@
 // registradas para uso no aplicativo
 
 import { db } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 
@@ -39,6 +39,17 @@ type CashRescueRecord = {
     createdAt?: Date;
     updatedAt?: Date;
 };
+
+interface TransferBetweenBanksParams {
+    personId: string;
+    sourceBankId: string;
+    targetBankId: string;
+    valueInCents: number;
+    date: Date;
+    description?: string | null;
+    sourceBankNameSnapshot?: string | null;
+    targetBankNameSnapshot?: string | null;
+}
 
 
 // =========================================== Funções de Registro ================================================== //
@@ -123,6 +134,139 @@ export async function addCashRescueFirebase({
         return { success: true, cashRescueId: rescueRef.id };
     } catch (error) {
         console.error('Erro ao registrar saque em dinheiro:', error);
+        return { success: false, error };
+    }
+}
+
+export async function transferBetweenBanksFirebase({
+    personId,
+    sourceBankId,
+    targetBankId,
+    valueInCents,
+    date,
+    description,
+    sourceBankNameSnapshot,
+    targetBankNameSnapshot,
+}: TransferBetweenBanksParams) {
+    try {
+        if (!personId || !sourceBankId || !targetBankId) {
+            return { success: false, error: 'Dados insuficientes para registrar a transferência.' };
+        }
+
+        if (sourceBankId === targetBankId) {
+            return { success: false, error: 'Selecione bancos diferentes para realizar a transferência.' };
+        }
+
+        if (typeof valueInCents !== 'number' || valueInCents <= 0) {
+            return { success: false, error: 'Informe um valor válido para transferir.' };
+        }
+
+        const banksResult = await getBanksWithUsersByPersonFirebase(personId);
+        if (!banksResult.success || !Array.isArray(banksResult.data)) {
+            return { success: false, error: 'Não foi possível validar os bancos selecionados.' };
+        }
+
+        const accessibleBankIds = banksResult.data.map((bank: any) => bank.id);
+        if (!accessibleBankIds.includes(sourceBankId) || !accessibleBankIds.includes(targetBankId)) {
+            return { success: false, error: 'Um dos bancos informados não está autorizado para este usuário.' };
+        }
+
+        const batch = writeBatch(db);
+        const transferRef = doc(collection(db, 'bankTransfers'));
+        const expenseRef = doc(collection(db, 'expenses'));
+        const gainRef = doc(collection(db, 'gains'));
+
+        const now = new Date();
+        const normalizedDate = date instanceof Date ? date : new Date(date);
+        const fallbackSourceName =
+            typeof sourceBankNameSnapshot === 'string' && sourceBankNameSnapshot.trim().length > 0
+                ? sourceBankNameSnapshot.trim()
+                : 'Banco de origem';
+        const fallbackTargetName =
+            typeof targetBankNameSnapshot === 'string' && targetBankNameSnapshot.trim().length > 0
+                ? targetBankNameSnapshot.trim()
+                : 'Banco de destino';
+        const transferDescription =
+            typeof description === 'string' && description.trim().length > 0
+                ? description.trim()
+                : `Transferência de ${fallbackSourceName} para ${fallbackTargetName}.`;
+
+        batch.set(transferRef, {
+            personId,
+            sourceBankId,
+            targetBankId,
+            valueInCents,
+            date: normalizedDate,
+            description: transferDescription,
+            sourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
+            targetBankNameSnapshot: targetBankNameSnapshot ?? null,
+            expenseId: expenseRef.id,
+            gainId: gainRef.id,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        batch.set(expenseRef, {
+            name: `Transferência para ${fallbackTargetName}`,
+            valueInCents,
+            tagId: null,
+            bankId: sourceBankId,
+            date: normalizedDate,
+            personId,
+            explanation: transferDescription,
+            moneyFormat: false,
+            isInvestmentDeposit: false,
+            investmentId: null,
+            investmentNameSnapshot: null,
+            isBankTransfer: true,
+            bankTransferPairId: transferRef.id,
+            bankTransferDirection: 'outgoing',
+            bankTransferSourceBankId: sourceBankId,
+            bankTransferTargetBankId: targetBankId,
+            bankTransferSourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
+            bankTransferTargetBankNameSnapshot: targetBankNameSnapshot ?? null,
+            bankTransferExpenseId: expenseRef.id,
+            bankTransferGainId: gainRef.id,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        batch.set(gainRef, {
+            name: `Transferência recebida de ${fallbackSourceName}`,
+            valueInCents,
+            paymentFormats: ['transferencia-bancaria'],
+            explanation: transferDescription,
+            moneyFormat: false,
+            tagId: null,
+            bankId: targetBankId,
+            date: normalizedDate,
+            personId,
+            isInvestmentRedemption: false,
+            investmentId: null,
+            investmentNameSnapshot: null,
+            isBankTransfer: true,
+            bankTransferPairId: transferRef.id,
+            bankTransferDirection: 'incoming',
+            bankTransferSourceBankId: sourceBankId,
+            bankTransferTargetBankId: targetBankId,
+            bankTransferSourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
+            bankTransferTargetBankNameSnapshot: targetBankNameSnapshot ?? null,
+            bankTransferExpenseId: expenseRef.id,
+            bankTransferGainId: gainRef.id,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        await batch.commit();
+
+        return {
+            success: true,
+            transferId: transferRef.id,
+            expenseId: expenseRef.id,
+            gainId: gainRef.id,
+        };
+    } catch (error) {
+        console.error('Erro ao registrar transferência entre bancos:', error);
         return { success: false, error };
     }
 }

@@ -91,6 +91,11 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				onSelect: () => router.push('/register-monthly-balance'),
 			},
 			{
+				label: 'Transferência entre bancos',
+				value: 1,
+				onSelect: () => router.push('/transfer-screen'),
+			},
+			{
 				label: 'Registrar saque em dinheiro',
 				value: 1,
 				onSelect: () => router.push('/add-rescue'),
