@@ -53,6 +53,7 @@ import {
 	getCashMovementsByPeriodFirebase,
 	deleteCashRescueFirebase,
 } from '@/functions/BankFirebase';
+import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
@@ -98,6 +99,7 @@ type MovementRecord = {
 	investmentId?: string | null;
 	investmentBankNameSnapshot?: string | null;
 	isInvestmentRedemption?: boolean;
+	isInvestmentDeposit?: boolean;
 	investmentNameSnapshot?: string | null;
 };
 
@@ -285,6 +287,7 @@ export default function BankMovementsScreen() {
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [movementFilter, setMovementFilter] = React.useState<'all' | 'expense' | 'gain'>('all');
+	const [monthlyInitialBalanceInCents, setMonthlyInitialBalanceInCents] = React.useState<number | null>(null);
 	const movementFilterLabels: Record<typeof movementFilter, string> = {
 		all: 'Todos',
 		expense: 'Despesas',
@@ -383,11 +386,22 @@ export default function BankMovementsScreen() {
 						endDate: normalizedEnd,
 				  });
 
-			const [result, investmentsRes, mandatoryExpensesRes, mandatoryGainsRes] = await Promise.all([
+			const now = new Date();
+			const balancePromise = isCashView
+				? Promise.resolve(null)
+				: getMonthlyBalanceFirebaseRelatedToUser({
+						personId: currentUser.uid,
+						bankId,
+						year: now.getFullYear(),
+						month: now.getMonth() + 1,
+				  });
+
+			const [result, investmentsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes] = await Promise.all([
 				movementsPromise,
 				investmentsPromise,
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
+				balancePromise,
 			]);
 			if (!result?.success || !result.data) {
 				setMovements([]);
@@ -449,6 +463,10 @@ export default function BankMovementsScreen() {
 				isCashRescue: Boolean(expense?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof expense?.bankNameSnapshot === 'string' ? expense.bankNameSnapshot : null,
+				isInvestmentDeposit: Boolean(expense?.isInvestmentDeposit),
+				investmentId: typeof expense?.investmentId === 'string' ? expense.investmentId : null,
+				investmentNameSnapshot:
+					typeof expense?.investmentNameSnapshot === 'string' ? expense.investmentNameSnapshot : null,
 			}));
 
 			const gainMovements: MovementRecord[] = gainsArray.map(gain => ({
@@ -512,10 +530,22 @@ export default function BankMovementsScreen() {
 			});
 
 			setMovements(combinedMovements);
+			if (!isCashView) {
+				const initialBalanceValue =
+					monthlyBalanceRes && monthlyBalanceRes.success && monthlyBalanceRes.data
+						? monthlyBalanceRes.data.valueInCents
+						: null;
+				setMonthlyInitialBalanceInCents(
+					typeof initialBalanceValue === 'number' ? initialBalanceValue : null,
+				);
+			} else {
+				setMonthlyInitialBalanceInCents(null);
+			}
 		} catch (error) {
 			console.error('Erro ao buscar movimentações do banco:', error);
 			setErrorMessage('Erro inesperado ao carregar as movimentações.');
 			setMovements([]);
+			setMonthlyInitialBalanceInCents(null);
 		} finally {
 			setIsLoading(false);
 		}
@@ -621,6 +651,19 @@ export default function BankMovementsScreen() {
 	}, [visibleMovements]);
 
 	const balanceInCents = totals.totalGains - totals.totalExpenses;
+
+	const totalDeltaAllMovementsInCents = React.useMemo(() => {
+		return movements.reduce((acc, movement) => {
+			return movement.type === 'gain' ? acc + movement.valueInCents : acc - movement.valueInCents;
+		}, 0);
+	}, [movements]);
+
+	const bankCurrentBalanceInCents = React.useMemo(() => {
+		if (typeof monthlyInitialBalanceInCents !== 'number') {
+			return null;
+		}
+		return monthlyInitialBalanceInCents + totalDeltaAllMovementsInCents;
+	}, [monthlyInitialBalanceInCents, totalDeltaAllMovementsInCents]);
 
 	const totalsPieSlices = React.useMemo(() => {
 		const slices: Array<{
@@ -1067,6 +1110,24 @@ export default function BankMovementsScreen() {
 										{formatCurrencyBRL(balanceInCents)}
 									</Text>
 								</HStack>
+								{!isCashView && (
+									<HStack className="justify-between">
+										<Text className="text-gray-700 dark:text-gray-300">Saldo atual do banco</Text>
+										<Text
+											className={
+												typeof bankCurrentBalanceInCents === 'number'
+													? bankCurrentBalanceInCents >= 0
+														? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+														: 'text-red-600 dark:text-red-400 font-semibold'
+													: 'text-gray-700 dark:text-gray-300'
+											}
+										>
+											{typeof bankCurrentBalanceInCents === 'number'
+												? formatCurrencyBRL(bankCurrentBalanceInCents)
+												: 'Saldo não registrado'}
+										</Text>
+									</HStack>
+								)}
 							</VStack>
 						</Box>
 
@@ -1182,6 +1243,8 @@ export default function BankMovementsScreen() {
 													Tipo:{' '}
 													{movement.isFinanceInvestment
 														? 'Investimento'
+														: movement.isInvestmentDeposit
+															? 'Aporte de investimento'
 														: movement.isInvestmentRedemption
 															? 'Resgate de investimento'
 															: movement.type === 'gain'
@@ -1243,6 +1306,18 @@ export default function BankMovementsScreen() {
 														</Text>
 													</>
 												)}
+												{movement.isInvestmentDeposit && (
+													<>
+														<Text className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-300">
+															{movement.investmentNameSnapshot
+																? `Aporte no investimento "${movement.investmentNameSnapshot}".`
+																: 'Aporte registrado automaticamente neste banco.'}
+														</Text>
+														<Text className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
+															Edite ou cancele o aporte pela lista de investimentos.
+														</Text>
+													</>
+												)}
 
 												<Divider className="my-4" />
 
@@ -1255,7 +1330,8 @@ export default function BankMovementsScreen() {
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
 															movement.isFinanceInvestment ||
-															movement.isInvestmentRedemption
+															movement.isInvestmentRedemption ||
+															movement.isInvestmentDeposit
 														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
@@ -1295,6 +1371,14 @@ export default function BankMovementsScreen() {
 																});
 																return;
 															}
+															if (movement.isInvestmentDeposit) {
+																showFloatingAlert({
+																	message: 'Aportes de investimento são controlados pela tela de investimentos.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
 															setPendingAction({ type: 'edit', movement });
 														}}
 													>
@@ -1318,7 +1402,8 @@ export default function BankMovementsScreen() {
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
 															movement.isFinanceInvestment ||
-															movement.isInvestmentRedemption
+															movement.isInvestmentRedemption ||
+															movement.isInvestmentDeposit
 														}
 														onPress={() => {
 															if (movement.isFromMandatory) {
@@ -1353,6 +1438,14 @@ export default function BankMovementsScreen() {
 															if (movement.isInvestmentRedemption) {
 																showFloatingAlert({
 																	message: 'Resgates de investimento devem ser ajustados pela tela de investimentos.',
+																	action: 'warning',
+																	position: 'bottom',
+																});
+																return;
+															}
+															if (movement.isInvestmentDeposit) {
+																showFloatingAlert({
+																	message: 'Aportes de investimento são controlados pela tela de investimentos.',
 																	action: 'warning',
 																	position: 'bottom',
 																});
@@ -1456,6 +1549,11 @@ export default function BankMovementsScreen() {
 										Movimentação criada a partir de um investimento.
 									</Text>
 								)}
+								{selectedMovement?.isInvestmentDeposit && (
+									<Text className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
+										Aporte automático registrado para este investimento.
+									</Text>
+								)}
 
 							</Box>
 
@@ -1525,6 +1623,8 @@ export default function BankMovementsScreen() {
 												selectedMovement
 													? selectedMovement.isFinanceInvestment
 														? 'Investimento'
+														: selectedMovement.isInvestmentDeposit
+															? 'Aporte de investimento'
 														: selectedMovement.isInvestmentRedemption
 															? 'Resgate de investimento'
 															: selectedMovement.type === 'gain'

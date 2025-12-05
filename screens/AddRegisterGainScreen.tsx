@@ -361,7 +361,7 @@ export default function AddRegisterGainScreen() {
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
-	const isBankSelectionLocked = Boolean(isTemplateLocked || templateData?.lockBank || templateData?.bankId);
+	const isBankSelectionLocked = Boolean(templateData?.lockBank || templateData?.bankId);
 	const shouldShowPaymentFormatSelection = !isTemplateLocked;
 	const pendingInvestmentAdjustment = React.useMemo(() => {
 		if (isEditing) {

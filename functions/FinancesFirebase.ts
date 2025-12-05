@@ -3,14 +3,13 @@ import {
 	collection,
 	deleteDoc,
 	doc,
+	getDoc,
 	getDocs,
 	limit as limitQuery,
 	orderBy,
 	query,
 	setDoc,
 	where,
-	updateDoc,
-	increment,
 	serverTimestamp,
 } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
@@ -19,6 +18,7 @@ import { RedemptionTerm } from '@/utils/finance';
 interface AddFinanceInvestmentParams {
 	name: string;
 	initialValueInCents: number;
+	currentValueInCents?: number;
 	cdiPercentage: number;
 	redemptionTerm: RedemptionTerm;
 	bankId: string;
@@ -32,6 +32,7 @@ interface UpdateFinanceInvestmentParams {
 	investmentId: string;
 	name?: string;
 	initialValueInCents?: number;
+	currentValueInCents?: number;
 	cdiPercentage?: number;
 	redemptionTerm?: RedemptionTerm;
 	bankId?: string;
@@ -43,6 +44,7 @@ const COLLECTION = 'financeInvestments';
 export async function addFinanceInvestmentFirebase({
 	name,
 	initialValueInCents,
+	currentValueInCents,
 	cdiPercentage,
 	redemptionTerm,
 	bankId,
@@ -56,6 +58,8 @@ export async function addFinanceInvestmentFirebase({
 		await setDoc(investmentRef, {
 			name,
 			initialValueInCents,
+			initialInvestedInCents: initialValueInCents,
+			currentValueInCents: typeof currentValueInCents === 'number' ? currentValueInCents : initialValueInCents,
 			cdiPercentage,
 			redemptionTerm,
 			bankId,
@@ -63,6 +67,9 @@ export async function addFinanceInvestmentFirebase({
 			description: description ?? null,
 			date,
 			bankNameSnapshot: bankNameSnapshot ?? null,
+			lastManualSyncValueInCents:
+				typeof currentValueInCents === 'number' ? currentValueInCents : initialValueInCents,
+			lastManualSyncAt: serverTimestamp(),
 			createdAt: serverTimestamp(),
 			updatedAt: serverTimestamp(),
 		});
@@ -78,6 +85,7 @@ export async function updateFinanceInvestmentFirebase({
 	investmentId,
 	name,
 	initialValueInCents,
+	currentValueInCents,
 	cdiPercentage,
 	redemptionTerm,
 	bankId,
@@ -95,6 +103,13 @@ export async function updateFinanceInvestmentFirebase({
 
 		if (typeof initialValueInCents === 'number') {
 			updates.initialValueInCents = initialValueInCents;
+			updates.initialInvestedInCents = initialValueInCents;
+		}
+
+		if (typeof currentValueInCents === 'number') {
+			updates.currentValueInCents = currentValueInCents;
+			updates.lastManualSyncValueInCents = currentValueInCents;
+			updates.lastManualSyncAt = serverTimestamp();
 		}
 
 		if (typeof cdiPercentage === 'number') {
@@ -173,11 +188,28 @@ export async function adjustFinanceInvestmentValueFirebase({
 	deltaInCents: number;
 }) {
 	try {
-		const investmentRef = doc(db, COLLECTION, investmentId);
-		await updateDoc(investmentRef, {
-			initialValueInCents: increment(deltaInCents),
-			updatedAt: serverTimestamp(),
-		});
+		const snapshot = await getDoc(investmentRef);
+		const data = snapshot.data() as Record<string, unknown> | undefined;
+		const baseValue =
+			typeof data?.currentValueInCents === 'number'
+				? data.currentValueInCents
+				: typeof data?.lastManualSyncValueInCents === 'number'
+					? data.lastManualSyncValueInCents
+					: typeof data?.initialValueInCents === 'number'
+						? data.initialValueInCents
+						: 0;
+		const nextValue = baseValue + deltaInCents;
+		const normalizedNext = Number.isFinite(nextValue) ? nextValue : baseValue;
+		await setDoc(
+			investmentRef,
+			{
+				currentValueInCents: normalizedNext,
+				lastManualSyncValueInCents: normalizedNext,
+				lastManualSyncAt: serverTimestamp(),
+				updatedAt: serverTimestamp(),
+			},
+			{ merge: true },
+		);
 		return { success: true };
 	} catch (error) {
 		console.error('Erro ao ajustar o valor do investimento:', error);
@@ -197,6 +229,7 @@ export async function syncFinanceInvestmentValueFirebase({
 		await setDoc(
 			investmentRef,
 			{
+				currentValueInCents: syncedValueInCents,
 				lastManualSyncValueInCents: syncedValueInCents,
 				lastManualSyncAt: serverTimestamp(),
 				updatedAt: serverTimestamp(),

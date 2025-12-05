@@ -14,6 +14,8 @@ type InvestmentMovement = {
 	bankId?: string | null;
 	initialValueInCents?: number;
 	valueInCents?: number;
+	currentValueInCents?: number;
+	initialInvestedInCents?: number;
 	lastManualSyncValueInCents?: number | null;
 };
 
@@ -60,6 +62,9 @@ const getBankId = (raw: unknown): string | null => {
 };
 
 const resolveInvestmentBaseValue = (investment: InvestmentMovement) => {
+	if (typeof investment?.currentValueInCents === 'number') {
+		return investment.currentValueInCents;
+	}
 	if (typeof investment?.lastManualSyncValueInCents === 'number') {
 		return investment.lastManualSyncValueInCents;
 	}
@@ -73,13 +78,13 @@ const resolveInvestmentBaseValue = (investment: InvestmentMovement) => {
 };
 
 const resolveInvestmentInitialValue = (investment: InvestmentMovement) => {
+	if (typeof investment?.initialInvestedInCents === 'number') {
+		return investment.initialInvestedInCents;
+	}
 	if (typeof investment?.initialValueInCents === 'number') {
 		return investment.initialValueInCents;
 	}
-	if (typeof investment?.valueInCents === 'number') {
-		return investment.valueInCents;
-	}
-	return 0;
+	return typeof investment?.valueInCents === 'number' ? investment.valueInCents : 0;
 };
 
 export function computeMonthlyBankBalances({

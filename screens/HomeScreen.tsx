@@ -62,6 +62,7 @@ type NormalizedInvestmentSummary = {
 	id: string;
 	name: string;
 	initialValueInCents: number;
+	currentValueInCents: number;
 	cdiPercentage: number;
 	bankId: string | null;
 	lastManualSyncValueInCents: number | null;
@@ -285,6 +286,9 @@ export default function HomeScreen() {
 	};
 
 	const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSummary) => {
+		if (typeof investment.currentValueInCents === 'number') {
+			return investment.currentValueInCents;
+		}
 		if (typeof investment.lastManualSyncValueInCents === 'number') {
 			return investment.lastManualSyncValueInCents;
 		}
@@ -724,7 +728,31 @@ export default function HomeScreen() {
 
 								const investmentsByBank = investmentsResult.reduce<Record<string, any[]>>((acc, item) => {
 									if (item.bankId) {
-										acc[item.bankId] = Array.isArray(item.investments) ? item.investments : [];
+										const normalized =
+											Array.isArray(item.investments)
+												? item.investments.map((inv: any) => ({
+														...inv,
+														initialValueInCents:
+															typeof inv?.initialValueInCents === 'number'
+																? inv.initialValueInCents
+																: typeof inv?.initialInvestedInCents === 'number'
+																	? inv.initialInvestedInCents
+																	: undefined,
+														initialInvestedInCents:
+															typeof inv?.initialInvestedInCents === 'number'
+																? inv.initialInvestedInCents
+																: undefined,
+														currentValueInCents:
+															typeof inv?.currentValueInCents === 'number'
+																? inv.currentValueInCents
+																: typeof inv?.lastManualSyncValueInCents === 'number'
+																	? inv.lastManualSyncValueInCents
+																	: typeof inv?.initialValueInCents === 'number'
+																		? inv.initialValueInCents
+																		: undefined,
+													}))
+												: [];
+										acc[item.bankId] = normalized;
 									}
 									return acc;
 								}, {});
@@ -868,10 +896,18 @@ export default function HomeScreen() {
 									typeof investment?.name === 'string' && investment.name.trim().length > 0
 										? investment.name.trim()
 										: 'Investimento';
-								const value =
+								const initialValue =
 									typeof investment?.initialValueInCents === 'number'
 										? investment.initialValueInCents
-										: 0;
+										: typeof investment?.initialInvestedInCents === 'number'
+											? investment.initialInvestedInCents
+											: 0;
+								const syncedValue =
+									typeof investment?.currentValueInCents === 'number'
+										? investment.currentValueInCents
+										: typeof investment?.lastManualSyncValueInCents === 'number'
+											? investment.lastManualSyncValueInCents
+											: initialValue;
 
 								const createdAt = parseToDate(
 									investment?.date ??
@@ -883,7 +919,7 @@ export default function HomeScreen() {
 								return {
 									id,
 									name,
-									valueInCents: value,
+									valueInCents: syncedValue,
 									bankId: typeof investment?.bankId === 'string' ? investment.bankId : null,
 									createdAt,
 								};
@@ -960,7 +996,15 @@ export default function HomeScreen() {
 							const initialValueInCents =
 								typeof investment.initialValueInCents === 'number'
 									? investment.initialValueInCents
-									: 0;
+									: typeof investment.initialInvestedInCents === 'number'
+										? investment.initialInvestedInCents
+										: 0;
+							const currentValueInCents =
+								typeof investment.currentValueInCents === 'number'
+									? investment.currentValueInCents
+									: typeof investment.lastManualSyncValueInCents === 'number'
+										? investment.lastManualSyncValueInCents
+										: initialValueInCents;
 							const lastManualValue =
 								typeof investment.lastManualSyncValueInCents === 'number'
 									? investment.lastManualSyncValueInCents
@@ -973,6 +1017,7 @@ export default function HomeScreen() {
 								id,
 								name,
 								initialValueInCents,
+								currentValueInCents,
 								cdiPercentage,
 								bankId,
 								lastManualSyncValueInCents: lastManualValue,
@@ -1221,7 +1266,13 @@ export default function HomeScreen() {
 												</Text>
 											</Text>
 											<Text className="mt-2 text-gray-700 dark:text-gray-300">
-												Valor investido:{' '}
+												Valor atual aplicado:{' '}
+												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+													{formatCurrencyBRL(investmentSummary.totalInvestedInCents)}
+												</Text>
+											</Text>
+											<Text className="mt-1 text-gray-700 dark:text-gray-300">
+												Valor inicial registrado:{' '}
 												<Text className="text-orange-600 dark:text-orange-300 font-semibold">
 													{formatCurrencyBRL(investmentSummary.totalInitialInvestedInCents)}
 												</Text>
@@ -1250,18 +1301,24 @@ export default function HomeScreen() {
 															</Text>
 															<HStack className="justify-between items-center mt-1">
 																<Text className="text-sm text-gray-700 dark:text-gray-300">
-																	Investido:{' '}
+																	Atual:{' '}
+																	<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
+																		{formatCurrencyBRL(item.appliedValueInCents)}
+																	</Text>
+																</Text>
+																<Text className="text-sm text-gray-700 dark:text-gray-300 text-right">
+																	Inicial:{' '}
 																	<Text className="font-semibold text-orange-600 dark:text-orange-300">
 																		{formatCurrencyBRL(item.investedValueInCents)}
 																	</Text>
 																</Text>
-																<Text className="text-sm text-gray-700 dark:text-gray-300 text-right">
-																	Simulado hoje:{' '}
-																	<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
-																		{formatCurrencyBRL(item.simulatedValueInCents)}
-																	</Text>
-																</Text>
 															</HStack>
+															<Text className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+																Simulado hoje:{' '}
+																<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
+																	{formatCurrencyBRL(item.simulatedValueInCents)}
+																</Text>
+															</Text>
 														</View>
 													))}
 												</View>
