@@ -70,6 +70,7 @@ import {
 	SelectPortal,
 	SelectTrigger,
 } from '@/components/ui/select';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -143,18 +144,6 @@ const formatDateToBR = (date: Date) => {
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${day}/${month}/${year}`;
-};
-
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
 };
 
 const parseDateFromBR = (value: string) => {
@@ -355,9 +344,7 @@ export default function BankMovementsScreen() {
 		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
 	}, []);
 
-	const handleDateChange = React.useCallback((value: string, type: 'start' | 'end') => {
-		const sanitized = sanitizeDateInput(value);
-		const formatted = formatDateInput(sanitized);
+	const handleDateSelect = React.useCallback((formatted: string, type: 'start' | 'end') => {
 		if (type === 'start') {
 			setStartDateInput(formatted);
 		} else {
@@ -1093,33 +1080,21 @@ export default function BankMovementsScreen() {
 							<VStack space="md">
 								<HStack space="md" className="flex-wrap">
 									<VStack className="flex-1 min-w-[140px]">
-										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-											Data inicial
-										</Text>
-										<Input>
-											<InputField
-												value={startDateInput}
-												onChangeText={value => handleDateChange(value, 'start')}
-												placeholder="dd/mm/aaaa"
-												keyboardType="numeric"
-												returnKeyType="next"
-											/>
-										</Input>
+										<DatePickerField
+											label="Data inicial"
+											value={startDateInput}
+											onChange={formatted => handleDateSelect(formatted, 'start')}
+											isDisabled={isLoading}
+										/>
 									</VStack>
 
 									<VStack className="flex-1 min-w-[140px]">
-										<Text className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-											Data final
-										</Text>
-										<Input>
-											<InputField
-												value={endDateInput}
-												onChangeText={value => handleDateChange(value, 'end')}
-												placeholder="dd/mm/aaaa"
-												keyboardType="numeric"
-												returnKeyType="done"
-											/>
-										</Input>
+										<DatePickerField
+											label="Data final"
+											value={endDateInput}
+											onChange={formatted => handleDateSelect(formatted, 'end')}
+											isDisabled={isLoading}
+										/>
 									</VStack>
 
 									<VStack className="flex-1 min-w-[160px]">

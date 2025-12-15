@@ -52,6 +52,7 @@ import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/func
 import { auth } from '@/FirebaseConfig';
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 // Importação dos icones
 import { CheckIcon } from '@/components/ui/icon';
@@ -76,18 +77,6 @@ const formatDateToBR = (date: Date) => {
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${day}/${month}/${year}`;
-};
-
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
 };
 
 const parseDateFromBR = (value: string) => {
@@ -572,11 +561,6 @@ export default function AddRegisterGainScreen() {
 		setGainValueCents(centsValue);
 	}, []);
 
-	const handleDateChange = React.useCallback((value: string) => {
-		const sanitized = sanitizeDateInput(value);
-		setGainDate(formatDateInput(sanitized));
-	}, []);
-
 	const handleSubmit = React.useCallback(async () => {
 		if (!gainName.trim()) {
 			showFloatingAlert({
@@ -746,21 +730,12 @@ export default function AddRegisterGainScreen() {
 				position: 'bottom',
 			});
 
-			if (isTemplateLocked) {
+			if (isTemplateLocked || isEditing) {
 				router.back();
 				return;
 			}
 
-			setGainName('');
-			setGainValueDisplay('');
-			setGainValueCents(null);
-			setGainDate(formatDateToBR(new Date()));
-			setPaymentFormat([]);
-			setExplanationGain(null);
-			setMoneyFormat(false);
-			setSelectedTagId(null);
-			setSelectedBankId(null);
-			setSelectedMovementBankName(null);
+			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showFloatingAlert({
@@ -1217,23 +1192,12 @@ export default function AddRegisterGainScreen() {
 								)}
 							</Box>
 
-							{/* Campo de data do ganho */}
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Data do ganho
-								</Text>
-								<Input>
-									<InputField
-										placeholder="Data do ganho (DD/MM/AAAA)"
-										value={gainDate}
-										onChangeText={handleDateChange}
-										autoCorrect={false}
-										keyboardType="numbers-and-punctuation"
-										onLayout={handleInputLayout('gain-date')}
-										onFocus={() => scrollToInput('gain-date')}
-									/>
-								</Input>
-							</Box>
+							<DatePickerField
+								label="Data do ganho"
+								value={gainDate}
+								onChange={formatted => setGainDate(formatted)}
+								isDisabled={isLoadingExisting || isSubmitting}
+							/>
 
 							{isEditing && isLoadingExisting && (
 								<Text className="text-sm text-gray-500 dark:text-gray-400">

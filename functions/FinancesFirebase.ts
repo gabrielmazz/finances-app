@@ -188,6 +188,11 @@ export async function adjustFinanceInvestmentValueFirebase({
 	deltaInCents: number;
 }) {
 	try {
+		if (!investmentId || !Number.isFinite(deltaInCents)) {
+			return { success: false, error: 'Dados inválidos para ajustar investimento.' };
+		}
+
+		const investmentRef = doc(db, COLLECTION, investmentId);
 		const snapshot = await getDoc(investmentRef);
 		const data = snapshot.data() as Record<string, unknown> | undefined;
 		const baseValue =

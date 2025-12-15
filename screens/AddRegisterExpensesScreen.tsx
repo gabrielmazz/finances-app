@@ -42,6 +42,7 @@ import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } fro
 import { auth } from '@/FirebaseConfig';
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 // Importação do SVG
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
@@ -67,19 +68,6 @@ const formatDateToBR = (date: Date) => {
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${day}/${month}/${year}`;
-};
-
-// Sanitiza a entrada de data para o formato brasileiro (DD/MM/YYYY)
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
 };
 
 const parseDateFromBR = (value: string) => {
@@ -549,13 +537,6 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseValueCents(centsValue);
 	}, []);
 
-	// Manipula a mudança no campo de data, sanitizando a entrada
-	const handleDateChange = React.useCallback((value: string) => {
-		const sanitized = sanitizeDateInput(value);
-		setExpenseDate(formatDateInput(sanitized));
-	}, []);
-
-
 	const handleSubmit = React.useCallback(async () => {
 
 		if (!expenseName.trim()) {
@@ -744,19 +725,12 @@ export default function AddRegisterExpensesScreen() {
 				offset: 40,
 			});
 
-			if (isTemplateLocked) {
+			if (isTemplateLocked || isEditing) {
 				router.back();
 				return;
 			}
 
-			setExpenseName('');
-			setExpenseValueDisplay('');
-			setExpenseValueCents(null);
-			setExpenseDate(formatDateToBR(new Date()));
-			setExplanationExpense(null);
-			setMoneyFormat(false);
-			setSelectedTagId(null);
-			setSelectedBankId(null);
+			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
 			showFloatingAlert({
@@ -1135,22 +1109,12 @@ export default function AddRegisterExpensesScreen() {
 								</Select>
 							</Box>
 
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Data da despesa
-								</Text>
-								<Input>
-									<InputField
-										onLayout={handleInputLayout('expense-date')}
-										placeholder="Data da despesa (DD/MM/AAAA)"
-										value={expenseDate}
-										onChangeText={handleDateChange}
-										autoCorrect={false}
-										keyboardType="numbers-and-punctuation"
-										onFocus={() => scrollToInput('expense-date')}
-									/>
-								</Input>
-							</Box>
+							<DatePickerField
+								label="Data da despesa"
+								value={expenseDate}
+								onChange={formatted => setExpenseDate(formatted)}
+								isDisabled={isLoadingExisting || isSubmitting}
+							/>
 
 							{isEditing && isLoadingExisting && (
 								<Text className="text-sm text-gray-500 dark:text-gray-400">

@@ -37,6 +37,7 @@ import { auth } from '@/FirebaseConfig';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
 
@@ -50,18 +51,6 @@ const formatCurrencyBRL = (valueInCents: number) =>
 		style: 'currency',
 		currency: 'BRL',
 	}).format(valueInCents / 100);
-
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
-};
 
 const parseDateFromBR = (value: string) => {
 	const [day, month, year] = value.split('/');
@@ -153,9 +142,8 @@ export default function TransferScreen() {
 		setTransferValueInCents(centsValue);
 	}, []);
 
-	const handleDateChange = React.useCallback((value: string) => {
-		const sanitized = sanitizeDateInput(value);
-		setTransferDate(formatDateInput(sanitized));
+	const handleDateSelect = React.useCallback((formatted: string) => {
+		setTransferDate(formatted);
 	}, []);
 
 	const loadOriginBalance = React.useCallback(async (bankId: string) => {
@@ -652,18 +640,12 @@ export default function TransferScreen() {
 								)}
 							</Box>
 
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Data</Text>
-								<Input>
-									<InputField
-										value={transferDate}
-										onChangeText={handleDateChange}
-										placeholder="dd/mm/aaaa"
-										keyboardType="numeric"
-										returnKeyType="done"
-									/>
-								</Input>
-							</Box>
+							<DatePickerField
+								label="Data"
+								value={transferDate}
+								onChange={handleDateSelect}
+								isDisabled={isLoadingBanks || isSubmitting}
+							/>
 
 							<Box>
 								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">

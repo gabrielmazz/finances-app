@@ -77,15 +77,19 @@ export async function addGainFirebase({
 	bankTransferGainId,
 }: AddGainParams) {
 	try {
-		const gainRef = doc(collection(db, 'gains'));
-		const createdAt = new Date();
+	const gainRef = doc(collection(db, 'gains'));
+	const createdAt = new Date();
+	const normalizedPaymentFormats = Array.isArray(paymentFormats)
+		? paymentFormats.filter(item => typeof item === 'string')
+		: [];
+	const normalizedMoneyFormat = typeof moneyFormat === 'boolean' ? moneyFormat : false;
 
-		await setDoc(gainRef, {
-			name,
-			valueInCents,
-			paymentFormats,
-			explanation: explanation || null,
-			moneyFormat,
+	await setDoc(gainRef, {
+		name,
+		valueInCents,
+		paymentFormats: normalizedPaymentFormats,
+		explanation: explanation || null,
+		moneyFormat: normalizedMoneyFormat,
 			tagId: typeof tagId === 'string' ? tagId : null,
 			bankId: typeof bankId === 'string' ? bankId : null,
 			date,
@@ -123,6 +127,15 @@ export async function updateGainFirebase({
 	tagId,
 	bankId,
 	date,
+	isBankTransfer,
+	bankTransferPairId,
+	bankTransferDirection,
+	bankTransferSourceBankId,
+	bankTransferTargetBankId,
+	bankTransferSourceBankNameSnapshot,
+	bankTransferTargetBankNameSnapshot,
+	bankTransferExpenseId,
+	bankTransferGainId,
 }: UpdateGainParams) {
 	try {
 		const gainRef = doc(db, 'gains', gainId);
