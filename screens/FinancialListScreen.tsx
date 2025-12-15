@@ -674,12 +674,16 @@ export default function FinancialListScreen() {
 		try {
 			const tagInfo = await ensureInvestmentTag('expense');
 
-			await syncFinanceInvestmentValueFirebase({
+			const syncResult = await syncFinanceInvestmentValueFirebase({
 				investmentId: targetInvestment.id,
 				syncedValueInCents: newCurrentValue,
 			});
 
-			await addExpenseFirebase({
+			if (!syncResult.success) {
+				throw new Error('Erro ao atualizar o investimento com o novo aporte.');
+			}
+
+			const expenseResult = await addExpenseFirebase({
 				name: `Aporte - ${targetInvestment?.name ?? 'Investimento'}`,
 				valueInCents: parsedCents,
 				tagId: tagInfo.id,
@@ -691,6 +695,14 @@ export default function FinancialListScreen() {
 				investmentId: targetInvestment.id,
 				investmentNameSnapshot: targetInvestment?.name ?? null,
 			});
+
+			if (!expenseResult.success) {
+				await syncFinanceInvestmentValueFirebase({
+					investmentId: targetInvestment.id,
+					syncedValueInCents: syncedDepositValueInCents,
+				});
+				throw new Error('Erro ao registrar o aporte.');
+			}
 
 			await loadData();
 			setInvestmentForDeposit(null);
@@ -875,6 +887,7 @@ export default function FinancialListScreen() {
 		}
 
 		const targetInvestment = investmentForWithdrawal;
+		const originalSyncedValue = availableCents;
 		const personId = auth.currentUser?.uid;
 		if (!personId) {
 			showFloatingAlert({
@@ -887,6 +900,7 @@ export default function FinancialListScreen() {
 
 		setIsSavingWithdrawal(true);
 		try {
+			const tagInfo = await ensureInvestmentTag('gain');
 			const remainingCents = Math.max(0, availableCents - withdrawCents);
 			const syncResult = await syncFinanceInvestmentValueFirebase({
 				investmentId: targetInvestment.id,
@@ -897,9 +911,7 @@ export default function FinancialListScreen() {
 				throw new Error('Erro ao sincronizar valor após resgate.');
 			}
 
-			const tagInfo = await ensureInvestmentTag('gain');
-
-			await addGainFirebase({
+			const gainResult = await addGainFirebase({
 				name: `Resgate - ${targetInvestment?.name ?? 'Investimento'}`,
 				valueInCents: withdrawCents,
 				tagId: tagInfo.id,
@@ -910,6 +922,14 @@ export default function FinancialListScreen() {
 				investmentId: targetInvestment.id,
 				investmentNameSnapshot: targetInvestment?.name ?? null,
 			});
+
+			if (!gainResult.success) {
+				await syncFinanceInvestmentValueFirebase({
+					investmentId: targetInvestment.id,
+					syncedValueInCents: originalSyncedValue,
+				});
+				throw new Error('Erro ao registrar o resgate.');
+			}
 
 			await loadData();
 			setInvestmentForWithdrawal(null);

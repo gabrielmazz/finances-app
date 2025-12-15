@@ -37,6 +37,7 @@ import { auth } from '@/FirebaseConfig';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -50,18 +51,6 @@ const formatCurrencyBRL = (valueInCents: number) =>
 		style: 'currency',
 		currency: 'BRL',
 	}).format(valueInCents / 100);
-
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
-};
 
 const parseDateFromBR = (value: string) => {
 	const [day, month, year] = value.split('/');
@@ -293,9 +282,8 @@ export default function AddRescueScreen() {
 		};
 	}, [selectedBankId]);
 
-	const handleDateChange = React.useCallback((value: string) => {
-		const sanitized = sanitizeDateInput(value);
-		setRescueDate(formatDateInput(sanitized));
+	const handleDateSelect = React.useCallback((formatted: string) => {
+		setRescueDate(formatted);
 	}, []);
 
 	React.useEffect(() => {
@@ -577,17 +565,12 @@ export default function AddRescueScreen() {
 							</Input>
 						</Box>
 
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Data</Text>
-							<Input>
-								<InputField
-									placeholder="Data do saque (DD/MM/AAAA)"
-									value={rescueDate}
-									onChangeText={handleDateChange}
-									keyboardType="numbers-and-punctuation"
-								/>
-							</Input>
-						</Box>
+						<DatePickerField
+							label="Data"
+							value={rescueDate}
+							onChange={handleDateSelect}
+							isDisabled={isLoadingBanks || isSubmitting}
+						/>
 
 						<Box>
 							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">

@@ -118,6 +118,15 @@ export async function updateExpenseFirebase({
 	date,
 	explanation,
 	moneyFormat,
+	isBankTransfer,
+	bankTransferPairId,
+	bankTransferDirection,
+	bankTransferSourceBankId,
+	bankTransferTargetBankId,
+	bankTransferSourceBankNameSnapshot,
+	bankTransferTargetBankNameSnapshot,
+	bankTransferExpenseId,
+	bankTransferGainId,
 }: UpdateExpenseParams) {
 	try {
 		const expenseRef = doc(db, 'expenses', expenseId);

@@ -39,6 +39,7 @@ import {
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import DatePickerField from '@/components/uiverse/date-picker';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
@@ -67,18 +68,6 @@ const formatDateToBR = (date: Date) => {
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${day}/${month}/${year}`;
-};
-
-const sanitizeDateInput = (value: string) => value.replace(/\D/g, '').slice(0, 8);
-
-const formatDateInput = (value: string) => {
-	if (value.length <= 2) {
-		return value;
-	}
-	if (value.length <= 4) {
-		return `${value.slice(0, 2)}/${value.slice(2)}`;
-	}
-	return `${value.slice(0, 2)}/${value.slice(2, 4)}/${value.slice(4)}`;
 };
 
 const parseDateFromBR = (value: string) => {
@@ -252,9 +241,8 @@ export default function AddFinanceScreen() {
 		}, [loadBanks]),
 	);
 
-	const handleDateChange = React.useCallback((value: string) => {
-		const sanitized = sanitizeDateInput(value);
-		setInvestmentDate(formatDateInput(sanitized));
+	const handleDateSelect = React.useCallback((formatted: string) => {
+		setInvestmentDate(formatted);
 		setHasSavedOnce(false);
 	}, []);
 
@@ -596,20 +584,11 @@ export default function AddFinanceScreen() {
 								</Input>
 							</Box>
 
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Dia do investimento</Text>
-								<Input>
-									<InputField
-										value={investmentDate}
-										onChangeText={value => {
-											handleDateChange(value);
-										}}
-										placeholder="dd/mm/aaaa"
-										keyboardType="numeric"
-										returnKeyType="next"
-									/>
-								</Input>
-							</Box>
+							<DatePickerField
+								label="Dia do investimento"
+								value={investmentDate}
+								onChange={formatted => handleDateSelect(formatted)}
+							/>
 
 							<Box>
 								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">CDI (%)</Text>
