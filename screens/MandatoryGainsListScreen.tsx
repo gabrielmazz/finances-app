@@ -42,15 +42,9 @@ import MandatoryGainListIllustration from '../assets/UnDraw/mandatoryGainsListSc
 import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
 
-type MandatoryGainItem = {
-	id: string;
-	name: string;
-	valueInCents: number;
-	dueDay: number;
-	tagId: string;
-	description?: string | null;
-	reminderEnabled?: boolean;
+type MandatoryGainItem = DateCalendarItem & {
 	lastReceiptGainId?: string | null;
 	lastReceiptCycle?: string | null;
 	lastReceiptDate?: Date | null;
@@ -145,6 +139,38 @@ export default function MandatoryGainsListScreen() {
 			}).format(valueInCents / 100);
 		},
 		[shouldHideValues],
+	);
+
+	const calendarGains = React.useMemo(
+		() =>
+			gains.map(gain => ({
+				...gain,
+				isCompletedForCurrentCycle: gain.isReceivedForCurrentCycle,
+				lastStatusDate: gain.lastReceiptDate ?? null,
+			})),
+		[gains],
+	);
+
+	const getGainStatusText = React.useCallback(
+		(gain: DateCalendarItem & { lastStatusDate?: Date | null; isCompletedForCurrentCycle?: boolean }) => {
+			if (gain.isCompletedForCurrentCycle) {
+				return `Recebido em ${formatReceiptDate(gain.lastStatusDate ?? null)}.`;
+			}
+			return 'Aguardando registro como ganho neste mês.';
+		},
+		[],
+	);
+
+	const getGainStatusClassName = React.useCallback(
+		(gain: DateCalendarItem & { isCompletedForCurrentCycle?: boolean }) =>
+			gain.isCompletedForCurrentCycle ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400',
+		[],
+	);
+
+	const getGainDueDayColorClass = React.useCallback(
+		(dueDay: number, gain?: DateCalendarItem) =>
+			getDueDayColorClass(dueDay, (gain as MandatoryGainItem | undefined)?.isCompletedForCurrentCycle),
+		[],
 	);
 
 	const loadData = React.useCallback(async () => {
@@ -382,6 +408,13 @@ export default function MandatoryGainsListScreen() {
 		return true;
 	}, []);
 
+	const handleCalendarAction = React.useCallback(
+		(action: PendingGainAction['type'], gain: MandatoryGainItem) => {
+			setPendingAction({ type: action, gain });
+		},
+		[],
+	);
+
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
 			return {
@@ -471,6 +504,20 @@ export default function MandatoryGainsListScreen() {
 					</Text>
 
 					<Divider className="my-6 mb-6" />
+
+					<DateCalendar
+						items={calendarGains}
+						tagsMap={tagsMap}
+						formatCurrency={formatCurrencyBRL}
+						getStatusText={getGainStatusText}
+						getStatusClassName={getGainStatusClassName}
+						getDueDayColorClass={getGainDueDayColorClass}
+						onAction={handleCalendarAction}
+						valueLabel="Previsto"
+						dueLabel="Recebimento"
+						completedLabel="receb."
+						pendingLabel="pend."
+					/>
 
 					<Button className="mb-6" onPress={handleOpenCreate} variant="outline">
 						<ButtonText>Registrar novo ganho obrigatório</ButtonText>
