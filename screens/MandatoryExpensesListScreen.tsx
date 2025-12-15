@@ -42,26 +42,20 @@ import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpense
 import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
-
-type MandatoryExpenseItem = {
-	id: string;
-	name: string;
-	valueInCents: number;
-	dueDay: number;
-	tagId: string;
-	description?: string | null;
-	reminderEnabled?: boolean;
-	lastPaymentExpenseId?: string | null;
-	lastPaymentCycle?: string | null;
-	lastPaymentDate?: Date | null;
-	isPaidForCurrentCycle?: boolean;
-};
+import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
 	| { type: 'edit'; expense: MandatoryExpenseItem }
 	| { type: 'delete'; expense: MandatoryExpenseItem }
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
+
+type MandatoryExpenseItem = DateCalendarItem & {
+	lastPaymentExpenseId?: string | null;
+	lastPaymentCycle?: string | null;
+	lastPaymentDate?: Date | null;
+	isPaidForCurrentCycle?: boolean;
+};
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -122,6 +116,8 @@ const formatPaymentDate = (value: Date | null) => {
 	}).format(value);
 };
 
+const INITIAL_VISIBLE_EXPENSES = 4;
+
 export default function MandatoryExpensesListScreen() {
 	const { isDarkMode } = useAppTheme();
 	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
@@ -131,6 +127,7 @@ export default function MandatoryExpensesListScreen() {
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
+	const [visibleExpenseCount, setVisibleExpenseCount] = React.useState(INITIAL_VISIBLE_EXPENSES);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -141,6 +138,42 @@ export default function MandatoryExpensesListScreen() {
 		},
 		[shouldHideValues],
 	);
+
+	const calendarExpenses = React.useMemo(
+		() =>
+			expenses.map(expense => ({
+				...expense,
+				isCompletedForCurrentCycle: expense.isPaidForCurrentCycle,
+				lastStatusDate: expense.lastPaymentDate ?? null,
+			})),
+		[expenses],
+	);
+
+	const getExpenseStatusText = React.useCallback(
+		(expense: DateCalendarItem & { lastStatusDate?: Date | null; isCompletedForCurrentCycle?: boolean }) => {
+			if (expense.isCompletedForCurrentCycle) {
+				return `Pagamento registrado em ${formatPaymentDate(expense.lastStatusDate ?? null)}.`;
+			}
+			return 'Aguardando registro como despesa neste mês.';
+		},
+		[],
+	);
+
+	const getExpenseStatusClassName = React.useCallback(
+		(expense: DateCalendarItem & { isCompletedForCurrentCycle?: boolean }) =>
+			expense.isCompletedForCurrentCycle
+				? 'text-emerald-600 dark:text-emerald-400'
+				: 'text-gray-500 dark:text-gray-400',
+		[],
+	);
+
+	const visibleExpenses = React.useMemo(
+		() => expenses.slice(0, Math.max(visibleExpenseCount, 0)),
+		[expenses, visibleExpenseCount],
+	);
+
+	const hasMoreExpenses = expenses.length > visibleExpenseCount;
+	const canCollapseExpenses = visibleExpenseCount > INITIAL_VISIBLE_EXPENSES;
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
@@ -384,6 +417,21 @@ export default function MandatoryExpensesListScreen() {
 		return true;
 	}, []);
 
+	const handleCalendarAction = React.useCallback(
+		(action: PendingExpenseAction['type'], expense: MandatoryExpenseItem) => {
+			setPendingAction({ type: action, expense });
+		},
+		[],
+	);
+
+	const handleShowMoreExpenses = React.useCallback(() => {
+		setVisibleExpenseCount(Math.max(expenses.length, INITIAL_VISIBLE_EXPENSES));
+	}, [expenses.length]);
+
+	const handleCollapseExpenses = React.useCallback(() => {
+		setVisibleExpenseCount(INITIAL_VISIBLE_EXPENSES);
+	}, []);
+
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
 			return {
@@ -461,77 +509,94 @@ export default function MandatoryExpensesListScreen() {
 				>
 					<View className="w-full px-6">
 
-					<Heading size="3xl" className="text-center">
-						Gastos obrigatórios
-					</Heading>
+						<Heading size="3xl" className="text-center">
+							Gastos obrigatórios
+						</Heading>
 
-					<Box className="w-full items-center ">
-						<MandatoryExpensesListIllustration width={170} height={170} />
-					</Box>
+						<Box className="w-full items-center ">
+							<MandatoryExpensesListIllustration width={170} height={170} />
+						</Box>
 
-					<Text className="text-justify text-gray-600 dark:text-gray-400">
-						Acompanhe seus pagamentos recorrentes, registre-os facilmente e nunca perca um vencimento. Sempre renovando a cada mês para manter suas finanças em dia.
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<Button className="mb-6" onPress={handleOpenCreate} variant="outline">
-						<ButtonText>Registrar novo gasto obrigatório</ButtonText>
-					</Button>
-
-					{isLoading ? (
-						<Text className="text-center text-gray-500">Carregando gastos obrigatórios...</Text>
-					) : expenses.length === 0 ? (
-						<Text className="text-center text-gray-500">
-							Nenhum gasto obrigatório cadastrado até o momento.
+						<Text className="text-justify text-gray-600 dark:text-gray-400">
+							Acompanhe seus pagamentos recorrentes, registre-os facilmente e nunca perca um vencimento. Sempre renovando a cada mês para manter suas finanças em dia.
 						</Text>
-					) : (
-						<VStack className="">
-							{expenses.map(expense => (
-								<Box
-									key={expense.id}
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-								>
-									<HStack className="justify-between items-start mb-2">
-										<View className="flex-1 pr-3">
-											<Text className="text-lg font-semibold">{expense.name}</Text>
-											<Text className="text-gray-700 dark:text-gray-300">
-												Valor previsto: {' '}
-												<Text className="text-orange-500 dark:text-orange-300">
-													{formatCurrencyBRL(expense.valueInCents)}
+
+						<Divider className="my-6 mb-6" />
+
+						<DateCalendar
+							items={calendarExpenses}
+							tagsMap={tagsMap}
+							formatCurrency={formatCurrencyBRL}
+							getStatusText={getExpenseStatusText}
+							getStatusClassName={getExpenseStatusClassName}
+							getDueDayColorClass={(dueDay: number) => getDueDayColorClass(dueDay)}
+							onAction={handleCalendarAction}
+							valueLabel="Previsto"
+							dueLabel="Vencimento"
+							completedLabel="pagos"
+							pendingLabel="pend."
+						/>
+
+						<Button className="mb-6" onPress={handleOpenCreate} variant="outline">
+							<ButtonText>Registrar novo gasto obrigatório</ButtonText>
+						</Button>
+
+						{isLoading ? (
+							<Text className="text-center text-gray-500">Carregando gastos obrigatórios...</Text>
+						) : expenses.length === 0 ? (
+							<Text className="text-center text-gray-500">
+								Nenhum gasto obrigatório cadastrado até o momento.
+							</Text>
+						) : (
+							<VStack>
+								<Text className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+									Mostrando {visibleExpenses.length} de {expenses.length} gastos obrigatórios cadastrados.
+								</Text>
+								{visibleExpenses.map(expense => (
+									<Box
+										key={expense.id}
+										className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
+									>
+										<HStack className="justify-between items-start mb-2">
+											<View className="flex-1 pr-3">
+												<Text className="text-lg font-semibold">{expense.name}</Text>
+												<Text className="text-gray-700 dark:text-gray-300">
+													Valor previsto: {' '}
+													<Text className="text-orange-500 dark:text-orange-300">
+														{formatCurrencyBRL(expense.valueInCents)}
+													</Text>
 												</Text>
-											</Text>
-											<Text className="text-gray-700 dark:text-gray-300">
-												Vencimento: {''}
-												<Text className={getDueDayColorClass(expense.dueDay)}>
-													dia {String(expense.dueDay).padStart(2, '0')}
+												<Text className="text-gray-700 dark:text-gray-300">
+													Vencimento: {''}
+													<Text className={getDueDayColorClass(expense.dueDay)}>
+														dia {String(expense.dueDay).padStart(2, '0')}
+													</Text>
 												</Text>
-											</Text>
-											<Text className="text-gray-600">
-												Tag: {tagsMap[expense.tagId] ?? 'Tag não encontrada'}
-											</Text>
-											<Text className="text-gray-600">
-												Lembrete: {expense.reminderEnabled === false ? 'desativado' : 'ativado'}
-											</Text>
-											<Text
-												className={
-													expense.isPaidForCurrentCycle
-														? 'text-emerald-600 dark:text-emerald-400 mt-1'
-														: 'text-gray-500 dark:text-gray-400 mt-1'
-												}
-											>
-												{expense.isPaidForCurrentCycle
-													? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
-													: 'Aguardando registro como despesa neste mês.'}
-											</Text>
-											{expense.description && (
-												<Text className="text-gray-600 mt-1">Observações: {expense.description}</Text>
-											)}
-										</View>
+												<Text className="text-gray-600">
+													Tag: {tagsMap[expense.tagId] ?? 'Tag não encontrada'}
+												</Text>
+												<Text className="text-gray-600">
+													Lembrete: {expense.reminderEnabled === false ? 'desativado' : 'ativado'}
+												</Text>
+												<Text
+													className={
+														expense.isPaidForCurrentCycle
+															? 'text-emerald-600 dark:text-emerald-400 mt-1'
+															: 'text-gray-500 dark:text-gray-400 mt-1'
+													}
+												>
+													{expense.isPaidForCurrentCycle
+														? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
+														: 'Aguardando registro como despesa neste mês.'}
+												</Text>
+												{expense.description && (
+													<Text className="text-gray-600 mt-1">Observações: {expense.description}</Text>
+												)}
+											</View>
 										</HStack>
-										
+
 										<Divider className="my-4" />
-										
+
 										<HStack className="gap-3 flex-wrap justify-end">
 											<Button
 												size="md"
@@ -571,45 +636,55 @@ export default function MandatoryExpensesListScreen() {
 										</HStack>
 									</Box>
 								))}
+
+								{(hasMoreExpenses || canCollapseExpenses) && (
+									<Button
+										variant="outline"
+										onPress={hasMoreExpenses ? handleShowMoreExpenses : handleCollapseExpenses}
+										className="mb-6"
+									>
+										<ButtonText>{hasMoreExpenses ? 'Mostrar mais' : 'Mostrar menos'}</ButtonText>
+									</Button>
+								)}
 							</VStack>
-					)}
-				</View>
+						)}
+					</View>
 				</ScrollView>
 
 				<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
 
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">{actionModalCopy.title}</Heading>
-						<ModalCloseButton onPress={handleCloseActionModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isActionProcessing}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button
-							variant="solid"
-							action={actionModalCopy.action}
-							onPress={handleConfirmAction}
-							isDisabled={isActionProcessing}
-						>
-							{isActionProcessing ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Processando</ButtonText>
-								</>
-							) : (
-								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
+						<ModalHeader>
+							<Heading size="lg">{actionModalCopy.title}</Heading>
+							<ModalCloseButton onPress={handleCloseActionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isActionProcessing}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								action={actionModalCopy.action}
+								onPress={handleConfirmAction}
+								isDisabled={isActionProcessing}
+							>
+								{isActionProcessing ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Processando</ButtonText>
+									</>
+								) : (
+									<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 			</View>
 		</SafeAreaView>
 	);
