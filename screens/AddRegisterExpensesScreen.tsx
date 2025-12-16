@@ -1,12 +1,14 @@
 import React from 'react';
 import {
 	BackHandler,
+	findNodeHandle,
 	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
-	View,
 	StatusBar,
+	TextInput,
+	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -54,6 +56,7 @@ type OptionItem = {
 	name: string;
 	usageType?: 'expense' | 'gain';
 };
+type FocusableInputKey = 'expense-name' | 'expense-value' | 'expense-explanation';
 
 // Formata um valor em centavos para o formato de moeda BRL
 const formatCurrencyBRL = (valueInCents: number) =>
@@ -190,44 +193,95 @@ export default function AddRegisterExpensesScreen() {
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
-	const inputPositions = React.useRef<Record<string, number>>({});
+	const expenseNameInputRef = React.useRef<TextInput | null>(null);
+	const expenseValueInputRef = React.useRef<TextInput | null>(null);
+	const expenseExplanationInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const keyboardScrollOffset = React.useCallback(
+		(key: FocusableInputKey) => (key === 'expense-explanation' ? 180 : 120),
+		[],
+	);
+
+	const getInputRef = React.useCallback(
+		(key: FocusableInputKey) => {
+			switch (key) {
+				case 'expense-name':
+					return expenseNameInputRef;
+				case 'expense-value':
+					return expenseValueInputRef;
+				case 'expense-explanation':
+					return expenseExplanationInputRef;
+				default:
+					return null;
+			}
+		},
+		[],
+	);
+
+		const scrollToInput = React.useCallback(
+			(key: FocusableInputKey) => {
+				const inputRef = getInputRef(key);
+				if (!inputRef?.current) {
+					return;
+				}
+
+				const nodeHandle = findNodeHandle(inputRef.current);
+				const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+				const offset = keyboardScrollOffset(key);
+
+				if (scrollResponder && nodeHandle) {
+					scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+					return;
+				}
+
+				const scrollViewNode = scrollViewRef.current;
+				const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+				if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+					inputRef.current.measureLayout(
+						innerViewNode,
+						(_x, y) =>
+							scrollViewNode.scrollTo({
+								y: Math.max(0, y - keyboardScrollOffset(key)),
+								animated: true,
+							}),
+						() => {},
+					);
+				}
+			},
+			[getInputRef, keyboardScrollOffset],
+		);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
 
 	React.useEffect(() => {
 		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-		const showSub = Keyboard.addListener(showEvent, e => setKeyboardHeight(e.endCoordinates?.height ?? 0));
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
 		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
 
 		return () => {
 			showSub.remove();
 			hideSub.remove();
 		};
-	}, []);
+	}, [scrollToInput]);
 
 	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 80), [keyboardHeight]);
-
-	const handleInputLayout = React.useCallback(
-		(id: string) => (event: { nativeEvent: { layout: { y: number } } }) => {
-			inputPositions.current[id] = event.nativeEvent.layout.y;
-		},
-		[],
-	);
-
-	const scrollToInput = React.useCallback(
-		(id: string) => {
-			if (!scrollViewRef.current) {
-				return;
-			}
-			const y = inputPositions.current[id];
-			if (typeof y === 'number') {
-				scrollViewRef.current.scrollTo({ y: Math.max(0, y - 32), animated: true });
-				return;
-			}
-			scrollViewRef.current.scrollToEnd({ animated: true });
-		},
-		[],
-	);
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
@@ -951,12 +1005,12 @@ export default function AddRegisterExpensesScreen() {
 								</Text>
 								<Input isDisabled={isTemplateLocked}>
 									<InputField
-										onLayout={handleInputLayout('expense-name')}
+										ref={expenseNameInputRef}
 										placeholder="Ex: Mercado, Combustível, Roupa..."
 										value={expenseName}
 										onChangeText={setExpenseName}
 										autoCapitalize="sentences"
-										onFocus={() => scrollToInput('expense-name')}
+										onFocus={() => handleInputFocus('expense-name')}
 									/>
 								</Input>
 							</Box>
@@ -967,12 +1021,12 @@ export default function AddRegisterExpensesScreen() {
 								</Text>
 								<Input>
 									<InputField
-										onLayout={handleInputLayout('expense-value')}
+										ref={expenseValueInputRef}
 										placeholder="Ex: R$ 50,00"
 										value={expenseValueDisplay}
 										onChangeText={handleValueChange}
 										keyboardType="numeric"
-										onFocus={() => scrollToInput('expense-value')}
+										onFocus={() => handleInputFocus('expense-value')}
 									/>
 								</Input>
 							</Box>
@@ -987,11 +1041,11 @@ export default function AddRegisterExpensesScreen() {
 									className="h-32"
 								>
 									<TextareaInput
-										onLayout={handleInputLayout('expense-explanation')}
+										ref={expenseExplanationInputRef}
 										placeholder="(Opcional) Explique sobre essa despesa..."
 										value={explanationExpense ?? ''}
 										onChangeText={setExplanationExpense}
-										onFocus={() => scrollToInput('expense-explanation')}
+										onFocus={() => handleInputFocus('expense-explanation')}
 									/>
 								</Textarea>
 							</Box>

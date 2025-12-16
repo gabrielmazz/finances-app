@@ -1,5 +1,15 @@
 import React from 'react';
-import { ScrollView, View, StatusBar } from 'react-native';
+import {
+	ScrollView,
+	View,
+	StatusBar,
+	KeyboardAvoidingView,
+	Platform,
+	Keyboard,
+	ScrollView as RNScrollView,
+	TextInput,
+	findNodeHandle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -56,6 +66,7 @@ type PaymentInfo = {
 	paidAt: Date | null;
 	cycleKey: string | null;
 };
+type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'description';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -122,6 +133,18 @@ export default function AddMandatoryExpensesScreen() {
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? null;
 	}, [selectedTagId, tagOptions]);
 
+	const scrollViewRef = React.useRef<RNScrollView | null>(null);
+	const expenseNameInputRef = React.useRef<TextInput | null>(null);
+	const expenseValueInputRef = React.useRef<TextInput | null>(null);
+	const dueDayInputRef = React.useRef<TextInput | null>(null);
+	const descriptionInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+	const keyboardScrollOffset = React.useCallback(
+		(key: FocusableInputKey) => (key === 'description' ? 180 : 120),
+		[],
+	);
+
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = formatValueInput(input);
 		if (!digitsOnly) {
@@ -153,6 +176,89 @@ export default function AddMandatoryExpensesScreen() {
 		}
 		setReminderEnabled(value);
 	}, []);
+
+	const getInputRef = React.useCallback(
+		(key: FocusableInputKey) => {
+			switch (key) {
+				case 'expense-name':
+					return expenseNameInputRef;
+				case 'expense-value':
+					return expenseValueInputRef;
+				case 'due-day':
+					return dueDayInputRef;
+				case 'description':
+					return descriptionInputRef;
+				default:
+					return null;
+			}
+		},
+		[],
+	);
+
+	const scrollToInput = React.useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x, y) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - keyboardScrollOffset(key)),
+							animated: true,
+						}),
+					() => {},
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset],
+	);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
+
+	React.useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, [scrollToInput]);
+
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
 
 	const isDueDayValid = React.useMemo(() => {
 		if (!dueDay) {
@@ -576,17 +682,23 @@ export default function AddMandatoryExpensesScreen() {
 			>
 				<FloatingAlertViewport />
 
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{ backgroundColor: pageBackground }}
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-						backgroundColor: pageBackground,
-					}}
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+					className="flex-1 w-full"
 				>
-					<View className="w-full px-6">
+					<ScrollView
+						ref={scrollViewRef}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: contentBottomPadding,
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center">
 						{selectedExpenseId ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório'}
@@ -610,10 +722,12 @@ export default function AddMandatoryExpensesScreen() {
 							</Text>
 							<Input isDisabled={isPrefilling}>
 								<InputField
+									ref={expenseNameInputRef}
 									placeholder="Ex: Aluguel, Luz, Internet..."
 									value={expenseName}
 									onChangeText={setExpenseName}
 									autoCapitalize="sentences"
+									onFocus={() => handleInputFocus('expense-name')}
 								/>
 							</Input>
 						</Box>
@@ -624,10 +738,12 @@ export default function AddMandatoryExpensesScreen() {
 							</Text>
 							<Input isDisabled={isPrefilling}>
 								<InputField
+									ref={expenseValueInputRef}
 									placeholder="Ex: R$ 700,00"
 									value={valueDisplay}
 									onChangeText={handleValueChange}
 									keyboardType="numeric"
+									onFocus={() => handleInputFocus('expense-value')}
 								/>
 							</Input>
 						</Box>
@@ -638,10 +754,12 @@ export default function AddMandatoryExpensesScreen() {
 							</Text>
 							<Input isDisabled={isPrefilling}>
 								<InputField
+									ref={dueDayInputRef}
 									placeholder="Dia do vencimento (1-31)"
 									value={dueDay}
 									onChangeText={handleDueDayChange}
 									keyboardType="numeric"
+									onFocus={() => handleInputFocus('due-day')}
 								/>
 							</Input>
 							{dueDay.length > 0 && !isDueDayValid && (
@@ -689,10 +807,12 @@ export default function AddMandatoryExpensesScreen() {
 							</Text>
 							<Textarea className="h-28" isDisabled={isPrefilling}>
 								<TextareaInput
+									ref={descriptionInputRef}
 									placeholder="Descrição ou observações (opcional)"
 									multiline
 									value={description}
 									onChangeText={setDescription}
+									onFocus={() => handleInputFocus('description')}
 								/>
 							</Textarea>
 						</Box>
@@ -781,8 +901,9 @@ export default function AddMandatoryExpensesScreen() {
 							)}
 						</Button>
 					</VStack>
-				</View>
-				</ScrollView>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
 				<Menu defaultValue={1} />
 

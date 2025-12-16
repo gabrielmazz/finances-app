@@ -1,5 +1,15 @@
 import React from 'react';
-import { BackHandler, ScrollView, View, StatusBar } from 'react-native';
+import {
+	BackHandler,
+	findNodeHandle,
+	Keyboard,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	StatusBar,
+	TextInput,
+	View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -77,6 +87,7 @@ type OptionItem = {
 	id: string;
 	name: string;
 };
+type FocusableInputKey = 'month-reference' | 'balance';
 
 export default function AddRegisterMonthlyBalanceScreen() {
 	const { isDarkMode } = useAppTheme();
@@ -89,13 +100,106 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	const [balanceDisplay, setBalanceDisplay] = React.useState('');
 	const [balanceValueInCents, setBalanceValueInCents] = React.useState<number | null>(null);
 
-const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
-const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
-const [isSubmitting, setIsSubmitting] = React.useState(false);
-const balanceInputValue = React.useMemo(
-	() => (balanceDisplay ? balanceDisplay : balanceValueInCents !== null ? formatCurrencyBRL(balanceValueInCents) : ''),
-	[balanceDisplay, balanceValueInCents],
-);
+	const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
+	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
+	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const balanceInputValue = React.useMemo(
+		() =>
+			balanceDisplay
+				? balanceDisplay
+				: balanceValueInCents !== null
+					? formatCurrencyBRL(balanceValueInCents)
+					: '',
+		[balanceDisplay, balanceValueInCents],
+	);
+	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const monthReferenceInputRef = React.useRef<TextInput | null>(null);
+	const balanceInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+	const keyboardScrollOffset = React.useCallback(
+		(key: FocusableInputKey) => (key === 'balance' ? 140 : 120),
+		[],
+	);
+
+	const getInputRef = React.useCallback(
+		(key: FocusableInputKey) => {
+			switch (key) {
+				case 'month-reference':
+					return monthReferenceInputRef;
+				case 'balance':
+					return balanceInputRef;
+				default:
+					return null;
+			}
+		},
+		[],
+	);
+
+	const scrollToInput = React.useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x, y) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - keyboardScrollOffset(key)),
+							animated: true,
+						}),
+					() => {},
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset],
+	);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
+
+	React.useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, [scrollToInput]);
+
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -378,17 +482,23 @@ useFocusEffect(
 			>
 				<FloatingAlertViewport />
 
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{ backgroundColor: pageBackground }}
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-						backgroundColor: pageBackground,
-					}}
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+					className="flex-1 w-full"
 				>
-					<View className="w-full px-6">
+					<ScrollView
+						ref={scrollViewRef}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: contentBottomPadding,
+							backgroundColor: pageBackground,
+						}}
+					>
+						<View className="w-full px-6">
 
 						<Heading size="3xl" className="text-center mb-4 text-gray-900 dark:text-gray-100">
 							Saldo mensal por banco
@@ -441,10 +551,12 @@ useFocusEffect(
 								</Text>
 								<Input>
 									<InputField
+										ref={monthReferenceInputRef}
 										placeholder="Mês de referência (MM/AAAA)"
 										value={monthReference}
 										onChangeText={handleMonthChange}
 										keyboardType="numeric"
+										onFocus={() => handleInputFocus('month-reference')}
 									/>
 								</Input>
 							</Box>
@@ -453,16 +565,18 @@ useFocusEffect(
 								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
 									Saldo disponível
 								</Text>
-								<Input isDisabled={isBalanceInputDisabled}>
-									<InputField
-										placeholder="Saldo disponível"
-									value={balanceInputValue}
-									onChangeText={handleBalanceChange}
-									keyboardType="numeric"
-									editable={!isBalanceInputDisabled}
-								/>
-								</Input>
-							</Box>
+									<Input isDisabled={isBalanceInputDisabled}>
+										<InputField
+											ref={balanceInputRef}
+											placeholder="Saldo disponível"
+											value={balanceInputValue}
+											onChangeText={handleBalanceChange}
+											keyboardType="numeric"
+											editable={!isBalanceInputDisabled}
+											onFocus={() => handleInputFocus('balance')}
+										/>
+									</Input>
+								</Box>
 
 							{isLoadingExisting ? (
 								<Text className="text-sm text-gray-500 dark:text-gray-400">
@@ -492,12 +606,13 @@ useFocusEffect(
 										<ButtonText>{existingBalanceId ? 'Atualizando saldo' : 'Salvando saldo'}</ButtonText>
 									</>
 								) : (
-									<ButtonText>{existingBalanceId ? 'Editar saldo' : 'Registrar saldo'}</ButtonText>
-								)}
-							</Button>
-						</VStack>
-					</View>
-				</ScrollView>
+							<ButtonText>{existingBalanceId ? 'Editar saldo' : 'Registrar saldo'}</ButtonText>
+						)}
+						</Button>
+					</VStack>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
 				<Menu defaultValue={1} />
 			</View>
