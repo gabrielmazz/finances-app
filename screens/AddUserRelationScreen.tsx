@@ -1,5 +1,15 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View, StatusBar } from 'react-native';
+import {
+	Keyboard,
+	TouchableWithoutFeedback,
+	View,
+	StatusBar,
+	ScrollView,
+	KeyboardAvoidingView,
+	Platform,
+	TextInput,
+	findNodeHandle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Componentes Gluestack UI
@@ -24,12 +34,19 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 // Importação do SVG
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
+type FocusableInputKey = 'related-user-id';
+
 export default function AddUserRelationScreen() {
 	const { isDarkMode } = useAppTheme();
 	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	// Input do ID do usuário a ser relacionado
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const relatedUserInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	const handleLinkUsers = React.useCallback(async () => {
 
@@ -151,6 +168,80 @@ export default function AddUserRelationScreen() {
 		}
 	}, [relatedUserId]);
 
+	const getInputRef = React.useCallback((key: FocusableInputKey) => {
+		switch (key) {
+			case 'related-user-id':
+				return relatedUserInputRef;
+			default:
+				return null;
+		}
+	}, []);
+
+	const scrollToInput = React.useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x, y) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - keyboardScrollOffset(key)),
+							animated: true,
+						}),
+					() => {},
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset],
+	);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
+
+	React.useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, [scrollToInput]);
+
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
 		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
@@ -168,7 +259,19 @@ export default function AddUserRelationScreen() {
 		>
 			<FloatingAlertViewport />
 
-			<View className="w-full px-6">
+			<KeyboardAvoidingView
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+				className="flex-1 w-full"
+			>
+				<ScrollView
+					ref={scrollViewRef}
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					style={{ backgroundColor: pageBackground }}
+					contentContainerStyle={{ flexGrow: 1, paddingBottom: contentBottomPadding }}
+				>
+					<View className="w-full px-6">
 
 				<Heading size="3xl" className="text-center">
 					Vincular usuário
@@ -194,10 +297,12 @@ export default function AddUserRelationScreen() {
 						</Text>
 						<Input>
 							<InputField
+								ref={relatedUserInputRef}
 								placeholder="ID do usuário que será vinculado com você e vice-versa"
 								value={relatedUserId}
 								onChangeText={setRelatedUserId}
 								autoCapitalize="none"
+								onFocus={() => handleInputFocus('related-user-id')}
 							/>
 						</Input>
 					</Box>
@@ -212,7 +317,9 @@ export default function AddUserRelationScreen() {
 						{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
 					</Button>
 				</VStack>
-			</View>
+					</View>
+				</ScrollView>
+			</KeyboardAvoidingView>
 
 			<Menu defaultValue={2} />
 		</View>

@@ -1,12 +1,14 @@
 import React from 'react';
 import {
 	BackHandler,
+	findNodeHandle,
 	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
 	View,
 	StatusBar,
+	TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -65,6 +67,7 @@ type OptionItem = {
 	name: string;
 	usageType?: 'expense' | 'gain';
 };
+type FocusableInputKey = 'gain-name' | 'gain-value' | 'gain-explanation';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -198,44 +201,95 @@ export default function AddRegisterGainScreen() {
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
-	const inputPositions = React.useRef<Record<string, number>>({});
+	const gainNameInputRef = React.useRef<TextInput | null>(null);
+	const gainValueInputRef = React.useRef<TextInput | null>(null);
+	const gainExplanationInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const keyboardScrollOffset = React.useCallback(
+		(key: FocusableInputKey) => (key === 'gain-explanation' ? 180 : 120),
+		[],
+	);
+
+	const getInputRef = React.useCallback(
+		(key: FocusableInputKey) => {
+			switch (key) {
+				case 'gain-name':
+					return gainNameInputRef;
+				case 'gain-value':
+					return gainValueInputRef;
+				case 'gain-explanation':
+					return gainExplanationInputRef;
+				default:
+					return null;
+			}
+		},
+		[],
+	);
+
+	const scrollToInput = React.useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x, y) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - keyboardScrollOffset(key)),
+							animated: true,
+						}),
+					() => {},
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset],
+	);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
 
 	React.useEffect(() => {
 		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
 		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-		const showSub = Keyboard.addListener(showEvent, e => setKeyboardHeight(e.endCoordinates?.height ?? 0));
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
 		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
 
 		return () => {
 			showSub.remove();
 			hideSub.remove();
 		};
-	}, []);
+	}, [scrollToInput]);
 
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 80), [keyboardHeight]);
-
-	const handleInputLayout = React.useCallback(
-		(id: string) => (event: { nativeEvent: { layout: { y: number } } }) => {
-			inputPositions.current[id] = event.nativeEvent.layout.y;
-		},
-		[],
-	);
-
-	const scrollToInput = React.useCallback(
-		(id: string) => {
-			if (!scrollViewRef.current) {
-				return;
-			}
-			const y = inputPositions.current[id];
-			if (typeof y === 'number') {
-				scrollViewRef.current.scrollTo({ y: Math.max(0, y - 32), animated: true });
-				return;
-			}
-			scrollViewRef.current.scrollToEnd({ animated: true });
-		},
-		[],
-	);
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
 
 	const params = useLocalSearchParams<{
 		gainId?: string | string[];
@@ -961,12 +1015,12 @@ export default function AddRegisterGainScreen() {
 								</Text>
 								<Input isDisabled={isTemplateLocked}>
 									<InputField
+										ref={gainNameInputRef}
 										placeholder="Ex: Venda de produto, prestação de serviço..."
 										value={gainName}
 										onChangeText={setGainName}
 										autoCapitalize="sentences"
-										onLayout={handleInputLayout('gain-name')}
-										onFocus={() => scrollToInput('gain-name')}
+										onFocus={() => handleInputFocus('gain-name')}
 									/>
 								</Input>
 							</Box>
@@ -977,12 +1031,12 @@ export default function AddRegisterGainScreen() {
 								</Text>
 								<Input>
 									<InputField
+										ref={gainValueInputRef}
 										placeholder="Ex: R$ 100,00"
 										value={gainValueDisplay}
 										onChangeText={handleValueChange}
 										keyboardType="numeric"
-										onLayout={handleInputLayout('gain-value')}
-										onFocus={() => scrollToInput('gain-value')}
+										onFocus={() => handleInputFocus('gain-value')}
 									/>
 								</Input>
 							</Box>
@@ -1045,11 +1099,11 @@ export default function AddRegisterGainScreen() {
 									className="h-32"
 								>
 									<TextareaInput
+										ref={gainExplanationInputRef}
 										placeholder="(Opcional) Descreva mais detalhes sobre esse ganho..."
 										value={explanationGain ?? ''}
 										onChangeText={setExplanationGain}
-										onLayout={handleInputLayout('gain-explanation')}
-										onFocus={() => scrollToInput('gain-explanation')}
+										onFocus={() => handleInputFocus('gain-explanation')}
 									/>
 								</Textarea>
 							</Box>

@@ -278,7 +278,7 @@ export default function LoginScreen() {
                             Toque para conhecer o Lumus Finance
                         </Text>
                         <Text className={`text-[10px] mt-1 ${mutedText}`}>
-                            Versão 1.6.0
+                            Versão 1.7.0
                         </Text>
                     </Pressable>
 

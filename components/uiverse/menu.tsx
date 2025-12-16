@@ -63,10 +63,10 @@ const logoutUser = async () => {
 
 const buildDefaultGroups = (): MenuGroup[] => [
 	{
-		triggerLabel: 'Home',
+		triggerLabel: 'Ínicio',
 		options: [
 			{
-				label: 'Home',
+				label: 'Início',
 				value: 0,
 				onSelect: () => router.replace('/home?tab=0'),
 			},

@@ -1,5 +1,15 @@
 import React from 'react';
-import { Keyboard, TouchableWithoutFeedback, View, StatusBar } from 'react-native';
+import {
+	Keyboard,
+	TouchableWithoutFeedback,
+	View,
+	StatusBar,
+	ScrollView,
+	KeyboardAvoidingView,
+	Platform,
+	TextInput,
+	findNodeHandle,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Importações relacionadas ao Gluestack UI
@@ -57,6 +67,8 @@ const presetBankColors = [
     { label: 'Azul Marinho', value: '#000080' },
 ];
 
+type FocusableInputKey = 'bank-name';
+
 export default function AddRegisterBankScreen() {
 	const { isDarkMode } = useAppTheme();
 	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
@@ -65,6 +77,14 @@ export default function AddRegisterBankScreen() {
     const [nameBank, setNameBank] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
+    const scrollViewRef = React.useRef<ScrollView | null>(null);
+    const bankNameInputRef = React.useRef<TextInput | null>(null);
+    const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+    const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+    const keyboardScrollOffset = React.useCallback(
+        (_key: FocusableInputKey) => 140,
+        [],
+    );
 
     const params = useLocalSearchParams<{
         bankId?: string | string[];
@@ -219,6 +239,83 @@ export default function AddRegisterBankScreen() {
         }
     }, [nameBank, selectedColor, isEditing, editingBankId]);
 
+    const getInputRef = React.useCallback(
+        (key: FocusableInputKey) => {
+            switch (key) {
+                case 'bank-name':
+                    return bankNameInputRef;
+                default:
+                    return null;
+            }
+        },
+        [],
+    );
+
+    const scrollToInput = React.useCallback(
+        (key: FocusableInputKey) => {
+            const inputRef = getInputRef(key);
+            if (!inputRef?.current) {
+                return;
+            }
+
+            const nodeHandle = findNodeHandle(inputRef.current);
+            const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+            const offset = keyboardScrollOffset(key);
+
+            if (scrollResponder && nodeHandle) {
+                scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+                return;
+            }
+
+            const scrollViewNode = scrollViewRef.current;
+            const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+            if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+                inputRef.current.measureLayout(
+                    innerViewNode,
+                    (_x, y) =>
+                        scrollViewNode.scrollTo({
+                            y: Math.max(0, y - keyboardScrollOffset(key)),
+                            animated: true,
+                        }),
+                    () => {},
+                );
+            }
+        },
+        [getInputRef, keyboardScrollOffset],
+    );
+
+    const handleInputFocus = React.useCallback(
+        (key: FocusableInputKey) => {
+            lastFocusedInputKey.current = key;
+            scrollToInput(key);
+        },
+        [scrollToInput],
+    );
+
+    React.useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSub = Keyboard.addListener(showEvent, e => {
+            setKeyboardHeight(e.endCoordinates?.height ?? 0);
+            const focusedKey = lastFocusedInputKey.current;
+            if (focusedKey) {
+                setTimeout(() => {
+                    scrollToInput(focusedKey);
+                }, 50);
+            }
+        });
+        const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, [scrollToInput]);
+
+    const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
@@ -236,7 +333,19 @@ export default function AddRegisterBankScreen() {
 			>
 				<FloatingAlertViewport />
 
-				<View className="w-full px-6">
+				<KeyboardAvoidingView
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+					className="flex-1 w-full"
+				>
+					<ScrollView
+						ref={scrollViewRef}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						style={{ backgroundColor: pageBackground }}
+						contentContainerStyle={{ flexGrow: 1, paddingBottom: contentBottomPadding }}
+					>
+						<View className="w-full px-6">
 
 					<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
 						{isEditing ? 'Editar banco' : 'Adição de um novo banco'}
@@ -262,9 +371,11 @@ export default function AddRegisterBankScreen() {
 							</Text>
 							<Input>
 								<InputField
+									ref={bankNameInputRef}
 									placeholder="Ex: Banco do Brasil, Caixa Econômica, Itaú..."
 									value={nameBank}
 									onChangeText={setNameBank}
+									onFocus={() => handleInputFocus('bank-name')}
 								/>
 							</Input>
 						</Box>
@@ -316,7 +427,9 @@ export default function AddRegisterBankScreen() {
 							)}
 						</Button>
 					</VStack>
-				</View>
+						</View>
+					</ScrollView>
+				</KeyboardAvoidingView>
 
 				<Menu defaultValue={2} />
 			</View>

@@ -1,5 +1,15 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, StatusBar } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	View,
+	StatusBar,
+	Keyboard,
+	TextInput,
+	findNodeHandle,
+	ScrollView as RNScrollView,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -105,6 +115,8 @@ const parseDateFromBR = (value: string) => {
 	return dateInstance;
 };
 
+type FocusableInputKey = 'investment-name' | 'initial-value' | 'cdi';
+
 const mergeDateWithCurrentTime = (date: Date) => {
 	const now = new Date();
 	const dateWithTime = new Date(date);
@@ -141,6 +153,16 @@ export default function AddFinanceScreen() {
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+	const scrollViewRef = React.useRef<RNScrollView | null>(null);
+	const investmentNameInputRef = React.useRef<TextInput | null>(null);
+	const initialValueInputRef = React.useRef<TextInput | null>(null);
+	const cdiInputRef = React.useRef<TextInput | null>(null);
+	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+	const keyboardScrollOffset = React.useCallback(
+		(key: FocusableInputKey) => (key === 'cdi' ? 140 : 120),
+		[],
+	);
 
 	const handleInitialValueChange = React.useCallback((value: string) => {
 		const digitsOnly = value.replace(/\D/g, '');
@@ -156,6 +178,87 @@ export default function AddFinanceScreen() {
 		setInitialValueInput(formatCurrencyBRL(centsValue));
 		setHasSavedOnce(false);
 	}, []);
+
+	const getInputRef = React.useCallback(
+		(key: FocusableInputKey) => {
+			switch (key) {
+				case 'investment-name':
+					return investmentNameInputRef;
+				case 'initial-value':
+					return initialValueInputRef;
+				case 'cdi':
+					return cdiInputRef;
+				default:
+					return null;
+			}
+		},
+		[],
+	);
+
+	const scrollToInput = React.useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x, y) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - keyboardScrollOffset(key)),
+							animated: true,
+						}),
+					() => {},
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset],
+	);
+
+	const handleInputFocus = React.useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput],
+	);
+
+	React.useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, [scrollToInput]);
+
+	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
 
 	// Verificamos se todos os campos obrigatórios foram preenchidos.
 	const isFormValid = React.useMemo(() => {
@@ -522,12 +625,13 @@ export default function AddFinanceScreen() {
 					className="flex-1 w-full"
 				>
 					<ScrollView
+						ref={scrollViewRef}
 						keyboardShouldPersistTaps="handled"
 						keyboardDismissMode="interactive"
 						style={{ backgroundColor: pageBackground }}
 						contentContainerStyle={{
 							flexGrow: 1,
-							paddingBottom: 48,
+							paddingBottom: contentBottomPadding,
 							backgroundColor: pageBackground,
 						}}
 					>
@@ -557,6 +661,7 @@ export default function AddFinanceScreen() {
 								</Text>
 								<Input>
 									<InputField
+										ref={investmentNameInputRef}
 										value={investmentName}
 										onChangeText={text => {
 											// Mantemos o estado sempre atualizado enquanto o usuário digita.
@@ -566,6 +671,7 @@ export default function AddFinanceScreen() {
 										placeholder="Ex: CDB Banco X"
 										autoCapitalize="sentences"
 										returnKeyType="next"
+										onFocus={() => handleInputFocus('investment-name')}
 									/>
 								</Input>
 							</Box>
@@ -576,10 +682,12 @@ export default function AddFinanceScreen() {
 								</Text>
 								<Input>
 									<InputField
+										ref={initialValueInputRef}
 										value={initialValueInput}
 										onChangeText={handleInitialValueChange}
 										placeholder="Ex: R$ 1.500,00"
 										keyboardType="numeric"
+										onFocus={() => handleInputFocus('initial-value')}
 									/>
 								</Input>
 							</Box>
@@ -594,6 +702,7 @@ export default function AddFinanceScreen() {
 								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">CDI (%)</Text>
 								<Input>
 									<InputField
+										ref={cdiInputRef}
 										value={cdiInput}
 										onChangeText={text => {
 											setCdiInput(sanitizeNumberInput(text));
@@ -601,6 +710,7 @@ export default function AddFinanceScreen() {
 										}}
 										placeholder="Ex: 110"
 										keyboardType="decimal-pad"
+										onFocus={() => handleInputFocus('cdi')}
 									/>
 								</Input>
 							</Box>
