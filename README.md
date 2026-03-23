@@ -109,7 +109,7 @@ O aplicativo necessitta de um projeto Firebase, ou seja, crie um em [Firebase Co
   <img src="./assets/UnDraw/monthlyBankSummaryScreen.svg" width="420" alt="Ilustração sobre tecnologias" />
 </p>
 
-Crie um arquivo `.env` (ou configure em `app.config.ts/app.json` via `extra.firebase`) com as chaves do seu projeto Firebase:
+Crie um arquivo `.env` com as chaves do seu projeto Firebase:
 
 ```env
 EXPO_PUBLIC_FIREBASE_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -121,7 +121,7 @@ EXPO_PUBLIC_FIREBASE_APP_ID=1:000000000000:web:xxxxxxxxxxxxxx
 EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
--   As variáveis podem ser lidas tanto do `.env` quanto do campo `expo.extra.firebase` (ver `FirebaseConfig.ts`).
+-   Não versionar essas chaves em `app.json`, `app.config.ts` ou qualquer outro arquivo público do repositório.
 -   Para builds EAS, defina os mesmos valores no painel de Secrets ou usando `eas secret:create`.
 -   Nunca commit suas chaves de produção; mantenha arquivos `.env` no `.gitignore`.
 
