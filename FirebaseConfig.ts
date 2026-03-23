@@ -1,10 +1,10 @@
 // FirebaseConfig.ts
 import { initializeApp, getApp, getApps, type FirebaseApp, type FirebaseOptions } from "firebase/app";
-import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
+import { initializeAuth, getReactNativePersistence, getAuth, type Auth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Constants from "expo-constants";
+import { firebaseAuthStorage } from "@/utils/firebaseAuthStorage";
 
 // Lê do extra (dev: expoConfig; alguns runtimes: manifest/manifest2)
 const readFromExtra = (key: string): string | undefined => {
@@ -38,24 +38,24 @@ const firebaseConfig: FirebaseOptions = {
 
 const appInstance: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-let authInstance;
-try {
-  authInstance = initializeAuth(appInstance, { persistence: getReactNativePersistence(AsyncStorage) });
-} catch {
-  authInstance = getAuth(appInstance);
-}
+const createAuthInstance = (firebaseApp: FirebaseApp): Auth => {
+  try {
+    return initializeAuth(firebaseApp, {
+      persistence: getReactNativePersistence(firebaseAuthStorage),
+    });
+  } catch {
+    return getAuth(firebaseApp);
+  }
+};
+
+const authInstance = createAuthInstance(appInstance);
 
 const secondaryAppInstance: FirebaseApp =
   getApps().some(a => a.name === "SECONDARY")
     ? getApp("SECONDARY")
     : initializeApp(firebaseConfig, "SECONDARY");
 
-let secondaryAuthInstance;
-try {
-  secondaryAuthInstance = initializeAuth(secondaryAppInstance, { persistence: getReactNativePersistence(AsyncStorage) });
-} catch {
-  secondaryAuthInstance = getAuth(secondaryAppInstance);
-}
+const secondaryAuthInstance = createAuthInstance(secondaryAppInstance);
 
 export const app = appInstance;
 export const auth = authInstance;
