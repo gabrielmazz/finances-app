@@ -1,87 +1,79 @@
-
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    View,
-    Pressable,
-    TouchableWithoutFeedback,
-    Keyboard,
-    StatusBar,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    TextInput,
-    findNodeHandle,
+	View,
+	TouchableWithoutFeedback,
+	Keyboard,
+	StatusBar,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	findNodeHandle,
 } from 'react-native';
 
-// Importações relacionadas ao Gluestack UI
 import {
-    FormControl,
-    FormControlLabel,
-    FormControlError,
-    FormControlErrorText,
-    FormControlErrorIcon,
-    FormControlHelper,
-    FormControlHelperText,
-    FormControlLabelText,
+	FormControl,
+	FormControlLabel,
+	FormControlError,
+	FormControlErrorText,
+	FormControlErrorIcon,
+	FormControlHelper,
+	FormControlHelperText,
+	FormControlLabelText,
 } from '@/components/ui/form-control';
-import { AlertCircleIcon } from '@/components/ui/icon';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonText } from '@/components/ui/button';
+import { AlertCircleIcon, EyeIcon, EyeOffIcon } from '@/components/ui/icon';
+import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
+import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
-import { Divider } from '@/components/ui/divider';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
-import {
-    Modal,
-    ModalBackdrop,
-    ModalContent,
-    ModalHeader,
-    ModalCloseButton,
-    ModalBody,
-    ModalFooter,
-} from '@/components/ui/modal';
-import { HStack } from '@/components/ui/hstack';
 
-import Loader from '@/components/uiverse/loader';
 import { useAppTheme } from '@/contexts/ThemeContext';
-
-// Importações relacionadas ao Firebase
 import { auth } from '@/FirebaseConfig';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
-// Importação responsável pela navegação pelo expo-router
-import { router } from 'expo-router';
-
-// Importação do wallpaper do login
 import LoginWallpaper from '@/assets/Background/wallpaper01.jpg';
-import LogoLumus from '@/assets/Logo/Logo.png';	
+import LogoLumus from '@/assets/Logo/Logo.png';
 import LogoLumusWhite from '@/assets/Logo/LogoWhite.png';
+import {
+	clearFailedLoginAttempts,
+	clampEmailInput,
+	clampPasswordInput,
+	formatRemainingTime,
+	getLoginThrottleStatus,
+	isEmailFormatValid,
+	mapLoginError,
+	normalizeEmailForAuth,
+	registerFailedLoginAttempt,
+} from '@/utils/loginSecurity';
 
 type FocusableInputKey = 'email' | 'password';
+type LoginStatusTone = 'error' | 'helper';
+type LoginStatus = {
+	tone: LoginStatusTone;
+	message: string;
+} | null;
 
 export default function LoginScreen() {
-
 	const { isDarkMode } = useAppTheme();
-		const theme = useMemo(
-			() => ({
-				pageBackground: isDarkMode ? '#0b1220' : '#f4f5f7',
-				surfaceBackground: isDarkMode ? '#020617' : '#ffffff',
-				cardBackground: isDarkMode ? 'bg-slate-950' : 'bg-white border border-slate-200',
-				headingText: isDarkMode ? 'text-slate-100' : 'text-slate-900',
+	const theme = useMemo(
+		() => ({
+			surfaceBackground: isDarkMode ? '#020617' : '#ffffff',
+			cardBackground: isDarkMode ? 'bg-slate-950' : 'bg-white',
+			headingText: isDarkMode ? 'text-slate-100' : 'text-slate-900',
 			bodyText: isDarkMode ? 'text-slate-300' : 'text-slate-700',
 			mutedText: isDarkMode ? 'text-slate-500' : 'text-slate-500',
-			helperText: isDarkMode ? 'text-slate-400' : '#fff763',
-			inputField: isDarkMode ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-500',
-			button: isDarkMode ? '' : '',
+			helperText: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+			inputField: isDarkMode
+				? 'text-slate-100 placeholder:text-slate-500'
+				: 'text-slate-900 placeholder:text-slate-500',
 			buttonText: 'font-semibold',
 		}),
-		[isDarkMode],
+		[isDarkMode]
 	);
 
 	const {
-		pageBackground,
 		surfaceBackground,
 		cardBackground,
 		headingText,
@@ -89,144 +81,275 @@ export default function LoginScreen() {
 		mutedText,
 		helperText,
 		inputField,
-		button,
 		buttonText,
 	} = theme;
 
-    // Variaveis relacionadas ao login
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [isCreditsModalOpen, setIsCreditsModalOpen] = useState(false);
+	const [email, setEmail] = useState('');
+	const [password, setPassword] = useState('');
+	const [showPassword, setShowPassword] = useState(false);
+	const [emailError, setEmailError] = useState<string | null>(null);
+	const [passwordError, setPasswordError] = useState<string | null>(null);
+	const [statusMessage, setStatusMessage] = useState<LoginStatus>(null);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [keyboardHeight, setKeyboardHeight] = useState(0);
+	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
+	const [clockTick, setClockTick] = useState(Date.now());
+
 	const scrollViewRef = useRef<ScrollView | null>(null);
-    const emailInputRef = useRef<TextInput | null>(null);
-    const passwordInputRef = useRef<TextInput | null>(null);
-    const lastFocusedInputKey = useRef<FocusableInputKey | null>(null);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
-	const isLoginDisabled = email.trim().length === 0 || password.trim().length < 6;
+	const emailInputRef = useRef<any>(null);
+	const passwordInputRef = useRef<any>(null);
+	const lastFocusedInputKey = useRef<FocusableInputKey | null>(null);
 
-    // ============================================= Funções para Login ============================================= //
+	const normalizedEmail = useMemo(() => normalizeEmailForAuth(email), [email]);
+	const loginCooldownRemainingMs = useMemo(
+		() => (loginCooldownUntil ? Math.max(0, loginCooldownUntil - clockTick) : 0),
+		[clockTick, loginCooldownUntil]
+	);
+	const isLocallyRateLimited = loginCooldownRemainingMs > 0;
+	const isLoginDisabled =
+		isSubmitting || isLocallyRateLimited || normalizedEmail.length === 0 || password.length === 0;
 
-    // Função responsável por fazer login de um usuário já cadastrado, conectando-o ao Firebase Authentication
-    const singIn = async () => {
-		if (isLoginDisabled) {
-			alert('Informe login e senha (mínimo 6 caracteres).');
+	const keyboardScrollOffset = useCallback(
+		(key: FocusableInputKey) => (key === 'password' ? 180 : 140),
+		[]
+	);
+
+	const contentBottomPadding = useMemo(
+		() => (keyboardHeight > 0 ? keyboardHeight + 24 : 24),
+		[keyboardHeight]
+	);
+
+	const handleDismissKeyboard = useCallback(() => Keyboard.dismiss(), []);
+
+	const getInputRef = useCallback((key: FocusableInputKey) => {
+		switch (key) {
+			case 'email':
+				return emailInputRef;
+			case 'password':
+				return passwordInputRef;
+			default:
+				return null;
+		}
+	}, []);
+
+	const syncCooldownForEmail = useCallback(async (emailValue: string) => {
+		if (!emailValue) {
+			setLoginCooldownUntil(null);
 			return;
 		}
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
 
-            if (userCredential) {
-                router.replace({ pathname: '/home', params: { balanceReminder: '1' } });
-            }
+		const status = await getLoginThrottleStatus(emailValue);
+		setLoginCooldownUntil(status.blockedUntil);
+	}, []);
 
-        } catch (error) {
-            alert('Erro ao fazer login: ' + error);
-        }
-    }
+	const scrollToInput = useCallback(
+		(key: FocusableInputKey) => {
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
 
-    const signUp = async () => {
-        try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
 
-            if (userCredential) {
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
 
-            }
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
 
-        } catch (error) {
-            alert('Erro ao criar conta: ' + error);
-        }
-    }
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x: number, y: number) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - offset),
+							animated: true,
+						}),
+					() => {}
+				);
+			}
+		},
+		[getInputRef, keyboardScrollOffset]
+	);
 
-    const handleOpenCreditsModal = () => setIsCreditsModalOpen(true);
-    const handleCloseCreditsModal = () => setIsCreditsModalOpen(false);
-	const handleDismissKeyboard = () => Keyboard.dismiss();
+	const handleInputFocus = useCallback(
+		(key: FocusableInputKey) => {
+			lastFocusedInputKey.current = key;
+			scrollToInput(key);
+		},
+		[scrollToInput]
+	);
 
-    const keyboardScrollOffset = useCallback(
-        (key: FocusableInputKey) => (key === 'password' ? 180 : 140),
-        [],
-    );
+	const handleEmailChange = useCallback((value: string) => {
+		setEmail(clampEmailInput(value));
+		setEmailError(null);
+		setStatusMessage(null);
+	}, []);
 
-    const getInputRef = useCallback(
-        (key: FocusableInputKey) => {
-            switch (key) {
-                case 'email':
-                    return emailInputRef;
-                case 'password':
-                    return passwordInputRef;
-                default:
-                    return null;
-            }
-        },
-        [],
-    );
+	const handlePasswordChange = useCallback((value: string) => {
+		setPassword(clampPasswordInput(value));
+		setPasswordError(null);
+		setStatusMessage(null);
+	}, []);
 
-    const scrollToInput = useCallback(
-        (key: FocusableInputKey) => {
-            const inputRef = getInputRef(key);
-            if (!inputRef?.current) {
-                return;
-            }
+	const handleTogglePasswordVisibility = useCallback(() => {
+		setShowPassword(currentValue => !currentValue);
+	}, []);
 
-            const nodeHandle = findNodeHandle(inputRef.current);
-            const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-            const offset = keyboardScrollOffset(key);
+	const validateCredentials = useCallback(() => {
+		const nextEmail = normalizeEmailForAuth(email);
+		let nextEmailError: string | null = null;
+		let nextPasswordError: string | null = null;
 
-            if (scrollResponder && nodeHandle) {
-                scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-                return;
-            }
+		if (!nextEmail) {
+			nextEmailError = 'Informe seu email.';
+		} else if (!isEmailFormatValid(nextEmail)) {
+			nextEmailError = 'Informe um email válido.';
+		}
 
-            const scrollViewNode = scrollViewRef.current;
-            const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+		if (!password) {
+			nextPasswordError = 'Informe sua senha.';
+		}
 
-            if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-                inputRef.current.measureLayout(
-                    innerViewNode,
-                    (_x, y) =>
-                        scrollViewNode.scrollTo({
-                            y: Math.max(0, y - offset),
-                            animated: true,
-                        }),
-                    () => {},
-                );
-            }
-        },
-        [getInputRef, keyboardScrollOffset],
-    );
+		setEmailError(nextEmailError);
+		setPasswordError(nextPasswordError);
 
-    const handleInputFocus = useCallback(
-        (key: FocusableInputKey) => {
-            lastFocusedInputKey.current = key;
-            scrollToInput(key);
-        },
-        [scrollToInput],
-    );
+		return {
+			nextEmail,
+			isValid: !nextEmailError && !nextPasswordError,
+		};
+	}, [email, password]);
 
-    useEffect(() => {
-        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+	const signIn = useCallback(async () => {
+		if (isSubmitting) {
+			return;
+		}
 
-        const showSub = Keyboard.addListener(showEvent, e => {
-            setKeyboardHeight(e.endCoordinates?.height ?? 0);
-            const focusedKey = lastFocusedInputKey.current;
-            if (focusedKey) {
-                setTimeout(() => {
-                    scrollToInput(focusedKey);
-                }, 50);
-            }
-        });
+		const { nextEmail, isValid } = validateCredentials();
+		if (!isValid) {
+			return;
+		}
 
-        const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+		const throttleStatus = await getLoginThrottleStatus(nextEmail);
+		if (throttleStatus.isBlocked) {
+			setLoginCooldownUntil(throttleStatus.blockedUntil);
+			setStatusMessage({
+				tone: 'helper',
+				message: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
+					throttleStatus.remainingMs
+				)}.`,
+			});
+			return;
+		}
 
-        return () => {
-            showSub.remove();
-            hideSub.remove();
-        };
-    }, [scrollToInput]);
+		Keyboard.dismiss();
+		setStatusMessage(null);
+		setIsSubmitting(true);
 
-    const contentBottomPadding = useMemo(() => (keyboardHeight > 0 ? keyboardHeight + 24 : 24), [keyboardHeight]);
+		try {
+			const userCredential = await signInWithEmailAndPassword(auth, nextEmail, password);
+			await clearFailedLoginAttempts(nextEmail);
+			setLoginCooldownUntil(null);
+			await userCredential.user.reload();
 
-		return (
+			setStatusMessage({
+				tone: 'helper',
+				message: 'Login realizado. Redirecionando...',
+			});
+		} catch (error) {
+			const mappedError = mapLoginError(error);
+
+			if (mappedError.category === 'credentials') {
+				const nextThrottleStatus = await registerFailedLoginAttempt(nextEmail);
+				setLoginCooldownUntil(nextThrottleStatus.blockedUntil);
+
+				if (nextThrottleStatus.isBlocked) {
+					setStatusMessage({
+						tone: 'error',
+						message: `Email ou senha inválidos. Tente novamente em ${formatRemainingTime(
+							nextThrottleStatus.remainingMs
+						)}.`,
+					});
+				} else {
+					setStatusMessage({
+						tone: 'error',
+						message: mappedError.message,
+					});
+				}
+			} else {
+				setStatusMessage({
+					tone: mappedError.category === 'verification' ? 'helper' : 'error',
+					message: mappedError.message,
+				});
+			}
+		} finally {
+			setIsSubmitting(false);
+		}
+	}, [isSubmitting, validateCredentials]);
+
+	useEffect(() => {
+		void syncCooldownForEmail(normalizedEmail);
+	}, [normalizedEmail, syncCooldownForEmail]);
+
+	useEffect(() => {
+		if (!loginCooldownUntil || loginCooldownUntil <= Date.now()) {
+			setClockTick(Date.now());
+			return;
+		}
+
+		const interval = setInterval(() => {
+			setClockTick(Date.now());
+		}, 1000);
+
+		return () => clearInterval(interval);
+	}, [loginCooldownUntil]);
+
+	useEffect(() => {
+		if (loginCooldownUntil && loginCooldownUntil <= Date.now()) {
+			setLoginCooldownUntil(null);
+		}
+	}, [clockTick, loginCooldownUntil]);
+
+	useEffect(() => {
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSub = Keyboard.addListener(showEvent, e => {
+			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+			const focusedKey = lastFocusedInputKey.current;
+			if (focusedKey) {
+				setTimeout(() => {
+					scrollToInput(focusedKey);
+				}, 50);
+			}
+		});
+
+		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+
+		return () => {
+			showSub.remove();
+			hideSub.remove();
+		};
+	}, [scrollToInput]);
+
+	const derivedCooldownMessage = isLocallyRateLimited
+		? `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
+				loginCooldownRemainingMs
+		  )}.`
+		: null;
+
+	const visibleStatusMessage = statusMessage ?? (derivedCooldownMessage
+		? {
+				tone: 'helper' as const,
+				message: derivedCooldownMessage,
+		  }
+		: null);
+
+	return (
 		<SafeAreaView
 			className="flex-1"
 			edges={['left', 'right', 'bottom']}
@@ -237,121 +360,164 @@ export default function LoginScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
+
 			<KeyboardAvoidingView
 				className="flex-1"
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 			>
 				<TouchableWithoutFeedback onPress={handleDismissKeyboard} accessible={false}>
-					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-						
-						<View className={`w-full h-1/4 ${cardBackground}`}>
-							<Image
-								source={LoginWallpaper}
-								className="w-full h-full rounded-b-3xl absolute"
-								resizeMode="cover"
-							/>
-						</View>
+					<ScrollView
+						ref={scrollViewRef}
+						style={{ flex: 1, backgroundColor: surfaceBackground }}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: contentBottomPadding,
+						}}
+						keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+						keyboardShouldPersistTaps="handled"
+						showsVerticalScrollIndicator={false}
+					>
+						<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+							<View className={`w-full h-1/4 ${cardBackground}`}>
+								<Image
+									source={LoginWallpaper}
+									alt="Wallpaper da tela de login"
+									className="w-full h-full rounded-b-3xl absolute"
+									resizeMode="cover"
+								/>
+							</View>
 
-						<View className={`flex-1 -mt-16 rounded-t-3xl ${cardBackground}`}>
-							<ScrollView
-								ref={scrollViewRef}
-								style={{ flex: 1 }}
-								contentContainerStyle={{
-									paddingHorizontal: 24,
-									paddingTop: 12,
-									paddingBottom: contentBottomPadding,
-								}}
-								keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-								keyboardShouldPersistTaps="handled"
-								showsVerticalScrollIndicator={false}
-							>
+							<View className={`flex-1 -mt-16 rounded-t-3xl ${cardBackground} px-6 pt-12`}>
 								<Image
 									source={isDarkMode ? LogoLumusWhite : LogoLumus}
+									alt="Logo da Lumus"
 									className="self-center w-52 h-52"
 									resizeMode="contain"
 								/>
-								
+
 								<VStack className="self-center items-center gap-2 mb-12">
-									<Heading 
-										className={`${headingText} text-xl text-center`}
-									>
+									<Heading className={`${headingText} text-xl text-center`}>
 										Bem-vindo de volta ao Lumus Finances!
 									</Heading>
-									
-									<Text 
-										className={`${bodyText} text-base text-center`}
-									>
+
+									<Text className={`${bodyText} text-base text-center`}>
 										Faça login para acessar sua conta e gerenciar suas finanças.
 									</Text>
 								</VStack>
 
 								<FormControl className="mb-4">
 									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} text-sm`}>Email</FormControlLabelText>
+										<FormControlLabelText className={`${bodyText} text-sm`}>
+											Email
+										</FormControlLabelText>
 									</FormControlLabel>
 									<Input className="bg-transparent border border-slate-300 rounded-md">
 										<InputField
-                                            ref={emailInputRef}
+											ref={emailInputRef}
 											placeholder="Digite seu email"
 											keyboardType="email-address"
 											autoCapitalize="none"
+											autoCorrect={false}
+											autoComplete="email"
+											textContentType="emailAddress"
+											returnKeyType="next"
 											value={email}
-											onChangeText={setEmail}
+											onChangeText={handleEmailChange}
 											onFocus={() => handleInputFocus('email')}
+											onSubmitEditing={() => passwordInputRef.current?.focus()}
 											className={inputField}
 										/>
 									</Input>
+									{emailError ? (
+										<FormControlError>
+											<FormControlErrorIcon as={AlertCircleIcon} />
+											<FormControlErrorText>{emailError}</FormControlErrorText>
+										</FormControlError>
+									) : null}
 								</FormControl>
 
 								<FormControl className="mb-6">
 									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} text-sm`}>Senha</FormControlLabelText>
+										<FormControlLabelText className={`${bodyText} text-sm`}>
+											Senha
+										</FormControlLabelText>
 									</FormControlLabel>
 									<Input className="bg-transparent border border-slate-300 rounded-md">
 										<InputField
-                                            ref={passwordInputRef}
+											ref={passwordInputRef}
 											placeholder="Digite sua senha"
 											value={password}
-											onChangeText={setPassword}
+											onChangeText={handlePasswordChange}
 											onFocus={() => handleInputFocus('password')}
-											secureTextEntry
+											onSubmitEditing={() => void signIn()}
+											autoCapitalize="none"
+											autoCorrect={false}
+											autoComplete="password"
+											textContentType="password"
+											returnKeyType="done"
+											secureTextEntry={!showPassword}
 											className={inputField}
 										/>
+										<InputSlot className="pr-3" onPress={handleTogglePasswordVisibility}>
+											<InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+										</InputSlot>
 									</Input>
+									{passwordError ? (
+										<FormControlError>
+											<FormControlErrorIcon as={AlertCircleIcon} />
+											<FormControlErrorText>{passwordError}</FormControlErrorText>
+										</FormControlError>
+									) : null}
 								</FormControl>
 
 								<Button
-									className={`w-full ${button} rounded-md py-3 ${isLoginDisabled ? 'bg-yellow-400' : 'bg-yellow-600'} ${buttonText}`}
-									onPress={singIn}
+									className={`w-full rounded-md py-3 ${
+										isLoginDisabled ? 'bg-yellow-400' : 'bg-yellow-600'
+									} ${buttonText}`}
+									onPress={() => void signIn()}
 									disabled={isLoginDisabled}
 								>
-									<ButtonText 
-										className={`${isDarkMode ? 'text-white' : 'text-slate-900'} text-center`}
-									>
-										Entrar
-									</ButtonText>
+									{isSubmitting ? (
+										<ButtonSpinner color={isDarkMode ? '#ffffff' : '#0f172a'} />
+									) : (
+										<ButtonText
+											className={`${isDarkMode ? 'text-white' : 'text-slate-900'} text-center`}
+										>
+											Entrar
+										</ButtonText>
+									)}
 								</Button>
-							</ScrollView>
 
-							<VStack className="items-center px-4 pb-6">
-								<VStack className="gap-1">
-									<Text 
-										className={`${mutedText} text-center text-xs`}
-									>
-										Desenvolvido por Gabriel Mazzuco
-									</Text>
+								{visibleStatusMessage ? (
+									<FormControl className="mt-4">
+										{visibleStatusMessage.tone === 'error' ? (
+											<FormControlError className="mt-0">
+												<FormControlErrorIcon as={AlertCircleIcon} />
+												<FormControlErrorText>{visibleStatusMessage.message}</FormControlErrorText>
+											</FormControlError>
+										) : (
+											<FormControlHelper className="mt-0">
+												<FormControlHelperText className={`${helperText} text-sm`}>
+													{visibleStatusMessage.message}
+												</FormControlHelperText>
+											</FormControlHelper>
+										)}
+									</FormControl>
+								) : null}
 
-									<Text 
-										className={`${mutedText} text-center text-xs`}
-									>
-										Versão 1.8.0
-									</Text>
+								<VStack className="mt-auto items-center px-4 pb-6 pt-8">
+									<VStack className="gap-1">
+										<Text className={`${mutedText} text-center text-xs`}>
+											Desenvolvido por Gabriel Mazzuco
+										</Text>
+
+										<Text className={`${mutedText} text-center text-xs`}>Versão 1.8.0</Text>
+									</VStack>
 								</VStack>
-							</VStack>
+							</View>
 						</View>
-
-					</View>
+					</ScrollView>
 				</TouchableWithoutFeedback>
 			</KeyboardAvoidingView>
 		</SafeAreaView>

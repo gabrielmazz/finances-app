@@ -1,6 +1,6 @@
 import React from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, TouchableOpacity, View, SafeAreaView, StatusBar } from 'react-native';
+import { Pressable, ScrollView, TouchableOpacity, View, StatusBar } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -611,16 +611,17 @@ export default function HomeScreen() {
 					return;
 				}
 
-				if (isMounted) {
-					setIsLoadingInvestments(true);
-					setInvestmentsError(null);
-					setInvestmentSummary({
-						totalInvestedInCents: 0,
-						totalSimulatedInCents: 0,
-						investmentCount: 0,
-						highlights: [],
-					});
-				}
+					if (isMounted) {
+						setIsLoadingInvestments(true);
+						setInvestmentsError(null);
+						setInvestmentSummary({
+							totalInvestedInCents: 0,
+							totalInitialInvestedInCents: 0,
+							totalSimulatedInCents: 0,
+							investmentCount: 0,
+							highlights: [],
+						});
+					}
 
 				const loadSummariesPromise = (async () => {
 
