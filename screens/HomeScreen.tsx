@@ -1,6 +1,8 @@
 import React from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, TouchableOpacity, View, StatusBar } from 'react-native';
+import { Pressable, ScrollView, TouchableOpacity, View, StatusBar, useWindowDimensions } from 'react-native';
+import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
+import { useSharedValue } from 'react-native-reanimated';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -8,6 +10,7 @@ import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { Divider } from '@/components/ui/divider';
+import { Image } from '@/components/ui/image';
 import { Button, ButtonText } from '@/components/ui/button';
 import {
 	Modal,
@@ -40,6 +43,8 @@ import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVi
 import { useAppTheme } from '@/contexts/ThemeContext';
 
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
+import { SvgProps } from 'react-native-svg';
+import LoginWallpaper from '@/assets/Background/wallpaper01.jpg';
 
 type YearlyMonthStats = {
 	monthIndex: number;
@@ -98,15 +103,68 @@ const createEmptyYearlyStats = (): YearlyMonthStats[] =>
 		gainsInCents: 0,
 	}));
 
+const normalizeHexColor = (value: string | null | undefined) => {
+	if (!value) {
+		return null;
+	}
+
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+
+	const prefixedValue = trimmedValue.startsWith('#') ? trimmedValue : `#${trimmedValue}`;
+	const isShortHex = /^#([0-9a-fA-F]{3})$/.test(prefixedValue);
+	const isLongHex = /^#([0-9a-fA-F]{6})$/.test(prefixedValue);
+
+	if (isLongHex) {
+		return prefixedValue;
+	}
+
+	if (!isShortHex) {
+		return null;
+	}
+
+	const [, shortHex] = prefixedValue.match(/^#([0-9a-fA-F]{3})$/) ?? [];
+	if (!shortHex) {
+		return null;
+	}
+
+	return `#${shortHex
+		.split('')
+		.map(char => `${char}${char}`)
+		.join('')}`;
+};
+
+const hexToRgba = (hexColor: string, alpha: number) => {
+	const normalizedHex = normalizeHexColor(hexColor);
+	if (!normalizedHex) {
+		return null;
+	}
+
+	const red = Number.parseInt(normalizedHex.slice(1, 3), 16);
+	const green = Number.parseInt(normalizedHex.slice(3, 5), 16);
+	const blue = Number.parseInt(normalizedHex.slice(5, 7), 16);
+	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+};
+
 export default function HomeScreen() {
 
 	const { isDarkMode } = useAppTheme();
+	const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const surfaceBackground = isDarkMode ? '#020617' : '#ffffff';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
 	const axisColor = isDarkMode ? '#CBD5F5' : '#475569';
 	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const currentYear = React.useMemo(() => new Date().getFullYear(), []);
+	const bankCarouselRef = React.useRef<ICarouselInstance>(null);
+	const bankCarouselProgress = useSharedValue(0);
 	const { shouldHideValues } = useValueVisibility();
 	const searchParams = useLocalSearchParams<{ balanceReminder?: string | string[] }>();
+	const bankCarouselWidth = Math.max(windowWidth - 48, 1);
+	const bankCarouselHeight = 176;
+	const heroHeight = Math.max(windowHeight * 0.28, 250);
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
 	const [summaryError, setSummaryError] = React.useState<string | null>(null);
@@ -249,6 +307,28 @@ export default function HomeScreen() {
 	});
 	const [isLoadingInvestments, setIsLoadingInvestments] = React.useState(false);
 	const [investmentsError, setInvestmentsError] = React.useState<string | null>(null);
+
+	const currentMonthExpensesByBankId = React.useMemo(
+		() =>
+			currentMonthExpensesByBank.reduce<Record<string, number>>((acc, item) => {
+				if (item.bankId) {
+					acc[item.bankId] = item.totalInCents;
+				}
+				return acc;
+			}, {}),
+		[currentMonthExpensesByBank],
+	);
+
+	const currentMonthGainsByBankId = React.useMemo(
+		() =>
+			currentMonthGainsByBank.reduce<Record<string, number>>((acc, item) => {
+				if (item.bankId) {
+					acc[item.bankId] = item.totalInCents;
+				}
+				return acc;
+			}, {}),
+		[currentMonthGainsByBank],
+	);
 
 	const shouldForceBalanceReminder = React.useMemo(() => {
 		const value = Array.isArray(searchParams.balanceReminder)
@@ -611,17 +691,17 @@ export default function HomeScreen() {
 					return;
 				}
 
-					if (isMounted) {
-						setIsLoadingInvestments(true);
-						setInvestmentsError(null);
-						setInvestmentSummary({
-							totalInvestedInCents: 0,
-							totalInitialInvestedInCents: 0,
-							totalSimulatedInCents: 0,
-							investmentCount: 0,
-							highlights: [],
-						});
-					}
+				if (isMounted) {
+					setIsLoadingInvestments(true);
+					setInvestmentsError(null);
+					setInvestmentSummary({
+						totalInvestedInCents: 0,
+						totalInitialInvestedInCents: 0,
+						totalSimulatedInCents: 0,
+						investmentCount: 0,
+						highlights: [],
+					});
+				}
 
 				const loadSummariesPromise = (async () => {
 
@@ -769,26 +849,26 @@ export default function HomeScreen() {
 										const normalized =
 											Array.isArray(item.investments)
 												? item.investments.map((inv: any) => ({
-														...inv,
-														initialValueInCents:
-															typeof inv?.initialValueInCents === 'number'
-																? inv.initialValueInCents
-																: typeof inv?.initialInvestedInCents === 'number'
-																	? inv.initialInvestedInCents
-																	: undefined,
-														initialInvestedInCents:
-															typeof inv?.initialInvestedInCents === 'number'
+													...inv,
+													initialValueInCents:
+														typeof inv?.initialValueInCents === 'number'
+															? inv.initialValueInCents
+															: typeof inv?.initialInvestedInCents === 'number'
 																? inv.initialInvestedInCents
 																: undefined,
-														currentValueInCents:
-															typeof inv?.currentValueInCents === 'number'
-																? inv.currentValueInCents
-																: typeof inv?.lastManualSyncValueInCents === 'number'
-																	? inv.lastManualSyncValueInCents
-																	: typeof inv?.initialValueInCents === 'number'
-																		? inv.initialValueInCents
-																		: undefined,
-													}))
+													initialInvestedInCents:
+														typeof inv?.initialInvestedInCents === 'number'
+															? inv.initialInvestedInCents
+															: undefined,
+													currentValueInCents:
+														typeof inv?.currentValueInCents === 'number'
+															? inv.currentValueInCents
+															: typeof inv?.lastManualSyncValueInCents === 'number'
+																? inv.lastManualSyncValueInCents
+																: typeof inv?.initialValueInCents === 'number'
+																	? inv.initialValueInCents
+																	: undefined,
+												}))
 												: [];
 										acc[item.bankId] = normalized;
 									}
@@ -1161,647 +1241,173 @@ export default function HomeScreen() {
 	);
 
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				mt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-			style={{ backgroundColor: pageBackground }}
-		>
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				keyboardDismissMode="on-drag"
-				style={{
-					flex: 1,
-					width: '100%',
-					backgroundColor: pageBackground,
-				}}
-				contentContainerStyle={{
-					flexGrow: 1,
-					width: '100%',
-					paddingBottom: 48,
-					backgroundColor: pageBackground,
-				}}
-			>
-				<View className="w-full px-6">
-
-					<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
-						Resumo financeiro
-					</Heading>
-
-					<Box className="w-full items-center ">
-						<HomeScreenIllustration width={180} height={180} />
-					</Box>
-
-					<Text className="text-justify text-gray-700 dark:text-gray-200">
-						Veja uma visão geral dos seus ganhos e despesas deste mês. Contando com o resumo do mês atual, visualizações gráficas e os movimentos mais recentes registrados no aplicativo.
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<VStack className="gap-4 w-full">
-
-						<View className="w-full">
-
-							<TouchableOpacity
-								activeOpacity={0.85}
-								onPress={handleOpenMonthlySummary}
-								disabled={isLoadingSummary}
-							>
-								{/* Box para mostrar a soma dos gastos e ganhos */}
-								<Box
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-									style={isLoadingSummary ? { opacity: 0.6 } : undefined}
-								>
-
-									<HStack
-										className="
-											justify-between
-											items-center
-										"
-									>
-
-										<Heading size="md" className="text-gray-800 dark:text-gray-200">
-											Resumo de {monthLabel}
-										</Heading>
-
-									</HStack>
-
-									{isLoadingSummary ? (
-
-										<Text className="mt-4 text-gray-600 dark:text-gray-400">
-											Carregando resumo...
-										</Text>
-
-									) : summaryError ? (
-
-										<Text className="text-red-600 dark:text-red-400">
-											{summaryError}
-										</Text>
-
-									) : (
-
-										<>
-											<Text className="pt-4 text-gray-700 dark:text-gray-300">
-												Total de ganhos:{' '}
-												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-													{formatCurrencyBRL(totalGainsInCents)}
-												</Text>
-											</Text>
-
-											<Text className="mt-2 text-gray-700 dark:text-gray-300">
-												Total de despesas:{' '}
-												<Text className="text-red-600 dark:text-red-400 font-semibold">
-													{formatCurrencyBRL(totalExpensesInCents)}
-												</Text>
-											</Text>
-
-											{bankBalances.length > 0 && (
-												<>
-													<Divider className="my-3" />
-													<Text className="text-gray-700 dark:text-gray-300 mb-2">
-														Saldos atuais por banco
-													</Text>
-													{bankBalances.map(bank => (
-														<Text key={bank.id} className="text-gray-700 dark:text-gray-300 mb-1">
-															{bank.name}:{' '}
-															<Text
-																className={
-																	typeof bank.balanceInCents === 'number'
-																		? bank.balanceInCents >= 0
-																			? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																			: 'text-red-600 dark:text-red-400 font-semibold'
-																		: 'text-gray-500 dark:text-gray-400'
-																}
-															>
-																{typeof bank.balanceInCents === 'number'
-																	? formatCurrencyBRL(bank.balanceInCents)
-																	: 'Saldo indisponível'}
-															</Text>
-														</Text>
-													))}
-												</>
-											)}
-										</>
-
-									)}
-
-									<Text className="mt-4 text-sm text-gray-500 dark:text-slate-400">
-										Toque para ver o resumo detalhado por banco
-									</Text>
-
-								</Box>
-							</TouchableOpacity>
-
-							<TouchableOpacity activeOpacity={0.85} onPress={handleOpenInvestmentsList}>
-								<Box
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-								>
-									<HStack className="justify-between items-center">
-										<Heading size="md" className="text-gray-800 dark:text-gray-200">
-											Investimentos
-										</Heading>
-									</HStack>
-
-									{isLoadingInvestments ? (
-										<Text className="mt-4 text-gray-600 dark:text-gray-400">
-											Carregando dados de investimentos...
-										</Text>
-									) : investmentsError ? (
-										<Text className="mt-4 text-red-600 dark:text-red-400">{investmentsError}</Text>
-									) : investmentSummary.investmentCount === 0 ? (
-										<Text className="mt-4 text-gray-700 dark:text-gray-300">
-											Nenhum investimento registrado até o momento.
-										</Text>
-									) : (
-										<>
-											<Text className="pt-4 text-gray-700 dark:text-gray-300">
-												Investimentos ativos:{' '}
-												<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-													{investmentSummary.investmentCount}
-												</Text>
-											</Text>
-											<Text className="mt-2 text-gray-700 dark:text-gray-300">
-												Valor atual aplicado:{' '}
-												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-													{formatCurrencyBRL(investmentSummary.totalInvestedInCents)}
-												</Text>
-											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Valor inicial registrado:{' '}
-												<Text className="text-orange-600 dark:text-orange-300 font-semibold">
-													{formatCurrencyBRL(investmentSummary.totalInitialInvestedInCents)}
-												</Text>
-											</Text>
-											<Text className="mt-2 text-gray-700 dark:text-gray-300">
-												Valor simulado acumulado:{' '}
-												<Text className="text-violet-600 dark:text-violet-400 font-semibold">
-													{formatCurrencyBRL(investmentSummary.totalSimulatedInCents)}
-												</Text>
-											</Text>
-
-											<Divider className="my-3 mt-3" />
-
-											{investmentSummary.highlights.length > 0 && (
-												<View className="">
-													<Text className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-														Principais investimentos
-													</Text>
-													{investmentSummary.highlights.map(item => (
-														<View key={item.id} className="py-2 border-b border-gray-100 dark:border-gray-800 last:border-b-0">
-															<Text className="font-semibold text-gray-800 dark:text-gray-200">
-																{item.name}
-															</Text>
-															<Text className="text-xs text-gray-500 dark:text-gray-400">
-																{getBankName(item.bankId)}
-															</Text>
-															<HStack className="justify-between items-center mt-1">
-																<Text className="text-sm text-gray-700 dark:text-gray-300">
-																	Atual:{' '}
-																	<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
-																		{formatCurrencyBRL(item.appliedValueInCents)}
-																	</Text>
-																</Text>
-																<Text className="text-sm text-gray-700 dark:text-gray-300 text-right">
-																	Inicial:{' '}
-																	<Text className="font-semibold text-orange-600 dark:text-orange-300">
-																		{formatCurrencyBRL(item.investedValueInCents)}
-																	</Text>
-																</Text>
-															</HStack>
-															<Text className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-																Simulado hoje:{' '}
-																<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
-																	{formatCurrencyBRL(item.simulatedValueInCents)}
-																</Text>
-															</Text>
-														</View>
-													))}
-												</View>
-											)}
-
-											<Text className="mt-4 text-sm text-gray-500 dark:text-slate-400">
-												Toque para gerenciar a lista completa de investimentos.
-											</Text>
-										</>
-									)}
-								</Box>
-							</TouchableOpacity>
-
-							<View className="w-full relative">
-								{!isChartsExpanded && !isLoadingSummary && (
-									<Pressable
-										className="absolute inset-0 z-10"
-										onPress={() => setIsChartsExpanded(true)}
-									/>
-								)}
-								<Box
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-								>
-
-									<HStack className="justify-between items-center">
-
-										<Heading size="md" className="text-gray-800 dark:text-gray-200">
-											Visualização gráfica
-										</Heading>
-
-										<TouchableOpacity activeOpacity={0.85} onPress={() => setIsChartsExpanded((prev) => !prev)}>
-											<Text className="text-sm text-gray-500 dark:text-slate-400">
-												{isChartsExpanded ? 'Ocultar' : 'Expandir'}
-											</Text>
-										</TouchableOpacity>
-
-									</HStack>
-
-									{isChartsExpanded ? (
-										isLoadingSummary ? (
-											<Text className="mt-4 text-gray-600 dark:text-gray-400">Carregando gráficos...</Text>
-										) : chartsError ? (
-											<Text className="mt-4 text-red-600 dark:text-red-400">{chartsError}</Text>
-										) : (
-											<>
-												<View className="mt-4">
-													<HStack className="bg-gray-100 dark:bg-gray-900 rounded-full p-1">
-														{[
-															{ key: 'bar', label: 'Valores Totais do ano' },
-															{ key: 'pie', label: 'Ganhos | Despesas por banco' },
-														].map((tab) => {
-															const active = chartTab === (tab.key as 'bar' | 'pie');
-															return (
-																<TouchableOpacity
-																	key={tab.key}
-																	style={{ flex: 1 }}
-																	activeOpacity={0.9}
-																	onPress={() => setChartTab(tab.key as 'bar' | 'pie')}
-																>
-																	<View className={`py-2 rounded-full ${active ? 'bg-white dark:bg-gray-800' : ''}`}>
-																		<Text
-																			className={`text-center text-sm ${active
-																				? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																				: 'text-gray-500'
-																				}`}
-																		>
-																			{tab.label}
-																		</Text>
-																	</View>
-																</TouchableOpacity>
-															);
-														})}
-													</HStack>
-
-													{chartTab === 'bar' ? (
-														<View>
-															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-																Totais por mês ({currentYear})
-															</Text>
-
-															<View className="mt-3">
-																<BarChart
-																	stackData={barChartStackData}
-																	height={220}
-																	spacing={14}
-																	barWidth={16}
-																	isAnimated
-																	animationDuration={800}
-																	yAxisThickness={0}
-																	xAxisThickness={0}
-																	formatYLabel={formatYAxisLabel}
-																	yAxisLabelPrefix="R$ "
-																	yAxisTextStyle={{ color: axisColor, fontSize: 10 }}
-																	xAxisLabelTextStyle={{ color: axisColor, fontSize: 10 }}
-																	showYAxisIndices={false}
-																	hideRules={false}
-																	noOfSections={4}
-																	activeOpacity={1}
-																/>
-															</View>
-
-															{!hasYearlyActivity && (
-																<Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-																	Ainda não há movimentações registradas neste ano.
-																</Text>
-															)}
-
-															<HStack className="mt-3 flex-wrap gap-4">
-																<View className="flex-row items-center">
-																	<View
-																		style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.expenses }}
-																	/>
-																	<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Despesas</Text>
-																</View>
-
-																<View className="flex-row items-center">
-																	<View
-																		style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: BAR_CHART_COLORS.gains }}
-																	/>
-																	<Text className="ml-2 text-sm text-gray-600 dark:text-gray-300">Ganhos</Text>
-																</View>
-															</HStack>
-														</View>
-													) : (
-														<View>
-
-															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-																Ganhos por banco ({monthLabel})
-															</Text>
-
-															{hasGainPieData ? (
-																<>
-																	<View className="mt-4 items-center">
-																		<PieChart data={gainPieChartData} radius={80} showText={false} isAnimated />
-																	</View>
-
-																	<View className="mt-4 gap-3">
-																		{gainPieLegendData.map((slice) => (
-																			<HStack
-																				key={slice.key}
-																				className="justify-between items-center rounded-lg px-3 py-2"
-																				style={{ borderWidth: 1, borderColor: legendBorderColor }}
-																			>
-																				<HStack className="items-center">
-																					<View
-																						style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
-																					/>
-																					<Text className="ml-2 text-gray-700 dark:text-gray-200">
-																						{slice.name}
-																					</Text>
-																				</HStack>
-
-																				<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-																					{formatCurrencyBRL(slice.totalInCents)}
-																				</Text>
-																			</HStack>
-																		))}
-																	</View>
-																</>
-															) : (
-																<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-																	Ainda não há ganhos registrados neste mês.
-																</Text>
-															)}
-
-															<Divider className="my-4" />
-
-															<Text className="mt-4 text-gray-700 dark:text-gray-300 font-semibold">
-																Despesas por banco ({monthLabel})
-															</Text>
-
-															{hasExpensePieData ? (
-																<>
-																	<View className="mt-4 items-center">
-																		<PieChart data={expensePieChartData} radius={80} showText={false} isAnimated />
-																	</View>
-
-																	<View className="mt-4 gap-3">
-																		{expensePieLegendData.map((slice) => (
-																			<HStack
-																				key={slice.key}
-																				className="justify-between items-center rounded-lg px-3 py-2"
-																				style={{ borderWidth: 1, borderColor: legendBorderColor }}
-																			>
-																				<HStack className="items-center">
-																					<View
-																						style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: slice.color }}
-																					/>
-																					<Text className="ml-2 text-gray-700 dark:text-gray-200">
-																						{slice.name}
-																					</Text>
-																				</HStack>
-
-																				<Text className="text-gray-900 dark:text-gray-100 font-semibold">
-																					{formatCurrencyBRL(slice.totalInCents)}
-																				</Text>
-																			</HStack>
-																		))}
-																	</View>
-																</>
-															) : (
-																<Text className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-																	Ainda não há despesas registradas neste mês.
-																</Text>
-															)}
-
-														</View>
-													)}
-												</View>
-											</>
-										)
-									) : (
-										<Text className="mt-4 text-gray-600 dark:text-gray-400">
-											Toque em "Expandir" para visualizar os gráficos anuais e do mês atual.
-										</Text>
-									)}
-
-								</Box>
-							</View>
-
-							{/* Card para mostrar os últimos movimentos de cada banco */}
-							<Box
-								className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-							>
-
-								<HStack className="justify-between items-center">
-
-									<Heading
-										size="md"
-										className="text-gray-800 dark:text-gray-200"
-									>
-										Últimos movimentos
-									</Heading>
-
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={() => setIsMovementsExpanded((prev) => !prev)}
-									>
-										<Text className="text-sm text-gray-500 dark:text-slate-400">
-											{isMovementsExpanded ? 'Ocultar' : 'Expandir'}
-										</Text>
-									</TouchableOpacity>
-
-								</HStack>
-
-								{isMovementsExpanded ? (
-
-									isLoadingMovements ? (
-
-										<Text className="mt-4 text-gray-600 dark:text-gray-400">
-											Carregando movimentos...
-										</Text>
-
-									) : movementsError ? (
-
-										<Text className="mt-4 text-red-600 dark:text-red-400">
-											{movementsError}
-										</Text>
-
-									) : (
-
-										<>
-
-											<Box className="mt-4">
-
-												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-													Ganhos
-												</Text>
-
-												{recentGains.length === 0 ? (
-
-													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-														Nenhum ganho recente registrado.
-													</Text>
-
-												) : (
-
-													recentGains.map((gain, index) => (
-
-														<Box key={gain?.id ?? `gain-${index}`} className="mt-3">
-
-															<HStack className="justify-between items-center">
-
-																<Text className="text-gray-800 dark:text-gray-200">
-																	{gain?.name ?? 'Ganho sem nome'}
-																</Text>
-
-																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-																	{formatCurrencyBRL(gain?.valueInCents ?? 0)}
-																</Text>
-
-															</HStack>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{`Banco: ${getBankName(gain?.bankId)}`}
-															</Text>
-
-															{gain?.isInvestmentRedemption && (
-																<Text className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
-																	{gain?.investmentNameSnapshot
-																		? `Resgate do investimento "${gain.investmentNameSnapshot}".`
-																		: 'Resgate de investimento registrado.'}
-																</Text>
-															)}
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{formatMovementDate(gain?.createdAt ?? gain?.date)}
-															</Text>
-
-														</Box>
-
-													))
-
-												)}
-
-											</Box>
-
-											<Divider className="mt-6" />
-
-											<Box className="mt-6">
-
-												<Text className="text-gray-700 dark:text-gray-300 font-semibold">
-													Despesas
-												</Text>
-
-												{recentExpenses.length === 0 ? (
-
-													<Text className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
-														Nenhuma despesa recente registrada.
-													</Text>
-
-												) : (
-
-													recentExpenses.map((expense, index) => (
-
-														<Box key={expense?.id ?? `expense-${index}`} className="mt-3">
-
-															<HStack className="justify-between items-center">
-
-																<Text className="text-gray-800 dark:text-gray-200">
-																	{expense?.name ?? 'Despesa sem nome'}
-																</Text>
-
-																<Text className="text-red-600 dark:text-red-400 font-semibold">
-																	{formatCurrencyBRL(expense?.valueInCents ?? 0)}
-																</Text>
-
-															</HStack>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{`Banco: ${getBankName(expense?.bankId)}`}
-															</Text>
-
-															<Text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-																{formatMovementDate(expense?.createdAt ?? expense?.date)}
-															</Text>
-
-														</Box>
-
-													))
-
-												)}
-
-											</Box>
-
-										</>
-
-									)
-								) : (
-									<Text
-										className={
-											movementsError
-												? 'mt-4 text-red-600 dark:text-red-400'
-												: 'mt-4 text-gray-600 dark:text-gray-400'
-										}
-									>
-										{movementsError ?? 'Toque em "Expandir" para ver os últimos movimentos.'}
-									</Text>
-								)}
-
-							</Box>
-
-						</View>
-
+		<View className="flex-1" style={{ backgroundColor: pageBackground }}>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
+
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View
+					className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+					style={{ height: heroHeight }}
+				>
+					<Image
+						source={LoginWallpaper}
+						alt="Background da tela inicial"
+						className="w-full h-full rounded-b-3xl absolute"
+						resizeMode="cover"
+					/>
+
+					<VStack className="w-full h-full items-center justify-start px-6 pt-10 gap-4">
+						<Heading size="xl" className="text-white text-center">
+							Olá, {auth.currentUser?.displayName?.split(' ')[0] ?? 'Usuário'}! Esse é seu resumo financeiro.
+						</Heading>
+						<HomeScreenIllustration
+							width="40%"
+							height="40%"
+							className="opacity-90"
+						/>
 					</VStack>
+				</View>
+
+				<View
+					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pt-10 pb-6`}
+					style={{ marginTop: heroHeight - 64 }}
+				>
+					<View className="flex-1 w-full">
+
+						<ScrollView
+							className="flex-1"
+							contentContainerStyle={{ paddingBottom: 24 }}
+							showsVerticalScrollIndicator={false}
+						>
+							{/* Bank Carousel */}
+							<View className="mb-6">
+								<Heading size="lg" className="mb-4">
+									Meus Bancos
+								</Heading>
+
+								{bankBalances.length > 0 ? (
+									<View>
+										<Carousel
+											ref={bankCarouselRef}
+											width={bankCarouselWidth}
+											height={bankCarouselHeight}
+											data={bankBalances}
+											loop={bankBalances.length > 1}
+											enabled={bankBalances.length > 1}
+											pagingEnabled
+											snapEnabled
+											onProgressChange={bankCarouselProgress}
+											renderItem={({ item }) => {
+												const monthlyExpenseInCents = currentMonthExpensesByBankId[item.id] ?? 0;
+												const monthlyGainInCents = currentMonthGainsByBankId[item.id] ?? 0;
+												const bankAccentColor = normalizeHexColor(bankColorsById[item.id]);
+												const cardBackgroundColor = bankAccentColor
+													? isDarkMode
+														? hexToRgba(bankAccentColor, 0.42) ?? '#1e293b'
+														: hexToRgba(bankAccentColor, 0.24) ?? '#f8fafc'
+													: isDarkMode
+														? '#172033'
+														: '#ffffff';
+												const borderColor =
+													hexToRgba(bankAccentColor ?? '', isDarkMode ? 0.45 : 0.22) ??
+													(isDarkMode ? 'rgba(148, 163, 184, 0.20)' : 'rgba(148, 163, 184, 0.24)');
+
+												return (
+													<View
+														style={{
+															flex: 1,
+															marginHorizontal: 8,
+															paddingHorizontal: 16,
+															paddingVertical: 16,
+															borderRadius: 16,
+															borderWidth: 1,
+															backgroundColor: cardBackgroundColor,
+															borderColor,
+															overflow: 'hidden',
+															justifyContent: 'space-between',
+														}}
+													>
+														<VStack className="gap-1">
+															<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+																Banco
+															</Text>
+															<Heading size="lg" className="text-slate-900 dark:text-white">
+																{item.name}
+															</Heading>
+														</VStack>
+
+														<VStack className="gap-1 mt-4">
+															<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+																Saldo atual
+															</Text>
+															<Heading size="md" className="text-slate-900 dark:text-white">
+																{item.balanceInCents === null
+																	? 'Saldo indisponível'
+																	: formatCurrencyBRL(item.balanceInCents)}
+															</Heading>
+															{item.balanceInCents === null ? (
+																<Text className="text-yellow-600 dark:text-yellow-400 text-xs">
+																	Sem saldo registrado para este mes.
+																</Text>
+															) : null}
+														</VStack>
+
+														<HStack className="mt-4 justify-between items-end gap-4">
+															<VStack className="flex-1 gap-1">
+																<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+																	Gastos
+																</Text>
+																<Text className="text-red-600 dark:text-red-400 font-semibold">
+																	{formatCurrencyBRL(monthlyExpenseInCents)}
+																</Text>
+															</VStack>
+
+															<VStack className="flex-1 gap-1 items-end">
+																<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
+																	Ganhos
+																</Text>
+																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
+																	{formatCurrencyBRL(monthlyGainInCents)}
+																</Text>
+															</VStack>
+														</HStack>
+													</View>
+												);
+											}}
+										/>
+
+										<Pagination.Basic
+											progress={bankCarouselProgress}
+											data={bankBalances}
+											onPress={(index) =>
+												bankCarouselRef.current?.scrollTo({ index, animated: true })
+											}
+											dotStyle={{
+												backgroundColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.18)',
+												borderRadius: 50,
+											}}
+											activeDotStyle={{
+												backgroundColor: isDarkMode ? '#ffffff' : '#0f172a',
+											}}
+											containerStyle={{ gap: 5, marginTop: 10 }}
+										/>
+									</View>
+								) : (
+									<Text className="text-slate-500 dark:text-slate-400">
+										Nenhum banco registrado
+									</Text>
+								)}
+							</View>
+						</ScrollView>
+
+					</View>
 
 				</View>
-			</ScrollView>
-			<Modal isOpen={isBalanceReminderOpen} onClose={handleCloseBalanceReminder}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[380px]">
-					<ModalHeader>
-						<Heading size="lg">Registre o saldo dos bancos</Heading>
-						<ModalCloseButton onPress={handleCloseBalanceReminder} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">
-							Para evitar indisponibilidades, registre o saldo do mês atual nos bancos abaixo.
-						</Text>
-						{banksMissingBalance.length > 0 && (
-							<VStack className="mt-3 gap-2">
-								{banksMissingBalance.map(bank => (
-									<Box
-										key={bank.id}
-										className="bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700"
-									>
-										<Text className="text-gray-800 dark:text-gray-100">{bank.name}</Text>
-									</Box>
-								))}
-							</VStack>
-						)}
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseBalanceReminder}>
-							<ButtonText>Agora não</ButtonText>
-						</Button>
-						<Button variant="solid" onPress={handleOpenBalanceRegistration}>
-							<ButtonText>Registrar saldo</ButtonText>
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
-			<FloatingAlertViewport />
+			</View>
 		</View>
 	);
 }
