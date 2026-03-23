@@ -3,7 +3,7 @@
     "name": "Lumus Finanças",
     "slug": "finances-app",
     "scheme": "financesapp",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/piggy-bank.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/piggy-bank.png",
+        "foregroundImage": "./assets/Logo/Icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
