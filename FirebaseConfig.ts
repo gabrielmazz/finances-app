@@ -3,25 +3,10 @@ import { initializeApp, getApp, getApps, type FirebaseApp, type FirebaseOptions 
 import { initializeAuth, getReactNativePersistence, getAuth, type Auth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-import Constants from "expo-constants";
 import { firebaseAuthStorage } from "@/utils/firebaseAuthStorage";
 
-// Lê do extra (dev: expoConfig; alguns runtimes: manifest/manifest2)
-const readFromExtra = (key: string): string | undefined => {
-  const extraDev = (Constants as any)?.expoConfig?.extra ?? {};
-  const extraProd =
-    (Constants as any)?.manifest?.extra ??
-    (Constants as any)?.manifest2?.extra ??
-    {};
-  const firebaseDev = extraDev?.firebase ?? {};
-  const firebaseProd = extraProd?.firebase ?? {};
-  return firebaseProd[key] ?? firebaseDev[key];
-};
-
 const getEnvVar = (key: string): string => {
-  const fromEnv = process.env[key];
-  const fromExtra = readFromExtra(key);
-  const value = fromEnv ?? fromExtra;
+  const value = process.env[key];
   if (!value) throw new Error(`Missing environment variable: ${key}`);
   return value;
 };
