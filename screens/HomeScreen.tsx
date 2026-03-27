@@ -1,6 +1,16 @@
 import React from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ScrollView, View, StatusBar, TouchableOpacity, Image as RNImage, StyleSheet, useWindowDimensions } from 'react-native';
+import {
+	ScrollView,
+	View,
+	StatusBar,
+	TouchableOpacity,
+	Image as RNImage,
+	StyleSheet,
+	useWindowDimensions,
+	Pressable,
+	type GestureResponderEvent,
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
@@ -12,6 +22,7 @@ import { Badge, BadgeText } from '@/components/ui/badge';
 import { HStack } from '@/components/ui/hstack';
 import { Divider } from '@/components/ui/divider';
 import { Image } from '@/components/ui/image';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 import { auth } from '@/FirebaseConfig';
@@ -168,8 +179,13 @@ const BAR_CHART_COLORS = {
 	gains: '#10B981',
 };
 
-const HOME_VISIBLE_INVESTMENTS = 3;
 const PIE_COLOR_PALETTE = ['#6366F1', '#F97316', '#22D3EE', '#F43F5E', '#10B981', '#FACC15', '#A855F7', '#0EA5E9'];
+const INVESTMENT_PIE_COLOR_PALETTE = ['#FACC15', '#F59E0B', '#FDE047', '#EAB308', '#FBBF24', '#CA8A04', '#FCD34D', '#D97706'];
+const INVESTMENT_CHART_INITIAL_ANGLE = -Math.PI / 2;
+const INVESTMENT_CHART_PADDING_HORIZONTAL = 28;
+const INVESTMENT_CHART_PADDING_VERTICAL = 12;
+const INVESTMENT_CHART_TOUCH_OUTER_TOLERANCE = 8;
+const INVESTMENT_CHART_TOUCH_INNER_TOLERANCE = 6;
 
 const createEmptyYearlyStats = (): YearlyMonthStats[] =>
 	Array.from({ length: 12 }, (_, monthIndex) => ({
@@ -528,47 +544,8 @@ export default function HomeScreen() {
 			minute: '2-digit',
 		}).format(date);
 	}, []);
-	const formatDateOnly = React.useCallback((value: Date | null) => {
-		if (!value) {
-			return 'Data indisponível';
-		}
-
-		return new Intl.DateTimeFormat('pt-BR', {
-			day: '2-digit',
-			month: '2-digit',
-			year: 'numeric',
-		}).format(value);
-	}, []);
-	const formatPercentage = React.useCallback((value: number) => {
-		if (!Number.isFinite(value)) {
-			return '0';
-		}
-
-		return new Intl.NumberFormat('pt-BR', {
-			minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-			maximumFractionDigits: 2,
-		}).format(value);
-	}, []);
-
 	const handleOpenMonthlySummary = React.useCallback(() => {
 		router.push('/bank-summary');
-	}, []);
-	const handleOpenInvestmentsList = React.useCallback(() => {
-		router.push('/financial-list');
-	}, []);
-	const handleToggleInvestments = React.useCallback(() => {
-		setIsInvestmentsExpanded(prev => {
-			const nextValue = !prev;
-
-			if (!nextValue) {
-				setShouldShowAllInvestments(false);
-			}
-
-			return nextValue;
-		});
-	}, []);
-	const handleToggleVisibleInvestments = React.useCallback(() => {
-		setShouldShowAllInvestments(prev => !prev);
 	}, []);
 	const handleToggleMovements = React.useCallback(() => {
 		setIsMovementsExpanded(prev => {
@@ -618,10 +595,8 @@ export default function HomeScreen() {
 	const [bankColorsById, setBankColorsById] = React.useState<Record<string, string | null>>({});
 
 	// Estados relacionados aos gráficos e estatísticas
-	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
+	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
 	const [expandedTimelineStatuses, setExpandedTimelineStatuses] = React.useState<string[]>([]);
-	const [isInvestmentsExpanded, setIsInvestmentsExpanded] = React.useState(false);
-	const [shouldShowAllInvestments, setShouldShowAllInvestments] = React.useState(false);
 
 	// Estatísticas anuais
 	const [yearlyStats, setYearlyStats] = React.useState<YearlyMonthStats[]>(() => createEmptyYearlyStats());
@@ -645,6 +620,11 @@ export default function HomeScreen() {
 	const [investmentPortfolio, setInvestmentPortfolio] = React.useState<HomeInvestmentPortfolio>(() =>
 		createEmptyInvestmentPortfolio(),
 	);
+	const [selectedInvestmentPopoverTarget, setSelectedInvestmentPopoverTarget] = React.useState<{
+		investmentId: string;
+		anchorX: number;
+		anchorY: number;
+	} | null>(null);
 	const [isLoadingInvestments, setIsLoadingInvestments] = React.useState(false);
 	const [investmentsError, setInvestmentsError] = React.useState<string | null>(null);
 
@@ -918,112 +898,180 @@ export default function HomeScreen() {
 		() => ({
 			title: isDarkMode ? '#F8FAFC' : '#0F172A',
 			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-			sectionBackground: isDarkMode ? '#020617' : '#F8FAFC',
-			cardBackground: isDarkMode ? '#0F172A' : '#FFFFFF',
-			border: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(226, 232, 240, 1)',
-			metricBackground: isDarkMode ? '#111827' : '#FFFFFF',
-			badgeBackground: isDarkMode ? 'rgba(250, 204, 21, 0.12)' : 'rgba(234, 179, 8, 0.12)',
-			badgeBorder: isDarkMode ? 'rgba(250, 204, 21, 0.26)' : 'rgba(234, 179, 8, 0.18)',
-			badgeText: isDarkMode ? '#FDE68A' : '#A16207',
-			currentColor: isDarkMode ? '#E2E8F0' : '#0F172A',
+			chartCenterBackground: isDarkMode ? '#081120' : '#FFFFFF',
 			simulatedColor: isDarkMode ? '#34D399' : '#059669',
-			gainColor: isDarkMode ? '#7DD3FC' : '#0369A1',
-			ctaColor: isDarkMode ? '#FDE047' : '#CA8A04',
 		}),
 		[isDarkMode],
 	);
 
-	const resolvedInvestmentItems = React.useMemo(
+	const investmentCountLabel = investmentPortfolio.investmentCount === 1 ? 'investimento' : 'investimentos';
+	const investmentDistributionItems = React.useMemo(
 		() =>
-			investmentPortfolio.items.map(item => {
-				const snapshotBankName =
-					typeof item.bankNameSnapshot === 'string' && item.bankNameSnapshot.trim().length > 0
-						? item.bankNameSnapshot.trim()
-						: null;
-				const resolvedBankName =
-					(item.bankId ? bankNamesById[item.bankId] : null) ?? snapshotBankName ?? 'Banco não vinculado';
-				const referenceDate = item.lastManualSyncAt ?? item.createdAt;
-				const referenceLabel = item.lastManualSyncAt
-					? `Sincronizado manualmente em ${formatDateOnly(referenceDate)}`
-					: `Registrado em ${formatDateOnly(referenceDate)}`;
-
+			[...investmentPortfolio.items]
+				.filter(investment => investment.currentBaseValueInCents > 0)
+				.sort((left, right) => right.currentBaseValueInCents - left.currentBaseValueInCents),
+		[investmentPortfolio.items],
+	);
+	const investmentChartRadius = React.useMemo(
+		() => Math.max(92, Math.min(124, (windowWidth - 112) / 2)),
+		[windowWidth],
+	);
+	const investmentChartInnerRadius = React.useMemo(
+		() => Math.max(58, investmentChartRadius - 36),
+		[investmentChartRadius],
+	);
+	const investmentChartWidth = React.useMemo(
+		() => investmentChartRadius * 2 + INVESTMENT_CHART_PADDING_HORIZONTAL,
+		[investmentChartRadius],
+	);
+	const investmentChartHeight = React.useMemo(
+		() => investmentChartRadius * 2 + INVESTMENT_CHART_PADDING_VERTICAL,
+		[investmentChartRadius],
+	);
+	const investmentDistributionTotalInCents = React.useMemo(
+		() =>
+			investmentDistributionItems.reduce(
+				(accumulator, investment) => accumulator + investment.currentBaseValueInCents,
+				0,
+			),
+		[investmentDistributionItems],
+	);
+	const investmentDonutChartData = React.useMemo(
+		() =>
+			investmentDistributionItems.map((investment, index) => {
+				const color = INVESTMENT_PIE_COLOR_PALETTE[index % INVESTMENT_PIE_COLOR_PALETTE.length];
 				return {
-					...item,
-					bankName: resolvedBankName,
-					referenceLabel,
+					value: Number((investment.currentBaseValueInCents / 100).toFixed(2)),
+					color,
+					gradientCenterColor:
+						mixHexColors(color, investmentPalette.chartCenterBackground, isDarkMode ? 0.2 : 0.5) ?? color,
+					strokeColor: surfaceBackground,
+					strokeWidth: 6,
+					text: investment.name,
 				};
 			}),
-		[bankNamesById, formatDateOnly, investmentPortfolio.items],
-	);
-
-	const hasHiddenInvestments = resolvedInvestmentItems.length > HOME_VISIBLE_INVESTMENTS;
-	const visibleInvestmentItems = React.useMemo(
-		() =>
-			shouldShowAllInvestments
-				? resolvedInvestmentItems
-				: resolvedInvestmentItems.slice(0, HOME_VISIBLE_INVESTMENTS),
-		[resolvedInvestmentItems, shouldShowAllInvestments],
-	);
-
-	const investmentHeaderMetrics = React.useMemo(
-		() => [
-			{
-				key: 'count',
-				label: 'Investimentos',
-				value: String(investmentPortfolio.investmentCount),
-				color: investmentPalette.title,
-			},
-			{
-				key: 'current',
-				label: 'Atual/base',
-				value: formatCurrencyBRL(investmentPortfolio.totalCurrentBaseInCents),
-				color: investmentPalette.title,
-			},
-			{
-				key: 'simulated',
-				label: 'Simulado',
-				value: formatCurrencyBRL(investmentPortfolio.totalSimulatedInCents),
-				color: investmentPalette.simulatedColor,
-			},
-		],
 		[
-			formatCurrencyBRL,
-			investmentPalette.simulatedColor,
-			investmentPalette.title,
-			investmentPortfolio.investmentCount,
-			investmentPortfolio.totalCurrentBaseInCents,
-			investmentPortfolio.totalSimulatedInCents,
+			investmentDistributionItems,
+			investmentPalette.chartCenterBackground,
+			isDarkMode,
+			surfaceBackground,
 		],
 	);
+	const hasInvestmentDonutData = investmentDonutChartData.length > 0;
+	const selectedInvestmentPopoverInvestment = React.useMemo(() => {
+		if (!selectedInvestmentPopoverTarget) {
+			return null;
+		}
 
-	const investmentSummaryMetrics = React.useMemo(
-		() => [
-			{
-				key: 'initial',
-				label: 'Total inicial',
-				value: formatCurrencyBRL(investmentPortfolio.totalInitialInCents),
-				color: investmentPalette.title,
-			},
-			{
-				key: 'current',
-				label: 'Total atual/base',
-				value: formatCurrencyBRL(investmentPortfolio.totalCurrentBaseInCents),
-				color: investmentPalette.title,
-			},
-			{
-				key: 'gain',
-				label: 'Ganho estimado',
-				value: formatCurrencyBRL(investmentPortfolio.totalEstimatedGainInCents),
-				color: investmentPalette.gainColor,
-			},
-		],
+		return (
+			investmentDistributionItems.find(
+				investment => investment.id === selectedInvestmentPopoverTarget.investmentId,
+			) ?? null
+		);
+	}, [investmentDistributionItems, selectedInvestmentPopoverTarget]);
+	const selectedInvestmentPopoverColor = React.useMemo(() => {
+		if (!selectedInvestmentPopoverInvestment) {
+			return null;
+		}
+
+		const selectedIndex = investmentDistributionItems.findIndex(
+			investment => investment.id === selectedInvestmentPopoverInvestment.id,
+		);
+		if (selectedIndex < 0) {
+			return null;
+		}
+
+		return INVESTMENT_PIE_COLOR_PALETTE[selectedIndex % INVESTMENT_PIE_COLOR_PALETTE.length];
+	}, [investmentDistributionItems, selectedInvestmentPopoverInvestment]);
+	const selectedInvestmentPopoverPalette = React.useMemo(() => {
+		const accentColor = selectedInvestmentPopoverColor ?? INVESTMENT_PIE_COLOR_PALETTE[0];
+		const backgroundColor = accentColor;
+		const borderColor = accentColor;
+		const textPrimary = '#FFFFFF';
+		const textSecondary = 'rgba(255,255,255,0.78)';
+
+		return {
+			backgroundColor,
+			borderColor,
+			textPrimary,
+			textSecondary,
+			shadowColor: hexToRgba(accentColor, isDarkMode ? 0.38 : 0.22) ?? accentColor,
+		};
+	}, [isDarkMode, selectedInvestmentPopoverColor]);
+
+	React.useEffect(() => {
+		if (!selectedInvestmentPopoverTarget) {
+			return;
+		}
+
+		const stillExists = investmentDistributionItems.some(
+			investment => investment.id === selectedInvestmentPopoverTarget.investmentId,
+		);
+		if (!stillExists) {
+			setSelectedInvestmentPopoverTarget(null);
+		}
+	}, [investmentDistributionItems, selectedInvestmentPopoverTarget]);
+
+	const handleDismissInvestmentPopover = React.useCallback(() => {
+		setSelectedInvestmentPopoverTarget(null);
+	}, []);
+
+	const handlePressInvestmentChart = React.useCallback(
+		(event: GestureResponderEvent) => {
+			if (investmentDistributionItems.length === 0 || investmentDistributionTotalInCents <= 0) {
+				return;
+			}
+
+			const centerX = investmentChartWidth / 2;
+			const centerY = investmentChartHeight / 2;
+			const locationX = event.nativeEvent.locationX;
+			const locationY = event.nativeEvent.locationY;
+			const deltaX = locationX - centerX;
+			const deltaY = locationY - centerY;
+			const distanceFromCenter = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+
+			if (
+				distanceFromCenter > investmentChartRadius + INVESTMENT_CHART_TOUCH_OUTER_TOLERANCE ||
+				distanceFromCenter < Math.max(investmentChartInnerRadius - INVESTMENT_CHART_TOUCH_INNER_TOLERANCE, 0)
+			) {
+				return;
+			}
+
+			const fullCircle = Math.PI * 2;
+			const normalizedStartAngle =
+				((INVESTMENT_CHART_INITIAL_ANGLE % fullCircle) + fullCircle) % fullCircle;
+			const touchAngle = ((Math.atan2(deltaX, -deltaY) % fullCircle) + fullCircle) % fullCircle;
+			const relativeAngle = (touchAngle - normalizedStartAngle + fullCircle) % fullCircle;
+
+			let cumulativeAngle = 0;
+			let selectedInvestment = investmentDistributionItems[investmentDistributionItems.length - 1] ?? null;
+
+			for (const investment of investmentDistributionItems) {
+				const sliceAngle = (investment.currentBaseValueInCents / investmentDistributionTotalInCents) * fullCircle;
+				if (relativeAngle <= cumulativeAngle + sliceAngle) {
+					selectedInvestment = investment;
+					break;
+				}
+				cumulativeAngle += sliceAngle;
+			}
+
+			if (!selectedInvestment) {
+				return;
+			}
+
+			setSelectedInvestmentPopoverTarget({
+				investmentId: selectedInvestment.id,
+				anchorX: locationX,
+				anchorY: locationY,
+			});
+		},
 		[
-			formatCurrencyBRL,
-			investmentPalette.gainColor,
-			investmentPalette.title,
-			investmentPortfolio.totalCurrentBaseInCents,
-			investmentPortfolio.totalEstimatedGainInCents,
-			investmentPortfolio.totalInitialInCents,
+			investmentChartHeight,
+			investmentChartInnerRadius,
+			investmentChartRadius,
+			investmentChartWidth,
+			investmentDistributionItems,
+			investmentDistributionTotalInCents,
 		],
 	);
 
@@ -1472,7 +1520,6 @@ export default function HomeScreen() {
 				setCurrentMonthExpensesByBank([]);
 				setCurrentMonthGainsByBank([]);
 				setInvestmentPortfolio(createEmptyInvestmentPortfolio());
-				setShouldShowAllInvestments(false);
 
 				// Obtém o usuário atualmente autenticado
 				const currentUser = auth.currentUser;
@@ -1983,7 +2030,7 @@ export default function HomeScreen() {
 	return (
 		<SafeAreaView
 			className="flex-1"
-			edges={['left', 'right', 'bottom']}
+			edges={['left', 'right']}
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar
@@ -2026,9 +2073,11 @@ export default function HomeScreen() {
 					<View className="flex-1 w-full">
 
 						<ScrollView
-							className="flex-1"
+							className="flex-1 w-full"
 							contentContainerStyle={{ paddingBottom: 16 }}
 							showsVerticalScrollIndicator={false}
+							onScrollBeginDrag={handleDismissInvestmentPopover}
+							onMomentumScrollBegin={handleDismissInvestmentPopover}
 						>
 							{/* Bank Carousel */}
 							<View className="mb-6">
@@ -2165,377 +2214,261 @@ export default function HomeScreen() {
 							</View>
 
 							<View className="mb-6">
-								<HStack className="items-start justify-between gap-3">
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={handleToggleInvestments}
-										style={{ flex: 1 }}
-									>
-										<Heading size="lg">Investimentos</Heading>
-										<Text
-											style={{
-												marginTop: 4,
-												fontSize: 14,
-												lineHeight: 20,
-												color: investmentPalette.subtitle,
-											}}
-										>
-											{isInvestmentsExpanded
-												? 'Clique para ocultar a posição atual da carteira.'
-												: 'Clique para visualizar a carteira registrada.'}
+								<Heading size="lg">Investimentos</Heading>
+								<Text
+									style={{
+										marginTop: 4,
+										fontSize: 14,
+										lineHeight: 20,
+										color: investmentPalette.subtitle,
+									}}
+								>
+									Distribuição atual da carteira.
+								</Text>
+
+								<View
+									style={{
+										marginTop: 8,
+									}}
+								>
+									{investmentsError ? (
+										<Text style={{ color: investmentPalette.subtitle }}>{investmentsError}</Text>
+									) : isLoadingInvestments && investmentPortfolio.investmentCount === 0 ? (
+										<Text style={{ color: investmentPalette.subtitle }}>Carregando investimentos...</Text>
+									) : investmentPortfolio.investmentCount === 0 ? (
+										<Text style={{ color: investmentPalette.subtitle }}>
+											Nenhum investimento registrado até o momento.
 										</Text>
-									</TouchableOpacity>
+									) : !hasInvestmentDonutData ? (
+										<Text style={{ color: investmentPalette.subtitle }}>
+											Os investimentos cadastrados ainda não possuem valor atual/base para exibir a
+											distribuição.
+										</Text>
+									) : (
+										<>
 
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={handleToggleInvestments}
-										style={{
-											minWidth: 28,
-											paddingLeft: 8,
-											paddingVertical: 4,
-											alignItems: 'center',
-											justifyContent: 'center',
-											flexShrink: 0,
-										}}
-									>
-										{renderSectionChevron(isInvestmentsExpanded, investmentPalette.subtitle)}
-									</TouchableOpacity>
-								</HStack>
-
-								<HStack className="mt-4 flex-wrap gap-3">
-									{investmentHeaderMetrics.map(metric => (
-										<View
-											key={metric.key}
-											style={{
-												minWidth: metric.key === 'count' ? 112 : 136,
-												flexGrow: metric.key === 'count' ? 0 : 1,
-												borderRadius: 16,
-												borderWidth: 1,
-												borderColor: investmentPalette.border,
-												backgroundColor: investmentPalette.metricBackground,
-												paddingHorizontal: 14,
-												paddingVertical: 12,
-											}}
-										>
-											<Text
-												style={{
-													fontSize: 11,
-													fontWeight: '700',
-													letterSpacing: 0.4,
-													color: investmentPalette.subtitle,
-													textTransform: 'uppercase',
-												}}
-											>
-												{metric.label}
-											</Text>
-											<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
-												{metric.value}
-											</Heading>
-										</View>
-									))}
-								</HStack>
-
-								{isInvestmentsExpanded ? (
-									<View
-										style={{
-											marginTop: 14,
-											borderRadius: 20,
-											borderWidth: 1,
-											borderColor: investmentPalette.border,
-											backgroundColor: investmentPalette.sectionBackground,
-											paddingHorizontal: 16,
-											paddingVertical: 16,
-										}}
-									>
-										{isLoadingInvestments ? (
-											<Text style={{ color: investmentPalette.subtitle }}>
-												Carregando investimentos...
-											</Text>
-										) : investmentsError ? (
-											<View
-												style={{
-													borderRadius: 16,
-													borderWidth: 1,
-													borderColor: investmentPalette.border,
-													backgroundColor: investmentPalette.cardBackground,
-													paddingHorizontal: 14,
-													paddingVertical: 14,
-												}}
-											>
-												<Text style={{ color: investmentPalette.subtitle }}>
-													{investmentsError}
-												</Text>
-											</View>
-										) : investmentPortfolio.investmentCount === 0 ? (
-											<View
-												style={{
-													borderRadius: 16,
-													borderWidth: 1,
-													borderColor: investmentPalette.border,
-													backgroundColor: investmentPalette.cardBackground,
-													paddingHorizontal: 14,
-													paddingVertical: 14,
-												}}
-											>
-												<Text style={{ color: investmentPalette.subtitle }}>
-													Nenhum investimento registrado até o momento.
-												</Text>
-											</View>
-										) : (
-											<>
-												<Text
-													style={{
-														fontSize: 12,
-														fontWeight: '700',
-														letterSpacing: 0.4,
-														textTransform: 'uppercase',
-														color: investmentPalette.subtitle,
-													}}
-												>
-													Resumo da carteira
-												</Text>
-
-												<HStack className="mt-3 flex-wrap gap-3">
-													{investmentSummaryMetrics.map(metric => (
-														<View
-															key={metric.key}
-															style={{
-																minWidth: 140,
-																flexGrow: 1,
-																borderRadius: 16,
-																borderWidth: 1,
-																borderColor: investmentPalette.border,
-																backgroundColor: investmentPalette.metricBackground,
-																paddingHorizontal: 14,
-																paddingVertical: 12,
-															}}
-														>
-															<Text
-																style={{
-																	fontSize: 11,
-																	fontWeight: '700',
-																	letterSpacing: 0.4,
-																	color: investmentPalette.subtitle,
-																	textTransform: 'uppercase',
-																}}
-															>
-																{metric.label}
-															</Text>
-															<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
-																{metric.value}
-															</Heading>
-														</View>
-													))}
-												</HStack>
-
+											<View className="mt-2 items-center justify-center">
 												<View
 													style={{
-														height: 1,
-														marginVertical: 16,
-														backgroundColor: investmentPalette.border,
+														width: investmentChartWidth,
+														height: investmentChartHeight,
+														position: 'relative',
+														overflow: 'visible',
 													}}
-												/>
-
-												<VStack className="gap-3">
-													{visibleInvestmentItems.map(investment => (
-														<View
-															key={investment.id}
-															style={{
-																borderRadius: 18,
-																borderWidth: 1,
-																borderColor: investmentPalette.border,
-																backgroundColor: investmentPalette.cardBackground,
-																paddingHorizontal: 14,
-																paddingVertical: 14,
-															}}
+												>
+													{selectedInvestmentPopoverTarget && selectedInvestmentPopoverInvestment ? (
+														<Popover
+															isOpen
+															onClose={() => setSelectedInvestmentPopoverTarget(null)}
+															placement="top"
+															size="sm"
+															offset={-24}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={triggerProps => (
+																<View
+																	ref={triggerProps.ref}
+																	style={{
+																		position: 'absolute',
+																		left: selectedInvestmentPopoverTarget.anchorX,
+																		top: selectedInvestmentPopoverTarget.anchorY,
+																		width: 2,
+																		height: 2,
+																		opacity: 0,
+																	}}
+																/>
+															)}
 														>
-															<HStack className="items-start justify-between gap-3">
-																<VStack className="flex-1 gap-1">
-																	<Heading size="sm" style={{ color: investmentPalette.title }}>
-																		{investment.name}
-																	</Heading>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent
+																style={{
+																	borderRadius: 18,
+																	borderWidth: 1,
+																	borderColor: selectedInvestmentPopoverPalette.borderColor,
+																	backgroundColor: selectedInvestmentPopoverPalette.backgroundColor,
+																	shadowColor: selectedInvestmentPopoverPalette.shadowColor,
+																	shadowOffset: { width: 0, height: 10 },
+																	shadowOpacity: 0.24,
+																	shadowRadius: 18,
+																	elevation: 10,
+																}}
+															>
+																<PopoverBody className="px-4 py-3">
 																	<Text
-																		style={{
-																			fontSize: 12,
-																			lineHeight: 18,
-																			color: investmentPalette.subtitle,
-																		}}
+																		className="text-center text-xs font-bold leading-4"
+																		style={{ color: selectedInvestmentPopoverPalette.textPrimary }}
 																	>
-																		{investment.bankName}
+																		{selectedInvestmentPopoverInvestment.name}
 																	</Text>
-																</VStack>
+																	<Text
+																		className="mt-2 text-center text-base font-bold"
+																		style={{ color: selectedInvestmentPopoverPalette.textPrimary }}
+																	>
+																		{formatCurrencyBRL(
+																			selectedInvestmentPopoverInvestment.currentBaseValueInCents,
+																		)}
+																	</Text>
+																	<Text
+																		className="mt-0.5 text-center text-[11px] leading-4"
+																		style={{ color: selectedInvestmentPopoverPalette.textSecondary }}
+																	>
+																		Valor atual/base
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													) : null}
 
+													<View
+														style={{
+															position: 'absolute',
+															top: 0,
+															left: 0,
+														}}
+													>
+														<PieChart
+															data={investmentDonutChartData}
+															donut
+															showGradient
+															showText={false}
+															isAnimated
+															focusOnPress={false}
+															toggleFocusOnPress={false}
+															initialAngle={INVESTMENT_CHART_INITIAL_ANGLE}
+															radius={investmentChartRadius}
+															innerRadius={investmentChartInnerRadius}
+															paddingHorizontal={INVESTMENT_CHART_PADDING_HORIZONTAL}
+															paddingVertical={INVESTMENT_CHART_PADDING_VERTICAL}
+															innerCircleColor={investmentPalette.chartCenterBackground}
+															strokeColor={surfaceBackground}
+															strokeWidth={6}
+															centerLabelComponent={() => (
 																<View
 																	style={{
-																		borderRadius: 999,
-																		borderWidth: 1,
-																		borderColor: investmentPalette.badgeBorder,
-																		backgroundColor: investmentPalette.badgeBackground,
-																		paddingHorizontal: 10,
-																		paddingVertical: 6,
+																		alignItems: 'center',
+																		justifyContent: 'center',
+																		paddingHorizontal: 12,
 																	}}
 																>
 																	<Text
 																		style={{
-																			fontSize: 11,
-																			fontWeight: '700',
-																			color: investmentPalette.badgeText,
-																		}}
-																	>
-																		{`${formatPercentage(investment.cdiPercentage)}% CDI`}
-																	</Text>
-																</View>
-															</HStack>
-
-															<HStack className="mt-4 flex-wrap gap-3">
-																{[
-																	{
-																		key: 'current',
-																		label: 'Valor atual/base',
-																		value: formatCurrencyBRL(investment.currentBaseValueInCents),
-																		color: investmentPalette.currentColor,
-																	},
-																	{
-																		key: 'simulated',
-																		label: 'Valor simulado',
-																		value: formatCurrencyBRL(investment.simulatedValueInCents),
-																		color: investmentPalette.simulatedColor,
-																	},
-																	{
-																		key: 'gain',
-																		label: 'Ganho estimado',
-																		value: formatCurrencyBRL(investment.estimatedGainInCents),
-																		color: investmentPalette.gainColor,
-																	},
-																].map(metric => (
-																	<View
-																		key={metric.key}
-																		style={{
-																			minWidth: 132,
-																			flexGrow: 1,
-																			borderRadius: 14,
-																			borderWidth: 1,
-																			borderColor: investmentPalette.border,
-																			backgroundColor: investmentPalette.sectionBackground,
-																			paddingHorizontal: 12,
-																			paddingVertical: 12,
-																		}}
-																	>
-																		<Text
-																			style={{
-																				fontSize: 11,
-																				fontWeight: '700',
-																				letterSpacing: 0.3,
-																				color: investmentPalette.subtitle,
-																				textTransform: 'uppercase',
-																			}}
-																		>
-																			{metric.label}
-																		</Text>
-																		<Text
-																			style={{
-																				marginTop: 6,
-																				fontSize: 15,
-																				fontWeight: '700',
-																				color: metric.color,
-																			}}
-																		>
-																			{metric.value}
-																		</Text>
-																	</View>
-																))}
-															</HStack>
-
-															<HStack className="mt-4 flex-wrap gap-4">
-																<VStack className="gap-1">
-																	<Text
-																		style={{
-																			fontSize: 11,
-																			fontWeight: '700',
-																			letterSpacing: 0.3,
-																			color: investmentPalette.subtitle,
-																			textTransform: 'uppercase',
-																		}}
-																	>
-																		Valor inicial
-																	</Text>
-																	<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
-																		{formatCurrencyBRL(investment.initialValueInCents)}
-																	</Text>
-																</VStack>
-
-																<VStack className="flex-1 gap-1">
-																	<Text
-																		style={{
-																			fontSize: 11,
-																			fontWeight: '700',
-																			letterSpacing: 0.3,
-																			color: investmentPalette.subtitle,
-																			textTransform: 'uppercase',
-																		}}
-																	>
-																		Referência
-																	</Text>
-																	<Text
-																		style={{
 																			fontSize: 12,
+																			fontWeight: '700',
+																			letterSpacing: 0.4,
+																			textTransform: 'uppercase',
+																			color: investmentPalette.subtitle,
+																		}}
+																	>
+																		Ativos
+																	</Text>
+																	<Heading
+																		size="xl"
+																		style={{
+																			marginTop: 4,
+																			color: investmentPalette.title,
+																			textAlign: 'center',
+																		}}
+																	>
+																		{investmentPortfolio.investmentCount}
+																	</Heading>
+																	<Text
+																		style={{
+																			marginTop: 2,
+																			fontSize: 13,
 																			lineHeight: 18,
 																			color: investmentPalette.subtitle,
+																			textAlign: 'center',
 																		}}
 																	>
-																		{investment.referenceLabel}
+																		{investmentCountLabel}
 																	</Text>
-																</VStack>
-															</HStack>
-														</View>
-													))}
-												</VStack>
+																</View>
+															)}
+														/>
+													</View>
 
-												{hasHiddenInvestments ? (
-													<TouchableOpacity
-														activeOpacity={0.85}
-														onPress={handleToggleVisibleInvestments}
+													<Pressable
+														onPress={handlePressInvestmentChart}
 														style={{
-															marginTop: 16,
-															alignSelf: 'flex-start',
-															borderRadius: 999,
-															borderWidth: 1,
-															borderColor: investmentPalette.border,
-															paddingHorizontal: 14,
-															paddingVertical: 10,
+															position: 'absolute',
+															top: 0,
+															left: 0,
+															width: investmentChartWidth,
+															height: investmentChartHeight,
+															backgroundColor: 'transparent',
+															zIndex: 1,
+														}}
+													/>
+												</View>
+											</View>
+
+											<HStack className="mt-6 items-start justify-between">
+												<View
+													style={{
+														flex: 1,
+														paddingRight: 12,
+													}}
+												>
+													<Text
+														style={{
+															fontSize: 11,
+															fontWeight: '700',
+															letterSpacing: 0.3,
+															color: investmentPalette.subtitle,
+															textTransform: 'uppercase',
 														}}
 													>
-														<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
-															{shouldShowAllInvestments ? 'Mostrar menos' : 'Mostrar mais'}
-														</Text>
-													</TouchableOpacity>
-												) : null}
-											</>
-										)}
+														Atual/base
+													</Text>
+													<Text
+														style={{
+															marginTop: 6,
+															fontSize: 18,
+															fontWeight: '700',
+															color: investmentPalette.title,
+														}}
+													>
+														{formatCurrencyBRL(investmentPortfolio.totalCurrentBaseInCents)}
+													</Text>
+												</View>
 
-										{!isLoadingInvestments ? (
-											<TouchableOpacity
-												activeOpacity={0.85}
-												onPress={handleOpenInvestmentsList}
-												style={{
-													marginTop: 16,
-													alignSelf: 'flex-start',
-													paddingVertical: 4,
-												}}
-											>
-												<Text style={{ color: investmentPalette.ctaColor, fontWeight: '700' }}>
-													Ver lista completa de investimentos
-												</Text>
-											</TouchableOpacity>
-										) : null}
-									</View>
-								) : null}
+												<View
+													style={{
+														flex: 1,
+														alignItems: 'flex-end',
+														paddingLeft: 12,
+													}}
+												>
+													<Text
+														style={{
+															fontSize: 11,
+															fontWeight: '700',
+															letterSpacing: 0.3,
+															color: investmentPalette.subtitle,
+															textTransform: 'uppercase',
+															textAlign: 'right',
+														}}
+													>
+														Simulado
+													</Text>
+													<Text
+														style={{
+															marginTop: 6,
+															fontSize: 18,
+															fontWeight: '700',
+															color: investmentPalette.simulatedColor,
+															textAlign: 'right',
+														}}
+													>
+														{formatCurrencyBRL(investmentPortfolio.totalSimulatedInCents)}
+													</Text>
+												</View>
+											</HStack>
+										</>
+									)}
+								</View>
 
-								{investmentsError && !isInvestmentsExpanded ? (
-									<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-										{investmentsError}
-									</Text>
-								) : null}
 							</View>
 
 							<View className="mb-6">
@@ -2766,8 +2699,8 @@ export default function HomeScreen() {
 
 						<View
 							style={{
+								marginHorizontal: -18,
 								paddingBottom: 0,
-								paddingTop: 2,
 							}}
 						>
 							<Navigator defaultValue={0} />
