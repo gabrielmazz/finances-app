@@ -1,6 +1,6 @@
 import React from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ScrollView, View, StatusBar, TouchableOpacity, Image as RNImage, useWindowDimensions } from 'react-native';
+import { ScrollView, View, StatusBar, TouchableOpacity, Image as RNImage, StyleSheet, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
@@ -35,7 +35,15 @@ import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVi
 import { useAppTheme } from '@/contexts/ThemeContext';
 
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
-import { SvgProps } from 'react-native-svg';
+import Svg, {
+	Circle,
+	Defs,
+	LinearGradient as SvgLinearGradient,
+	Polygon,
+	RadialGradient as SvgRadialGradient,
+	Rect,
+	Stop,
+} from 'react-native-svg';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 type YearlyMonthStats = {
@@ -121,6 +129,34 @@ type HomeTimelineStatus = {
 	movement: HomeTimelineMovement;
 };
 
+type HomeBankBalanceCard = {
+	id: string;
+	name: string;
+	balanceInCents: number | null;
+	colorHex: string | null;
+};
+
+type BankCardPalette = {
+	baseColor: string;
+	glowColor: string;
+	highlightColor: string;
+	textPrimary: string;
+	textSecondary: string;
+	expenseColor: string;
+	gainColor: string;
+	shadowColor: string;
+};
+
+type TimelineMovementCardPalette = {
+	baseColor: string;
+	gradientEndColor: string;
+	overlayColor: string;
+	labelColor: string;
+	bodyColor: string;
+	amountColor: string;
+	shadowColor: string;
+};
+
 const DAYS_IN_YEAR = 365;
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 const BASE_CDI_ANNUAL_RATE = 0.1375;
@@ -196,6 +232,212 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
+const hexToRgb = (hexColor: string) => {
+	const normalizedHex = normalizeHexColor(hexColor);
+	if (!normalizedHex) {
+		return null;
+	}
+
+	return {
+		red: Number.parseInt(normalizedHex.slice(1, 3), 16),
+		green: Number.parseInt(normalizedHex.slice(3, 5), 16),
+		blue: Number.parseInt(normalizedHex.slice(5, 7), 16),
+	};
+};
+
+const rgbToHex = (red: number, green: number, blue: number) =>
+	`#${[red, green, blue]
+		.map(value => Math.min(255, Math.max(0, Math.round(value))).toString(16).padStart(2, '0'))
+		.join('')}`;
+
+const mixHexColors = (sourceHex: string, targetHex: string, weight: number) => {
+	const source = hexToRgb(sourceHex);
+	const target = hexToRgb(targetHex);
+	if (!source || !target) {
+		return null;
+	}
+
+	const safeWeight = Math.min(1, Math.max(0, weight));
+
+	return rgbToHex(
+		source.red + (target.red - source.red) * safeWeight,
+		source.green + (target.green - source.green) * safeWeight,
+		source.blue + (target.blue - source.blue) * safeWeight,
+	);
+};
+
+const getRelativeLuminance = (hexColor: string) => {
+	const rgb = hexToRgb(hexColor);
+	if (!rgb) {
+		return 0;
+	}
+
+	const toLinear = (channel: number) => {
+		const normalizedChannel = channel / 255;
+		return normalizedChannel <= 0.03928
+			? normalizedChannel / 12.92
+			: ((normalizedChannel + 0.055) / 1.055) ** 2.4;
+	};
+
+	return (
+		0.2126 * toLinear(rgb.red) +
+		0.7152 * toLinear(rgb.green) +
+		0.0722 * toLinear(rgb.blue)
+	);
+};
+
+const buildBankCardPalette = (colorHex: string | null | undefined, isDarkMode: boolean): BankCardPalette => {
+	const accentColor = normalizeHexColor(colorHex) ?? (isDarkMode ? '#1D4ED8' : '#7C3AED');
+	const baseColor =
+		mixHexColors(accentColor, isDarkMode ? '#020617' : '#0F172A', isDarkMode ? 0.58 : 0.5) ??
+		(isDarkMode ? '#172033' : '#1E293B');
+	const glowColor = mixHexColors(accentColor, '#FFFFFF', isDarkMode ? 0.22 : 0.3) ?? accentColor;
+	const highlightColor = mixHexColors(accentColor, '#FDE68A', 0.38) ?? glowColor;
+	const textPrimary = getRelativeLuminance(baseColor) > 0.45 ? '#0F172A' : '#FFFFFF';
+	const textSecondary = textPrimary === '#FFFFFF' ? 'rgba(255,255,255,0.72)' : 'rgba(15,23,42,0.72)';
+	const expenseColor = '#FFFFFF';
+	const gainColor = '#FFFFFF';
+
+	return {
+		baseColor,
+		glowColor,
+		highlightColor,
+		textPrimary,
+		textSecondary,
+		expenseColor,
+		gainColor,
+		shadowColor: hexToRgba(accentColor, isDarkMode ? 0.38 : 0.28) ?? accentColor,
+	};
+};
+
+const resolveTimelineAccentColor = (movement: HomeTimelineMovement) => {
+	if (movement.isBankTransfer) {
+		return '#F59E0B';
+	}
+
+	return movement.type === 'expense' ? '#DC2626' : '#10B981';
+};
+
+const buildTimelineMovementCardPalette = (
+	movement: HomeTimelineMovement,
+	isDarkMode: boolean,
+): TimelineMovementCardPalette => {
+	const accentColor = resolveTimelineAccentColor(movement);
+	const tone = movement.isBankTransfer
+		? {
+			baseColor: '#B88A4A',
+			gradientEndColor: '#FFD166',
+			overlayColor: '#FFF0A6',
+		}
+		: movement.type === 'expense'
+			? {
+				baseColor: '#C96B72',
+				gradientEndColor: '#FF9AA2',
+				overlayColor: '#FFD1DC',
+			}
+			: {
+				baseColor: '#77AA77',
+				gradientEndColor: '#44FFDD',
+				overlayColor: '#CCFF88',
+			};
+
+	return {
+		baseColor: isDarkMode ? mixHexColors(tone.baseColor, '#0F172A', 0.34) ?? tone.baseColor : tone.baseColor,
+		gradientEndColor: isDarkMode
+			? mixHexColors(tone.gradientEndColor, '#0F172A', 0.16) ?? tone.gradientEndColor
+			: tone.gradientEndColor,
+		overlayColor: isDarkMode ? mixHexColors(tone.overlayColor, '#FFFFFF', 0.08) ?? tone.overlayColor : tone.overlayColor,
+		labelColor: 'rgba(255,255,255,0.82)',
+		bodyColor: 'rgba(255,255,255,0.94)',
+		amountColor: '#FFFFFF',
+		shadowColor: hexToRgba(accentColor, isDarkMode ? 0.42 : 0.18) ?? accentColor,
+	};
+};
+
+const BankCardPattern = React.memo(({ palette }: { palette: BankCardPalette }) => {
+	const rawGradientId = React.useId();
+	const rawGlowId = React.useId();
+	const gradientId = React.useMemo(
+		() => `bank-card-gradient-${rawGradientId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+		[rawGradientId],
+	);
+	const glowId = React.useMemo(
+		() => `bank-card-glow-${rawGlowId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+		[rawGlowId],
+	);
+
+	return (
+		<View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+			<Svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice">
+				<Defs>
+					<SvgRadialGradient id={gradientId} cx="396" cy="281" r="514" gradientUnits="userSpaceOnUse">
+						<Stop offset="0" stopColor={palette.glowColor} />
+						<Stop offset="1" stopColor={palette.baseColor} />
+					</SvgRadialGradient>
+
+					<SvgLinearGradient id={glowId} x1="400" y1="148" x2="400" y2="333" gradientUnits="userSpaceOnUse">
+						<Stop offset="0" stopColor={palette.highlightColor} stopOpacity={0} />
+						<Stop offset="1" stopColor={palette.highlightColor} stopOpacity={0.52} />
+					</SvgLinearGradient>
+				</Defs>
+
+				<Rect width="800" height="400" fill={palette.baseColor} />
+				<Rect width="800" height="400" fill={`url(#${gradientId})`} />
+				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="267.5" cy="61" r="300" />
+				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="532.5" cy="61" r="300" />
+				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="400" cy="30" r="300" />
+				<Rect width="800" height="400" fill="rgba(255,255,255,0.04)" />
+			</Svg>
+		</View>
+	);
+});
+
+const TimelineMovementCardPattern = React.memo(({ palette }: { palette: TimelineMovementCardPalette }) => {
+	const rawBackgroundGradientId = React.useId();
+	const rawLeftOverlayId = React.useId();
+	const rawRightOverlayId = React.useId();
+	const backgroundGradientId = React.useMemo(
+		() => `timeline-card-background-${rawBackgroundGradientId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+		[rawBackgroundGradientId],
+	);
+	const leftOverlayId = React.useMemo(
+		() => `timeline-card-left-overlay-${rawLeftOverlayId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+		[rawLeftOverlayId],
+	);
+	const rightOverlayId = React.useMemo(
+		() => `timeline-card-right-overlay-${rawRightOverlayId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
+		[rawRightOverlayId],
+	);
+
+	return (
+		<View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+			<Svg width="100%" height="100%" viewBox="0 0 800 320" preserveAspectRatio="xMidYMid slice">
+				<Defs>
+					<SvgLinearGradient id={backgroundGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+						<Stop offset="0" stopColor={palette.baseColor} />
+						<Stop offset="1" stopColor={palette.gradientEndColor} />
+					</SvgLinearGradient>
+
+					<SvgLinearGradient id={leftOverlayId} x1="0%" y1="0%" x2="0%" y2="100%">
+						<Stop offset="0" stopColor={palette.overlayColor} stopOpacity={0} />
+						<Stop offset="1" stopColor={palette.overlayColor} stopOpacity={1} />
+					</SvgLinearGradient>
+
+					<SvgLinearGradient id={rightOverlayId} x1="0%" y1="0%" x2="100%" y2="100%">
+						<Stop offset="0" stopColor={palette.overlayColor} stopOpacity={0} />
+						<Stop offset="1" stopColor={palette.overlayColor} stopOpacity={1} />
+					</SvgLinearGradient>
+				</Defs>
+
+				<Rect width="800" height="320" fill={palette.baseColor} />
+				<Rect width="800" height="320" fill={`url(#${backgroundGradientId})`} />
+				<Polygon fill={`url(#${leftOverlayId})`} fillOpacity={0.38} points="0,320 0,0 800,0" />
+				<Polygon fill={`url(#${rightOverlayId})`} fillOpacity={0.38} points="800,320 800,0 0,0" />
+			</Svg>
+		</View>
+	);
+});
+
 const normalizeTransferDirection = (value: unknown): 'incoming' | 'outgoing' | null => {
 	if (value === 'incoming' || value === 'outgoing') {
 		return value;
@@ -220,6 +462,7 @@ export default function HomeScreen() {
 	const searchParams = useLocalSearchParams<{ balanceReminder?: string | string[] }>();
 	const bankCarouselWidth = Math.max(windowWidth - 48, 1);
 	const bankCarouselHeight = 176;
+	const bankCarouselItemSpacing = 16;
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
@@ -358,9 +601,7 @@ export default function HomeScreen() {
 	// Estado para armazenar o total de ganhos
 	const [totalGainsInCents, setTotalGainsInCents] = React.useState(0);
 	const [gainCount, setGainCount] = React.useState(0);
-	const [bankBalances, setBankBalances] = React.useState<
-		{ id: string; name: string; balanceInCents: number | null }[]
-	>([]);
+	const [bankBalances, setBankBalances] = React.useState<HomeBankBalanceCard[]>([]);
 
 	// Estado para armazenar os movimentos mais recentes de ganhos e despesas
 	const [recentExpenses, setRecentExpenses] = React.useState<any[]>([]);
@@ -800,11 +1041,7 @@ export default function HomeScreen() {
 	);
 
 	const getTimelineAccentColor = React.useCallback((movement: HomeTimelineMovement) => {
-		if (movement.isBankTransfer) {
-			return '#F59E0B';
-		}
-
-		return movement.type === 'expense' ? '#DC2626' : '#10B981';
+		return resolveTimelineAccentColor(movement);
 	}, []);
 
 	const getTimelineBadgeLabel = React.useCallback((movement: HomeTimelineMovement) => {
@@ -964,9 +1201,7 @@ export default function HomeScreen() {
 	const timelineStatuses = React.useMemo<HomeTimelineStatus[]>(
 		() =>
 			recentTimelineMovements.map((movement, index) => {
-				const accentColor = getTimelineAccentColor(movement);
-				const accentBorderColor =
-					hexToRgba(accentColor, isDarkMode ? 0.42 : 0.24) ?? timelinePalette.cardBorder;
+				const movementCardPalette = buildTimelineMovementCardPalette(movement, isDarkMode);
 				const badgeLabel = getTimelineBadgeLabel(movement);
 				const contextLabel = getTimelineContextLabel(movement);
 				const title =
@@ -988,26 +1223,33 @@ export default function HomeScreen() {
 								marginTop: 10,
 								marginRight: 21,
 								borderRadius: 18,
-								borderWidth: 1,
-								borderColor: accentBorderColor,
-								backgroundColor: timelinePalette.cardBackground,
-								paddingHorizontal: 12,
-								paddingVertical: 14,
+								backgroundColor: movementCardPalette.baseColor,
+								overflow: 'hidden',
+								position: 'relative',
+								paddingHorizontal: 18,
+								paddingVertical: 18,
+								shadowColor: movementCardPalette.shadowColor,
+								shadowOpacity: isDarkMode ? 0.24 : 0.14,
+								shadowRadius: 16,
+								shadowOffset: { width: 0, height: 8 },
+								elevation: 4,
 							}}
 						>
+							<TimelineMovementCardPattern palette={movementCardPalette} />
+
 							<VStack className="gap-1">
 								<Text
 									style={{
 										fontSize: 11,
 										fontWeight: '700',
 										letterSpacing: 0.4,
-										color: timelinePalette.subtitle,
+										color: movementCardPalette.labelColor,
 										textTransform: 'uppercase',
 									}}
 								>
 									Valor
 								</Text>
-								<Heading size="sm" style={{ color: accentColor }}>
+								<Heading size="sm" style={{ color: movementCardPalette.amountColor }}>
 									{formatCurrencyBRL(movement.valueInCents)}
 								</Heading>
 							</VStack>
@@ -1018,7 +1260,7 @@ export default function HomeScreen() {
 										marginTop: 16,
 									}}
 								>
-									<Text style={{ color: timelinePalette.subtitle, fontSize: 12, lineHeight: 18 }}>
+									<Text style={{ color: movementCardPalette.bodyColor, fontSize: 12, lineHeight: 18 }}>
 										{movement.explanation}
 									</Text>
 								</View>
@@ -1030,14 +1272,10 @@ export default function HomeScreen() {
 		[
 			formatCurrencyBRL,
 			formatMovementDate,
-			getTimelineAccentColor,
 			getTimelineBadgeLabel,
 			getTimelineContextLabel,
 			isDarkMode,
 			recentTimelineMovements,
-			timelinePalette.cardBackground,
-			timelinePalette.cardBorder,
-			timelinePalette.subtitle,
 		],
 	);
 
@@ -1225,16 +1463,16 @@ export default function HomeScreen() {
 				setSummaryError(null);
 				setIsLoadingMovements(true);
 				setMovementsError(null);
-					setRecentExpenses([]);
-					setRecentGains([]);
-					setBankNamesById({});
-					setBankColorsById({});
-					setChartsError(null);
-					setYearlyStats(createEmptyYearlyStats());
-					setCurrentMonthExpensesByBank([]);
-					setCurrentMonthGainsByBank([]);
-					setInvestmentPortfolio(createEmptyInvestmentPortfolio());
-					setShouldShowAllInvestments(false);
+				setRecentExpenses([]);
+				setRecentGains([]);
+				setBankNamesById({});
+				setBankColorsById({});
+				setChartsError(null);
+				setYearlyStats(createEmptyYearlyStats());
+				setCurrentMonthExpensesByBank([]);
+				setCurrentMonthGainsByBank([]);
+				setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+				setShouldShowAllInvestments(false);
 
 				// Obtém o usuário atualmente autenticado
 				const currentUser = auth.currentUser;
@@ -1244,24 +1482,24 @@ export default function HomeScreen() {
 					if (isMounted) {
 						const message = 'Nenhum usuário autenticado foi identificado.';
 						setSummaryError(message);
-							setMovementsError(message);
-							setInvestmentsError(message);
-							setRecentExpenses([]);
-							setRecentGains([]);
-							setBankColorsById({});
-							setInvestmentPortfolio(createEmptyInvestmentPortfolio());
-							setIsLoadingSummary(false);
-							setIsLoadingMovements(false);
-							setIsLoadingInvestments(false);
+						setMovementsError(message);
+						setInvestmentsError(message);
+						setRecentExpenses([]);
+						setRecentGains([]);
+						setBankColorsById({});
+						setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+						setIsLoadingSummary(false);
+						setIsLoadingMovements(false);
+						setIsLoadingInvestments(false);
 					}
 					return;
 				}
 
-					if (isMounted) {
-						setIsLoadingInvestments(true);
-						setInvestmentsError(null);
-						setInvestmentPortfolio(createEmptyInvestmentPortfolio());
-					}
+				if (isMounted) {
+					setIsLoadingInvestments(true);
+					setInvestmentsError(null);
+					setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+				}
 
 				const loadSummariesPromise = (async () => {
 
@@ -1459,6 +1697,7 @@ export default function HomeScreen() {
 									id: bank.id,
 									name: bank.name,
 									balanceInCents: bank.currentBalanceInCents,
+									colorHex: bank.colorHex,
 								}));
 
 								if (isMounted) {
@@ -1643,86 +1882,86 @@ export default function HomeScreen() {
 									: typeof investment.lastManualSyncValueInCents === 'number'
 										? investment.lastManualSyncValueInCents
 										: initialValueInCents;
-								const lastManualValue =
-									typeof investment.lastManualSyncValueInCents === 'number'
-										? investment.lastManualSyncValueInCents
-										: null;
-								const bankId = typeof investment.bankId === 'string' ? investment.bankId : null;
-								const bankNameSnapshot =
-									typeof investment.bankNameSnapshot === 'string' &&
+							const lastManualValue =
+								typeof investment.lastManualSyncValueInCents === 'number'
+									? investment.lastManualSyncValueInCents
+									: null;
+							const bankId = typeof investment.bankId === 'string' ? investment.bankId : null;
+							const bankNameSnapshot =
+								typeof investment.bankNameSnapshot === 'string' &&
 									investment.bankNameSnapshot.trim().length > 0
-										? investment.bankNameSnapshot.trim()
-										: null;
-								const cdiPercentage =
-									typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0;
+									? investment.bankNameSnapshot.trim()
+									: null;
+							const cdiPercentage =
+								typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0;
 
-								return {
-									id,
+							return {
+								id,
 								name,
 								initialValueInCents,
-									currentValueInCents,
-									cdiPercentage,
-									bankId,
-									bankNameSnapshot,
-									lastManualSyncValueInCents: lastManualValue,
-									lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
-									createdAt: parseToDate(
-										investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc,
-									),
-								};
-							});
-
-							const portfolioItems = normalizedInvestments
-								.map<HomeInvestmentItem>(investment => {
-									const currentBaseValueInCents = resolveInvestmentBaseValueInCents(investment);
-									const simulatedValueInCents = simulateInvestmentValueInCents(investment);
-
-									return {
-										id: investment.id,
-										name: investment.name,
-										bankId: investment.bankId,
-										bankNameSnapshot: investment.bankNameSnapshot,
-										initialValueInCents: investment.initialValueInCents,
-										currentBaseValueInCents,
-										simulatedValueInCents,
-										estimatedGainInCents: simulatedValueInCents - currentBaseValueInCents,
-										cdiPercentage: investment.cdiPercentage,
-										lastManualSyncValueInCents: investment.lastManualSyncValueInCents,
-										lastManualSyncAt: investment.lastManualSyncAt,
-										createdAt: investment.createdAt,
-									};
-								})
-								.sort((left, right) => right.simulatedValueInCents - left.simulatedValueInCents);
-
-							const nextPortfolio: HomeInvestmentPortfolio = {
-								items: portfolioItems,
-								totalCurrentBaseInCents: portfolioItems.reduce(
-									(acc, investment) => acc + investment.currentBaseValueInCents,
-									0,
+								currentValueInCents,
+								cdiPercentage,
+								bankId,
+								bankNameSnapshot,
+								lastManualSyncValueInCents: lastManualValue,
+								lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
+								createdAt: parseToDate(
+									investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc,
 								),
-								totalInitialInCents: portfolioItems.reduce(
-									(acc, investment) => acc + investment.initialValueInCents,
-									0,
-								),
-								totalSimulatedInCents: portfolioItems.reduce(
-									(acc, investment) => acc + investment.simulatedValueInCents,
-									0,
-								),
-								totalEstimatedGainInCents: portfolioItems.reduce(
-									(acc, investment) => acc + investment.estimatedGainInCents,
-									0,
-								),
-								investmentCount: portfolioItems.length,
 							};
+						});
 
-							setInvestmentPortfolio(nextPortfolio);
-							setInvestmentsError(null);
-						} catch (error) {
-							console.error('Erro ao carregar investimentos na Home:', error);
-							if (isMounted) {
-								setInvestmentPortfolio(createEmptyInvestmentPortfolio());
-								setInvestmentsError('Erro ao carregar os investimentos.');
-							}
+						const portfolioItems = normalizedInvestments
+							.map<HomeInvestmentItem>(investment => {
+								const currentBaseValueInCents = resolveInvestmentBaseValueInCents(investment);
+								const simulatedValueInCents = simulateInvestmentValueInCents(investment);
+
+								return {
+									id: investment.id,
+									name: investment.name,
+									bankId: investment.bankId,
+									bankNameSnapshot: investment.bankNameSnapshot,
+									initialValueInCents: investment.initialValueInCents,
+									currentBaseValueInCents,
+									simulatedValueInCents,
+									estimatedGainInCents: simulatedValueInCents - currentBaseValueInCents,
+									cdiPercentage: investment.cdiPercentage,
+									lastManualSyncValueInCents: investment.lastManualSyncValueInCents,
+									lastManualSyncAt: investment.lastManualSyncAt,
+									createdAt: investment.createdAt,
+								};
+							})
+							.sort((left, right) => right.simulatedValueInCents - left.simulatedValueInCents);
+
+						const nextPortfolio: HomeInvestmentPortfolio = {
+							items: portfolioItems,
+							totalCurrentBaseInCents: portfolioItems.reduce(
+								(acc, investment) => acc + investment.currentBaseValueInCents,
+								0,
+							),
+							totalInitialInCents: portfolioItems.reduce(
+								(acc, investment) => acc + investment.initialValueInCents,
+								0,
+							),
+							totalSimulatedInCents: portfolioItems.reduce(
+								(acc, investment) => acc + investment.simulatedValueInCents,
+								0,
+							),
+							totalEstimatedGainInCents: portfolioItems.reduce(
+								(acc, investment) => acc + investment.estimatedGainInCents,
+								0,
+							),
+							investmentCount: portfolioItems.length,
+						};
+
+						setInvestmentPortfolio(nextPortfolio);
+						setInvestmentsError(null);
+					} catch (error) {
+						console.error('Erro ao carregar investimentos na Home:', error);
+						if (isMounted) {
+							setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+							setInvestmentsError('Erro ao carregar os investimentos.');
+						}
 					} finally {
 						if (isMounted) {
 							setIsLoadingInvestments(false);
@@ -1812,68 +2051,91 @@ export default function HomeScreen() {
 											renderItem={({ item }) => {
 												const monthlyExpenseInCents = currentMonthExpensesByBankId[item.id] ?? 0;
 												const monthlyGainInCents = currentMonthGainsByBankId[item.id] ?? 0;
-												const cardBackgroundColor = isDarkMode ? '#172033' : '#ffffff';
-												const borderColor = isDarkMode ? 'rgba(250, 204, 21, 0.60)' : '#FFE000';
+												const cardPalette = buildBankCardPalette(item.colorHex, isDarkMode);
 
 												return (
 													<View
 														style={{
 															flex: 1,
-															marginHorizontal: 0,
-															paddingHorizontal: 16,
-															paddingVertical: 16,
-															borderRadius: 16,
-															borderWidth: 1.5,
-															backgroundColor: cardBackgroundColor,
-															borderColor,
-															overflow: 'hidden',
-															justifyContent: 'space-between',
+															paddingHorizontal: bankCarouselItemSpacing / 2,
 														}}
 													>
-														<VStack className="gap-1">
-															<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
-																Banco
-															</Text>
-															<Heading size="lg" className="text-slate-900 dark:text-white">
-																{item.name}
-															</Heading>
-														</VStack>
+														<View
+															style={{
+																flex: 1,
+																paddingHorizontal: 18,
+																paddingVertical: 18,
+																borderRadius: 20,
+																backgroundColor: cardPalette.baseColor,
+																overflow: 'hidden',
+																position: 'relative',
+																justifyContent: 'space-between',
+																shadowColor: cardPalette.shadowColor,
+																shadowOffset: { width: 0, height: 12 },
+																shadowOpacity: 0.24,
+																shadowRadius: 18,
+																elevation: 8,
+															}}
+														>
+															<BankCardPattern palette={cardPalette} />
 
-														<VStack className="gap-1 mt-4">
-															<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
-																Saldo atual
-															</Text>
-															<Heading size="md" className="text-slate-900 dark:text-white">
-																{item.balanceInCents === null
-																	? 'Saldo indisponível'
-																	: formatCurrencyBRL(item.balanceInCents)}
-															</Heading>
-															{item.balanceInCents === null ? (
-																<Text className="text-yellow-600 dark:text-yellow-400 text-xs">
-																	Sem saldo registrado para este mes.
+															<VStack className="gap-1">
+																<Text
+																	className="text-xs uppercase tracking-wide"
+																	style={{ color: cardPalette.textSecondary }}
+																>
+																	Banco
 																</Text>
-															) : null}
-														</VStack>
-
-														<HStack className="mt-4 justify-between items-end gap-4">
-															<VStack className="flex-1 gap-1">
-																<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
-																	Gastos
-																</Text>
-																<Text className="text-red-600 dark:text-red-400 font-semibold">
-																	{formatCurrencyBRL(monthlyExpenseInCents)}
-																</Text>
+																<Heading size="lg" style={{ color: cardPalette.textPrimary }}>
+																	{item.name}
+																</Heading>
 															</VStack>
 
-															<VStack className="flex-1 gap-1 items-end">
-																<Text className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">
-																	Ganhos
+															<VStack className="gap-1 mt-4">
+																<Text
+																	className="text-xs uppercase tracking-wide"
+																	style={{ color: cardPalette.textSecondary }}
+																>
+																	Saldo atual
 																</Text>
-																<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-																	{formatCurrencyBRL(monthlyGainInCents)}
-																</Text>
+																<Heading size="md" style={{ color: cardPalette.textPrimary }}>
+																	{item.balanceInCents === null
+																		? 'Saldo indisponível'
+																		: formatCurrencyBRL(item.balanceInCents)}
+																</Heading>
+																{item.balanceInCents === null ? (
+																	<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
+																		Sem saldo registrado para este mes.
+																	</Text>
+																) : null}
 															</VStack>
-														</HStack>
+
+															<HStack className="mt-4 justify-between items-end gap-4">
+																<VStack className="flex-1 gap-1">
+																	<Text
+																		className="text-xs uppercase tracking-wide"
+																		style={{ color: cardPalette.textSecondary }}
+																	>
+																		Gastos
+																	</Text>
+																	<Text className="font-semibold" style={{ color: cardPalette.expenseColor }}>
+																		{formatCurrencyBRL(monthlyExpenseInCents)}
+																	</Text>
+																</VStack>
+
+																<VStack className="flex-1 gap-1 items-end">
+																	<Text
+																		className="text-xs uppercase tracking-wide"
+																		style={{ color: cardPalette.textSecondary }}
+																	>
+																		Ganhos
+																	</Text>
+																	<Text className="font-semibold" style={{ color: cardPalette.gainColor }}>
+																		{formatCurrencyBRL(monthlyGainInCents)}
+																	</Text>
+																</VStack>
+															</HStack>
+														</View>
 													</View>
 												);
 											}}
@@ -1900,385 +2162,385 @@ export default function HomeScreen() {
 										Nenhum banco registrado
 									</Text>
 								)}
-								</View>
+							</View>
 
-								<View className="mb-6">
-									<HStack className="items-start justify-between gap-3">
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleToggleInvestments}
-											style={{ flex: 1 }}
-										>
-											<Heading size="lg">Investimentos</Heading>
-											<Text
-												style={{
-													marginTop: 4,
-													fontSize: 14,
-													lineHeight: 20,
-													color: investmentPalette.subtitle,
-												}}
-											>
-												{isInvestmentsExpanded
-													? 'Clique para ocultar a posição atual da carteira.'
-													: 'Clique para visualizar a carteira registrada.'}
-											</Text>
-										</TouchableOpacity>
-
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleToggleInvestments}
+							<View className="mb-6">
+								<HStack className="items-start justify-between gap-3">
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={handleToggleInvestments}
+										style={{ flex: 1 }}
+									>
+										<Heading size="lg">Investimentos</Heading>
+										<Text
 											style={{
-												minWidth: 28,
-												paddingLeft: 8,
-												paddingVertical: 4,
-												alignItems: 'center',
-												justifyContent: 'center',
-												flexShrink: 0,
+												marginTop: 4,
+												fontSize: 14,
+												lineHeight: 20,
+												color: investmentPalette.subtitle,
 											}}
 										>
-											{renderSectionChevron(isInvestmentsExpanded, investmentPalette.subtitle)}
-										</TouchableOpacity>
-									</HStack>
+											{isInvestmentsExpanded
+												? 'Clique para ocultar a posição atual da carteira.'
+												: 'Clique para visualizar a carteira registrada.'}
+										</Text>
+									</TouchableOpacity>
 
-									<HStack className="mt-4 flex-wrap gap-3">
-										{investmentHeaderMetrics.map(metric => (
-											<View
-												key={metric.key}
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={handleToggleInvestments}
+										style={{
+											minWidth: 28,
+											paddingLeft: 8,
+											paddingVertical: 4,
+											alignItems: 'center',
+											justifyContent: 'center',
+											flexShrink: 0,
+										}}
+									>
+										{renderSectionChevron(isInvestmentsExpanded, investmentPalette.subtitle)}
+									</TouchableOpacity>
+								</HStack>
+
+								<HStack className="mt-4 flex-wrap gap-3">
+									{investmentHeaderMetrics.map(metric => (
+										<View
+											key={metric.key}
+											style={{
+												minWidth: metric.key === 'count' ? 112 : 136,
+												flexGrow: metric.key === 'count' ? 0 : 1,
+												borderRadius: 16,
+												borderWidth: 1,
+												borderColor: investmentPalette.border,
+												backgroundColor: investmentPalette.metricBackground,
+												paddingHorizontal: 14,
+												paddingVertical: 12,
+											}}
+										>
+											<Text
 												style={{
-													minWidth: metric.key === 'count' ? 112 : 136,
-													flexGrow: metric.key === 'count' ? 0 : 1,
+													fontSize: 11,
+													fontWeight: '700',
+													letterSpacing: 0.4,
+													color: investmentPalette.subtitle,
+													textTransform: 'uppercase',
+												}}
+											>
+												{metric.label}
+											</Text>
+											<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
+												{metric.value}
+											</Heading>
+										</View>
+									))}
+								</HStack>
+
+								{isInvestmentsExpanded ? (
+									<View
+										style={{
+											marginTop: 14,
+											borderRadius: 20,
+											borderWidth: 1,
+											borderColor: investmentPalette.border,
+											backgroundColor: investmentPalette.sectionBackground,
+											paddingHorizontal: 16,
+											paddingVertical: 16,
+										}}
+									>
+										{isLoadingInvestments ? (
+											<Text style={{ color: investmentPalette.subtitle }}>
+												Carregando investimentos...
+											</Text>
+										) : investmentsError ? (
+											<View
+												style={{
 													borderRadius: 16,
 													borderWidth: 1,
 													borderColor: investmentPalette.border,
-													backgroundColor: investmentPalette.metricBackground,
+													backgroundColor: investmentPalette.cardBackground,
 													paddingHorizontal: 14,
-													paddingVertical: 12,
+													paddingVertical: 14,
 												}}
 											>
+												<Text style={{ color: investmentPalette.subtitle }}>
+													{investmentsError}
+												</Text>
+											</View>
+										) : investmentPortfolio.investmentCount === 0 ? (
+											<View
+												style={{
+													borderRadius: 16,
+													borderWidth: 1,
+													borderColor: investmentPalette.border,
+													backgroundColor: investmentPalette.cardBackground,
+													paddingHorizontal: 14,
+													paddingVertical: 14,
+												}}
+											>
+												<Text style={{ color: investmentPalette.subtitle }}>
+													Nenhum investimento registrado até o momento.
+												</Text>
+											</View>
+										) : (
+											<>
 												<Text
 													style={{
-														fontSize: 11,
+														fontSize: 12,
 														fontWeight: '700',
 														letterSpacing: 0.4,
-														color: investmentPalette.subtitle,
 														textTransform: 'uppercase',
+														color: investmentPalette.subtitle,
 													}}
 												>
-													{metric.label}
+													Resumo da carteira
 												</Text>
-												<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
-													{metric.value}
-												</Heading>
-											</View>
-										))}
-									</HStack>
 
-									{isInvestmentsExpanded ? (
-										<View
-											style={{
-												marginTop: 14,
-												borderRadius: 20,
-												borderWidth: 1,
-												borderColor: investmentPalette.border,
-												backgroundColor: investmentPalette.sectionBackground,
-												paddingHorizontal: 16,
-												paddingVertical: 16,
-											}}
-										>
-											{isLoadingInvestments ? (
-												<Text style={{ color: investmentPalette.subtitle }}>
-													Carregando investimentos...
-												</Text>
-											) : investmentsError ? (
-												<View
-													style={{
-														borderRadius: 16,
-														borderWidth: 1,
-														borderColor: investmentPalette.border,
-														backgroundColor: investmentPalette.cardBackground,
-														paddingHorizontal: 14,
-														paddingVertical: 14,
-													}}
-												>
-													<Text style={{ color: investmentPalette.subtitle }}>
-														{investmentsError}
-													</Text>
-												</View>
-											) : investmentPortfolio.investmentCount === 0 ? (
-												<View
-													style={{
-														borderRadius: 16,
-														borderWidth: 1,
-														borderColor: investmentPalette.border,
-														backgroundColor: investmentPalette.cardBackground,
-														paddingHorizontal: 14,
-														paddingVertical: 14,
-													}}
-												>
-													<Text style={{ color: investmentPalette.subtitle }}>
-														Nenhum investimento registrado até o momento.
-													</Text>
-												</View>
-											) : (
-												<>
-													<Text
-														style={{
-															fontSize: 12,
-															fontWeight: '700',
-															letterSpacing: 0.4,
-															textTransform: 'uppercase',
-															color: investmentPalette.subtitle,
-														}}
-													>
-														Resumo da carteira
-													</Text>
-
-													<HStack className="mt-3 flex-wrap gap-3">
-														{investmentSummaryMetrics.map(metric => (
-															<View
-																key={metric.key}
+												<HStack className="mt-3 flex-wrap gap-3">
+													{investmentSummaryMetrics.map(metric => (
+														<View
+															key={metric.key}
+															style={{
+																minWidth: 140,
+																flexGrow: 1,
+																borderRadius: 16,
+																borderWidth: 1,
+																borderColor: investmentPalette.border,
+																backgroundColor: investmentPalette.metricBackground,
+																paddingHorizontal: 14,
+																paddingVertical: 12,
+															}}
+														>
+															<Text
 																style={{
-																	minWidth: 140,
-																	flexGrow: 1,
-																	borderRadius: 16,
-																	borderWidth: 1,
-																	borderColor: investmentPalette.border,
-																	backgroundColor: investmentPalette.metricBackground,
-																	paddingHorizontal: 14,
-																	paddingVertical: 12,
+																	fontSize: 11,
+																	fontWeight: '700',
+																	letterSpacing: 0.4,
+																	color: investmentPalette.subtitle,
+																	textTransform: 'uppercase',
 																}}
 															>
-																<Text
+																{metric.label}
+															</Text>
+															<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
+																{metric.value}
+															</Heading>
+														</View>
+													))}
+												</HStack>
+
+												<View
+													style={{
+														height: 1,
+														marginVertical: 16,
+														backgroundColor: investmentPalette.border,
+													}}
+												/>
+
+												<VStack className="gap-3">
+													{visibleInvestmentItems.map(investment => (
+														<View
+															key={investment.id}
+															style={{
+																borderRadius: 18,
+																borderWidth: 1,
+																borderColor: investmentPalette.border,
+																backgroundColor: investmentPalette.cardBackground,
+																paddingHorizontal: 14,
+																paddingVertical: 14,
+															}}
+														>
+															<HStack className="items-start justify-between gap-3">
+																<VStack className="flex-1 gap-1">
+																	<Heading size="sm" style={{ color: investmentPalette.title }}>
+																		{investment.name}
+																	</Heading>
+																	<Text
+																		style={{
+																			fontSize: 12,
+																			lineHeight: 18,
+																			color: investmentPalette.subtitle,
+																		}}
+																	>
+																		{investment.bankName}
+																	</Text>
+																</VStack>
+
+																<View
 																	style={{
-																		fontSize: 11,
-																		fontWeight: '700',
-																		letterSpacing: 0.4,
-																		color: investmentPalette.subtitle,
-																		textTransform: 'uppercase',
+																		borderRadius: 999,
+																		borderWidth: 1,
+																		borderColor: investmentPalette.badgeBorder,
+																		backgroundColor: investmentPalette.badgeBackground,
+																		paddingHorizontal: 10,
+																		paddingVertical: 6,
 																	}}
 																>
-																	{metric.label}
-																</Text>
-																<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
-																	{metric.value}
-																</Heading>
-															</View>
-														))}
-													</HStack>
-
-													<View
-														style={{
-															height: 1,
-															marginVertical: 16,
-															backgroundColor: investmentPalette.border,
-														}}
-													/>
-
-													<VStack className="gap-3">
-														{visibleInvestmentItems.map(investment => (
-															<View
-																key={investment.id}
-																style={{
-																	borderRadius: 18,
-																	borderWidth: 1,
-																	borderColor: investmentPalette.border,
-																	backgroundColor: investmentPalette.cardBackground,
-																	paddingHorizontal: 14,
-																	paddingVertical: 14,
-																}}
-															>
-																<HStack className="items-start justify-between gap-3">
-																	<VStack className="flex-1 gap-1">
-																		<Heading size="sm" style={{ color: investmentPalette.title }}>
-																			{investment.name}
-																		</Heading>
-																		<Text
-																			style={{
-																				fontSize: 12,
-																				lineHeight: 18,
-																				color: investmentPalette.subtitle,
-																			}}
-																		>
-																			{investment.bankName}
-																		</Text>
-																	</VStack>
-
-																	<View
+																	<Text
 																		style={{
-																			borderRadius: 999,
+																			fontSize: 11,
+																			fontWeight: '700',
+																			color: investmentPalette.badgeText,
+																		}}
+																	>
+																		{`${formatPercentage(investment.cdiPercentage)}% CDI`}
+																	</Text>
+																</View>
+															</HStack>
+
+															<HStack className="mt-4 flex-wrap gap-3">
+																{[
+																	{
+																		key: 'current',
+																		label: 'Valor atual/base',
+																		value: formatCurrencyBRL(investment.currentBaseValueInCents),
+																		color: investmentPalette.currentColor,
+																	},
+																	{
+																		key: 'simulated',
+																		label: 'Valor simulado',
+																		value: formatCurrencyBRL(investment.simulatedValueInCents),
+																		color: investmentPalette.simulatedColor,
+																	},
+																	{
+																		key: 'gain',
+																		label: 'Ganho estimado',
+																		value: formatCurrencyBRL(investment.estimatedGainInCents),
+																		color: investmentPalette.gainColor,
+																	},
+																].map(metric => (
+																	<View
+																		key={metric.key}
+																		style={{
+																			minWidth: 132,
+																			flexGrow: 1,
+																			borderRadius: 14,
 																			borderWidth: 1,
-																			borderColor: investmentPalette.badgeBorder,
-																			backgroundColor: investmentPalette.badgeBackground,
-																			paddingHorizontal: 10,
-																			paddingVertical: 6,
+																			borderColor: investmentPalette.border,
+																			backgroundColor: investmentPalette.sectionBackground,
+																			paddingHorizontal: 12,
+																			paddingVertical: 12,
 																		}}
 																	>
 																		<Text
 																			style={{
 																				fontSize: 11,
 																				fontWeight: '700',
-																				color: investmentPalette.badgeText,
+																				letterSpacing: 0.3,
+																				color: investmentPalette.subtitle,
+																				textTransform: 'uppercase',
 																			}}
 																		>
-																			{`${formatPercentage(investment.cdiPercentage)}% CDI`}
+																			{metric.label}
+																		</Text>
+																		<Text
+																			style={{
+																				marginTop: 6,
+																				fontSize: 15,
+																				fontWeight: '700',
+																				color: metric.color,
+																			}}
+																		>
+																			{metric.value}
 																		</Text>
 																	</View>
-																</HStack>
+																))}
+															</HStack>
 
-																<HStack className="mt-4 flex-wrap gap-3">
-																	{[
-																		{
-																			key: 'current',
-																			label: 'Valor atual/base',
-																			value: formatCurrencyBRL(investment.currentBaseValueInCents),
-																			color: investmentPalette.currentColor,
-																		},
-																		{
-																			key: 'simulated',
-																			label: 'Valor simulado',
-																			value: formatCurrencyBRL(investment.simulatedValueInCents),
-																			color: investmentPalette.simulatedColor,
-																		},
-																		{
-																			key: 'gain',
-																			label: 'Ganho estimado',
-																			value: formatCurrencyBRL(investment.estimatedGainInCents),
-																			color: investmentPalette.gainColor,
-																		},
-																	].map(metric => (
-																		<View
-																			key={metric.key}
-																			style={{
-																				minWidth: 132,
-																				flexGrow: 1,
-																				borderRadius: 14,
-																				borderWidth: 1,
-																				borderColor: investmentPalette.border,
-																				backgroundColor: investmentPalette.sectionBackground,
-																				paddingHorizontal: 12,
-																				paddingVertical: 12,
-																			}}
-																		>
-																			<Text
-																				style={{
-																					fontSize: 11,
-																					fontWeight: '700',
-																					letterSpacing: 0.3,
-																					color: investmentPalette.subtitle,
-																					textTransform: 'uppercase',
-																				}}
-																			>
-																				{metric.label}
-																			</Text>
-																			<Text
-																				style={{
-																					marginTop: 6,
-																					fontSize: 15,
-																					fontWeight: '700',
-																					color: metric.color,
-																				}}
-																			>
-																				{metric.value}
-																			</Text>
-																		</View>
-																	))}
-																</HStack>
+															<HStack className="mt-4 flex-wrap gap-4">
+																<VStack className="gap-1">
+																	<Text
+																		style={{
+																			fontSize: 11,
+																			fontWeight: '700',
+																			letterSpacing: 0.3,
+																			color: investmentPalette.subtitle,
+																			textTransform: 'uppercase',
+																		}}
+																	>
+																		Valor inicial
+																	</Text>
+																	<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
+																		{formatCurrencyBRL(investment.initialValueInCents)}
+																	</Text>
+																</VStack>
 
-																<HStack className="mt-4 flex-wrap gap-4">
-																	<VStack className="gap-1">
-																		<Text
-																			style={{
-																				fontSize: 11,
-																				fontWeight: '700',
-																				letterSpacing: 0.3,
-																				color: investmentPalette.subtitle,
-																				textTransform: 'uppercase',
-																			}}
-																		>
-																			Valor inicial
-																		</Text>
-																		<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
-																			{formatCurrencyBRL(investment.initialValueInCents)}
-																		</Text>
-																	</VStack>
+																<VStack className="flex-1 gap-1">
+																	<Text
+																		style={{
+																			fontSize: 11,
+																			fontWeight: '700',
+																			letterSpacing: 0.3,
+																			color: investmentPalette.subtitle,
+																			textTransform: 'uppercase',
+																		}}
+																	>
+																		Referência
+																	</Text>
+																	<Text
+																		style={{
+																			fontSize: 12,
+																			lineHeight: 18,
+																			color: investmentPalette.subtitle,
+																		}}
+																	>
+																		{investment.referenceLabel}
+																	</Text>
+																</VStack>
+															</HStack>
+														</View>
+													))}
+												</VStack>
 
-																	<VStack className="flex-1 gap-1">
-																		<Text
-																			style={{
-																				fontSize: 11,
-																				fontWeight: '700',
-																				letterSpacing: 0.3,
-																				color: investmentPalette.subtitle,
-																				textTransform: 'uppercase',
-																			}}
-																		>
-																			Referência
-																		</Text>
-																		<Text
-																			style={{
-																				fontSize: 12,
-																				lineHeight: 18,
-																				color: investmentPalette.subtitle,
-																			}}
-																		>
-																			{investment.referenceLabel}
-																		</Text>
-																	</VStack>
-																</HStack>
-															</View>
-														))}
-													</VStack>
+												{hasHiddenInvestments ? (
+													<TouchableOpacity
+														activeOpacity={0.85}
+														onPress={handleToggleVisibleInvestments}
+														style={{
+															marginTop: 16,
+															alignSelf: 'flex-start',
+															borderRadius: 999,
+															borderWidth: 1,
+															borderColor: investmentPalette.border,
+															paddingHorizontal: 14,
+															paddingVertical: 10,
+														}}
+													>
+														<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
+															{shouldShowAllInvestments ? 'Mostrar menos' : 'Mostrar mais'}
+														</Text>
+													</TouchableOpacity>
+												) : null}
+											</>
+										)}
 
-													{hasHiddenInvestments ? (
-														<TouchableOpacity
-															activeOpacity={0.85}
-															onPress={handleToggleVisibleInvestments}
-															style={{
-																marginTop: 16,
-																alignSelf: 'flex-start',
-																borderRadius: 999,
-																borderWidth: 1,
-																borderColor: investmentPalette.border,
-																paddingHorizontal: 14,
-																paddingVertical: 10,
-															}}
-														>
-															<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
-																{shouldShowAllInvestments ? 'Mostrar menos' : 'Mostrar mais'}
-															</Text>
-														</TouchableOpacity>
-													) : null}
-												</>
-											)}
+										{!isLoadingInvestments ? (
+											<TouchableOpacity
+												activeOpacity={0.85}
+												onPress={handleOpenInvestmentsList}
+												style={{
+													marginTop: 16,
+													alignSelf: 'flex-start',
+													paddingVertical: 4,
+												}}
+											>
+												<Text style={{ color: investmentPalette.ctaColor, fontWeight: '700' }}>
+													Ver lista completa de investimentos
+												</Text>
+											</TouchableOpacity>
+										) : null}
+									</View>
+								) : null}
 
-											{!isLoadingInvestments ? (
-												<TouchableOpacity
-													activeOpacity={0.85}
-													onPress={handleOpenInvestmentsList}
-													style={{
-														marginTop: 16,
-														alignSelf: 'flex-start',
-														paddingVertical: 4,
-													}}
-												>
-													<Text style={{ color: investmentPalette.ctaColor, fontWeight: '700' }}>
-														Ver lista completa de investimentos
-													</Text>
-												</TouchableOpacity>
-											) : null}
-										</View>
-									) : null}
+								{investmentsError && !isInvestmentsExpanded ? (
+									<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+										{investmentsError}
+									</Text>
+								) : null}
+							</View>
 
-									{investmentsError && !isInvestmentsExpanded ? (
-										<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-											{investmentsError}
-										</Text>
-									) : null}
-								</View>
-
-								<View className="mb-6">
-									<HStack className="items-start justify-between gap-3">
-										<TouchableOpacity
+							<View className="mb-6">
+								<HStack className="items-start justify-between gap-3">
+									<TouchableOpacity
 										activeOpacity={0.85}
 										onPress={handleToggleMovements}
 										style={{ flex: 1 }}
@@ -2309,186 +2571,186 @@ export default function HomeScreen() {
 
 								{isMovementsExpanded ? (
 									isLoadingMovements ? (
-									<View
-										style={{
-											marginTop: 10,
-											paddingHorizontal: 16,
-											paddingVertical: 18,
-										}}
-									>
-										<Text style={{ color: timelinePalette.subtitle }}>
-											Carregando últimas movimentações...
-										</Text>
-									</View>
+										<View
+											style={{
+												marginTop: 10,
+												paddingHorizontal: 16,
+												paddingVertical: 18,
+											}}
+										>
+											<Text style={{ color: timelinePalette.subtitle }}>
+												Carregando últimas movimentações...
+											</Text>
+										</View>
 									) : timelineStatuses.length > 0 ? (
-									<View style={{ marginTop: 14 }}>
-										{timelineStatuses.map((status, index) => {
-											const movement = status.movement;
-											const isTimelineItemExpanded = expandedTimelineStatuses.includes(status.status);
-											const badgeLabel = getTimelineBadgeLabel(movement);
-											const badgeAction = getTimelineBadgeAction(movement);
-											const contextLabel = getTimelineContextLabel(movement);
-											const dateLabel = formatMovementDate(movement.date);
-											const shouldRenderCashBadge = Boolean(movement.moneyFormat);
-											const shouldRenderBankBadge =
-												Boolean(movement.bankId) &&
-												Boolean(movement.bankName) &&
-												!shouldRenderCashBadge &&
-												!movement.isBankTransfer &&
-												!movement.isInvestmentDeposit &&
-												!movement.isInvestmentRedemption;
-											const bankBadgePalette = shouldRenderBankBadge
-												? getTimelineBankBadgePalette(movement.bankId)
-												: null;
-											const shouldRenderContextSeparator =
-												Boolean(dateLabel) && (shouldRenderBankBadge || shouldRenderCashBadge);
+										<View style={{ marginTop: 14 }}>
+											{timelineStatuses.map((status, index) => {
+												const movement = status.movement;
+												const isTimelineItemExpanded = expandedTimelineStatuses.includes(status.status);
+												const badgeLabel = getTimelineBadgeLabel(movement);
+												const badgeAction = getTimelineBadgeAction(movement);
+												const contextLabel = getTimelineContextLabel(movement);
+												const dateLabel = formatMovementDate(movement.date);
+												const shouldRenderCashBadge = Boolean(movement.moneyFormat);
+												const shouldRenderBankBadge =
+													Boolean(movement.bankId) &&
+													Boolean(movement.bankName) &&
+													!shouldRenderCashBadge &&
+													!movement.isBankTransfer &&
+													!movement.isInvestmentDeposit &&
+													!movement.isInvestmentRedemption;
+												const bankBadgePalette = shouldRenderBankBadge
+													? getTimelineBankBadgePalette(movement.bankId)
+													: null;
+												const shouldRenderContextSeparator =
+													Boolean(dateLabel) && (shouldRenderBankBadge || shouldRenderCashBadge);
 
-											return (
-												<View
-													key={status.status}
-													style={{
-														flexDirection: 'row',
-													}}
-												>
+												return (
 													<View
+														key={status.status}
 														style={{
-															alignItems: 'center',
-															width: '7%',
-															paddingTop: 3,
+															flexDirection: 'row',
 														}}
 													>
-														{renderTimelineBall(status, index)}
-														{index < timelineStatuses.length - 1 ? renderTimelineStick(status, index) : <View />}
-													</View>
-
-													<View
-														style={{
-															width: '93%',
-															paddingBottom: 12,
-														}}
-													>
-														<TouchableOpacity
-															activeOpacity={0.85}
-															onPress={() => handleToggleTimelineStatus(status.status)}
+														<View
 															style={{
-																flexDirection: 'row',
-																justifyContent: 'space-between',
 																alignItems: 'center',
-																width: '100%',
+																width: '7%',
+																paddingTop: 3,
 															}}
 														>
-															<View style={{ width: '88%' }}>
-																<Text
-																	style={{
-																		color: timelinePalette.title,
-																		fontSize: 15,
-																		fontWeight: '700',
-																	}}
-																>
-																	{status.title}
-																</Text>
+															{renderTimelineBall(status, index)}
+															{index < timelineStatuses.length - 1 ? renderTimelineStick(status, index) : <View />}
+														</View>
 
-																<HStack className="mt-1 items-center flex-wrap gap-2">
-																	<Badge size="sm" variant="outline" action={badgeAction}>
-																		<BadgeText className="tracking-wide">
-																			{badgeLabel}
-																		</BadgeText>
-																	</Badge>
-
-																	{shouldRenderBankBadge && bankBadgePalette ? (
-																		<Badge
-																			size="sm"
-																			variant="outline"
-																			action="muted"
-																			style={{
-																				backgroundColor: bankBadgePalette.backgroundColor,
-																				borderColor: bankBadgePalette.borderColor,
-																			}}
-																		>
-																			<BadgeText
-																				style={{
-																					color: bankBadgePalette.textColor,
-																				}}
-																			>
-																				{movement.bankName}
-																			</BadgeText>
-																		</Badge>
-																	) : shouldRenderCashBadge && contextLabel ? (
-																		<Badge size="sm" variant="outline" action="muted">
-																			<BadgeText>{contextLabel}</BadgeText>
-																		</Badge>
-																	) : contextLabel ? (
-																		<Text
-																			style={{
-																				flexShrink: 1,
-																				color: timelinePalette.subtitle,
-																				fontSize: 12,
-																				lineHeight: 18,
-																			}}
-																		>
-																			{contextLabel}
-																		</Text>
-																	) : null}
-
-																	{shouldRenderContextSeparator ? (
-																		<Text
-																			style={{
-																				color: timelinePalette.subtitle,
-																				fontSize: 12,
-																				lineHeight: 18,
-																			}}
-																		>
-																			•
-																		</Text>
-																	) : null}
-
-																	{dateLabel ? (
-																		<Text
-																			style={{
-																				flexShrink: 1,
-																				color: timelinePalette.subtitle,
-																				fontSize: 12,
-																				lineHeight: 18,
-																			}}
-																		>
-																			{dateLabel}
-																		</Text>
-																	) : null}
-																</HStack>
-															</View>
-
-															<View
+														<View
+															style={{
+																width: '93%',
+																paddingBottom: 12,
+															}}
+														>
+															<TouchableOpacity
+																activeOpacity={0.85}
+																onPress={() => handleToggleTimelineStatus(status.status)}
 																style={{
-																	width: '12%',
-																	alignItems: 'flex-start',
+																	flexDirection: 'row',
+																	justifyContent: 'space-between',
+																	alignItems: 'center',
+																	width: '100%',
 																}}
 															>
-																{renderTimelineChevron(isTimelineItemExpanded)}
-															</View>
-														</TouchableOpacity>
+																<View style={{ width: '88%' }}>
+																	<Text
+																		style={{
+																			color: timelinePalette.title,
+																			fontSize: 15,
+																			fontWeight: '700',
+																		}}
+																	>
+																		{status.title}
+																	</Text>
 
-														{isTimelineItemExpanded ? status.renderContent ?? null : null}
+																	<HStack className="mt-1 items-center flex-wrap gap-2">
+																		<Badge size="sm" variant="outline" action={badgeAction}>
+																			<BadgeText className="tracking-wide">
+																				{badgeLabel}
+																			</BadgeText>
+																		</Badge>
+
+																		{shouldRenderBankBadge && bankBadgePalette ? (
+																			<Badge
+																				size="sm"
+																				variant="outline"
+																				action="muted"
+																				style={{
+																					backgroundColor: bankBadgePalette.backgroundColor,
+																					borderColor: bankBadgePalette.borderColor,
+																				}}
+																			>
+																				<BadgeText
+																					style={{
+																						color: bankBadgePalette.textColor,
+																					}}
+																				>
+																					{movement.bankName}
+																				</BadgeText>
+																			</Badge>
+																		) : shouldRenderCashBadge && contextLabel ? (
+																			<Badge size="sm" variant="outline" action="muted">
+																				<BadgeText>{contextLabel}</BadgeText>
+																			</Badge>
+																		) : contextLabel ? (
+																			<Text
+																				style={{
+																					flexShrink: 1,
+																					color: timelinePalette.subtitle,
+																					fontSize: 12,
+																					lineHeight: 18,
+																				}}
+																			>
+																				{contextLabel}
+																			</Text>
+																		) : null}
+
+																		{shouldRenderContextSeparator ? (
+																			<Text
+																				style={{
+																					color: timelinePalette.subtitle,
+																					fontSize: 12,
+																					lineHeight: 18,
+																				}}
+																			>
+																				•
+																			</Text>
+																		) : null}
+
+																		{dateLabel ? (
+																			<Text
+																				style={{
+																					flexShrink: 1,
+																					color: timelinePalette.subtitle,
+																					fontSize: 12,
+																					lineHeight: 18,
+																				}}
+																			>
+																				{dateLabel}
+																			</Text>
+																		) : null}
+																	</HStack>
+																</View>
+
+																<View
+																	style={{
+																		width: '12%',
+																		alignItems: 'flex-start',
+																	}}
+																>
+																	{renderTimelineChevron(isTimelineItemExpanded)}
+																</View>
+															</TouchableOpacity>
+
+															{isTimelineItemExpanded ? status.renderContent ?? null : null}
+														</View>
 													</View>
-												</View>
-											);
-										})}
-									</View>
-								) : (
-									<View
-										style={{
-											marginTop: 10,
-											borderRadius: 18,
-											borderWidth: 1,
-											borderColor: timelinePalette.cardBorder,
-											backgroundColor: timelinePalette.emptySurface,
-											paddingHorizontal: 16,
-											paddingVertical: 18,
-										}}
-									>
-										<Text style={{ color: timelinePalette.subtitle }}>
-											Nenhuma transação recente encontrada.
-										</Text>
-									</View>
+												);
+											})}
+										</View>
+									) : (
+										<View
+											style={{
+												marginTop: 10,
+												borderRadius: 18,
+												borderWidth: 1,
+												borderColor: timelinePalette.cardBorder,
+												backgroundColor: timelinePalette.emptySurface,
+												paddingHorizontal: 16,
+												paddingVertical: 18,
+											}}
+										>
+											<Text style={{ color: timelinePalette.subtitle }}>
+												Nenhuma transação recente encontrada.
+											</Text>
+										</View>
 									)
 								) : null}
 
