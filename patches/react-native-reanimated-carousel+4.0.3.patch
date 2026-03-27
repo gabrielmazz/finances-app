@@ -1,0 +1,95 @@
+diff --git a/node_modules/react-native-reanimated-carousel/lib/module/components/Pagination/Basic/PaginationItem.js b/node_modules/react-native-reanimated-carousel/lib/module/components/Pagination/Basic/PaginationItem.js
+index 98fe64f..14da19d 100644
+--- a/node_modules/react-native-reanimated-carousel/lib/module/components/Pagination/Basic/PaginationItem.js
++++ b/node_modules/react-native-reanimated-carousel/lib/module/components/Pagination/Basic/PaginationItem.js
+@@ -1,6 +1,6 @@
+ import React from "react";
+ import { Pressable, View } from "react-native";
+-import Animated, { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
++import Animated, { Extrapolation, interpolate, runOnJS, useAnimatedReaction, useAnimatedStyle } from "react-native-reanimated";
+ export const PaginationItem = props => {
+   const {
+     animValue,
+@@ -30,6 +30,17 @@ export const PaginationItem = props => {
+ 
+   const width = sizes.width;
+   const height = sizes.height;
++  const [isSelected, setIsSelected] = React.useState(index === 0);
++  useAnimatedReaction(() => {
++    var _animValue;
++    const currentValue = ((_animValue = animValue) === null || _animValue === void 0 ? void 0 : _animValue.value) ?? -1;
++    const normalizedIndex = index === 0 && currentValue > count - 1 ? count : index;
++    return Math.abs(currentValue - normalizedIndex) < 0.5;
++  }, (nextValue, previousValue) => {
++    if (nextValue !== previousValue) {
++      runOnJS(setIsSelected)(nextValue);
++    }
++  }, [animValue, count, index]);
+   const animStyle = useAnimatedStyle(() => {
+     const size = horizontal ? height : width;
+     let inputRange = [index - 1, index, index + 1];
+@@ -50,9 +61,9 @@ export const PaginationItem = props => {
+     onPress: onPress,
+     accessibilityLabel: accessibilityLabel,
+     accessibilityRole: "button",
+-    accessibilityHint: animValue.value === index ? "" : `Go to ${accessibilityLabel}`,
++    accessibilityHint: isSelected ? "" : `Go to ${accessibilityLabel}`,
+     accessibilityState: {
+-      selected: animValue.value === index
++      selected: isSelected
+     }
+   }, /*#__PURE__*/React.createElement(View, {
+     style: [{
+diff --git a/node_modules/react-native-reanimated-carousel/src/components/Pagination/Basic/PaginationItem.tsx b/node_modules/react-native-reanimated-carousel/src/components/Pagination/Basic/PaginationItem.tsx
+index f4bb88c..c05935c 100644
+--- a/node_modules/react-native-reanimated-carousel/src/components/Pagination/Basic/PaginationItem.tsx
++++ b/node_modules/react-native-reanimated-carousel/src/components/Pagination/Basic/PaginationItem.tsx
+@@ -2,7 +2,13 @@ import type { PropsWithChildren } from "react";
+ import React from "react";
+ import type { ViewStyle } from "react-native";
+ import { Pressable, View } from "react-native";
+-import Animated, { Extrapolation, interpolate, useAnimatedStyle } from "react-native-reanimated";
++import Animated, {
++  Extrapolation,
++  interpolate,
++  runOnJS,
++  useAnimatedReaction,
++  useAnimatedStyle,
++} from "react-native-reanimated";
+ 
+ export type DotStyle = Omit<ViewStyle, "width" | "height"> & {
+   width?: number;
+@@ -53,6 +59,22 @@ export const PaginationItem: React.FC<
+ 
+   const width = sizes.width;
+   const height = sizes.height;
++  const [isSelected, setIsSelected] = React.useState(index === 0);
++
++  useAnimatedReaction(
++    () => {
++      const currentValue = animValue?.value ?? -1;
++      const normalizedIndex = index === 0 && currentValue > count - 1 ? count : index;
++
++      return Math.abs(currentValue - normalizedIndex) < 0.5;
++    },
++    (nextValue, previousValue) => {
++      if (nextValue !== previousValue) {
++        runOnJS(setIsSelected)(nextValue);
++      }
++    },
++    [animValue, count, index]
++  );
+ 
+   const animStyle = useAnimatedStyle(() => {
+     const size = horizontal ? height : width;
+@@ -78,8 +100,8 @@ export const PaginationItem: React.FC<
+       onPress={onPress}
+       accessibilityLabel={accessibilityLabel}
+       accessibilityRole="button"
+-      accessibilityHint={animValue.value === index ? "" : `Go to ${accessibilityLabel}`}
+-      accessibilityState={{ selected: animValue.value === index }}
++      accessibilityHint={isSelected ? "" : `Go to ${accessibilityLabel}`}
++      accessibilityState={{ selected: isSelected }}
+     >
+       <View
+         style={[

@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { Alert, Pressable, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { Text } from '@/components/ui/text';
@@ -156,8 +155,6 @@ const getDefaultLabel = (value: number) => {
 
 export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const containerBackground = isDarkMode ? '#020617' : '#ffffff';
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
 	const [activeValue, setActiveValue] = React.useState(normalizedDefault);
 	const [activeLabel, setActiveLabel] = React.useState(() => getDefaultLabel(normalizedDefault));
@@ -204,22 +201,13 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 	}, []);
 
 	return (
-			<View
-				style={{
-					paddingHorizontal: 0,
-					paddingTop: 8,
-					paddingBottom: insets.bottom,
-					backgroundColor: containerBackground,
-					borderTopLeftRadius: 16,
-					borderTopRightRadius: 16,
-					borderTopWidth: 2,
-					borderTopColor: palette.activeColor,
-					borderRightWidth: 2,
-					borderRightColor: palette.activeColor,
-					borderLeftWidth: 2,
-					borderLeftColor: palette.activeColor,
-				}}
-			>
+		<View
+			style={{
+				paddingHorizontal: 0,
+				paddingTop: 6,
+				paddingBottom: 0,
+			}}
+		>
 			<View
 				style={{
 					width: '100%',

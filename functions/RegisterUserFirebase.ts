@@ -8,6 +8,7 @@ import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUn
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
+    name?: string;
     email: string;
     password: string;
     adminUser?: boolean;
@@ -17,11 +18,18 @@ interface RegisterUserParams {
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo usuário no Firebase
-export async function registerUserFirebase({ email, password, adminUser = false, relatedIdUsers = [] }: RegisterUserParams) {
+export async function registerUserFirebase({
+    name,
+    email,
+    password,
+    adminUser = false,
+    relatedIdUsers = [],
+}: RegisterUserParams) {
 
     let shouldSignOutSecondary = false;
 
     try {
+        const normalizedName = typeof name === 'string' ? name.trim() : '';
 
         // Cria o usuário no Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
@@ -30,6 +38,7 @@ export async function registerUserFirebase({ email, password, adminUser = false,
 
         // Armazena os dados iniciais do usuário no Firestore
         await setDoc(doc(db, 'users', user.uid), {
+            name: normalizedName.length > 0 ? normalizedName : null,
             email,
             createdAt: new Date(),
             adminUser,

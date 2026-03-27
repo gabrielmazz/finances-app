@@ -6,7 +6,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/html-elements": "^0.13.7",
@@ -53,6 +54,7 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.6",
+    "patch-package": "^8.0.1",
     "react-native-svg-transformer": "^1.5.2",
     "typescript": "~5.9.3"
   },
