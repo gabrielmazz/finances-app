@@ -1,26 +1,17 @@
 import React from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, TouchableOpacity, View, StatusBar, useWindowDimensions } from 'react-native';
+import { ScrollView, View, StatusBar, TouchableOpacity, Image as RNImage, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
-import { Box } from '@/components/ui/box';
+import { Badge, BadgeText } from '@/components/ui/badge';
 import { HStack } from '@/components/ui/hstack';
 import { Divider } from '@/components/ui/divider';
 import { Image } from '@/components/ui/image';
-import { Button, ButtonText } from '@/components/ui/button';
-import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-} from '@/components/ui/modal';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 
 import { auth } from '@/FirebaseConfig';
@@ -30,10 +21,11 @@ import {
 	getBanksWithUsersByPersonFirebase,
 	getCurrentYearMovementsFirebase,
 } from '@/functions/BankFirebase';
-import { getLimitedExpensesFirebase, getLimitedExpensesWithPeopleFirebase } from '@/functions/ExpenseFirebase';
-import { getLimitedGainsFirebase, getLimitedGainsWithPeopleFirebase } from '@/functions/GainFirebase';
+import { getLimitedExpensesWithPeopleFirebase } from '@/functions/ExpenseFirebase';
+import { getLimitedGainsWithPeopleFirebase } from '@/functions/GainFirebase';
 import { getFinanceInvestmentsByPeriodFirebase, getFinanceInvestmentsWithRelationsFirebase } from '@/functions/FinancesFirebase';
 import { computeMonthlyBankBalances } from '@/utils/monthlyBalance';
+import Navigator from '@/components/uiverse/navigator';
 
 // Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -44,7 +36,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 import { SvgProps } from 'react-native-svg';
-import LoginWallpaper from '@/assets/Background/wallpaper01.jpg';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 type YearlyMonthStats = {
 	monthIndex: number;
@@ -64,13 +56,28 @@ type PieLegendEntry = {
 	totalInCents: number;
 };
 
-type InvestmentHighlight = {
+type HomeInvestmentItem = {
 	id: string;
 	name: string;
 	bankId: string | null;
-	investedValueInCents: number;
-	appliedValueInCents: number;
+	bankNameSnapshot: string | null;
+	initialValueInCents: number;
+	currentBaseValueInCents: number;
 	simulatedValueInCents: number;
+	estimatedGainInCents: number;
+	cdiPercentage: number;
+	lastManualSyncValueInCents: number | null;
+	lastManualSyncAt: Date | null;
+	createdAt: Date | null;
+};
+
+type HomeInvestmentPortfolio = {
+	items: HomeInvestmentItem[];
+	totalCurrentBaseInCents: number;
+	totalInitialInCents: number;
+	totalSimulatedInCents: number;
+	totalEstimatedGainInCents: number;
+	investmentCount: number;
 };
 
 type NormalizedInvestmentSummary = {
@@ -80,20 +87,52 @@ type NormalizedInvestmentSummary = {
 	currentValueInCents: number;
 	cdiPercentage: number;
 	bankId: string | null;
+	bankNameSnapshot: string | null;
 	lastManualSyncValueInCents: number | null;
 	lastManualSyncAt: Date | null;
 	createdAt: Date | null;
 };
 
+type HomeTimelineMovement = {
+	id: string;
+	type: 'expense' | 'gain';
+	name: string;
+	valueInCents: number;
+	date: Date | null;
+	bankId: string | null;
+	bankName: string | null;
+	personName: string | null;
+	explanation: string | null;
+	moneyFormat: boolean | null;
+	isBankTransfer: boolean;
+	bankTransferDirection: 'incoming' | 'outgoing' | null;
+	bankTransferSourceBankNameSnapshot: string | null;
+	bankTransferTargetBankNameSnapshot: string | null;
+	isInvestmentDeposit: boolean;
+	isInvestmentRedemption: boolean;
+	investmentNameSnapshot: string | null;
+};
+
+type HomeTimelineStatus = {
+	title: string;
+	subtitle: string;
+	status: string;
+	renderContent?: React.ReactNode;
+	movement: HomeTimelineMovement;
+};
+
 const DAYS_IN_YEAR = 365;
 const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
 const BASE_CDI_ANNUAL_RATE = 0.1375;
+const TIMELINE_CHEVRON_DOWN = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-down.png');
+const TIMELINE_CHEVRON_UP = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-up.png');
 
 const BAR_CHART_COLORS = {
 	expenses: '#F97316',
 	gains: '#10B981',
 };
 
+const HOME_VISIBLE_INVESTMENTS = 3;
 const PIE_COLOR_PALETTE = ['#6366F1', '#F97316', '#22D3EE', '#F43F5E', '#10B981', '#FACC15', '#A855F7', '#0EA5E9'];
 
 const createEmptyYearlyStats = (): YearlyMonthStats[] =>
@@ -102,6 +141,15 @@ const createEmptyYearlyStats = (): YearlyMonthStats[] =>
 		expensesInCents: 0,
 		gainsInCents: 0,
 	}));
+
+const createEmptyInvestmentPortfolio = (): HomeInvestmentPortfolio => ({
+	items: [],
+	totalCurrentBaseInCents: 0,
+	totalInitialInCents: 0,
+	totalSimulatedInCents: 0,
+	totalEstimatedGainInCents: 0,
+	investmentCount: 0,
+});
 
 const normalizeHexColor = (value: string | null | undefined) => {
 	if (!value) {
@@ -148,11 +196,19 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
+const normalizeTransferDirection = (value: unknown): 'incoming' | 'outgoing' | null => {
+	if (value === 'incoming' || value === 'outgoing') {
+		return value;
+	}
+
+	return null;
+};
+
 export default function HomeScreen() {
 
 	const { isDarkMode } = useAppTheme();
+	const insets = useSafeAreaInsets();
 	const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
 	const surfaceBackground = isDarkMode ? '#020617' : '#ffffff';
 	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
 	const axisColor = isDarkMode ? '#CBD5F5' : '#475569';
@@ -164,7 +220,7 @@ export default function HomeScreen() {
 	const searchParams = useLocalSearchParams<{ balanceReminder?: string | string[] }>();
 	const bankCarouselWidth = Math.max(windowWidth - 48, 1);
 	const bankCarouselHeight = 176;
-	const heroHeight = Math.max(windowHeight * 0.28, 250);
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 
 	const [isLoadingSummary, setIsLoadingSummary] = React.useState(false);
 	const [summaryError, setSummaryError] = React.useState<string | null>(null);
@@ -229,12 +285,63 @@ export default function HomeScreen() {
 			minute: '2-digit',
 		}).format(date);
 	}, []);
+	const formatDateOnly = React.useCallback((value: Date | null) => {
+		if (!value) {
+			return 'Data indisponível';
+		}
+
+		return new Intl.DateTimeFormat('pt-BR', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+		}).format(value);
+	}, []);
+	const formatPercentage = React.useCallback((value: number) => {
+		if (!Number.isFinite(value)) {
+			return '0';
+		}
+
+		return new Intl.NumberFormat('pt-BR', {
+			minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+			maximumFractionDigits: 2,
+		}).format(value);
+	}, []);
 
 	const handleOpenMonthlySummary = React.useCallback(() => {
 		router.push('/bank-summary');
 	}, []);
 	const handleOpenInvestmentsList = React.useCallback(() => {
 		router.push('/financial-list');
+	}, []);
+	const handleToggleInvestments = React.useCallback(() => {
+		setIsInvestmentsExpanded(prev => {
+			const nextValue = !prev;
+
+			if (!nextValue) {
+				setShouldShowAllInvestments(false);
+			}
+
+			return nextValue;
+		});
+	}, []);
+	const handleToggleVisibleInvestments = React.useCallback(() => {
+		setShouldShowAllInvestments(prev => !prev);
+	}, []);
+	const handleToggleMovements = React.useCallback(() => {
+		setIsMovementsExpanded(prev => {
+			const nextValue = !prev;
+
+			if (!nextValue) {
+				setExpandedTimelineStatuses([]);
+			}
+
+			return nextValue;
+		});
+	}, []);
+	const handleToggleTimelineStatus = React.useCallback((statusId: string) => {
+		setExpandedTimelineStatuses(prev =>
+			prev.includes(statusId) ? prev.filter(id => id !== statusId) : [...prev, statusId],
+		);
 	}, []);
 	const handleCloseBalanceReminder = React.useCallback(() => {
 		setIsBalanceReminderOpen(false);
@@ -258,7 +365,6 @@ export default function HomeScreen() {
 	// Estado para armazenar os movimentos mais recentes de ganhos e despesas
 	const [recentExpenses, setRecentExpenses] = React.useState<any[]>([]);
 	const [recentGains, setRecentGains] = React.useState<any[]>([]);
-	const [recentInvestments, setRecentInvestments] = React.useState<any[]>([]);
 
 	// Estados relacionados ao carregamento dos movimentos e erros
 	const [isLoadingMovements, setIsLoadingMovements] = React.useState(false);
@@ -272,6 +378,9 @@ export default function HomeScreen() {
 
 	// Estados relacionados aos gráficos e estatísticas
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(false);
+	const [expandedTimelineStatuses, setExpandedTimelineStatuses] = React.useState<string[]>([]);
+	const [isInvestmentsExpanded, setIsInvestmentsExpanded] = React.useState(false);
+	const [shouldShowAllInvestments, setShouldShowAllInvestments] = React.useState(false);
 
 	// Estatísticas anuais
 	const [yearlyStats, setYearlyStats] = React.useState<YearlyMonthStats[]>(() => createEmptyYearlyStats());
@@ -292,19 +401,9 @@ export default function HomeScreen() {
 	// Estado para controlar a expansão dos totais
 	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 
-	const [investmentSummary, setInvestmentSummary] = React.useState<{
-		totalInvestedInCents: number;
-		totalInitialInvestedInCents: number;
-		totalSimulatedInCents: number;
-		investmentCount: number;
-		highlights: InvestmentHighlight[];
-	}>({
-		totalInvestedInCents: 0,
-		totalInitialInvestedInCents: 0,
-		totalSimulatedInCents: 0,
-		investmentCount: 0,
-		highlights: [],
-	});
+	const [investmentPortfolio, setInvestmentPortfolio] = React.useState<HomeInvestmentPortfolio>(() =>
+		createEmptyInvestmentPortfolio(),
+	);
 	const [isLoadingInvestments, setIsLoadingInvestments] = React.useState(false);
 	const [investmentsError, setInvestmentsError] = React.useState<string | null>(null);
 
@@ -574,6 +673,471 @@ export default function HomeScreen() {
 	const gainPieLegendData = gainsPieSlices.legendData;
 	const hasGainPieData = gainPieChartData.length > 0;
 
+	const investmentPalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			sectionBackground: isDarkMode ? '#020617' : '#F8FAFC',
+			cardBackground: isDarkMode ? '#0F172A' : '#FFFFFF',
+			border: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(226, 232, 240, 1)',
+			metricBackground: isDarkMode ? '#111827' : '#FFFFFF',
+			badgeBackground: isDarkMode ? 'rgba(250, 204, 21, 0.12)' : 'rgba(234, 179, 8, 0.12)',
+			badgeBorder: isDarkMode ? 'rgba(250, 204, 21, 0.26)' : 'rgba(234, 179, 8, 0.18)',
+			badgeText: isDarkMode ? '#FDE68A' : '#A16207',
+			currentColor: isDarkMode ? '#E2E8F0' : '#0F172A',
+			simulatedColor: isDarkMode ? '#34D399' : '#059669',
+			gainColor: isDarkMode ? '#7DD3FC' : '#0369A1',
+			ctaColor: isDarkMode ? '#FDE047' : '#CA8A04',
+		}),
+		[isDarkMode],
+	);
+
+	const resolvedInvestmentItems = React.useMemo(
+		() =>
+			investmentPortfolio.items.map(item => {
+				const snapshotBankName =
+					typeof item.bankNameSnapshot === 'string' && item.bankNameSnapshot.trim().length > 0
+						? item.bankNameSnapshot.trim()
+						: null;
+				const resolvedBankName =
+					(item.bankId ? bankNamesById[item.bankId] : null) ?? snapshotBankName ?? 'Banco não vinculado';
+				const referenceDate = item.lastManualSyncAt ?? item.createdAt;
+				const referenceLabel = item.lastManualSyncAt
+					? `Sincronizado manualmente em ${formatDateOnly(referenceDate)}`
+					: `Registrado em ${formatDateOnly(referenceDate)}`;
+
+				return {
+					...item,
+					bankName: resolvedBankName,
+					referenceLabel,
+				};
+			}),
+		[bankNamesById, formatDateOnly, investmentPortfolio.items],
+	);
+
+	const hasHiddenInvestments = resolvedInvestmentItems.length > HOME_VISIBLE_INVESTMENTS;
+	const visibleInvestmentItems = React.useMemo(
+		() =>
+			shouldShowAllInvestments
+				? resolvedInvestmentItems
+				: resolvedInvestmentItems.slice(0, HOME_VISIBLE_INVESTMENTS),
+		[resolvedInvestmentItems, shouldShowAllInvestments],
+	);
+
+	const investmentHeaderMetrics = React.useMemo(
+		() => [
+			{
+				key: 'count',
+				label: 'Investimentos',
+				value: String(investmentPortfolio.investmentCount),
+				color: investmentPalette.title,
+			},
+			{
+				key: 'current',
+				label: 'Atual/base',
+				value: formatCurrencyBRL(investmentPortfolio.totalCurrentBaseInCents),
+				color: investmentPalette.title,
+			},
+			{
+				key: 'simulated',
+				label: 'Simulado',
+				value: formatCurrencyBRL(investmentPortfolio.totalSimulatedInCents),
+				color: investmentPalette.simulatedColor,
+			},
+		],
+		[
+			formatCurrencyBRL,
+			investmentPalette.simulatedColor,
+			investmentPalette.title,
+			investmentPortfolio.investmentCount,
+			investmentPortfolio.totalCurrentBaseInCents,
+			investmentPortfolio.totalSimulatedInCents,
+		],
+	);
+
+	const investmentSummaryMetrics = React.useMemo(
+		() => [
+			{
+				key: 'initial',
+				label: 'Total inicial',
+				value: formatCurrencyBRL(investmentPortfolio.totalInitialInCents),
+				color: investmentPalette.title,
+			},
+			{
+				key: 'current',
+				label: 'Total atual/base',
+				value: formatCurrencyBRL(investmentPortfolio.totalCurrentBaseInCents),
+				color: investmentPalette.title,
+			},
+			{
+				key: 'gain',
+				label: 'Ganho estimado',
+				value: formatCurrencyBRL(investmentPortfolio.totalEstimatedGainInCents),
+				color: investmentPalette.gainColor,
+			},
+		],
+		[
+			formatCurrencyBRL,
+			investmentPalette.gainColor,
+			investmentPalette.title,
+			investmentPortfolio.totalCurrentBaseInCents,
+			investmentPortfolio.totalEstimatedGainInCents,
+			investmentPortfolio.totalInitialInCents,
+		],
+	);
+
+	const timelinePalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			cardBackground: isDarkMode ? '#0F172A' : '#FFFFFF',
+			cardBorder: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(226, 232, 240, 1)',
+			mutedSurface: isDarkMode ? '#111827' : '#F8FAFC',
+			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
+			timelineBase: isDarkMode ? '#243041' : '#CBD5E1',
+		}),
+		[isDarkMode],
+	);
+
+	const getTimelineAccentColor = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isBankTransfer) {
+			return '#F59E0B';
+		}
+
+		return movement.type === 'expense' ? '#DC2626' : '#10B981';
+	}, []);
+
+	const getTimelineBadgeLabel = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isBankTransfer) {
+			return 'Transferência';
+		}
+
+		if (movement.isInvestmentDeposit) {
+			return 'Aporte';
+		}
+
+		if (movement.isInvestmentRedemption) {
+			return 'Resgate';
+		}
+
+		return movement.type === 'expense' ? 'Despesa' : 'Ganho';
+	}, []);
+
+	const getTimelineBadgeAction = React.useCallback(
+		(movement: HomeTimelineMovement): 'positive' | 'negative' | 'warning' => {
+			if (movement.isBankTransfer) {
+				return 'warning';
+			}
+
+			return movement.type === 'expense' ? 'negative' : 'positive';
+		},
+		[],
+	);
+
+	const getTimelineContextLabel = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isBankTransfer) {
+			const sourceBankName =
+				movement.bankTransferSourceBankNameSnapshot?.trim() || movement.bankName || 'Origem';
+			const targetBankName =
+				movement.bankTransferTargetBankNameSnapshot?.trim() || movement.bankName || 'Destino';
+
+			return `${sourceBankName} -> ${targetBankName}`;
+		}
+
+		if (movement.isInvestmentDeposit || movement.isInvestmentRedemption) {
+			return movement.investmentNameSnapshot?.trim() || 'Movimentação em investimento';
+		}
+
+		if (movement.moneyFormat) {
+			return 'Em dinheiro';
+		}
+
+		if (movement.bankName) {
+			return movement.bankName;
+		}
+
+		return 'Sem banco vinculado';
+	}, []);
+
+	const getTimelineBankBadgePalette = React.useCallback(
+		(bankId: string | null) => {
+			const normalizedColor = bankId ? normalizeHexColor(bankColorsById[bankId]) : null;
+
+			if (!normalizedColor) {
+				return {
+					backgroundColor: timelinePalette.emptySurface,
+					borderColor: timelinePalette.cardBorder,
+					textColor: timelinePalette.subtitle,
+				};
+			}
+
+			return {
+				backgroundColor:
+					hexToRgba(normalizedColor, isDarkMode ? 0.18 : 0.1) ?? timelinePalette.emptySurface,
+				borderColor:
+					hexToRgba(normalizedColor, isDarkMode ? 0.48 : 0.3) ?? timelinePalette.cardBorder,
+				textColor: normalizedColor,
+			};
+		},
+		[
+			bankColorsById,
+			isDarkMode,
+			timelinePalette.cardBorder,
+			timelinePalette.emptySurface,
+			timelinePalette.subtitle,
+		],
+	);
+
+	const recentTimelineMovements = React.useMemo<HomeTimelineMovement[]>(() => {
+		const normalizeMovement = (item: any, type: 'expense' | 'gain'): HomeTimelineMovement => {
+			const bankId =
+				typeof item?.bankId === 'string' && item.bankId.trim().length > 0 ? item.bankId : null;
+			const parsedDate = parseToDate(item?.date ?? item?.createdAt);
+			const personName =
+				typeof item?.person?.name === 'string' && item.person.name.trim().length > 0
+					? item.person.name.trim()
+					: null;
+			const explanation =
+				typeof item?.explanation === 'string' && item.explanation.trim().length > 0
+					? item.explanation.trim()
+					: null;
+			const investmentNameSnapshot =
+				typeof item?.investmentNameSnapshot === 'string' && item.investmentNameSnapshot.trim().length > 0
+					? item.investmentNameSnapshot.trim()
+					: null;
+			const sourceBankName =
+				typeof item?.bankTransferSourceBankNameSnapshot === 'string' &&
+					item.bankTransferSourceBankNameSnapshot.trim().length > 0
+					? item.bankTransferSourceBankNameSnapshot.trim()
+					: null;
+			const targetBankName =
+				typeof item?.bankTransferTargetBankNameSnapshot === 'string' &&
+					item.bankTransferTargetBankNameSnapshot.trim().length > 0
+					? item.bankTransferTargetBankNameSnapshot.trim()
+					: null;
+
+			return {
+				id:
+					typeof item?.id === 'string' && item.id.length > 0
+						? item.id
+						: `${type}-${String(item?.createdAt ?? item?.date ?? Math.random())}`,
+				type,
+				name:
+					typeof item?.name === 'string' && item.name.trim().length > 0
+						? item.name.trim()
+						: type === 'expense'
+							? 'Despesa sem nome'
+							: 'Ganho sem nome',
+				valueInCents:
+					typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
+						? item.valueInCents
+						: 0,
+				date: parsedDate,
+				bankId,
+				bankName: bankId ? getBankName(bankId) : null,
+				personName,
+				explanation,
+				moneyFormat: typeof item?.moneyFormat === 'boolean' ? item.moneyFormat : null,
+				isBankTransfer: Boolean(item?.isBankTransfer),
+				bankTransferDirection: normalizeTransferDirection(item?.bankTransferDirection),
+				bankTransferSourceBankNameSnapshot: sourceBankName,
+				bankTransferTargetBankNameSnapshot: targetBankName,
+				isInvestmentDeposit: Boolean(item?.isInvestmentDeposit),
+				isInvestmentRedemption: Boolean(item?.isInvestmentRedemption),
+				investmentNameSnapshot,
+			};
+		};
+
+		return [
+			...recentExpenses.map(item => normalizeMovement(item, 'expense')),
+			...recentGains.map(item => normalizeMovement(item, 'gain')),
+		]
+			.sort((left, right) => {
+				const leftTime = left.date?.getTime() ?? 0;
+				const rightTime = right.date?.getTime() ?? 0;
+
+				return rightTime - leftTime;
+			})
+			.slice(0, 6);
+	}, [getBankName, parseToDate, recentExpenses, recentGains]);
+
+	const timelineStatuses = React.useMemo<HomeTimelineStatus[]>(
+		() =>
+			recentTimelineMovements.map((movement, index) => {
+				const accentColor = getTimelineAccentColor(movement);
+				const accentBorderColor =
+					hexToRgba(accentColor, isDarkMode ? 0.42 : 0.24) ?? timelinePalette.cardBorder;
+				const badgeLabel = getTimelineBadgeLabel(movement);
+				const contextLabel = getTimelineContextLabel(movement);
+				const title =
+					typeof movement.name === 'string' && movement.name.trim().length > 0
+						? movement.name.trim()
+						: 'Movimentação';
+				const subtitle = [badgeLabel, contextLabel, formatMovementDate(movement.date)]
+					.filter(part => typeof part === 'string' && part.trim().length > 0)
+					.join(' • ');
+
+				return {
+					title,
+					subtitle,
+					status: movement.id || `movement-${index}`,
+					movement,
+					renderContent: (
+						<View
+							style={{
+								marginTop: 10,
+								marginRight: 21,
+								borderRadius: 18,
+								borderWidth: 1,
+								borderColor: accentBorderColor,
+								backgroundColor: timelinePalette.cardBackground,
+								paddingHorizontal: 12,
+								paddingVertical: 14,
+							}}
+						>
+							<VStack className="gap-1">
+								<Text
+									style={{
+										fontSize: 11,
+										fontWeight: '700',
+										letterSpacing: 0.4,
+										color: timelinePalette.subtitle,
+										textTransform: 'uppercase',
+									}}
+								>
+									Valor
+								</Text>
+								<Heading size="sm" style={{ color: accentColor }}>
+									{formatCurrencyBRL(movement.valueInCents)}
+								</Heading>
+							</VStack>
+
+							{movement.explanation ? (
+								<View
+									style={{
+										marginTop: 16,
+									}}
+								>
+									<Text style={{ color: timelinePalette.subtitle, fontSize: 12, lineHeight: 18 }}>
+										{movement.explanation}
+									</Text>
+								</View>
+							) : null}
+						</View>
+					),
+				};
+			}),
+		[
+			formatCurrencyBRL,
+			formatMovementDate,
+			getTimelineAccentColor,
+			getTimelineBadgeLabel,
+			getTimelineContextLabel,
+			isDarkMode,
+			recentTimelineMovements,
+			timelinePalette.cardBackground,
+			timelinePalette.cardBorder,
+			timelinePalette.subtitle,
+		],
+	);
+
+	const getTimelineMarkerLabel = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isBankTransfer) {
+			return 'T';
+		}
+
+		return movement.type === 'expense' ? '-' : '+';
+	}, []);
+
+	const renderTimelineBall = React.useCallback(
+		(_: unknown, index: number) => {
+			const movement = recentTimelineMovements[index];
+			const accentColor = movement ? getTimelineAccentColor(movement) : timelinePalette.timelineBase;
+			const markerLabel = movement ? getTimelineMarkerLabel(movement) : '';
+
+			return (
+				<View
+					style={{
+						width: 18,
+						height: 18,
+						marginTop: -3,
+						borderRadius: 999,
+						backgroundColor: accentColor,
+						alignItems: 'center',
+						justifyContent: 'center',
+						borderWidth: 2,
+						borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+						shadowColor: accentColor,
+						shadowOpacity: isDarkMode ? 0.3 : 0.18,
+						shadowRadius: 8,
+						shadowOffset: { width: 0, height: 4 },
+						elevation: 2,
+					}}
+				>
+					<Text
+						style={{
+							color: '#FFFFFF',
+							fontSize: 10,
+							lineHeight: 10,
+							fontWeight: '700',
+							textAlign: 'center',
+							textAlignVertical: 'center',
+							includeFontPadding: false,
+						}}
+					>
+						{markerLabel}
+					</Text>
+				</View>
+			);
+		},
+		[
+			getTimelineAccentColor,
+			getTimelineMarkerLabel,
+			isDarkMode,
+			recentTimelineMovements,
+			timelinePalette.timelineBase,
+		],
+	);
+
+	const renderTimelineStick = React.useCallback(
+		(_: unknown, index: number) => {
+			const movement = recentTimelineMovements[index];
+			const accentColor = movement ? getTimelineAccentColor(movement) : timelinePalette.timelineBase;
+
+			return (
+				<View
+					style={{
+						flex: 1,
+						width: 3,
+						borderRadius: 999,
+						marginVertical: 2,
+						backgroundColor:
+							hexToRgba(accentColor, isDarkMode ? 0.4 : 0.22) ?? timelinePalette.timelineBase,
+					}}
+				/>
+			);
+		},
+		[getTimelineAccentColor, isDarkMode, recentTimelineMovements, timelinePalette.timelineBase],
+	);
+
+	const renderSectionChevron = React.useCallback(
+		(isOpen: boolean, tintColor: string) =>
+			<RNImage
+				source={isOpen ? TIMELINE_CHEVRON_UP : TIMELINE_CHEVRON_DOWN}
+				style={{
+					width: 18,
+					height: 14,
+					tintColor,
+				}}
+				resizeMode="contain"
+			/>,
+		[],
+	);
+	const renderTimelineChevron = React.useCallback(
+		(isOpen: boolean) => renderSectionChevron(isOpen, timelinePalette.subtitle),
+		[renderSectionChevron, timelinePalette.subtitle],
+	);
+
 	// Função para receber os valores do resumo mensal (despesas) e assim soma-los para mostrar na tela
 	function calculateMonthlyExpansesSummaryTotals(expanses: any[]) {
 
@@ -661,15 +1225,16 @@ export default function HomeScreen() {
 				setSummaryError(null);
 				setIsLoadingMovements(true);
 				setMovementsError(null);
-				setRecentExpenses([]);
-				setRecentGains([]);
-				setRecentInvestments([]);
-				setBankNamesById({});
-				setBankColorsById({});
-				setChartsError(null);
-				setYearlyStats(createEmptyYearlyStats());
-				setCurrentMonthExpensesByBank([]);
-				setCurrentMonthGainsByBank([]);
+					setRecentExpenses([]);
+					setRecentGains([]);
+					setBankNamesById({});
+					setBankColorsById({});
+					setChartsError(null);
+					setYearlyStats(createEmptyYearlyStats());
+					setCurrentMonthExpensesByBank([]);
+					setCurrentMonthGainsByBank([]);
+					setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+					setShouldShowAllInvestments(false);
 
 				// Obtém o usuário atualmente autenticado
 				const currentUser = auth.currentUser;
@@ -679,29 +1244,24 @@ export default function HomeScreen() {
 					if (isMounted) {
 						const message = 'Nenhum usuário autenticado foi identificado.';
 						setSummaryError(message);
-						setMovementsError(message);
-						setInvestmentsError(message);
-						setRecentExpenses([]);
-						setRecentGains([]);
-						setBankColorsById({});
-						setIsLoadingSummary(false);
-						setIsLoadingMovements(false);
-						setIsLoadingInvestments(false);
+							setMovementsError(message);
+							setInvestmentsError(message);
+							setRecentExpenses([]);
+							setRecentGains([]);
+							setBankColorsById({});
+							setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+							setIsLoadingSummary(false);
+							setIsLoadingMovements(false);
+							setIsLoadingInvestments(false);
 					}
 					return;
 				}
 
-				if (isMounted) {
-					setIsLoadingInvestments(true);
-					setInvestmentsError(null);
-					setInvestmentSummary({
-						totalInvestedInCents: 0,
-						totalInitialInvestedInCents: 0,
-						totalSimulatedInCents: 0,
-						investmentCount: 0,
-						highlights: [],
-					});
-				}
+					if (isMounted) {
+						setIsLoadingInvestments(true);
+						setInvestmentsError(null);
+						setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+					}
 
 				const loadSummariesPromise = (async () => {
 
@@ -961,11 +1521,10 @@ export default function HomeScreen() {
 
 					try {
 
-						const [expensesResult, gainsResult, banksResult, investmentsResult] = await Promise.all([
-							getLimitedExpensesWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
-							getLimitedGainsWithPeopleFirebase({ limit: 3, personId: currentUser.uid }),
+						const [expensesResult, gainsResult, banksResult] = await Promise.all([
+							getLimitedExpensesWithPeopleFirebase({ limit: 6, personId: currentUser.uid }),
+							getLimitedGainsWithPeopleFirebase({ limit: 6, personId: currentUser.uid }),
 							getBanksWithUsersByPersonFirebase(currentUser.uid),
-							getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
 						]);
 
 						if (!isMounted) {
@@ -1026,60 +1585,6 @@ export default function HomeScreen() {
 							setMovementsError(null);
 						}
 
-						if (investmentsResult?.success && Array.isArray(investmentsResult.data)) {
-							const normalizedInvestments = (investmentsResult.data as any[]).map(investment => {
-								const id =
-									typeof investment?.id === 'string'
-										? investment.id
-										: `investment-${Math.random().toString(36).slice(2)}`;
-								const name =
-									typeof investment?.name === 'string' && investment.name.trim().length > 0
-										? investment.name.trim()
-										: 'Investimento';
-								const initialValue =
-									typeof investment?.initialValueInCents === 'number'
-										? investment.initialValueInCents
-										: typeof investment?.initialInvestedInCents === 'number'
-											? investment.initialInvestedInCents
-											: 0;
-								const syncedValue =
-									typeof investment?.currentValueInCents === 'number'
-										? investment.currentValueInCents
-										: typeof investment?.lastManualSyncValueInCents === 'number'
-											? investment.lastManualSyncValueInCents
-											: initialValue;
-
-								const createdAt = parseToDate(
-									investment?.date ??
-									investment?.createdAt ??
-									investment?.createdAtISO ??
-									investment?.createdAtUtc,
-								);
-
-								return {
-									id,
-									name,
-									valueInCents: syncedValue,
-									bankId: typeof investment?.bankId === 'string' ? investment.bankId : null,
-									createdAt,
-								};
-							});
-
-							const sortedInvestments = normalizedInvestments
-								.slice()
-								.sort((a, b) => {
-									const timeA = a.createdAt ? a.createdAt.getTime() : 0;
-									const timeB = b.createdAt ? b.createdAt.getTime() : 0;
-									return timeB - timeA;
-								})
-								.slice(0, 3);
-
-							setRecentInvestments(sortedInvestments);
-						} else {
-							setRecentInvestments([]);
-							hasIssues = true;
-						}
-
 					} catch (error) {
 						console.error('Erro ao carregar os últimos movimentos:', error);
 
@@ -1087,7 +1592,6 @@ export default function HomeScreen() {
 							setMovementsError('Erro ao carregar os últimos movimentos.');
 							setRecentExpenses([]);
 							setRecentGains([]);
-							setRecentInvestments([]);
 							setBankNamesById({});
 							setBankColorsById({});
 						}
@@ -1111,13 +1615,7 @@ export default function HomeScreen() {
 						}
 
 						if (!investmentsResult?.success || !Array.isArray(investmentsResult.data)) {
-							setInvestmentSummary({
-								totalInvestedInCents: 0,
-								totalInitialInvestedInCents: 0,
-								totalSimulatedInCents: 0,
-								investmentCount: 0,
-								highlights: [],
-							});
+							setInvestmentPortfolio(createEmptyInvestmentPortfolio());
 							setInvestmentsError('Não foi possível carregar os investimentos.');
 							return;
 						}
@@ -1145,83 +1643,86 @@ export default function HomeScreen() {
 									: typeof investment.lastManualSyncValueInCents === 'number'
 										? investment.lastManualSyncValueInCents
 										: initialValueInCents;
-							const lastManualValue =
-								typeof investment.lastManualSyncValueInCents === 'number'
-									? investment.lastManualSyncValueInCents
-									: null;
-							const bankId = typeof investment.bankId === 'string' ? investment.bankId : null;
-							const cdiPercentage =
-								typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0;
+								const lastManualValue =
+									typeof investment.lastManualSyncValueInCents === 'number'
+										? investment.lastManualSyncValueInCents
+										: null;
+								const bankId = typeof investment.bankId === 'string' ? investment.bankId : null;
+								const bankNameSnapshot =
+									typeof investment.bankNameSnapshot === 'string' &&
+									investment.bankNameSnapshot.trim().length > 0
+										? investment.bankNameSnapshot.trim()
+										: null;
+								const cdiPercentage =
+									typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0;
 
-							return {
-								id,
+								return {
+									id,
 								name,
 								initialValueInCents,
-								currentValueInCents,
-								cdiPercentage,
-								bankId,
-								lastManualSyncValueInCents: lastManualValue,
-								lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
-								createdAt: parseToDate(
-									investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc,
-								),
-							};
-						});
-
-						const totalInvestedInCents = normalizedInvestments.reduce(
-							(acc, investment) => acc + resolveInvestmentBaseValueInCents(investment),
-							0,
-						);
-						const totalInitialInvestedInCents = normalizedInvestments.reduce(
-							(acc, investment) => acc + investment.initialValueInCents,
-							0,
-						);
-
-						const simulatedInvestments = normalizedInvestments.map(investment => ({
-							...investment,
-							investedValueInCents: investment.initialValueInCents,
-							appliedValueInCents: resolveInvestmentBaseValueInCents(investment),
-							simulatedValueInCents: simulateInvestmentValueInCents(investment),
-						}));
-
-						const totalSimulatedInCents = simulatedInvestments.reduce(
-							(acc, investment) => acc + investment.simulatedValueInCents,
-							0,
-						);
-
-						const highlights = simulatedInvestments
-							.slice()
-							.sort((a, b) => b.simulatedValueInCents - a.simulatedValueInCents)
-							.slice(0, 3)
-							.map(item => ({
-								id: item.id,
-								name: item.name,
-								bankId: item.bankId,
-								investedValueInCents: item.investedValueInCents,
-								appliedValueInCents: item.appliedValueInCents,
-								simulatedValueInCents: item.simulatedValueInCents,
-							}));
-
-						setInvestmentSummary({
-							totalInvestedInCents,
-							totalInitialInvestedInCents,
-							totalSimulatedInCents,
-							investmentCount: normalizedInvestments.length,
-							highlights,
-						});
-						setInvestmentsError(null);
-					} catch (error) {
-						console.error('Erro ao carregar investimentos na Home:', error);
-						if (isMounted) {
-							setInvestmentSummary({
-								totalInvestedInCents: 0,
-								totalInitialInvestedInCents: 0,
-								totalSimulatedInCents: 0,
-								investmentCount: 0,
-								highlights: [],
+									currentValueInCents,
+									cdiPercentage,
+									bankId,
+									bankNameSnapshot,
+									lastManualSyncValueInCents: lastManualValue,
+									lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
+									createdAt: parseToDate(
+										investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc,
+									),
+								};
 							});
-							setInvestmentsError('Erro ao carregar os investimentos.');
-						}
+
+							const portfolioItems = normalizedInvestments
+								.map<HomeInvestmentItem>(investment => {
+									const currentBaseValueInCents = resolveInvestmentBaseValueInCents(investment);
+									const simulatedValueInCents = simulateInvestmentValueInCents(investment);
+
+									return {
+										id: investment.id,
+										name: investment.name,
+										bankId: investment.bankId,
+										bankNameSnapshot: investment.bankNameSnapshot,
+										initialValueInCents: investment.initialValueInCents,
+										currentBaseValueInCents,
+										simulatedValueInCents,
+										estimatedGainInCents: simulatedValueInCents - currentBaseValueInCents,
+										cdiPercentage: investment.cdiPercentage,
+										lastManualSyncValueInCents: investment.lastManualSyncValueInCents,
+										lastManualSyncAt: investment.lastManualSyncAt,
+										createdAt: investment.createdAt,
+									};
+								})
+								.sort((left, right) => right.simulatedValueInCents - left.simulatedValueInCents);
+
+							const nextPortfolio: HomeInvestmentPortfolio = {
+								items: portfolioItems,
+								totalCurrentBaseInCents: portfolioItems.reduce(
+									(acc, investment) => acc + investment.currentBaseValueInCents,
+									0,
+								),
+								totalInitialInCents: portfolioItems.reduce(
+									(acc, investment) => acc + investment.initialValueInCents,
+									0,
+								),
+								totalSimulatedInCents: portfolioItems.reduce(
+									(acc, investment) => acc + investment.simulatedValueInCents,
+									0,
+								),
+								totalEstimatedGainInCents: portfolioItems.reduce(
+									(acc, investment) => acc + investment.estimatedGainInCents,
+									0,
+								),
+								investmentCount: portfolioItems.length,
+							};
+
+							setInvestmentPortfolio(nextPortfolio);
+							setInvestmentsError(null);
+						} catch (error) {
+							console.error('Erro ao carregar investimentos na Home:', error);
+							if (isMounted) {
+								setInvestmentPortfolio(createEmptyInvestmentPortfolio());
+								setInvestmentsError('Erro ao carregar os investimentos.');
+							}
 					} finally {
 						if (isMounted) {
 							setIsLoadingInvestments(false);
@@ -1241,7 +1742,11 @@ export default function HomeScreen() {
 	);
 
 	return (
-		<View className="flex-1" style={{ backgroundColor: pageBackground }}>
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
 			<StatusBar
 				translucent
 				backgroundColor="transparent"
@@ -1260,7 +1765,10 @@ export default function HomeScreen() {
 						resizeMode="cover"
 					/>
 
-					<VStack className="w-full h-full items-center justify-start px-6 pt-10 gap-4">
+					<VStack
+						className="w-full h-full items-center justify-start px-6 gap-4"
+						style={{ paddingTop: insets.top + 24 }}
+					>
 						<Heading size="xl" className="text-white text-center">
 							Olá, {auth.currentUser?.displayName?.split(' ')[0] ?? 'Usuário'}! Esse é seu resumo financeiro.
 						</Heading>
@@ -1273,14 +1781,14 @@ export default function HomeScreen() {
 				</View>
 
 				<View
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pt-10 pb-6`}
+					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pt-10 pb-1`}
 					style={{ marginTop: heroHeight - 64 }}
 				>
 					<View className="flex-1 w-full">
 
 						<ScrollView
 							className="flex-1"
-							contentContainerStyle={{ paddingBottom: 24 }}
+							contentContainerStyle={{ paddingBottom: 16 }}
 							showsVerticalScrollIndicator={false}
 						>
 							{/* Bank Carousel */}
@@ -1304,27 +1812,18 @@ export default function HomeScreen() {
 											renderItem={({ item }) => {
 												const monthlyExpenseInCents = currentMonthExpensesByBankId[item.id] ?? 0;
 												const monthlyGainInCents = currentMonthGainsByBankId[item.id] ?? 0;
-												const bankAccentColor = normalizeHexColor(bankColorsById[item.id]);
-												const cardBackgroundColor = bankAccentColor
-													? isDarkMode
-														? hexToRgba(bankAccentColor, 0.42) ?? '#1e293b'
-														: hexToRgba(bankAccentColor, 0.24) ?? '#f8fafc'
-													: isDarkMode
-														? '#172033'
-														: '#ffffff';
-												const borderColor =
-													hexToRgba(bankAccentColor ?? '', isDarkMode ? 0.45 : 0.22) ??
-													(isDarkMode ? 'rgba(148, 163, 184, 0.20)' : 'rgba(148, 163, 184, 0.24)');
+												const cardBackgroundColor = isDarkMode ? '#172033' : '#ffffff';
+												const borderColor = isDarkMode ? 'rgba(250, 204, 21, 0.60)' : '#FFE000';
 
 												return (
 													<View
 														style={{
 															flex: 1,
-															marginHorizontal: 8,
+															marginHorizontal: 0,
 															paddingHorizontal: 16,
 															paddingVertical: 16,
 															borderRadius: 16,
-															borderWidth: 1,
+															borderWidth: 1.5,
 															backgroundColor: cardBackgroundColor,
 															borderColor,
 															overflow: 'hidden',
@@ -1401,13 +1900,621 @@ export default function HomeScreen() {
 										Nenhum banco registrado
 									</Text>
 								)}
+								</View>
+
+								<View className="mb-6">
+									<HStack className="items-start justify-between gap-3">
+										<TouchableOpacity
+											activeOpacity={0.85}
+											onPress={handleToggleInvestments}
+											style={{ flex: 1 }}
+										>
+											<Heading size="lg">Investimentos</Heading>
+											<Text
+												style={{
+													marginTop: 4,
+													fontSize: 14,
+													lineHeight: 20,
+													color: investmentPalette.subtitle,
+												}}
+											>
+												{isInvestmentsExpanded
+													? 'Clique para ocultar a posição atual da carteira.'
+													: 'Clique para visualizar a carteira registrada.'}
+											</Text>
+										</TouchableOpacity>
+
+										<TouchableOpacity
+											activeOpacity={0.85}
+											onPress={handleToggleInvestments}
+											style={{
+												minWidth: 28,
+												paddingLeft: 8,
+												paddingVertical: 4,
+												alignItems: 'center',
+												justifyContent: 'center',
+												flexShrink: 0,
+											}}
+										>
+											{renderSectionChevron(isInvestmentsExpanded, investmentPalette.subtitle)}
+										</TouchableOpacity>
+									</HStack>
+
+									<HStack className="mt-4 flex-wrap gap-3">
+										{investmentHeaderMetrics.map(metric => (
+											<View
+												key={metric.key}
+												style={{
+													minWidth: metric.key === 'count' ? 112 : 136,
+													flexGrow: metric.key === 'count' ? 0 : 1,
+													borderRadius: 16,
+													borderWidth: 1,
+													borderColor: investmentPalette.border,
+													backgroundColor: investmentPalette.metricBackground,
+													paddingHorizontal: 14,
+													paddingVertical: 12,
+												}}
+											>
+												<Text
+													style={{
+														fontSize: 11,
+														fontWeight: '700',
+														letterSpacing: 0.4,
+														color: investmentPalette.subtitle,
+														textTransform: 'uppercase',
+													}}
+												>
+													{metric.label}
+												</Text>
+												<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
+													{metric.value}
+												</Heading>
+											</View>
+										))}
+									</HStack>
+
+									{isInvestmentsExpanded ? (
+										<View
+											style={{
+												marginTop: 14,
+												borderRadius: 20,
+												borderWidth: 1,
+												borderColor: investmentPalette.border,
+												backgroundColor: investmentPalette.sectionBackground,
+												paddingHorizontal: 16,
+												paddingVertical: 16,
+											}}
+										>
+											{isLoadingInvestments ? (
+												<Text style={{ color: investmentPalette.subtitle }}>
+													Carregando investimentos...
+												</Text>
+											) : investmentsError ? (
+												<View
+													style={{
+														borderRadius: 16,
+														borderWidth: 1,
+														borderColor: investmentPalette.border,
+														backgroundColor: investmentPalette.cardBackground,
+														paddingHorizontal: 14,
+														paddingVertical: 14,
+													}}
+												>
+													<Text style={{ color: investmentPalette.subtitle }}>
+														{investmentsError}
+													</Text>
+												</View>
+											) : investmentPortfolio.investmentCount === 0 ? (
+												<View
+													style={{
+														borderRadius: 16,
+														borderWidth: 1,
+														borderColor: investmentPalette.border,
+														backgroundColor: investmentPalette.cardBackground,
+														paddingHorizontal: 14,
+														paddingVertical: 14,
+													}}
+												>
+													<Text style={{ color: investmentPalette.subtitle }}>
+														Nenhum investimento registrado até o momento.
+													</Text>
+												</View>
+											) : (
+												<>
+													<Text
+														style={{
+															fontSize: 12,
+															fontWeight: '700',
+															letterSpacing: 0.4,
+															textTransform: 'uppercase',
+															color: investmentPalette.subtitle,
+														}}
+													>
+														Resumo da carteira
+													</Text>
+
+													<HStack className="mt-3 flex-wrap gap-3">
+														{investmentSummaryMetrics.map(metric => (
+															<View
+																key={metric.key}
+																style={{
+																	minWidth: 140,
+																	flexGrow: 1,
+																	borderRadius: 16,
+																	borderWidth: 1,
+																	borderColor: investmentPalette.border,
+																	backgroundColor: investmentPalette.metricBackground,
+																	paddingHorizontal: 14,
+																	paddingVertical: 12,
+																}}
+															>
+																<Text
+																	style={{
+																		fontSize: 11,
+																		fontWeight: '700',
+																		letterSpacing: 0.4,
+																		color: investmentPalette.subtitle,
+																		textTransform: 'uppercase',
+																	}}
+																>
+																	{metric.label}
+																</Text>
+																<Heading size="sm" style={{ marginTop: 6, color: metric.color }}>
+																	{metric.value}
+																</Heading>
+															</View>
+														))}
+													</HStack>
+
+													<View
+														style={{
+															height: 1,
+															marginVertical: 16,
+															backgroundColor: investmentPalette.border,
+														}}
+													/>
+
+													<VStack className="gap-3">
+														{visibleInvestmentItems.map(investment => (
+															<View
+																key={investment.id}
+																style={{
+																	borderRadius: 18,
+																	borderWidth: 1,
+																	borderColor: investmentPalette.border,
+																	backgroundColor: investmentPalette.cardBackground,
+																	paddingHorizontal: 14,
+																	paddingVertical: 14,
+																}}
+															>
+																<HStack className="items-start justify-between gap-3">
+																	<VStack className="flex-1 gap-1">
+																		<Heading size="sm" style={{ color: investmentPalette.title }}>
+																			{investment.name}
+																		</Heading>
+																		<Text
+																			style={{
+																				fontSize: 12,
+																				lineHeight: 18,
+																				color: investmentPalette.subtitle,
+																			}}
+																		>
+																			{investment.bankName}
+																		</Text>
+																	</VStack>
+
+																	<View
+																		style={{
+																			borderRadius: 999,
+																			borderWidth: 1,
+																			borderColor: investmentPalette.badgeBorder,
+																			backgroundColor: investmentPalette.badgeBackground,
+																			paddingHorizontal: 10,
+																			paddingVertical: 6,
+																		}}
+																	>
+																		<Text
+																			style={{
+																				fontSize: 11,
+																				fontWeight: '700',
+																				color: investmentPalette.badgeText,
+																			}}
+																		>
+																			{`${formatPercentage(investment.cdiPercentage)}% CDI`}
+																		</Text>
+																	</View>
+																</HStack>
+
+																<HStack className="mt-4 flex-wrap gap-3">
+																	{[
+																		{
+																			key: 'current',
+																			label: 'Valor atual/base',
+																			value: formatCurrencyBRL(investment.currentBaseValueInCents),
+																			color: investmentPalette.currentColor,
+																		},
+																		{
+																			key: 'simulated',
+																			label: 'Valor simulado',
+																			value: formatCurrencyBRL(investment.simulatedValueInCents),
+																			color: investmentPalette.simulatedColor,
+																		},
+																		{
+																			key: 'gain',
+																			label: 'Ganho estimado',
+																			value: formatCurrencyBRL(investment.estimatedGainInCents),
+																			color: investmentPalette.gainColor,
+																		},
+																	].map(metric => (
+																		<View
+																			key={metric.key}
+																			style={{
+																				minWidth: 132,
+																				flexGrow: 1,
+																				borderRadius: 14,
+																				borderWidth: 1,
+																				borderColor: investmentPalette.border,
+																				backgroundColor: investmentPalette.sectionBackground,
+																				paddingHorizontal: 12,
+																				paddingVertical: 12,
+																			}}
+																		>
+																			<Text
+																				style={{
+																					fontSize: 11,
+																					fontWeight: '700',
+																					letterSpacing: 0.3,
+																					color: investmentPalette.subtitle,
+																					textTransform: 'uppercase',
+																				}}
+																			>
+																				{metric.label}
+																			</Text>
+																			<Text
+																				style={{
+																					marginTop: 6,
+																					fontSize: 15,
+																					fontWeight: '700',
+																					color: metric.color,
+																				}}
+																			>
+																				{metric.value}
+																			</Text>
+																		</View>
+																	))}
+																</HStack>
+
+																<HStack className="mt-4 flex-wrap gap-4">
+																	<VStack className="gap-1">
+																		<Text
+																			style={{
+																				fontSize: 11,
+																				fontWeight: '700',
+																				letterSpacing: 0.3,
+																				color: investmentPalette.subtitle,
+																				textTransform: 'uppercase',
+																			}}
+																		>
+																			Valor inicial
+																		</Text>
+																		<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
+																			{formatCurrencyBRL(investment.initialValueInCents)}
+																		</Text>
+																	</VStack>
+
+																	<VStack className="flex-1 gap-1">
+																		<Text
+																			style={{
+																				fontSize: 11,
+																				fontWeight: '700',
+																				letterSpacing: 0.3,
+																				color: investmentPalette.subtitle,
+																				textTransform: 'uppercase',
+																			}}
+																		>
+																			Referência
+																		</Text>
+																		<Text
+																			style={{
+																				fontSize: 12,
+																				lineHeight: 18,
+																				color: investmentPalette.subtitle,
+																			}}
+																		>
+																			{investment.referenceLabel}
+																		</Text>
+																	</VStack>
+																</HStack>
+															</View>
+														))}
+													</VStack>
+
+													{hasHiddenInvestments ? (
+														<TouchableOpacity
+															activeOpacity={0.85}
+															onPress={handleToggleVisibleInvestments}
+															style={{
+																marginTop: 16,
+																alignSelf: 'flex-start',
+																borderRadius: 999,
+																borderWidth: 1,
+																borderColor: investmentPalette.border,
+																paddingHorizontal: 14,
+																paddingVertical: 10,
+															}}
+														>
+															<Text style={{ color: investmentPalette.title, fontWeight: '600' }}>
+																{shouldShowAllInvestments ? 'Mostrar menos' : 'Mostrar mais'}
+															</Text>
+														</TouchableOpacity>
+													) : null}
+												</>
+											)}
+
+											{!isLoadingInvestments ? (
+												<TouchableOpacity
+													activeOpacity={0.85}
+													onPress={handleOpenInvestmentsList}
+													style={{
+														marginTop: 16,
+														alignSelf: 'flex-start',
+														paddingVertical: 4,
+													}}
+												>
+													<Text style={{ color: investmentPalette.ctaColor, fontWeight: '700' }}>
+														Ver lista completa de investimentos
+													</Text>
+												</TouchableOpacity>
+											) : null}
+										</View>
+									) : null}
+
+									{investmentsError && !isInvestmentsExpanded ? (
+										<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+											{investmentsError}
+										</Text>
+									) : null}
+								</View>
+
+								<View className="mb-6">
+									<HStack className="items-start justify-between gap-3">
+										<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={handleToggleMovements}
+										style={{ flex: 1 }}
+									>
+										<Heading size="lg">Últimas movimentações</Heading>
+										<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+											{isMovementsExpanded
+												? 'Clique para ocultar as últimas transações.'
+												: 'Clique para mostrar as últimas transações.'}
+										</Text>
+									</TouchableOpacity>
+
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={handleToggleMovements}
+										style={{
+											minWidth: 28,
+											paddingLeft: 8,
+											paddingVertical: 4,
+											alignItems: 'center',
+											justifyContent: 'center',
+											flexShrink: 0,
+										}}
+									>
+										{renderTimelineChevron(isMovementsExpanded)}
+									</TouchableOpacity>
+								</HStack>
+
+								{isMovementsExpanded ? (
+									isLoadingMovements ? (
+									<View
+										style={{
+											marginTop: 10,
+											paddingHorizontal: 16,
+											paddingVertical: 18,
+										}}
+									>
+										<Text style={{ color: timelinePalette.subtitle }}>
+											Carregando últimas movimentações...
+										</Text>
+									</View>
+									) : timelineStatuses.length > 0 ? (
+									<View style={{ marginTop: 14 }}>
+										{timelineStatuses.map((status, index) => {
+											const movement = status.movement;
+											const isTimelineItemExpanded = expandedTimelineStatuses.includes(status.status);
+											const badgeLabel = getTimelineBadgeLabel(movement);
+											const badgeAction = getTimelineBadgeAction(movement);
+											const contextLabel = getTimelineContextLabel(movement);
+											const dateLabel = formatMovementDate(movement.date);
+											const shouldRenderCashBadge = Boolean(movement.moneyFormat);
+											const shouldRenderBankBadge =
+												Boolean(movement.bankId) &&
+												Boolean(movement.bankName) &&
+												!shouldRenderCashBadge &&
+												!movement.isBankTransfer &&
+												!movement.isInvestmentDeposit &&
+												!movement.isInvestmentRedemption;
+											const bankBadgePalette = shouldRenderBankBadge
+												? getTimelineBankBadgePalette(movement.bankId)
+												: null;
+											const shouldRenderContextSeparator =
+												Boolean(dateLabel) && (shouldRenderBankBadge || shouldRenderCashBadge);
+
+											return (
+												<View
+													key={status.status}
+													style={{
+														flexDirection: 'row',
+													}}
+												>
+													<View
+														style={{
+															alignItems: 'center',
+															width: '7%',
+															paddingTop: 3,
+														}}
+													>
+														{renderTimelineBall(status, index)}
+														{index < timelineStatuses.length - 1 ? renderTimelineStick(status, index) : <View />}
+													</View>
+
+													<View
+														style={{
+															width: '93%',
+															paddingBottom: 12,
+														}}
+													>
+														<TouchableOpacity
+															activeOpacity={0.85}
+															onPress={() => handleToggleTimelineStatus(status.status)}
+															style={{
+																flexDirection: 'row',
+																justifyContent: 'space-between',
+																alignItems: 'center',
+																width: '100%',
+															}}
+														>
+															<View style={{ width: '88%' }}>
+																<Text
+																	style={{
+																		color: timelinePalette.title,
+																		fontSize: 15,
+																		fontWeight: '700',
+																	}}
+																>
+																	{status.title}
+																</Text>
+
+																<HStack className="mt-1 items-center flex-wrap gap-2">
+																	<Badge size="sm" variant="outline" action={badgeAction}>
+																		<BadgeText className="tracking-wide">
+																			{badgeLabel}
+																		</BadgeText>
+																	</Badge>
+
+																	{shouldRenderBankBadge && bankBadgePalette ? (
+																		<Badge
+																			size="sm"
+																			variant="outline"
+																			action="muted"
+																			style={{
+																				backgroundColor: bankBadgePalette.backgroundColor,
+																				borderColor: bankBadgePalette.borderColor,
+																			}}
+																		>
+																			<BadgeText
+																				style={{
+																					color: bankBadgePalette.textColor,
+																				}}
+																			>
+																				{movement.bankName}
+																			</BadgeText>
+																		</Badge>
+																	) : shouldRenderCashBadge && contextLabel ? (
+																		<Badge size="sm" variant="outline" action="muted">
+																			<BadgeText>{contextLabel}</BadgeText>
+																		</Badge>
+																	) : contextLabel ? (
+																		<Text
+																			style={{
+																				flexShrink: 1,
+																				color: timelinePalette.subtitle,
+																				fontSize: 12,
+																				lineHeight: 18,
+																			}}
+																		>
+																			{contextLabel}
+																		</Text>
+																	) : null}
+
+																	{shouldRenderContextSeparator ? (
+																		<Text
+																			style={{
+																				color: timelinePalette.subtitle,
+																				fontSize: 12,
+																				lineHeight: 18,
+																			}}
+																		>
+																			•
+																		</Text>
+																	) : null}
+
+																	{dateLabel ? (
+																		<Text
+																			style={{
+																				flexShrink: 1,
+																				color: timelinePalette.subtitle,
+																				fontSize: 12,
+																				lineHeight: 18,
+																			}}
+																		>
+																			{dateLabel}
+																		</Text>
+																	) : null}
+																</HStack>
+															</View>
+
+															<View
+																style={{
+																	width: '12%',
+																	alignItems: 'flex-start',
+																}}
+															>
+																{renderTimelineChevron(isTimelineItemExpanded)}
+															</View>
+														</TouchableOpacity>
+
+														{isTimelineItemExpanded ? status.renderContent ?? null : null}
+													</View>
+												</View>
+											);
+										})}
+									</View>
+								) : (
+									<View
+										style={{
+											marginTop: 10,
+											borderRadius: 18,
+											borderWidth: 1,
+											borderColor: timelinePalette.cardBorder,
+											backgroundColor: timelinePalette.emptySurface,
+											paddingHorizontal: 16,
+											paddingVertical: 18,
+										}}
+									>
+										<Text style={{ color: timelinePalette.subtitle }}>
+											Nenhuma transação recente encontrada.
+										</Text>
+									</View>
+									)
+								) : null}
+
+								{movementsError ? (
+									<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+										{movementsError}
+									</Text>
+								) : null}
+
 							</View>
+
 						</ScrollView>
+
+						<View
+							style={{
+								paddingBottom: 0,
+								paddingTop: 2,
+							}}
+						>
+							<Navigator defaultValue={0} />
+						</View>
 
 					</View>
 
 				</View>
 			</View>
-		</View>
+		</SafeAreaView>
 	);
 }

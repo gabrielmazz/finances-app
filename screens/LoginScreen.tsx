@@ -33,7 +33,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { auth } from '@/FirebaseConfig';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 
-import LoginWallpaper from '@/assets/Background/wallpaper01.jpg';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import LogoLumus from '@/assets/Logo/Logo.png';
 import LogoLumusWhite from '@/assets/Logo/LogoWhite.png';
 import {

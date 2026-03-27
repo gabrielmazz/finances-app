@@ -287,6 +287,9 @@ export async function getLimitedExpensesFirebase({ limit, personId }: GetLimited
 export async function getLimitedExpensesWithPeopleFirebase({ limit, personId }: GetLimitedExpensesParams) {
 	
 	try {
+		if (!personId) {
+			return { success: true, data: [] };
+		}
 		
 		// Primeiro, obterm os IDs dos usuários relacionados às despesas
 		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
@@ -307,7 +310,7 @@ export async function getLimitedExpensesWithPeopleFirebase({ limit, personId }: 
 		const expensesQuery = query(
 			expensesCollection,
 			where('personId', 'in', relatedUserIds),
-			orderBy('createdAt', 'desc'),
+			orderBy('date', 'desc'),
 			limitQuery(limit)
 		);
 
@@ -320,7 +323,7 @@ export async function getLimitedExpensesWithPeopleFirebase({ limit, personId }: 
 
 		// Agora, junta as despesas com os dados das pessoas relacionadas
 		const expensesWithPeople = await Promise.all(
-			expenses.map(async expense => {
+			(expenses as Array<Record<string, any>>).map(async expense => {
 				const personDoc = await getDoc(doc(db, 'users', expense.personId));
 				const personData = personDoc.exists() ? personDoc.data() : null;
 
