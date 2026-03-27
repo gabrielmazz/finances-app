@@ -302,6 +302,10 @@ export async function getLimitedGainsFirebase({ limit, personId }: GetLimitedGai
 export async function getLimitedGainsWithPeopleFirebase({ limit, personId }: GetLimitedGainsParams) {
 	
 	try {
+		if (!personId) {
+			return { success: true, data: [] };
+		}
+
 		// Primeiro, obterm os IDs dos usuários relacionados aos ganhos
 		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
 		
@@ -319,7 +323,7 @@ export async function getLimitedGainsWithPeopleFirebase({ limit, personId }: Get
 		const gainsQuery = query(
 			gainsCollection,
 			where('personId', 'in', relatedUserIds),
-			orderBy('createdAt', 'desc'),
+			orderBy('date', 'desc'),
 			limitQuery(limit)
 		);
 
@@ -329,7 +333,26 @@ export async function getLimitedGainsWithPeopleFirebase({ limit, personId }: Get
 			...gainDoc.data(),
 		}));
 
-		return { success: true, data: gains };
+		const gainsWithPeople = await Promise.all(
+			(gains as Array<Record<string, any>>).map(async gain => {
+				const personDoc = await getDoc(doc(db, 'users', gain.personId));
+				const personData = personDoc.exists() ? personDoc.data() : null;
+
+				return {
+					...gain,
+					person: personData
+						? {
+								id: gain.personId,
+								name: personData.name,
+								email: personData.email,
+								avatarUrl: personData.avatarUrl || null,
+						  }
+						: null,
+				};
+			})
+		);
+
+		return { success: true, data: gainsWithPeople };
 	} catch (error) {
 		console.error('Erro ao obter ganhos limitados com pessoas:', error);
 		return { success: false, error };

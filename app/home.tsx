@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Menu } from '@/components/uiverse/menu';
@@ -43,6 +43,10 @@ export default function HomeRoute() {
 	const normalizedIndex = Math.min(Math.max(activeTab, 0), tabCount - 1);
 	const ActiveComponent =
 		TAB_ITEMS[normalizedIndex]?.component ?? TAB_ITEMS[0].component;
+	const shouldRenderLegacyMenu = normalizedIndex !== 0;
+	const safeAreaEdges: Edge[] = shouldRenderLegacyMenu
+		? ['top', 'bottom', 'left', 'right']
+		: [];
 
 	useEffect(() => {
 		setActiveTab(parsedTabFromParams);
@@ -51,31 +55,35 @@ export default function HomeRoute() {
 	return (
 		<SafeAreaView
 			className="flex-1"
-			edges={['top', 'bottom', 'left', 'right']}
+			edges={safeAreaEdges}
 			style={{ backgroundColor: pageBackground }}
 		>
 			<View
 				className="
 					flex-1 w-full h-full
 					justify-between
-					pb-2
 					relative
 				"
-				style={{ backgroundColor: pageBackground }}
+				style={{
+					backgroundColor: pageBackground,
+					paddingBottom: shouldRenderLegacyMenu ? 8 : 0,
+				}}
 			>
 				<View className="flex-1">
 					<ActiveComponent />
 				</View>
 
-				<View className="items-center">
-					<Menu
-						defaultValue={normalizedIndex}
-						onChange={value => {
-							setActiveTab(value);
-							router.replace({ pathname: '/home', params: { tab: String(value) } });
-						}}
-					/>
-				</View>
+				{shouldRenderLegacyMenu ? (
+					<View className="items-center">
+						<Menu
+							defaultValue={normalizedIndex}
+							onChange={value => {
+								setActiveTab(value);
+								router.replace({ pathname: '/home', params: { tab: String(value) } });
+							}}
+						/>
+					</View>
+				) : null}
 			</View>
 		</SafeAreaView>
 	);
