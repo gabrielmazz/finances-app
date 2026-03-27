@@ -1,4 +1,5 @@
 import React from 'react';
+import '@/utils/reactNativeCompat';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, Stack, usePathname, useRootNavigationState } from 'expo-router';

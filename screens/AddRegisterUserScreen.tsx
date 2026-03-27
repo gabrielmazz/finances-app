@@ -38,7 +38,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 // Importação do SVG
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
-type FocusableInputKey = 'email' | 'password';
+type FocusableInputKey = 'name' | 'email' | 'password';
 
 export default function AddRegisterUserScreen() {
 	const { isDarkMode } = useAppTheme();
@@ -55,15 +55,27 @@ export default function AddRegisterUserScreen() {
 
 
     // =========================================== Funções para Registro ============================================ //
+    const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const scrollViewRef = React.useRef<ScrollView | null>(null);
+    const nameInputRef = React.useRef<TextInput | null>(null);
     const emailInputRef = React.useRef<TextInput | null>(null);
     const passwordInputRef = React.useRef<TextInput | null>(null);
     const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
     const [keyboardHeight, setKeyboardHeight] = React.useState(0);
     const keyboardScrollOffset = React.useCallback(
-        (key: FocusableInputKey) => (key === 'password' ? 160 : 120),
+        (key: FocusableInputKey) => {
+            if (key === 'password') {
+                return 160;
+            }
+
+            if (key === 'email') {
+                return 120;
+            }
+
+            return 80;
+        },
         [],
     );
 
@@ -71,7 +83,12 @@ export default function AddRegisterUserScreen() {
 
         Keyboard.dismiss();
 
-        const result = await registerUserFirebase({ email, password });
+        const trimmedName = name.trim();
+        const result = await registerUserFirebase({
+            name: trimmedName.length > 0 ? trimmedName : undefined,
+            email,
+            password,
+        });
 
         if (result.success) {
 
@@ -83,6 +100,7 @@ export default function AddRegisterUserScreen() {
             });
 
             // Voltar para a tela de configurações após o registro bem-sucedido
+            setName('');
             setEmail('');
             setPassword('');
             router.back();
@@ -102,6 +120,8 @@ export default function AddRegisterUserScreen() {
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
 			switch (key) {
+                case 'name':
+                    return nameInputRef;
 				case 'email':
 					return emailInputRef;
 				case 'password':
@@ -230,11 +250,27 @@ export default function AddRegisterUserScreen() {
 
                     <Box>
                         <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
+                            Nome do usuário (opcional)
+                        </Text>
+                        <Input>
+                            <InputField
+                                ref={nameInputRef as any}
+                                placeholder="Nome da pessoa que terá acesso à conta"
+                                autoCapitalize="words"
+                                value={name}
+                                onChangeText={setName}
+                                onFocus={() => handleInputFocus('name')}
+                            />
+                        </Input>
+                    </Box>
+
+                    <Box>
+                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
                             Email do usuário
                         </Text>
                         <Input>
                             <InputField
-                                ref={emailInputRef}
+                                ref={emailInputRef as any}
                                 placeholder="Email do usuário que será registrado"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
@@ -251,7 +287,7 @@ export default function AddRegisterUserScreen() {
                         </Text>
                         <Input>
                             <InputField
-                                ref={passwordInputRef}
+                                ref={passwordInputRef as any}
                                 placeholder="Senha"
                                 secureTextEntry={!showPassword}
                                 type={showPassword ? 'text' : 'password'}
