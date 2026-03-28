@@ -7,12 +7,17 @@ import {
 	Platform,
 	ScrollView,
 	StatusBar,
-	TextInput,
 	View,
+	useWindowDimensions,
+	Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-
+import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
+import { HStack } from '@/components/ui/hstack';
+import { Image } from '@/components/ui/image';
+import { Input, InputField } from '@/components/ui/input';
 import {
 	Select,
 	SelectBackdrop,
@@ -25,47 +30,52 @@ import {
 	SelectPortal,
 	SelectTrigger,
 } from '@/components/ui/select';
-import { Heading } from '@/components/ui/heading';
+import {
+	Radio,
+	RadioGroup,
+	RadioIndicator,
+	RadioIcon,
+	RadioLabel,
+} from '@/components/ui/radio';
 import { Text } from '@/components/ui/text';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
-import { HStack } from '@/components/ui/hstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { Box } from '@/components/ui/box';
-import { Switch } from '@/components/ui/switch';
-
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
-
-import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
-import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
-import { auth } from '@/FirebaseConfig';
-import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
-import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
+import { VStack } from '@/components/ui/vstack';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import DatePickerField from '@/components/uiverse/date-picker';
-
-// Importação do SVG
-import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
-import { Divider } from '@/components/ui/divider';
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import Navigator from '@/components/uiverse/navigator';
+import { auth } from '@/FirebaseConfig';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { getAllBanksFirebase } from '@/functions/BankFirebase';
+import {
+	addExpenseFirebase,
+	getExpenseDataFirebase,
+	updateExpenseFirebase,
+} from '@/functions/ExpenseFirebase';
+import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
+import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
+import { getAllTagsFirebase } from '@/functions/TagFirebase';
+
+import { Info } from 'lucide-react-native';
+import { CircleIcon } from '@/components/ui/icon';
+
+import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 
 type OptionItem = {
 	id: string;
 	name: string;
 	usageType?: 'expense' | 'gain';
 };
+
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'expense-explanation';
 
-// Formata um valor em centavos para o formato de moeda BRL
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
 		style: 'currency',
 		currency: 'BRL',
 	}).format(valueInCents / 100);
 
-// Formata uma data para o formato brasileiro (DD/MM/YYYY)
 const formatDateToBR = (date: Date) => {
 	const year = date.getFullYear();
 	const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -162,95 +172,130 @@ const getSuggestedDateByDueDay = (dueDay: number) => {
 
 export default function AddRegisterExpensesScreen() {
 	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
 
-	// Variaveis relacionadas ao registro de despesas
+	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
+	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
+	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+	const inputField = isDarkMode
+		? 'text-slate-100 placeholder:text-slate-500'
+		: 'text-slate-900 placeholder:text-slate-500';
+	const focusFieldClassName =
+		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
+	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const textareaContainerClassName =
+		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+
+	// Estilização para o switch radio
+	const switchRadioClassName = 'items-center gap-3';
+	const switchRadioIndicatorClassName = isDarkMode
+		? 'data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300/20'
+		: 'data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-100';
+	const switchRadioIconClassName = isDarkMode
+		? 'fill-yellow-300 text-yellow-300'
+		: 'fill-yellow-500 text-yellow-500';
+	const switchRadioLabelClassName = isDarkMode
+		? ''
+		: '';
+
+	// Estilização do Button de submit
+	const submitButtonClassName = isDarkMode
+		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500';
+	
+
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+	const infoCardStyle = React.useMemo(
+		() => ({
+			borderRadius: 20,
+			borderWidth: 1,
+			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
+			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
+		}),
+		[isDarkMode],
+	);
+
 	const [expenseName, setExpenseName] = React.useState('');
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(new Date()));
-
-	// Opções carregadas do Firebase
 	const [tags, setTags] = React.useState<OptionItem[]>([]);
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
-
-	// Valores selecionados pelo usuário das opções no select
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
-
-	// Estados de carregamento e submissão
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
+	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
+	const [valuesRadioMoneyFormat, setValuesRadioMoneyFormat] = React.useState<
+		'Pagamento em Dinheiro' | 'Pagamento em Banco'
+	>(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
 
-	// Constantes pós volta da consulta de ID de tag e banco, apenas para quando
-	// vier dos parâmetros, assim mostrando o nome correto no input
-	// Controla no nome da tag e banco depois de buscado dentro do Firebase
-	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
-	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
-	const expenseNameInputRef = React.useRef<TextInput | null>(null);
-	const expenseValueInputRef = React.useRef<TextInput | null>(null);
-	const expenseExplanationInputRef = React.useRef<TextInput | null>(null);
+	const expenseNameInputRef = React.useRef<any>(null);
+	const expenseValueInputRef = React.useRef<any>(null);
+	const expenseExplanationInputRef = React.useRef<any>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+
 	const keyboardScrollOffset = React.useCallback(
-		(key: FocusableInputKey) => (key === 'expense-explanation' ? 180 : 120),
+		(key: FocusableInputKey) => (key === 'expense-explanation' ? 220 : 170),
 		[],
 	);
 
-	const getInputRef = React.useCallback(
+	const getInputRef = React.useCallback((key: FocusableInputKey) => {
+		switch (key) {
+			case 'expense-name':
+				return expenseNameInputRef;
+			case 'expense-value':
+				return expenseValueInputRef;
+			case 'expense-explanation':
+				return expenseExplanationInputRef;
+			default:
+				return null;
+		}
+	}, []);
+
+	const scrollToInput = React.useCallback(
 		(key: FocusableInputKey) => {
-			switch (key) {
-				case 'expense-name':
-					return expenseNameInputRef;
-				case 'expense-value':
-					return expenseValueInputRef;
-				case 'expense-explanation':
-					return expenseExplanationInputRef;
-				default:
-					return null;
+			const inputRef = getInputRef(key);
+			if (!inputRef?.current) {
+				return;
+			}
+
+			const nodeHandle = findNodeHandle(inputRef.current);
+			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
+			const offset = keyboardScrollOffset(key);
+
+			if (scrollResponder && nodeHandle) {
+				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
+				return;
+			}
+
+			const scrollViewNode = scrollViewRef.current;
+			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
+
+			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
+				inputRef.current.measureLayout(
+					innerViewNode,
+					(_x: number, y: number) =>
+						scrollViewNode.scrollTo({
+							y: Math.max(0, y - offset),
+							animated: true,
+						}),
+					() => { },
+				);
 			}
 		},
-		[],
+		[getInputRef, keyboardScrollOffset],
 	);
-
-		const scrollToInput = React.useCallback(
-			(key: FocusableInputKey) => {
-				const inputRef = getInputRef(key);
-				if (!inputRef?.current) {
-					return;
-				}
-
-				const nodeHandle = findNodeHandle(inputRef.current);
-				const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-				const offset = keyboardScrollOffset(key);
-
-				if (scrollResponder && nodeHandle) {
-					scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-					return;
-				}
-
-				const scrollViewNode = scrollViewRef.current;
-				const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-				if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-					inputRef.current.measureLayout(
-						innerViewNode,
-						(_x, y) =>
-							scrollViewNode.scrollTo({
-								y: Math.max(0, y - keyboardScrollOffset(key)),
-								animated: true,
-							}),
-						() => {},
-					);
-				}
-			},
-			[getInputRef, keyboardScrollOffset],
-		);
 
 	const handleInputFocus = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -262,10 +307,8 @@ export default function AddRegisterExpensesScreen() {
 
 	React.useEffect(() => {
 		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
+		const showSub = Keyboard.addListener(showEvent, () => {
 			const focusedKey = lastFocusedInputKey.current;
 			if (focusedKey) {
 				setTimeout(() => {
@@ -273,15 +316,11 @@ export default function AddRegisterExpensesScreen() {
 				}, 50);
 			}
 		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
 
 		return () => {
 			showSub.remove();
-			hideSub.remove();
 		};
 	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 80), [keyboardHeight]);
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
@@ -361,6 +400,9 @@ export default function AddRegisterExpensesScreen() {
 			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
 		};
 	}, [
+		params.expenseId,
+		params.investmentDeltaInCents,
+		params.investmentIdForAdjustment,
 		params.templateDescription,
 		params.templateDueDay,
 		params.templateLockTag,
@@ -369,11 +411,8 @@ export default function AddRegisterExpensesScreen() {
 		params.templateTagId,
 		params.templateTagName,
 		params.templateValueInCents,
-		params.investmentDeltaInCents,
-		params.investmentIdForAdjustment,
 	]);
 
-	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
 	const linkedMandatoryExpenseId = React.useMemo(
 		() => (templateData?.mandatoryExpenseId ? templateData.mandatoryExpenseId : null),
 		[templateData],
@@ -385,6 +424,7 @@ export default function AddRegisterExpensesScreen() {
 		if (isEditing) {
 			return null;
 		}
+
 		if (
 			templateData?.investmentAdjustmentId &&
 			typeof templateData.investmentDeltaInCents === 'number' &&
@@ -395,8 +435,40 @@ export default function AddRegisterExpensesScreen() {
 				deltaInCents: templateData.investmentDeltaInCents,
 			};
 		}
+
 		return null;
 	}, [isEditing, templateData]);
+
+	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
+	const isBankSelectionRequired = !moneyFormat;
+	const isFormBusy = isLoadingExisting || isSubmitting;
+	const isSubmitDisabled =
+		isFormBusy ||
+		!expenseName.trim() ||
+		expenseValueCents === null ||
+		!selectedTagId ||
+		(isBankSelectionRequired && !selectedBankId) ||
+		!parsedExpenseDate;
+
+	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
+		setMoneyFormat(nextValue);
+
+		if (nextValue) {
+			setSelectedBankId(null);
+		}
+	}, []);
+
+	const handleRadioMoneyFormatChange = React.useCallback(
+		(nextValue: 'Pagamento em Dinheiro' | 'Pagamento em Banco') => {
+			setValuesRadioMoneyFormat(nextValue);
+			handleMoneyFormatChange(nextValue === 'Pagamento em Dinheiro');
+		},
+		[handleMoneyFormatChange],
+	);
+
+	React.useEffect(() => {
+		setValuesRadioMoneyFormat(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
+	}, [moneyFormat]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -414,33 +486,26 @@ export default function AddRegisterExpensesScreen() {
 
 	useFocusEffect(
 		React.useCallback(() => {
-
 			let isMounted = true;
 
 			const loadOptions = async () => {
-
 				setIsLoadingTags(true);
 				setIsLoadingBanks(true);
 
 				try {
-
-					// Carrega as tags e bancos do Firebase
-					const [tagsResult, banksResult] = await Promise.all([
-						getAllTagsFirebase(),
-						getAllBanksFirebase(),
-					]);
+					const [tagsResult, banksResult] = await Promise.all([getAllTagsFirebase(), getAllBanksFirebase()]);
 
 					if (!isMounted) {
 						return;
 					}
 
 					if (tagsResult.success && Array.isArray(tagsResult.data)) {
-
 						const formattedTags = tagsResult.data
 							.filter((tag: any) => {
 								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
 								const isMandatoryExpense = Boolean(tag?.isMandatoryExpense);
-								const isExpenseTag = usageType === 'expense' || usageType === undefined || usageType === null;
+								const isExpenseTag =
+									usageType === 'expense' || usageType === undefined || usageType === null;
 								return isExpenseTag && !isMandatoryExpense;
 							})
 							.map((tag: any) => ({
@@ -471,20 +536,16 @@ export default function AddRegisterExpensesScreen() {
 								offset: 40,
 							});
 						}
-
 					} else {
-
 						showFloatingAlert({
 							message: 'Não foi possível carregar as tags disponíveis.',
 							action: 'error',
 							position: 'bottom',
 							offset: 40,
 						});
-
 					}
 
 					if (banksResult.success && Array.isArray(banksResult.data)) {
-
 						const formattedBanks = banksResult.data.map((bank: any) => ({
 							id: bank.id,
 							name: bank.name,
@@ -494,20 +555,15 @@ export default function AddRegisterExpensesScreen() {
 						setSelectedBankId(current =>
 							current && formattedBanks.some(bank => bank.id === current) ? current : null,
 						);
-
 					} else {
-
 						showFloatingAlert({
 							message: 'Não foi possível carregar os bancos disponíveis.',
 							action: 'error',
 							position: 'bottom',
 							offset: 40,
 						});
-
 					}
-
 				} catch (error) {
-
 					console.error('Erro ao carregar opções da despesa:', error);
 
 					showFloatingAlert({
@@ -515,16 +571,11 @@ export default function AddRegisterExpensesScreen() {
 						action: 'error',
 						position: 'bottom',
 						offset: 40,
-
 					});
-
 				} finally {
-
 					if (isMounted) {
-
 						setIsLoadingTags(false);
 						setIsLoadingBanks(false);
-
 					}
 				}
 			};
@@ -534,7 +585,7 @@ export default function AddRegisterExpensesScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, [isTemplateLocked, templateData?.tagId]),
+		}, [isTemplateLocked, templateData?.lockTag, templateData?.tagId]),
 	);
 
 	React.useEffect(() => {
@@ -564,21 +615,9 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		setHasAppliedTemplate(true);
-	}, [
-		hasAppliedTemplate,
-		isEditing,
-		setExplanationExpense,
-		setExpenseDate,
-		setExpenseName,
-		setExpenseValueCents,
-		setExpenseValueDisplay,
-		setSelectedTagId,
-		templateData,
-	]);
+	}, [hasAppliedTemplate, isEditing, templateData]);
 
-	// Manipula a mudança no campo de valor, formatando para moeda BRL
 	const handleValueChange = React.useCallback((input: string) => {
-
 		const digitsOnly = input.replace(/\D/g, '');
 		if (!digitsOnly) {
 			setExpenseValueDisplay('');
@@ -586,90 +625,73 @@ export default function AddRegisterExpensesScreen() {
 			return;
 		}
 
-		const centsValue = parseInt(digitsOnly, 10);
+		const centsValue = Number.parseInt(digitsOnly, 10);
 		setExpenseValueDisplay(formatCurrencyBRL(centsValue));
 		setExpenseValueCents(centsValue);
 	}, []);
 
 	const handleSubmit = React.useCallback(async () => {
-
 		if (!expenseName.trim()) {
-
 			showFloatingAlert({
 				message: 'Informe o nome da despesa.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
 		if (expenseValueCents === null) {
-
 			showFloatingAlert({
 				message: 'Informe o valor da despesa.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
 		if (!selectedTagId) {
-
 			showFloatingAlert({
 				message: 'Selecione uma tag.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
-		const isBankSelectionRequired = !moneyFormat;
-
 		if (isBankSelectionRequired && !selectedBankId) {
-
 			showFloatingAlert({
 				message: 'Selecione um banco.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
 		if (!expenseDate) {
-
 			showFloatingAlert({
 				message: 'Informe a data da despesa.',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
-		const parsedDate = parseDateFromBR(expenseDate);
-
-		if (!parsedDate) {
+		if (!parsedExpenseDate) {
 			showFloatingAlert({
 				message: 'Informe uma data válida (DD/MM/AAAA).',
 				action: 'error',
 				position: 'bottom',
 				offset: 40,
 			});
-
 			return;
 		}
 
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
-
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedExpenseDate);
 		setIsSubmitting(true);
 
 		try {
@@ -796,20 +818,21 @@ export default function AddRegisterExpensesScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-
 	}, [
 		editingExpenseId,
 		expenseDate,
 		expenseName,
 		expenseValueCents,
-		moneyFormat,
 		explanationExpense,
 		isEditing,
+		isBankSelectionRequired,
 		isTemplateLocked,
 		linkedMandatoryExpenseId,
+		moneyFormat,
+		pendingInvestmentAdjustment,
 		selectedBankId,
 		selectedTagId,
-		pendingInvestmentAdjustment,
+		parsedExpenseDate,
 	]);
 
 	React.useEffect(() => {
@@ -840,6 +863,7 @@ export default function AddRegisterExpensesScreen() {
 
 				const data = response.data as Record<string, unknown>;
 				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+
 				setExpenseName(typeof data.name === 'string' ? data.name : '');
 				setExpenseValueCents(value);
 				setExpenseValueDisplay(formatCurrencyBRL(value));
@@ -847,13 +871,13 @@ export default function AddRegisterExpensesScreen() {
 				const normalizedDate = normalizeDateValue(data.date) ?? new Date();
 				setExpenseDate(formatDateToBR(normalizedDate));
 
-				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
-				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
-				setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
-				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
-			} catch (error) {
-				console.error('Erro ao carregar despesa para edição:', error);
-				if (isMounted) {
+					setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+					setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+					setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
+					setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
+				} catch (error) {
+					console.error('Erro ao carregar despesa para edição:', error);
+					if (isMounted) {
 					showFloatingAlert({
 						message: 'Erro inesperado ao carregar a despesa selecionada.',
 						action: 'error',
@@ -875,334 +899,402 @@ export default function AddRegisterExpensesScreen() {
 		};
 	}, [editingExpenseId]);
 
-	// UseFocusEffect para quando vier os parametros do template para editar
-	// um registro, a tag ID vem como número, portanto faz uma consulta no
-	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
-	// React.useEffect(() => {
-	React.useEffect(() => {
-
-		try {
-
-			if (!selectedTagId || selectedMovementTagName) {
-				return;
-			} else {
-				const fetchTagName = async () => {
-
-					// Busca o nome da tag pelo ID
-					const tagResult = await getTagDataFirebase(selectedTagId);
-
-					if (tagResult.success && tagResult.data) {
-
-						// Atualiza o nome da tag no estado com o nome buscado
-						setSelectedMovementTagName(tagResult.data.name);
-					} else {
-						setSelectedMovementTagName(null);
-					}
-				};
-
-				void fetchTagName();
-			}
-		} catch (error) {
-			console.error('Erro ao buscar nome da tag:', error);
+	const selectedTagLabel = React.useMemo(() => {
+		const matchedTag = tags.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			return matchedTag.name;
 		}
 
-	}, [selectedTagId, selectedMovementTagName]);
-
-	// UseFocusEffect para quando vier os parametros do template para editar
-	// um registro, o banco ID vem como número, portanto faz uma consulta no
-	// firebase para resgatar o nome corretamente, igual a tela @BankMovementsScreen
-	React.useEffect(() => {
-
-		try {
-
-			if (!selectedBankId || selectedMovementBankName) {
-				return;
-			} else {
-				const fetchBankName = async () => {
-
-					// Busca o nome do banco pelo ID
-					const bankResult = await getAllBanksFirebase();
-
-					if (bankResult.success && Array.isArray(bankResult.data)) {
-
-						const bankData = bankResult.data.find((bank: any) => bank.id === selectedBankId);
-
-						if (bankData && typeof (bankData as any).name === 'string') {
-							
-							// Atualiza o nome do banco no estado com o nome buscado
-							setSelectedMovementBankName((bankData as any).name);
-						} else {
-							setSelectedMovementBankName(null);
-						}
-					} else {
-						setSelectedMovementBankName(null);
-					}
-				};
-
-				void fetchBankName();
-			}
-		} catch (error) {
-			console.error('Erro ao buscar nome do banco:', error);
+		if (selectedTagId && selectedTagId === templateData?.tagId && templateTagDisplayName) {
+			return templateTagDisplayName;
 		}
 
-	}, [selectedBankId, selectedMovementBankName]);
+		return null;
+	}, [selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
 
+	const selectedBankLabel = React.useMemo(() => {
+		const matchedBank = banks.find(bank => bank.id === selectedBankId);
+		return matchedBank?.name ?? null;
+	}, [banks, selectedBankId]);
+
+	const screenTitle = 'Registro de Despesa';
+	const tagHelperMessage = isTagSelectionLocked
+		? isTemplateLocked
+			? 'Essa categoria vem do gasto obrigatório vinculado.'
+			: 'Essa categoria foi definida pelo template usado como base.'
+		: isLoadingTags
+			? 'Carregando tags de despesas...'
+			: tags.length === 0
+				? 'Cadastre uma tag de despesa para continuar.'
+				: 'Escolha a categoria que melhor representa esta saída.';
+		const bankHelperMessage = moneyFormat
+			? 'Pagamentos em dinheiro não ficam vinculados a banco.'
+			: isLoadingBanks
+				? 'Carregando bancos disponíveis...'
+				: banks.length === 0
+					? 'Cadastre um banco para vincular esta despesa.'
+					: 'Selecione onde essa saída foi lançada.';
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-						flex-1 w-full h-full
-						pt-[64px]
-						items-center
-						justify-between
-						pb-6
-						relative
-					"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<FloatingAlertViewport />
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
 
+			<FloatingAlertViewport />
+
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
+					className="flex-1"
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-					className="flex-1 w-full"
 				>
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						style={{ backgroundColor: pageBackground }}
-						contentContainerStyle={{
-							flexGrow: 1,
-							paddingBottom: contentBottomPadding, // espaço extra baseado na altura do teclado
-							backgroundColor: pageBackground,
-						}}
-					>
-						<View className="w-full px-6">
-
-						<Heading size="3xl" className="text-center mb-4 text-gray-900 dark:text-gray-100">
-							{isEditing ? 'Editar despesa' : 'Registro de Despesas'}
-						</Heading>
-
-						<Box className="w-full items-center mb-4">
-							<AddExpenseIllustration width={160} height={160} />
-						</Box>
-
-						<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
-							{isEditing
-								? 'Atualize os dados da despesa selecionada e confirme para salvar. Podendo alterar qualquer informação previamente cadastrada.'
-								: 'Preencha os dados abaixo para cadastrar uma nova despesa no sistema. Podendo descrever ela pelo template já estabelecido.'}
-						</Text>
-
-						<Divider className="mb-6" />
-
-						<VStack className="gap-4">
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Nome da despesa
-								</Text>
-								<Input isDisabled={isTemplateLocked}>
-									<InputField
-										ref={expenseNameInputRef}
-										placeholder="Ex: Mercado, Combustível, Roupa..."
-										value={expenseName}
-										onChangeText={setExpenseName}
-										autoCapitalize="sentences"
-										onFocus={() => handleInputFocus('expense-name')}
-									/>
-								</Input>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Valor da despesa
-								</Text>
-								<Input>
-									<InputField
-										ref={expenseValueInputRef}
-										placeholder="Ex: R$ 50,00"
-										value={expenseValueDisplay}
-										onChangeText={handleValueChange}
-										keyboardType="numeric"
-										onFocus={() => handleInputFocus('expense-value')}
-									/>
-								</Input>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Explicação da despesa
-								</Text>
-								<Textarea
-									size="md"
-									isDisabled={!expenseValueDisplay}
-									className="h-32"
-								>
-									<TextareaInput
-										ref={expenseExplanationInputRef}
-										placeholder="(Opcional) Explique sobre essa despesa..."
-										value={explanationExpense ?? ''}
-										onChangeText={setExplanationExpense}
-										onFocus={() => handleInputFocus('expense-explanation')}
-									/>
-								</Textarea>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Pagamento em dinheiro
-								</Text>
-								<View className="border border-outline-200 rounded-md px-4 py-3 opacity-100">
-									<HStack className="items-center justify-between">
-										<View className="flex-1 mr-3">
-											<Text className="font-semibold text-gray-800 dark:text-gray-200">Pagamento em dinheiro</Text>
-											<Text className="text-gray-600 dark:text-gray-400 text-sm">
-												Indique se essa despesa foi paga em dinheiro
-											</Text>
-										</View>
-										<Switch
-											value={moneyFormat}
-											onValueChange={() => {
-												setMoneyFormat(!moneyFormat);
-												setSelectedBankId(null);
-												setSelectedMovementBankName(null);
-											}}
-											trackColor={{ false: '#d4d4d4', true: '#525252' }}
-											thumbColor="#fafafa"
-											ios_backgroundColor="#d4d4d4"
-										/>
-									</HStack>
-								</View>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Tag da despesa
-								</Text>
-								{isTagSelectionLocked ? (
-									<Box className="border border-outline-200 rounded-lg p-4 bg-transparent">
-										<Text className="font-semibold mb-1 text-gray-800 dark:text-gray-200">
-											{isTemplateLocked ? 'Tag da despesa obrigatória' : 'Tag definida automaticamente'}
-										</Text>
-										<Text className="text-gray-700 dark:text-gray-300">
-											{templateTagDisplayName ?? 'Tag não encontrada'}
-										</Text>
-									</Box>
-								) : (
-									<Select
-										selectedValue={selectedMovementTagName}
-										onValueChange={setSelectedTagId}
-										isDisabled={isLoadingTags || tags.length === 0}
-									>
-										<SelectTrigger>
-											<SelectInput placeholder="Selecione uma tag para a despesa" />
-											<SelectIcon />
-										</SelectTrigger>
-
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-
-												{tags.length > 0 ? (
-													tags.map(tag => (
-														<SelectItem key={tag.id} label={tag.name} value={tag.id} />
-													))
-												) : (
-													<SelectItem key="no-tag" label="Nenhuma tag disponível" value="no-tag" isDisabled />
-												)}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
-								)}
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Banco da despesa
-								</Text>
-								<Select
-									selectedValue={selectedMovementBankName}
-									onValueChange={setSelectedBankId}
-									isDisabled={isLoadingBanks || banks.length === 0 || moneyFormat}
-								>
-									<SelectTrigger>
-										<SelectInput placeholder="Selecione o banco onde a despesa foi registrada" />
-										<SelectIcon />
-									</SelectTrigger>
-
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-
-											{banks.length > 0 ? (
-												banks.map(bank => (
-													<SelectItem
-														key={bank.id}
-														label={bank.name}
-														value={bank.id}
-													/>
-												))
-											) : (
-												<SelectItem
-													key="no-bank"
-													label="Nenhum banco disponível"
-													value="no-bank"
-													isDisabled
-												/>
-											)}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-							</Box>
-
-							<DatePickerField
-								label="Data da despesa"
-								value={expenseDate}
-								onChange={formatted => setExpenseDate(formatted)}
-								isDisabled={isLoadingExisting || isSubmitting}
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View
+							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+							style={{ height: heroHeight }}
+						>
+							<Image
+								source={LoginWallpaper}
+								alt="Background da tela de registro de despesa"
+								className="w-full h-full rounded-b-3xl absolute"
+								resizeMode="cover"
 							/>
 
-							{isEditing && isLoadingExisting && (
-								<Text className="text-sm text-gray-500 dark:text-gray-400">
-									Carregando dados da despesa selecionada...
-								</Text>
-							)}
-
-							<Button
-								className="w-full mt-2"
-								size="sm"
-								variant="outline"
-								onPress={handleSubmit}
-								isDisabled={
-									isLoadingExisting ||
-									isSubmitting ||
-									!expenseName.trim() ||
-									expenseValueCents === null ||
-									!selectedTagId ||
-									(!moneyFormat && !selectedBankId) ||
-									!expenseDate
-								}
+							<VStack
+								className="w-full h-full items-center justify-start px-6 gap-4"
+								style={{ paddingTop: insets.top + 24 }}
 							>
-								{isSubmitting ? (
-									<ButtonSpinner />
-								) : (
-									<ButtonText>{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}</ButtonText>
-								)}
-							</Button>
-						</VStack>
+								<Heading size="xl" className="text-white text-center">
+									{screenTitle}
+								</Heading>
+								<AddExpenseIllustration width="40%" height="40%" className="opacity-90" />
+							</VStack>
 						</View>
-					</ScrollView>
+
+						<ScrollView
+							ref={scrollViewRef}
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							style={{ marginTop: heroHeight - 64 }}
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="on-drag"
+							contentContainerStyle={{ paddingBottom: 32 }}
+						>
+							<VStack className="justify-between mt-4">
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome da despesa</Text>
+									<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
+										<InputField
+											ref={expenseNameInputRef}
+											placeholder="Digite o nome da despesa"
+											keyboardType="default"
+											autoCapitalize="sentences"
+											autoCorrect={false}
+											returnKeyType="next"
+											className={inputField}
+											value={expenseName}
+											onChangeText={setExpenseName}
+											onFocus={() => handleInputFocus('expense-name')}
+											onSubmitEditing={() => expenseValueInputRef.current?.focus?.()}
+										/>
+									</Input>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor da despesa</Text>
+									<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
+										<InputField
+											ref={expenseValueInputRef}
+											placeholder="Digite o valor da despesa"
+											keyboardType="numeric"
+											autoCapitalize="none"
+											autoCorrect={false}
+											returnKeyType="next"
+											className={inputField}
+											value={expenseValueDisplay}
+											onChangeText={handleValueChange}
+											onFocus={() => handleInputFocus('expense-value')}
+										/>
+									</Input>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da despesa</Text>
+									<DatePickerField
+										value={expenseDate}
+										onChange={setExpenseDate}
+										triggerClassName={fieldContainerClassName}
+										inputClassName={inputField}
+										placeholder="Selecione a data da despesa"
+										isDisabled={isFormBusy}
+									/>
+								</VStack>
+
+								<VStack className="mb-4">
+									<HStack className="mb-1 ml-1 gap-2">
+										<Text className={`${bodyText} text-sm`}>Observação da despesa</Text>
+										<Popover
+											placement="bottom"
+											size="md"
+											offset={0}
+											shouldFlip
+											focusScope={false}
+											trapFocus={false}
+											trigger={triggerProps => (
+												<Pressable
+													{...triggerProps}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Informações sobre a observação da despesa"
+												>
+													<Info
+														size={14}
+														color={isDarkMode ? '#94A3B8' : '#64748B'}
+														style={{ marginLeft: 4 }}
+													/>
+												</Pressable>
+											)}
+										>
+											<PopoverBackdrop className="bg-transparent" />
+											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+												<PopoverBody className="px-3 py-3">
+													<Text className={`${bodyText} text-xs leading-5`}>
+														Campo opcional. Use para adicionar detalhes que ajudem a identificar
+														essa despesa, como motivo, local da compra ou outra observação útil.
+													</Text>
+												</PopoverBody>
+											</PopoverContent>
+										</Popover>
+									</HStack>
+									<Textarea
+										className={textareaContainerClassName}
+										isDisabled={!expenseValueCents || isFormBusy}
+									>
+										<TextareaInput
+											ref={expenseExplanationInputRef}
+											placeholder="Adicione uma descrição ou observação para esta despesa"
+											className={`${inputField} pt-2`}
+											value={explanationExpense ?? ''}
+											onChangeText={setExplanationExpense}
+											onFocus={() => handleInputFocus('expense-explanation')}
+											editable={Boolean(expenseValueCents) && !isFormBusy}
+										/>
+									</Textarea>
+								</VStack>
+
+								<VStack className="mb-4">
+									<HStack className="mb-1 ml-1 gap-2">
+										<Text className={`${bodyText} text-sm`}>Formato de pagamento</Text>
+										<Popover
+											placement="bottom"
+											size="md"
+											offset={0}
+											shouldFlip
+											focusScope={false}
+											trapFocus={false}
+											trigger={triggerProps => (
+												<Pressable
+													{...triggerProps}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Informações sobre o formato de pagamento"
+												>
+													<Info
+														size={14}
+														color={isDarkMode ? '#94A3B8' : '#64748B'}
+														style={{ marginLeft: 4 }}
+													/>
+												</Pressable>
+											)}
+										>
+											<PopoverBackdrop className="bg-transparent" />
+											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+												<PopoverBody className="px-3 py-3">
+													<Text className={`${bodyText} text-xs leading-5`}>
+														Selecione o formato de pagamento para esta despesa. Caso seja em
+														dinheiro, ela não ficará vinculada a nenhum banco e o campo de anexos
+														ficará indisponível. Caso seja em banco, selecione onde essa despesa foi
+														lançada para manter seus registros organizados.
+													</Text>
+												</PopoverBody>
+											</PopoverContent>
+										</Popover>
+									</HStack>
+									<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+										<RadioGroup
+											value={valuesRadioMoneyFormat}
+											onChange={handleRadioMoneyFormatChange}
+										>
+											<HStack space="2xl">
+												<Radio
+													value="Pagamento em Banco"
+													className={switchRadioClassName}
+													isDisabled={isFormBusy}
+												>
+													<RadioIndicator className={switchRadioIndicatorClassName}>
+														<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+													</RadioIndicator>
+													<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
+														Pagamento em Banco
+													</RadioLabel>
+												</Radio>
+												<Radio
+													value="Pagamento em Dinheiro"
+													className={switchRadioClassName}
+													isDisabled={isFormBusy}
+												>
+													<RadioIndicator className={switchRadioIndicatorClassName}>
+														<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+													</RadioIndicator>
+													<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
+														Pagamento em Dinheiro
+													</RadioLabel>
+												</Radio>
+											</HStack>
+										</RadioGroup>
+
+										{valuesRadioMoneyFormat === 'Pagamento em Banco' && (
+											<VStack className="mt-4">
+												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
+												<Select
+													selectedValue={selectedBankId ?? undefined}
+													onValueChange={value => setSelectedBankId(value)}
+													isDisabled={isLoadingBanks || banks.length === 0 || isFormBusy}
+												>
+													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+														<SelectInput
+															placeholder="Selecione o banco vinculado"
+															className={inputField}
+														/>
+														<SelectIcon />
+													</SelectTrigger>
+													<SelectPortal>
+														<SelectBackdrop />
+														<SelectContent>
+															<SelectDragIndicatorWrapper>
+																<SelectDragIndicator />
+															</SelectDragIndicatorWrapper>
+															{banks.length > 0 ? (
+																[...banks]
+																	.sort((a, b) =>
+																		a.name.localeCompare(b.name, 'pt-BR', {
+																			sensitivity: 'base',
+																		}),
+																	)
+																	.map(bank => (
+																		<SelectItem
+																			key={bank.id}
+																			label={bank.name}
+																			value={bank.id}
+																		/>
+																	))
+															) : (
+																<SelectItem
+																	label="Nenhum banco disponível"
+																	value="no-bank"
+																	isDisabled
+																/>
+															)}
+														</SelectContent>
+													</SelectPortal>
+												</Select>
+											</VStack>
+										)}
+									</View>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categoria</Text>
+									{isTagSelectionLocked ? (
+										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+											<Text className={`${bodyText} text-sm`}>
+												{selectedTagLabel ?? 'Categoria definida automaticamente'}
+											</Text>
+										</View>
+									) : (
+										<Select
+											selectedValue={selectedTagId ?? undefined}
+											onValueChange={value => setSelectedTagId(value)}
+											isDisabled={isLoadingTags || tags.length === 0 || isFormBusy}
+										>
+											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+												<SelectInput
+													placeholder="Selecione a categoria da despesa"
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{tags.length > 0 ? (
+														[...tags]
+															.sort((a, b) =>
+																a.name.localeCompare(b.name, 'pt-BR', {
+																	sensitivity: 'base',
+																}),
+															)
+															.map(tag => (
+																<SelectItem
+																	key={tag.id}
+																	label={tag.name}
+																	value={tag.id}
+																/>
+															))
+													) : (
+														<SelectItem
+															label="Nenhuma tag disponível"
+															value="no-tag"
+															isDisabled
+														/>
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									)}
+								</VStack>
+
+								{isEditing && isLoadingExisting && (
+									<Text className={`${helperText} mb-4 text-sm`}>
+										Carregando informações da despesa selecionada...
+									</Text>
+								)}
+
+								<Button 
+									className={`${submitButtonClassName}`} 
+									onPress={handleSubmit}
+									isDisabled={isSubmitDisabled}
+								>
+									{isFormBusy ? (
+										<ButtonSpinner />
+									) : (
+										<ButtonText>{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}</ButtonText>
+									)}
+								</Button>
+							</VStack>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 
-				<Menu defaultValue={1} />
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={1} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);

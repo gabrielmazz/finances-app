@@ -1,7 +1,6 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
 
-import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
@@ -17,6 +16,10 @@ type DatePickerFieldProps = {
 	onChange: (formattedValue: string, date: Date) => void;
 	placeholder?: string;
 	isDisabled?: boolean;
+	containerClassName?: string;
+	labelClassName?: string;
+	triggerClassName?: string;
+	inputClassName?: string;
 };
 
 // Domingo, Segunda, Terça, Quarta, Quinta, Sexta, Sábado (sem acentos para manter ASCII)
@@ -84,6 +87,10 @@ export function DatePickerField({
 	onChange,
 	placeholder = 'DD/MM/AAAA',
 	isDisabled,
+	containerClassName,
+	labelClassName,
+	triggerClassName,
+	inputClassName,
 }: DatePickerFieldProps) {
 	const [isOpen, setIsOpen] = React.useState(false);
 	const [visibleMonth, setVisibleMonth] = React.useState<Date>(() => parseBRDate(value) ?? new Date());
@@ -144,10 +151,22 @@ export function DatePickerField({
 		handleSelect(new Date());
 	}, [handleSelect]);
 
+	const triggerFocusedClassName = isOpen
+		? 'border-[#FFE000] dark:border-yellow-300'
+		: '';
+
 	return (
-		<VStack className="w-full">
+		<VStack className={containerClassName ? `w-full ${containerClassName}` : 'w-full'}>
 			{label ? (
-				<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">{label}</Text>
+				<Text
+					className={
+						labelClassName
+							? `mb-2 font-semibold text-gray-700 dark:text-gray-200 ${labelClassName}`
+							: 'mb-2 font-semibold text-gray-700 dark:text-gray-200'
+					}
+				>
+					{label}
+				</Text>
 			) : null}
 			<Pressable
 				onPress={handleOpen}
@@ -157,8 +176,16 @@ export function DatePickerField({
 				accessibilityLabel={label ?? 'Selecionar data'}
 			>
 				<View pointerEvents="none">
-					<Input isDisabled={isDisabled}>
-						<InputField value={value ?? ''} placeholder={placeholder} editable={false} />
+					<Input
+						isDisabled={isDisabled}
+						className={`${triggerClassName ?? ''} ${triggerFocusedClassName}`.trim()}
+					>
+						<InputField
+							value={value ?? ''}
+							placeholder={placeholder}
+							editable={false}
+							className={inputClassName}
+						/>
 					</Input>
 				</View>
 			</Pressable>
