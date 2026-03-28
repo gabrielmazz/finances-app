@@ -53,6 +53,12 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				icon: 'home-outline',
 				onSelect: () => router.replace('/home?tab=0'),
 			},
+			{
+				label: 'Resumo bancário',
+				value: 0,
+				icon: 'stats-chart-outline',
+				onSelect: () => router.replace('/bank-summary'),
+			},
 		],
 	},
 	{
@@ -78,12 +84,6 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				value: 1,
 				icon: 'calendar-outline',
 				onSelect: () => router.push('/register-monthly-balance'),
-			},
-			{
-				label: 'Resumo bancário',
-				value: 1,
-				icon: 'stats-chart-outline',
-				onSelect: () => router.push('/bank-summary'),
 			},
 			{
 				label: 'Transferência',
@@ -128,6 +128,30 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				value: 2,
 				icon: 'settings-outline',
 				onSelect: () => router.replace('/home?tab=2'),
+			},
+			{
+				label: 'Novo usuário',
+				value: 2,
+				icon: 'person-add-outline',
+				onSelect: () => router.push('/add-register-user'),
+			},
+			{
+				label: 'Novo banco',
+				value: 2,
+				icon: 'business-outline',
+				onSelect: () => router.push('/add-register-bank'),
+			},
+			{
+				label: 'Nova tag',
+				value: 2,
+				icon: 'pricetag-outline',
+				onSelect: () => router.push('/add-register-tag'),
+			},
+			{
+				label: 'Relacionar usuário',
+				value: 2,
+				icon: 'people-outline',
+				onSelect: () => router.push('/add-user-relation'),
 			},
 			{
 				label: 'Sair',
