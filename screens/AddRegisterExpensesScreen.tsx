@@ -205,8 +205,8 @@ export default function AddRegisterExpensesScreen() {
 
 	// Estilização do Button de submit
 	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500';
+		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
 	
 
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
@@ -442,13 +442,29 @@ export default function AddRegisterExpensesScreen() {
 	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
 	const isBankSelectionRequired = !moneyFormat;
 	const isFormBusy = isLoadingExisting || isSubmitting;
+	const hasExpenseName = expenseName.trim().length > 0;
+	const hasExpenseValue = expenseValueCents !== null && expenseValueCents > 0;
 	const isSubmitDisabled =
 		isFormBusy ||
-		!expenseName.trim() ||
+		!hasExpenseName ||
 		expenseValueCents === null ||
 		!selectedTagId ||
 		(isBankSelectionRequired && !selectedBankId) ||
 		!parsedExpenseDate;
+	const isExpenseValueDisabled = !hasExpenseName || isFormBusy;
+	const isExpenseDateDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
+	const isExplanationDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
+	const isMoneyFormatSelectionDisabled = !hasExpenseName || !hasExpenseValue || !parsedExpenseDate || isFormBusy;
+	const isBankFieldPrerequisitesIncomplete = !hasExpenseName || !hasExpenseValue || !parsedExpenseDate;
+	const isBankSelectDisabled =
+		isLoadingBanks || banks.length === 0 || isFormBusy || isBankFieldPrerequisitesIncomplete;
+	const isTagFieldPrerequisitesIncomplete =
+		!hasExpenseName ||
+		!hasExpenseValue ||
+		!parsedExpenseDate ||
+		(isBankSelectionRequired && !selectedBankId);
+	const isTagSelectDisabled =
+		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);
@@ -1009,7 +1025,7 @@ export default function AddRegisterExpensesScreen() {
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor da despesa</Text>
-									<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
+									<Input className={fieldContainerClassName} isDisabled={isExpenseValueDisabled}>
 										<InputField
 											ref={expenseValueInputRef}
 											placeholder="Digite o valor da despesa"
@@ -1033,7 +1049,7 @@ export default function AddRegisterExpensesScreen() {
 										triggerClassName={fieldContainerClassName}
 										inputClassName={inputField}
 										placeholder="Selecione a data da despesa"
-										isDisabled={isFormBusy}
+										isDisabled={isExpenseDateDisabled}
 									/>
 								</VStack>
 
@@ -1075,7 +1091,7 @@ export default function AddRegisterExpensesScreen() {
 									</HStack>
 									<Textarea
 										className={textareaContainerClassName}
-										isDisabled={!expenseValueCents || isFormBusy}
+										isDisabled={isExplanationDisabled}
 									>
 										<TextareaInput
 											ref={expenseExplanationInputRef}
@@ -1084,7 +1100,7 @@ export default function AddRegisterExpensesScreen() {
 											value={explanationExpense ?? ''}
 											onChangeText={setExplanationExpense}
 											onFocus={() => handleInputFocus('expense-explanation')}
-											editable={Boolean(expenseValueCents) && !isFormBusy}
+											editable={!isExplanationDisabled}
 										/>
 									</Textarea>
 								</VStack>
@@ -1136,7 +1152,7 @@ export default function AddRegisterExpensesScreen() {
 												<Radio
 													value="Pagamento em Banco"
 													className={switchRadioClassName}
-													isDisabled={isFormBusy}
+													isDisabled={isMoneyFormatSelectionDisabled}
 												>
 													<RadioIndicator className={switchRadioIndicatorClassName}>
 														<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
@@ -1148,7 +1164,7 @@ export default function AddRegisterExpensesScreen() {
 												<Radio
 													value="Pagamento em Dinheiro"
 													className={switchRadioClassName}
-													isDisabled={isFormBusy}
+													isDisabled={isMoneyFormatSelectionDisabled}
 												>
 													<RadioIndicator className={switchRadioIndicatorClassName}>
 														<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
@@ -1166,7 +1182,7 @@ export default function AddRegisterExpensesScreen() {
 												<Select
 													selectedValue={selectedBankId ?? undefined}
 													onValueChange={value => setSelectedBankId(value)}
-													isDisabled={isLoadingBanks || banks.length === 0 || isFormBusy}
+													isDisabled={isBankSelectDisabled}
 												>
 													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 														<SelectInput
@@ -1222,7 +1238,7 @@ export default function AddRegisterExpensesScreen() {
 										<Select
 											selectedValue={selectedTagId ?? undefined}
 											onValueChange={value => setSelectedTagId(value)}
-											isDisabled={isLoadingTags || tags.length === 0 || isFormBusy}
+											isDisabled={isTagSelectDisabled}
 										>
 											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 												<SelectInput
