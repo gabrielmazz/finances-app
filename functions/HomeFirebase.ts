@@ -28,6 +28,14 @@ export type HomeBankBalanceCard = {
 	colorHex: string | null;
 };
 
+export type HomeCashSummary = {
+	id: 'cash-transactions';
+	name: 'Dinheiro';
+	balanceInCents: number;
+	currentMonthExpensesInCents: number;
+	currentMonthGainsInCents: number;
+};
+
 export type HomeInvestmentItem = {
 	id: string;
 	name: string;
@@ -73,6 +81,7 @@ export type HomeTimelineMovement = {
 
 export type HomeOverviewData = {
 	bankBalances: HomeBankBalanceCard[];
+	cashSummary: HomeCashSummary | null;
 	currentMonthExpensesByBankId: Record<string, number>;
 	currentMonthGainsByBankId: Record<string, number>;
 };
@@ -133,6 +142,7 @@ const BASE_CDI_ANNUAL_RATE = 0.1375;
 
 const EMPTY_OVERVIEW_DATA: HomeOverviewData = {
 	bankBalances: [],
+	cashSummary: null,
 	currentMonthExpensesByBankId: {},
 	currentMonthGainsByBankId: {},
 };
@@ -208,6 +218,13 @@ const aggregateMonthlyValuesByBankId = (items: HomeMovementDocument[], bankIds: 
 		acc[bankId] = (acc[bankId] ?? 0) + Math.max(value, 0);
 		return acc;
 	}, {});
+
+const sumMovementValues = (items: HomeMovementDocument[]) =>
+	items.reduce((accumulator, item) => {
+		const value =
+			typeof item?.valueInCents === 'number' && Number.isFinite(item.valueInCents) ? item.valueInCents : 0;
+		return accumulator + Math.max(value, 0);
+	}, 0);
 
 const calculateInvestmentDailyRate = (cdiPercentage: number) => {
 	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
@@ -312,10 +329,6 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 };
 
 const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverviewData> => {
-	if (context.bankIds.length === 0) {
-		return EMPTY_OVERVIEW_DATA;
-	}
-
 	const bankIdsSet = new Set(context.bankIds);
 	const monthlyBalancesQuery = query(
 		collection(db, 'monthlyBalances'),
@@ -361,6 +374,11 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		getDocs(monthlyInvestmentsQuery),
 		getDocs(cashRescuesQuery),
 	]);
+	const normalizedCashRescues = cashRescuesSnapshot.docs.map<HomeMovementDocument>(docSnap => ({
+		id: docSnap.id,
+		...(docSnap.data() as HomeMovementDocument),
+		isCashRescue: true,
+	}));
 
 	const monthlyExpenses = monthlyExpensesSnapshot.docs
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
@@ -374,16 +392,17 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 			const bankId = typeof item.bankId === 'string' ? item.bankId : null;
 			return Boolean(bankId && bankIdsSet.has(bankId));
 		});
-	const cashRescues = cashRescuesSnapshot.docs
-		.map<HomeMovementDocument>(docSnap => ({
-			id: docSnap.id,
-			...(docSnap.data() as HomeMovementDocument),
-			isCashRescue: true,
-		}))
-		.filter(item => {
+	const cashRescues = normalizedCashRescues.filter(item => {
 			const bankId = typeof item.bankId === 'string' ? item.bankId : null;
 			return Boolean(bankId && bankIdsSet.has(bankId));
 		});
+	const cashExpenses = monthlyExpensesSnapshot.docs
+		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
+		.filter(item => item?.bankId == null);
+	const cashGains = monthlyGainsSnapshot.docs
+		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
+		.filter(item => item?.bankId == null);
+	const cashGainsWithRescues = [...cashGains, ...normalizedCashRescues];
 	const monthlyInvestments = monthlyInvestmentsSnapshot.docs
 		.map<HomeInvestmentDocument>(docSnap => ({
 			id: docSnap.id,
@@ -454,6 +473,13 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 			balanceInCents: bank.currentBalanceInCents,
 			colorHex: bank.colorHex,
 		})),
+		cashSummary: {
+			id: 'cash-transactions',
+			name: 'Dinheiro',
+			balanceInCents: sumMovementValues(cashGainsWithRescues) - sumMovementValues(cashExpenses),
+			currentMonthExpensesInCents: sumMovementValues(cashExpenses),
+			currentMonthGainsInCents: sumMovementValues(cashGainsWithRescues),
+		},
 		currentMonthExpensesByBankId: aggregateMonthlyValuesByBankId([...monthlyExpenses, ...cashRescues], bankIdsSet),
 		currentMonthGainsByBankId: aggregateMonthlyValuesByBankId(monthlyGains, bankIdsSet),
 	};

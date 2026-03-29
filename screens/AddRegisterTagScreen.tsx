@@ -38,6 +38,7 @@ import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
@@ -90,6 +91,8 @@ export default function AddRegisterTagScreen() {
 		usageType?: string | string[];
 		isMandatoryExpense?: string | string[];
 		isMandatoryGain?: string | string[];
+		returnAfterCreate?: string | string[];
+		lockUsageType?: string | string[];
 	}>();
 
 	const editingTagId = React.useMemo(() => {
@@ -157,14 +160,35 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1';
 	}, [params.isMandatoryGain]);
+	const shouldReturnAfterCreate = React.useMemo(() => {
+		const value = Array.isArray(params.returnAfterCreate)
+			? params.returnAfterCreate[0]
+			: params.returnAfterCreate;
+
+		return value === '1' || value === 'true';
+	}, [params.returnAfterCreate]);
+	const shouldLockUsageType = React.useMemo(() => {
+		const value = Array.isArray(params.lockUsageType) ? params.lockUsageType[0] : params.lockUsageType;
+
+		return value === '1' || value === 'true';
+	}, [params.lockUsageType]);
 
 	const isEditing = Boolean(editingTagId);
+	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
+	const initialUsageLabel =
+		initialUsageType === 'expense'
+			? 'despesas'
+			: initialUsageType === 'gain'
+				? 'ganhos'
+				: null;
+	const hasHydratedInitialParamsRef = React.useRef(false);
 
 	React.useEffect(() => {
-		if (!isEditing) {
+		if (hasHydratedInitialParamsRef.current) {
 			return;
 		}
 
+		hasHydratedInitialParamsRef.current = true;
 		setTagName(initialTagName);
 		if (initialUsageType === 'expense') {
 			setIsExpenseTag(true);
@@ -182,7 +206,7 @@ export default function AddRegisterTagScreen() {
 			setIsMandatoryExpense(false);
 			setIsMandatoryGain(false);
 		}
-	}, [initialTagName, initialUsageType, initialIsMandatoryExpense, initialIsMandatoryGain, isEditing]);
+	}, [initialTagName, initialUsageType, initialIsMandatoryExpense, initialIsMandatoryGain]);
 
 	const handleUsageSelection = React.useCallback((values: string[]) => {
 		if (values.includes('expense')) {
@@ -231,6 +255,7 @@ export default function AddRegisterTagScreen() {
 		}
 
 		setIsSubmitting(true);
+		let shouldResetForm = false;
 
 		try {
 
@@ -292,11 +317,19 @@ export default function AddRegisterTagScreen() {
 					position: 'bottom',
 					offset: 40,
 				});
-				setTagName('');
-				setIsExpenseTag(true);
-				setIsGainTag(false);
-				setIsMandatoryExpense(false);
 				Keyboard.dismiss();
+
+				if (shouldReturnAfterCreate && result.tagId) {
+					setPendingCreatedTag({
+						tagId: result.tagId,
+						tagName: trimmedName,
+						usageType: selectedUsageType,
+					});
+					router.back();
+					return;
+				}
+
+				shouldResetForm = true;
 			} else {
 				showFloatingAlert({
 					message: 'Erro ao registrar tag. Tente novamente mais tarde.',
@@ -316,14 +349,24 @@ export default function AddRegisterTagScreen() {
 		} finally {
 			setIsSubmitting(false);
 
-			// Limpar os campos após o registro
-			setTagName('');
-			setIsExpenseTag(false);
-			setIsGainTag(false);
-			setIsMandatoryExpense(false);
-			setIsMandatoryGain(false);
+			if (shouldResetForm) {
+				setTagName('');
+				setIsExpenseTag(false);
+				setIsGainTag(false);
+				setIsMandatoryExpense(false);
+				setIsMandatoryGain(false);
+			}
 		}
-	}, [editingTagId, isExpenseTag, isGainTag, isEditing, tagName, isMandatoryExpense, isMandatoryGain]);
+	}, [
+		editingTagId,
+		isExpenseTag,
+		isGainTag,
+		isEditing,
+		tagName,
+		isMandatoryExpense,
+		isMandatoryGain,
+		shouldReturnAfterCreate,
+	]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -398,7 +441,11 @@ export default function AddRegisterTagScreen() {
 	}, [scrollToInput]);
 
 	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
-	const screenTitle = isEditing ? 'Editar tag' : 'Adição de nova tag';
+	const screenTitle = isEditing
+		? 'Editar tag'
+		: shouldReturnAfterCreate && initialUsageLabel
+			? `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
+			: 'Adição de nova tag';
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -457,7 +504,9 @@ export default function AddRegisterTagScreen() {
 										<Text className={`${bodyText} text-sm leading-6`}>
 											{isEditing
 												? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
-												: 'Registre uma nova tag para categorizar ganhos ou despesas. Ela ficará disponível para seleção nas demais telas do aplicativo.'}
+												: shouldReturnAfterCreate && initialUsageLabel
+													? `Cadastre uma nova tag para ${initialUsageLabel}. Após salvar, você voltará para a tela anterior com a nova categoria pronta para seleção.`
+													: 'Registre uma nova tag para categorizar ganhos ou despesas. Ela ficará disponível para seleção nas demais telas do aplicativo.'}
 										</Text>
 									</View>
 
@@ -482,8 +531,9 @@ export default function AddRegisterTagScreen() {
 										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Tipo de utilização</Text>
 										<View className={`${fieldContainerCardClassName} px-4 py-4`}>
 											<Text className={`${helperText} text-sm leading-6`}>
-												Selecione se essa tag será usada para ganhos ou despesas. Apenas uma
-												opção pode ficar ativa.
+												{isUsageSelectionLocked && initialUsageLabel
+													? `Essa categoria será criada para ${initialUsageLabel}.`
+													: 'Selecione se essa tag será usada para ganhos ou despesas. Apenas uma opção pode ficar ativa.'}
 											</Text>
 											<CheckboxGroup
 												value={isExpenseTag ? ['expense'] : isGainTag ? ['gain'] : []}
@@ -492,7 +542,7 @@ export default function AddRegisterTagScreen() {
 												<VStack className="mt-4 gap-4">
 													<Checkbox
 														value="expense"
-														isDisabled={isGainTag}
+														isDisabled={isUsageSelectionLocked || isGainTag}
 														className={checkboxClassName}
 													>
 														<CheckboxIndicator className={checkboxIndicatorClassName}>
@@ -505,7 +555,7 @@ export default function AddRegisterTagScreen() {
 
 													<Checkbox
 														value="gain"
-														isDisabled={isExpenseTag}
+														isDisabled={isUsageSelectionLocked || isExpenseTag}
 														className={checkboxClassName}
 													>
 														<CheckboxIndicator className={checkboxIndicatorClassName}>

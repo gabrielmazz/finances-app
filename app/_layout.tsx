@@ -3,6 +3,7 @@ import '@/utils/reactNativeCompat';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect, Stack, usePathname, useRootNavigationState } from 'expo-router';
+import { NotifierWrapper } from 'react-native-notifier';
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
@@ -60,9 +61,11 @@ const LayoutWithTheme = () => {
 	return (
 		<GestureHandlerRootView style={{ flex: 1 }}>
 			<GluestackUIProvider mode={themeMode}>
-				<AuthProvider>
-					<AuthenticatedStack />
-				</AuthProvider>
+				<NotifierWrapper translucentStatusBar>
+					<AuthProvider>
+						<AuthenticatedStack />
+					</AuthProvider>
+				</NotifierWrapper>
 			</GluestackUIProvider>
 		</GestureHandlerRootView>
 	);

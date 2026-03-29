@@ -43,6 +43,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import DatePickerField from '@/components/uiverse/date-picker';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -56,8 +57,9 @@ import {
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
+import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 
-import { Info } from 'lucide-react-native';
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
 
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
@@ -207,6 +209,9 @@ export default function AddRegisterExpensesScreen() {
 	const submitButtonClassName = isDarkMode
 		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+	const addTagButtonClassName = isDarkMode
+		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
+		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
 	
 
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
@@ -249,6 +254,24 @@ export default function AddRegisterExpensesScreen() {
 		(key: FocusableInputKey) => (key === 'expense-explanation' ? 220 : 170),
 		[],
 	);
+
+	const showSuccessfulExpenseNotification = React.useCallback(() => {
+		const normalizedExpenseName = expenseName.trim() || 'informada';
+		const resolvedBankName = banks.find(bank => bank.id === selectedBankId)?.name ?? null;
+		const destinationLabel = moneyFormat
+			? 'como pagamento em dinheiro'
+			: resolvedBankName
+				? `no banco ${resolvedBankName}`
+				: 'no banco selecionado';
+
+		showNotifierAlert({
+			title: 'Despesa registrada',
+			description: `A despesa "${normalizedExpenseName}" foi registrada com sucesso ${destinationLabel}.`,
+			type: 'success',
+			isDarkMode,
+			duration: 4000,
+		});
+	}, [banks, expenseName, isDarkMode, moneyFormat, selectedBankId]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -465,6 +488,7 @@ export default function AddRegisterExpensesScreen() {
 		(isBankSelectionRequired && !selectedBankId);
 	const isTagSelectDisabled =
 		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
+	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
 		setMoneyFormat(nextValue);
@@ -481,6 +505,21 @@ export default function AddRegisterExpensesScreen() {
 		},
 		[handleMoneyFormatChange],
 	);
+	const handleOpenAddTagScreen = React.useCallback(() => {
+		if (isAddTagButtonDisabled) {
+			return;
+		}
+
+		Keyboard.dismiss();
+		router.push({
+			pathname: '/add-register-tag',
+			params: {
+				usageType: 'expense',
+				lockUsageType: '1',
+				returnAfterCreate: '1',
+			},
+		});
+	}, [isAddTagButtonDisabled]);
 
 	React.useEffect(() => {
 		setValuesRadioMoneyFormat(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
@@ -532,17 +571,27 @@ export default function AddRegisterExpensesScreen() {
 										: 'Tag sem nome',
 								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
 							}));
+						const pendingCreatedTag = peekPendingCreatedTag();
+						const matchingPendingTag =
+							pendingCreatedTag?.usageType === 'expense'
+								? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
+								: null;
 
 						setTags(formattedTags);
-						setSelectedTagId(current => {
-							if (current && formattedTags.some(tag => tag.id === current)) {
-								return current;
-							}
-							if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
-								return templateData.tagId;
-							}
-							return null;
-						});
+						if (matchingPendingTag) {
+							setSelectedTagId(matchingPendingTag.id);
+							clearPendingCreatedTag(matchingPendingTag.id);
+						} else {
+							setSelectedTagId(current => {
+								if (current && formattedTags.some(tag => tag.id === current)) {
+									return current;
+								}
+								if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
+									return templateData.tagId;
+								}
+								return null;
+							});
+						}
 
 						if (formattedTags.length === 0) {
 							showFloatingAlert({
@@ -810,18 +859,7 @@ export default function AddRegisterExpensesScreen() {
 				}
 			}
 
-			showFloatingAlert({
-				message: 'Despesa registrada com sucesso!',
-				action: 'success',
-				position: 'bottom',
-				offset: 40,
-			});
-
-			if (isTemplateLocked || isEditing) {
-				router.back();
-				return;
-			}
-
+			showSuccessfulExpenseNotification();
 			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
@@ -842,13 +880,13 @@ export default function AddRegisterExpensesScreen() {
 		explanationExpense,
 		isEditing,
 		isBankSelectionRequired,
-		isTemplateLocked,
 		linkedMandatoryExpenseId,
 		moneyFormat,
 		pendingInvestmentAdjustment,
 		selectedBankId,
 		selectedTagId,
 		parsedExpenseDate,
+		showSuccessfulExpenseNotification,
 	]);
 
 	React.useEffect(() => {
@@ -1240,13 +1278,34 @@ export default function AddRegisterExpensesScreen() {
 											onValueChange={value => setSelectedTagId(value)}
 											isDisabled={isTagSelectDisabled}
 										>
-											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-												<SelectInput
-													placeholder="Selecione a categoria da despesa"
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
+											<HStack className="items-end gap-3">
+												<View className="flex-1">
+													<SelectTrigger
+														variant="outline"
+														size="md"
+														className={fieldContainerClassName}
+													>
+														<SelectInput
+															placeholder="Selecione a categoria da despesa"
+															className={inputField}
+														/>
+														<SelectIcon />
+													</SelectTrigger>
+												</View>
+												<Pressable
+													onPress={handleOpenAddTagScreen}
+													disabled={isAddTagButtonDisabled}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Adicionar nova categoria de despesa"
+													className={`${addTagButtonClassName} ${isAddTagButtonDisabled ? 'opacity-40' : ''}`}
+												>
+													<TagsIcon
+														size={18}
+														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
+													/>
+												</Pressable>
+											</HStack>
 											<SelectPortal>
 												<SelectBackdrop />
 												<SelectContent>

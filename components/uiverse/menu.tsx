@@ -70,11 +70,6 @@ const buildDefaultGroups = (): MenuGroup[] => [
 				value: 0,
 				onSelect: () => router.replace('/home?tab=0'),
 			},
-			{
-				label: 'Resumo bancário',
-				value: 0,
-				onSelect: () => router.replace('/bank-summary'),
-			},
 		],
 	},
 	{

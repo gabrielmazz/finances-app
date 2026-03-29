@@ -188,9 +188,10 @@ export function computeMonthlyBankBalances({
 	});
 
 	return Object.values(summaries).map(summary => {
-		const hasInitial = typeof summary.initialBalanceInCents === 'number';
+		const initialBalanceInCents = summary.initialBalanceInCents;
+		const hasInitial = typeof initialBalanceInCents === 'number';
 		const currentBalanceInCents = hasInitial
-			? summary.initialBalanceInCents +
+			? initialBalanceInCents +
 				summary.totalGainsInCents -
 				(summary.totalExpensesInCents + summary.totalInvestedInCents)
 			: null;
