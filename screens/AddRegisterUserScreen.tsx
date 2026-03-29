@@ -9,42 +9,53 @@ import {
 	Platform,
 	TextInput,
 	findNodeHandle,
+	useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
+import { Button, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
-import { Box } from '@/components/ui/box';
-import { Divider } from '@/components/ui/divider';
 
-// Icones do Gluestack UI
 import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 
-// Importação das funções relacionadas a adição de usuário ao Firebase
 import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
-// Componentes do Uiverse
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 
-// Importações relacionadas à navegação e autenticação
 import { router } from 'expo-router';
-import { Menu } from '@/components/uiverse/menu';
+import Navigator from '@/components/uiverse/navigator';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
-// Importação do SVG
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
 
 export default function AddRegisterUserScreen() {
 	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
 
-    // Variavel resposável por mostrar ou não a senha do usuário
+	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
+	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+	const inputField = isDarkMode
+		? 'text-slate-100 placeholder:text-slate-500'
+		: 'text-slate-900 placeholder:text-slate-500';
+	const focusFieldClassName =
+		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
+	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const submitButtonClassName = isDarkMode
+		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+
     const [showPassword, setShowPassword] = React.useState(false);
 
     const handleState = () => {
@@ -54,7 +65,6 @@ export default function AddRegisterUserScreen() {
     };
 
 
-    // =========================================== Funções para Registro ============================================ //
     const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
@@ -197,131 +207,144 @@ export default function AddRegisterUserScreen() {
 	}, [scrollToInput]);
 
 	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+    const screenTitle = 'Adição de um novo usuário';
 
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-		<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-        <View className="
-				flex-1 w-full h-full
-                mt-[64px]
-                items-center
-                justify-between
-                pb-6
-                "
-                style={{ backgroundColor: pageBackground }}
+        <SafeAreaView
+            className="flex-1"
+            edges={['left', 'right', 'bottom']}
+            style={{ backgroundColor: surfaceBackground }}
         >
+		<StatusBar
+                translucent
+                backgroundColor="transparent"
+                barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+            />
+        <View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 
             <FloatingAlertViewport />
 
             <KeyboardAvoidingView
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-				className="flex-1 w-full"
+				className="flex-1"
 			>
-				<ScrollView
-					ref={scrollViewRef}
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{ backgroundColor: pageBackground }}
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: contentBottomPadding,
-					}}
-				>
-					<View className="w-full px-6">
-
-                <Heading size="3xl" className="text-center mb-2">
-                    Adição de um novo usuário
-                </Heading>
-
-                <Box className="w-full items-center mb-2">
-                    <AddRegisterUserScreenIllustration width={180} height={180} />
-                </Box>
-
-                <Text className="text-justify text-gray-600 dark:text-gray-400">
-                    Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele será adicionado
-                    ao sistema e poderá fazer login utilizando as credenciais fornecidas.
-                </Text>
-
-                <Divider className="my-6 mb-6" />
-
-                <VStack className="gap-4">
-
-                    <Box>
-                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-                            Nome do usuário (opcional)
-                        </Text>
-                        <Input>
-                            <InputField
-                                ref={nameInputRef as any}
-                                placeholder="Nome da pessoa que terá acesso à conta"
-                                autoCapitalize="words"
-                                value={name}
-                                onChangeText={setName}
-                                onFocus={() => handleInputFocus('name')}
-                            />
-                        </Input>
-                    </Box>
-
-                    <Box>
-                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-                            Email do usuário
-                        </Text>
-                        <Input>
-                            <InputField
-                                ref={emailInputRef as any}
-                                placeholder="Email do usuário que será registrado"
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                value={email}
-                                onChangeText={setEmail}
-                                onFocus={() => handleInputFocus('email')}
-                            />
-                        </Input>
-                    </Box>
-
-                    <Box>
-                        <Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-                            Senha do usuário
-                        </Text>
-                        <Input>
-                            <InputField
-                                ref={passwordInputRef as any}
-                                placeholder="Senha"
-                                secureTextEntry={!showPassword}
-                                type={showPassword ? 'text' : 'password'}
-                                value={password}
-                                onChangeText={setPassword}
-                                onFocus={() => handleInputFocus('password')}
-                            />
-                            <InputSlot className="pr-3" onPress={handleState}>
-                                <InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-                            </InputSlot>
-                        </Input>
-                    </Box>
-
-                    <Button
-                        className="w-full mt-2"
-                        size="sm"
-                        variant="outline"
-                        onPress={registerUser}
-                        isDisabled={email === '' || password === ''}
+                <View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+                    <View
+                        className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+                        style={{ height: heroHeight }}
                     >
+                        <Image
+                            source={LoginWallpaper}
+                            alt="Background da tela de cadastro de usuário"
+                            className="w-full h-full rounded-b-3xl absolute"
+                            resizeMode="cover"
+                        />
 
-                        <ButtonText>
-                            Registrar Usuário
-                        </ButtonText>
+                        <VStack
+                            className="w-full h-full items-center justify-start px-6 gap-4"
+                            style={{ paddingTop: insets.top + 24 }}
+                        >
+                            <Heading size="xl" className="text-white text-center">
+                                {screenTitle}
+                            </Heading>
+                            <AddRegisterUserScreenIllustration width="40%" height="40%" className="opacity-90" />
+                        </VStack>
+                    </View>
 
-                    </Button>
+                    <ScrollView
+                        ref={scrollViewRef}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+                        style={{ marginTop: heroHeight - 64 }}
+                        contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+                    >
+                        <VStack className="justify-between mt-4">
+                            <View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+                                <Text className={`${bodyText} text-sm leading-6`}>
+                                    Preencha os campos abaixo para registrar um novo usuário no aplicativo. Ele
+                                    poderá fazer login utilizando as credenciais informadas.
+                                </Text>
+                            </View>
 
-                </VStack>
+                            <VStack className="mb-4">
+                                <Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+                                    Nome do usuário (opcional)
+                                </Text>
+                                <Input className={fieldContainerClassName}>
+                                    <InputField
+                                        ref={nameInputRef as any}
+                                        placeholder="Nome da pessoa que terá acesso à conta"
+                                        autoCapitalize="words"
+                                        value={name}
+                                        onChangeText={setName}
+                                        className={inputField}
+                                        onFocus={() => handleInputFocus('name')}
+                                    />
+                                </Input>
+                            </VStack>
 
-					</View>
-				</ScrollView>
+                            <VStack className="mb-4">
+                                <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Email do usuário</Text>
+                                <Input className={fieldContainerClassName}>
+                                    <InputField
+                                        ref={emailInputRef as any}
+                                        placeholder="Email do usuário que será registrado"
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        className={inputField}
+                                        onFocus={() => handleInputFocus('email')}
+                                    />
+                                </Input>
+                            </VStack>
+
+                            <VStack className="mb-4">
+                                <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Senha do usuário</Text>
+                                <Input className={fieldContainerClassName}>
+                                    <InputField
+                                        ref={passwordInputRef as any}
+                                        placeholder="Senha"
+                                        secureTextEntry={!showPassword}
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        className={inputField}
+                                        onFocus={() => handleInputFocus('password')}
+                                    />
+                                    <InputSlot className="pr-3" onPress={handleState}>
+                                        <InputIcon
+                                            as={showPassword ? EyeIcon : EyeOffIcon}
+                                            className={helperText}
+                                        />
+                                    </InputSlot>
+                                </Input>
+                            </VStack>
+
+                            <Button
+                                className={submitButtonClassName}
+                                onPress={registerUser}
+                                isDisabled={email === '' || password === ''}
+                            >
+                                <ButtonText>Registrar Usuário</ButtonText>
+                            </Button>
+                        </VStack>
+                    </ScrollView>
+                </View>
 			</KeyboardAvoidingView>
 
-            <Menu defaultValue={2} />
+            <View
+                style={{
+                    marginHorizontal: -18,
+                    paddingBottom: 0,
+                    flexShrink: 0,
+                }}
+            >
+                <Navigator defaultValue={2} />
+            </View>
 
         </View>
         </SafeAreaView>

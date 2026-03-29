@@ -9,8 +9,9 @@ import {
 	StatusBar,
 	TextInput,
 	View,
+	useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -27,15 +28,14 @@ import {
 } from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { Box } from '@/components/ui/box';
-import { Divider } from '@/components/ui/divider';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
+import Navigator from '@/components/uiverse/navigator';
 
 import {
 	addCashRescueFirebase,
@@ -44,6 +44,7 @@ import {
 	getBanksWithUsersByPersonFirebase,
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -113,7 +114,26 @@ const mergeDateWithCurrentTime = (date: Date) => {
 
 export default function AddRescueScreen() {
 	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
+
+	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
+	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+	const inputField = isDarkMode
+		? 'text-slate-100 placeholder:text-slate-500'
+		: 'text-slate-900 placeholder:text-slate-500';
+	const focusFieldClassName =
+		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
+	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const textareaContainerClassName =
+		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const submitButtonClassName = isDarkMode
+		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [rescueValueDisplay, setRescueValueDisplay] = React.useState('');
@@ -550,172 +570,194 @@ export default function AddRescueScreen() {
 	}, [selectedBankId, rescueValueInCents, rescueDate, rescueDescription, banks]);
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<FloatingAlertViewport />
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
 
+			<FloatingAlertViewport />
+
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-					className="flex-1 w-full"
+					className="flex-1"
 				>
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						style={{ backgroundColor: pageBackground }}
-						contentContainerStyle={{
-							flexGrow: 1,
-							paddingBottom: contentBottomPadding,
-							backgroundColor: pageBackground,
-						}}
-					>
-						<View className="w-full px-6">
-					<Heading size="3xl" className="text-center mb-4">
-						Saque em dinheiro
-					</Heading>
-
-					<Box className="w-full items-center mb-4">
-						<AddRescueIllustration width={170} height={170} />
-					</Box>
-
-					<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
-						Registre um saque efetuado de um banco para o seu dinheiro em espécie. O valor será
-						movimentado automaticamente no banco selecionado e aparecerá no histórico de transações em
-						dinheiro.
-					</Text>
-
-					<Divider className="mb-6" />
-
-					<VStack className="gap-4">
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Banco de origem
-							</Text>
-							<Select
-								selectedValue={selectedBankId ?? undefined}
-								onValueChange={value => setSelectedBankId(value)}
-								isDisabled={isLoadingBanks || banks.length === 0}
-							>
-								<SelectTrigger>
-									<SelectInput placeholder="Selecione o banco do qual o valor foi retirado" />
-									<SelectIcon />
-								</SelectTrigger>
-
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
-
-										{banks.length > 0 ? (
-											banks.map(bank => (
-												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-											))
-										) : (
-											<SelectItem
-												key="no-bank"
-												label="Nenhum banco disponível"
-												value="no-bank"
-												isDisabled
-											/>
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Saldo atual do banco
-							</Text>
-							<Input isDisabled>
-								<InputField
-									value={
-										!selectedBankId
-											? 'Selecione um banco para visualizar o saldo'
-											: isLoadingBankBalance
-												? 'Carregando saldo...'
-												: typeof currentBankBalanceInCents === 'number'
-													? formatCurrencyBRL(currentBankBalanceInCents)
-													: 'Saldo indisponível'
-									}
-								/>
-							</Input>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Valor do saque
-							</Text>
-							<Input>
-								<InputField
-									ref={rescueValueInputRef}
-									placeholder="Ex: R$ 150,00"
-									value={rescueValueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-									onFocus={() => handleInputFocus('rescue-value')}
-								/>
-							</Input>
-						</Box>
-
-						<DatePickerField
-							label="Data"
-							value={rescueDate}
-							onChange={handleDateSelect}
-							isDisabled={isLoadingBanks || isSubmitting}
-						/>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Observações
-							</Text>
-							<Textarea size="md" className="h-32">
-								<TextareaInput
-									ref={rescueDescriptionInputRef}
-									placeholder="(Opcional) Informe detalhes relevantes sobre este saque..."
-									value={rescueDescription ?? ''}
-									onChangeText={setRescueDescription}
-									onFocus={() => handleInputFocus('rescue-description')}
-								/>
-							</Textarea>
-						</Box>
-
-						<Button
-							className="w-full mt-2"
-							size="sm"
-							variant="outline"
-							onPress={handleSubmit}
-							isDisabled={
-								isSubmitting ||
-								isLoadingBanks ||
-								!selectedBankId ||
-								rescueValueInCents === null ||
-								rescueValueInCents === 0 ||
-								!rescueDate
-							}
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View
+							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+							style={{ height: heroHeight }}
 						>
-							{isSubmitting ? <ButtonSpinner /> : <ButtonText>Registrar saque</ButtonText>}
-						</Button>
-					</VStack>
+							<Image
+								source={LoginWallpaper}
+								alt="Background da tela de saque em dinheiro"
+								className="w-full h-full rounded-b-3xl absolute"
+								resizeMode="cover"
+							/>
+
+							<VStack
+								className="w-full h-full items-center justify-start px-6 gap-4"
+								style={{ paddingTop: insets.top + 24 }}
+							>
+								<Heading size="xl" className="text-white text-center">
+									Saque em dinheiro
+								</Heading>
+								<AddRescueIllustration width="40%" height="40%" className="opacity-90" />
+							</VStack>
 						</View>
-					</ScrollView>
+
+						<ScrollView
+							ref={scrollViewRef}
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="on-drag"
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							style={{ marginTop: heroHeight - 64 }}
+							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+						>
+							<VStack className="justify-between mt-4">
+								<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+									<Text className={`${bodyText} text-sm leading-6`}>
+										Registre um saque efetuado de um banco para o dinheiro em espécie. O valor é
+										movimentado automaticamente no banco selecionado e também passa a aparecer no
+										histórico de transações em dinheiro.
+									</Text>
+								</View>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
+									<Select
+										selectedValue={selectedBankId ?? undefined}
+										onValueChange={value => setSelectedBankId(value)}
+										isDisabled={isLoadingBanks || banks.length === 0}
+									>
+										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+											<SelectInput
+												placeholder="Selecione o banco do qual o valor foi retirado"
+												className={inputField}
+											/>
+											<SelectIcon />
+										</SelectTrigger>
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+												{banks.length > 0 ? (
+													banks.map(bank => (
+														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													))
+												) : (
+													<SelectItem
+														key="no-bank"
+														label="Nenhum banco disponível"
+														value="no-bank"
+														isDisabled
+													/>
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+									<Text className={`${helperText} mt-2 text-sm`}>
+										{isLoadingBanks
+											? 'Carregando bancos disponíveis...'
+											: 'Escolha o banco de onde o dinheiro saiu.'}
+									</Text>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Saldo atual do banco</Text>
+									<Input className={fieldContainerClassName} isDisabled>
+										<InputField
+											className={inputField}
+											value={
+												!selectedBankId
+													? 'Selecione um banco para visualizar o saldo'
+													: isLoadingBankBalance
+														? 'Carregando saldo...'
+														: typeof currentBankBalanceInCents === 'number'
+															? formatCurrencyBRL(currentBankBalanceInCents)
+															: 'Saldo indisponível'
+											}
+										/>
+									</Input>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor do saque</Text>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											ref={rescueValueInputRef as any}
+											placeholder="Ex: R$ 150,00"
+											value={rescueValueDisplay}
+											onChangeText={handleValueChange}
+											keyboardType="numeric"
+											className={inputField}
+											onFocus={() => handleInputFocus('rescue-value')}
+										/>
+									</Input>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do saque</Text>
+									<DatePickerField
+										value={rescueDate}
+										onChange={handleDateSelect}
+										triggerClassName={fieldContainerClassName}
+										inputClassName={inputField}
+										placeholder="Selecione a data do saque"
+										isDisabled={isLoadingBanks || isSubmitting}
+									/>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Observações</Text>
+									<Textarea className={textareaContainerClassName}>
+										<TextareaInput
+											ref={rescueDescriptionInputRef as any}
+											placeholder="(Opcional) Informe detalhes relevantes sobre este saque..."
+											value={rescueDescription ?? ''}
+											onChangeText={setRescueDescription}
+											className={`${inputField} pt-2`}
+											onFocus={() => handleInputFocus('rescue-description')}
+										/>
+									</Textarea>
+								</VStack>
+
+								<Button
+									className={submitButtonClassName}
+									onPress={handleSubmit}
+									isDisabled={
+										isSubmitting ||
+										isLoadingBanks ||
+										!selectedBankId ||
+										rescueValueInCents === null ||
+										rescueValueInCents === 0 ||
+										!rescueDate
+									}
+								>
+									{isSubmitting ? <ButtonSpinner /> : <ButtonText>Registrar saque</ButtonText>}
+								</Button>
+							</VStack>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 
-				<Menu defaultValue={1} />
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={1} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);
