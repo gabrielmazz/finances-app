@@ -9,8 +9,9 @@ import {
 	StatusBar,
 	TextInput,
 	View,
+	useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -27,15 +28,14 @@ import {
 } from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { Box } from '@/components/ui/box';
-import { Divider } from '@/components/ui/divider';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
+import Navigator from '@/components/uiverse/navigator';
 
 import {
 	getBanksWithUsersByPersonFirebase,
@@ -44,6 +44,7 @@ import {
 	transferBetweenBanksFirebase,
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -113,7 +114,26 @@ const mergeDateWithCurrentTime = (date: Date) => {
 
 export default function TransferScreen() {
 	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
+
+	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
+	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+	const inputField = isDarkMode
+		? 'text-slate-100 placeholder:text-slate-500'
+		: 'text-slate-900 placeholder:text-slate-500';
+	const focusFieldClassName =
+		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
+	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const textareaContainerClassName =
+		`h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const submitButtonClassName = isDarkMode
+		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 
 	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedSourceBankId, setSelectedSourceBankId] = React.useState<string | null>(null);
@@ -437,6 +457,7 @@ export default function TransferScreen() {
 		() => banks.filter(bank => bank.id !== selectedSourceBankId),
 		[banks, selectedSourceBankId],
 	);
+	const screenTitle = 'Transferência entre bancos';
 
 	React.useEffect(() => {
 		// Ao trocar banco de origem, limpamos o destino para evitar duplicidade
@@ -589,219 +610,270 @@ export default function TransferScreen() {
 	]);
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<FloatingAlertViewport />
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
 
+			<FloatingAlertViewport />
+
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-					className="flex-1 w-full"
+					className="flex-1"
 				>
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						style={{ backgroundColor: pageBackground }}
-						contentContainerStyle={{
-							flexGrow: 1,
-							paddingBottom: contentBottomPadding,
-							backgroundColor: pageBackground,
-						}}
-					>
-						<View className="w-full px-6">
-						<Heading size="3xl" className="text-center mb-4">
-							Transferência entre bancos
-						</Heading>
-
-						<Box className="w-full items-center mb-4">
-							<TransferIllustration width={170} height={170} />
-						</Box>
-
-						<Text className="text-justify mb-6 text-gray-600 dark:text-gray-400">
-							Mova valores de um banco para outro com segurança. Validamos o saldo disponível no banco de
-							origem antes de concluir a transferência e registramos automaticamente a saída e a entrada para
-							as movimentações de cada banco.
-						</Text>
-
-						<Divider className="mb-6" />
-
-						<VStack className="gap-4">
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Banco de origem
-								</Text>
-								<Select
-									selectedValue={selectedSourceBankId ?? undefined}
-									onValueChange={value => setSelectedSourceBankId(value)}
-									isDisabled={isLoadingBanks || banks.length === 0}
-								>
-									<SelectTrigger>
-										<SelectInput placeholder="Selecione de onde o valor sairá" />
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{banks.map(bank => (
-												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-											))}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Banco de destino
-								</Text>
-								<Select
-									selectedValue={selectedTargetBankId ?? undefined}
-									onValueChange={value => setSelectedTargetBankId(value)}
-									isDisabled={isLoadingBanks || banks.length === 0 || !selectedSourceBankId}
-								>
-									<SelectTrigger>
-										<SelectInput
-											placeholder={
-												selectedSourceBankId
-													? 'Selecione para onde o valor chegará'
-													: 'Selecione primeiro o banco de origem'
-											}
-										/>
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{targetBankOptions.map(bank => (
-												<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-											))}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-								{selectedSourceBankId && selectedTargetBankId && selectedSourceBankId === selectedTargetBankId && (
-									<Text className="mt-2 text-xs text-red-600 dark:text-red-400">
-										Escolha bancos diferentes para completar a transferência.
-									</Text>
-								)}
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor</Text>
-								<Input>
-									<InputField
-										ref={transferValueInputRef}
-										value={transferValueDisplay}
-										onChangeText={handleValueChange}
-										placeholder="R$ 0,00"
-										keyboardType="numeric"
-										returnKeyType="next"
-										onFocus={() => handleInputFocus('transfer-value')}
-									/>
-								</Input>
-								{typeof originBalanceInCents === 'number' && (
-									<Text
-										className={`mt-2 text-sm ${
-											hasInsufficientBalance
-												? 'text-red-600 dark:text-red-400'
-												: 'text-gray-600 dark:text-gray-400'
-										}`}
-									>
-										Saldo disponível no banco de origem:{' '}
-										{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
-									</Text>
-								)}
-								{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
-									<Text className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-										Carregando saldo do banco de origem...
-									</Text>
-								)}
-								{selectedSourceBankId &&
-									!isLoadingBalance &&
-									typeof originBalanceInCents !== 'number' && (
-										<Text className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-											Saldo não registrado para este mês. Registre o saldo mensal para validar a transferência.
-										</Text>
-									)}
-								{hasInsufficientBalance && (
-									<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
-										Saldo insuficiente para o valor informado.
-									</Text>
-								)}
-							</Box>
-
-							<DatePickerField
-								label="Data"
-								value={transferDate}
-								onChange={handleDateSelect}
-								isDisabled={isLoadingBanks || isSubmitting}
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View
+							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+							style={{ height: heroHeight }}
+						>
+							<Image
+								source={LoginWallpaper}
+								alt="Background da tela de transferência entre bancos"
+								className="w-full h-full rounded-b-3xl absolute"
+								resizeMode="cover"
 							/>
 
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Descrição (opcional)
-								</Text>
-								<Textarea size="md" className="h-24">
-									<TextareaInput
-										ref={transferDescriptionInputRef}
-										value={transferDescription ?? ''}
-										onChangeText={value => setTransferDescription(value)}
-										placeholder="Adicione detalhes da transferência"
-										multiline
-										onFocus={() => handleInputFocus('transfer-description')}
-									/>
-								</Textarea>
-							</Box>
-
-							<Button
-								size="md"
-								variant="outline"
-								onPress={() => {
-									if (!isSubmitting) {
-										void handleSubmit();
-									}
-								}}
-								isDisabled={
-									isSubmitting ||
-									isLoadingBanks ||
-									isLoadingBalance ||
-									!selectedSourceBankId ||
-									!selectedTargetBankId ||
-									!transferValueDisplay
-								}
+							<VStack
+								className="w-full h-full items-center justify-start px-6 gap-4"
+								style={{ paddingTop: insets.top + 24 }}
 							>
-								{isSubmitting ? (
-									<>
-										<ButtonSpinner color="white" />
-										<ButtonText>Registrando transferência</ButtonText>
-									</>
-								) : (
-									<ButtonText>Confirmar transferência</ButtonText>
-								)}
-							</Button>
-						</VStack>
+								<Heading size="xl" className="text-white text-center">
+									{screenTitle}
+								</Heading>
+								<TransferIllustration width="40%" height="40%" className="opacity-90" />
+							</VStack>
 						</View>
-					</ScrollView>
+
+						<ScrollView
+							ref={scrollViewRef}
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="on-drag"
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							style={{ marginTop: heroHeight - 64 }}
+							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+						>
+							<VStack className="justify-between mt-4">
+								<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+									<Text className={`${bodyText} text-sm leading-6`}>
+										Mova valores de um banco para outro com segurança. O saldo disponível do banco
+										de origem é validado antes da transferência e a movimentação fica registrada
+										nos dois bancos.
+									</Text>
+								</View>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
+									<Select
+										selectedValue={selectedSourceBankId ?? undefined}
+										onValueChange={value => setSelectedSourceBankId(value)}
+										isDisabled={isLoadingBanks || banks.length === 0}
+									>
+										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+											<SelectInput
+												placeholder="Selecione de onde o valor sairá"
+												className={inputField}
+											/>
+											<SelectIcon />
+										</SelectTrigger>
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+												{banks.length > 0 ? (
+													banks.map(bank => (
+														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													))
+												) : (
+													<SelectItem
+														label="Nenhum banco disponível"
+														value="no-bank"
+														isDisabled
+													/>
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+									<Text className={`${helperText} mt-2 text-sm`}>
+										{isLoadingBanks
+											? 'Carregando bancos disponíveis...'
+											: 'Selecione o banco que enviará o valor.'}
+									</Text>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de destino</Text>
+									<Select
+										selectedValue={selectedTargetBankId ?? undefined}
+										onValueChange={value => setSelectedTargetBankId(value)}
+										isDisabled={isLoadingBanks || banks.length === 0 || !selectedSourceBankId}
+									>
+										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+											<SelectInput
+												placeholder={
+													selectedSourceBankId
+														? 'Selecione para onde o valor chegará'
+														: 'Selecione primeiro o banco de origem'
+												}
+												className={inputField}
+											/>
+											<SelectIcon />
+										</SelectTrigger>
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+												{targetBankOptions.length > 0 ? (
+													targetBankOptions.map(bank => (
+														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													))
+												) : (
+													<SelectItem
+														label="Nenhum banco disponível"
+														value="no-target-bank"
+														isDisabled
+													/>
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+									<Text className={`${helperText} mt-2 text-sm`}>
+										{selectedSourceBankId
+											? 'Escolha o banco que receberá a transferência.'
+											: 'Defina o banco de origem para liberar este campo.'}
+									</Text>
+									{selectedSourceBankId &&
+										selectedTargetBankId &&
+										selectedSourceBankId === selectedTargetBankId && (
+											<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
+												Escolha bancos diferentes para completar a transferência.
+											</Text>
+										)}
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor</Text>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											ref={transferValueInputRef as any}
+											value={transferValueDisplay}
+											onChangeText={handleValueChange}
+											placeholder="R$ 0,00"
+											keyboardType="numeric"
+											returnKeyType="next"
+											className={inputField}
+											onFocus={() => handleInputFocus('transfer-value')}
+										/>
+									</Input>
+									{typeof originBalanceInCents === 'number' && (
+										<Text
+											className={`mt-2 text-sm ${
+												hasInsufficientBalance
+													? 'text-red-600 dark:text-red-400'
+													: helperText
+											}`}
+										>
+											Saldo disponível no banco de origem:{' '}
+											{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
+										</Text>
+									)}
+									{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
+										<Text className={`${helperText} mt-2 text-sm`}>
+											Carregando saldo do banco de origem...
+										</Text>
+									)}
+									{selectedSourceBankId &&
+										!isLoadingBalance &&
+										typeof originBalanceInCents !== 'number' && (
+											<Text className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+												Saldo não registrado para este mês. Registre o saldo mensal para validar
+												a transferência.
+											</Text>
+										)}
+									{hasInsufficientBalance && (
+										<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
+											Saldo insuficiente para o valor informado.
+										</Text>
+									)}
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da transferência</Text>
+									<DatePickerField
+										value={transferDate}
+										onChange={handleDateSelect}
+										triggerClassName={fieldContainerClassName}
+										inputClassName={inputField}
+										placeholder="Selecione a data da transferência"
+										isDisabled={isLoadingBanks || isSubmitting}
+									/>
+								</VStack>
+
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Descrição (opcional)</Text>
+									<Textarea className={textareaContainerClassName}>
+										<TextareaInput
+											ref={transferDescriptionInputRef as any}
+											value={transferDescription ?? ''}
+											onChangeText={value => setTransferDescription(value)}
+											placeholder="Adicione detalhes da transferência"
+											className={`${inputField} pt-2`}
+											multiline
+											onFocus={() => handleInputFocus('transfer-description')}
+										/>
+									</Textarea>
+								</VStack>
+
+								<Button
+									className={submitButtonClassName}
+									onPress={() => {
+										if (!isSubmitting) {
+											void handleSubmit();
+										}
+									}}
+									isDisabled={
+										isSubmitting ||
+										isLoadingBanks ||
+										isLoadingBalance ||
+										!selectedSourceBankId ||
+										!selectedTargetBankId ||
+										!transferValueDisplay
+									}
+								>
+									{isSubmitting ? (
+										<>
+											<ButtonSpinner />
+											<ButtonText>Registrando transferência</ButtonText>
+										</>
+									) : (
+										<ButtonText>Confirmar transferência</ButtonText>
+									)}
+								</Button>
+							</VStack>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 
-				<Menu defaultValue={1} />
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={1} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);

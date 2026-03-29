@@ -1,16 +1,19 @@
 import React from 'react';
-import { ScrollView, TouchableOpacity, View, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, TouchableOpacity, View, StatusBar, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
-import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
-import { Menu } from '@/components/uiverse/menu';
+import { Image } from '@/components/ui/image';
+import { VStack } from '@/components/ui/vstack';
+import Navigator from '@/components/uiverse/navigator';
+import { Grid, GridItem } from '@/components/ui/grid';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
 import { auth } from '@/FirebaseConfig';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import {
 	getBanksWithUsersByPersonFirebase,
 	getCurrentMonthSummaryByBankFirebaseExpanses,
@@ -22,9 +25,7 @@ import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalan
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { computeMonthlyBankBalances, MonthlyBankBalance } from '@/utils/monthlyBalance';
 
-// Importação do SVG de ilustração
 import MonthlyBankMovementsIllustration from '../assets/UnDraw/monthlyBankSummaryScreen.svg';
-import { Divider } from '@/components/ui/divider';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
 type BankSummary = {
@@ -41,7 +42,20 @@ function formatCurrencyBRLBase(valueInCents: number): string {
 
 export default function MonthlyBankSummaryScreen() {
 	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
+
+	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
+	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
+	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
+	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
+	const focusFieldClassName =
+		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
+	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [bankSummaries, setBankSummaries] = React.useState<BankSummary[]>([]);
@@ -153,10 +167,10 @@ export default function MonthlyBankSummaryScreen() {
 						cashExpensesResult?.success && Array.isArray(cashExpensesResult.data)
 							? cashExpensesResult.data
 							: [];
-						const cashGainsArray =
-							cashGainsResult?.success && Array.isArray(cashGainsResult.data)
-								? cashGainsResult.data
-								: [];
+					const cashGainsArray =
+						cashGainsResult?.success && Array.isArray(cashGainsResult.data)
+							? cashGainsResult.data
+							: [];
 
 					const [balanceResults, investmentResults] = await Promise.all([
 						Promise.all(
@@ -288,7 +302,8 @@ export default function MonthlyBankSummaryScreen() {
 					const totalCashGainsInCents = sumValues(cashGainsArray);
 					const totalCashMovements = cashExpensesArray.length + cashGainsArray.length;
 
-					const hasCashTransactions = totalCashMovements > 0 || totalCashExpensesInCents > 0 || totalCashGainsInCents > 0;
+					const hasCashTransactions =
+						totalCashMovements > 0 || totalCashExpensesInCents > 0 || totalCashGainsInCents > 0;
 
 					const combinedSummaries = hasCashTransactions
 						? [
@@ -336,170 +351,216 @@ export default function MonthlyBankSummaryScreen() {
 	const shouldShowNoBanksMessage = !isLoading && !errorMessage && !hasBankEntries;
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-						flex-1 w-full h-full
-						pt-[64px]
-						items-center
-						justify-between
-						pb-6
-						relative
-					"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{ backgroundColor: pageBackground }}
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-						backgroundColor: pageBackground,
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
+
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+					<View
+						className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+						style={{ height: heroHeight }}
+					>
+						<Image
+							source={LoginWallpaper}
+							alt="Background da tela de saldo mensal do banco"
+							className="w-full h-full rounded-b-3xl absolute"
+							resizeMode="cover"
+						/>
+
+						<VStack
+							className="w-full h-full items-center justify-start px-6 gap-4"
+							style={{ paddingTop: insets.top + 24 }}
+						>
+							<Heading size="xl" className="text-white text-center">
+								Saldo mensal do banco
+							</Heading>
+							<MonthlyBankMovementsIllustration width="40%" height="40%" className="opacity-90" />
+						</VStack>
+					</View>
+
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						style={{ marginTop: heroHeight - 64 }}
+						contentContainerStyle={{ paddingBottom: 32 }}
+					>
+						<VStack className="justify-between mt-4">
+
+							{isLoading ? (
+								<View className={`${fieldContainerCardClassName} px-4 py-4`}>
+									<Text className={`${bodyText} text-sm`}>Carregando dados...</Text>
+								</View>
+							) : errorMessage ? (
+								<View className={`${fieldContainerCardClassName} px-4 py-4`}>
+									<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
+								</View>
+							) : shouldShowEmptyState ? (
+								<View className={`${fieldContainerCardClassName} px-4 py-4`}>
+									<Text className={`${bodyText} text-sm`}>
+										Nenhum banco vinculado foi encontrado para o usuário atual.
+									</Text>
+								</View>
+							) : (
+								<>
+									{shouldShowNoBanksMessage && (
+										<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+											<Text className={`${bodyText} text-sm`}>
+												Nenhum banco vinculado foi encontrado. Exibindo apenas movimentações em
+												dinheiro.
+											</Text>
+										</View>
+									)}
+
+									{bankSummaries.map(bank => {
+										const isCashSummary = Boolean(bank.isCashSummary);
+										const initialBalanceClassName =
+											typeof bank.initialBalanceInCents === 'number'
+												? bank.initialBalanceInCents >= 0
+													? 'text-emerald-600 dark:text-emerald-400'
+													: 'text-red-600 dark:text-red-400'
+												: bodyText;
+										const currentBalanceClassName =
+											typeof bank.currentBalanceInCents === 'number'
+												? bank.currentBalanceInCents >= 0
+													? 'text-emerald-600 dark:text-emerald-400'
+													: 'text-red-600 dark:text-red-400'
+												: bodyText;
+										const initialBalanceLabel =
+											typeof bank.initialBalanceInCents === 'number'
+												? formatCurrencyBRL(bank.initialBalanceInCents)
+												: isCashSummary
+													? 'Não aplicável'
+													: 'Não registrado';
+										const currentBalanceLabel =
+											typeof bank.currentBalanceInCents === 'number'
+												? formatCurrencyBRL(bank.currentBalanceInCents)
+												: 'Indisponível';
+
+										return (
+											<TouchableOpacity
+												key={bank.id || bank.name}
+												activeOpacity={0.92}
+												onPress={() =>
+													isCashSummary
+														? handleOpenCashMovements()
+														: handleOpenBankMovements(bank.id, bank.name, bank.colorHex)
+												}
+											>
+												<VStack className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+
+													<HStack className="items-start justify-between gap-3">
+														<VStack className="flex-1">
+															<Text
+																className={`${headingText} text-lg font-semibold`}
+																style={bank.colorHex ? { color: bank.colorHex } : undefined}
+															>
+																{bank.name}
+															</Text>
+														</VStack>
+														<Text className={`${helperText} pt-1 text-xs`}>Ver período</Text>
+													</HStack>
+
+													<VStack className="mt-4 gap-4">
+														<HStack className="justify-between gap-4">
+															<VStack className="flex-1 h-full">
+																<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																	Ganhos do mês
+																</Text>
+																<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																	<Text className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+																		{formatCurrencyBRL(bank.totalGainsInCents)}
+																	</Text>
+																</View>
+															</VStack>
+
+															<VStack className="flex-1 h-full">
+																<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																	Despesas do mês
+																</Text>
+																<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																	<Text className="text-sm font-semibold text-red-600 dark:text-red-400">
+																		{formatCurrencyBRL(bank.totalExpensesInCents)}
+																	</Text>
+																</View>
+															</VStack>
+														</HStack>
+
+														{!isCashSummary && bank.totalInitialInvestedInCents > 0 && (
+															<VStack className="flex-1 h-full">
+																<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																	Valor investido
+																</Text>
+																<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																	<Text className="text-sm font-semibold text-indigo-600 dark:text-indigo-300">
+																		{formatCurrencyBRL(bank.totalInitialInvestedInCents)}
+																	</Text>
+																</View>
+															</VStack>
+														)}
+
+														<HStack className="justify-between gap-4">
+															<VStack className="flex-1 h-full">
+																<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																	Saldo inicial
+																</Text>
+																<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																	<Text className={`${initialBalanceClassName} text-sm font-semibold`}>
+																		{initialBalanceLabel}
+																	</Text>
+																</View>
+															</VStack>
+															
+															<VStack className="flex-1 h-full">
+																<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																	Saldo atual
+																</Text>
+																<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																	<Text className={`${currentBalanceClassName} text-sm font-semibold`}>
+																		{currentBalanceLabel}
+																	</Text>
+																</View>
+															</VStack>
+														</HStack>
+
+														<VStack className="flex-1 h-full">
+															<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+																Movimentações no mês
+															</Text>
+															<View className={`${fieldContainerClassName} px-4 justify-center`}>
+																<Text className="text-sm font-semibold text-yellow-500 dark:text-yellow-300">
+																	{formatMovementsCount(bank.totalMovements)}
+																</Text>
+															</View>
+														</VStack>
+													</VStack>
+												</VStack>
+											</TouchableOpacity>
+										);
+									})}
+								</>
+							)}
+						</VStack>
+					</ScrollView>
+				</View>
+
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
 					}}
 				>
-					<View className="w-full px-6">
-
-						<Heading size="3xl" className="text-center text-gray-900 dark:text-gray-100">
-							Resumo mensal por banco e transações em dinheiro
-						</Heading>
-
-						<Box className="w-full items-center">
-							<MonthlyBankMovementsIllustration width={180} height={180} />
-						</Box>
-
-						<Text className="text-justify text-gray-600 dark:text-gray-400">
-							Visualize os ganhos, despesas e movimentações do mês corrente para cada banco. Toque em um banco para ver detalhes e selecionar períodos personalizados.
-						</Text>
-
-						<Divider className="my-6 mb-6" />
-
-						{isLoading ? (
-							<Text className="text-center text-gray-700 dark:text-gray-300">Carregando dados...</Text>
-						) : errorMessage ? (
-							<Text className="text-center text-red-600 dark:text-red-400">{errorMessage}</Text>
-						) : shouldShowEmptyState ? (
-							<Text className="text-center text-gray-700 dark:text-gray-300">
-								Nenhum banco vinculado foi encontrado para o usuário atual.
-							</Text>
-						) : (
-							<>
-								{shouldShowNoBanksMessage && (
-									<Text className="text-center text-gray-700 dark:text-gray-300 mb-4">
-										Nenhum banco vinculado foi encontrado. Exibindo apenas movimentações em dinheiro.
-									</Text>
-								)}
-								{bankSummaries.map(bank => {
-									const isCashSummary = Boolean(bank.isCashSummary);
-
-									const cardContent = (
-										<Box
-											className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-										>
-											<HStack className="justify-between items-center">
-												<Text
-													className="text-lg font-semibold text-gray-900 dark:text-gray-100"
-													style={bank.colorHex ? { color: bank.colorHex } : undefined}
-												>
-													{bank.name}
-												</Text>
-												<Text className="text-sm text-gray-600 dark:text-slate-400">
-													Ver período
-												</Text>
-											</HStack>
-
-											<Text className="mt-3 text-gray-700 dark:text-gray-300">
-												Ganhos:{' '}
-												<Text className="text-emerald-600 dark:text-emerald-400 font-semibold">
-													{formatCurrencyBRL(bank.totalGainsInCents)}
-												</Text>
-											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Despesas:{' '}
-												<Text className="text-red-600 dark:text-red-400 font-semibold">
-													{formatCurrencyBRL(bank.totalExpensesInCents)}
-												</Text>
-											</Text>
-											{!isCashSummary && bank.totalInitialInvestedInCents > 0 && (
-												<>
-													<Text className="mt-1 text-gray-700 dark:text-gray-300">
-														Valor investido:{' '}
-														<Text className="text-indigo-600 dark:text-indigo-300 font-semibold">
-															{formatCurrencyBRL(bank.totalInitialInvestedInCents)}
-														</Text>
-													</Text>
-												</>
-											)}
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Saldo inicial:{' '}
-												<Text
-													className={
-														typeof bank.initialBalanceInCents === 'number'
-															? bank.initialBalanceInCents >= 0
-																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																: 'text-red-600 dark:text-red-400 font-semibold'
-															: 'text-gray-700 dark:text-gray-300'
-													}
-												>
-													{typeof bank.initialBalanceInCents === 'number'
-														? formatCurrencyBRL(bank.initialBalanceInCents)
-														: isCashSummary
-															? 'Não aplicável'
-															: 'Não registrado'}
-												</Text>
-											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Saldo atual:{' '}
-												<Text
-													className={
-														typeof bank.currentBalanceInCents === 'number'
-															? bank.currentBalanceInCents >= 0
-																? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-																: 'text-red-600 dark:text-red-400 font-semibold'
-															: 'text-gray-700 dark:text-gray-300'
-													}
-												>
-													{typeof bank.currentBalanceInCents === 'number'
-														? formatCurrencyBRL(bank.currentBalanceInCents)
-														: 'Indisponível'}
-												</Text>
-											</Text>
-											<Text className="mt-1 text-gray-700 dark:text-gray-300">
-												Movimentações no mês:{' '}
-												<Text className="text-yellow-500 dark:text-yellow-300 font-semibold">
-													{formatMovementsCount(bank.totalMovements)}
-												</Text>
-											</Text>
-
-											<Text className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-												{isCashSummary
-													? 'Toque para visualizar apenas as movimentações realizadas em dinheiro.'
-													: `Toque para selecionar um período personalizado e ver todas as movimentações do banco ${bank.name}.`}
-											</Text>
-										</Box>
-									);
-
-									return (
-										<TouchableOpacity
-											key={bank.id || bank.name}
-											activeOpacity={0.9}
-											onPress={() =>
-												isCashSummary
-													? handleOpenCashMovements()
-													: handleOpenBankMovements(bank.id, bank.name, bank.colorHex)
-											}
-										>
-											{cardContent}
-										</TouchableOpacity>
-									);
-								})}
-							</>
-						)}
-					</View>
-				</ScrollView>
-
-				<Menu defaultValue={0} />
+					<Navigator defaultValue={0} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);
