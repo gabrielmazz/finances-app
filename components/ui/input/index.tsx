@@ -189,14 +189,14 @@ type IInputFieldProps = React.ComponentProps<typeof UIInput.Input> &
   VariantProps<typeof inputFieldStyle> & { className?: string };
 
 const InputField = React.forwardRef<
-  React.ComponentRef<typeof UIInput.Input>,
+  React.ComponentRef<typeof TextInput>,
   IInputFieldProps
 >(function InputField({ className, ...props }, ref) {
   const { variant: parentVariant, size: parentSize } = useStyleContext(SCOPE);
 
   return (
     <UIInput.Input
-      ref={ref}
+      ref={ref as React.Ref<any>}
       {...props}
       className={inputFieldStyle({
         parentVariants: {

@@ -68,14 +68,14 @@ type ITextareaInputProps = React.ComponentProps<typeof UITextarea.Input> &
   VariantProps<typeof textareaInputStyle>;
 
 const TextareaInput = React.forwardRef<
-  React.ComponentRef<typeof UITextarea.Input>,
+  React.ComponentRef<typeof TextInput>,
   ITextareaInputProps
 >(function TextareaInput({ className, ...props }, ref) {
   const { size: parentSize } = useStyleContext(SCOPE);
 
   return (
     <UITextarea.Input
-      ref={ref}
+      ref={ref as React.Ref<any>}
       {...props}
       textAlignVertical="top"
       className={textareaInputStyle({

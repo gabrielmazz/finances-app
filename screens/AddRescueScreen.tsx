@@ -34,7 +34,6 @@ import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import Navigator from '@/components/uiverse/navigator';
 
 import {
@@ -49,6 +48,8 @@ import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalan
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DatePickerField from '@/components/uiverse/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showInAppNotification } from '@/utils/showInAppNotification';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -127,7 +128,6 @@ export default function AddRescueScreen() {
 	const focusFieldClassName =
 		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
 	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const textareaContainerClassName =
 		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const submitButtonClassName = isDarkMode
@@ -148,11 +148,30 @@ export default function AddRescueScreen() {
 	const rescueValueInputRef = React.useRef<TextInput | null>(null);
 	const rescueDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const previousUnavailableBalanceRef = React.useRef(false);
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'rescue-description' ? 180 : 120),
 		[],
 	);
+
+	const showUnavailableBalanceNotification = React.useCallback(() => {
+		showNotifierAlert({
+			title: 'Saldo indisponível',
+			description: 'O banco selecionado não tem saldo suficiente para este saque.',
+			type: 'error',
+			isDarkMode,
+		});
+	}, [isDarkMode]);
+
+	const showSuccessfulRescueNotification = React.useCallback(() => {
+		showNotifierAlert({
+			title: 'Saque registrado',
+			description: 'Saque realizado com sucesso.',
+			type: 'success',
+			isDarkMode,
+		});
+	}, [isDarkMode]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -289,10 +308,10 @@ export default function AddRescueScreen() {
 
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showFloatingAlert({
-						message: 'Nenhum usuário autenticado foi identificado.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Sessão indisponível',
+						description: 'Nenhum usuário autenticado foi identificado.',
+						type: 'error',
 					});
 					return;
 				}
@@ -380,10 +399,10 @@ export default function AddRescueScreen() {
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Não foi possível carregar o saldo atual do banco.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Falha ao carregar saldo',
+						description: 'Não foi possível carregar o saldo atual do banco.',
+						type: 'error',
 					});
 				}
 				setCurrentBankBalanceInCents(null);
@@ -401,6 +420,37 @@ export default function AddRescueScreen() {
 		};
 	}, [selectedBankId]);
 
+	const hasInsufficientBalance =
+		typeof currentBankBalanceInCents === 'number' &&
+		typeof rescueValueInCents === 'number' &&
+		rescueValueInCents > currentBankBalanceInCents;
+	const hasUnavailableBalance =
+		typeof currentBankBalanceInCents === 'number' && currentBankBalanceInCents <= 0;
+	const isBalanceValidationUnavailable =
+		selectedBankId !== null && !isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number';
+
+	React.useEffect(() => {
+		if (!selectedBankId || isLoadingBankBalance || rescueValueInCents === null || rescueValueInCents <= 0) {
+			previousUnavailableBalanceRef.current = false;
+			return;
+		}
+
+		const shouldShowUnavailableBalanceAlert = hasUnavailableBalance || hasInsufficientBalance;
+
+		if (shouldShowUnavailableBalanceAlert && !previousUnavailableBalanceRef.current) {
+			showUnavailableBalanceNotification();
+		}
+
+		previousUnavailableBalanceRef.current = shouldShowUnavailableBalanceAlert;
+	}, [
+		hasInsufficientBalance,
+		hasUnavailableBalance,
+		isLoadingBankBalance,
+		rescueValueInCents,
+		selectedBankId,
+		showUnavailableBalanceNotification,
+	]);
+
 	const handleDateSelect = React.useCallback((formatted: string) => {
 		setRescueDate(formatted);
 	}, []);
@@ -413,10 +463,10 @@ export default function AddRescueScreen() {
 			try {
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showFloatingAlert({
-						message: 'Nenhum usuário autenticado foi identificado.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Sessão indisponível',
+						description: 'Nenhum usuário autenticado foi identificado.',
+						type: 'error',
 					});
 					return;
 				}
@@ -436,19 +486,19 @@ export default function AddRescueScreen() {
 					}));
 					setBanks(formattedBanks);
 				} else {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os bancos disponíveis.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Falha ao carregar bancos',
+						description: 'Não foi possível carregar os bancos disponíveis.',
+						type: 'error',
 					});
 				}
 			} catch (error) {
 				console.error('Erro ao carregar bancos para saque:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar bancos.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Erro inesperado',
+						description: 'Erro inesperado ao carregar bancos.',
+						type: 'error',
 					});
 				}
 			} finally {
@@ -465,50 +515,76 @@ export default function AddRescueScreen() {
 		};
 	}, []);
 
+	const parsedRescueDate = React.useMemo(() => parseDateFromBR(rescueDate), [rescueDate]);
+	const hasRescueValue = rescueValueInCents !== null && rescueValueInCents > 0;
+	const isBankSelectDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
+	const isRescueValueDisabled = isSubmitting || !selectedBankId;
+	const isRescueDateDisabled = isSubmitting || !selectedBankId || !hasRescueValue;
+	const isRescueDescriptionDisabled = isSubmitting || !selectedBankId || !hasRescueValue || !parsedRescueDate;
+	const isSubmitDisabled =
+		isSubmitting ||
+		isLoadingBanks ||
+		isLoadingBankBalance ||
+		!selectedBankId ||
+		!hasRescueValue ||
+		!parsedRescueDate ||
+		hasUnavailableBalance ||
+		hasInsufficientBalance ||
+		isBalanceValidationUnavailable;
+
 	const handleSubmit = React.useCallback(async () => {
 		if (!selectedBankId) {
-			showFloatingAlert({
-				message: 'Selecione o banco de origem do saque.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Banco obrigatório',
+				description: 'Selecione o banco de origem do saque.',
+				type: 'error',
 			});
 			return;
 		}
 
 		if (rescueValueInCents === null || rescueValueInCents === 0) {
-			showFloatingAlert({
-				message: 'Informe o valor sacado.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Valor obrigatório',
+				description: 'Informe o valor sacado.',
+				type: 'error',
 			});
 			return;
 		}
 
-		if (!rescueDate) {
-			showFloatingAlert({
-				message: 'Informe a data do saque.',
-				action: 'error',
-				position: 'bottom',
+		if (typeof currentBankBalanceInCents === 'number') {
+			if (currentBankBalanceInCents <= 0) {
+				showUnavailableBalanceNotification();
+				return;
+			}
+
+			if (rescueValueInCents > currentBankBalanceInCents) {
+				showUnavailableBalanceNotification();
+				return;
+			}
+		} else {
+			showInAppNotification({
+				title: 'Saldo não encontrado',
+				description: 'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
+				type: 'warn',
 			});
 			return;
 		}
 
-		const parsedDate = parseDateFromBR(rescueDate);
-		if (!parsedDate) {
-			showFloatingAlert({
-				message: 'Informe uma data válida (DD/MM/AAAA).',
-				action: 'error',
-				position: 'bottom',
+		if (!parsedRescueDate) {
+			showInAppNotification({
+				title: 'Data inválida',
+				description: 'Informe uma data válida (DD/MM/AAAA).',
+				type: 'error',
 			});
 			return;
 		}
 
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Nenhum usuário autenticado foi identificado.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Sessão indisponível',
+				description: 'Nenhum usuário autenticado foi identificado.',
+				type: 'error',
 			});
 			return;
 		}
@@ -516,7 +592,7 @@ export default function AddRescueScreen() {
 		const bankSnapshotName =
 			banks.find(bank => bank.id === selectedBankId)?.name ?? 'Banco não identificado';
 
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedRescueDate);
 
 		setIsSubmitting(true);
 
@@ -531,43 +607,41 @@ export default function AddRescueScreen() {
 			});
 
 			if (!result.success) {
-				showFloatingAlert({
-					message: 'Não foi possível registrar o saque. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showInAppNotification({
+					title: 'Falha ao registrar saque',
+					description: 'Não foi possível registrar o saque. Tente novamente.',
+					type: 'error',
 				});
 				return;
 			}
 
-			showFloatingAlert({
-				message: 'Saque registrado com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
-
-			setSelectedBankId(null);
-			setRescueValueDisplay('');
-			setRescueValueInCents(null);
-			setRescueDate(formatDateToBR(new Date()));
-			setRescueDescription(null);
-			router.push({
-				pathname: '/bank-movements',
+			showSuccessfulRescueNotification();
+			router.replace({
+				pathname: '/home',
 				params: {
-					bankId: selectedBankId,
-					bankName: encodeURIComponent(bankSnapshotName),
+					tab: '0',
 				},
 			});
 		} catch (error) {
 			console.error('Erro ao registrar saque em dinheiro:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao registrar o saque.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Erro inesperado',
+				description: 'Erro inesperado ao registrar o saque.',
+				type: 'error',
 			});
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [selectedBankId, rescueValueInCents, rescueDate, rescueDescription, banks]);
+	}, [
+		selectedBankId,
+		rescueValueInCents,
+		currentBankBalanceInCents,
+		parsedRescueDate,
+		rescueDescription,
+		banks,
+		showUnavailableBalanceNotification,
+		showSuccessfulRescueNotification,
+	]);
 
 	return (
 		<SafeAreaView
@@ -580,8 +654,6 @@ export default function AddRescueScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
-
-			<FloatingAlertViewport />
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
@@ -621,20 +693,12 @@ export default function AddRescueScreen() {
 							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 						>
 							<VStack className="justify-between mt-4">
-								<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-									<Text className={`${bodyText} text-sm leading-6`}>
-										Registre um saque efetuado de um banco para o dinheiro em espécie. O valor é
-										movimentado automaticamente no banco selecionado e também passa a aparecer no
-										histórico de transações em dinheiro.
-									</Text>
-								</View>
-
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
 									<Select
 										selectedValue={selectedBankId ?? undefined}
 										onValueChange={value => setSelectedBankId(value)}
-										isDisabled={isLoadingBanks || banks.length === 0}
+										isDisabled={isBankSelectDisabled}
 									>
 										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 											<SelectInput
@@ -664,34 +728,37 @@ export default function AddRescueScreen() {
 											</SelectContent>
 										</SelectPortal>
 									</Select>
-									<Text className={`${helperText} mt-2 text-sm`}>
-										{isLoadingBanks
-											? 'Carregando bancos disponíveis...'
-											: 'Escolha o banco de onde o dinheiro saiu.'}
-									</Text>
 								</VStack>
 
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Saldo atual do banco</Text>
-									<Input className={fieldContainerClassName} isDisabled>
-										<InputField
-											className={inputField}
-											value={
-												!selectedBankId
-													? 'Selecione um banco para visualizar o saldo'
-													: isLoadingBankBalance
-														? 'Carregando saldo...'
-														: typeof currentBankBalanceInCents === 'number'
-															? formatCurrencyBRL(currentBankBalanceInCents)
-															: 'Saldo indisponível'
-											}
-										/>
-									</Input>
-								</VStack>
+								{selectedBankId && (
+									<View className="mb-4 px-3 py-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+										{typeof currentBankBalanceInCents === 'number' && (
+											<Text className={`${helperText} text-sm text-center`}>
+												Saldo disponível no banco de origem:{' '}
+												{isLoadingBankBalance
+													? 'carregando...'
+													: formatCurrencyBRL(currentBankBalanceInCents)}
+											</Text>
+										)}
+										{isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number' && (
+											<Text className={`${helperText} text-sm text-center`}>
+												Carregando saldo do banco de origem...
+											</Text>
+										)}
+										{selectedBankId &&
+											!isLoadingBankBalance &&
+											typeof currentBankBalanceInCents !== 'number' && (
+												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
+													Saldo não registrado para este mês. Registre o saldo mensal para validar o
+													saque.
+												</Text>
+											)}
+									</View>
+								)}
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor do saque</Text>
-									<Input className={fieldContainerClassName}>
+									<Input className={fieldContainerClassName} isDisabled={isRescueValueDisabled}>
 										<InputField
 											ref={rescueValueInputRef as any}
 											placeholder="Ex: R$ 150,00"
@@ -699,6 +766,7 @@ export default function AddRescueScreen() {
 											onChangeText={handleValueChange}
 											keyboardType="numeric"
 											className={inputField}
+											editable={!isRescueValueDisabled}
 											onFocus={() => handleInputFocus('rescue-value')}
 										/>
 									</Input>
@@ -712,19 +780,20 @@ export default function AddRescueScreen() {
 										triggerClassName={fieldContainerClassName}
 										inputClassName={inputField}
 										placeholder="Selecione a data do saque"
-										isDisabled={isLoadingBanks || isSubmitting}
+										isDisabled={isRescueDateDisabled}
 									/>
 								</VStack>
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Observações</Text>
-									<Textarea className={textareaContainerClassName}>
+									<Textarea className={textareaContainerClassName} isDisabled={isRescueDescriptionDisabled}>
 										<TextareaInput
 											ref={rescueDescriptionInputRef as any}
 											placeholder="(Opcional) Informe detalhes relevantes sobre este saque..."
 											value={rescueDescription ?? ''}
 											onChangeText={setRescueDescription}
 											className={`${inputField} pt-2`}
+											editable={!isRescueDescriptionDisabled}
 											onFocus={() => handleInputFocus('rescue-description')}
 										/>
 									</Textarea>
@@ -733,14 +802,7 @@ export default function AddRescueScreen() {
 								<Button
 									className={submitButtonClassName}
 									onPress={handleSubmit}
-									isDisabled={
-										isSubmitting ||
-										isLoadingBanks ||
-										!selectedBankId ||
-										rescueValueInCents === null ||
-										rescueValueInCents === 0 ||
-										!rescueDate
-									}
+									isDisabled={isSubmitDisabled}
 								>
 									{isSubmitting ? <ButtonSpinner /> : <ButtonText>Registrar saque</ButtonText>}
 								</Button>

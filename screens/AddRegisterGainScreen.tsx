@@ -58,6 +58,7 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import Navigator from '@/components/uiverse/navigator';
 import DatePickerField from '@/components/uiverse/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -66,7 +67,8 @@ import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase'
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
-import { Info } from 'lucide-react-native';
+import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 import AddGainIllustration from '../assets/UnDraw/addRegisterGainScreen.svg';
 
@@ -216,6 +218,9 @@ export default function AddRegisterGainScreen() {
 	const submitButtonClassName = isDarkMode
 		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+	const addTagButtonClassName = isDarkMode
+		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
+		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 	const infoCardStyle = React.useMemo(
 		() => ({
@@ -516,6 +521,29 @@ export default function AddRegisterGainScreen() {
 		(isBankSelectionRequired && !selectedBankId);
 	const isTagSelectDisabled =
 		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
+	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
+
+	const showSuccessfulGainNotification = React.useCallback(() => {
+		const normalizedGainName = gainName.trim() || 'informado';
+		const resolvedBankName =
+			selectedMovementBankName ??
+			templateData?.bankName ??
+			banks.find(bank => bank.id === selectedBankId)?.name ??
+			null;
+		const destinationLabel = isBankSelectionRequired
+			? resolvedBankName
+				? `no banco ${resolvedBankName}`
+				: 'no banco selecionado'
+			: 'como recebimento em dinheiro';
+
+		showNotifierAlert({
+			title: 'Ganho registrado',
+			description: `O ganho "${normalizedGainName}" foi registrado com sucesso ${destinationLabel}.`,
+			type: 'success',
+			isDarkMode,
+			duration: 4000,
+		});
+	}, [banks, gainName, isBankSelectionRequired, isDarkMode, selectedBankId, selectedMovementBankName, templateData?.bankName]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -546,6 +574,21 @@ export default function AddRegisterGainScreen() {
 		},
 		[isBankSelectionLocked],
 	);
+	const handleOpenAddTagScreen = React.useCallback(() => {
+		if (isAddTagButtonDisabled) {
+			return;
+		}
+
+		Keyboard.dismiss();
+		router.push({
+			pathname: '/add-register-tag',
+			params: {
+				usageType: 'gain',
+				lockUsageType: '1',
+				returnAfterCreate: '1',
+			},
+		});
+	}, [isAddTagButtonDisabled]);
 
 	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) {
@@ -615,17 +658,28 @@ export default function AddRegisterGainScreen() {
 								name: tag.name,
 								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
 							}));
+						const pendingCreatedTag = peekPendingCreatedTag();
+						const matchingPendingTag =
+							pendingCreatedTag?.usageType === 'gain'
+								? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
+								: null;
 
 						setTags(formattedTags);
-						setSelectedTagId(current => {
-							if (current && formattedTags.some(tag => tag.id === current)) {
-								return current;
-							}
-							if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
-								return templateData.tagId;
-							}
-							return null;
-						});
+						if (matchingPendingTag) {
+							setSelectedTagId(matchingPendingTag.id);
+							setSelectedMovementTagName(matchingPendingTag.name);
+							clearPendingCreatedTag(matchingPendingTag.id);
+						} else {
+							setSelectedTagId(current => {
+								if (current && formattedTags.some(tag => tag.id === current)) {
+									return current;
+								}
+								if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
+									return templateData.tagId;
+								}
+								return null;
+							});
+						}
 
 						if (formattedTags.length === 0) {
 							showFloatingAlert({
@@ -869,17 +923,7 @@ export default function AddRegisterGainScreen() {
 				}
 			}
 
-			showFloatingAlert({
-				message: 'Ganho registrado com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
-
-			if (isTemplateLocked || isEditing) {
-				router.back();
-				return;
-			}
-
+			showSuccessfulGainNotification();
 			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
@@ -899,7 +943,6 @@ export default function AddRegisterGainScreen() {
 		moneyFormat,
 		gainValueCents,
 		isEditing,
-		isTemplateLocked,
 		linkedMandatoryGainId,
 		paymentFormat,
 		selectedBankId,
@@ -908,6 +951,7 @@ export default function AddRegisterGainScreen() {
 		isBankSelectionLocked,
 		templateData,
 		parsedGainDate,
+		showSuccessfulGainNotification,
 	]);
 
 	React.useEffect(() => {
@@ -1423,16 +1467,41 @@ export default function AddRegisterGainScreen() {
 									) : (
 										<Select
 											selectedValue={selectedTagId ?? undefined}
-											onValueChange={setSelectedTagId}
+											onValueChange={value => {
+												setSelectedTagId(value);
+												const matchedTag = tags.find(tag => tag.id === value);
+												setSelectedMovementTagName(matchedTag?.name ?? null);
+											}}
 											isDisabled={isTagSelectDisabled}
 										>
-											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-												<SelectInput
-													placeholder="Selecione a categoria do ganho"
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
+											<HStack className="items-end gap-3">
+												<View className="flex-1">
+													<SelectTrigger
+														variant="outline"
+														size="md"
+														className={fieldContainerClassName}
+													>
+														<SelectInput
+															placeholder="Selecione a categoria do ganho"
+															className={inputField}
+														/>
+														<SelectIcon />
+													</SelectTrigger>
+												</View>
+												<Pressable
+													onPress={handleOpenAddTagScreen}
+													disabled={isAddTagButtonDisabled}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Adicionar nova categoria de ganho"
+													className={`${addTagButtonClassName} ${isAddTagButtonDisabled ? 'opacity-40' : ''}`}
+												>
+													<TagsIcon
+														size={18}
+														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
+													/>
+												</Pressable>
+											</HStack>
 											<SelectPortal>
 												<SelectBackdrop />
 												<SelectContent>

@@ -1,5 +1,5 @@
-import MonthlyBankSummaryScreen from '@/screens/MonthlyBankSummaryScreen';
+import { Redirect } from 'expo-router';
 
 export default function BankSummaryRoute() {
-	return <MonthlyBankSummaryScreen />;
+	return <Redirect href={{ pathname: '/home', params: { tab: '0' } }} />;
 }

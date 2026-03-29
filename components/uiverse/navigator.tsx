@@ -1,5 +1,5 @@
 import React from 'react';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { Alert, Pressable, View } from 'react-native';
@@ -19,6 +19,7 @@ type NavigatorOption = {
 	label: string;
 	value?: number;
 	icon: IoniconName;
+	matchPaths?: string[];
 	onSelect: () => void;
 };
 
@@ -51,13 +52,8 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Início',
 				value: 0,
 				icon: 'home-outline',
+				matchPaths: ['/home'],
 				onSelect: () => router.replace('/home?tab=0'),
-			},
-			{
-				label: 'Resumo bancário',
-				value: 0,
-				icon: 'stats-chart-outline',
-				onSelect: () => router.replace('/bank-summary'),
 			},
 		],
 	},
@@ -71,48 +67,56 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Registrar despesa',
 				value: 1,
 				icon: 'remove-circle-outline',
+				matchPaths: ['/add-register-expenses'],
 				onSelect: () => router.push('/add-register-expenses'),
 			},
 			{
 				label: 'Registrar ganho',
 				value: 1,
 				icon: 'add-circle-outline',
+				matchPaths: ['/add-register-gain'],
 				onSelect: () => router.push('/add-register-gain'),
 			},
 			{
 				label: 'Saldo mensal',
 				value: 1,
 				icon: 'calendar-outline',
+				matchPaths: ['/register-monthly-balance'],
 				onSelect: () => router.push('/register-monthly-balance'),
 			},
 			{
 				label: 'Transferência',
 				value: 1,
 				icon: 'swap-horizontal-outline',
+				matchPaths: ['/transfer-screen'],
 				onSelect: () => router.push('/transfer-screen'),
 			},
 			{
 				label: 'Registrar saque',
 				value: 1,
 				icon: 'cash-outline',
+				matchPaths: ['/add-rescue'],
 				onSelect: () => router.push('/add-rescue'),
 			},
 			{
 				label: 'Gastos obrigatórios',
 				value: 1,
 				icon: 'document-text-outline',
+				matchPaths: ['/mandatory-expenses'],
 				onSelect: () => router.push('/mandatory-expenses'),
 			},
 			{
 				label: 'Ganhos obrigatórios',
 				value: 1,
 				icon: 'trending-up-outline',
+				matchPaths: ['/mandatory-gains'],
 				onSelect: () => router.push('/mandatory-gains'),
 			},
 			{
 				label: 'Investimentos',
 				value: 1,
 				icon: 'wallet-outline',
+				matchPaths: ['/financial-list'],
 				onSelect: () => router.push('/financial-list'),
 			},
 		],
@@ -133,24 +137,28 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Novo usuário',
 				value: 2,
 				icon: 'person-add-outline',
+				matchPaths: ['/add-register-user'],
 				onSelect: () => router.push('/add-register-user'),
 			},
 			{
 				label: 'Novo banco',
 				value: 2,
 				icon: 'business-outline',
+				matchPaths: ['/add-register-bank'],
 				onSelect: () => router.push('/add-register-bank'),
 			},
 			{
 				label: 'Nova tag',
 				value: 2,
 				icon: 'pricetag-outline',
+				matchPaths: ['/add-register-tag'],
 				onSelect: () => router.push('/add-register-tag'),
 			},
 			{
 				label: 'Relacionar usuário',
 				value: 2,
 				icon: 'people-outline',
+				matchPaths: ['/add-user-relation'],
 				onSelect: () => router.push('/add-user-relation'),
 			},
 			{
@@ -177,18 +185,41 @@ const getDefaultLabel = (value: number) => {
 	return selectedGroup?.options[0]?.label ?? '';
 };
 
+const normalizePathname = (pathname?: string | null) => {
+	if (!pathname) {
+		return '/';
+	}
+
+	const normalized = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
+	return normalized.length > 0 ? normalized : '/';
+};
+
+const getActiveRoute = (pathname: string) => {
+	for (const group of NAV_GROUPS) {
+		for (const option of group.options) {
+			if (option.matchPaths?.some(matchPath => normalizePathname(matchPath) === pathname)) {
+				return {
+					groupValue: group.value,
+					label: option.label,
+				};
+			}
+		}
+	}
+
+	return null;
+};
+
 export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 	const { isDarkMode } = useAppTheme();
+	const pathname = usePathname();
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
-	const [activeValue, setActiveValue] = React.useState(normalizedDefault);
-	const [activeLabel, setActiveLabel] = React.useState(() => getDefaultLabel(normalizedDefault));
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
-
-	React.useEffect(() => {
-		setActiveValue(normalizedDefault);
-		setActiveLabel(getDefaultLabel(normalizedDefault));
-		setOpenGroupValue(null);
-	}, [normalizedDefault]);
+	const activeRoute = React.useMemo(
+		() => getActiveRoute(normalizePathname(pathname)),
+		[pathname],
+	);
+	const activeValue = activeRoute?.groupValue ?? normalizedDefault;
+	const activeLabel = activeRoute?.label ?? getDefaultLabel(activeValue);
 
 	const palette = React.useMemo(
 		() => ({
@@ -209,10 +240,8 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 		[isDarkMode],
 	);
 
-	const handleSelect = React.useCallback((group: NavigatorGroup, option: NavigatorOption) => {
+	const handleSelect = React.useCallback((option: NavigatorOption) => {
 		setOpenGroupValue(null);
-		setActiveValue(typeof option.value === 'number' ? option.value : group.value);
-		setActiveLabel(option.label);
 		option.onSelect();
 	}, []);
 
@@ -309,7 +338,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 								return (
 									<MenuItem
 										key={`item-${group.label}-${option.label}-${optionIndex}`}
-										onPress={() => handleSelect(group, option)}
+										onPress={() => handleSelect(option)}
 										textValue={option.label}
 										className={palette.menuItem}
 									>

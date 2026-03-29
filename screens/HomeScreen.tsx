@@ -11,19 +11,26 @@ import {
 	useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
 
 import { auth } from '@/FirebaseConfig';
-import { type HomeTimelineMovement } from '@/functions/HomeFirebase';
+import {
+	type HomeBankBalanceCard,
+	type HomeCashSummary,
+	type HomeTimelineMovement,
+} from '@/functions/HomeFirebase';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import Navigator from '@/components/uiverse/navigator';
 import { Badge, BadgeText } from '@/components/ui/badge';
+import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -71,6 +78,14 @@ type TimelineMovementCardPalette = {
 	shadowColor: string;
 };
 
+type HomeBankCarouselItem =
+	| ({
+			kind: 'bank';
+	  } & HomeBankBalanceCard)
+	| ({
+			kind: 'cash';
+	  } & HomeCashSummary);
+
 const TIMELINE_CHEVRON_DOWN = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-down.png');
 const TIMELINE_CHEVRON_UP = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-up.png');
 
@@ -80,6 +95,7 @@ const INVESTMENT_CHART_PADDING_HORIZONTAL = 28;
 const INVESTMENT_CHART_PADDING_VERTICAL = 12;
 const INVESTMENT_CHART_TOUCH_OUTER_TOLERANCE = 8;
 const INVESTMENT_CHART_TOUCH_INNER_TOLERANCE = 6;
+const CASH_CARD_COLOR = '#525252';
 
 const extractFirstName = (value: unknown) => {
 	if (typeof value !== 'string') {
@@ -339,6 +355,187 @@ const TimelineMovementCardPattern = React.memo(({ palette }: { palette: Timeline
 	);
 });
 
+const HomeBankOverviewSkeleton = ({ bankCarouselHeight }: { bankCarouselHeight: number }) => (
+	<Box className="mt-4">
+		<Box
+			className="bg-background-100 dark:bg-background-950"
+			style={{
+				height: bankCarouselHeight,
+				borderRadius: 20,
+				paddingHorizontal: 18,
+				paddingVertical: 18,
+			}}
+		>
+			<VStack className="flex-1 justify-between">
+				<VStack className="gap-2">
+					<Skeleton className="h-3 w-20" />
+					<Skeleton className="h-7 w-44" />
+				</VStack>
+
+				<VStack className="gap-4">
+					<HStack className="items-end justify-between gap-4">
+						<VStack className="flex-1 gap-2">
+							<Skeleton className="h-3 w-24" />
+							<Skeleton className="h-8 w-36" />
+						</VStack>
+
+						<VStack className="items-end gap-2">
+							<Skeleton className="h-3 w-20" />
+							<Skeleton className="h-5 w-24" />
+						</VStack>
+					</HStack>
+
+					<HStack className="gap-3">
+						<VStack className="flex-1 gap-2">
+							<Skeleton className="h-3 w-16" />
+							<Skeleton className="h-5 w-24" />
+						</VStack>
+
+						<VStack className="flex-1 gap-2">
+							<Skeleton className="h-3 w-16" />
+							<Skeleton className="h-5 w-24" />
+						</VStack>
+					</HStack>
+				</VStack>
+			</VStack>
+		</Box>
+
+		<HStack className="mt-3 items-center justify-center gap-2">
+			{Array.from({ length: 3 }).map((_, index) => (
+				<Skeleton
+					key={`bank-carousel-skeleton-dot-${index}`}
+					variant="circular"
+					className="h-2.5 w-2.5"
+				/>
+			))}
+		</HStack>
+	</Box>
+);
+
+const HomeInvestmentSkeleton = ({
+	investmentChartWidth,
+	investmentChartHeight,
+	surfaceBackground,
+}: {
+	investmentChartWidth: number;
+	investmentChartHeight: number;
+	surfaceBackground: string;
+}) => {
+	const donutSize = Math.max(Math.min(investmentChartWidth - 28, investmentChartHeight - 12), 120);
+	const innerCircleSize = Math.max(donutSize - 72, 58);
+
+	return (
+		<View style={{ marginTop: 12 }}>
+			<View className="items-center justify-center">
+				<View
+					style={{
+						width: investmentChartWidth,
+						height: investmentChartHeight,
+						alignItems: 'center',
+						justifyContent: 'center',
+					}}
+				>
+					<Skeleton variant="circular" style={{ width: donutSize, height: donutSize }} />
+					<View
+						pointerEvents="none"
+						style={{
+							position: 'absolute',
+							width: innerCircleSize,
+							height: innerCircleSize,
+							borderRadius: 999,
+							backgroundColor: surfaceBackground,
+						}}
+					/>
+
+					<VStack className="absolute items-center gap-2">
+						<Skeleton className="h-3 w-14" />
+						<Skeleton className="h-8 w-10" />
+						<Skeleton className="h-3 w-24" />
+					</VStack>
+				</View>
+			</View>
+
+			<HStack className="mt-6 items-start justify-between">
+				<VStack className="flex-1 gap-2" style={{ paddingRight: 12 }}>
+					<Skeleton className="h-3 w-20" />
+					<Skeleton className="h-7 w-28" />
+				</VStack>
+
+				<VStack className="flex-1 items-end gap-2" style={{ paddingLeft: 12 }}>
+					<Skeleton className="h-3 w-20" />
+					<Skeleton className="h-7 w-28" />
+				</VStack>
+			</HStack>
+		</View>
+	);
+};
+
+const HomeMovementsSkeleton = ({
+	timelinePalette,
+}: {
+	timelinePalette: {
+		cardBorder: string;
+		emptySurface: string;
+		timelineBase: string;
+	};
+}) => (
+	<View style={{ marginTop: 14 }}>
+		{Array.from({ length: 3 }).map((_, index, items) => (
+			<View key={`timeline-skeleton-item-${index}`} style={{ flexDirection: 'row' }}>
+				<View
+					style={{
+						alignItems: 'center',
+						width: '7%',
+						paddingTop: 3,
+					}}
+				>
+					<Skeleton variant="circular" style={{ width: 18, height: 18 }} />
+					{index < items.length - 1 ? (
+						<Skeleton
+							className="w-full"
+							style={{
+								width: 3,
+								height: 92,
+								marginVertical: 2,
+								backgroundColor: timelinePalette.timelineBase,
+							}}
+						/>
+					) : (
+						<View style={{ height: 12 }} />
+					)}
+				</View>
+
+				<View style={{ width: '93%', paddingBottom: 12 }}>
+					<Box
+						style={{
+							marginRight: 21,
+							borderRadius: 18,
+							borderWidth: 1,
+							borderColor: timelinePalette.cardBorder,
+							backgroundColor: timelinePalette.emptySurface,
+							paddingHorizontal: 18,
+							paddingVertical: 18,
+						}}
+					>
+						<VStack className="gap-3">
+							<HStack className="items-start justify-between gap-3">
+								<VStack className="flex-1 gap-2">
+									<Skeleton className="h-5 w-36" />
+									<Skeleton className="h-3 w-32" />
+								</VStack>
+
+								<Skeleton className="h-5 w-20" />
+							</HStack>
+
+							<SkeletonText _lines={2} gap={10} className="h-3" />
+						</VStack>
+					</Box>
+				</View>
+			</View>
+		))}
+	</View>
+);
+
 export default function HomeScreen() {
 	const { isDarkMode } = useAppTheme();
 	const insets = useSafeAreaInsets();
@@ -451,11 +648,50 @@ export default function HomeScreen() {
 	}, []);
 
 	const bankBalances = overview.data.bankBalances;
+	const cashSummary = overview.data.cashSummary;
 	const currentMonthExpensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const currentMonthGainsByBankId = overview.data.currentMonthGainsByBankId;
 	const bankColorsById = movements.data.bankColorsById;
 	const timelineMovements = movements.data.timelineMovements;
 	const investmentPortfolio = investments.data.portfolio;
+	const bankCarouselItems = React.useMemo<HomeBankCarouselItem[]>(() => {
+		const bankItems = bankBalances.map<HomeBankCarouselItem>(bank => ({
+			...bank,
+			kind: 'bank',
+		}));
+
+		if (!cashSummary) {
+			return bankItems;
+		}
+
+		return [
+			...bankItems,
+			{
+				...cashSummary,
+				kind: 'cash',
+			},
+		];
+	}, [bankBalances, cashSummary]);
+
+	const handleOpenBankCarouselItem = React.useCallback((item: HomeBankCarouselItem) => {
+		if (item.kind === 'cash') {
+			router.push({
+				pathname: '/bank-movements',
+				params: {
+					cashView: 'true',
+				},
+			});
+			return;
+		}
+
+		router.push({
+			pathname: '/bank-movements',
+			params: {
+				bankId: item.id,
+				bankName: encodeURIComponent(item.name),
+			},
+		});
+	}, []);
 
 	const investmentPalette = React.useMemo(
 		() => ({
@@ -949,29 +1185,41 @@ export default function HomeScreen() {
 							onMomentumScrollBegin={handleDismissInvestmentPopover}
 						>
 							<View className="mb-6 mt-4">
-								<Heading size="lg">Meus Bancos</Heading>
+								<Heading size="lg">Meus Bancos e Dinheiro</Heading>
 								<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-									Visão geral dos saldos atuais por banco e seus gastos e ganhos do mês.
+									Visão geral dos saldos atuais por banco e do dinheiro disponível, com gastos e
+									ganhos do mês.
 								</Text>
 
-								{overview.loading && bankBalances.length === 0 ? (
-									<Text className="mt-4 text-slate-500 dark:text-slate-400">Carregando bancos...</Text>
-								) : bankBalances.length > 0 ? (
+								{overview.loading && bankCarouselItems.length === 0 ? (
+									<HomeBankOverviewSkeleton bankCarouselHeight={bankCarouselHeight} />
+								) : overview.error ? (
+									<Text className="mt-4 text-sm text-red-600 dark:text-red-400">{overview.error}</Text>
+								) : bankCarouselItems.length > 0 ? (
 									<View className="mt-4">
 										<Carousel
 											ref={bankCarouselRef}
 											width={bankCarouselWidth}
 											height={bankCarouselHeight}
-											data={bankBalances}
-											loop={bankBalances.length > 1}
-											enabled={bankBalances.length > 1}
+											data={bankCarouselItems}
+											loop={bankCarouselItems.length > 1}
+											enabled={bankCarouselItems.length > 1}
 											pagingEnabled
 											snapEnabled
 											onProgressChange={bankCarouselProgress}
 											renderItem={({ item }) => {
-												const monthlyExpenseInCents = currentMonthExpensesByBankId[item.id] ?? 0;
-												const monthlyGainInCents = currentMonthGainsByBankId[item.id] ?? 0;
-												const cardPalette = buildBankCardPalette(item.colorHex, isDarkMode);
+												const monthlyExpenseInCents =
+													item.kind === 'cash'
+														? item.currentMonthExpensesInCents
+														: currentMonthExpensesByBankId[item.id] ?? 0;
+												const monthlyGainInCents =
+													item.kind === 'cash'
+														? item.currentMonthGainsInCents
+														: currentMonthGainsByBankId[item.id] ?? 0;
+												const cardPalette = buildBankCardPalette(
+													item.kind === 'cash' ? CASH_CARD_COLOR : item.colorHex,
+													isDarkMode,
+												);
 
 												return (
 													<View
@@ -980,82 +1228,88 @@ export default function HomeScreen() {
 															paddingHorizontal: bankCarouselItemSpacing / 2,
 														}}
 													>
-														<View
-															style={{
-																flex: 1,
-																paddingHorizontal: 18,
-																paddingVertical: 18,
-																borderRadius: 20,
-																backgroundColor: cardPalette.baseColor,
-																overflow: 'hidden',
-																position: 'relative',
-																justifyContent: 'space-between',
-																shadowColor: cardPalette.shadowColor,
-																shadowOffset: { width: 0, height: 12 },
-																shadowOpacity: 0.24,
-																shadowRadius: 18,
-																elevation: 8,
-															}}
+														<TouchableOpacity
+															activeOpacity={0.94}
+															style={{ flex: 1 }}
+															onPress={() => handleOpenBankCarouselItem(item)}
 														>
-															<BankCardPattern palette={cardPalette} />
+															<View
+																style={{
+																	flex: 1,
+																	paddingHorizontal: 18,
+																	paddingVertical: 18,
+																	borderRadius: 20,
+																	backgroundColor: cardPalette.baseColor,
+																	overflow: 'hidden',
+																	position: 'relative',
+																	justifyContent: 'space-between',
+																	shadowColor: cardPalette.shadowColor,
+																	shadowOffset: { width: 0, height: 12 },
+																	shadowOpacity: 0.24,
+																	shadowRadius: 18,
+																	elevation: 8,
+																}}
+															>
+																<BankCardPattern palette={cardPalette} />
 
-															<VStack className="gap-1">
-																<Text
-																	className="text-xs uppercase tracking-wide"
-																	style={{ color: cardPalette.textSecondary }}
-																>
-																	Banco
-																</Text>
-																<Heading size="lg" style={{ color: cardPalette.textPrimary }}>
-																	{item.name}
-																</Heading>
-															</VStack>
-
-															<VStack className="gap-1 mt-4">
-																<Text
-																	className="text-xs uppercase tracking-wide"
-																	style={{ color: cardPalette.textSecondary }}
-																>
-																	Saldo atual
-																</Text>
-																<Heading size="md" style={{ color: cardPalette.textPrimary }}>
-																	{item.balanceInCents === null
-																		? 'Saldo indisponível'
-																		: formatCurrencyBRL(item.balanceInCents)}
-																</Heading>
-																{item.balanceInCents === null ? (
-																	<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
-																		Sem saldo registrado para este mes.
-																	</Text>
-																) : null}
-															</VStack>
-
-															<HStack className="mt-4 justify-between items-end gap-4">
-																<VStack className="flex-1 gap-1">
+																<VStack className="gap-1">
 																	<Text
 																		className="text-xs uppercase tracking-wide"
 																		style={{ color: cardPalette.textSecondary }}
 																	>
-																		Gastos
+																		{item.kind === 'cash' ? 'Carteira' : 'Banco'}
 																	</Text>
-																	<Text className="font-semibold" style={{ color: cardPalette.expenseColor }}>
-																		{formatCurrencyBRL(monthlyExpenseInCents)}
-																	</Text>
+																	<Heading size="lg" style={{ color: cardPalette.textPrimary }}>
+																		{item.name}
+																	</Heading>
 																</VStack>
 
-																<VStack className="flex-1 gap-1 items-end">
+																<VStack className="gap-1 mt-4">
 																	<Text
 																		className="text-xs uppercase tracking-wide"
 																		style={{ color: cardPalette.textSecondary }}
 																	>
-																		Ganhos
+																		{item.kind === 'cash' ? 'Saldo no mês' : 'Saldo atual'}
 																	</Text>
-																	<Text className="font-semibold" style={{ color: cardPalette.gainColor }}>
-																		{formatCurrencyBRL(monthlyGainInCents)}
-																	</Text>
+																	<Heading size="md" style={{ color: cardPalette.textPrimary }}>
+																		{item.balanceInCents === null
+																			? 'Saldo indisponível'
+																			: formatCurrencyBRL(item.balanceInCents)}
+																	</Heading>
+																	{item.kind === 'bank' && item.balanceInCents === null ? (
+																		<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
+																			Sem saldo registrado para este mes.
+																		</Text>
+																	) : null}
 																</VStack>
-															</HStack>
-														</View>
+
+																<HStack className="mt-4 justify-between items-end gap-4">
+																	<VStack className="flex-1 gap-1">
+																		<Text
+																			className="text-xs uppercase tracking-wide"
+																			style={{ color: cardPalette.textSecondary }}
+																		>
+																			Gastos
+																		</Text>
+																		<Text className="font-semibold" style={{ color: cardPalette.expenseColor }}>
+																			{formatCurrencyBRL(monthlyExpenseInCents)}
+																		</Text>
+																	</VStack>
+
+																	<VStack className="flex-1 gap-1 items-end">
+																		<Text
+																			className="text-xs uppercase tracking-wide"
+																			style={{ color: cardPalette.textSecondary }}
+																		>
+																			Ganhos
+																		</Text>
+																		<Text className="font-semibold" style={{ color: cardPalette.gainColor }}>
+																			{formatCurrencyBRL(monthlyGainInCents)}
+																		</Text>
+																	</VStack>
+																</HStack>
+															</View>
+														</TouchableOpacity>
 													</View>
 												);
 											}}
@@ -1063,7 +1317,7 @@ export default function HomeScreen() {
 
 										<Pagination.Basic
 											progress={bankCarouselProgress}
-											data={bankBalances}
+											data={bankCarouselItems}
 											onPress={index =>
 												bankCarouselRef.current?.scrollTo({ index, animated: true })
 											}
@@ -1079,7 +1333,7 @@ export default function HomeScreen() {
 									</View>
 								) : (
 									<Text className="mt-4 text-slate-500 dark:text-slate-400">
-										Nenhum banco registrado
+										Nenhum dado disponível no momento.
 									</Text>
 								)}
 							</View>
@@ -1094,7 +1348,11 @@ export default function HomeScreen() {
 									{investments.error ? (
 										<Text style={{ color: investmentPalette.subtitle }}>{investments.error}</Text>
 									) : investments.loading && investmentPortfolio.investmentCount === 0 ? (
-										<Text style={{ color: investmentPalette.subtitle }}>Carregando investimentos...</Text>
+										<HomeInvestmentSkeleton
+											investmentChartWidth={investmentChartWidth}
+											investmentChartHeight={investmentChartHeight}
+											surfaceBackground={surfaceBackground}
+										/>
 									) : investmentPortfolio.investmentCount === 0 ? (
 										<Text style={{ color: investmentPalette.subtitle }}>
 											Nenhum investimento registrado até o momento.
@@ -1347,11 +1605,7 @@ export default function HomeScreen() {
 
 								{isMovementsExpanded ? (
 									movements.loading && timelineStatuses.length === 0 ? (
-										<View style={{ marginTop: 10, paddingHorizontal: 16, paddingVertical: 18 }}>
-											<Text style={{ color: timelinePalette.subtitle }}>
-												Carregando últimas movimentações...
-											</Text>
-										</View>
+										<HomeMovementsSkeleton timelinePalette={timelinePalette} />
 									) : timelineStatuses.length > 0 ? (
 										<View style={{ marginTop: 14 }}>
 											{timelineStatuses.map((status, index) => {

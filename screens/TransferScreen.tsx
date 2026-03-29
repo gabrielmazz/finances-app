@@ -10,6 +10,7 @@ import {
 	TextInput,
 	View,
 	useWindowDimensions,
+	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -33,9 +34,10 @@ import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import Navigator from '@/components/uiverse/navigator';
+import { HStack } from '@/components/ui/hstack';
 
 import {
 	getBanksWithUsersByPersonFirebase,
@@ -49,8 +51,13 @@ import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalan
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DatePickerField from '@/components/uiverse/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showInAppNotification } from '@/utils/showInAppNotification';
 
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
+
+import { Info } from 'lucide-react-native';
+import { CircleIcon } from '@/components/ui/icon';
 
 type BankOption = {
 	id: string;
@@ -127,6 +134,7 @@ export default function TransferScreen() {
 	const focusFieldClassName =
 		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
 	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const textareaContainerClassName =
 		`h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
@@ -134,6 +142,16 @@ export default function TransferScreen() {
 		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+
+	const infoCardStyle = React.useMemo(
+		() => ({
+			borderRadius: 20,
+			borderWidth: 1,
+			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
+			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
+		}),
+		[isDarkMode],
+	);
 
 	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedSourceBankId, setSelectedSourceBankId] = React.useState<string | null>(null);
@@ -150,11 +168,30 @@ export default function TransferScreen() {
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
+	const previousUnavailableBalanceRef = React.useRef(false);
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
 		[],
 	);
+
+	const showUnavailableBalanceNotification = React.useCallback(() => {
+		showNotifierAlert({
+			title: 'Saldo indisponível',
+			description: 'O banco selecionado não tem saldo suficiente para esta transferência.',
+			type: 'error',
+			isDarkMode,
+		});
+	}, [isDarkMode]);
+
+	const showSuccessfulTransferNotification = React.useCallback(() => {
+		showNotifierAlert({
+			title: 'Transferência registrada',
+			description: 'Transferência realizada com sucesso.',
+			type: 'success',
+			isDarkMode,
+		});
+	}, [isDarkMode]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -272,10 +309,10 @@ export default function TransferScreen() {
 		try {
 			const currentUser = auth.currentUser;
 			if (!currentUser) {
-				showFloatingAlert({
-					message: 'Nenhum usuário autenticado foi identificado.',
-					action: 'error',
-					position: 'bottom',
+				showInAppNotification({
+					title: 'Sessão indisponível',
+					description: 'Nenhum usuário autenticado foi identificado.',
+					type: 'error',
 				});
 				return;
 			}
@@ -369,10 +406,10 @@ export default function TransferScreen() {
 			setOriginBalanceInCents(currentBalance);
 		} catch (error) {
 			console.error('Erro ao carregar saldo do banco:', error);
-			showFloatingAlert({
-				message: 'Não foi possível carregar o saldo atual do banco de origem.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Falha ao carregar saldo',
+				description: 'Não foi possível carregar o saldo atual do banco de origem.',
+				type: 'error',
 			});
 			setOriginBalanceInCents(null);
 		} finally {
@@ -388,10 +425,10 @@ export default function TransferScreen() {
 			try {
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showFloatingAlert({
-						message: 'Nenhum usuário autenticado foi identificado.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Sessão indisponível',
+						description: 'Nenhum usuário autenticado foi identificado.',
+						type: 'error',
 					});
 					return;
 				}
@@ -411,19 +448,19 @@ export default function TransferScreen() {
 					}));
 					setBanks(formattedBanks);
 				} else {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os bancos disponíveis.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Falha ao carregar bancos',
+						description: 'Não foi possível carregar os bancos disponíveis.',
+						type: 'error',
 					});
 				}
 			} catch (error) {
 				console.error('Erro ao carregar bancos para transferência:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar bancos.',
-						action: 'error',
-						position: 'bottom',
+					showInAppNotification({
+						title: 'Erro inesperado',
+						description: 'Erro inesperado ao carregar bancos.',
+						type: 'error',
 					});
 				}
 			} finally {
@@ -452,11 +489,40 @@ export default function TransferScreen() {
 		typeof originBalanceInCents === 'number' &&
 		typeof transferValueInCents === 'number' &&
 		transferValueInCents > originBalanceInCents;
+	const hasUnavailableBalance =
+		typeof originBalanceInCents === 'number' && originBalanceInCents <= 0;
+	const parsedTransferDate = React.useMemo(() => parseDateFromBR(transferDate), [transferDate]);
+	const isBalanceValidationUnavailable =
+		selectedSourceBankId !== null && !isLoadingBalance && typeof originBalanceInCents !== 'number';
 
 	const targetBankOptions = React.useMemo(
 		() => banks.filter(bank => bank.id !== selectedSourceBankId),
 		[banks, selectedSourceBankId],
 	);
+	const hasTransferValue = transferValueInCents !== null && transferValueInCents > 0;
+	const isSourceBankDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
+	const isTargetBankDisabled =
+		isLoadingBanks || isSubmitting || !selectedSourceBankId || targetBankOptions.length === 0;
+	const isTransferValueDisabled = isSubmitting || !selectedSourceBankId || !selectedTargetBankId;
+	const isTransferDateDisabled =
+		isSubmitting || !selectedSourceBankId || !selectedTargetBankId || !hasTransferValue;
+	const isTransferDescriptionDisabled =
+		isSubmitting ||
+		!selectedSourceBankId ||
+		!selectedTargetBankId ||
+		!hasTransferValue ||
+		!parsedTransferDate;
+	const isSubmitDisabled =
+		isSubmitting ||
+		isLoadingBanks ||
+		isLoadingBalance ||
+		!selectedSourceBankId ||
+		!selectedTargetBankId ||
+		!hasTransferValue ||
+		!parsedTransferDate ||
+		hasUnavailableBalance ||
+		hasInsufficientBalance ||
+		isBalanceValidationUnavailable;
 	const screenTitle = 'Transferência entre bancos';
 
 	React.useEffect(() => {
@@ -464,90 +530,108 @@ export default function TransferScreen() {
 		setSelectedTargetBankId(null);
 	}, [selectedSourceBankId]);
 
+	React.useEffect(() => {
+		if (
+			!selectedSourceBankId ||
+			isLoadingBalance ||
+			transferValueInCents === null ||
+			transferValueInCents <= 0
+		) {
+			previousUnavailableBalanceRef.current = false;
+			return;
+		}
+
+		const shouldShowUnavailableBalanceAlert = hasUnavailableBalance || hasInsufficientBalance;
+
+		if (shouldShowUnavailableBalanceAlert && !previousUnavailableBalanceRef.current) {
+			showUnavailableBalanceNotification();
+		}
+
+		previousUnavailableBalanceRef.current = shouldShowUnavailableBalanceAlert;
+	}, [
+		hasInsufficientBalance,
+		hasUnavailableBalance,
+		isLoadingBalance,
+		selectedSourceBankId,
+		showUnavailableBalanceNotification,
+		transferValueInCents,
+	]);
+
 	const handleSubmit = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Nenhum usuário autenticado foi identificado.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Sessão indisponível',
+				description: 'Nenhum usuário autenticado foi identificado.',
+				type: 'error',
 			});
 			return;
 		}
 
 		if (!selectedSourceBankId) {
-			showFloatingAlert({
-				message: 'Selecione o banco de origem.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Banco obrigatório',
+				description: 'Selecione o banco de origem.',
+				type: 'error',
 			});
 			return;
 		}
 
 		if (!selectedTargetBankId) {
-			showFloatingAlert({
-				message: 'Selecione o banco de destino.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Banco obrigatório',
+				description: 'Selecione o banco de destino.',
+				type: 'error',
 			});
 			return;
 		}
 
 		if (selectedSourceBankId === selectedTargetBankId) {
-			showFloatingAlert({
-				message: 'Escolha bancos diferentes para realizar a transferência.',
-				action: 'warning',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Bancos inválidos',
+				description: 'Escolha bancos diferentes para realizar a transferência.',
+				type: 'warn',
 			});
 			return;
 		}
 
 		if (transferValueInCents === null || transferValueInCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe o valor a ser transferido.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Valor obrigatório',
+				description: 'Informe o valor a ser transferido.',
+				type: 'error',
 			});
 			return;
 		}
 
 		if (typeof originBalanceInCents === 'number') {
 			if (originBalanceInCents <= 0) {
-				showFloatingAlert({
-					message: 'O banco de origem está sem saldo disponível.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showUnavailableBalanceNotification();
 				return;
 			}
 			if (transferValueInCents > originBalanceInCents) {
-				showFloatingAlert({
-					message: 'Saldo insuficiente para completar a transferência.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showUnavailableBalanceNotification();
 				return;
 			}
 		} else {
-			showFloatingAlert({
-				message: 'Registre ou carregue o saldo do banco de origem antes de transferir.',
-				action: 'warning',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Saldo não encontrado',
+				description: 'Registre ou carregue o saldo do banco de origem antes de transferir.',
+				type: 'warn',
 			});
 			return;
 		}
 
-		const parsedDate = parseDateFromBR(transferDate);
-		if (!parsedDate) {
-			showFloatingAlert({
-				message: 'Informe uma data válida (DD/MM/AAAA).',
-				action: 'error',
-				position: 'bottom',
+		if (!parsedTransferDate) {
+			showInAppNotification({
+				title: 'Data inválida',
+				description: 'Informe uma data válida (DD/MM/AAAA).',
+				type: 'error',
 			});
 			return;
 		}
 
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
+		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedTransferDate);
 		const sourceBankName =
 			banks.find(bank => bank.id === selectedSourceBankId)?.name ?? 'Banco de origem não identificado';
 		const targetBankName =
@@ -568,43 +652,39 @@ export default function TransferScreen() {
 			});
 
 			if (!result.success) {
-				showFloatingAlert({
-					message: 'Não foi possível registrar a transferência. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showInAppNotification({
+					title: 'Falha ao registrar transferência',
+					description: 'Não foi possível registrar a transferência. Tente novamente.',
+					type: 'error',
 				});
 				return;
 			}
 
-			showFloatingAlert({
-				message: 'Transferência registrada com sucesso!',
-				action: 'success',
-				position: 'bottom',
+			showSuccessfulTransferNotification();
+			router.replace({
+				pathname: '/home',
+				params: {
+					tab: '0',
+				},
 			});
-
-			setTransferValueDisplay('');
-			setTransferValueInCents(null);
-			setTransferDescription(null);
-			setTransferDate(formatDateToBR(new Date()));
-			setSelectedTargetBankId(null);
-			void loadOriginBalance(selectedSourceBankId);
 		} catch (error) {
 			console.error('Erro ao registrar transferência:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao registrar a transferência.',
-				action: 'error',
-				position: 'bottom',
+			showInAppNotification({
+				title: 'Erro inesperado',
+				description: 'Erro inesperado ao registrar a transferência.',
+				type: 'error',
 			});
 		} finally {
 			setIsSubmitting(false);
 		}
 	}, [
 		banks,
-		loadOriginBalance,
 		originBalanceInCents,
+		showSuccessfulTransferNotification,
+		showUnavailableBalanceNotification,
 		selectedSourceBankId,
 		selectedTargetBankId,
-		transferDate,
+		parsedTransferDate,
 		transferDescription,
 		transferValueInCents,
 	]);
@@ -620,8 +700,6 @@ export default function TransferScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
-
-			<FloatingAlertViewport />
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
@@ -660,111 +738,167 @@ export default function TransferScreen() {
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 						>
-							<VStack className="justify-between mt-4">
-								<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-									<Text className={`${bodyText} text-sm leading-6`}>
-										Mova valores de um banco para outro com segurança. O saldo disponível do banco
-										de origem é validado antes da transferência e a movimentação fica registrada
-										nos dois bancos.
-									</Text>
-								</View>
+							<VStack className="h-full mt-4">
 
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
-									<Select
-										selectedValue={selectedSourceBankId ?? undefined}
-										onValueChange={value => setSelectedSourceBankId(value)}
-										isDisabled={isLoadingBanks || banks.length === 0}
-									>
-										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-											<SelectInput
-												placeholder="Selecione de onde o valor sairá"
-												className={inputField}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-												{banks.length > 0 ? (
-													banks.map(bank => (
-														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-													))
-												) : (
-													<SelectItem
-														label="Nenhum banco disponível"
-														value="no-bank"
-														isDisabled
-													/>
-												)}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
-									<Text className={`${helperText} mt-2 text-sm`}>
-										{isLoadingBanks
-											? 'Carregando bancos disponíveis...'
-											: 'Selecione o banco que enviará o valor.'}
-									</Text>
-								</VStack>
+								<HStack className="w-full" space="md">
 
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de destino</Text>
-									<Select
-										selectedValue={selectedTargetBankId ?? undefined}
-										onValueChange={value => setSelectedTargetBankId(value)}
-										isDisabled={isLoadingBanks || banks.length === 0 || !selectedSourceBankId}
-									>
-										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-											<SelectInput
-												placeholder={
-													selectedSourceBankId
-														? 'Selecione para onde o valor chegará'
-														: 'Selecione primeiro o banco de origem'
-												}
-												className={inputField}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-												{targetBankOptions.length > 0 ? (
-													targetBankOptions.map(bank => (
-														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-													))
-												) : (
-													<SelectItem
-														label="Nenhum banco disponível"
-														value="no-target-bank"
-														isDisabled
+									<VStack className="mb-4 flex-1">
+										<HStack className="mb-1 ml-1 gap-2">
+										<Text className={`${bodyText} text-sm`}>Banco de Origem</Text>
+										<Popover
+											placement="bottom"
+											size="md"
+											offset={0}
+											shouldFlip
+											focusScope={false}
+											trapFocus={false}
+											trigger={triggerProps => (
+												<Pressable
+													{...triggerProps}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Informações sobre o banco de origem"
+												>
+													<Info
+														size={14}
+														color={isDarkMode ? '#94A3B8' : '#64748B'}
+														style={{ marginLeft: 4 }}
 													/>
-												)}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
-									<Text className={`${helperText} mt-2 text-sm`}>
-										{selectedSourceBankId
-											? 'Escolha o banco que receberá a transferência.'
-											: 'Defina o banco de origem para liberar este campo.'}
-									</Text>
-									{selectedSourceBankId &&
-										selectedTargetBankId &&
-										selectedSourceBankId === selectedTargetBankId && (
-											<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
-												Escolha bancos diferentes para completar a transferência.
+												</Pressable>
+											)}
+										>
+											<PopoverBackdrop className="bg-transparent" />
+											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+												<PopoverBody className="px-3 py-3">
+													<Text className={`${bodyText} text-xs leading-5`}>
+														Selecione o banco de origem para a transferência. O saldo disponível será
+														carregado para validar se a transferência pode ser realizada. Se o banco de origem
+														não tiver saldo registrado para o mês atual, a transferência não poderá ser
+														realizada.
+													</Text>
+												</PopoverBody>
+											</PopoverContent>
+										</Popover>
+									</HStack>
+										<Select
+											selectedValue={selectedSourceBankId ?? undefined}
+											onValueChange={value => setSelectedSourceBankId(value)}
+											isDisabled={isSourceBankDisabled}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={`${fieldContainerClassNameNotSpace} w-full`}
+											>
+												<SelectInput
+													placeholder="De onde o valor sairá"
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{banks.length > 0 ? (
+														banks.map(bank => (
+															<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+														))
+													) : (
+														<SelectItem
+															label="Nenhum banco disponível"
+															value="no-bank"
+															isDisabled
+														/>
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="mb-4 flex-1">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de destino</Text>
+										<Select
+											selectedValue={selectedTargetBankId ?? undefined}
+											onValueChange={value => setSelectedTargetBankId(value)}
+											isDisabled={isTargetBankDisabled}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={`${fieldContainerClassNameNotSpace} w-full`}
+											>
+												<SelectInput
+													placeholder={
+														selectedSourceBankId
+															? 'Para onde o valor irá'
+															: 'Selecione a origem'
+													}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{targetBankOptions.length > 0 ? (
+														targetBankOptions.map(bank => (
+															<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+														))
+													) : (
+														<SelectItem
+															label="Nenhum banco disponível"
+															value="no-target-bank"
+															isDisabled
+														/>
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+
+								{selectedSourceBankId &&
+											selectedTargetBankId &&
+											selectedSourceBankId === selectedTargetBankId && (
+												<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
+													Escolha bancos diferentes para completar a transferência.
+												</Text>
+											)}
+									</VStack>
+								</HStack>
+
+								{selectedSourceBankId && (
+									<View className="mb-4 px-3 py-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+										{typeof originBalanceInCents === 'number' && (
+											<Text className={`${helperText} text-sm text-center`}>
+												Saldo disponível no banco de origem:{' '}
+												{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
 											</Text>
 										)}
-								</VStack>
+										{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
+											<Text className={`${helperText} text-sm text-center`}>
+												Carregando saldo do banco de origem...
+											</Text>
+										)}
+										{selectedSourceBankId &&
+											!isLoadingBalance &&
+											typeof originBalanceInCents !== 'number' && (
+												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
+													Saldo não registrado para este mês. Registre o saldo mensal para validar
+													a transferência.
+												</Text>
+											)}
+									</View>
+								)}
+
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor</Text>
-									<Input className={fieldContainerClassName}>
+									<Input className={fieldContainerClassName} isDisabled={isTransferValueDisabled}>
 										<InputField
 											ref={transferValueInputRef as any}
 											value={transferValueDisplay}
@@ -773,39 +907,10 @@ export default function TransferScreen() {
 											keyboardType="numeric"
 											returnKeyType="next"
 											className={inputField}
+											editable={!isTransferValueDisabled}
 											onFocus={() => handleInputFocus('transfer-value')}
 										/>
 									</Input>
-									{typeof originBalanceInCents === 'number' && (
-										<Text
-											className={`mt-2 text-sm ${
-												hasInsufficientBalance
-													? 'text-red-600 dark:text-red-400'
-													: helperText
-											}`}
-										>
-											Saldo disponível no banco de origem:{' '}
-											{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
-										</Text>
-									)}
-									{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
-										<Text className={`${helperText} mt-2 text-sm`}>
-											Carregando saldo do banco de origem...
-										</Text>
-									)}
-									{selectedSourceBankId &&
-										!isLoadingBalance &&
-										typeof originBalanceInCents !== 'number' && (
-											<Text className="mt-2 text-sm text-amber-600 dark:text-amber-400">
-												Saldo não registrado para este mês. Registre o saldo mensal para validar
-												a transferência.
-											</Text>
-										)}
-									{hasInsufficientBalance && (
-										<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
-											Saldo insuficiente para o valor informado.
-										</Text>
-									)}
 								</VStack>
 
 								<VStack className="mb-4">
@@ -816,20 +921,24 @@ export default function TransferScreen() {
 										triggerClassName={fieldContainerClassName}
 										inputClassName={inputField}
 										placeholder="Selecione a data da transferência"
-										isDisabled={isLoadingBanks || isSubmitting}
+										isDisabled={isTransferDateDisabled}
 									/>
 								</VStack>
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Descrição (opcional)</Text>
-									<Textarea className={textareaContainerClassName}>
+									<Textarea
+										className={textareaContainerClassName}
+										isDisabled={isTransferDescriptionDisabled}
+									>
 										<TextareaInput
 											ref={transferDescriptionInputRef as any}
 											value={transferDescription ?? ''}
 											onChangeText={value => setTransferDescription(value)}
-											placeholder="Adicione detalhes da transferência"
+											placeholder="Adicione detalhes da transferência bancária"
 											className={`${inputField} pt-2`}
 											multiline
+											editable={!isTransferDescriptionDisabled}
 											onFocus={() => handleInputFocus('transfer-description')}
 										/>
 									</Textarea>
@@ -842,14 +951,7 @@ export default function TransferScreen() {
 											void handleSubmit();
 										}
 									}}
-									isDisabled={
-										isSubmitting ||
-										isLoadingBanks ||
-										isLoadingBalance ||
-										!selectedSourceBankId ||
-										!selectedTargetBankId ||
-										!transferValueDisplay
-									}
+									isDisabled={isSubmitDisabled}
 								>
 									{isSubmitting ? (
 										<>
