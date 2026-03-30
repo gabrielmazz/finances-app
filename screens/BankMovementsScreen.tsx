@@ -1,19 +1,17 @@
 import React from 'react';
 import { ScrollView, View, TouchableOpacity, StatusBar } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { GestureHandlerRootView, TapGestureHandler } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Componentes de UI
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
-import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { Divider } from '@/components/ui/divider';
+import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import {
 	Modal,
 	ModalBackdrop,
@@ -24,22 +22,23 @@ import {
 	ModalHeader,
 } from '@/components/ui/modal';
 import {
-	Drawer,
-	DrawerBackdrop,
-	DrawerContent,
-	DrawerHeader,
-	DrawerCloseButton,
-	DrawerBody,
-	DrawerFooter,
-} from '@/components/ui/drawer';
-import { EditIcon, TrashIcon } from '@/components/ui/icon';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
+	ArrowDownIcon,
+	ArrowUpIcon,
+	CalendarDaysIcon,
+	ChevronDownIcon,
+	ChevronUpIcon,
+	ChevronsUpDownIcon,
+	EditIcon,
+	Icon,
+	InfoIcon,
+	RepeatIcon,
+	TrashIcon,
+} from '@/components/ui/icon';
 
 import Navigator from '@/components/uiverse/navigator';
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { auth } from '@/FirebaseConfig';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Gráfico de pizza
@@ -60,33 +59,13 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import DatePickerField from '@/components/uiverse/date-picker';
 import {
 	BankCardSurface,
 	CASH_CARD_COLOR,
 	buildBankCardPalette,
 } from '@/components/uiverse/bank-card-surface';
-
-import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
-} from '@/components/ui/popover';
-
-import { Info } from 'lucide-react-native';
+import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
@@ -136,6 +115,40 @@ type PendingMovementAction =
 	| { type: 'edit'; movement: MovementRecord }
 	| { type: 'delete'; movement: MovementRecord }
 	| { type: 'revert-cash-rescue'; movement: MovementRecord };
+
+type MovementFilter = 'all' | 'expense' | 'gain';
+type TimelineMovementToneKey =
+	| 'gain'
+	| 'expense'
+	| 'mandatoryGain'
+	| 'mandatoryExpense'
+	| 'bankTransfer'
+	| 'investmentRedemption'
+	| 'investmentDeposit'
+	| 'cashRescue';
+
+type TimelineMovementTone = {
+	accentColor: string;
+	amountColor: string;
+	lineColor: string;
+	iconGradient: [string, string];
+	cardGradient: [string, string];
+};
+
+type MovementTagMetadata = {
+	name: string | null;
+	icon: TagIconSelection | null;
+};
+
+const movementFilterOptions: Array<{
+	value: MovementFilter;
+	label: string;
+	icon: typeof ChevronsUpDownIcon;
+}> = [
+		{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
+		{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
+		{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
+	];
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -248,6 +261,89 @@ const PIE_TOTAL_COLORS = {
 	gains: '#10B981',
 };
 
+const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementTone> = {
+	gain: {
+		accentColor: '#10B981',
+		amountColor: '#10B981',
+		lineColor: 'rgba(16, 185, 129, 0.28)',
+		iconGradient: ['#047857', '#34D399'],
+		cardGradient: ['#065F46', '#10B981'],
+	},
+	expense: {
+		accentColor: '#EF4444',
+		amountColor: '#EF4444',
+		lineColor: 'rgba(239, 68, 68, 0.28)',
+		iconGradient: ['#B91C1C', '#EF4444'],
+		cardGradient: ['#7F1D1D', '#EF4444'],
+	},
+	mandatoryExpense: {
+		accentColor: '#F97316',
+		amountColor: '#EF4444',
+		lineColor: 'rgba(249, 115, 22, 0.3)',
+		iconGradient: ['#B91C1C', '#FACC15'],
+		cardGradient: ['#991B1B', '#FACC15'],
+	},
+	mandatoryGain: {
+		accentColor: '#84CC16',
+		amountColor: '#10B981',
+		lineColor: 'rgba(132, 204, 22, 0.3)',
+		iconGradient: ['#047857', '#FACC15'],
+		cardGradient: ['#065F46', '#FACC15'],
+	},
+	bankTransfer: {
+		accentColor: '#F59E0B',
+		amountColor: '#F59E0B',
+		lineColor: 'rgba(245, 158, 11, 0.3)',
+		iconGradient: ['#92400E', '#F59E0B'],
+		cardGradient: ['#78350F', '#F59E0B'],
+	},
+	investmentRedemption: {
+		accentColor: '#38BDF8',
+		amountColor: '#38BDF8',
+		lineColor: 'rgba(56, 189, 248, 0.3)',
+		iconGradient: ['#0C4A6E', '#38BDF8'],
+		cardGradient: ['#075985', '#67E8F9'],
+	},
+	investmentDeposit: {
+		accentColor: '#7C3AED',
+		amountColor: '#7C3AED',
+		lineColor: 'rgba(124, 58, 237, 0.3)',
+		iconGradient: ['#312E81', '#7C3AED'],
+		cardGradient: ['#312E81', '#7C3AED'],
+	},
+	cashRescue: {
+		accentColor: '#06B6D4',
+		amountColor: '#06B6D4',
+		lineColor: 'rgba(6, 182, 212, 0.3)',
+		iconGradient: ['#0E7490', '#22D3EE'],
+		cardGradient: ['#0E7490', '#22D3EE'],
+	},
+};
+
+const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovementToneKey => {
+	if (movement.isCashRescue) {
+		return 'cashRescue';
+	}
+
+	if (movement.isBankTransfer) {
+		return 'bankTransfer';
+	}
+
+	if (movement.isInvestmentRedemption) {
+		return 'investmentRedemption';
+	}
+
+	if (movement.isInvestmentDeposit || movement.isFinanceInvestment) {
+		return 'investmentDeposit';
+	}
+
+	if (movement.isFromMandatory) {
+		return movement.type === 'gain' ? 'mandatoryGain' : 'mandatoryExpense';
+	}
+
+	return movement.type === 'gain' ? 'gain' : 'expense';
+};
+
 export default function BankMovementsScreen() {
 
 	const {
@@ -258,24 +354,12 @@ export default function BankMovementsScreen() {
 		bodyText,
 		helperText,
 		inputField,
-		focusFieldClassName,
 		fieldContainerClassName,
-		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
-		textareaContainerClassName,
 		submitButtonClassName,
 		heroHeight,
-		infoCardStyle,
 		insets,
-		labelText,
-		switchRadioClassName,
-		switchRadioIndicatorClassName,
-		switchRadioIconClassName,
-		switchRadioLabelClassName,
-		addTagButtonClassName,
 	} = useScreenStyles();
-
-	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
 		bankName?: string | string[];
@@ -334,16 +418,35 @@ export default function BankMovementsScreen() {
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
-	const [movementFilter, setMovementFilter] = React.useState<'all' | 'expense' | 'gain'>('all');
+	const [movementFilter, setMovementFilter] = React.useState<MovementFilter>('all');
 	const [monthlyInitialBalanceInCents, setMonthlyInitialBalanceInCents] = React.useState<number | null>(null);
 	const [bankAccentColorHex, setBankAccentColorHex] = React.useState<string | null>(
 		isCashView ? CASH_CARD_COLOR : null,
 	);
-	const movementFilterLabels: Record<typeof movementFilter, string> = {
-		all: 'Todos',
-		expense: 'Despesas',
-		gain: 'Ganhos',
-	};
+	const [isPeriodTimelineExpanded, setIsPeriodTimelineExpanded] = React.useState(true);
+	const [expandedMovementIds, setExpandedMovementIds] = React.useState<string[]>([]);
+	const [tagMetadataById, setTagMetadataById] = React.useState<Record<string, MovementTagMetadata>>({});
+
+	const showScreenAlert = React.useCallback(
+		(
+			message: string,
+			action: 'success' | 'error' | 'warning' | 'info' | 'muted' = 'error',
+			title?: string,
+		) => {
+			showNotifierAlert({
+				title,
+				description: message,
+				type:
+					action === 'warning'
+						? 'warn'
+						: action === 'muted'
+							? 'info'
+							: action,
+				isDarkMode,
+			});
+		},
+		[isDarkMode],
+	);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -355,16 +458,26 @@ export default function BankMovementsScreen() {
 		[shouldHideValues],
 	);
 
-	// Controla qual movimentação deve aparecer no Drawer e quando ele está aberto
-	const [selectedMovement, setSelectedMovement] = React.useState<MovementRecord | null>(null);
-	const [isMovementDrawerOpen, setIsMovementDrawerOpen] = React.useState(false);
+	const formatSignedCurrencyBRL = React.useCallback(
+		(movement: MovementRecord) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+			return `${movement.type === 'gain' ? '+' : '-'}${formatCurrencyBRLBase(movement.valueInCents)}`;
+		},
+		[shouldHideValues],
+	);
 
-	// Controla no nome da tag depois de buscado dentro do Firebase
-	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
-	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
+	const formatMovementCompactDate = React.useCallback((value: Date | null) => {
+		if (!value) {
+			return 'Sem data';
+		}
 
-	// Controla no nome do banco depois de buscado dentro do Firebase
-	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+		return new Intl.DateTimeFormat('pt-BR', {
+			day: '2-digit',
+			month: '2-digit',
+		}).format(value);
+	}, []);
 
 	const resolveMovementTypeLabel = React.useCallback((movement?: MovementRecord | null) => {
 		if (!movement) {
@@ -390,6 +503,169 @@ export default function BankMovementsScreen() {
 		}
 		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
 	}, []);
+
+	const timelinePalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			cardBorder: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(226, 232, 240, 1)',
+			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
+			timelineBase: isDarkMode ? '#243041' : '#CBD5E1',
+		}),
+		[isDarkMode],
+	);
+
+	const movementFilterPalette = React.useMemo(
+		() => ({
+			selectedBackground: '#FACC15',
+			selectedBorder: '#FACC15',
+			selectedIconClassName: isDarkMode ? 'text-slate-900' : 'text-white',
+			selectedTextClassName: isDarkMode ? 'text-slate-900' : 'text-white',
+			unselectedBackground: isDarkMode ? 'transparent' : '#FFFFFF',
+			unselectedBorder: isDarkMode ? '#1E293B' : '#E2E8F0',
+			unselectedIconClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+			unselectedTextClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+		}),
+		[isDarkMode],
+	);
+
+	const getMovementTone = React.useCallback(
+		(movement: MovementRecord) => TIMELINE_MOVEMENT_TONES[resolveTimelineMovementToneKey(movement)],
+		[],
+	);
+
+	const getFallbackMovementIcon = React.useCallback((movement: MovementRecord): TagIconSelection => {
+		if (movement.isCashRescue) {
+			return { iconFamily: 'ionicons', iconName: 'cash-outline' };
+		}
+
+		if (movement.isBankTransfer) {
+			return { iconFamily: 'ionicons', iconName: 'swap-horizontal-outline' };
+		}
+
+		if (movement.isInvestmentRedemption) {
+			return { iconFamily: 'ionicons', iconName: 'arrow-down-circle-outline' };
+		}
+
+		if (movement.isInvestmentDeposit || movement.isFinanceInvestment) {
+			return { iconFamily: 'ionicons', iconName: 'arrow-up-circle-outline' };
+		}
+
+		if (movement.isFromMandatory) {
+			return { iconFamily: 'ionicons', iconName: 'shield-checkmark-outline' };
+		}
+
+		return movement.type === 'gain'
+			? { iconFamily: 'ionicons', iconName: 'trending-up-outline' }
+			: { iconFamily: 'ionicons', iconName: 'trending-down-outline' };
+	}, []);
+
+	const getMovementSummarySubtitle = React.useCallback(
+		(movement: MovementRecord) => {
+			if (movement.isCashRescue) {
+				return `Saque do banco ${movement.cashRescueSourceBankName ?? 'não identificado'}`;
+			}
+
+			if (movement.isBankTransfer) {
+				return movement.bankTransferDirection === 'outgoing'
+					? `Transferência para ${movement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'}`
+					: `Transferência de ${movement.bankTransferSourceBankNameSnapshot ?? 'banco de origem'}`;
+			}
+
+			if (movement.isInvestmentRedemption) {
+				return movement.investmentNameSnapshot
+					? `Resgate de ${movement.investmentNameSnapshot}`
+					: 'Resgate de investimento';
+			}
+
+			if (movement.isInvestmentDeposit) {
+				return movement.investmentNameSnapshot
+					? `Aporte em ${movement.investmentNameSnapshot}`
+					: 'Aporte de investimento';
+			}
+
+			if (movement.isFinanceInvestment) {
+				return movement.investmentBankNameSnapshot
+					? `Aplicado via ${movement.investmentBankNameSnapshot}`
+					: `Aplicado via ${bankName}`;
+			}
+
+			if (movement.isFromMandatory) {
+				return movement.type === 'gain'
+					? 'Ganho obrigatório deste mês'
+					: 'Gasto obrigatório deste mês';
+			}
+
+			if (movement.moneyFormat || isCashView) {
+				return 'Movimentação em dinheiro';
+			}
+
+			return resolveMovementTypeLabel(movement);
+		},
+		[bankName, isCashView, resolveMovementTypeLabel],
+	);
+
+	const getMovementDetailMessage = React.useCallback(
+		(movement: MovementRecord) => {
+			if (movement.isFromMandatory) {
+				return movement.type === 'gain'
+					? 'Este lançamento está vinculado ao ganho obrigatório do mês atual.'
+					: 'Este lançamento está vinculado ao gasto obrigatório do mês atual.';
+			}
+
+			if (movement.isCashRescue) {
+				return `Este registro representa um saque em dinheiro vindo do banco ${movement.cashRescueSourceBankName ?? 'não identificado'}.`;
+			}
+
+			if (movement.isBankTransfer) {
+				return movement.bankTransferDirection === 'outgoing'
+					? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ?? 'o banco de destino'}.`
+					: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
+			}
+
+			if (movement.isFinanceInvestment) {
+				return 'Este valor foi enviado para um investimento e é controlado pela tela de investimentos.';
+			}
+
+			if (movement.isInvestmentRedemption) {
+				return movement.investmentNameSnapshot
+					? `Resgate automático do investimento "${movement.investmentNameSnapshot}".`
+					: 'Resgate automático registrado para este investimento.';
+			}
+
+			if (movement.isInvestmentDeposit) {
+				return movement.investmentNameSnapshot
+					? `Aporte automático no investimento "${movement.investmentNameSnapshot}".`
+					: 'Aporte automático registrado para este investimento.';
+			}
+
+			if (movement.explanation?.trim()) {
+				return movement.explanation.trim();
+			}
+
+			return 'Lançamento registrado normalmente dentro do período filtrado.';
+		},
+		[],
+	);
+
+	const getMovementPrimarySourceLabel = React.useCallback(
+		(movement: MovementRecord) => {
+			if (movement.isCashRescue) {
+				return movement.cashRescueSourceBankName ?? 'Banco não identificado';
+			}
+
+			if (movement.moneyFormat || isCashView) {
+				return 'Dinheiro em espécie';
+			}
+
+			if (movement.investmentBankNameSnapshot?.trim()) {
+				return movement.investmentBankNameSnapshot.trim();
+			}
+
+			return bankName;
+		},
+		[bankName, isCashView],
+	);
 
 	const handleDateSelect = React.useCallback((formatted: string, type: 'start' | 'end') => {
 		if (type === 'start') {
@@ -721,82 +997,76 @@ export default function BankMovementsScreen() {
 	}, [bankId, isCashView]);
 
 	React.useEffect(() => {
+		let isMounted = true;
+		const uniqueTagIds = Array.from(
+			new Set(
+				movements
+					.map(movement => movement.tagId)
+					.filter((tagId): tagId is string => typeof tagId === 'string' && tagId.trim().length > 0),
+			),
+		);
+		const missingTagIds = uniqueTagIds.filter(tagId => tagMetadataById[tagId] === undefined);
 
-		// Verifica se há uma movimentação selecionada e se ela possui tagId
-		if (!selectedMovement || !selectedMovement.tagId) {
-			setSelectedMovementTagName(null);
-			setSelectedMovementTagIcon(null);
-			return;
-		} else {
-			const fetchTagName = async () => {
-				try {
-
-					// Busca os dados da tag pelo ID
-					const tagResult = await getTagDataFirebase(selectedMovement.tagId!);
-
-					if (tagResult.success && tagResult.data) {
-
-						// Atualiza o nome da tag com o valor buscado se houver
-						// um sucesso na busca
-						setSelectedMovementTagName(tagResult.data.name);
-						setSelectedMovementTagIcon({
-							iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
-							iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
-							iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
-						});
-
-					} else {
-
-						setSelectedMovementTagName(null);
-						setSelectedMovementTagIcon(null);
-
-					}
-				} catch (error) {
-					console.error('Erro ao buscar dados da tag:', error);
-					setSelectedMovementTagName(null);
-					setSelectedMovementTagIcon(null);
-				};
+		if (missingTagIds.length === 0) {
+			return () => {
+				isMounted = false;
 			};
-			void fetchTagName();
 		}
-	}, [selectedMovement, setSelectedMovementTagName]);
 
-	// Da mesma forma que o useEffect da tag, é feito para o banco, sempre
-	// visualizando o componente do Drawer e buscando o nome do banco pelo ID
-	React.useEffect(() => {
-
-		// Verifica se há uma movimentação selecionada e se ela possui bankId
-		if (!selectedMovement || !selectedMovement.bankId) {
-			return;
-		} else {
-
-			const fetchBankName = async () => {
-
-				try {
-
-					// Busca os dados do banco pelo ID
-					const bankResult = await getBankDataFirebase(selectedMovement.bankId!);
-
-					if (bankResult.success && bankResult.data) {
-
-						// Atualiza o nome do banco com o valor buscado se houver
-						// um sucesso na busca
-						setSelectedMovementBankName(bankResult.data.name);
-					} else {
-
-						setSelectedMovementBankName(null);
-
+		const fetchMissingTags = async () => {
+			const fetchedTags = await Promise.all(
+				missingTagIds.map(async tagId => {
+					try {
+						const tagResult = await getTagDataFirebase(tagId);
+						if (tagResult.success && tagResult.data) {
+							return [
+								tagId,
+								{
+									name: typeof tagResult.data.name === 'string' ? tagResult.data.name : null,
+									icon: {
+										iconFamily:
+											typeof tagResult.data.iconFamily === 'string'
+												? tagResult.data.iconFamily
+												: null,
+										iconName:
+											typeof tagResult.data.iconName === 'string'
+												? tagResult.data.iconName
+												: null,
+										iconStyle:
+											typeof tagResult.data.iconStyle === 'string'
+												? tagResult.data.iconStyle
+												: null,
+									},
+								},
+							] as const;
+						}
+					} catch (error) {
+						console.error('Erro ao buscar dados da tag:', error);
 					}
 
-				} catch (error) {
-					console.error('Erro ao buscar dados do banco:', error);
-					setSelectedMovementBankName(null);
-				};
-			}
-			void fetchBankName();
-		}
-	}, [selectedMovement, setSelectedMovementBankName]);
+					return [tagId, { name: null, icon: null }] as const;
+				}),
+			);
 
+			if (!isMounted) {
+				return;
+			}
+
+			setTagMetadataById(previousState => {
+				const nextState = { ...previousState };
+				for (const [tagId, metadata] of fetchedTags) {
+					nextState[tagId] = metadata;
+				}
+				return nextState;
+			});
+		};
+
+		void fetchMissingTags();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [movements, tagMetadataById]);
 
 	const visibleMovements = React.useMemo(() => {
 		if (movementFilter === 'all') {
@@ -805,9 +1075,18 @@ export default function BankMovementsScreen() {
 		return movements.filter(movement => movement.type === movementFilter);
 	}, [movementFilter, movements]);
 
+	React.useEffect(() => {
+		const visibleIds = new Set(visibleMovements.map(movement => movement.id));
+		setExpandedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
+	}, [visibleMovements]);
+
 	const totals = React.useMemo(() => {
 		return visibleMovements.reduce(
 			(acc, movement) => {
+				if (!shouldIncludeMovementInGainExpenseTotals(movement)) {
+					return acc;
+				}
+
 				if (movement.type === 'gain') {
 					acc.totalGains += movement.valueInCents;
 				} else {
@@ -916,17 +1195,88 @@ export default function BankMovementsScreen() {
 		setPendingAction(null);
 	}, [isProcessingAction]);
 
-	// Abre o Drawer com os detalhes da movimentação tocada duas vezes
-	const handleMovementDoubleTap = React.useCallback((movement: MovementRecord) => {
-		setSelectedMovement(movement);
-		setIsMovementDrawerOpen(true);
+	const handleTogglePeriodTimeline = React.useCallback(() => {
+		setIsPeriodTimelineExpanded(previousState => !previousState);
 	}, []);
 
-	// Fecha o Drawer e limpa a movimentação para evitar dados antigos
-	const handleCloseMovementDrawer = React.useCallback(() => {
-		setIsMovementDrawerOpen(false);
-		setSelectedMovement(null);
+	const handleToggleMovementCard = React.useCallback((movementId: string) => {
+		setExpandedMovementIds(previousState =>
+			previousState.includes(movementId)
+				? previousState.filter(id => id !== movementId)
+				: [...previousState, movementId],
+		);
 	}, []);
+
+	const handleRequestMovementAction = React.useCallback(
+		(action: PendingMovementAction['type'], movement: MovementRecord) => {
+			if (action === 'revert-cash-rescue') {
+				setPendingAction({ type: action, movement });
+				return;
+			}
+
+			if (movement.isFromMandatory) {
+				showScreenAlert(
+					action === 'edit'
+						? movement.type === 'gain'
+							? 'Este ganho pertence a um ganho obrigatório deste mês. Para alterar, use a tela de Ganhos obrigatórios.'
+							: 'Esta despesa pertence a um gasto obrigatório deste mês. Para alterar, use a tela de Gastos obrigatórios.'
+						: movement.type === 'gain'
+							? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
+							: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
+					'warning',
+				);
+				return;
+			}
+
+			if (movement.isCashRescue) {
+				showScreenAlert(
+					action === 'edit'
+						? 'Este lançamento representa um saque em dinheiro e não pode ser editado manualmente.'
+						: 'Este lançamento representa um saque em dinheiro e não pode ser removido manualmente.',
+					'warning',
+				);
+				return;
+			}
+
+			if (movement.isBankTransfer) {
+				showScreenAlert(
+					action === 'edit'
+						? 'Transferências são registradas automaticamente e não podem ser editadas manualmente.'
+						: 'Transferências não podem ser removidas manualmente para manter os saldos alinhados.',
+					'warning',
+				);
+				return;
+			}
+
+			if (movement.isFinanceInvestment) {
+				showScreenAlert(
+					action === 'edit'
+						? 'Edite este lançamento diretamente na lista de investimentos.'
+						: 'Remova ou ajuste este valor pela tela de investimentos.',
+					'warning',
+				);
+				return;
+			}
+
+			if (movement.isInvestmentRedemption) {
+				showScreenAlert(
+					action === 'edit'
+						? 'Resgates de investimento são controlados pela tela de investimentos.'
+						: 'Resgates de investimento devem ser ajustados pela tela de investimentos.',
+					'warning',
+				);
+				return;
+			}
+
+			if (movement.isInvestmentDeposit) {
+				showScreenAlert('Aportes de investimento são controlados pela tela de investimentos.', 'warning');
+				return;
+			}
+
+			setPendingAction({ type: action, movement });
+		},
+		[showScreenAlert],
+	);
 
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
@@ -934,12 +1284,10 @@ export default function BankMovementsScreen() {
 		}
 
 		if (pendingAction.movement.isBankTransfer) {
-			showFloatingAlert({
-				message:
-					'Transferências entre bancos são criadas automaticamente e não podem ser editadas ou excluídas manualmente.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert(
+				'Transferências entre bancos são criadas automaticamente e não podem ser editadas ou excluídas manualmente.',
+				'warning',
+			);
 			setPendingAction(null);
 			return;
 		}
@@ -947,41 +1295,32 @@ export default function BankMovementsScreen() {
 		if (pendingAction.type === 'edit') {
 			// Impede edição de movimentações originadas de obrigatórios
 			if (pendingAction.movement.isFromMandatory) {
-				showFloatingAlert({
-					message:
-						pendingAction.movement.type === 'gain'
-							? 'Este ganho está vinculado a um ganho obrigatório deste mês. Edite/reivindique pela tela de Ganhos obrigatórios.'
-							: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Edite/reivindique pela tela de Gastos obrigatórios.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert(
+					pendingAction.movement.type === 'gain'
+						? 'Este ganho está vinculado a um ganho obrigatório deste mês. Edite/reivindique pela tela de Ganhos obrigatórios.'
+						: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Edite/reivindique pela tela de Gastos obrigatórios.',
+					'warning',
+				);
 				setPendingAction(null);
 				return;
 			}
 			if (pendingAction.movement.isCashRescue) {
-				showFloatingAlert({
-					message: 'Saques em dinheiro não podem ser editados manualmente.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Saques em dinheiro não podem ser editados manualmente.', 'warning');
 				setPendingAction(null);
 				return;
 			}
 			if (pendingAction.movement.isFinanceInvestment) {
-				showFloatingAlert({
-					message: 'Edite este investimento pela tela de investimentos.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Edite este investimento pela tela de investimentos.', 'warning');
 				setPendingAction(null);
 				return;
 			}
 			if (pendingAction.movement.isInvestmentRedemption) {
-				showFloatingAlert({
-					message: 'Resgates de investimento são controlados pela tela de investimentos.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Resgates de investimento são controlados pela tela de investimentos.', 'warning');
+				setPendingAction(null);
+				return;
+			}
+			if (pendingAction.movement.isInvestmentDeposit) {
+				showScreenAlert('Aportes de investimento são controlados pela tela de investimentos.', 'warning');
 				setPendingAction(null);
 				return;
 			}
@@ -1006,27 +1345,15 @@ export default function BankMovementsScreen() {
 			try {
 				const result = await deleteCashRescueFirebase(pendingAction.movement.id);
 				if (!result.success) {
-					showFloatingAlert({
-						message: 'Não foi possível reivindicar o saque. Tente novamente.',
-						action: 'error',
-						position: 'bottom',
-					});
+					showScreenAlert('Não foi possível reivindicar o saque. Tente novamente.', 'error');
 					return;
 				}
 
-				showFloatingAlert({
-					message: 'Saque reivindicado e removido com sucesso!',
-					action: 'success',
-					position: 'bottom',
-				});
+				showScreenAlert('Saque reivindicado e removido com sucesso!', 'success', 'Saque atualizado');
 				await fetchMovements();
 			} catch (error) {
 				console.error('Erro ao reivindicar saque em dinheiro:', error);
-				showFloatingAlert({
-					message: 'Erro inesperado ao reivindicar o saque.',
-					action: 'error',
-					position: 'bottom',
-				});
+				showScreenAlert('Erro inesperado ao reivindicar o saque.', 'error');
 			} finally {
 				setIsProcessingAction(false);
 				setPendingAction(null);
@@ -1039,38 +1366,28 @@ export default function BankMovementsScreen() {
 		try {
 			// Evita exclusão direta de lançamentos vinculados a obrigatórios (para não quebrar o vínculo)
 			if (pendingAction.movement.isFromMandatory && pendingAction.type === 'delete') {
-				showFloatingAlert({
-					message:
-						pendingAction.movement.type === 'gain'
-							? 'Exclusão bloqueada: este ganho pertence a um ganho obrigatório deste mês. Use a ação "Reivindicar" na tela de Ganhos obrigatórios.'
-							: 'Exclusão bloqueada: esta despesa pertence a um gasto obrigatório deste mês. Use a ação "Reivindicar" na tela de Gastos obrigatórios.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert(
+					pendingAction.movement.type === 'gain'
+						? 'Exclusão bloqueada: este ganho pertence a um ganho obrigatório deste mês. Use a ação "Reivindicar" na tela de Ganhos obrigatórios.'
+						: 'Exclusão bloqueada: esta despesa pertence a um gasto obrigatório deste mês. Use a ação "Reivindicar" na tela de Gastos obrigatórios.',
+					'warning',
+				);
 				return;
 			}
 			if (pendingAction.movement.isCashRescue) {
-				showFloatingAlert({
-					message: 'Saques em dinheiro não podem ser excluídos manualmente.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Saques em dinheiro não podem ser excluídos manualmente.', 'warning');
 				return;
 			}
 			if (pendingAction.movement.isFinanceInvestment) {
-				showFloatingAlert({
-					message: 'Use a tela de investimentos para remover ou ajustar este valor.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Use a tela de investimentos para remover ou ajustar este valor.', 'warning');
 				return;
 			}
 			if (pendingAction.movement.isInvestmentRedemption) {
-				showFloatingAlert({
-					message: 'Use a tela de investimentos para remover ou ajustar este resgate.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Use a tela de investimentos para remover ou ajustar este resgate.', 'warning');
+				return;
+			}
+			if (pendingAction.movement.isInvestmentDeposit) {
+				showScreenAlert('Use a tela de investimentos para remover ou ajustar este aporte.', 'warning');
 				return;
 			}
 			let result: { success: boolean } | undefined;
@@ -1081,32 +1398,20 @@ export default function BankMovementsScreen() {
 			}
 
 			if (!result?.success) {
-				showFloatingAlert({
-					message: 'Não foi possível excluir a movimentação. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
-				});
+				showScreenAlert('Não foi possível excluir a movimentação. Tente novamente.', 'error');
 				return;
 			}
 
-			showFloatingAlert({
-				message: 'Movimentação excluída com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Movimentação excluída com sucesso!', 'success', 'Movimentação removida');
 			await fetchMovements();
 		} catch (error) {
 			console.error('Erro ao remover movimentação:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao excluir a movimentação.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Erro inesperado ao excluir a movimentação.', 'error');
 		} finally {
 			setIsProcessingAction(false);
 			setPendingAction(null);
 		}
-	}, [fetchMovements, pendingAction]);
+	}, [fetchMovements, pendingAction, showScreenAlert]);
 
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
@@ -1154,7 +1459,7 @@ export default function BankMovementsScreen() {
 
 	const isModalOpen = Boolean(pendingAction);
 	const confirmButtonAction = actionModalCopy.confirmAction;
-	const screenTitle = isCashView ? 'Movimentações em dinheiro' : 'Movimentações do banco';
+	const screenTitle = isCashView ? 'Movimentações em dinheiro' : `Movimentações do banco ${bankName}`;
 
 	return (
 		<SafeAreaView
@@ -1169,8 +1474,6 @@ export default function BankMovementsScreen() {
 			/>
 			<GestureHandlerRootView style={{ flex: 1, width: '100%', backgroundColor: surfaceBackground }}>
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<FloatingAlertViewport />
-
 					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 						<View
 							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
@@ -1202,101 +1505,8 @@ export default function BankMovementsScreen() {
 							contentContainerStyle={{ paddingBottom: 32 }}
 						>
 							<VStack className="justify-between mt-4">
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Filtros do período</Text>
-									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-										<VStack className="gap-4">
-											<HStack className="w-full gap-4">
-												<VStack className="flex-1">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
-													<DatePickerField
-														value={startDateInput}
-														onChange={formatted => handleDateSelect(formatted, 'start')}
-														triggerClassName={fieldContainerClassName}
-														inputClassName={inputField}
-														placeholder="Selecione a data inicial"
-														isDisabled={isLoading}
-													/>
-												</VStack>
-
-												<VStack className="flex-1">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data final</Text>
-													<DatePickerField
-														value={endDateInput}
-														onChange={formatted => handleDateSelect(formatted, 'end')}
-														triggerClassName={fieldContainerClassName}
-														inputClassName={inputField}
-														placeholder="Selecione a data final"
-														isDisabled={isLoading}
-													/>
-												</VStack>
-											</HStack>
-											<VStack>
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-													Tipo de movimentação
-												</Text>
-												<Select
-													selectedValue={movementFilter}
-													onValueChange={value =>
-														setMovementFilter(
-															(value as 'all' | 'expense' | 'gain') ?? 'all',
-														)
-													}
-												>
-													<SelectTrigger
-														variant="outline"
-														size="md"
-														className={fieldContainerClassName}
-													>
-														<SelectInput
-															placeholder="Selecione o tipo"
-															value={movementFilterLabels[movementFilter]}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-													<SelectPortal>
-														<SelectBackdrop />
-														<SelectContent>
-															<SelectDragIndicatorWrapper>
-																<SelectDragIndicator />
-															</SelectDragIndicatorWrapper>
-															<SelectItem label="Todos" value="all" />
-															<SelectItem label="Despesas" value="expense" />
-															<SelectItem label="Ganhos" value="gain" />
-														</SelectContent>
-													</SelectPortal>
-												</Select>
-											</VStack>
-
-											<Button
-												className={submitButtonClassName}
-												onPress={() => {
-													if (!isLoading) {
-														void fetchMovements();
-													}
-												}}
-												isDisabled={
-													isLoading ||
-													!parseDateFromBR(startDateInput) ||
-													!parseDateFromBR(endDateInput)
-												}
-											>
-												{isLoading ? (
-													<>
-														<ButtonSpinner />
-														<ButtonText>Carregando movimentações</ButtonText>
-													</>
-												) : (
-													<ButtonText>Buscar movimentações</ButtonText>
-												)}
-											</Button>
-										</VStack>
-									</View>
-								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Resumo do período</Text>
 									<BankCardSurface palette={summaryCardPalette}>
 										<VStack className="flex-1 gap-5">
 											<HStack className="items-start justify-between gap-4">
@@ -1356,7 +1566,7 @@ export default function BankMovementsScreen() {
 													borderColor: 'rgba(255,255,255,0.08)',
 												}}
 											>
-												<VStack className="gap-3">
+												<VStack className="gap-1">
 													<HStack className="justify-between">
 														<Text style={{ color: summaryCardPalette.textSecondary }}>Ganhos</Text>
 														<Text
@@ -1392,383 +1602,612 @@ export default function BankMovementsScreen() {
 									</BankCardSurface>
 								</VStack>
 
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Filtros do período</Text>
+									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
+										<VStack className="gap-4">
+											<HStack className="w-full gap-4">
+												<VStack className="flex-1">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
+													<DatePickerField
+														value={startDateInput}
+														onChange={formatted => handleDateSelect(formatted, 'start')}
+														triggerClassName={fieldContainerClassName}
+														inputClassName={inputField}
+														placeholder="Selecione a data inicial"
+														isDisabled={isLoading}
+													/>
+												</VStack>
+
+												<VStack className="flex-1">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data final</Text>
+													<DatePickerField
+														value={endDateInput}
+														onChange={formatted => handleDateSelect(formatted, 'end')}
+														triggerClassName={fieldContainerClassName}
+														inputClassName={inputField}
+														placeholder="Selecione a data final"
+														isDisabled={isLoading}
+													/>
+												</VStack>
+											</HStack>
+											<VStack>
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Tipo de movimentação
+												</Text>
+												<HStack className="gap-2 justify-center">
+													{movementFilterOptions.map(option => {
+														const isSelected = movementFilter === option.value;
+														const iconClassName = isSelected
+															? movementFilterPalette.selectedIconClassName
+															: movementFilterPalette.unselectedIconClassName;
+														const textClassName = isSelected
+															? movementFilterPalette.selectedTextClassName
+															: movementFilterPalette.unselectedTextClassName;
+
+														return (
+															<TouchableOpacity
+																key={option.value}
+																onPress={() => setMovementFilter(option.value)}
+																disabled={isLoading}
+																activeOpacity={0.85}
+																style={{
+																	flex: 1,
+																	maxWidth: 104,
+																	height: 55,
+																	borderRadius: 20,
+																	alignItems: 'center',
+																	justifyContent: 'center',
+																	borderWidth: 1,
+																	borderColor: isSelected
+																		? movementFilterPalette.selectedBorder
+																		: movementFilterPalette.unselectedBorder,
+																	backgroundColor: isSelected
+																		? movementFilterPalette.selectedBackground
+																		: movementFilterPalette.unselectedBackground,
+																	opacity: isLoading ? 0.45 : 1,
+																}}
+															>
+																<VStack className="items-center gap-1">
+																	<Icon as={option.icon} size="sm" className={iconClassName} />
+																	<Text className={`text-xs font-medium ${textClassName}`}>
+																		{option.label}
+																	</Text>
+																</VStack>
+															</TouchableOpacity>
+														);
+													})}
+												</HStack>
+											</VStack>
+
+											<Button
+												className={submitButtonClassName}
+												onPress={() => {
+													if (!isLoading) {
+														void fetchMovements();
+													}
+												}}
+												isDisabled={
+													isLoading ||
+													!parseDateFromBR(startDateInput) ||
+													!parseDateFromBR(endDateInput)
+												}
+											>
+												{isLoading ? (
+													<>
+														<ButtonSpinner />
+														<ButtonText>Carregando movimentações</ButtonText>
+													</>
+												) : (
+													<ButtonText>Buscar movimentações</ButtonText>
+												)}
+											</Button>
+										</VStack>
+									</View>
+								</VStack>
+
 								{errorMessage && (
 									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
 										<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
 									</View>
 								)}
 
+
 								<VStack className="mb-4">
-									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-										<HStack className="items-center justify-between">
-											<Text className={`${headingText} text-lg font-semibold`}>
-												Comparativo de totais
+									<HStack className="items-start justify-between gap-3">
+										<TouchableOpacity
+											activeOpacity={0.85}
+											onPress={handleTogglePeriodTimeline}
+											style={{ flex: 1 }}
+										>
+											<Text className={`${bodyText} text-sm`}>Movimentações do período</Text>
+											<Text className={`${helperText} mt-1 text-xs`}>
+												{isPeriodTimelineExpanded
+													? 'Toque em uma movimentação para abrir ou ocultar os detalhes.'
+													: 'Toque para abrir a timeline do período.'}
 											</Text>
-											<TouchableOpacity
-												activeOpacity={0.85}
-												onPress={() => setIsTotalsExpanded(prev => !prev)}
+										</TouchableOpacity>
+
+										<TouchableOpacity
+											activeOpacity={0.85}
+											onPress={handleTogglePeriodTimeline}
+											style={{
+												minWidth: 28,
+												paddingLeft: 8,
+												paddingVertical: 4,
+												alignItems: 'center',
+												justifyContent: 'center',
+												flexShrink: 0,
+											}}
+										>
+											<Icon
+												as={isPeriodTimelineExpanded ? ChevronUpIcon : ChevronDownIcon}
+												size="sm"
+												className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+											/>
+										</TouchableOpacity>
+									</HStack>
+
+									{isPeriodTimelineExpanded ? (
+										isLoading ? (
+											<View
+												style={{
+													marginTop: 10,
+													borderRadius: 18,
+													borderWidth: 1,
+													borderColor: timelinePalette.cardBorder,
+													backgroundColor: timelinePalette.emptySurface,
+													paddingHorizontal: 16,
+													paddingVertical: 18,
+												}}
 											>
-												<Text className={`${helperText} text-sm`}>
-													{isTotalsExpanded ? 'Ocultar' : 'Expandir'}
+												<Text style={{ color: timelinePalette.subtitle }}>
+													Carregando movimentações...
 												</Text>
-											</TouchableOpacity>
-										</HStack>
+											</View>
+										) : visibleMovements.length === 0 ? (
+											<View
+												style={{
+													marginTop: 10,
+													borderRadius: 18,
+													borderWidth: 1,
+													borderColor: timelinePalette.cardBorder,
+													backgroundColor: timelinePalette.emptySurface,
+													paddingHorizontal: 16,
+													paddingVertical: 18,
+												}}
+											>
+												<Text style={{ color: timelinePalette.subtitle }}>
+													Nenhuma movimentação foi registrada para o período informado.
+												</Text>
+											</View>
+										) : (
+											<View style={{ marginTop: 14 }}>
+												{visibleMovements.map((movement, index) => {
+													const movementTone = getMovementTone(movement);
+													const tagMetadata = movement.tagId ? tagMetadataById[movement.tagId] : null;
+													const movementIcon =
+														tagMetadata?.icon && tagMetadata.icon.iconName
+															? tagMetadata.icon
+															: getFallbackMovementIcon(movement);
+													const isExpanded = expandedMovementIds.includes(movement.id);
+													const counterpartyLabel = movement.isBankTransfer
+														? movement.bankTransferDirection === 'outgoing'
+															? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
+															: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
+														: null;
+													const detailHint = movement.isFromMandatory
+														? movement.type === 'gain'
+															? 'Para alterar ou reivindicar este ganho, use a tela de Ganhos obrigatórios.'
+															: 'Para alterar ou reivindicar esta despesa, use a tela de Gastos obrigatórios.'
+														: movement.isCashRescue
+															? 'Saques em dinheiro podem ser reivindicados, mas não editados ou excluídos manualmente.'
+															: movement.isBankTransfer
+																? 'Transferências entre bancos são geradas automaticamente para manter os saldos alinhados.'
+																: movement.isFinanceInvestment ||
+																		movement.isInvestmentDeposit ||
+																		movement.isInvestmentRedemption
+																	? 'Use a tela de investimentos para ajustar este lançamento.'
+																	: 'Os botões abaixo permitem editar ou excluir esta movimentação.';
+													const detailItems = [
+														{
+															label: 'Tipo',
+															value: resolveMovementTypeLabel(movement),
+														},
+														{
+															label: 'Data',
+															value: formatMovementDate(movement.date),
+														},
+														{
+															label: 'Tag',
+															value:
+																tagMetadata?.name ??
+																(movement.tagId ? movement.tagId : 'Sem tag associada'),
+														},
+														{
+															label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
+															value: getMovementPrimarySourceLabel(movement),
+														},
+													];
+													const metadataItems = counterpartyLabel
+														? [...detailItems, { label: 'Contraparte', value: counterpartyLabel }]
+														: detailItems;
+													const editIsManagedElsewhere =
+														movement.isFromMandatory ||
+														movement.isCashRescue ||
+														movement.isBankTransfer ||
+														movement.isFinanceInvestment ||
+														movement.isInvestmentRedemption ||
+														movement.isInvestmentDeposit;
+													const deleteIsManagedElsewhere = editIsManagedElsewhere;
 
-										<Text className={`${helperText} mt-1 text-sm`}>
-											Baseado nos valores filtrados para {bankName}.
-										</Text>
-
-										{isTotalsExpanded ? (
-											hasTotalsPieData ? (
-												<>
-													<View className="mt-4 items-center">
-														<PieChart
-															data={totalsPieChartData}
-															radius={90}
-															showText={false}
-															isAnimated
-														/>
-													</View>
-
-													<View className="mt-4 gap-3">
-														{totalsPieSlices.map(slice => (
-															<HStack
-																key={slice.key}
-																className="items-center justify-between rounded-2xl px-3 py-3"
-																style={{ borderWidth: 1, borderColor: legendBorderColor }}
+													return (
+														<View key={movement.id} style={{ flexDirection: 'row' }}>
+															<View
+																style={{
+																	alignItems: 'center',
+																	width: '7%',
+																	paddingTop: 6,
+																}}
 															>
-																<HStack className="items-center">
+																<View
+																	style={{
+																		width: 14,
+																		height: 14,
+																		borderRadius: 999,
+																		backgroundColor: movementTone.accentColor,
+																		borderWidth: 2,
+																		borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+																		shadowColor: movementTone.accentColor,
+																		shadowOpacity: isDarkMode ? 0.26 : 0.14,
+																		shadowRadius: 8,
+																		shadowOffset: { width: 0, height: 4 },
+																		elevation: 2,
+																	}}
+																/>
+																{index < visibleMovements.length - 1 ? (
 																	<View
 																		style={{
-																			width: 10,
-																			height: 10,
-																			borderRadius: 5,
-																			backgroundColor: slice.color,
+																			flex: 1,
+																			width: 3,
+																			borderRadius: 999,
+																			marginVertical: 2,
+																			backgroundColor: movementTone.lineColor,
 																		}}
 																	/>
-																	<Text className={`${bodyText} ml-2`}>
-																		{slice.label}
-																	</Text>
-																</HStack>
-																<Text className={`${headingText} font-semibold`}>
-																	{formatCurrencyBRL(slice.rawInCents)}
-																</Text>
-															</HStack>
-														))}
-													</View>
-												</>
-											) : (
-												<Text className={`${helperText} mt-4 text-sm`}>
-													Nenhum ganho ou despesa foi encontrado dentro do período selecionado.
-												</Text>
-											)
-										) : (
-											<Text className={`${helperText} mt-4 text-sm`}>
-												Toque em &quot;Expandir&quot; para visualizar o gráfico com os totais
-												do período.
-											</Text>
-										)}
-									</View>
-								</VStack>
+																) : (
+																	<View />
+																)}
+															</View>
 
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-										Movimentações do período
-									</Text>
-
-									{isLoading ? (
-										<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-											<Text className={`${bodyText} text-sm`}>
-												Carregando movimentações...
-											</Text>
-										</View>
-									) : visibleMovements.length === 0 ? (
-										<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-											<Text className={`${helperText} text-sm`}>
-												Nenhuma movimentação foi registrada para o período informado.
-											</Text>
-										</View>
-									) : (
-										visibleMovements.map(movement => (
-											<TapGestureHandler
-												key={movement.id}
-												numberOfTaps={2}
-												onActivated={() => handleMovementDoubleTap(movement)}
-											>
-												<View>
-													<VStack className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-														<HStack className="items-center justify-between pt-1">
-															<Text className={`${headingText} text-lg font-semibold`}>
-																{movement.name}
-															</Text>
-															<Text
-																className={
-																	movement.type === 'gain'
-																		? 'font-semibold text-emerald-600 dark:text-emerald-400'
-																		: 'font-semibold text-red-600 dark:text-red-400'
-																}
-															>
-																{formatCurrencyBRL(movement.valueInCents)}
-															</Text>
-														</HStack>
-														<Text className={`${helperText} mt-1 text-xs`}>
-															{formatMovementDate(movement.date)}
-														</Text>
-														<Text className={`${helperText} mt-1 text-xs`}>
-															Tipo: {resolveMovementTypeLabel(movement)}
-														</Text>
-														{movement.isFromMandatory && (
-															<>
-																<Text className="mt-1 text-[11px] text-yellow-600 dark:text-yellow-400">
-																	Vinculado a {movement.type === 'gain' ? 'ganho' : 'gasto'} obrigatório
-																	(mês atual).
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	Use a tela de{' '}
-																	{movement.type === 'gain'
-																		? 'Ganhos obrigatórios'
-																		: 'Gastos obrigatórios'}
-																	.
-																</Text>
-															</>
-														)}
-														{movement.isCashRescue && (
-															<>
-																<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
-																	{`${isCashView
-																			? 'Valor sacado do banco'
-																			: 'Movimentação de saque do banco'
-																		} ${movement.cashRescueSourceBankName ?? 'não identificado'}.`}
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	Este registro não pode ser editado ou excluído manualmente.
-																</Text>
-															</>
-														)}
-														{movement.isBankTransfer && (
-															<>
-																<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
-																	{movement.bankTransferDirection === 'outgoing'
-																		? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ??
-																		'banco de destino'
-																		}.`
-																		: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ??
-																		'banco de origem'
-																		}.`}
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	Movimentação criada automaticamente para manter os saldos entre
-																	bancos.
-																</Text>
-															</>
-														)}
-														{movement.isFinanceInvestment && (
-															<>
-																<Text className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-300">
-																	Valor destinado a um investimento neste banco.
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	Edite ou cancele o investimento na lista de investimentos.
-																</Text>
-															</>
-														)}
-														{movement.isInvestmentRedemption && (
-															<>
-																<Text className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-400">
-																	{movement.investmentNameSnapshot
-																		? `Resgate do investimento "${movement.investmentNameSnapshot}".`
-																		: 'Resgate de investimento registrado neste banco.'}
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	O ajuste do investimento foi feito automaticamente.
-																</Text>
-															</>
-														)}
-														{movement.isInvestmentDeposit && (
-															<>
-																<Text className="mt-1 text-[11px] text-indigo-700 dark:text-indigo-300">
-																	{movement.investmentNameSnapshot
-																		? `Aporte no investimento "${movement.investmentNameSnapshot}".`
-																		: 'Aporte registrado automaticamente neste banco.'}
-																</Text>
-																<Text className={`${helperText} mt-1 text-[9px]`}>
-																	Edite ou cancele o aporte pela lista de investimentos.
-																</Text>
-															</>
-														)}
-
-														<Divider className="my-4" />
-
-														<View className="flex-row items-center justify-end gap-2">
-															<Button
-																size="xl"
-																variant="link"
-																action="primary"
-																isDisabled={
-																	movement.isFromMandatory ||
-																	movement.isCashRescue ||
-																	movement.isBankTransfer ||
-																	movement.isFinanceInvestment ||
-																	movement.isInvestmentRedemption ||
-																	movement.isInvestmentDeposit
-																}
-																onPress={() => {
-																	if (movement.isFromMandatory) {
-																		showFloatingAlert({
-																			message:
-																				movement.type === 'gain'
-																					? 'Este ganho pertence a um ganho obrigatório deste mês. Para alterar, use a tela de Ganhos obrigatórios.'
-																					: 'Esta despesa pertence a um gasto obrigatório deste mês. Para alterar, use a tela de Gastos obrigatórios.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isCashRescue) {
-																		showFloatingAlert({
-																			message:
-																				'Este lançamento representa um saque em dinheiro e não pode ser editado manualmente.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isBankTransfer) {
-																		showFloatingAlert({
-																			message:
-																				'Transferências são registradas automaticamente e não podem ser editadas manualmente.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isFinanceInvestment) {
-																		showFloatingAlert({
-																			message:
-																				'Edite este lançamento diretamente na lista de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isInvestmentRedemption) {
-																		showFloatingAlert({
-																			message:
-																				'Resgates de investimento são controlados pela tela de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isInvestmentDeposit) {
-																		showFloatingAlert({
-																			message:
-																				'Aportes de investimento são controlados pela tela de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	setPendingAction({ type: 'edit', movement });
-																}}
-															>
-																<ButtonIcon as={EditIcon} />
-															</Button>
-															{movement.isCashRescue && (
-																<Button
-																	size="xl"
-																	variant="link"
-																	action="secondary"
-																	onPress={() =>
-																		setPendingAction({
-																			type: 'revert-cash-rescue',
-																			movement,
-																		})
-																	}
+															<View style={{ width: '93%', paddingBottom: 14 }}>
+																<TouchableOpacity
+																	activeOpacity={0.85}
+																	onPress={() => handleToggleMovementCard(movement.id)}
+																	style={{ width: '100%' }}
 																>
-																	<ButtonText>Reivindicar saque</ButtonText>
-																</Button>
-															)}
-															<Button
-																size="xl"
-																variant="link"
-																action="negative"
-																isDisabled={
-																	movement.isFromMandatory ||
-																	movement.isCashRescue ||
-																	movement.isBankTransfer ||
-																	movement.isFinanceInvestment ||
-																	movement.isInvestmentRedemption ||
-																	movement.isInvestmentDeposit
-																}
-																onPress={() => {
-																	if (movement.isFromMandatory) {
-																		showFloatingAlert({
-																			message:
-																				movement.type === 'gain'
-																					? 'Este ganho está vinculado a um ganho obrigatório deste mês. Use "Reivindicar" na tela de Ganhos obrigatórios para desfazer.'
-																					: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Use "Reivindicar" na tela de Gastos obrigatórios para desfazer.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isCashRescue) {
-																		showFloatingAlert({
-																			message:
-																				'Este lançamento representa um saque em dinheiro e não pode ser removido manualmente.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isBankTransfer) {
-																		showFloatingAlert({
-																			message:
-																				'Transferências não podem ser removidas manualmente para manter os saldos alinhados.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isFinanceInvestment) {
-																		showFloatingAlert({
-																			message:
-																				'Remova ou ajuste este valor pela tela de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isInvestmentRedemption) {
-																		showFloatingAlert({
-																			message:
-																				'Resgates de investimento devem ser ajustados pela tela de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	if (movement.isInvestmentDeposit) {
-																		showFloatingAlert({
-																			message:
-																				'Aportes de investimento são controlados pela tela de investimentos.',
-																			action: 'warning',
-																			position: 'bottom',
-																		});
-																		return;
-																	}
-																	setPendingAction({ type: 'delete', movement });
-																}}
-															>
-																<ButtonIcon as={TrashIcon} />
-															</Button>
+																	<HStack className="items-center justify-between gap-3">
+																		<HStack className="items-center gap-3" style={{ flex: 1 }}>
+																			<LinearGradient
+																				colors={movementTone.iconGradient}
+																				start={{ x: 0, y: 0 }}
+																				end={{ x: 1, y: 1 }}
+																				style={{
+																					width: 44,
+																					height: 44,
+																					borderRadius: 16,
+																					alignItems: 'center',
+																					justifyContent: 'center',
+																					flexShrink: 0,
+																				}}
+																			>
+																				<TagIcon
+																					iconFamily={movementIcon.iconFamily}
+																					iconName={movementIcon.iconName}
+																					iconStyle={movementIcon.iconStyle}
+																					size={18}
+																					color="#FFFFFF"
+																				/>
+																			</LinearGradient>
+
+																			<View style={{ flex: 1 }}>
+																				<Text
+																					numberOfLines={1}
+																					style={{
+																						color: timelinePalette.title,
+																						fontSize: 15,
+																						fontWeight: '700',
+																					}}
+																				>
+																					{movement.name}
+																				</Text>
+																				<Text
+																					numberOfLines={1}
+																					style={{
+																						marginTop: 2,
+																						color: timelinePalette.subtitle,
+																						fontSize: 12,
+																						lineHeight: 18,
+																					}}
+																				>
+																					{getMovementSummarySubtitle(movement)}
+																				</Text>
+																			</View>
+																		</HStack>
+
+																		<HStack className="items-center gap-2">
+																			<VStack className="items-end">
+																				<Text
+																					style={{
+																						color: movementTone.amountColor,
+																						fontSize: 15,
+																						fontWeight: '700',
+																					}}
+																				>
+																					{formatSignedCurrencyBRL(movement)}
+																				</Text>
+																				<HStack className="mt-1 items-center gap-1">
+																					<Icon
+																						as={CalendarDaysIcon}
+																						size="xs"
+																						className={
+																							isDarkMode
+																								? 'text-slate-500'
+																								: 'text-slate-400'
+																						}
+																					/>
+																					<Text
+																						style={{
+																							color: timelinePalette.subtitle,
+																							fontSize: 11,
+																						}}
+																					>
+																						{formatMovementCompactDate(movement.date)}
+																					</Text>
+																				</HStack>
+																			</VStack>
+
+																			<Icon
+																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																				size="sm"
+																				className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+																			/>
+																		</HStack>
+																	</HStack>
+																</TouchableOpacity>
+
+																{isExpanded ? (
+																	<LinearGradient
+																		colors={movementTone.cardGradient}
+																		start={{ x: 0, y: 0 }}
+																		end={{ x: 1, y: 1 }}
+																		style={{
+																			marginTop: 10,
+																			marginRight: 16,
+																			borderRadius: 20,
+																			paddingHorizontal: 16,
+																			paddingVertical: 14,
+																		}}
+																	>
+																		<VStack className="gap-3">
+																			<HStack className="items-start justify-between gap-4">
+																				<VStack className="flex-1 gap-1">
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.74)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Resumo
+																					</Text>
+																					<Text
+																						style={{
+																							fontSize: 13,
+																							lineHeight: 19,
+																							color: '#FFFFFF',
+																						}}
+																					>
+																						{getMovementDetailMessage(movement)}
+																					</Text>
+																				</VStack>
+
+																				<VStack className="items-end gap-1">
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.74)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Valor
+																					</Text>
+																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																						{formatSignedCurrencyBRL(movement)}
+																					</Heading>
+																				</VStack>
+																			</HStack>
+
+																			<View
+																				style={{
+																					paddingTop: 2,
+																					borderTopWidth: 1,
+																					borderTopColor: 'rgba(255,255,255,0.16)',
+																					flexDirection: 'row',
+																					flexWrap: 'wrap',
+																					columnGap: 14,
+																					rowGap: 10,
+																				}}
+																			>
+																				{metadataItems.map(item => (
+																					<View
+																						key={`${movement.id}-${item.label}`}
+																						style={{
+																							width: '46%',
+																							minWidth: 128,
+																							paddingTop: 8,
+																							paddingBottom: 8,
+																							borderBottomWidth: 1,
+																							borderBottomColor: 'rgba(255,255,255,0.12)',
+																						}}
+																					>
+																						<Text
+																							style={{
+																								fontSize: 10,
+																								fontWeight: '700',
+																								letterSpacing: 0.4,
+																								color: 'rgba(255,255,255,0.72)',
+																								textTransform: 'uppercase',
+																							}}
+																						>
+																							{item.label}
+																						</Text>
+																						<Text
+																							style={{
+																								marginTop: 3,
+																								fontSize: 13,
+																								lineHeight: 18,
+																								color: '#FFFFFF',
+																							}}
+																						>
+																							{item.value}
+																						</Text>
+																					</View>
+																				))}
+																			</View>
+
+																			{movement.explanation?.trim() &&
+																			getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
+																				<View
+																					style={{
+																						paddingTop: 2,
+																						borderTopWidth: 1,
+																						borderTopColor: 'rgba(255,255,255,0.16)',
+																					}}
+																				>
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.72)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Descrição
+																					</Text>
+																					<Text
+																						style={{
+																							marginTop: 6,
+																							fontSize: 13,
+																							lineHeight: 18,
+																							color: '#FFFFFF',
+																						}}
+																					>
+																						{movement.explanation.trim()}
+																					</Text>
+																				</View>
+																			) : null}
+
+																			<View
+																				style={{
+																					paddingTop: 2,
+																					borderTopWidth: 1,
+																					borderTopColor: 'rgba(255,255,255,0.16)',
+																				}}
+																			>
+																				<HStack className="items-start gap-3">
+																					<View style={{ marginTop: 2 }}>
+																						<Icon as={InfoIcon} size="sm" className="text-white" />
+																					</View>
+																					<Text
+																						style={{
+																							flex: 1,
+																							fontSize: 12,
+																							lineHeight: 17,
+																							color: 'rgba(255,255,255,0.92)',
+																						}}
+																					>
+																						{detailHint}
+																					</Text>
+																				</HStack>
+																			</View>
+
+																			<HStack
+																				className="flex-wrap gap-4"
+																				style={{
+																					paddingTop: 2,
+																					borderTopWidth: 1,
+																					borderTopColor: 'rgba(255,255,255,0.16)',
+																				}}
+																			>
+																				<TouchableOpacity
+																					activeOpacity={0.85}
+																					onPress={() => handleRequestMovementAction('edit', movement)}
+																					style={{
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 8,
+																						opacity: editIsManagedElsewhere ? 0.72 : 1,
+																					}}
+																				>
+																					<Icon as={EditIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">Editar</Text>
+																				</TouchableOpacity>
+
+																				{movement.isCashRescue ? (
+																					<TouchableOpacity
+																						activeOpacity={0.85}
+																						onPress={() =>
+																							handleRequestMovementAction(
+																								'revert-cash-rescue',
+																								movement,
+																							)
+																						}
+																						style={{
+																							flexDirection: 'row',
+																							alignItems: 'center',
+																							gap: 8,
+																							paddingVertical: 8,
+																						}}
+																					>
+																						<Icon as={RepeatIcon} size="sm" className="text-white" />
+																						<Text className="text-xs font-semibold text-white">
+																							Reivindicar
+																						</Text>
+																					</TouchableOpacity>
+																				) : null}
+
+																				<TouchableOpacity
+																					activeOpacity={0.85}
+																					onPress={() => handleRequestMovementAction('delete', movement)}
+																					style={{
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 8,
+																						opacity: deleteIsManagedElsewhere ? 0.72 : 1,
+																					}}
+																				>
+																					<Icon as={TrashIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">Excluir</Text>
+																				</TouchableOpacity>
+																			</HStack>
+																		</VStack>
+																	</LinearGradient>
+																) : null}
+															</View>
 														</View>
-													</VStack>
-												</View>
-											</TapGestureHandler>
-										))
-									)}
+													);
+												})}
+											</View>
+										)
+									) : null}
 								</VStack>
 							</VStack>
 						</ScrollView>
@@ -1822,222 +2261,6 @@ export default function BankMovementsScreen() {
 							</ModalFooter>
 						</ModalContent>
 					</Modal>
-
-					<Drawer
-						isOpen={isMovementDrawerOpen}
-						onClose={handleCloseMovementDrawer}
-						size="lg"
-						anchor="right"
-					>
-						<DrawerBackdrop onPress={handleCloseMovementDrawer} />
-						<DrawerContent className={cardBackground}>
-							<DrawerHeader className="items-center justify-between">
-								<Box className="w-full mt-12">
-									<Heading size="lg" className={headingText}>
-										{selectedMovement ? selectedMovement.name : 'Movimentação selecionada'}
-									</Heading>
-
-									{selectedMovement?.isFromMandatory && (
-										<Text className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
-											Esta movimentação está vinculada a um gasto obrigatório deste mês.
-										</Text>
-									)}
-									{selectedMovement?.isCashRescue && (
-										<Text className="mt-1 text-sm text-sky-700 dark:text-sky-400">
-											{`${isCashView
-													? 'Valor registrado como saque do banco'
-													: 'Movimentação de saque do banco'
-												} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
-										</Text>
-									)}
-									{selectedMovement?.isBankTransfer && (
-										<Text className="mt-1 text-sm text-sky-700 dark:text-sky-400">
-											{selectedMovement.bankTransferDirection === 'outgoing'
-												? `Transferência enviada para ${selectedMovement.bankTransferTargetBankNameSnapshot ??
-												'banco de destino'
-												}.`
-												: `Transferência recebida de ${selectedMovement.bankTransferSourceBankNameSnapshot ??
-												'banco de origem'
-												}.`}
-										</Text>
-									)}
-									{selectedMovement?.isFinanceInvestment && (
-										<Text className="mt-1 text-sm text-indigo-700 dark:text-indigo-300">
-											Movimentação criada a partir de um investimento.
-										</Text>
-									)}
-									{selectedMovement?.isInvestmentDeposit && (
-										<Text className="mt-1 text-sm text-indigo-700 dark:text-indigo-300">
-											Aporte automático registrado para este investimento.
-										</Text>
-									)}
-								</Box>
-
-								<DrawerCloseButton onPress={handleCloseMovementDrawer} />
-							</DrawerHeader>
-
-							<DrawerBody>
-								<VStack className="gap-4">
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Nome da movimentação:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={selectedMovement ? selectedMovement.name : ''}
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Valor da movimentação:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={
-													selectedMovement
-														? formatCurrencyBRL(selectedMovement.valueInCents)
-														: ''
-												}
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									{selectedMovement?.type === 'gain' && (
-										<VStack space="xs">
-											<Text className={`${bodyText} text-sm`}>Pagamento em dinheiro:</Text>
-											<Input className={fieldContainerClassName} isDisabled>
-												<InputField
-													value={
-														typeof selectedMovement.moneyFormat === 'boolean'
-															? selectedMovement.moneyFormat
-																? 'Sim'
-																: 'Não'
-															: 'Não informado'
-													}
-													className={inputField}
-												/>
-											</Input>
-										</VStack>
-									)}
-
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Tipo da movimentação:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={resolveMovementTypeLabel(selectedMovement)}
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									{selectedMovement?.isInvestmentRedemption && (
-										<VStack space="xs">
-											<Text className={`${bodyText} text-sm`}>Observação do resgate:</Text>
-											<Textarea
-												isReadOnly
-												isDisabled
-												className="h-20 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
-											>
-												<TextareaInput
-													value={
-														selectedMovement.investmentNameSnapshot
-															? `Resgate do investimento "${selectedMovement.investmentNameSnapshot}".`
-															: 'Resgate de investimento registrado para este banco.'
-													}
-													className={`${inputField} pt-2`}
-												/>
-											</Textarea>
-										</VStack>
-									)}
-
-									{selectedMovement && selectedMovement.explanation && (
-										<VStack space="xs">
-											<Text className={`${bodyText} text-sm`}>Descrição:</Text>
-											<Textarea
-												isDisabled
-												className={textareaContainerClassName}
-											>
-												<TextareaInput
-													value={selectedMovement.explanation}
-													className={`${inputField} pt-2`}
-												/>
-											</Textarea>
-										</VStack>
-									)}
-
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Tag selecionada:</Text>
-										<View className={`${fieldContainerClassName} px-3`}>
-											<HStack className="h-full items-center gap-3">
-												<View className="h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-amber-50 dark:border-slate-800 dark:bg-slate-900">
-													<TagIcon
-														iconFamily={selectedMovementTagIcon?.iconFamily}
-														iconName={selectedMovementTagIcon?.iconName}
-														iconStyle={selectedMovementTagIcon?.iconStyle}
-														size={15}
-														color={isDarkMode ? '#FCD34D' : '#D97706'}
-													/>
-												</View>
-												<Text className={`${bodyText} flex-1 text-sm`}>
-													{selectedMovement && selectedMovement.tagId
-														? `${selectedMovementTagName ?? selectedMovement.tagId}`
-														: 'Sem tag associada'}
-												</Text>
-											</HStack>
-										</View>
-									</VStack>
-
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Banco selecionado:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={
-													selectedMovement && selectedMovement.bankId
-														? `${selectedMovementBankName ?? selectedMovement.bankId}`
-														: 'Sem banco associado'
-												}
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									{selectedMovement?.isBankTransfer && (
-										<VStack space="xs">
-											<Text className={`${bodyText} text-sm`}>Banco de contraparte:</Text>
-											<Input className={fieldContainerClassName} isDisabled>
-												<InputField
-													value={
-														selectedMovement.bankTransferDirection === 'outgoing'
-															? selectedMovement.bankTransferTargetBankNameSnapshot ??
-															'Banco de destino'
-															: selectedMovement.bankTransferSourceBankNameSnapshot ??
-															'Banco de origem'
-													}
-													className={inputField}
-												/>
-											</Input>
-										</VStack>
-									)}
-
-									<VStack space="xs">
-										<Text className={`${bodyText} text-sm`}>Data da movimentação:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={
-													selectedMovement
-														? formatMovementDate(selectedMovement.date)
-														: ''
-												}
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-								</VStack>
-							</DrawerBody>
-
-							<DrawerFooter />
-						</DrawerContent>
-					</Drawer>
 				</View>
 			</GestureHandlerRootView>
 		</SafeAreaView>

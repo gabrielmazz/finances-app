@@ -43,6 +43,7 @@ import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
 type MandatoryGainItem = DateCalendarItem & {
 	lastReceiptGainId?: string | null;
@@ -56,6 +57,13 @@ type PendingGainAction =
 	| { type: 'edit'; gain: MandatoryGainItem }
 	| { type: 'delete'; gain: MandatoryGainItem }
 	| { type: 'reclaim'; gain: MandatoryGainItem };
+
+type TagMetadata = {
+	name: string;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
+};
 
 const getDueDayColorClass = (dueDay: number, isReceivedForCurrentCycle?: boolean) => {
 	const today = new Date().getDate();
@@ -124,6 +132,7 @@ export default function MandatoryGainsListScreen() {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
+	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingGainAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
@@ -202,6 +211,7 @@ export default function MandatoryGainsListScreen() {
 			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
 
 			const tagsRecord: Record<string, string> = {};
+			const tagMetadataRecord: Record<string, TagMetadata> = {};
 			if (tagsResult.success && Array.isArray(tagsResult.data)) {
 				(tagsResult.data as Array<Record<string, unknown>>)
 					.filter(tag => {
@@ -218,6 +228,12 @@ export default function MandatoryGainsListScreen() {
 									? tagNameValue.trim()
 									: 'Tag sem nome';
 							tagsRecord[tagIdValue] = label;
+							tagMetadataRecord[tagIdValue] = {
+								name: label,
+								iconFamily: typeof tag['iconFamily'] === 'string' ? tag['iconFamily'] as TagIconFamily : null,
+								iconName: typeof tag['iconName'] === 'string' ? tag['iconName'] as string : null,
+								iconStyle: typeof tag['iconStyle'] === 'string' ? tag['iconStyle'] as TagIconStyle : null,
+							};
 						}
 					});
 			}
@@ -241,6 +257,7 @@ export default function MandatoryGainsListScreen() {
 			}));
 
 			setTagsMap(tagsRecord);
+			setTagMetadataMap(tagMetadataRecord);
 			setGains(gainsWithStatus);
 			await syncMandatoryGainNotifications(
 				gainsWithStatus.map(gain => ({
@@ -306,10 +323,21 @@ export default function MandatoryGainsListScreen() {
 				templateDueDay: String(gain.dueDay),
 				templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
 				templateMandatoryGainId: gain.id,
-				templateTagName: tagsMap[gain.tagId] ? encodeURIComponent(tagsMap[gain.tagId]) : undefined,
+				templateTagName: tagMetadataMap[gain.tagId]?.name
+					? encodeURIComponent(tagMetadataMap[gain.tagId].name)
+					: undefined,
+				templateTagIconFamily: tagMetadataMap[gain.tagId]?.iconFamily
+					? encodeURIComponent(tagMetadataMap[gain.tagId].iconFamily as string)
+					: undefined,
+				templateTagIconName: tagMetadataMap[gain.tagId]?.iconName
+					? encodeURIComponent(tagMetadataMap[gain.tagId].iconName as string)
+					: undefined,
+				templateTagIconStyle: tagMetadataMap[gain.tagId]?.iconStyle
+					? encodeURIComponent(tagMetadataMap[gain.tagId].iconStyle as string)
+					: undefined,
 			},
 		});
-	}, [tagsMap]);
+	}, [tagMetadataMap]);
 
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isActionProcessing) {

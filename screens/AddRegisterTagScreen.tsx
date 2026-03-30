@@ -65,6 +65,13 @@ import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
 type FocusableInputKey = 'tag-name';
 type UsageTypeRadioValue = 'expense' | 'gain';
 
+const normalizeTagIconSearchText = (value: string | null | undefined) =>
+	String(value ?? '')
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase()
+		.trim();
+
 export default function AddRegisterTagScreen() {
 
 	const {
@@ -77,6 +84,7 @@ export default function AddRegisterTagScreen() {
 		fieldContainerClassName,
 		fieldContainerCardClassName,
 		submitButtonClassName,
+		submitButtonTextClassName,
 		heroHeight,
 		insets,
 		switchRadioClassName,
@@ -93,10 +101,13 @@ export default function AddRegisterTagScreen() {
 	const [isGainTag, setIsGainTag] = React.useState(false);
 	const [isMandatoryExpense, setIsMandatoryExpense] = React.useState(false);
 	const [isMandatoryGain, setIsMandatoryGain] = React.useState(false);
+	const [showInBothLists, setShowInBothLists] = React.useState(false);
 	const [selectedTagIcon, setSelectedTagIcon] = React.useState(defaultTagIcon);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
+	const [tagIconSearch, setTagIconSearch] = React.useState('');
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
+	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
@@ -107,6 +118,7 @@ export default function AddRegisterTagScreen() {
 		usageType?: string | string[];
 		isMandatoryExpense?: string | string[];
 		isMandatoryGain?: string | string[];
+		showInBothLists?: string | string[];
 		returnAfterCreate?: string | string[];
 		lockUsageType?: string | string[];
 		tagIconFamily?: string | string[];
@@ -179,6 +191,22 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1';
 	}, [params.isMandatoryGain]);
+	const initialShowInBothLists = React.useMemo(() => {
+		const value = Array.isArray(params.showInBothLists) ? params.showInBothLists[0] : params.showInBothLists;
+		if (!value) {
+			return false;
+		}
+
+		if (value === 'true') {
+			return true;
+		}
+
+		if (value === 'false') {
+			return false;
+		}
+
+		return value === '1';
+	}, [params.showInBothLists]);
 	const initialTagIconFamily = React.useMemo(() => {
 		const value = Array.isArray(params.tagIconFamily) ? params.tagIconFamily[0] : params.tagIconFamily;
 		if (!value) {
@@ -234,8 +262,14 @@ export default function AddRegisterTagScreen() {
 	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
 	const selectedUsageType: UsageTypeRadioValue | null = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
 	const isMandatorySwitchEnabled = selectedUsageType !== null;
+	const resolvedIsMandatoryExpense = selectedUsageType === 'expense' ? showInBothLists || isMandatoryExpense : false;
+	const resolvedIsMandatoryGain = selectedUsageType === 'gain' ? showInBothLists || isMandatoryGain : false;
 	const isMandatorySelected =
-		selectedUsageType === 'expense' ? isMandatoryExpense : selectedUsageType === 'gain' ? isMandatoryGain : false;
+		selectedUsageType === 'expense'
+			? resolvedIsMandatoryExpense
+			: selectedUsageType === 'gain'
+				? resolvedIsMandatoryGain
+				: false;
 	const initialUsageLabel =
 		initialUsageType === 'expense'
 			? 'despesas'
@@ -251,6 +285,7 @@ export default function AddRegisterTagScreen() {
 
 		hasHydratedInitialParamsRef.current = true;
 		setTagName(initialTagName);
+		setShowInBothLists(initialShowInBothLists);
 		setSelectedTagIcon(
 			resolveTagIcon({
 				iconFamily: initialTagIconFamily as any,
@@ -261,24 +296,26 @@ export default function AddRegisterTagScreen() {
 		if (initialUsageType === 'expense') {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
-			setIsMandatoryExpense(initialIsMandatoryExpense);
+			setIsMandatoryExpense(initialShowInBothLists || initialIsMandatoryExpense);
 			setIsMandatoryGain(false);
 		} else if (initialUsageType === 'gain') {
 			setIsGainTag(true);
 			setIsExpenseTag(false);
 			setIsMandatoryExpense(false);
-			setIsMandatoryGain(initialIsMandatoryGain);
+			setIsMandatoryGain(initialShowInBothLists || initialIsMandatoryGain);
 		} else {
 			setIsExpenseTag(false);
 			setIsGainTag(false);
 			setIsMandatoryExpense(false);
 			setIsMandatoryGain(false);
+			setShowInBothLists(false);
 		}
 	}, [
 		initialTagName,
 		initialUsageType,
 		initialIsMandatoryExpense,
 		initialIsMandatoryGain,
+		initialShowInBothLists,
 		initialTagIconFamily,
 		initialTagIconName,
 		initialTagIconStyle,
@@ -294,6 +331,9 @@ export default function AddRegisterTagScreen() {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
 			setIsMandatoryGain(false);
+			if (showInBothLists) {
+				setIsMandatoryExpense(true);
+			}
 			return;
 		}
 
@@ -301,6 +341,9 @@ export default function AddRegisterTagScreen() {
 			setIsGainTag(true);
 			setIsExpenseTag(false);
 			setIsMandatoryExpense(false);
+			if (showInBothLists) {
+				setIsMandatoryGain(true);
+			}
 			return;
 		}
 
@@ -308,7 +351,8 @@ export default function AddRegisterTagScreen() {
 		setIsGainTag(false);
 		setIsMandatoryExpense(false);
 		setIsMandatoryGain(false);
-	}, [isUsageSelectionLocked]);
+		setShowInBothLists(false);
+	}, [isUsageSelectionLocked, showInBothLists]);
 
 	const handleMandatorySelection = React.useCallback(
 		(nextValue: boolean) => {
@@ -323,13 +367,42 @@ export default function AddRegisterTagScreen() {
 		},
 		[selectedUsageType],
 	);
+	const handleShowInBothListsSelection = React.useCallback(
+		(nextValue: boolean) => {
+			setShowInBothLists(nextValue);
+			
+			if (showInBothLists === false) {
+				setIsMandatoryExpense(false);
+				setIsMandatoryGain(false);
+				return
+			}
+
+			if (!nextValue) {
+				return;
+			}
+
+			if (selectedUsageType === 'expense') {
+				setIsMandatoryExpense(true);
+				return;
+			}
+
+			if (selectedUsageType === 'gain') {
+				setIsMandatoryGain(true);
+				return
+			}
+
+		},
+		[selectedUsageType],
+	);
 
 	const handleCloseTagIconSheet = React.useCallback(() => {
+		setTagIconSearch('');
 		setIsTagIconSheetOpen(false);
 	}, []);
 
 	const handleSelectTagIcon = React.useCallback((iconOption: (typeof iconOptions)[number]) => {
 		setSelectedTagIcon(iconOption);
+		setTagIconSearch('');
 		setIsTagIconSheetOpen(false);
 	}, []);
 
@@ -382,8 +455,9 @@ export default function AddRegisterTagScreen() {
 					tagId: editingTagId,
 					tagName: trimmedName,
 					usageType: selectedUsageType,
-					isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
-					isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
+					isMandatoryExpense: selectedUsageType === 'expense' ? resolvedIsMandatoryExpense : false,
+					isMandatoryGain: selectedUsageType === 'gain' ? resolvedIsMandatoryGain : false,
+					showInBothLists,
 					...persistedTagIcon,
 				});
 
@@ -418,8 +492,9 @@ export default function AddRegisterTagScreen() {
 				tagName: trimmedName,
 				personId,
 				usageType: selectedUsageType,
-				isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
-				isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
+				isMandatoryExpense: selectedUsageType === 'expense' ? resolvedIsMandatoryExpense : false,
+				isMandatoryGain: selectedUsageType === 'gain' ? resolvedIsMandatoryGain : false,
+				showInBothLists,
 				...persistedTagIcon,
 			});
 
@@ -473,6 +548,9 @@ export default function AddRegisterTagScreen() {
 		tagName,
 		isMandatoryExpense,
 		isMandatoryGain,
+		showInBothLists,
+		resolvedIsMandatoryExpense,
+		resolvedIsMandatoryGain,
 		selectedUsageType,
 		selectedTagIcon,
 		serializeTagIcon,
@@ -557,6 +635,18 @@ export default function AddRegisterTagScreen() {
 		: shouldReturnAfterCreate && initialUsageLabel
 			? `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
 			: 'Adição de nova categoria';
+	const showInBothListsLabel =
+		selectedUsageType === 'expense'
+			? 'Mostrar categoria nas despesas e nas obrigatórias'
+			: selectedUsageType === 'gain'
+				? 'Mostrar categoria nos ganhos e nos obrigatórios'
+				: 'Mostrar categoria nas duas listas';
+	const showInBothListsHelperText =
+		selectedUsageType === 'expense'
+			? 'Ative esta opção para que a categoria fique disponível tanto na lista de despesas quanto na lista de gastos obrigatórios.'
+			: selectedUsageType === 'gain'
+				? 'Ative esta opção para que a categoria fique disponível tanto na lista de ganhos quanto na lista de ganhos obrigatórios.'
+				: 'Selecione o tipo de utilização acima para definir se a categoria ficará disponível nas duas listas.';
 	const mandatoryUsageLabel =
 		selectedUsageType === 'expense'
 			? 'Marcar categoria de despesa como obrigatória'
@@ -565,7 +655,7 @@ export default function AddRegisterTagScreen() {
 				: 'Marcar como obrigatório';
 	const mandatoryHelperText =
 		selectedUsageType === 'expense'
-			? 'Ative esta opção para que a categoria seja listada na tela de gastos obrigatórios '
+			? 'Ative esta opção para que a categoria seja listada na tela de gastos obrigatórios.'
 			: selectedUsageType === 'gain'
 				? 'Ative esta opção para que a categoria seja listada na tela de ganhos obrigatórios.'
 				: 'Selecione o tipo de utilização acima para liberar a opção de obrigatoriedade.';
@@ -574,9 +664,46 @@ export default function AddRegisterTagScreen() {
 	const selectedTagIconSurfaceClassName = isDarkMode
 		? ''
 		: '';
+	const tagIconSheetSnapPoints = React.useMemo(() => [86], []);
+	const filteredIconOptions = React.useMemo(
+		() => {
+			const normalizedQuery = normalizeTagIconSearchText(tagIconSearch);
+
+			if (!normalizedQuery) {
+				return iconOptions;
+			}
+
+			const searchTerms = normalizedQuery.split(/\s+/).filter(Boolean);
+
+			return iconOptions.filter(iconOption => {
+				const searchableContent = normalizeTagIconSearchText(
+					[
+						iconOption.label,
+						iconOption.iconName,
+						iconOption.iconFamily,
+						iconOption.iconStyle,
+					]
+						.filter(Boolean)
+						.join(' '),
+				);
+
+				return searchTerms.every(term => searchableContent.includes(term));
+			});
+		},
+		[iconOptions, tagIconSearch],
+	);
+	const handleOpenTagIconSheet = React.useCallback(() => {
+		if (!isTagIconSelectionEnabled) {
+			return;
+		}
+
+		setTagIconSearch('');
+		setIsTagIconSheetOpen(true);
+	}, [isTagIconSelectionEnabled]);
 
 	React.useEffect(() => {
 		if (!isTagIconSelectionEnabled && isTagIconSheetOpen) {
+			setTagIconSearch('');
 			setIsTagIconSheetOpen(false);
 		}
 	}, [isTagIconSelectionEnabled, isTagIconSheetOpen]);
@@ -657,13 +784,7 @@ export default function AddRegisterTagScreen() {
 											Icone da categoria
 										</Text>
 										<Pressable
-											onPress={() => {
-												if (!isTagIconSelectionEnabled) {
-													return;
-												}
-
-												setIsTagIconSheetOpen(true);
-											}}
+											onPress={handleOpenTagIconSheet}
 											disabled={!isTagIconSelectionEnabled}
 											accessibilityRole="button"
 											accessibilityLabel="Escolher icone da categoria"
@@ -770,52 +891,105 @@ export default function AddRegisterTagScreen() {
 											</RadioGroup>
 
 											{selectedUsageType && (
-												<View className="mt-2">
-													<HStack className="items-center justify-between gap-4">
-														<HStack className="ml-1 gap-1">
-															<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
-															<Popover
-																placement="bottom"
-																size="md"
-																offset={0}
-																shouldFlip
-																focusScope={false}
-																trapFocus={false}
-																trigger={triggerProps => (
-																	<Pressable
-																		{...triggerProps}
-																		hitSlop={8}
-																		accessibilityRole="button"
-																		accessibilityLabel="Informações sobre a observação da despesa"
-																	>
-																		<Info
-																			size={14}
-																			color={isDarkMode ? '#94A3B8' : '#64748B'}
-																			style={{ marginLeft: 4 }}
-																		/>
-																	</Pressable>
-																)}
-															>
-																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																	<PopoverBody className="px-3 py-3">
-																		<Text className={`${bodyText} text-xs leading-5`}>
-																			{mandatoryHelperText}
-																		</Text>
-																	</PopoverBody>
-																</PopoverContent>
-															</Popover>
+												<>
+													<View className="mt-2">
+														<HStack className="items-center justify-between gap-4">
+															<HStack className="ml-1 gap-1 flex-1">
+																<Text className={`${bodyText} text-sm flex-1`}>
+																	{showInBothListsLabel}
+																</Text>
+																<Popover
+																	placement="bottom"
+																	size="md"
+																	offset={0}
+																	shouldFlip
+																	focusScope={false}
+																	trapFocus={false}
+																	trigger={triggerProps => (
+																		<Pressable
+																			{...triggerProps}
+																			hitSlop={8}
+																			accessibilityRole="button"
+																			accessibilityLabel="Informações sobre a categoria aparecer nas duas listas"
+																		>
+																			<Info
+																				size={14}
+																				color={isDarkMode ? '#94A3B8' : '#64748B'}
+																				style={{ marginLeft: 4 }}
+																			/>
+																		</Pressable>
+																	)}
+																>
+																	<PopoverBackdrop className="bg-transparent" />
+																	<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																		<PopoverBody className="px-3 py-3">
+																			<Text className={`${bodyText} text-xs leading-5`}>
+																				{showInBothListsHelperText}
+																			</Text>
+																		</PopoverBody>
+																	</PopoverContent>
+																</Popover>
+															</HStack>
+															<Switch
+																value={showInBothLists}
+																onValueChange={handleShowInBothListsSelection}
+																isDisabled={!selectedUsageType}
+																trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
+																thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
+																ios_backgroundColor="#CBD5E1"
+															/>
 														</HStack>
-														<Switch
-															value={isMandatorySelected}
-															onValueChange={handleMandatorySelection}
-															isDisabled={!isMandatorySwitchEnabled}
-															trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-															thumbColor={isDarkMode ? '#020617' : '#FFFFFF'}
-															ios_backgroundColor="#CBD5E1"
-														/>
-													</HStack>
-												</View>
+													</View>
+
+													{!showInBothLists && (
+														<View className="">
+															<HStack className="items-center justify-between gap-4">
+																<HStack className="ml-1 gap-1">
+																	<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
+																	<Popover
+																		placement="bottom"
+																		size="md"
+																		offset={0}
+																		shouldFlip
+																		focusScope={false}
+																		trapFocus={false}
+																		trigger={triggerProps => (
+																			<Pressable
+																				{...triggerProps}
+																				hitSlop={8}
+																				accessibilityRole="button"
+																				accessibilityLabel="Informações sobre a observação da despesa"
+																			>
+																				<Info
+																					size={14}
+																					color={isDarkMode ? '#94A3B8' : '#64748B'}
+																					style={{ marginLeft: 4 }}
+																				/>
+																			</Pressable>
+																		)}
+																	>
+																		<PopoverBackdrop className="bg-transparent" />
+																		<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																			<PopoverBody className="px-3 py-3">
+																				<Text className={`${bodyText} text-xs leading-5`}>
+																					{mandatoryHelperText}
+																				</Text>
+																			</PopoverBody>
+																		</PopoverContent>
+																	</Popover>
+																</HStack>
+																<Switch
+																	value={isMandatorySelected}
+																	onValueChange={handleMandatorySelection}
+																	isDisabled={!isMandatorySwitchEnabled}
+																	trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
+																	thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
+																	ios_backgroundColor="#CBD5E1"
+																/>
+															</HStack>
+														</View>
+													)}
+												</>
 											)}
 										</View>
 									</VStack>
@@ -828,7 +1002,9 @@ export default function AddRegisterTagScreen() {
 										{isSubmitting ? (
 											<ButtonSpinner />
 										) : (
-											<ButtonText>{isEditing ? 'Atualizar Tag' : 'Registrar Tag'}</ButtonText>
+											<ButtonText className={submitButtonTextClassName}>
+												{isEditing ? 'Atualizar Tag' : 'Registrar Tag'}
+											</ButtonText>
 										)}
 									</Button>
 								</VStack>
@@ -836,28 +1012,95 @@ export default function AddRegisterTagScreen() {
 						</View>
 					</KeyboardAvoidingView>
 
-					<Actionsheet isOpen={isTagIconSheetOpen && isTagIconSelectionEnabled} onClose={handleCloseTagIconSheet}>
+					<Actionsheet
+						isOpen={isTagIconSheetOpen && isTagIconSelectionEnabled}
+						onClose={handleCloseTagIconSheet}
+						initialFocusRef={tagIconSearchInputRef as React.RefObject<any>}
+						snapPoints={tagIconSheetSnapPoints}
+						className=""
+					>
 						<ActionsheetBackdrop />
 						<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
 							<ActionsheetDragIndicatorWrapper>
 								<ActionsheetDragIndicator />
 							</ActionsheetDragIndicatorWrapper>
 
-							<VStack className="w-full px-4 pb-3">
-								<Heading size="sm" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
-									Escolha um icone
+							<VStack className="w-full px-4 pb-3 pt-6 gap-3">
+								<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+									Escolha um ícone para a categoria {selectedTagIcon.label}
 								</Heading>
-								<Text className={`${helperText} mt-1 text-xs`}>
-									O nome da categoria nao precisa combinar com o icone escolhido.
-								</Text>
+							</VStack>
+
+							<VStack className="px-2 pb-3 w-full">
+								<HStack className="mb-1 ml-1 gap-2">
+									<Text className={`${bodyText} text-sm`}>Busca de ícones</Text>
+									<Popover
+										placement="bottom"
+										size="md"
+										offset={0}
+										shouldFlip
+										focusScope={false}
+										trapFocus={false}
+										trigger={triggerProps => (
+											<Pressable
+												{...triggerProps}
+												hitSlop={8}
+												accessibilityRole="button"
+												accessibilityLabel="Informações sobre o formato de pagamento"
+											>
+												<Info
+													size={14}
+													color={isDarkMode ? '#94A3B8' : '#64748B'}
+													style={{ marginLeft: 4 }}
+												/>
+											</Pressable>
+										)}
+									>
+										<PopoverBackdrop className="bg-transparent" />
+										<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+											<PopoverBody className="px-3 py-3">
+												<Text className={`${bodyText} text-xs leading-5`}>
+													Use a busca para encontrar o ícone ideal para sua categoria. Você pode buscar por nome do ícone, família ou estilo. Por exemplo, para encontrar um carrinho de compras, tente buscar por "cart", "shopping" ou "bag".
+												</Text>
+											</PopoverBody>
+										</PopoverContent>
+									</Popover>
+								</HStack>
+								<Input className={fieldContainerClassName}>
+									<InputField
+										ref={tagIconSearchInputRef as any}
+										value={tagIconSearch}
+										onChangeText={setTagIconSearch}
+										placeholder="Digite para buscar um icone"
+										accessibilityLabel="Buscar icone"
+										autoCapitalize="none"
+										autoCorrect={false}
+										returnKeyType="search"
+										clearButtonMode="while-editing"
+										className={inputField}
+									/>
+								</Input>
 							</VStack>
 
 							<ActionsheetScrollView
-								className="w-full"
-								contentContainerStyle={{ paddingBottom: Math.max(24, insets.bottom + 16) }}
+								className="w-full flex-1"
+								keyboardShouldPersistTaps="handled"
+								keyboardDismissMode="on-drag"
+								contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
 							>
 								<VStack className="px-2 pb-2">
-									{iconOptions.map(iconOption => {
+
+									{filteredIconOptions.length === 0 ? (
+										<VStack className="items-center px-4 py-8">
+											<Text className={`${bodyText} text-center text-sm`}>
+												Nenhum icone encontrado para "{tagIconSearch.trim()}".
+											</Text>
+											<Text className={`${helperText} mt-1 text-center text-xs`}>
+												Tente buscar por outro nome ou parte do nome.
+											</Text>
+										</VStack>
+									) : null}
+									{filteredIconOptions.map(iconOption => {
 										const isSelected = iconOption.key === selectedTagIcon.key;
 
 										return (

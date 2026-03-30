@@ -38,8 +38,10 @@ export function useScreenStyles() {
 	const textareaContainerClassName = `h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 
 	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
+		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+
+	const submitButtonTextClassName = isDarkMode ? 'text-slate-900' : 'text-white';
 
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 
@@ -101,6 +103,7 @@ export function useScreenStyles() {
 		fieldContainerCardClassName,
 		textareaContainerClassName,
 		submitButtonClassName,
+		submitButtonTextClassName,
 		heroHeight,
 		infoCardStyle,
         insets,

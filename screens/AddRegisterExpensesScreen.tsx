@@ -55,13 +55,13 @@ import {
 } from '@/functions/ExpenseFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
+import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
 import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 
@@ -212,6 +212,8 @@ export default function AddRegisterExpensesScreen() {
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
+	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -332,6 +334,9 @@ export default function AddRegisterExpensesScreen() {
 		templateDueDay?: string | string[];
 		templateDescription?: string | string[];
 		templateTagName?: string | string[];
+		templateTagIconFamily?: string | string[];
+		templateTagIconName?: string | string[];
+		templateTagIconStyle?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
@@ -370,6 +375,9 @@ export default function AddRegisterExpensesScreen() {
 		const description = decodeParam(params.templateDescription);
 		const tagId = decodeParam(params.templateTagId);
 		const tagName = decodeParam(params.templateTagName);
+		const tagIconFamily = decodeParam(params.templateTagIconFamily);
+		const tagIconName = decodeParam(params.templateTagIconName);
+		const tagIconStyle = decodeParam(params.templateTagIconStyle);
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
@@ -382,6 +390,9 @@ export default function AddRegisterExpensesScreen() {
 			!description &&
 			typeof tagId === 'undefined' &&
 			typeof tagName === 'undefined' &&
+			typeof tagIconFamily === 'undefined' &&
+			typeof tagIconName === 'undefined' &&
+			typeof tagIconStyle === 'undefined' &&
 			typeof valueInCents === 'undefined' &&
 			typeof dueDay === 'undefined' &&
 			typeof mandatoryExpenseId === 'undefined'
@@ -394,6 +405,14 @@ export default function AddRegisterExpensesScreen() {
 			description,
 			tagId,
 			tagName,
+			tagIcon:
+				typeof tagIconFamily === 'string' && typeof tagIconName === 'string'
+					? {
+						iconFamily: tagIconFamily as TagIconFamily,
+						iconName: tagIconName,
+						iconStyle: typeof tagIconStyle === 'string' ? tagIconStyle as TagIconStyle : null,
+					}
+					: null,
 			valueInCents,
 			dueDay,
 			mandatoryExpenseId,
@@ -407,6 +426,9 @@ export default function AddRegisterExpensesScreen() {
 		params.investmentIdForAdjustment,
 		params.templateDescription,
 		params.templateDueDay,
+		params.templateTagIconFamily,
+		params.templateTagIconName,
+		params.templateTagIconStyle,
 		params.templateLockTag,
 		params.templateMandatoryExpenseId,
 		params.templateName,
@@ -538,9 +560,10 @@ export default function AddRegisterExpensesScreen() {
 							.filter((tag: any) => {
 								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
 								const isMandatoryExpense = Boolean(tag?.isMandatoryExpense);
+								const showInBothLists = Boolean(tag?.showInBothLists);
 								const isExpenseTag =
 									usageType === 'expense' || usageType === undefined || usageType === null;
-								return isExpenseTag && !isMandatoryExpense;
+								return isExpenseTag && (!isMandatoryExpense || showInBothLists);
 							})
 							.map((tag: any) => ({
 								id: tag.id,
@@ -562,6 +585,12 @@ export default function AddRegisterExpensesScreen() {
 						setTags(formattedTags);
 						if (matchingPendingTag) {
 							setSelectedTagId(matchingPendingTag.id);
+							setSelectedMovementTagName(matchingPendingTag.name);
+							setSelectedMovementTagIcon({
+								iconFamily: matchingPendingTag.iconFamily ?? null,
+								iconName: matchingPendingTag.iconName ?? null,
+								iconStyle: matchingPendingTag.iconStyle ?? null,
+							});
 							clearPendingCreatedTag(matchingPendingTag.id);
 						} else {
 							setSelectedTagId(current => {
@@ -659,6 +688,14 @@ export default function AddRegisterExpensesScreen() {
 
 		if (templateData.tagId) {
 			setSelectedTagId(templateData.tagId);
+		}
+
+		if (templateData.tagName) {
+			setSelectedMovementTagName(templateData.tagName);
+		}
+
+		if (templateData.tagIcon) {
+			setSelectedMovementTagIcon(templateData.tagIcon);
 		}
 
 		if (templateData.description) {
@@ -960,10 +997,70 @@ export default function AddRegisterExpensesScreen() {
 		};
 	}, [editingExpenseId, isDarkMode]);
 
+	React.useEffect(() => {
+		const matchedTag = tags.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			setSelectedMovementTagName(matchedTag.name);
+			setSelectedMovementTagIcon({
+				iconFamily: matchedTag.iconFamily ?? null,
+				iconName: matchedTag.iconName ?? null,
+				iconStyle: matchedTag.iconStyle ?? null,
+			});
+			return;
+		}
+
+		if (!selectedTagId) {
+			setSelectedMovementTagName(null);
+			setSelectedMovementTagIcon(null);
+			return;
+		}
+
+		let isMounted = true;
+
+		const fetchTagData = async () => {
+			try {
+				const tagResult = await getTagDataFirebase(selectedTagId);
+
+				if (!isMounted) {
+					return;
+				}
+
+				if (tagResult.success && tagResult.data) {
+					setSelectedMovementTagName(typeof tagResult.data.name === 'string' ? tagResult.data.name : null);
+					setSelectedMovementTagIcon({
+						iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
+						iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
+						iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
+					});
+					return;
+				}
+
+				setSelectedMovementTagName(null);
+				setSelectedMovementTagIcon(null);
+			} catch (error) {
+				console.error('Erro ao buscar dados da tag da despesa:', error);
+				if (isMounted) {
+					setSelectedMovementTagName(null);
+					setSelectedMovementTagIcon(null);
+				}
+			}
+		};
+
+		void fetchTagData();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [selectedTagId, tags]);
+
 	const selectedTagLabel = React.useMemo(() => {
 		const matchedTag = tags.find(tag => tag.id === selectedTagId);
 		if (matchedTag) {
 			return matchedTag.name;
+		}
+
+		if (selectedMovementTagName && selectedTagId) {
+			return selectedMovementTagName;
 		}
 
 		if (selectedTagId && selectedTagId === templateData?.tagId && templateTagDisplayName) {
@@ -971,10 +1068,42 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		return null;
-	}, [selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
+	}, [selectedMovementTagName, selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
 	const selectedTagOption = React.useMemo(() => {
-		return tags.find(tag => tag.id === selectedTagId) ?? null;
-	}, [selectedTagId, tags]);
+		const matchedTag = tags.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			return matchedTag;
+		}
+
+		if (selectedTagId && selectedMovementTagIcon?.iconFamily && selectedMovementTagIcon.iconName) {
+			return {
+				id: selectedTagId,
+				name: selectedMovementTagName ?? templateTagDisplayName ?? 'Categoria selecionada',
+				iconFamily: selectedMovementTagIcon.iconFamily,
+				iconName: selectedMovementTagIcon.iconName,
+				iconStyle: selectedMovementTagIcon.iconStyle ?? null,
+			};
+		}
+
+		if (selectedTagId && templateData?.tagId === selectedTagId && templateData.tagIcon?.iconFamily && templateData.tagIcon.iconName) {
+			return {
+				id: selectedTagId,
+				name: templateTagDisplayName ?? 'Categoria selecionada',
+				iconFamily: templateData.tagIcon.iconFamily,
+				iconName: templateData.tagIcon.iconName,
+				iconStyle: templateData.tagIcon.iconStyle ?? null,
+			};
+		}
+
+		return null;
+	}, [
+		selectedMovementTagIcon,
+		selectedMovementTagName,
+		selectedTagId,
+		tags,
+		templateData,
+		templateTagDisplayName,
+	]);
 
 	const selectedBankLabel = React.useMemo(() => {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
@@ -1300,7 +1429,20 @@ export default function AddRegisterExpensesScreen() {
 									) : (
 										<Select
 											selectedValue={selectedTagId ?? undefined}
-											onValueChange={value => setSelectedTagId(value)}
+											onValueChange={value => {
+												setSelectedTagId(value);
+												const matchedTag = tags.find(tag => tag.id === value);
+												setSelectedMovementTagName(matchedTag?.name ?? null);
+												setSelectedMovementTagIcon(
+													matchedTag
+														? {
+															iconFamily: matchedTag.iconFamily ?? null,
+															iconName: matchedTag.iconName ?? null,
+															iconStyle: matchedTag.iconStyle ?? null,
+														}
+														: null,
+												);
+											}}
 											isDisabled={isTagSelectDisabled}
 										>
 											<HStack className="items-end gap-3">

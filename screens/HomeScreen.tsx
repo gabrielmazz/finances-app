@@ -39,6 +39,7 @@ import {
 	buildBankCardPalette,
 	mixHexColors,
 	normalizeHexColor,
+	type BankCardPalette,
 } from '@/components/uiverse/bank-card-surface';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
@@ -204,50 +205,96 @@ const TimelineMovementCardPattern = React.memo(({ palette }: { palette: Timeline
 	);
 });
 
-const HomeBankOverviewSkeleton = ({ bankCarouselHeight }: { bankCarouselHeight: number }) => (
-	<Box className="mt-4">
-		<Box
-			className="bg-background-100 dark:bg-background-950"
-			style={{
-				height: bankCarouselHeight,
-				borderRadius: 20,
-				paddingHorizontal: 18,
-				paddingVertical: 18,
-			}}
-		>
+const HomeBankOverviewSkeleton = ({
+	bankCarouselHeight,
+	cardPalette,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+	paginationBaseColor,
+	paginationHighlightColor,
+}: {
+	bankCarouselHeight: number;
+	cardPalette: BankCardPalette;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+	paginationBaseColor: string;
+	paginationHighlightColor: string;
+}) => (
+	<View style={{ marginTop: 16 }}>
+		<BankCardSurface palette={cardPalette} style={{ height: bankCarouselHeight }}>
 			<VStack className="flex-1 justify-between">
 				<VStack className="gap-2">
-					<Skeleton className="h-3 w-20" />
-					<Skeleton className="h-7 w-44" />
+					<Skeleton
+						className="h-3 w-20"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+					<Skeleton
+						className="h-7 w-44"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
 				</VStack>
 
 				<VStack className="gap-4">
 					<HStack className="items-end justify-between gap-4">
 						<VStack className="flex-1 gap-2">
-							<Skeleton className="h-3 w-24" />
-							<Skeleton className="h-8 w-36" />
+							<Skeleton
+								className="h-3 w-24"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
+							<Skeleton
+								className="h-8 w-36"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
 						</VStack>
 
 						<VStack className="items-end gap-2">
-							<Skeleton className="h-3 w-20" />
-							<Skeleton className="h-5 w-24" />
+							<Skeleton
+								className="h-3 w-20"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
+							<Skeleton
+								className="h-5 w-24"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
 						</VStack>
 					</HStack>
 
 					<HStack className="gap-3">
 						<VStack className="flex-1 gap-2">
-							<Skeleton className="h-3 w-16" />
-							<Skeleton className="h-5 w-24" />
+							<Skeleton
+								className="h-3 w-16"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
+							<Skeleton
+								className="h-5 w-24"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
 						</VStack>
 
 						<VStack className="flex-1 gap-2">
-							<Skeleton className="h-3 w-16" />
-							<Skeleton className="h-5 w-24" />
+							<Skeleton
+								className="h-3 w-16"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
+							<Skeleton
+								className="h-5 w-24"
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
 						</VStack>
 					</HStack>
 				</VStack>
 			</VStack>
-		</Box>
+		</BankCardSurface>
 
 		<HStack className="mt-3 items-center justify-center gap-2">
 			{Array.from({ length: 3 }).map((_, index) => (
@@ -255,10 +302,12 @@ const HomeBankOverviewSkeleton = ({ bankCarouselHeight }: { bankCarouselHeight: 
 					key={`bank-carousel-skeleton-dot-${index}`}
 					variant="circular"
 					className="h-2.5 w-2.5"
+					baseColor={paginationBaseColor}
+					highlightColor={paginationHighlightColor}
 				/>
 			))}
 		</HStack>
-	</Box>
+	</View>
 );
 
 const HomeInvestmentSkeleton = ({
@@ -549,6 +598,26 @@ export default function HomeScreen() {
 			chartCenterBackground: isDarkMode ? '#081120' : '#FFFFFF',
 			simulatedColor: isDarkMode ? '#34D399' : '#059669',
 		}),
+		[isDarkMode],
+	);
+	const bankOverviewSkeletonPalette = React.useMemo(
+		() => buildBankCardPalette(CASH_CARD_COLOR, isDarkMode),
+		[isDarkMode],
+	);
+	const bankOverviewSkeletonBaseColor = React.useMemo(
+		() => (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.2)'),
+		[isDarkMode],
+	);
+	const bankOverviewSkeletonHighlightColor = React.useMemo(
+		() => (isDarkMode ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.36)'),
+		[isDarkMode],
+	);
+	const bankOverviewPaginationSkeletonBaseColor = React.useMemo(
+		() => (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.14)'),
+		[isDarkMode],
+	);
+	const bankOverviewPaginationSkeletonHighlightColor = React.useMemo(
+		() => (isDarkMode ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.52)'),
 		[isDarkMode],
 	);
 
@@ -1041,7 +1110,14 @@ export default function HomeScreen() {
 								</Text>
 
 								{overview.loading && bankCarouselItems.length === 0 ? (
-									<HomeBankOverviewSkeleton bankCarouselHeight={bankCarouselHeight} />
+									<HomeBankOverviewSkeleton
+										bankCarouselHeight={bankCarouselHeight}
+										cardPalette={bankOverviewSkeletonPalette}
+										skeletonBaseColor={bankOverviewSkeletonBaseColor}
+										skeletonHighlightColor={bankOverviewSkeletonHighlightColor}
+										paginationBaseColor={bankOverviewPaginationSkeletonBaseColor}
+										paginationHighlightColor={bankOverviewPaginationSkeletonHighlightColor}
+									/>
 								) : overview.error ? (
 									<Text className="mt-4 text-sm text-red-600 dark:text-red-400">{overview.error}</Text>
 								) : bankCarouselItems.length > 0 ? (
