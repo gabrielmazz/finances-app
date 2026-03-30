@@ -33,6 +33,13 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import {
+	BankCardSurface,
+	CASH_CARD_COLOR,
+	buildBankCardPalette,
+	mixHexColors,
+	normalizeHexColor,
+} from '@/components/uiverse/bank-card-surface';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { PieChart } from 'react-native-gifted-charts';
@@ -40,11 +47,9 @@ import { PieChart } from 'react-native-gifted-charts';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 import Svg, {
-	Circle,
 	Defs,
 	LinearGradient as SvgLinearGradient,
 	Polygon,
-	RadialGradient as SvgRadialGradient,
 	Rect,
 	Stop,
 } from 'react-native-svg';
@@ -55,17 +60,6 @@ type HomeTimelineStatus = {
 	status: string;
 	renderContent?: React.ReactNode;
 	movement: HomeTimelineMovement;
-};
-
-type BankCardPalette = {
-	baseColor: string;
-	glowColor: string;
-	highlightColor: string;
-	textPrimary: string;
-	textSecondary: string;
-	expenseColor: string;
-	gainColor: string;
-	shadowColor: string;
 };
 
 type TimelineMovementCardPalette = {
@@ -95,8 +89,6 @@ const INVESTMENT_CHART_PADDING_HORIZONTAL = 28;
 const INVESTMENT_CHART_PADDING_VERTICAL = 12;
 const INVESTMENT_CHART_TOUCH_OUTER_TOLERANCE = 8;
 const INVESTMENT_CHART_TOUCH_INNER_TOLERANCE = 6;
-const CASH_CARD_COLOR = '#525252';
-
 const extractFirstName = (value: unknown) => {
 	if (typeof value !== 'string') {
 		return null;
@@ -110,39 +102,6 @@ const extractFirstName = (value: unknown) => {
 	return trimmedValue.split(/\s+/)[0] ?? null;
 };
 
-const normalizeHexColor = (value: string | null | undefined) => {
-	if (!value) {
-		return null;
-	}
-
-	const trimmedValue = value.trim();
-	if (!trimmedValue) {
-		return null;
-	}
-
-	const prefixedValue = trimmedValue.startsWith('#') ? trimmedValue : `#${trimmedValue}`;
-	const isShortHex = /^#([0-9a-fA-F]{3})$/.test(prefixedValue);
-	const isLongHex = /^#([0-9a-fA-F]{6})$/.test(prefixedValue);
-
-	if (isLongHex) {
-		return prefixedValue;
-	}
-
-	if (!isShortHex) {
-		return null;
-	}
-
-	const [, shortHex] = prefixedValue.match(/^#([0-9a-fA-F]{3})$/) ?? [];
-	if (!shortHex) {
-		return null;
-	}
-
-	return `#${shortHex
-		.split('')
-		.map(char => `${char}${char}`)
-		.join('')}`;
-};
-
 const hexToRgba = (hexColor: string, alpha: number) => {
 	const normalizedHex = normalizeHexColor(hexColor);
 	if (!normalizedHex) {
@@ -153,78 +112,6 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 	const green = Number.parseInt(normalizedHex.slice(3, 5), 16);
 	const blue = Number.parseInt(normalizedHex.slice(5, 7), 16);
 	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-};
-
-const hexToRgb = (hexColor: string) => {
-	const normalizedHex = normalizeHexColor(hexColor);
-	if (!normalizedHex) {
-		return null;
-	}
-
-	return {
-		red: Number.parseInt(normalizedHex.slice(1, 3), 16),
-		green: Number.parseInt(normalizedHex.slice(3, 5), 16),
-		blue: Number.parseInt(normalizedHex.slice(5, 7), 16),
-	};
-};
-
-const rgbToHex = (red: number, green: number, blue: number) =>
-	`#${[red, green, blue]
-		.map(value => Math.min(255, Math.max(0, Math.round(value))).toString(16).padStart(2, '0'))
-		.join('')}`;
-
-const mixHexColors = (sourceHex: string, targetHex: string, weight: number) => {
-	const source = hexToRgb(sourceHex);
-	const target = hexToRgb(targetHex);
-	if (!source || !target) {
-		return null;
-	}
-
-	const safeWeight = Math.min(1, Math.max(0, weight));
-
-	return rgbToHex(
-		source.red + (target.red - source.red) * safeWeight,
-		source.green + (target.green - source.green) * safeWeight,
-		source.blue + (target.blue - source.blue) * safeWeight,
-	);
-};
-
-const getRelativeLuminance = (hexColor: string) => {
-	const rgb = hexToRgb(hexColor);
-	if (!rgb) {
-		return 0;
-	}
-
-	const toLinear = (channel: number) => {
-		const normalizedChannel = channel / 255;
-		return normalizedChannel <= 0.03928
-			? normalizedChannel / 12.92
-			: ((normalizedChannel + 0.055) / 1.055) ** 2.4;
-	};
-
-	return 0.2126 * toLinear(rgb.red) + 0.7152 * toLinear(rgb.green) + 0.0722 * toLinear(rgb.blue);
-};
-
-const buildBankCardPalette = (colorHex: string | null | undefined, isDarkMode: boolean): BankCardPalette => {
-	const accentColor = normalizeHexColor(colorHex) ?? (isDarkMode ? '#1D4ED8' : '#7C3AED');
-	const baseColor =
-		mixHexColors(accentColor, isDarkMode ? '#020617' : '#0F172A', isDarkMode ? 0.58 : 0.5) ??
-		(isDarkMode ? '#172033' : '#1E293B');
-	const glowColor = mixHexColors(accentColor, '#FFFFFF', isDarkMode ? 0.22 : 0.3) ?? accentColor;
-	const highlightColor = mixHexColors(accentColor, '#FDE68A', 0.38) ?? glowColor;
-	const textPrimary = getRelativeLuminance(baseColor) > 0.45 ? '#0F172A' : '#FFFFFF';
-	const textSecondary = textPrimary === '#FFFFFF' ? 'rgba(255,255,255,0.72)' : 'rgba(15,23,42,0.72)';
-
-	return {
-		baseColor,
-		glowColor,
-		highlightColor,
-		textPrimary,
-		textSecondary,
-		expenseColor: '#FFFFFF',
-		gainColor: '#FFFFFF',
-		shadowColor: hexToRgba(accentColor, isDarkMode ? 0.38 : 0.28) ?? accentColor,
-	};
 };
 
 const resolveTimelineAccentColor = (movement: HomeTimelineMovement) => {
@@ -270,44 +157,6 @@ const buildTimelineMovementCardPalette = (
 		shadowColor: hexToRgba(accentColor, isDarkMode ? 0.42 : 0.18) ?? accentColor,
 	};
 };
-
-const BankCardPattern = React.memo(({ palette }: { palette: BankCardPalette }) => {
-	const rawGradientId = React.useId();
-	const rawGlowId = React.useId();
-	const gradientId = React.useMemo(
-		() => `bank-card-gradient-${rawGradientId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		[rawGradientId],
-	);
-	const glowId = React.useMemo(
-		() => `bank-card-glow-${rawGlowId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		[rawGlowId],
-	);
-
-	return (
-		<View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-			<Svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice">
-				<Defs>
-					<SvgRadialGradient id={gradientId} cx="396" cy="281" r="514" gradientUnits="userSpaceOnUse">
-						<Stop offset="0" stopColor={palette.glowColor} />
-						<Stop offset="1" stopColor={palette.baseColor} />
-					</SvgRadialGradient>
-
-					<SvgLinearGradient id={glowId} x1="400" y1="148" x2="400" y2="333" gradientUnits="userSpaceOnUse">
-						<Stop offset="0" stopColor={palette.highlightColor} stopOpacity={0} />
-						<Stop offset="1" stopColor={palette.highlightColor} stopOpacity={0.52} />
-					</SvgLinearGradient>
-				</Defs>
-
-				<Rect width="800" height="400" fill={palette.baseColor} />
-				<Rect width="800" height="400" fill={`url(#${gradientId})`} />
-				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="267.5" cy="61" r="300" />
-				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="532.5" cy="61" r="300" />
-				<Circle fill={`url(#${glowId})`} fillOpacity={0.42} cx="400" cy="30" r="300" />
-				<Rect width="800" height="400" fill="rgba(255,255,255,0.04)" />
-			</Svg>
-		</View>
-	);
-});
 
 const TimelineMovementCardPattern = React.memo(({ palette }: { palette: TimelineMovementCardPalette }) => {
 	const rawBackgroundGradientId = React.useId();
@@ -1233,82 +1082,72 @@ export default function HomeScreen() {
 															style={{ flex: 1 }}
 															onPress={() => handleOpenBankCarouselItem(item)}
 														>
-															<View
-																style={{
-																	flex: 1,
-																	paddingHorizontal: 18,
-																	paddingVertical: 18,
-																	borderRadius: 20,
-																	backgroundColor: cardPalette.baseColor,
-																	overflow: 'hidden',
-																	position: 'relative',
-																	justifyContent: 'space-between',
-																	shadowColor: cardPalette.shadowColor,
-																	shadowOffset: { width: 0, height: 12 },
-																	shadowOpacity: 0.24,
-																	shadowRadius: 18,
-																	elevation: 8,
-																}}
-															>
-																<BankCardPattern palette={cardPalette} />
-
-																<VStack className="gap-1">
-																	<Text
-																		className="text-xs uppercase tracking-wide"
-																		style={{ color: cardPalette.textSecondary }}
-																	>
-																		{item.kind === 'cash' ? 'Carteira' : 'Banco'}
-																	</Text>
-																	<Heading size="lg" style={{ color: cardPalette.textPrimary }}>
-																		{item.name}
-																	</Heading>
-																</VStack>
-
-																<VStack className="gap-1 mt-4">
-																	<Text
-																		className="text-xs uppercase tracking-wide"
-																		style={{ color: cardPalette.textSecondary }}
-																	>
-																		{item.kind === 'cash' ? 'Saldo no mês' : 'Saldo atual'}
-																	</Text>
-																	<Heading size="md" style={{ color: cardPalette.textPrimary }}>
-																		{item.balanceInCents === null
-																			? 'Saldo indisponível'
-																			: formatCurrencyBRL(item.balanceInCents)}
-																	</Heading>
-																	{item.kind === 'bank' && item.balanceInCents === null ? (
-																		<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
-																			Sem saldo registrado para este mes.
-																		</Text>
-																	) : null}
-																</VStack>
-
-																<HStack className="mt-4 justify-between items-end gap-4">
-																	<VStack className="flex-1 gap-1">
+															<BankCardSurface palette={cardPalette} style={{ flex: 1 }}>
+																<VStack className="flex-1 justify-between">
+																	<VStack className="gap-1">
 																		<Text
 																			className="text-xs uppercase tracking-wide"
 																			style={{ color: cardPalette.textSecondary }}
 																		>
-																			Gastos
+																			{item.kind === 'cash' ? 'Carteira' : 'Banco'}
 																		</Text>
-																		<Text className="font-semibold" style={{ color: cardPalette.expenseColor }}>
-																			{formatCurrencyBRL(monthlyExpenseInCents)}
-																		</Text>
+																		<Heading size="lg" style={{ color: cardPalette.textPrimary }}>
+																			{item.name}
+																		</Heading>
 																	</VStack>
 
-																	<VStack className="flex-1 gap-1 items-end">
+																	<VStack className="gap-1 mt-4">
 																		<Text
 																			className="text-xs uppercase tracking-wide"
 																			style={{ color: cardPalette.textSecondary }}
 																		>
-																			Ganhos
+																			{item.kind === 'cash' ? 'Saldo no mês' : 'Saldo atual'}
 																		</Text>
-																		<Text className="font-semibold" style={{ color: cardPalette.gainColor }}>
-																			{formatCurrencyBRL(monthlyGainInCents)}
-																		</Text>
+																		<Heading size="md" style={{ color: cardPalette.textPrimary }}>
+																			{item.balanceInCents === null
+																				? 'Saldo indisponível'
+																				: formatCurrencyBRL(item.balanceInCents)}
+																		</Heading>
+																		{item.kind === 'bank' && item.balanceInCents === null ? (
+																			<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
+																				Sem saldo registrado para este mes.
+																			</Text>
+																		) : null}
 																	</VStack>
-																</HStack>
-															</View>
+
+																	<HStack className="mt-4 justify-between items-end gap-4">
+																		<VStack className="flex-1 gap-1">
+																			<Text
+																				className="text-xs uppercase tracking-wide"
+																				style={{ color: cardPalette.textSecondary }}
+																			>
+																				Gastos
+																			</Text>
+																			<Text
+																				className="font-semibold"
+																				style={{ color: cardPalette.expenseColor }}
+																			>
+																				{formatCurrencyBRL(monthlyExpenseInCents)}
+																			</Text>
+																		</VStack>
+
+																		<VStack className="flex-1 gap-1 items-end">
+																			<Text
+																				className="text-xs uppercase tracking-wide"
+																				style={{ color: cardPalette.textSecondary }}
+																			>
+																				Ganhos
+																			</Text>
+																			<Text
+																				className="font-semibold"
+																				style={{ color: cardPalette.gainColor }}
+																			>
+																				{formatCurrencyBRL(monthlyGainInCents)}
+																			</Text>
+																		</VStack>
+																	</HStack>
+																</VStack>
+															</BankCardSurface>
 														</TouchableOpacity>
 													</View>
 												);

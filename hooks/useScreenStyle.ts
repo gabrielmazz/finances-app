@@ -19,6 +19,8 @@ export function useScreenStyles() {
     const insets = useSafeAreaInsets();
     const { height: windowHeight } = useWindowDimensions();
 
+	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
+
 	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
 	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
 	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
@@ -87,6 +89,7 @@ export function useScreenStyles() {
 
 	return {
 		isDarkMode,
+		headingText,
 		surfaceBackground,
 		cardBackground,
 		bodyText,

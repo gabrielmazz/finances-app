@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, TouchableOpacity, StatusBar, useWindowDimensions } from 'react-native';
+import { ScrollView, View, TouchableOpacity, StatusBar } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView, TapGestureHandler } from 'react-native-gesture-handler';
@@ -73,6 +73,21 @@ import {
 	SelectTrigger,
 } from '@/components/ui/select';
 import DatePickerField from '@/components/uiverse/date-picker';
+import {
+	BankCardSurface,
+	CASH_CARD_COLOR,
+	buildBankCardPalette,
+} from '@/components/uiverse/bank-card-surface';
+
+import {
+	Popover,
+	PopoverBackdrop,
+	PopoverBody,
+	PopoverContent,
+} from '@/components/ui/popover';
+
+import { Info } from 'lucide-react-native';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -232,28 +247,32 @@ const PIE_TOTAL_COLORS = {
 };
 
 export default function BankMovementsScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const textareaContainerClassName =
-		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+	const {
+		isDarkMode,
+		headingText,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+	} = useScreenStyles();
+
 	const legendBorderColor = isDarkMode ? '#374151' : '#E5E7EB';
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
@@ -315,6 +334,9 @@ export default function BankMovementsScreen() {
 	const { shouldHideValues } = useValueVisibility();
 	const [movementFilter, setMovementFilter] = React.useState<'all' | 'expense' | 'gain'>('all');
 	const [monthlyInitialBalanceInCents, setMonthlyInitialBalanceInCents] = React.useState<number | null>(null);
+	const [bankAccentColorHex, setBankAccentColorHex] = React.useState<string | null>(
+		isCashView ? CASH_CARD_COLOR : null,
+	);
 	const movementFilterLabels: Record<typeof movementFilter, string> = {
 		all: 'Todos',
 		expense: 'Despesas',
@@ -416,35 +438,35 @@ export default function BankMovementsScreen() {
 			// Buscamos em paralelo as movimentações do banco e os obrigatórios
 			const movementsPromise = isCashView
 				? getCashMovementsByPeriodFirebase({
-						personId: currentUser.uid,
-						startDate: normalizedStart,
-						endDate: normalizedEnd,
-				  })
+					personId: currentUser.uid,
+					startDate: normalizedStart,
+					endDate: normalizedEnd,
+				})
 				: getBankMovementsByPeriodFirebase({
-						personId: currentUser.uid,
-						bankId,
-						startDate: normalizedStart,
-						endDate: normalizedEnd,
-				  });
+					personId: currentUser.uid,
+					bankId,
+					startDate: normalizedStart,
+					endDate: normalizedEnd,
+				});
 
 			const investmentsPromise = isCashView
 				? Promise.resolve(null)
 				: getFinanceInvestmentsByPeriodFirebase({
-						personId: currentUser.uid,
-						bankId,
-						startDate: normalizedStart,
-						endDate: normalizedEnd,
-				  });
+					personId: currentUser.uid,
+					bankId,
+					startDate: normalizedStart,
+					endDate: normalizedEnd,
+				});
 
 			const now = new Date();
 			const balancePromise = isCashView
 				? Promise.resolve(null)
 				: getMonthlyBalanceFirebaseRelatedToUser({
-						personId: currentUser.uid,
-						bankId,
-						year: now.getFullYear(),
-						month: now.getMonth() + 1,
-				  });
+					personId: currentUser.uid,
+					bankId,
+					year: now.getFullYear(),
+					month: now.getMonth() + 1,
+				});
 
 			const [result, investmentsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes] = await Promise.all([
 				movementsPromise,
@@ -645,9 +667,56 @@ export default function BankMovementsScreen() {
 		}, [fetchMovements]),
 	);
 
-	// UseFocusEffect visualizando o componente da tag dentro do Drawer, para
-	// assim buscar pelo ID da tag e mostrar o nome correto, consultando no
-	// Firebase a função getTagDataFirebase
+	// Busca a cor do banco selecionado para renderizar o card-resumo com a mesma
+	// paleta visual usada no card da tela inicial.
+	React.useEffect(() => {
+		let isMounted = true;
+
+		if (isCashView) {
+			setBankAccentColorHex(CASH_CARD_COLOR);
+			return () => {
+				isMounted = false;
+			};
+		}
+
+		if (!bankId) {
+			setBankAccentColorHex(null);
+			return () => {
+				isMounted = false;
+			};
+		}
+
+		const fetchBankAccentColor = async () => {
+			try {
+				const bankResult = await getBankDataFirebase(bankId);
+				if (!isMounted) {
+					return;
+				}
+
+				if (bankResult.success && bankResult.data) {
+					const colorHex =
+						typeof bankResult.data.colorHex === 'string' && bankResult.data.colorHex.trim().length > 0
+							? bankResult.data.colorHex
+							: null;
+					setBankAccentColorHex(colorHex);
+				} else {
+					setBankAccentColorHex(null);
+				}
+			} catch (error) {
+				console.error('Erro ao buscar a cor do banco:', error);
+				if (isMounted) {
+					setBankAccentColorHex(null);
+				}
+			}
+		};
+
+		void fetchBankAccentColor();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [bankId, isCashView]);
+
 	React.useEffect(() => {
 
 		// Verifica se há uma movimentação selecionada e se ela possui tagId
@@ -752,6 +821,37 @@ export default function BankMovementsScreen() {
 		}
 		return monthlyInitialBalanceInCents + totalDeltaAllMovementsInCents;
 	}, [monthlyInitialBalanceInCents, totalDeltaAllMovementsInCents]);
+
+	const summaryCardPalette = React.useMemo(
+		() => buildBankCardPalette(isCashView ? CASH_CARD_COLOR : bankAccentColorHex, isDarkMode),
+		[bankAccentColorHex, isCashView, isDarkMode],
+	);
+
+	const summaryPrimaryBalanceLabel = isCashView ? 'Saldo do período' : 'Saldo atual';
+
+	const summaryPrimaryBalanceValue = React.useMemo(() => {
+		if (isCashView) {
+			return formatCurrencyBRL(balanceInCents);
+		}
+
+		if (typeof bankCurrentBalanceInCents === 'number') {
+			return formatCurrencyBRL(bankCurrentBalanceInCents);
+		}
+
+		return 'Saldo não registrado';
+	}, [balanceInCents, bankCurrentBalanceInCents, formatCurrencyBRL, isCashView]);
+
+	const summaryPrimaryBalanceHelper = React.useMemo(() => {
+		if (isCashView) {
+			return 'Ganhos menos despesas dentro do período filtrado.';
+		}
+
+		if (typeof monthlyInitialBalanceInCents === 'number') {
+			return `Saldo inicial do mês: ${formatCurrencyBRL(monthlyInitialBalanceInCents)}`;
+		}
+
+		return 'Sem saldo registrado para este mês.';
+	}, [formatCurrencyBRL, isCashView, monthlyInitialBalanceInCents]);
 
 	const totalsPieSlices = React.useMemo(() => {
 		const slices: Array<{
@@ -1090,41 +1190,35 @@ export default function BankMovementsScreen() {
 							contentContainerStyle={{ paddingBottom: 32 }}
 						>
 							<VStack className="justify-between mt-4">
-								<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-									<Text className={`${bodyText} text-sm leading-6`}>
-										Selecione um período para visualizar todas as movimentações de {bankName}. Aqui
-										você pode verificar ganhos, despesas e o saldo geral do período escolhido.
-									</Text>
-								</View>
-
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Filtros do período</Text>
 									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
 										<VStack className="gap-4">
-											<VStack>
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
-												<DatePickerField
-													value={startDateInput}
-													onChange={formatted => handleDateSelect(formatted, 'start')}
-													triggerClassName={fieldContainerClassName}
-													inputClassName={inputField}
-													placeholder="Selecione a data inicial"
-													isDisabled={isLoading}
-												/>
-											</VStack>
+											<HStack className="w-full gap-4">
+												<VStack className="flex-1">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
+													<DatePickerField
+														value={startDateInput}
+														onChange={formatted => handleDateSelect(formatted, 'start')}
+														triggerClassName={fieldContainerClassName}
+														inputClassName={inputField}
+														placeholder="Selecione a data inicial"
+														isDisabled={isLoading}
+													/>
+												</VStack>
 
-											<VStack>
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data final</Text>
-												<DatePickerField
-													value={endDateInput}
-													onChange={formatted => handleDateSelect(formatted, 'end')}
-													triggerClassName={fieldContainerClassName}
-													inputClassName={inputField}
-													placeholder="Selecione a data final"
-													isDisabled={isLoading}
-												/>
-											</VStack>
-
+												<VStack className="flex-1">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data final</Text>
+													<DatePickerField
+														value={endDateInput}
+														onChange={formatted => handleDateSelect(formatted, 'end')}
+														triggerClassName={fieldContainerClassName}
+														inputClassName={inputField}
+														placeholder="Selecione a data final"
+														isDisabled={isLoading}
+													/>
+												</VStack>
+											</HStack>
 											<VStack>
 												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
 													Tipo de movimentação
@@ -1191,52 +1285,99 @@ export default function BankMovementsScreen() {
 
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Resumo do período</Text>
-									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-										<VStack className="gap-3">
-											<HStack className="justify-between">
-												<Text className={bodyText}>Ganhos</Text>
-												<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
-													{formatCurrencyBRL(totals.totalGains)}
-												</Text>
-											</HStack>
-											<HStack className="justify-between">
-												<Text className={bodyText}>Despesas</Text>
-												<Text className="font-semibold text-red-600 dark:text-red-400">
-													{formatCurrencyBRL(totals.totalExpenses)}
-												</Text>
-											</HStack>
-											<HStack className="justify-between">
-												<Text className={bodyText}>Saldo</Text>
-												<Text
-													className={
-														balanceInCents >= 0
-															? 'font-semibold text-emerald-600 dark:text-emerald-400'
-															: 'font-semibold text-red-600 dark:text-red-400'
-													}
-												>
-													{formatCurrencyBRL(balanceInCents)}
-												</Text>
-											</HStack>
-											{!isCashView && (
-												<HStack className="justify-between">
-													<Text className={bodyText}>Saldo atual do banco</Text>
+									<BankCardSurface palette={summaryCardPalette}>
+										<VStack className="flex-1 gap-5">
+											<HStack className="items-start justify-between gap-4">
+												<VStack className="flex-1 gap-1">
 													<Text
-														className={
-															typeof bankCurrentBalanceInCents === 'number'
-																? bankCurrentBalanceInCents >= 0
-																	? 'font-semibold text-emerald-600 dark:text-emerald-400'
-																	: 'font-semibold text-red-600 dark:text-red-400'
-																: bodyText
-														}
+														className="text-xs uppercase tracking-wide"
+														style={{ color: summaryCardPalette.textSecondary }}
 													>
-														{typeof bankCurrentBalanceInCents === 'number'
-															? formatCurrencyBRL(bankCurrentBalanceInCents)
-															: 'Saldo não registrado'}
+														{isCashView ? 'Carteira' : 'Banco'}
 													</Text>
-												</HStack>
-											)}
+													<Heading size="lg" style={{ color: summaryCardPalette.textPrimary }}>
+														{bankName}
+													</Heading>
+												</VStack>
+
+												<VStack className="items-end gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: summaryCardPalette.textSecondary }}
+													>
+														Período
+													</Text>
+													<Text
+														className="text-xs font-medium text-right"
+														style={{ color: summaryCardPalette.textPrimary }}
+													>
+														{startDateInput} a {endDateInput}
+													</Text>
+												</VStack>
+											</HStack>
+
+											<VStack className="gap-1">
+												<Text
+													className="text-xs uppercase tracking-wide"
+													style={{ color: summaryCardPalette.textSecondary }}
+												>
+													{summaryPrimaryBalanceLabel}
+												</Text>
+												<Heading size="xl" style={{ color: summaryCardPalette.textPrimary }}>
+													{summaryPrimaryBalanceValue}
+												</Heading>
+												<Text
+													className="text-xs"
+													style={{ color: summaryCardPalette.textSecondary }}
+												>
+													{summaryPrimaryBalanceHelper}
+												</Text>
+											</VStack>
+
+											<View
+												style={{
+													borderRadius: 18,
+													paddingHorizontal: 14,
+													paddingVertical: 14,
+													backgroundColor: 'rgba(255,255,255,0.08)',
+													borderWidth: 1,
+													borderColor: 'rgba(255,255,255,0.08)',
+												}}
+											>
+												<VStack className="gap-3">
+													<HStack className="justify-between">
+														<Text style={{ color: summaryCardPalette.textSecondary }}>Ganhos</Text>
+														<Text
+															className="font-semibold"
+															style={{ color: summaryCardPalette.gainColor }}
+														>
+															{formatCurrencyBRL(totals.totalGains)}
+														</Text>
+													</HStack>
+													<HStack className="justify-between">
+														<Text style={{ color: summaryCardPalette.textSecondary }}>Despesas</Text>
+														<Text
+															className="font-semibold"
+															style={{ color: summaryCardPalette.expenseColor }}
+														>
+															{formatCurrencyBRL(totals.totalExpenses)}
+														</Text>
+													</HStack>
+													<HStack className="justify-between">
+														<Text style={{ color: summaryCardPalette.textSecondary }}>
+															Saldo do período
+														</Text>
+														<Text
+															className="font-semibold"
+															style={{ color: summaryCardPalette.textPrimary }}
+														>
+															{formatCurrencyBRL(balanceInCents)}
+														</Text>
+													</HStack>
+												</VStack>
+											</View>
 										</VStack>
-									</View>
+									</BankCardSurface>
 								</VStack>
 
 								{errorMessage && (
@@ -1382,11 +1523,10 @@ export default function BankMovementsScreen() {
 														{movement.isCashRescue && (
 															<>
 																<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
-																	{`${
-																		isCashView
+																	{`${isCashView
 																			? 'Valor sacado do banco'
 																			: 'Movimentação de saque do banco'
-																	} ${movement.cashRescueSourceBankName ?? 'não identificado'}.`}
+																		} ${movement.cashRescueSourceBankName ?? 'não identificado'}.`}
 																</Text>
 																<Text className={`${helperText} mt-1 text-[9px]`}>
 																	Este registro não pode ser editado ou excluído manualmente.
@@ -1397,14 +1537,12 @@ export default function BankMovementsScreen() {
 															<>
 																<Text className="mt-1 text-[11px] text-sky-700 dark:text-sky-400">
 																	{movement.bankTransferDirection === 'outgoing'
-																		? `Transferência enviada para ${
-																				movement.bankTransferTargetBankNameSnapshot ??
-																				'banco de destino'
-																			}.`
-																		: `Transferência recebida de ${
-																				movement.bankTransferSourceBankNameSnapshot ??
-																				'banco de origem'
-																			}.`}
+																		? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ??
+																		'banco de destino'
+																		}.`
+																		: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ??
+																		'banco de origem'
+																		}.`}
 																</Text>
 																<Text className={`${helperText} mt-1 text-[9px]`}>
 																	Movimentação criada automaticamente para manter os saldos entre
@@ -1694,24 +1832,21 @@ export default function BankMovementsScreen() {
 									)}
 									{selectedMovement?.isCashRescue && (
 										<Text className="mt-1 text-sm text-sky-700 dark:text-sky-400">
-											{`${
-												isCashView
+											{`${isCashView
 													? 'Valor registrado como saque do banco'
 													: 'Movimentação de saque do banco'
-											} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
+												} ${selectedMovement.cashRescueSourceBankName ?? 'não identificado'}.`}
 										</Text>
 									)}
 									{selectedMovement?.isBankTransfer && (
 										<Text className="mt-1 text-sm text-sky-700 dark:text-sky-400">
 											{selectedMovement.bankTransferDirection === 'outgoing'
-												? `Transferência enviada para ${
-														selectedMovement.bankTransferTargetBankNameSnapshot ??
-														'banco de destino'
-													}.`
-												: `Transferência recebida de ${
-														selectedMovement.bankTransferSourceBankNameSnapshot ??
-														'banco de origem'
-													}.`}
+												? `Transferência enviada para ${selectedMovement.bankTransferTargetBankNameSnapshot ??
+												'banco de destino'
+												}.`
+												: `Transferência recebida de ${selectedMovement.bankTransferSourceBankNameSnapshot ??
+												'banco de origem'
+												}.`}
 										</Text>
 									)}
 									{selectedMovement?.isFinanceInvestment && (
@@ -1854,9 +1989,9 @@ export default function BankMovementsScreen() {
 													value={
 														selectedMovement.bankTransferDirection === 'outgoing'
 															? selectedMovement.bankTransferTargetBankNameSnapshot ??
-																'Banco de destino'
+															'Banco de destino'
 															: selectedMovement.bankTransferSourceBankNameSnapshot ??
-																'Banco de origem'
+															'Banco de origem'
 													}
 													className={inputField}
 												/>
