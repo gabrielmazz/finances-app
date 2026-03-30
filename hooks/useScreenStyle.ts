@@ -53,6 +53,38 @@ export function useScreenStyles() {
 		[isDarkMode],
 	);
 
+	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
+
+	const switchRadioClassName = 'items-center gap-3';
+
+	const switchRadioIndicatorClassName = isDarkMode
+		? 'data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300/20'
+		: 'data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-100';
+
+	const switchRadioIconClassName = isDarkMode
+		? 'fill-yellow-300 text-yellow-300'
+		: 'fill-yellow-500 text-yellow-500';
+
+	const switchRadioLabelClassName = isDarkMode
+		? ''
+		: '';
+
+	const addTagButtonClassName = isDarkMode
+		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
+		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
+
+	const checkboxClassName = 'items-center gap-3';
+
+	const checkboxIndicatorClassName = isDarkMode
+		? 'rounded-md border-slate-500 data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300'
+		: 'rounded-md border-slate-300 data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-400';
+
+	const checkboxIconClassName = isDarkMode ? 'text-slate-950' : 'text-white';
+
+	const checkboxLabelClassName = isDarkMode
+		? 'text-slate-300 data-[checked=true]:text-slate-100'
+		: 'text-slate-700 data-[checked=true]:text-slate-900';
+
 	return {
 		isDarkMode,
 		surfaceBackground,
@@ -68,6 +100,16 @@ export function useScreenStyles() {
 		submitButtonClassName,
 		heroHeight,
 		infoCardStyle,
-        insets
+        insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+		checkboxClassName,
+		checkboxIndicatorClassName,
+		checkboxIconClassName,
+		checkboxLabelClassName,
 	};
 }

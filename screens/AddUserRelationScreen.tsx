@@ -10,6 +10,7 @@ import {
 	TextInput,
 	findNodeHandle,
 	useWindowDimensions,
+	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,6 +20,13 @@ import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { HStack } from '@/components/ui/hstack';
+import {
+	Popover,
+	PopoverBackdrop,
+	PopoverBody,
+	PopoverContent,
+} from '@/components/ui/popover';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
@@ -29,31 +37,39 @@ import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { Info } from 'lucide-react-native';
+
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
 type FocusableInputKey = 'related-user-id';
 
 export default function AddUserRelationScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+	const {
+			isDarkMode,
+			surfaceBackground,
+			cardBackground,
+			bodyText,
+			helperText,
+			inputField,
+			focusFieldClassName,
+			fieldContainerClassName,
+			fieldContainerClassNameNotSpace,
+			fieldContainerCardClassName,
+			textareaContainerClassName,
+			submitButtonClassName,
+			heroHeight,
+			infoCardStyle,
+			insets,
+			labelText,
+			switchRadioClassName,
+			switchRadioIndicatorClassName,
+			switchRadioIconClassName,
+			switchRadioLabelClassName,
+			addTagButtonClassName,
+		} = useScreenStyles();
 
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -310,17 +326,43 @@ export default function AddUserRelationScreen() {
 						contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 					>
 						<VStack className="justify-between mt-4">
-							<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-								<Text className={`${bodyText} text-sm leading-6`}>
-									Informe o ID do usuário que deseja relacionar à sua conta. Após o vínculo, ambos
-									passarão a visualizar os dados financeiros compartilhados.
-								</Text>
-							</View>
 
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-									ID do usuário a ser vinculado com você
-								</Text>
+								<HStack className="mb-1 ml-1 gap-1">
+											<Text className={`${bodyText} text-sm`}>ID do usuário</Text>
+											<Popover
+												placement="bottom"
+												size="md"
+												offset={0}
+												shouldFlip
+												focusScope={false}
+												trapFocus={false}
+												trigger={triggerProps => (
+													<Pressable
+														{...triggerProps}
+														hitSlop={8}
+														accessibilityRole="button"
+														accessibilityLabel="Informações sobre a observação da despesa"
+													>
+														<Info
+															size={14}
+															color={isDarkMode ? '#94A3B8' : '#64748B'}
+															style={{ marginLeft: 4 }}
+														/>
+													</Pressable>
+												)}
+											>
+												<PopoverBackdrop className="bg-transparent" />
+												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+													<PopoverBody className="px-3 py-3">
+														<Text className={`${bodyText} text-xs leading-5`}>
+															Informe o ID do usuário que deseja vincular com você. 
+															Este vínculo permitirá compartilhar informações e dados financeiros. Lembrando, esse ID deve ser o mesmo registrado no banco, sendo possivel de conferir na tela de configurações do usuário.
+														</Text>
+													</PopoverBody>
+												</PopoverContent>
+											</Popover>
+										</HStack>
 								<Input className={fieldContainerClassName}>
 									<InputField
 										ref={relatedUserInputRef as any}
@@ -332,9 +374,6 @@ export default function AddUserRelationScreen() {
 										onFocus={() => handleInputFocus('related-user-id')}
 									/>
 								</Input>
-								<Text className={`${helperText} mt-2 text-sm`}>
-									Copie o identificador do outro usuário exatamente como foi fornecido.
-								</Text>
 							</VStack>
 
 							<Button

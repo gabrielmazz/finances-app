@@ -9,10 +9,9 @@ import {
     Platform,
     TextInput,
     findNodeHandle,
-    useWindowDimensions,
     Pressable
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
@@ -29,12 +28,10 @@ import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 
 import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
 import { router } from 'expo-router';
 import Navigator from '@/components/uiverse/navigator';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
@@ -43,7 +40,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
 
-const resolveRegisterUserErrorMessage = (error: unknown, isDarkMode: boolean) => {
+const resolveRegisterUserErrorAlert = (error: unknown) => {
     const errorCode =
         typeof error === 'object' && error !== null && 'code' in error
             ? String((error as { code?: unknown }).code ?? '')
@@ -51,32 +48,47 @@ const resolveRegisterUserErrorMessage = (error: unknown, isDarkMode: boolean) =>
 
     switch (errorCode) {
         case 'auth/email-already-in-use':
-            return 'Já existe um usuário cadastrado com este e-mail.';
+            return {
+                title: 'E-mail já cadastrado',
+                description: 'Já existe um usuário cadastrado com este e-mail.',
+            };
         case 'auth/invalid-email':
-            return 'Informe um endereço de e-mail válido.';
+            return {
+                title: 'E-mail inválido',
+                description: 'Informe um endereço de e-mail válido.',
+            };
         case 'auth/weak-password':
-            // return 'A senha deve ter pelo menos 6 caracteres.';
-            showNotifierAlert({
-                title: 'Transferência registrada',
-                description: 'Transferência realizada com sucesso.',
-                type: 'success',
-                isDarkMode,
-            });
+            return {
+                title: 'Senha inválida',
+                description: 'A senha deve ter pelo menos 6 caracteres.',
+            };
         case 'auth/network-request-failed':
-            return 'Falha de conexão ao registrar o usuário. Tente novamente.';
+            return {
+                title: 'Falha de conexão',
+                description: 'Falha de conexão ao registrar o usuário. Tente novamente.',
+            };
         default:
             if (typeof error === 'object' && error !== null && 'message' in error) {
                 const message = (error as { message?: unknown }).message;
                 if (typeof message === 'string' && message.trim().length > 0) {
-                    return message;
+                    return {
+                        title: 'Erro ao registrar usuário',
+                        description: message,
+                    };
                 }
             }
 
             if (typeof error === 'string' && error.trim().length > 0) {
-                return error;
+                return {
+                    title: 'Erro ao registrar usuário',
+                    description: error,
+                };
             }
 
-            return 'Não foi possível registrar o usuário. Tente novamente.';
+            return {
+                title: 'Erro ao registrar usuário',
+                description: 'Não foi possível registrar o usuário. Tente novamente.',
+            };
     }
 };
 
@@ -89,11 +101,7 @@ export default function AddRegisterUserScreen() {
         bodyText,
         helperText,
         inputField,
-        focusFieldClassName,
         fieldContainerClassName,
-        fieldContainerClassNameNotSpace,
-        fieldContainerCardClassName,
-        textareaContainerClassName,
         submitButtonClassName,
         heroHeight,
         infoCardStyle,
@@ -206,13 +214,24 @@ export default function AddRegisterUserScreen() {
                 return;
             }
 
-        } catch (error) {
-            console.error('Erro ao registrar usuário:', error);
+            const resolvedErrorAlert = resolveRegisterUserErrorAlert(result.error);
             showNotifierAlert({
-                title: 'Erro ao registrar usuário',
-                description: 'Erro inesperado ao registrar o usuário.',
+                title: resolvedErrorAlert.title,
+                description: resolvedErrorAlert.description,
                 type: 'error',
                 isDarkMode,
+                duration: 4000,
+            });
+
+        } catch (error) {
+            console.error('Erro ao registrar usuário:', error);
+            const resolvedErrorAlert = resolveRegisterUserErrorAlert(error);
+            showNotifierAlert({
+                title: resolvedErrorAlert.title,
+                description: resolvedErrorAlert.description,
+                type: 'error',
+                isDarkMode,
+                duration: 4000,
             });
         } finally {
             setIsSubmitting(false);
@@ -314,9 +333,6 @@ export default function AddRegisterUserScreen() {
                     barStyle={isDarkMode ? 'light-content' : 'dark-content'}
                 />
                 <View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-
-                    <FloatingAlertViewport />
-
                     <KeyboardAvoidingView
                         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                         keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
