@@ -9,9 +9,9 @@ import {
 	Platform,
 	TextInput,
 	findNodeHandle,
-	useWindowDimensions,
+	Pressable,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Heading } from '@/components/ui/heading';
@@ -22,13 +22,20 @@ import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import {
-	Checkbox,
-	CheckboxGroup,
-	CheckboxIndicator,
-	CheckboxIcon,
-	CheckboxLabel,
-} from '@/components/ui/checkbox';
-import { CheckIcon } from '@/components/ui/icon';
+	Radio,
+	RadioGroup,
+	RadioIndicator,
+	RadioIcon,
+	RadioLabel,
+} from '@/components/ui/radio';
+import {
+	Popover,
+	PopoverBackdrop,
+	PopoverBody,
+	PopoverContent,
+} from '@/components/ui/popover';
+import { CircleIcon } from '@/components/ui/icon';
+import { Info } from 'lucide-react-native';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
@@ -38,41 +45,35 @@ import { Switch } from '@/components/ui/switch';
 import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+
 type FocusableInputKey = 'tag-name';
+type UsageTypeRadioValue = 'expense' | 'gain';
 
 export default function AddRegisterTagScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const checkboxClassName = 'items-center gap-3';
-	const checkboxIndicatorClassName = isDarkMode
-		? 'rounded-md border-slate-500 data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300'
-		: 'rounded-md border-slate-300 data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-400';
-	const checkboxIconClassName = isDarkMode ? 'text-slate-950' : 'text-white';
-	const checkboxLabelClassName = isDarkMode
-		? 'text-slate-300 data-[checked=true]:text-slate-100'
-		: 'text-slate-700 data-[checked=true]:text-slate-900';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		fieldContainerCardClassName,
+		submitButtonClassName,
+		heroHeight,
+		insets,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		infoCardStyle,
+	} = useScreenStyles();
 
 	const [tagName, setTagName] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -176,6 +177,10 @@ export default function AddRegisterTagScreen() {
 
 	const isEditing = Boolean(editingTagId);
 	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
+	const selectedUsageType: UsageTypeRadioValue | null = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
+	const isMandatorySwitchEnabled = selectedUsageType !== null;
+	const isMandatorySelected =
+		selectedUsageType === 'expense' ? isMandatoryExpense : selectedUsageType === 'gain' ? isMandatoryGain : false;
 	const initialUsageLabel =
 		initialUsageType === 'expense'
 			? 'despesas'
@@ -209,15 +214,19 @@ export default function AddRegisterTagScreen() {
 		}
 	}, [initialTagName, initialUsageType, initialIsMandatoryExpense, initialIsMandatoryGain]);
 
-	const handleUsageSelection = React.useCallback((values: string[]) => {
-		if (values.includes('expense')) {
+	const handleUsageSelection = React.useCallback((nextValue: string) => {
+		if (isUsageSelectionLocked) {
+			return;
+		}
+
+		if (nextValue === 'expense') {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
 			setIsMandatoryGain(false);
 			return;
 		}
 
-		if (values.includes('gain')) {
+		if (nextValue === 'gain') {
 			setIsGainTag(true);
 			setIsExpenseTag(false);
 			setIsMandatoryExpense(false);
@@ -228,29 +237,43 @@ export default function AddRegisterTagScreen() {
 		setIsGainTag(false);
 		setIsMandatoryExpense(false);
 		setIsMandatoryGain(false);
-	}, []);
+	}, [isUsageSelectionLocked]);
+
+	const handleMandatorySelection = React.useCallback(
+		(nextValue: boolean) => {
+			if (selectedUsageType === 'expense') {
+				setIsMandatoryExpense(nextValue);
+				return;
+			}
+
+			if (selectedUsageType === 'gain') {
+				setIsMandatoryGain(nextValue);
+			}
+		},
+		[selectedUsageType],
+	);
 
 	const registerTag = React.useCallback(async () => {
 		const trimmedName = tagName.trim();
 
 		if (!trimmedName) {
-			showFloatingAlert({
-				message: 'Informe o nome da tag antes de registrar.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar categoria',
+				description: 'Informe o nome da categoria antes de registrar.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
-		const selectedUsageType = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
-
 		if (!selectedUsageType) {
-			showFloatingAlert({
-				message: 'Informe se a tag será utilizada para ganhos ou despesas.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar categoria',
+				description: 'Informe se a categoria será utilizada para ganhos ou despesas.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
@@ -262,11 +285,12 @@ export default function AddRegisterTagScreen() {
 			const personId = auth.currentUser?.uid;
 
 			if (!personId) {
-				showFloatingAlert({
-					message: 'Não foi possível identificar o usuário atual.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Erro ao registrar categoria',
+					description: 'Não foi possível identificar o usuário atual.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 				setIsSubmitting(false);
 				return;
@@ -283,8 +307,8 @@ export default function AddRegisterTagScreen() {
 
 				if (result.success) {
 					showNotifierAlert({
-						title: 'Tag atualizada',
-						description: `A tag "${trimmedName}" foi atualizada com sucesso.`,
+						title: 'Categoria atualizada',
+						description: `A categoria "${trimmedName}" foi atualizada com sucesso.`,
 						type: 'success',
 						isDarkMode,
 						duration: 4000,
@@ -296,11 +320,12 @@ export default function AddRegisterTagScreen() {
 						router.replace('/home?tab=0');
 					}
 				} else {
-					showFloatingAlert({
-						message: 'Erro ao atualizar tag. Tente novamente mais tarde.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao atualizar categoria',
+						description: 'Tente novamente mais tarde.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 
@@ -317,8 +342,8 @@ export default function AddRegisterTagScreen() {
 
 			if (result.success) {
 				showNotifierAlert({
-					title: 'Tag registrada',
-					description: `A tag "${trimmedName}" foi registrada com sucesso.`,
+					title: 'Categoria registrada',
+					description: `A categoria "${trimmedName}" foi registrada com sucesso.`,
 					type: 'success',
 					isDarkMode,
 					duration: 4000,
@@ -337,20 +362,22 @@ export default function AddRegisterTagScreen() {
 
 				router.replace('/home?tab=0');
 			} else {
-				showFloatingAlert({
-					message: 'Erro ao registrar tag. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Erro ao registrar categoria',
+					description: 'Tente novamente mais tarde.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 			}
 		} catch (error) {
-			console.error('Erro ao registrar tag:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao registrar tag. Tente novamente.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			console.error('Erro ao registrar categoria:', error);
+			showNotifierAlert({
+				title: 'Erro inesperado ao registrar categoria',
+				description: 'Tente novamente.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 		} finally {
 			setIsSubmitting(false);
@@ -358,12 +385,11 @@ export default function AddRegisterTagScreen() {
 	}, [
 		isDarkMode,
 		editingTagId,
-		isExpenseTag,
-		isGainTag,
 		isEditing,
 		tagName,
 		isMandatoryExpense,
 		isMandatoryGain,
+		selectedUsageType,
 		shouldReturnAfterCreate,
 	]);
 
@@ -403,7 +429,7 @@ export default function AddRegisterTagScreen() {
 							y: Math.max(0, y - keyboardScrollOffset(key)),
 							animated: true,
 						}),
-					() => {},
+					() => { },
 				);
 			}
 		},
@@ -444,7 +470,19 @@ export default function AddRegisterTagScreen() {
 		? 'Editar tag'
 		: shouldReturnAfterCreate && initialUsageLabel
 			? `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
-			: 'Adição de nova tag';
+			: 'Adição de nova categoria';
+	const mandatoryUsageLabel =
+		selectedUsageType === 'expense'
+			? 'Marcar categoria de despesa como obrigatória'
+			: selectedUsageType === 'gain'
+				? 'Marcar categoria de ganho como obrigatório'
+				: 'Marcar como obrigatório';
+	const mandatoryHelperText =
+		selectedUsageType === 'expense'
+			? 'Ative esta opção para que a categoria seja listada na tela de gastos obrigatórios '
+			: selectedUsageType === 'gain'
+				? 'Ative esta opção para que a categoria seja listada na tela de ganhos obrigatórios.'
+				: 'Selecione o tipo de utilização acima para liberar a opção de obrigatoriedade.';
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -499,19 +537,10 @@ export default function AddRegisterTagScreen() {
 								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 							>
 								<VStack className="justify-between mt-4">
-									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-										<Text className={`${bodyText} text-sm leading-6`}>
-											{isEditing
-												? 'Atualize as informações da tag selecionada. As alterações serão aplicadas imediatamente.'
-												: shouldReturnAfterCreate && initialUsageLabel
-													? `Cadastre uma nova tag para ${initialUsageLabel}. Após salvar, você voltará para a tela anterior com a nova categoria pronta para seleção.`
-													: 'Registre uma nova tag para categorizar ganhos ou despesas. Ela ficará disponível para seleção nas demais telas do aplicativo.'}
-										</Text>
-									</View>
 
 									<VStack className="mb-4">
 										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Nome da tag que será registrada
+											Nome da categoria que será registrada
 										</Text>
 										<Input className={fieldContainerClassName}>
 											<InputField
@@ -527,91 +556,124 @@ export default function AddRegisterTagScreen() {
 									</VStack>
 
 									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Tipo de utilização</Text>
+										<HStack className="mb-1 ml-1">
+											<Text className={`${bodyText} text-sm`}>Tipo de utilização</Text>
+											<Popover
+												placement="bottom"
+												size="md"
+												offset={0}
+												shouldFlip
+												focusScope={false}
+												trapFocus={false}
+												trigger={triggerProps => (
+													<Pressable
+														{...triggerProps}
+														hitSlop={8}
+														accessibilityRole="button"
+														accessibilityLabel="Informações sobre a observação da despesa"
+													>
+														<Info
+															size={14}
+															color={isDarkMode ? '#94A3B8' : '#64748B'}
+															style={{ marginLeft: 4 }}
+														/>
+													</Pressable>
+												)}
+											>
+												<PopoverBackdrop className="bg-transparent" />
+												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+													<PopoverBody className="px-3 py-3">
+														<Text className={`${bodyText} text-xs leading-5`}>
+															Selecione o tipo de utilização da tag para que ela seja listada corretamente nas telas de registro de ganhos ou despesas. Essa informação é importante para organizar suas tags e facilitar a categorização dos seus registros financeiros.
+														</Text>
+													</PopoverBody>
+												</PopoverContent>
+											</Popover>
+										</HStack>
 										<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-											<Text className={`${helperText} text-sm leading-6`}>
-												{isUsageSelectionLocked && initialUsageLabel
-													? `Essa categoria será criada para ${initialUsageLabel}.`
-													: 'Selecione se essa tag será usada para ganhos ou despesas. Apenas uma opção pode ficar ativa.'}
-											</Text>
-											<CheckboxGroup
-												value={isExpenseTag ? ['expense'] : isGainTag ? ['gain'] : []}
+											<RadioGroup
+												value={selectedUsageType ?? ''}
 												onChange={handleUsageSelection}
 											>
-												<VStack className="mt-4 gap-4">
-													<Checkbox
+												<HStack className="justify-between gap-4">
+													<Radio
 														value="expense"
-														isDisabled={isUsageSelectionLocked || isGainTag}
-														className={checkboxClassName}
+														isDisabled={isUsageSelectionLocked}
+														className={`${switchRadioClassName} flex-1`}
 													>
-														<CheckboxIndicator className={checkboxIndicatorClassName}>
-															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-														</CheckboxIndicator>
-														<CheckboxLabel className={`${checkboxLabelClassName} text-sm`}>
+														<RadioIndicator className={switchRadioIndicatorClassName}>
+															<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+														</RadioIndicator>
+														<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
 															Tag para despesas
-														</CheckboxLabel>
-													</Checkbox>
+														</RadioLabel>
+													</Radio>
 
-													<Checkbox
+													<Radio
 														value="gain"
-														isDisabled={isUsageSelectionLocked || isExpenseTag}
-														className={checkboxClassName}
+														isDisabled={isUsageSelectionLocked}
+														className={`${switchRadioClassName} flex-1`}
 													>
-														<CheckboxIndicator className={checkboxIndicatorClassName}>
-															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-														</CheckboxIndicator>
-														<CheckboxLabel className={`${checkboxLabelClassName} text-sm`}>
+														<RadioIndicator className={switchRadioIndicatorClassName}>
+															<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+														</RadioIndicator>
+														<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
 															Tag para ganhos
-														</CheckboxLabel>
-													</Checkbox>
-												</VStack>
-											</CheckboxGroup>
+														</RadioLabel>
+													</Radio>
+												</HStack>
+											</RadioGroup>
+
+											{selectedUsageType && (
+												<View className="mt-2">
+													<HStack className="items-center justify-between gap-4">
+														<HStack className="mb-1 ml-1 gap-1">
+															<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
+															<Popover
+																placement="bottom"
+																size="md"
+																offset={0}
+																shouldFlip
+																focusScope={false}
+																trapFocus={false}
+																trigger={triggerProps => (
+																	<Pressable
+																		{...triggerProps}
+																		hitSlop={8}
+																		accessibilityRole="button"
+																		accessibilityLabel="Informações sobre a observação da despesa"
+																	>
+																		<Info
+																			size={14}
+																			color={isDarkMode ? '#94A3B8' : '#64748B'}
+																			style={{ marginLeft: 4 }}
+																		/>
+																	</Pressable>
+																)}
+															>
+																<PopoverBackdrop className="bg-transparent" />
+																<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																	<PopoverBody className="px-3 py-3">
+																		<Text className={`${bodyText} text-xs leading-5`}>
+																			{mandatoryHelperText}
+																		</Text>
+																	</PopoverBody>
+																</PopoverContent>
+															</Popover>
+														</HStack>
+														<Switch
+															value={isMandatorySelected}
+															onValueChange={handleMandatorySelection}
+															isDisabled={!isMandatorySwitchEnabled}
+															trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
+															thumbColor={isDarkMode ? '#020617' : '#FFFFFF'}
+															ios_backgroundColor="#CBD5E1"
+														/>
+													</HStack>
+												</View>
+											)}
 										</View>
 									</VStack>
-
-									{isExpenseTag && (
-										<VStack className="mb-4">
-											<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Gasto obrigatório</Text>
-											<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-												<Text className={`${helperText} text-sm leading-6`}>
-													Ative esta opção para que a tag seja listada na tela de gastos
-													obrigatórios.
-												</Text>
-												<HStack className="items-center justify-between mt-4">
-													<Text className={`${bodyText} text-sm`}>Marcar como obrigatório</Text>
-													<Switch
-														value={isMandatoryExpense}
-														onValueChange={setIsMandatoryExpense}
-														trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-														thumbColor={isDarkMode ? '#020617' : '#FFFFFF'}
-														ios_backgroundColor="#CBD5E1"
-													/>
-												</HStack>
-											</View>
-										</VStack>
-									)}
-
-									{isGainTag && (
-										<VStack className="mb-4">
-											<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Ganho obrigatório</Text>
-											<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-												<Text className={`${helperText} text-sm leading-6`}>
-													Ative esta opção para que a tag seja listada na tela de ganhos
-													obrigatórios.
-												</Text>
-												<HStack className="items-center justify-between mt-4">
-													<Text className={`${bodyText} text-sm`}>Marcar como obrigatório</Text>
-													<Switch
-														value={isMandatoryGain}
-														onValueChange={setIsMandatoryGain}
-														trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-														thumbColor={isDarkMode ? '#020617' : '#FFFFFF'}
-														ios_backgroundColor="#CBD5E1"
-													/>
-												</HStack>
-											</View>
-										</VStack>
-									)}
 
 									<Button
 										className={submitButtonClassName}

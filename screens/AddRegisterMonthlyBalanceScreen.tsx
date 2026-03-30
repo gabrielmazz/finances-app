@@ -10,10 +10,9 @@ import {
 	TextInput,
 	TouchableWithoutFeedback,
 	View,
-	useWindowDimensions,
 	Pressable,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -37,10 +36,8 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { useAppTheme } from '@/contexts/ThemeContext';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import {
@@ -50,9 +47,10 @@ import {
 import { auth } from '@/FirebaseConfig';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 
 import AddRegisterMonthlyBalanceScreenIllustration from '../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -102,35 +100,21 @@ type OptionItem = {
 type FocusableInputKey = 'month-reference' | 'balance';
 
 export default function AddRegisterMonthlyBalanceScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
-	const infoCardStyle = React.useMemo(
-		() => ({
-			borderRadius: 20,
-			borderWidth: 1,
-			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
-			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
-		}),
-		[isDarkMode],
-	);		
+	} = useScreenStyles();
 
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
@@ -290,22 +274,24 @@ export default function AddRegisterMonthlyBalanceScreen() {
 							current && formattedBanks.some(bank => bank.id === current) ? current : null,
 						);
 					} else {
-						showFloatingAlert({
-							message: 'Não foi possível carregar os bancos disponíveis.',
-							action: 'error',
-							position: 'bottom',
-							offset: 40,
+						showNotifierAlert({
+							title: 'Não foi possível carregar os bancos disponíveis.',
+							description: 'Tente novamente mais tarde.',
+							type: 'error',
+							duration: 4000,
+							isDarkMode,
 						});
 					}
 				} catch (error) {
 					console.error('Erro ao carregar bancos:', error);
 
 					if (isMounted) {
-						showFloatingAlert({
-							message: 'Erro inesperado ao carregar os bancos.',
-							action: 'error',
-							position: 'bottom',
-							offset: 40,
+						showNotifierAlert({
+							title: 'Erro inesperado ao carregar os bancos.',
+							description: 'Tente novamente mais tarde.',
+							type: 'error',
+							duration: 4000,
+							isDarkMode,
 						});
 					}
 				} finally {
@@ -320,7 +306,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, []),
+		}, [isDarkMode]),
 	);
 
 	const handleBalanceChange = React.useCallback((input: string) => {
@@ -405,11 +391,12 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 			const currentUser = auth.currentUser;
 			if (!currentUser) {
-				showFloatingAlert({
-					message: 'Usuário não autenticado. Faça login novamente.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Usuário não autenticado.',
+					description: 'Faça login novamente.',
+					type: 'error',
+					duration: 4000,
+					isDarkMode,
 				});
 				return;
 			}
@@ -449,17 +436,19 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				}
 			} catch (error) {
 				console.error('Erro ao obter saldo mensal:', error);
-				showFloatingAlert({
-					message: 'Erro ao buscar o saldo registrado para este mês.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Erro ao buscar saldo',
+					description: 'Erro ao buscar o saldo registrado para este mês.',
+					type: 'error',
+					duration: 4000,
+					isDarkMode,
 				});
 			} finally {
 				setIsLoadingExisting(false);
 			}
 		},
 		[
+			isDarkMode,
 			monthReference,
 			selectedBankId,
 			showExistingBalanceNotification,
@@ -488,43 +477,47 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 	const handleSubmit = React.useCallback(async () => {
 		if (!selectedBankId) {
-			showFloatingAlert({
-				message: 'Selecione um banco para registrar o saldo.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar saldo',
+				description: 'Selecione um banco para registrar o saldo.',
+				type: 'error',
+				duration: 4000,
+				isDarkMode,
 			});
 			return;
 		}
 
 		const parsedMonth = parseMonthReference(monthReference);
 		if (!parsedMonth) {
-			showFloatingAlert({
-				message: 'Informe um mês válido no formato MM/AAAA.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar saldo',
+				description: 'Informe um mês válido no formato MM/AAAA.',
+				type: 'error',
+				duration: 4000,
+				isDarkMode,
 			});
 			return;
 		}
 
 		if (balanceValueInCents === null) {
-			showFloatingAlert({
-				message: 'Informe o saldo disponível no início do mês.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar saldo',
+				description: 'Informe o saldo disponível no início do mês.',
+				type: 'error',
+				duration: 4000,
+				isDarkMode,
 			});
 			return;
 		}
 
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Usuário não autenticado',
+				description: 'Faça login novamente.',
+				type: 'error',
+				duration: 4000,
+				isDarkMode,
 			});
 			return;
 		}
@@ -554,11 +547,12 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			}
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
-			showFloatingAlert({
-				message: 'Não foi possível registrar o saldo. Tente novamente.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar saldo',
+				description: 'Não foi possível registrar o saldo. Tente novamente.',
+				type: 'error',
+				duration: 4000,
+				isDarkMode,
 			});
 		} finally {
 			setIsSubmitting(false);
@@ -566,6 +560,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, [
 		balanceValueInCents,
 		existingBalanceId,
+		isDarkMode,
 		monthReference,
 		selectedBankId,
 		showSuccessfulBalanceNotification,
@@ -602,8 +597,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				/>
 
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<FloatingAlertViewport />
-
 					<KeyboardAvoidingView
 						className="flex-1"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

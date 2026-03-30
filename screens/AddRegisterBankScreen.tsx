@@ -44,6 +44,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankScreen.svg';
 
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+
 const presetBankColors = [
     { label: 'Azul', value: '#2563EB' },
     { label: 'Verde', value: '#10B981' },
@@ -68,25 +70,34 @@ const presetBankColors = [
 type FocusableInputKey = 'bank-name';
 
 export default function AddRegisterBankScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
-
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
+	
+    const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+		checkboxClassName,
+		checkboxIndicatorClassName,
+		checkboxIconClassName,
+		checkboxLabelClassName,
+	} = useScreenStyles();
 
     const [nameBank, setNameBank] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -164,21 +175,23 @@ export default function AddRegisterBankScreen() {
         const trimmedName = nameBank.trim();
 
         if (!trimmedName) {
-            showFloatingAlert({
-                message: 'Informe o nome do banco antes de registrar.',
-                action: 'error',
-                position: 'bottom',
-                offset: 40,
+            showNotifierAlert({
+                title: 'Erro ao registrar banco',
+                description: 'Informe o nome do banco antes de registrar.',
+                type: 'error',
+                isDarkMode,
+                duration: 4000,
             });
             return;
         }
 
         if (trimmedName.length < 2) {
-            showFloatingAlert({
-                message: 'Informe um nome de banco com pelo menos 2 caracteres.',
-                action: 'error',
-                position: 'bottom',
-                offset: 40,
+            showNotifierAlert({
+                title: 'Erro ao registrar banco',
+                description: 'Informe um nome de banco com pelo menos 2 caracteres.',
+                type: 'error',
+                isDarkMode,
+                duration: 4000,
             });
             return;
         }
@@ -188,11 +201,12 @@ export default function AddRegisterBankScreen() {
             trimmedName === initialBankName.trim() &&
             selectedColor === initialColorHex
         ) {
-            showFloatingAlert({
-                message: 'Nenhuma alteração foi identificada para este banco.',
-                action: 'info',
-                position: 'bottom',
-                offset: 40,
+            showNotifierAlert({
+                title: 'Nenhuma alteração identificada',
+                description: 'Nenhuma alteração foi identificada para este banco.',
+                type: 'info',
+                isDarkMode,
+                duration: 4000,
             });
             return;
         }
@@ -205,11 +219,11 @@ export default function AddRegisterBankScreen() {
             const personId = auth.currentUser?.uid;
 
             if (!personId) {
-                showFloatingAlert({
-                    message: 'Não foi possível identificar o usuário atual.',
-                    action: 'error',
-                    position: 'bottom',
-                    offset: 40,
+                showNotifierAlert({
+                    title: 'Erro ao registrar banco',
+                    description: 'Não foi possível identificar o usuário atual.',
+                    type: 'error',
+                    isDarkMode,
                 });
                 setIsSubmitting(false);
                 return;
@@ -233,11 +247,11 @@ export default function AddRegisterBankScreen() {
                     Keyboard.dismiss();
                     router.replace('/home?tab=0');
                 } else {
-                    showFloatingAlert({
-                        message: 'Erro ao atualizar banco. Tente novamente mais tarde.',
-                        action: 'error',
-                        position: 'bottom',
-                        offset: 40,
+                    showNotifierAlert({
+                        title: 'Erro ao atualizar banco',
+                        description: 'Erro ao atualizar banco. Tente novamente mais tarde.',
+                        type: 'error',
+                        isDarkMode,
                     });
                 }
 
@@ -259,20 +273,20 @@ export default function AddRegisterBankScreen() {
                 Keyboard.dismiss();
                 router.replace('/home?tab=0');
             } else {
-                showFloatingAlert({
-                    message: 'Erro ao registrar banco. Tente novamente mais tarde.',
-                    action: 'error',
-                    position: 'bottom',
-                    offset: 40,
+                showNotifierAlert({
+                    title: 'Erro ao registrar banco',
+                    description: 'Erro ao registrar banco. Tente novamente mais tarde.',
+                    type: 'error',
+                    isDarkMode,
                 });
             }
         } catch (error) {
             console.error('Erro ao registrar banco:', error);
-            showFloatingAlert({
-                message: 'Erro inesperado ao registrar banco. Tente novamente.',
-                action: 'error',
-                position: 'bottom',
-                offset: 40,
+            showNotifierAlert({
+                title: 'Erro inesperado ao registrar banco',
+                description: 'Erro inesperado ao registrar banco. Tente novamente.',
+                type: 'error',
+                isDarkMode,
             });
         } finally {
             setIsSubmitting(false);
@@ -409,14 +423,6 @@ export default function AddRegisterBankScreen() {
                             contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
                         >
                             <VStack className="justify-between mt-4">
-                                <View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-                                    <Text className={`${bodyText} text-sm leading-6`}>
-                                        {isEditing
-                                            ? 'Atualize as informações do banco selecionado. As alterações serão refletidas imediatamente após salvar.'
-                                            : 'Preencha os campos abaixo para registrar um novo banco no aplicativo. Ele poderá ser selecionado nas ações financeiras.'}
-                                    </Text>
-                                </View>
-
                                 <VStack className="mb-4">
                                     <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome do banco</Text>
                                     <Input className={fieldContainerClassName}>
@@ -432,7 +438,7 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <VStack className="mb-4">
-                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Cor do banco</Text>
+                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Cor do banco (Opcional)</Text>
                                     <Select
                                         selectedValue={selectedColor ?? undefined}
                                         onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
@@ -461,9 +467,6 @@ export default function AddRegisterBankScreen() {
                                             </SelectContent>
                                         </SelectPortal>
                                     </Select>
-                                    <Text className={`${helperText} mt-2 text-sm`}>
-                                        A cor é opcional e serve apenas para identificação visual do banco.
-                                    </Text>
                                 </VStack>
 
                                 <Button

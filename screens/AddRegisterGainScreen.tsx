@@ -9,9 +9,8 @@ import {
 	ScrollView,
 	StatusBar,
 	View,
-	useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
@@ -55,13 +54,11 @@ import {
 } from '@/components/ui/checkbox';
 import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import Navigator from '@/components/uiverse/navigator';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
@@ -70,7 +67,10 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+
 import AddGainIllustration from '../assets/UnDraw/addRegisterGainScreen.svg';
+import { Divider } from '@/components/ui/divider';
 
 type OptionItem = {
 	id: string;
@@ -181,56 +181,34 @@ const getSuggestedDateByDueDay = (dueDay: number) => {
 };
 
 export default function AddRegisterGainScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const textareaContainerClassName =
-		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const switchRadioClassName = 'items-center gap-3';
-	const switchRadioIndicatorClassName = isDarkMode
-		? 'data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300/20'
-		: 'data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-100';
-	const switchRadioIconClassName = isDarkMode
-		? 'fill-yellow-300 text-yellow-300'
-		: 'fill-yellow-500 text-yellow-500';
-	const switchRadioLabelClassName = isDarkMode ? '' : '';
-	const checkboxClassName = 'items-center gap-3';
-	const checkboxIndicatorClassName = isDarkMode
-		? 'rounded-md border-slate-500 data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300'
-		: 'rounded-md border-slate-300 data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-400';
-	const checkboxIconClassName = isDarkMode ? 'text-slate-950' : 'text-white';
-	const checkboxLabelClassName = isDarkMode
-		? 'text-slate-300 data-[checked=true]:text-slate-100'
-		: 'text-slate-700 data-[checked=true]:text-slate-900';
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const addTagButtonClassName = isDarkMode
-		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
-		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
-	const infoCardStyle = React.useMemo(
-		() => ({
-			borderRadius: 20,
-			borderWidth: 1,
-			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
-			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
-		}),
-		[isDarkMode],
-	);
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+		checkboxClassName,
+		checkboxIndicatorClassName,
+		checkboxIconClassName,
+		checkboxLabelClassName,
+	} = useScreenStyles();
 
 	const [gainName, setGainName] = React.useState('');
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
@@ -682,17 +660,21 @@ export default function AddRegisterGainScreen() {
 						}
 
 						if (formattedTags.length === 0) {
-							showFloatingAlert({
-								message: 'Nenhuma tag de ganhos disponível. Cadastre uma tag marcada como ganho.',
-								action: 'warning',
-								position: 'bottom',
+							showNotifierAlert({
+								title: 'Nenhuma tag de ganhos disponível',
+								description: 'Cadastre uma tag marcada como ganho.',
+								type: 'warn',
+								isDarkMode,
+								duration: 4000,
 							});
 						}
 					} else {
-						showFloatingAlert({
-							message: 'Não foi possível carregar as tags disponíveis.',
-							action: 'error',
-							position: 'bottom',
+						showNotifierAlert({
+							title: 'Erro ao carregar tags',
+							description: 'Não foi possível carregar as tags disponíveis.',
+							type: 'error',
+							isDarkMode,
+							duration: 4000,
 						});
 					}
 
@@ -722,18 +704,22 @@ export default function AddRegisterGainScreen() {
 							return matched?.name ?? null;
 						});
 					} else {
-						showFloatingAlert({
-							message: 'Não foi possível carregar os bancos disponíveis.',
-							action: 'error',
-							position: 'bottom',
+						showNotifierAlert({
+							title: 'Erro ao carregar bancos',
+							description: 'Não foi possível carregar os bancos disponíveis.',
+							type: 'error',
+							isDarkMode,
+							duration: 4000,
 						});
 					}
 				} catch (error) {
 					console.error('Erro ao carregar opções de ganhos:', error);
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Erro ao carregar dados',
+						description: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				} finally {
 					if (isMounted) {
@@ -748,7 +734,7 @@ export default function AddRegisterGainScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, [isBankSelectionLocked, isTemplateLocked, templateData?.bankId, templateData?.bankName, templateData?.tagId]),
+		}, [isBankSelectionLocked, isDarkMode, isTemplateLocked, templateData?.bankId, templateData?.bankName, templateData?.tagId]),
 	);
 
 	const handleValueChange = React.useCallback((input: string) => {
@@ -766,73 +752,89 @@ export default function AddRegisterGainScreen() {
 
 	const handleSubmit = React.useCallback(async () => {
 		if (!gainName.trim()) {
-			showFloatingAlert({
-				message: 'Informe o nome do ganho.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Informe o nome do ganho.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (gainValueCents === null) {
-			showFloatingAlert({
-				message: 'Informe o valor do ganho.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Informe o valor do ganho.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (gainValueCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor maior que zero para o ganho.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Informe um valor maior que zero para o ganho.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (shouldShowPaymentFormatSelection && paymentFormat.length === 0) {
-			showFloatingAlert({
-				message: 'Selecione o formato do ganho antes de continuar.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Selecione o formato do ganho antes de continuar.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!selectedTagId) {
-			showFloatingAlert({
-				message: 'Selecione uma tag.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Selecione uma tag.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (isBankSelectionRequired && !selectedBankId) {
-			showFloatingAlert({
-				message: 'Selecione um banco.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Selecione um banco.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!gainDate) {
-			showFloatingAlert({
-				message: 'Informe a data do ganho.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Informe a data do ganho.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!parsedGainDate) {
-			showFloatingAlert({
-				message: 'Informe uma data válida (DD/MM/AAAA).',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Informe uma data válida (DD/MM/AAAA).',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
@@ -845,10 +847,12 @@ export default function AddRegisterGainScreen() {
 			const personId = auth.currentUser?.uid;
 
 			if (!personId) {
-				showFloatingAlert({
-					message: 'Não foi possível identificar o usuário atual.',
-					action: 'error',
-					position: 'bottom',
+				showNotifierAlert({
+					title: 'Erro ao registrar ganho',
+					description: 'Não foi possível identificar o usuário atual.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 				setIsSubmitting(false);
 				return;
@@ -868,10 +872,12 @@ export default function AddRegisterGainScreen() {
 				});
 
 				if (!result.success) {
-					showFloatingAlert({
-						message: 'Erro ao atualizar ganho. Tente novamente mais tarde.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Erro ao atualizar ganho',
+						description: 'Tente novamente mais tarde.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 					return;
 				}
@@ -898,10 +904,12 @@ export default function AddRegisterGainScreen() {
 			});
 
 			if (!result.success) {
-				showFloatingAlert({
-					message: 'Erro ao registrar ganho. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
+				showNotifierAlert({
+					title: 'Erro ao registrar ganho',
+					description: 'Tente novamente mais tarde.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 				return;
 			}
@@ -914,10 +922,12 @@ export default function AddRegisterGainScreen() {
 				});
 
 				if (!markResult.success) {
-					showFloatingAlert({
-						message: 'Ganho registrado, mas não foi possível atualizar o ganho obrigatório.',
-						action: 'warning',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Atenção ao atualizar ganho obrigatório',
+						description: 'Ganho registrado, mas não foi possível atualizar o ganho obrigatório.',
+						type: 'warn',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			}
@@ -929,10 +939,12 @@ export default function AddRegisterGainScreen() {
 				});
 
 				if (!adjustResult.success) {
-					showFloatingAlert({
-						message: 'Ganho registrado, mas não foi possível atualizar o investimento.',
-						action: 'warning',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Atenção ao atualizar investimento',
+						description: 'Ganho registrado, mas não foi possível atualizar o investimento.',
+						type: 'warn',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			}
@@ -941,10 +953,12 @@ export default function AddRegisterGainScreen() {
 			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao salvar o ganho.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao registrar ganho',
+				description: 'Erro inesperado ao salvar o ganho.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 		} finally {
 			setIsSubmitting(false);
@@ -962,6 +976,7 @@ export default function AddRegisterGainScreen() {
 		selectedBankId,
 		selectedTagId,
 		pendingInvestmentAdjustment,
+		isDarkMode,
 		isBankSelectionLocked,
 		shouldShowPaymentFormatSelection,
 		templateData,
@@ -985,10 +1000,12 @@ export default function AddRegisterGainScreen() {
 				}
 
 				if (!response.success || !response.data) {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os dados do ganho selecionado.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Erro ao carregar ganho',
+						description: 'Não foi possível carregar os dados do ganho selecionado.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 					return;
 				}
@@ -1017,10 +1034,12 @@ export default function AddRegisterGainScreen() {
 			} catch (error) {
 				console.error('Erro ao carregar ganho para edição:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar os dados do ganho.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						title: 'Erro ao carregar ganho',
+						description: 'Erro inesperado ao carregar os dados do ganho.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			} finally {
@@ -1035,7 +1054,7 @@ export default function AddRegisterGainScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [editingGainId]);
+	}, [editingGainId, isDarkMode]);
 
 	React.useEffect(() => {
 		try {
@@ -1123,8 +1142,6 @@ export default function AddRegisterGainScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
-
-			<FloatingAlertViewport />
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView

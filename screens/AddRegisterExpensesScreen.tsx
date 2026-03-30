@@ -42,7 +42,6 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import DatePickerField from '@/components/uiverse/date-picker';
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { auth } from '@/FirebaseConfig';
@@ -63,6 +62,8 @@ import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
 
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
+
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type OptionItem = {
 	id: string;
@@ -173,57 +174,30 @@ const getSuggestedDateByDueDay = (dueDay: number) => {
 };
 
 export default function AddRegisterExpensesScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const labelText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const textareaContainerClassName =
-		`h-32 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-
-	// Estilização para o switch radio
-	const switchRadioClassName = 'items-center gap-3';
-	const switchRadioIndicatorClassName = isDarkMode
-		? 'data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300/20'
-		: 'data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-100';
-	const switchRadioIconClassName = isDarkMode
-		? 'fill-yellow-300 text-yellow-300'
-		: 'fill-yellow-500 text-yellow-500';
-	const switchRadioLabelClassName = isDarkMode
-		? ''
-		: '';
-
-	// Estilização do Button de submit
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const addTagButtonClassName = isDarkMode
-		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
-		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
-	
-
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
-	const infoCardStyle = React.useMemo(
-		() => ({
-			borderRadius: 20,
-			borderWidth: 1,
-			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
-			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
-		}),
-		[isDarkMode],
-	);
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+	} = useScreenStyles();
 
 	const [expenseName, setExpenseName] = React.useState('');
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
@@ -594,19 +568,21 @@ export default function AddRegisterExpensesScreen() {
 						}
 
 						if (formattedTags.length === 0) {
-							showFloatingAlert({
-								message: 'Nenhuma tag de despesas disponível. Cadastre uma tag marcada como despesa.',
-								action: 'warning',
-								position: 'bottom',
-								offset: 40,
+							showNotifierAlert({
+								title: 'Nenhuma tag de despesas disponível',
+								description: 'Cadastre uma tag marcada como despesa.',
+								type: 'error',
+								isDarkMode,
+								duration: 4000,
 							});
 						}
 					} else {
-						showFloatingAlert({
-							message: 'Não foi possível carregar as tags disponíveis.',
-							action: 'error',
-							position: 'bottom',
-							offset: 40,
+						showNotifierAlert({
+							title: 'Erro ao carregar tags',
+							description: 'Não foi possível carregar as tags disponíveis.',
+							type: 'error',
+							isDarkMode,
+							duration: 4000,
 						});
 					}
 
@@ -621,21 +597,23 @@ export default function AddRegisterExpensesScreen() {
 							current && formattedBanks.some(bank => bank.id === current) ? current : null,
 						);
 					} else {
-						showFloatingAlert({
-							message: 'Não foi possível carregar os bancos disponíveis.',
-							action: 'error',
-							position: 'bottom',
-							offset: 40,
+						showNotifierAlert({
+							title: 'Erro ao carregar bancos',
+							description: 'Não foi possível carregar os bancos disponíveis.',
+							type: 'error',
+							isDarkMode,
+							duration: 4000,
 						});
 					}
 				} catch (error) {
 					console.error('Erro ao carregar opções da despesa:', error);
 
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao carregar dados',
+						description: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				} finally {
 					if (isMounted) {
@@ -650,7 +628,7 @@ export default function AddRegisterExpensesScreen() {
 			return () => {
 				isMounted = false;
 			};
-		}, [isTemplateLocked, templateData?.lockTag, templateData?.tagId]),
+		}, [isDarkMode, isTemplateLocked, templateData?.lockTag, templateData?.tagId]),
 	);
 
 	React.useEffect(() => {
@@ -697,71 +675,78 @@ export default function AddRegisterExpensesScreen() {
 
 	const handleSubmit = React.useCallback(async () => {
 		if (!expenseName.trim()) {
-			showFloatingAlert({
-				message: 'Informe o nome da despesa.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Informe o nome da despesa.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (expenseValueCents === null) {
-			showFloatingAlert({
-				message: 'Informe o valor da despesa.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Informe o valor da despesa.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (expenseValueCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor maior que zero para a despesa.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Informe um valor maior que zero para a despesa.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!selectedTagId) {
-			showFloatingAlert({
-				message: 'Selecione uma tag.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Selecione uma tag.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (isBankSelectionRequired && !selectedBankId) {
-			showFloatingAlert({
-				message: 'Selecione um banco.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Selecione um banco.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!expenseDate) {
-			showFloatingAlert({
-				message: 'Informe a data da despesa.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Informe a data da despesa.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
 
 		if (!parsedExpenseDate) {
-			showFloatingAlert({
-				message: 'Informe uma data válida (DD/MM/AAAA).',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Informe uma data válida (DD/MM/AAAA).',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 			return;
 		}
@@ -773,11 +758,12 @@ export default function AddRegisterExpensesScreen() {
 			const personId = auth.currentUser?.uid;
 
 			if (!personId) {
-				showFloatingAlert({
-					message: 'Não foi possível identificar o usuário atual.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Erro ao registrar despesa',
+					description: 'Não foi possível identificar o usuário atual.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 				setIsSubmitting(false);
 				return;
@@ -796,11 +782,12 @@ export default function AddRegisterExpensesScreen() {
 				});
 
 				if (!result.success) {
-					showFloatingAlert({
-						message: 'Erro ao atualizar despesa. Tente novamente mais tarde.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao atualizar despesa',
+						description: 'Tente novamente mais tarde.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 					return;
 				}
@@ -822,11 +809,12 @@ export default function AddRegisterExpensesScreen() {
 			});
 
 			if (!result.success) {
-				showFloatingAlert({
-					message: 'Erro ao registrar despesa. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Erro ao registrar despesa',
+					description: 'Tente novamente mais tarde.',
+					type: 'error',
+					isDarkMode,
+					duration: 4000,
 				});
 				return;
 			}
@@ -839,11 +827,12 @@ export default function AddRegisterExpensesScreen() {
 				});
 
 				if (!markResult.success) {
-					showFloatingAlert({
-						message: 'Despesa registrada, mas não foi possível atualizar o status do gasto obrigatório.',
-						action: 'warning',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao atualizar gasto obrigatório',
+						description: 'Despesa registrada, mas não foi possível atualizar o status do gasto obrigatório.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			}
@@ -855,11 +844,12 @@ export default function AddRegisterExpensesScreen() {
 				});
 
 				if (!adjustResult.success) {
-					showFloatingAlert({
-						message: 'Despesa registrada, mas não foi possível atualizar o investimento.',
-						action: 'warning',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao atualizar investimento',
+						description: 'Despesa registrada, mas não foi possível atualizar o investimento.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			}
@@ -868,11 +858,12 @@ export default function AddRegisterExpensesScreen() {
 			router.replace('/home?tab=0');
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao salvar a despesa.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
+			showNotifierAlert({
+				title: 'Erro ao registrar despesa',
+				description: 'Erro inesperado ao salvar a despesa.',
+				type: 'error',
+				isDarkMode,
+				duration: 4000,
 			});
 		} finally {
 			setIsSubmitting(false);
@@ -888,6 +879,7 @@ export default function AddRegisterExpensesScreen() {
 		linkedMandatoryExpenseId,
 		moneyFormat,
 		pendingInvestmentAdjustment,
+		isDarkMode,
 		selectedBankId,
 		selectedTagId,
 		parsedExpenseDate,
@@ -911,11 +903,12 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				if (!response.success || !response.data) {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os dados da despesa selecionada.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Erro ao carregar despesa',
+						description: 'Não foi possível carregar os dados da despesa selecionada.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 					return;
 				}
@@ -930,18 +923,19 @@ export default function AddRegisterExpensesScreen() {
 				const normalizedDate = normalizeDateValue(data.date) ?? new Date();
 				setExpenseDate(formatDateToBR(normalizedDate));
 
-					setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
-					setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
-					setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
-					setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
-				} catch (error) {
-					console.error('Erro ao carregar despesa para edição:', error);
-					if (isMounted) {
-					showFloatingAlert({
-						message: 'Erro inesperado ao carregar a despesa selecionada.',
-						action: 'error',
-						position: 'bottom',
-						offset: 40,
+				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+				setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
+				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
+			} catch (error) {
+				console.error('Erro ao carregar despesa para edição:', error);
+				if (isMounted) {
+					showNotifierAlert({
+						title: 'Erro ao carregar despesa',
+						description: 'Erro inesperado ao carregar a despesa selecionada.',
+						type: 'error',
+						isDarkMode,
+						duration: 4000,
 					});
 				}
 			} finally {
@@ -956,7 +950,7 @@ export default function AddRegisterExpensesScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [editingExpenseId]);
+	}, [editingExpenseId, isDarkMode]);
 
 	const selectedTagLabel = React.useMemo(() => {
 		const matchedTag = tags.find(tag => tag.id === selectedTagId);
@@ -986,13 +980,13 @@ export default function AddRegisterExpensesScreen() {
 			: tags.length === 0
 				? 'Cadastre uma tag de despesa para continuar.'
 				: 'Escolha a categoria que melhor representa esta saída.';
-		const bankHelperMessage = moneyFormat
-			? 'Pagamentos em dinheiro não ficam vinculados a banco.'
-			: isLoadingBanks
-				? 'Carregando bancos disponíveis...'
-				: banks.length === 0
-					? 'Cadastre um banco para vincular esta despesa.'
-					: 'Selecione onde essa saída foi lançada.';
+	const bankHelperMessage = moneyFormat
+		? 'Pagamentos em dinheiro não ficam vinculados a banco.'
+		: isLoadingBanks
+			? 'Carregando bancos disponíveis...'
+			: banks.length === 0
+				? 'Cadastre um banco para vincular esta despesa.'
+				: 'Selecione onde essa saída foi lançada.';
 
 	return (
 		<SafeAreaView
@@ -1005,8 +999,6 @@ export default function AddRegisterExpensesScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
-
-			<FloatingAlertViewport />
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
@@ -1350,8 +1342,8 @@ export default function AddRegisterExpensesScreen() {
 									</Text>
 								)}
 
-								<Button 
-									className={`${submitButtonClassName}`} 
+								<Button
+									className={`${submitButtonClassName}`}
 									onPress={handleSubmit}
 									isDisabled={isSubmitDisabled}
 								>
