@@ -255,7 +255,7 @@ export default function AddRegisterExpensesScreen() {
 		[],
 	);
 
-	const showSuccessfulExpenseNotification = React.useCallback(() => {
+	const showSuccessfulExpenseNotification = React.useCallback((isUpdating = false) => {
 		const normalizedExpenseName = expenseName.trim() || 'informada';
 		const resolvedBankName = banks.find(bank => bank.id === selectedBankId)?.name ?? null;
 		const destinationLabel = moneyFormat
@@ -265,8 +265,8 @@ export default function AddRegisterExpensesScreen() {
 				: 'no banco selecionado';
 
 		showNotifierAlert({
-			title: 'Despesa registrada',
-			description: `A despesa "${normalizedExpenseName}" foi registrada com sucesso ${destinationLabel}.`,
+			title: isUpdating ? 'Despesa atualizada' : 'Despesa registrada',
+			description: `A despesa "${normalizedExpenseName}" foi ${isUpdating ? 'atualizada' : 'registrada'} com sucesso ${destinationLabel}.`,
 			type: 'success',
 			isDarkMode,
 			duration: 4000,
@@ -716,6 +716,16 @@ export default function AddRegisterExpensesScreen() {
 			return;
 		}
 
+		if (expenseValueCents <= 0) {
+			showFloatingAlert({
+				message: 'Informe um valor maior que zero para a despesa.',
+				action: 'error',
+				position: 'bottom',
+				offset: 40,
+			});
+			return;
+		}
+
 		if (!selectedTagId) {
 			showFloatingAlert({
 				message: 'Selecione uma tag.',
@@ -795,13 +805,8 @@ export default function AddRegisterExpensesScreen() {
 					return;
 				}
 
-				showFloatingAlert({
-					message: 'Despesa atualizada com sucesso!',
-					action: 'success',
-					position: 'bottom',
-					offset: 40,
-				});
-				router.back();
+				showSuccessfulExpenseNotification(true);
+				router.replace('/home?tab=0');
 				return;
 			}
 

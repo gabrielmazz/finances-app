@@ -523,7 +523,7 @@ export default function AddRegisterGainScreen() {
 		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
 	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
 
-	const showSuccessfulGainNotification = React.useCallback(() => {
+	const showSuccessfulGainNotification = React.useCallback((isUpdating = false) => {
 		const normalizedGainName = gainName.trim() || 'informado';
 		const resolvedBankName =
 			selectedMovementBankName ??
@@ -537,8 +537,8 @@ export default function AddRegisterGainScreen() {
 			: 'como recebimento em dinheiro';
 
 		showNotifierAlert({
-			title: 'Ganho registrado',
-			description: `O ganho "${normalizedGainName}" foi registrado com sucesso ${destinationLabel}.`,
+			title: isUpdating ? 'Ganho atualizado' : 'Ganho registrado',
+			description: `O ganho "${normalizedGainName}" foi ${isUpdating ? 'atualizado' : 'registrado'} com sucesso ${destinationLabel}.`,
 			type: 'success',
 			isDarkMode,
 			duration: 4000,
@@ -783,6 +783,24 @@ export default function AddRegisterGainScreen() {
 			return;
 		}
 
+		if (gainValueCents <= 0) {
+			showFloatingAlert({
+				message: 'Informe um valor maior que zero para o ganho.',
+				action: 'error',
+				position: 'bottom',
+			});
+			return;
+		}
+
+		if (shouldShowPaymentFormatSelection && paymentFormat.length === 0) {
+			showFloatingAlert({
+				message: 'Selecione o formato do ganho antes de continuar.',
+				action: 'error',
+				position: 'bottom',
+			});
+			return;
+		}
+
 		if (!selectedTagId) {
 			showFloatingAlert({
 				message: 'Selecione uma tag.',
@@ -858,12 +876,8 @@ export default function AddRegisterGainScreen() {
 					return;
 				}
 
-				showFloatingAlert({
-					message: 'Ganho atualizado com sucesso!',
-					action: 'success',
-					position: 'bottom',
-				});
-				router.back();
+				showSuccessfulGainNotification(true);
+				router.replace('/home?tab=0');
 				return;
 			}
 
@@ -949,6 +963,7 @@ export default function AddRegisterGainScreen() {
 		selectedTagId,
 		pendingInvestmentAdjustment,
 		isBankSelectionLocked,
+		shouldShowPaymentFormatSelection,
 		templateData,
 		parsedGainDate,
 		showSuccessfulGainNotification,
