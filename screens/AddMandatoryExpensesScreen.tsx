@@ -59,8 +59,16 @@ import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import AddMandatoryExpensesListIllustration from '../assets/UnDraw/addMandatoryExpensesScreen.svg';
 import { Divider } from '@/components/ui/divider';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
-type TagOption = { id: string; name: string };
+type TagOption = {
+	id: string;
+	name: string;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
+};
 type PaymentInfo = {
 	expenseId: string | null;
 	paidAt: Date | null;
@@ -132,6 +140,13 @@ export default function AddMandatoryExpensesScreen() {
 		}
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? null;
 	}, [selectedTagId, tagOptions]);
+	const selectedTagOption = React.useMemo(() => {
+		return tagOptions.find(tag => tag.id === selectedTagId) ?? null;
+	}, [selectedTagId, tagOptions]);
+	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
+	const selectedTagIconContainerClassName = isDarkMode
+		? 'border border-slate-800 bg-slate-900'
+		: 'border border-amber-200 bg-amber-50';
 
 	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const expenseNameInputRef = React.useRef<TextInput | null>(null);
@@ -322,6 +337,9 @@ export default function AddMandatoryExpensesScreen() {
 				.map((tag: any) => ({
 					id: tag.id,
 					name: typeof tag?.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : 'Tag sem nome',
+					iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
+					iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
+					iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 				}));
 
 			setTagOptions(formattedTags);
@@ -776,13 +794,28 @@ export default function AddMandatoryExpensesScreen() {
 								onValueChange={setSelectedTagId}
 								isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
 							>
-								<SelectTrigger>
-									<SelectInput
-										placeholder="Selecione uma tag obrigatória"
-										value={selectedTagLabel ?? ''}
-									/>
-									<SelectIcon />
-								</SelectTrigger>
+								<HStack className="items-center gap-3">
+									<View
+										className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+									>
+										<TagIcon
+											iconFamily={selectedTagOption?.iconFamily}
+											iconName={selectedTagOption?.iconName}
+											iconStyle={selectedTagOption?.iconStyle}
+											size={18}
+											color={selectedTagIconColor}
+										/>
+									</View>
+									<View className="flex-1">
+										<SelectTrigger>
+											<SelectInput
+												placeholder="Selecione uma tag obrigatória"
+												value={selectedTagLabel ?? ''}
+											/>
+											<SelectIcon />
+										</SelectTrigger>
+									</View>
+								</HStack>
 								<SelectPortal>
 									<SelectBackdrop />
 									<SelectContent>

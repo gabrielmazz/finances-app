@@ -52,6 +52,7 @@ import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { Divider } from '@/components/ui/divider';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 
 type FinanceInvestment = {
 	id: string;
@@ -398,6 +399,10 @@ export default function FinancialListScreen() {
 				tagName: INVESTMENT_TAG_LABEL,
 				personId: currentUser.uid,
 				usageType,
+				...serializeTagIconSelection({
+					iconFamily: 'material-community',
+					iconName: 'cash-multiple',
+				}),
 			});
 
 			if (tagResult.success && typeof tagResult.tagId === 'string') {

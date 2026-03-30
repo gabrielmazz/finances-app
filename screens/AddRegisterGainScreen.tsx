@@ -66,6 +66,8 @@ import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFireb
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
@@ -76,6 +78,9 @@ type OptionItem = {
 	id: string;
 	name: string;
 	usageType?: 'expense' | 'gain';
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
 };
 type FocusableInputKey = 'gain-name' | 'gain-value' | 'gain-explanation';
 type GainMoneyFormatRadioValue = 'Recebimento em Banco' | 'Recebimento em Dinheiro';
@@ -232,6 +237,7 @@ export default function AddRegisterGainScreen() {
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
 
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const gainNameInputRef = React.useRef<any>(null);
@@ -635,6 +641,9 @@ export default function AddRegisterGainScreen() {
 								id: tag.id,
 								name: tag.name,
 								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+								iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
+								iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
+								iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 							}));
 						const pendingCreatedTag = peekPendingCreatedTag();
 						const matchingPendingTag =
@@ -646,6 +655,11 @@ export default function AddRegisterGainScreen() {
 						if (matchingPendingTag) {
 							setSelectedTagId(matchingPendingTag.id);
 							setSelectedMovementTagName(matchingPendingTag.name);
+							setSelectedMovementTagIcon({
+								iconFamily: matchingPendingTag.iconFamily ?? null,
+								iconName: matchingPendingTag.iconName ?? null,
+								iconStyle: matchingPendingTag.iconStyle ?? null,
+							});
 							clearPendingCreatedTag(matchingPendingTag.id);
 						} else {
 							setSelectedTagId(current => {
@@ -1061,17 +1075,23 @@ export default function AddRegisterGainScreen() {
 			if (!selectedTagId || selectedMovementTagName) {
 				return;
 			} else {
-				const fetchTagName = async () => {
+				const fetchTagData = async () => {
 					const tagResult = await getTagDataFirebase(selectedTagId);
 
 					if (tagResult.success && tagResult.data) {
 						setSelectedMovementTagName(tagResult.data.name);
+						setSelectedMovementTagIcon({
+							iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
+							iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
+							iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
+						});
 					} else {
 						setSelectedMovementTagName(null);
+						setSelectedMovementTagIcon(null);
 					}
 				};
 
-				void fetchTagName();
+				void fetchTagData();
 			}
 		} catch (error) {
 			console.error('Erro ao buscar nome da tag:', error);
@@ -1113,7 +1133,7 @@ export default function AddRegisterGainScreen() {
 			return matchedTag.name;
 		}
 
-		if (selectedMovementTagName) {
+		if (selectedMovementTagName && selectedTagId) {
 			return selectedMovementTagName;
 		}
 
@@ -1123,11 +1143,18 @@ export default function AddRegisterGainScreen() {
 
 		return null;
 	}, [selectedMovementTagName, selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
+	const selectedTagOption = React.useMemo(() => {
+		return tags.find(tag => tag.id === selectedTagId) ?? null;
+	}, [selectedTagId, tags]);
 
 	const selectedBankLabel = React.useMemo(() => {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
 		return matchedBank?.name ?? selectedMovementBankName ?? templateData?.bankName ?? null;
 	}, [banks, selectedBankId, selectedMovementBankName, templateData?.bankName]);
+	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
+	const selectedTagIconContainerClassName = isDarkMode
+		? 'border border-slate-800'
+		: 'border border-slate-200';
 
 	const screenTitle = 'Registro de Ganho';
 
@@ -1492,9 +1519,11 @@ export default function AddRegisterGainScreen() {
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categoria</Text>
 									{isTagSelectionLocked ? (
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
-											<Text className={`${bodyText} text-sm`}>
-												{selectedTagLabel ?? 'Categoria definida automaticamente'}
-											</Text>
+											<HStack className="items-center gap-3">
+												<Text className={`${bodyText} flex-1 text-sm`}>
+													{selectedTagLabel ?? 'Categoria definida automaticamente'}
+												</Text>
+											</HStack>
 										</View>
 									) : (
 										<Select
@@ -1503,6 +1532,15 @@ export default function AddRegisterGainScreen() {
 												setSelectedTagId(value);
 												const matchedTag = tags.find(tag => tag.id === value);
 												setSelectedMovementTagName(matchedTag?.name ?? null);
+												setSelectedMovementTagIcon(
+													matchedTag
+														? {
+															iconFamily: matchedTag.iconFamily ?? null,
+															iconName: matchedTag.iconName ?? null,
+															iconStyle: matchedTag.iconStyle ?? null,
+														}
+														: null,
+												);
 											}}
 											isDisabled={isTagSelectDisabled}
 										>
@@ -1526,7 +1564,7 @@ export default function AddRegisterGainScreen() {
 													hitSlop={8}
 													accessibilityRole="button"
 													accessibilityLabel="Adicionar nova categoria de ganho"
-													className={`${addTagButtonClassName} ${isAddTagButtonDisabled ? 'opacity-40' : ''}`}
+													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
 												>
 													<TagsIcon
 														size={18}

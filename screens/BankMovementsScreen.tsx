@@ -88,6 +88,8 @@ import {
 
 import { Info } from 'lucide-react-native';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconSelection } from '@/hooks/useTagIcons';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -359,6 +361,7 @@ export default function BankMovementsScreen() {
 
 	// Controla no nome da tag depois de buscado dentro do Firebase
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
+	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 
 	// Controla no nome do banco depois de buscado dentro do Firebase
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
@@ -721,6 +724,8 @@ export default function BankMovementsScreen() {
 
 		// Verifica se há uma movimentação selecionada e se ela possui tagId
 		if (!selectedMovement || !selectedMovement.tagId) {
+			setSelectedMovementTagName(null);
+			setSelectedMovementTagIcon(null);
 			return;
 		} else {
 			const fetchTagName = async () => {
@@ -734,15 +739,22 @@ export default function BankMovementsScreen() {
 						// Atualiza o nome da tag com o valor buscado se houver
 						// um sucesso na busca
 						setSelectedMovementTagName(tagResult.data.name);
+						setSelectedMovementTagIcon({
+							iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
+							iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
+							iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
+						});
 
 					} else {
 
 						setSelectedMovementTagName(null);
+						setSelectedMovementTagIcon(null);
 
 					}
 				} catch (error) {
 					console.error('Erro ao buscar dados da tag:', error);
 					setSelectedMovementTagName(null);
+					setSelectedMovementTagIcon(null);
 				};
 			};
 			void fetchTagName();
@@ -1955,16 +1967,24 @@ export default function BankMovementsScreen() {
 
 									<VStack space="xs">
 										<Text className={`${bodyText} text-sm`}>Tag selecionada:</Text>
-										<Input className={fieldContainerClassName} isDisabled>
-											<InputField
-												value={
-													selectedMovement && selectedMovement.tagId
+										<View className={`${fieldContainerClassName} px-3`}>
+											<HStack className="h-full items-center gap-3">
+												<View className="h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-amber-50 dark:border-slate-800 dark:bg-slate-900">
+													<TagIcon
+														iconFamily={selectedMovementTagIcon?.iconFamily}
+														iconName={selectedMovementTagIcon?.iconName}
+														iconStyle={selectedMovementTagIcon?.iconStyle}
+														size={15}
+														color={isDarkMode ? '#FCD34D' : '#D97706'}
+													/>
+												</View>
+												<Text className={`${bodyText} flex-1 text-sm`}>
+													{selectedMovement && selectedMovement.tagId
 														? `${selectedMovementTagName ?? selectedMovement.tagId}`
-														: 'Sem tag associada'
-												}
-												className={inputField}
-											/>
-										</Input>
+														: 'Sem tag associada'}
+												</Text>
+											</HStack>
+										</View>
 									</VStack>
 
 									<VStack space="xs">

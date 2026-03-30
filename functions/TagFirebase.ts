@@ -3,6 +3,7 @@
 
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
 interface AddTagParams {
 	tagName: string;
@@ -10,6 +11,9 @@ interface AddTagParams {
 	usageType: 'expense' | 'gain';
 	isMandatoryExpense?: boolean;
 	isMandatoryGain?: boolean;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
 }
 
 interface UpdateTagParams {
@@ -18,6 +22,9 @@ interface UpdateTagParams {
 	usageType?: 'expense' | 'gain';
 	isMandatoryExpense?: boolean;
 	isMandatoryGain?: boolean;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -29,6 +36,9 @@ export async function addTagFirebase({
 	usageType,
 	isMandatoryExpense = false,
 	isMandatoryGain = false,
+	iconFamily = null,
+	iconName = null,
+	iconStyle = null,
 }: AddTagParams) {
 	try {
 		const tagRef = doc(collection(db, 'tags'));
@@ -39,6 +49,9 @@ export async function addTagFirebase({
 			usageType,
 			isMandatoryExpense: usageType === 'expense' ? Boolean(isMandatoryExpense) : false,
 			isMandatoryGain: usageType === 'gain' ? Boolean(isMandatoryGain) : false,
+			iconFamily,
+			iconName,
+			iconStyle,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 		});
@@ -56,6 +69,9 @@ export async function updateTagFirebase({
 	usageType,
 	isMandatoryExpense,
 	isMandatoryGain,
+	iconFamily,
+	iconName,
+	iconStyle,
 }: UpdateTagParams) {
 	try {
 		const tagRef = doc(db, 'tags', tagId);
@@ -85,6 +101,12 @@ export async function updateTagFirebase({
 		if (typeof isMandatoryGain === 'boolean') {
 			const isExpenseTag = usageType === 'expense';
 			updates.isMandatoryGain = isExpenseTag ? false : isMandatoryGain;
+		}
+
+		if (typeof iconFamily === 'string' && typeof iconName === 'string') {
+			updates.iconFamily = iconFamily;
+			updates.iconName = iconName;
+			updates.iconStyle = typeof iconStyle === 'string' ? iconStyle : null;
 		}
 
 		await setDoc(tagRef, updates, { merge: true });

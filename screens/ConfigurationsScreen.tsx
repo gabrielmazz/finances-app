@@ -68,10 +68,13 @@ import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField, InputIcon } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
+import { HStack } from '@/components/ui/hstack';
 import { Box } from '@/components/ui/box';
 import { Switch } from '@/components/ui/switch';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -185,6 +188,9 @@ type PendingAction =
 				usageType?: 'expense' | 'gain';
 				isMandatoryExpense?: boolean;
 				isMandatoryGain?: boolean;
+				iconFamily?: TagIconFamily | null;
+				iconName?: string | null;
+				iconStyle?: TagIconStyle | null;
 			};
 		};
 	};
@@ -371,6 +377,9 @@ export default function ConfigurationsScreen() {
 			usageType?: 'expense' | 'gain';
 			isMandatoryExpense?: boolean;
 			isMandatoryGain?: boolean;
+			iconFamily?: TagIconFamily | null;
+			iconName?: string | null;
+			iconStyle?: TagIconStyle | null;
 		}>
 	>([]);
 	const [tagFilter, setTagFilter] = React.useState<
@@ -576,6 +585,15 @@ const handleToggleDarkMode = React.useCallback(
 			const encodedUsage = pendingAction.payload.tag.usageType
 				? encodeURIComponent(pendingAction.payload.tag.usageType)
 				: undefined;
+			const encodedIconFamily = pendingAction.payload.tag.iconFamily
+				? encodeURIComponent(pendingAction.payload.tag.iconFamily)
+				: undefined;
+			const encodedIconName = pendingAction.payload.tag.iconName
+				? encodeURIComponent(pendingAction.payload.tag.iconName)
+				: undefined;
+			const encodedIconStyle = pendingAction.payload.tag.iconStyle
+				? encodeURIComponent(pendingAction.payload.tag.iconStyle)
+				: undefined;
 			const mandatoryExpenseFlag = pendingAction.payload.tag.isMandatoryExpense ? 'true' : 'false';
 			const mandatoryGainFlag = pendingAction.payload.tag.isMandatoryGain ? 'true' : 'false';
 
@@ -585,6 +603,9 @@ const handleToggleDarkMode = React.useCallback(
 					tagId: pendingAction.payload.tag.id,
 					tagName: encodedName,
 					...(encodedUsage ? { usageType: encodedUsage } : {}),
+					...(encodedIconFamily ? { tagIconFamily: encodedIconFamily } : {}),
+					...(encodedIconName ? { tagIconName: encodedIconName } : {}),
+					...(encodedIconStyle ? { tagIconStyle: encodedIconStyle } : {}),
 					isMandatoryExpense: mandatoryExpenseFlag,
 					isMandatoryGain: mandatoryGainFlag,
 				},
@@ -884,25 +905,38 @@ const handleToggleDarkMode = React.useCallback(
 						: filteredTags.map(tag =>
 								renderCardContainer(
 									<>
-										<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
-											Tag cadastrada
-										</Text>
-										<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
-											{tag.name}
-										</Text>
-										<Text className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-											Tipo: {getTagTypeLabel(tag)}
-										</Text>
-										{tag.isMandatoryExpense && (
-											<Text className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-												Despesa obrigatória
-											</Text>
-										)}
-										{tag.isMandatoryGain && (
-											<Text className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-												Ganho obrigatório
-											</Text>
-										)}
+										<HStack className="items-start gap-3">
+											<View className="h-11 w-11 items-center justify-center rounded-2xl border border-outline-200 bg-background-50 dark:border-slate-700 dark:bg-slate-950">
+												<TagIcon
+													iconFamily={tag.iconFamily}
+													iconName={tag.iconName}
+													iconStyle={tag.iconStyle}
+													size={20}
+													color={isDarkMode ? '#FCD34D' : '#D97706'}
+												/>
+											</View>
+											<VStack className="flex-1">
+												<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
+													Tag cadastrada
+												</Text>
+												<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
+													{tag.name}
+												</Text>
+												<Text className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+													Tipo: {getTagTypeLabel(tag)}
+												</Text>
+												{tag.isMandatoryExpense && (
+													<Text className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+														Despesa obrigatória
+													</Text>
+												)}
+												{tag.isMandatoryGain && (
+													<Text className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+														Ganho obrigatório
+													</Text>
+												)}
+											</VStack>
+										</HStack>
 										<View className="flex-row justify-end items-center gap-2 mt-4">
 											<Button
 												size="xl"
@@ -921,6 +955,9 @@ const handleToggleDarkMode = React.useCallback(
 																		: undefined,
 																isMandatoryExpense: Boolean(tag.isMandatoryExpense),
 																isMandatoryGain: Boolean(tag.isMandatoryGain),
+																iconFamily: tag.iconFamily ?? null,
+																iconName: tag.iconName ?? null,
+																iconStyle: tag.iconStyle ?? null,
 															},
 														},
 													})
@@ -1009,6 +1046,7 @@ const handleToggleDarkMode = React.useCallback(
 		filteredTags,
 		relatedUserData,
 		isLoadingRelatedUsers,
+		isDarkMode,
 		setPendingAction,
 	]);
 
@@ -1098,6 +1136,9 @@ const handleToggleDarkMode = React.useCallback(
 									: undefined,
 							isMandatoryExpense: Boolean(tag?.isMandatoryExpense),
 							isMandatoryGain: Boolean(tag?.isMandatoryGain),
+							iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
+							iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
+							iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 						}));
 
 						setTagData(formattedTags);
