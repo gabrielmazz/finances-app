@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { useAppTheme } from '@/contexts/ThemeContext';
 
@@ -172,6 +173,30 @@ export default function AddRegisterBankScreen() {
             return;
         }
 
+        if (trimmedName.length < 2) {
+            showFloatingAlert({
+                message: 'Informe um nome de banco com pelo menos 2 caracteres.',
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+            return;
+        }
+
+        if (
+            isEditing &&
+            trimmedName === initialBankName.trim() &&
+            selectedColor === initialColorHex
+        ) {
+            showFloatingAlert({
+                message: 'Nenhuma alteração foi identificada para este banco.',
+                action: 'info',
+                position: 'bottom',
+                offset: 40,
+            });
+            return;
+        }
+
         const normalizedColor = selectedColor ?? null;
 
         setIsSubmitting(true);
@@ -198,14 +223,15 @@ export default function AddRegisterBankScreen() {
                 });
 
                 if (result.success) {
-                    showFloatingAlert({
-                        message: 'Banco atualizado com sucesso!',
-                        action: 'success',
-                        position: 'bottom',
-                        offset: 40,
+                    showNotifierAlert({
+                        title: 'Banco atualizado',
+                        description: `O banco ${trimmedName} foi atualizado com sucesso.`,
+                        type: 'success',
+                        isDarkMode,
+                        duration: 4000,
                     });
                     Keyboard.dismiss();
-                    router.back();
+                    router.replace('/home?tab=0');
                 } else {
                     showFloatingAlert({
                         message: 'Erro ao atualizar banco. Tente novamente mais tarde.',
@@ -221,16 +247,17 @@ export default function AddRegisterBankScreen() {
             const result = await addBankFirebase({ bankName: trimmedName, personId, colorHex: normalizedColor ?? null });
 
             if (result.success) {
-                showFloatingAlert({
-                    message: 'Banco registrado com sucesso!',
-                    action: 'success',
-                    position: 'bottom',
-                    offset: 40,
+                showNotifierAlert({
+                    title: 'Banco registrado',
+                    description: `O banco ${trimmedName} foi registrado com sucesso.`,
+                    type: 'success',
+                    isDarkMode,
+                    duration: 4000,
                 });
                 setNameBank('');
                 setSelectedColor(null);
                 Keyboard.dismiss();
-                router.back();
+                router.replace('/home?tab=0');
             } else {
                 showFloatingAlert({
                     message: 'Erro ao registrar banco. Tente novamente mais tarde.',
@@ -250,7 +277,7 @@ export default function AddRegisterBankScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [nameBank, selectedColor, isEditing, editingBankId]);
+    }, [nameBank, selectedColor, isEditing, initialBankName, initialColorHex, editingBankId, isDarkMode]);
 
     const getInputRef = React.useCallback(
         (key: FocusableInputKey) => {

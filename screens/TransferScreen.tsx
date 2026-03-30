@@ -37,6 +37,7 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
 import Navigator from '@/components/uiverse/navigator';
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { HStack } from '@/components/ui/hstack';
 
 import {
@@ -52,7 +53,6 @@ import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFireb
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { showInAppNotification } from '@/utils/showInAppNotification';
 
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
 
@@ -175,14 +175,21 @@ export default function TransferScreen() {
 		[],
 	);
 
+	const showScreenAlert = React.useCallback(
+		(message: string, action: 'success' | 'error' | 'warning' | 'info' | 'muted' = 'error') => {
+			showFloatingAlert({
+				message,
+				action,
+				position: 'bottom',
+				offset: 40,
+			});
+		},
+		[],
+	);
+
 	const showUnavailableBalanceNotification = React.useCallback(() => {
-		showNotifierAlert({
-			title: 'Saldo indisponível',
-			description: 'O banco selecionado não tem saldo suficiente para esta transferência.',
-			type: 'error',
-			isDarkMode,
-		});
-	}, [isDarkMode]);
+		showScreenAlert('O banco selecionado não tem saldo suficiente para esta transferência.', 'error');
+	}, [showScreenAlert]);
 
 	const showSuccessfulTransferNotification = React.useCallback(() => {
 		showNotifierAlert({
@@ -309,11 +316,7 @@ export default function TransferScreen() {
 		try {
 			const currentUser = auth.currentUser;
 			if (!currentUser) {
-				showInAppNotification({
-					title: 'Sessão indisponível',
-					description: 'Nenhum usuário autenticado foi identificado.',
-					type: 'error',
-				});
+				showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 				return;
 			}
 
@@ -406,16 +409,12 @@ export default function TransferScreen() {
 			setOriginBalanceInCents(currentBalance);
 		} catch (error) {
 			console.error('Erro ao carregar saldo do banco:', error);
-			showInAppNotification({
-				title: 'Falha ao carregar saldo',
-				description: 'Não foi possível carregar o saldo atual do banco de origem.',
-				type: 'error',
-			});
+			showScreenAlert('Não foi possível carregar o saldo atual do banco de origem.', 'error');
 			setOriginBalanceInCents(null);
 		} finally {
 			setIsLoadingBalance(false);
 		}
-	}, []);
+	}, [showScreenAlert]);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -425,11 +424,7 @@ export default function TransferScreen() {
 			try {
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showInAppNotification({
-						title: 'Sessão indisponível',
-						description: 'Nenhum usuário autenticado foi identificado.',
-						type: 'error',
-					});
+					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 					return;
 				}
 
@@ -448,20 +443,12 @@ export default function TransferScreen() {
 					}));
 					setBanks(formattedBanks);
 				} else {
-					showInAppNotification({
-						title: 'Falha ao carregar bancos',
-						description: 'Não foi possível carregar os bancos disponíveis.',
-						type: 'error',
-					});
+					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
 				}
 			} catch (error) {
 				console.error('Erro ao carregar bancos para transferência:', error);
 				if (isMounted) {
-					showInAppNotification({
-						title: 'Erro inesperado',
-						description: 'Erro inesperado ao carregar bancos.',
-						type: 'error',
-					});
+					showScreenAlert('Erro inesperado ao carregar bancos.', 'error');
 				}
 			} finally {
 				if (isMounted) {
@@ -475,7 +462,7 @@ export default function TransferScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, []);
+	}, [showScreenAlert]);
 
 	React.useEffect(() => {
 		if (!selectedSourceBankId) {
@@ -560,47 +547,27 @@ export default function TransferScreen() {
 	const handleSubmit = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showInAppNotification({
-				title: 'Sessão indisponível',
-				description: 'Nenhum usuário autenticado foi identificado.',
-				type: 'error',
-			});
+			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 			return;
 		}
 
 		if (!selectedSourceBankId) {
-			showInAppNotification({
-				title: 'Banco obrigatório',
-				description: 'Selecione o banco de origem.',
-				type: 'error',
-			});
+			showScreenAlert('Selecione o banco de origem.', 'error');
 			return;
 		}
 
 		if (!selectedTargetBankId) {
-			showInAppNotification({
-				title: 'Banco obrigatório',
-				description: 'Selecione o banco de destino.',
-				type: 'error',
-			});
+			showScreenAlert('Selecione o banco de destino.', 'error');
 			return;
 		}
 
 		if (selectedSourceBankId === selectedTargetBankId) {
-			showInAppNotification({
-				title: 'Bancos inválidos',
-				description: 'Escolha bancos diferentes para realizar a transferência.',
-				type: 'warn',
-			});
+			showScreenAlert('Escolha bancos diferentes para realizar a transferência.', 'warning');
 			return;
 		}
 
 		if (transferValueInCents === null || transferValueInCents <= 0) {
-			showInAppNotification({
-				title: 'Valor obrigatório',
-				description: 'Informe o valor a ser transferido.',
-				type: 'error',
-			});
+			showScreenAlert('Informe o valor a ser transferido.', 'error');
 			return;
 		}
 
@@ -614,20 +581,15 @@ export default function TransferScreen() {
 				return;
 			}
 		} else {
-			showInAppNotification({
-				title: 'Saldo não encontrado',
-				description: 'Registre ou carregue o saldo do banco de origem antes de transferir.',
-				type: 'warn',
-			});
+			showScreenAlert(
+				'Registre ou carregue o saldo do banco de origem antes de transferir.',
+				'warning',
+			);
 			return;
 		}
 
 		if (!parsedTransferDate) {
-			showInAppNotification({
-				title: 'Data inválida',
-				description: 'Informe uma data válida (DD/MM/AAAA).',
-				type: 'error',
-			});
+			showScreenAlert('Informe uma data válida (DD/MM/AAAA).', 'error');
 			return;
 		}
 
@@ -652,11 +614,7 @@ export default function TransferScreen() {
 			});
 
 			if (!result.success) {
-				showInAppNotification({
-					title: 'Falha ao registrar transferência',
-					description: 'Não foi possível registrar a transferência. Tente novamente.',
-					type: 'error',
-				});
+				showScreenAlert('Não foi possível registrar a transferência. Tente novamente.', 'error');
 				return;
 			}
 
@@ -669,17 +627,14 @@ export default function TransferScreen() {
 			});
 		} catch (error) {
 			console.error('Erro ao registrar transferência:', error);
-			showInAppNotification({
-				title: 'Erro inesperado',
-				description: 'Erro inesperado ao registrar a transferência.',
-				type: 'error',
-			});
+			showScreenAlert('Erro inesperado ao registrar a transferência.', 'error');
 		} finally {
 			setIsSubmitting(false);
 		}
 	}, [
 		banks,
 		originBalanceInCents,
+		showScreenAlert,
 		showSuccessfulTransferNotification,
 		showUnavailableBalanceNotification,
 		selectedSourceBankId,
@@ -702,6 +657,8 @@ export default function TransferScreen() {
 			/>
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<FloatingAlertViewport />
+
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

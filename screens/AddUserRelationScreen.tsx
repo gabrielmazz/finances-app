@@ -21,6 +21,7 @@ import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
@@ -142,17 +143,17 @@ export default function AddUserRelationScreen() {
 
 			if (result.success) {
 
-				showFloatingAlert({
-					message: 'Relação atualizada com sucesso!',
-					action: 'success',
-					position: 'bottom',
-					offset: 40,
-					persistAcrossScreens: true,
+				showNotifierAlert({
+					title: 'Usuário vinculado',
+					description: 'A relação entre os usuários foi registrada com sucesso.',
+					type: 'success',
+					isDarkMode,
+					duration: 4000,
 				});
 
 				setRelatedUserId('');
 				Keyboard.dismiss();
-				router.back();
+				router.replace('/home?tab=0');
 
 			} else {
 
@@ -180,7 +181,7 @@ export default function AddUserRelationScreen() {
 
 			setIsSubmitting(false);
 		}
-	}, [relatedUserId]);
+	}, [relatedUserId, isDarkMode]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {

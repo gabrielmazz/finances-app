@@ -35,6 +35,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import Navigator from '@/components/uiverse/navigator';
+import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 
 import {
 	addCashRescueFirebase,
@@ -49,7 +50,6 @@ import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFireb
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { showInAppNotification } from '@/utils/showInAppNotification';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -155,14 +155,21 @@ export default function AddRescueScreen() {
 		[],
 	);
 
+	const showScreenAlert = React.useCallback(
+		(message: string, action: 'success' | 'error' | 'warning' | 'info' | 'muted' = 'error') => {
+			showFloatingAlert({
+				message,
+				action,
+				position: 'bottom',
+				offset: 40,
+			});
+		},
+		[],
+	);
+
 	const showUnavailableBalanceNotification = React.useCallback(() => {
-		showNotifierAlert({
-			title: 'Saldo indisponível',
-			description: 'O banco selecionado não tem saldo suficiente para este saque.',
-			type: 'error',
-			isDarkMode,
-		});
-	}, [isDarkMode]);
+		showScreenAlert('O banco selecionado não tem saldo suficiente para este saque.', 'error');
+	}, [showScreenAlert]);
 
 	const showSuccessfulRescueNotification = React.useCallback(() => {
 		showNotifierAlert({
@@ -308,11 +315,7 @@ export default function AddRescueScreen() {
 
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showInAppNotification({
-						title: 'Sessão indisponível',
-						description: 'Nenhum usuário autenticado foi identificado.',
-						type: 'error',
-					});
+					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 					return;
 				}
 
@@ -399,11 +402,7 @@ export default function AddRescueScreen() {
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {
-					showInAppNotification({
-						title: 'Falha ao carregar saldo',
-						description: 'Não foi possível carregar o saldo atual do banco.',
-						type: 'error',
-					});
+					showScreenAlert('Não foi possível carregar o saldo atual do banco.', 'error');
 				}
 				setCurrentBankBalanceInCents(null);
 			} finally {
@@ -418,7 +417,7 @@ export default function AddRescueScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [selectedBankId]);
+	}, [selectedBankId, showScreenAlert]);
 
 	const hasInsufficientBalance =
 		typeof currentBankBalanceInCents === 'number' &&
@@ -453,7 +452,7 @@ export default function AddRescueScreen() {
 
 	const handleDateSelect = React.useCallback((formatted: string) => {
 		setRescueDate(formatted);
-	}, []);
+	}, [showScreenAlert]);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -463,11 +462,7 @@ export default function AddRescueScreen() {
 			try {
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showInAppNotification({
-						title: 'Sessão indisponível',
-						description: 'Nenhum usuário autenticado foi identificado.',
-						type: 'error',
-					});
+					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 					return;
 				}
 
@@ -486,20 +481,12 @@ export default function AddRescueScreen() {
 					}));
 					setBanks(formattedBanks);
 				} else {
-					showInAppNotification({
-						title: 'Falha ao carregar bancos',
-						description: 'Não foi possível carregar os bancos disponíveis.',
-						type: 'error',
-					});
+					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
 				}
 			} catch (error) {
 				console.error('Erro ao carregar bancos para saque:', error);
 				if (isMounted) {
-					showInAppNotification({
-						title: 'Erro inesperado',
-						description: 'Erro inesperado ao carregar bancos.',
-						type: 'error',
-					});
+					showScreenAlert('Erro inesperado ao carregar bancos.', 'error');
 				}
 			} finally {
 				if (isMounted) {
@@ -534,20 +521,12 @@ export default function AddRescueScreen() {
 
 	const handleSubmit = React.useCallback(async () => {
 		if (!selectedBankId) {
-			showInAppNotification({
-				title: 'Banco obrigatório',
-				description: 'Selecione o banco de origem do saque.',
-				type: 'error',
-			});
+			showScreenAlert('Selecione o banco de origem do saque.', 'error');
 			return;
 		}
 
 		if (rescueValueInCents === null || rescueValueInCents === 0) {
-			showInAppNotification({
-				title: 'Valor obrigatório',
-				description: 'Informe o valor sacado.',
-				type: 'error',
-			});
+			showScreenAlert('Informe o valor sacado.', 'error');
 			return;
 		}
 
@@ -562,30 +541,21 @@ export default function AddRescueScreen() {
 				return;
 			}
 		} else {
-			showInAppNotification({
-				title: 'Saldo não encontrado',
-				description: 'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
-				type: 'warn',
-			});
+			showScreenAlert(
+				'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
+				'warning',
+			);
 			return;
 		}
 
 		if (!parsedRescueDate) {
-			showInAppNotification({
-				title: 'Data inválida',
-				description: 'Informe uma data válida (DD/MM/AAAA).',
-				type: 'error',
-			});
+			showScreenAlert('Informe uma data válida (DD/MM/AAAA).', 'error');
 			return;
 		}
 
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showInAppNotification({
-				title: 'Sessão indisponível',
-				description: 'Nenhum usuário autenticado foi identificado.',
-				type: 'error',
-			});
+			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 			return;
 		}
 
@@ -607,11 +577,7 @@ export default function AddRescueScreen() {
 			});
 
 			if (!result.success) {
-				showInAppNotification({
-					title: 'Falha ao registrar saque',
-					description: 'Não foi possível registrar o saque. Tente novamente.',
-					type: 'error',
-				});
+				showScreenAlert('Não foi possível registrar o saque. Tente novamente.', 'error');
 				return;
 			}
 
@@ -624,11 +590,7 @@ export default function AddRescueScreen() {
 			});
 		} catch (error) {
 			console.error('Erro ao registrar saque em dinheiro:', error);
-			showInAppNotification({
-				title: 'Erro inesperado',
-				description: 'Erro inesperado ao registrar o saque.',
-				type: 'error',
-			});
+			showScreenAlert('Erro inesperado ao registrar o saque.', 'error');
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -639,6 +601,7 @@ export default function AddRescueScreen() {
 		parsedRescueDate,
 		rescueDescription,
 		banks,
+		showScreenAlert,
 		showUnavailableBalanceNotification,
 		showSuccessfulRescueNotification,
 	]);
@@ -656,6 +619,8 @@ export default function AddRescueScreen() {
 			/>
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<FloatingAlertViewport />
+
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

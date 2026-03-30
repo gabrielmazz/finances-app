@@ -17,7 +17,7 @@ import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { Button, ButtonText } from '@/components/ui/button';
+import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 
 import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
@@ -25,6 +25,7 @@ import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
 import { router } from 'expo-router';
 import Navigator from '@/components/uiverse/navigator';
@@ -34,6 +35,37 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
+
+const resolveRegisterUserErrorMessage = (error: unknown) => {
+	const errorCode =
+		typeof error === 'object' && error !== null && 'code' in error
+			? String((error as { code?: unknown }).code ?? '')
+			: '';
+
+	switch (errorCode) {
+		case 'auth/email-already-in-use':
+			return 'Já existe um usuário cadastrado com este e-mail.';
+		case 'auth/invalid-email':
+			return 'Informe um endereço de e-mail válido.';
+		case 'auth/weak-password':
+			return 'A senha deve ter pelo menos 6 caracteres.';
+		case 'auth/network-request-failed':
+			return 'Falha de conexão ao registrar o usuário. Tente novamente.';
+		default:
+			if (typeof error === 'object' && error !== null && 'message' in error) {
+				const message = (error as { message?: unknown }).message;
+				if (typeof message === 'string' && message.trim().length > 0) {
+					return message;
+				}
+			}
+
+			if (typeof error === 'string' && error.trim().length > 0) {
+				return error;
+			}
+
+			return 'Não foi possível registrar o usuário. Tente novamente.';
+	}
+};
 
 export default function AddRegisterUserScreen() {
 	const { isDarkMode } = useAppTheme();
@@ -68,6 +100,7 @@ export default function AddRegisterUserScreen() {
     const [name, setName] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
     const scrollViewRef = React.useRef<ScrollView | null>(null);
     const nameInputRef = React.useRef<TextInput | null>(null);
     const emailInputRef = React.useRef<TextInput | null>(null);
@@ -94,36 +127,89 @@ export default function AddRegisterUserScreen() {
         Keyboard.dismiss();
 
         const trimmedName = name.trim();
-        const result = await registerUserFirebase({
-            name: trimmedName.length > 0 ? trimmedName : undefined,
-            email,
-            password,
-        });
+        const trimmedEmail = email.trim();
 
-        if (result.success) {
-
+        if (!trimmedEmail) {
             showFloatingAlert({
-                message: 'Usuário registrado com sucesso!',
-                action: 'success',
-                position: 'bottom',
-                offset: 40,
-            });
-
-            // Voltar para a tela de configurações após o registro bem-sucedido
-            setName('');
-            setEmail('');
-            setPassword('');
-            router.back();
-
-        } else {
-
-            showFloatingAlert({
-                message: 'Erro ao registrar usuário: ' + result.error,
+                message: 'Informe o e-mail do usuário.',
                 action: 'error',
                 position: 'bottom',
                 offset: 40,
             });
+            return;
+        }
 
+        if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
+            showFloatingAlert({
+                message: 'Informe um endereço de e-mail válido.',
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+            return;
+        }
+
+        if (!password) {
+            showFloatingAlert({
+                message: 'Informe a senha do novo usuário.',
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+            return;
+        }
+
+        if (password.length < 6) {
+            showFloatingAlert({
+                message: 'A senha deve ter pelo menos 6 caracteres.',
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+            return;
+        }
+
+        setIsSubmitting(true);
+
+        try {
+            const result = await registerUserFirebase({
+                name: trimmedName.length > 0 ? trimmedName : undefined,
+                email: trimmedEmail,
+                password,
+            });
+
+            if (result.success) {
+                showNotifierAlert({
+                    title: 'Usuário registrado',
+                    description: `O usuário ${trimmedName || trimmedEmail} foi registrado com sucesso.`,
+                    type: 'success',
+                    isDarkMode,
+                    duration: 4000,
+                });
+
+                setName('');
+                setEmail('');
+                setPassword('');
+                router.replace('/home?tab=0');
+                return;
+            }
+
+            showFloatingAlert({
+                message: resolveRegisterUserErrorMessage(result.error),
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+        } catch (error) {
+            console.error('Erro ao registrar usuário:', error);
+            showFloatingAlert({
+                message: 'Erro inesperado ao registrar o usuário.',
+                action: 'error',
+                position: 'bottom',
+                offset: 40,
+            });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -327,9 +413,9 @@ export default function AddRegisterUserScreen() {
                             <Button
                                 className={submitButtonClassName}
                                 onPress={registerUser}
-                                isDisabled={email === '' || password === ''}
+                                isDisabled={isSubmitting || email.trim() === '' || password === ''}
                             >
-                                <ButtonText>Registrar Usuário</ButtonText>
+                                {isSubmitting ? <ButtonSpinner /> : <ButtonText>Registrar Usuário</ButtonText>}
                             </Button>
                         </VStack>
                     </ScrollView>

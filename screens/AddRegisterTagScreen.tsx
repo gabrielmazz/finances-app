@@ -31,6 +31,7 @@ import {
 import { CheckIcon } from '@/components/ui/icon';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { Switch } from '@/components/ui/switch';
 
@@ -255,7 +256,6 @@ export default function AddRegisterTagScreen() {
 		}
 
 		setIsSubmitting(true);
-		let shouldResetForm = false;
 
 		try {
 
@@ -282,14 +282,19 @@ export default function AddRegisterTagScreen() {
 				});
 
 				if (result.success) {
-					showFloatingAlert({
-						message: 'Tag atualizada com sucesso!',
-						action: 'success',
-						position: 'bottom',
-						offset: 40,
+					showNotifierAlert({
+						title: 'Tag atualizada',
+						description: `A tag "${trimmedName}" foi atualizada com sucesso.`,
+						type: 'success',
+						isDarkMode,
+						duration: 4000,
 					});
 					Keyboard.dismiss();
-					router.back();
+					if (shouldReturnAfterCreate) {
+						router.back();
+					} else {
+						router.replace('/home?tab=0');
+					}
 				} else {
 					showFloatingAlert({
 						message: 'Erro ao atualizar tag. Tente novamente mais tarde.',
@@ -311,11 +316,12 @@ export default function AddRegisterTagScreen() {
 			});
 
 			if (result.success) {
-				showFloatingAlert({
-					message: 'Tag registrada com sucesso!',
-					action: 'success',
-					position: 'bottom',
-					offset: 40,
+				showNotifierAlert({
+					title: 'Tag registrada',
+					description: `A tag "${trimmedName}" foi registrada com sucesso.`,
+					type: 'success',
+					isDarkMode,
+					duration: 4000,
 				});
 				Keyboard.dismiss();
 
@@ -329,7 +335,7 @@ export default function AddRegisterTagScreen() {
 					return;
 				}
 
-				shouldResetForm = true;
+				router.replace('/home?tab=0');
 			} else {
 				showFloatingAlert({
 					message: 'Erro ao registrar tag. Tente novamente mais tarde.',
@@ -348,16 +354,9 @@ export default function AddRegisterTagScreen() {
 			});
 		} finally {
 			setIsSubmitting(false);
-
-			if (shouldResetForm) {
-				setTagName('');
-				setIsExpenseTag(false);
-				setIsGainTag(false);
-				setIsMandatoryExpense(false);
-				setIsMandatoryGain(false);
-			}
 		}
 	}, [
+		isDarkMode,
 		editingTagId,
 		isExpenseTag,
 		isGainTag,
