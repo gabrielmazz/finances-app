@@ -60,6 +60,8 @@ import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCr
 
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 
@@ -69,6 +71,9 @@ type OptionItem = {
 	id: string;
 	name: string;
 	usageType?: 'expense' | 'gain';
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
 };
 
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'expense-explanation';
@@ -544,6 +549,9 @@ export default function AddRegisterExpensesScreen() {
 										? tag.name.trim()
 										: 'Tag sem nome',
 								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+								iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
+								iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
+								iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 							}));
 						const pendingCreatedTag = peekPendingCreatedTag();
 						const matchingPendingTag =
@@ -964,6 +972,9 @@ export default function AddRegisterExpensesScreen() {
 
 		return null;
 	}, [selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
+	const selectedTagOption = React.useMemo(() => {
+		return tags.find(tag => tag.id === selectedTagId) ?? null;
+	}, [selectedTagId, tags]);
 
 	const selectedBankLabel = React.useMemo(() => {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
@@ -987,6 +998,10 @@ export default function AddRegisterExpensesScreen() {
 			: banks.length === 0
 				? 'Cadastre um banco para vincular esta despesa.'
 				: 'Selecione onde essa saída foi lançada.';
+	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
+	const selectedTagIconContainerClassName = isDarkMode
+		? 'border border-slate-800 bg-slate-900'
+		: 'border border-slate-200';
 
 	return (
 		<SafeAreaView
@@ -1265,9 +1280,22 @@ export default function AddRegisterExpensesScreen() {
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categoria</Text>
 									{isTagSelectionLocked ? (
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
-											<Text className={`${bodyText} text-sm`}>
-												{selectedTagLabel ?? 'Categoria definida automaticamente'}
-											</Text>
+											<HStack className="items-center gap-3">
+												<View
+													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+												>
+													<TagIcon
+														iconFamily={selectedTagOption?.iconFamily}
+														iconName={selectedTagOption?.iconName}
+														iconStyle={selectedTagOption?.iconStyle}
+														size={18}
+														color={selectedTagIconColor}
+													/>
+												</View>
+												<Text className={`${bodyText} flex-1 text-sm`}>
+													{selectedTagLabel ?? 'Categoria definida automaticamente'}
+												</Text>
+											</HStack>
 										</View>
 									) : (
 										<Select
@@ -1295,7 +1323,7 @@ export default function AddRegisterExpensesScreen() {
 													hitSlop={8}
 													accessibilityRole="button"
 													accessibilityLabel="Adicionar nova categoria de despesa"
-													className={`${addTagButtonClassName} ${isAddTagButtonDisabled ? 'opacity-40' : ''}`}
+													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
 												>
 													<TagsIcon
 														size={18}

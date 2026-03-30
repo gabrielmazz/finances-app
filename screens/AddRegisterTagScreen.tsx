@@ -14,6 +14,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 
+import {
+	Actionsheet,
+	ActionsheetBackdrop,
+	ActionsheetContent,
+	ActionsheetDragIndicator,
+	ActionsheetDragIndicatorWrapper,
+	ActionsheetItem,
+	ActionsheetItemText,
+	ActionsheetScrollView,
+} from '@/components/ui/actionsheet';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
@@ -50,6 +60,7 @@ import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
 
 type FocusableInputKey = 'tag-name';
 type UsageTypeRadioValue = 'expense' | 'gain';
@@ -74,6 +85,7 @@ export default function AddRegisterTagScreen() {
 		switchRadioLabelClassName,
 		infoCardStyle,
 	} = useScreenStyles();
+	const { iconOptions, defaultTagIcon, resolveTagIcon, serializeTagIcon } = useTagIcons();
 
 	const [tagName, setTagName] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -81,6 +93,8 @@ export default function AddRegisterTagScreen() {
 	const [isGainTag, setIsGainTag] = React.useState(false);
 	const [isMandatoryExpense, setIsMandatoryExpense] = React.useState(false);
 	const [isMandatoryGain, setIsMandatoryGain] = React.useState(false);
+	const [selectedTagIcon, setSelectedTagIcon] = React.useState(defaultTagIcon);
+	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
@@ -95,6 +109,9 @@ export default function AddRegisterTagScreen() {
 		isMandatoryGain?: string | string[];
 		returnAfterCreate?: string | string[];
 		lockUsageType?: string | string[];
+		tagIconFamily?: string | string[];
+		tagIconName?: string | string[];
+		tagIconStyle?: string | string[];
 	}>();
 
 	const editingTagId = React.useMemo(() => {
@@ -162,6 +179,44 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1';
 	}, [params.isMandatoryGain]);
+	const initialTagIconFamily = React.useMemo(() => {
+		const value = Array.isArray(params.tagIconFamily) ? params.tagIconFamily[0] : params.tagIconFamily;
+		if (!value) {
+			return null;
+		}
+
+		try {
+			return decodeURIComponent(value);
+		} catch {
+			return value;
+		}
+	}, [params.tagIconFamily]);
+
+	const initialTagIconName = React.useMemo(() => {
+		const value = Array.isArray(params.tagIconName) ? params.tagIconName[0] : params.tagIconName;
+		if (!value) {
+			return null;
+		}
+
+		try {
+			return decodeURIComponent(value);
+		} catch {
+			return value;
+		}
+	}, [params.tagIconName]);
+
+	const initialTagIconStyle = React.useMemo(() => {
+		const value = Array.isArray(params.tagIconStyle) ? params.tagIconStyle[0] : params.tagIconStyle;
+		if (!value) {
+			return null;
+		}
+
+		try {
+			return decodeURIComponent(value);
+		} catch {
+			return value;
+		}
+	}, [params.tagIconStyle]);
 	const shouldReturnAfterCreate = React.useMemo(() => {
 		const value = Array.isArray(params.returnAfterCreate)
 			? params.returnAfterCreate[0]
@@ -196,6 +251,13 @@ export default function AddRegisterTagScreen() {
 
 		hasHydratedInitialParamsRef.current = true;
 		setTagName(initialTagName);
+		setSelectedTagIcon(
+			resolveTagIcon({
+				iconFamily: initialTagIconFamily as any,
+				iconName: initialTagIconName,
+				iconStyle: initialTagIconStyle as any,
+			}),
+		);
 		if (initialUsageType === 'expense') {
 			setIsExpenseTag(true);
 			setIsGainTag(false);
@@ -212,7 +274,16 @@ export default function AddRegisterTagScreen() {
 			setIsMandatoryExpense(false);
 			setIsMandatoryGain(false);
 		}
-	}, [initialTagName, initialUsageType, initialIsMandatoryExpense, initialIsMandatoryGain]);
+	}, [
+		initialTagName,
+		initialUsageType,
+		initialIsMandatoryExpense,
+		initialIsMandatoryGain,
+		initialTagIconFamily,
+		initialTagIconName,
+		initialTagIconStyle,
+		resolveTagIcon,
+	]);
 
 	const handleUsageSelection = React.useCallback((nextValue: string) => {
 		if (isUsageSelectionLocked) {
@@ -253,8 +324,18 @@ export default function AddRegisterTagScreen() {
 		[selectedUsageType],
 	);
 
+	const handleCloseTagIconSheet = React.useCallback(() => {
+		setIsTagIconSheetOpen(false);
+	}, []);
+
+	const handleSelectTagIcon = React.useCallback((iconOption: (typeof iconOptions)[number]) => {
+		setSelectedTagIcon(iconOption);
+		setIsTagIconSheetOpen(false);
+	}, []);
+
 	const registerTag = React.useCallback(async () => {
 		const trimmedName = tagName.trim();
+		const persistedTagIcon = serializeTagIcon(selectedTagIcon);
 
 		if (!trimmedName) {
 			showNotifierAlert({
@@ -303,6 +384,7 @@ export default function AddRegisterTagScreen() {
 					usageType: selectedUsageType,
 					isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
 					isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
+					...persistedTagIcon,
 				});
 
 				if (result.success) {
@@ -338,6 +420,7 @@ export default function AddRegisterTagScreen() {
 				usageType: selectedUsageType,
 				isMandatoryExpense: selectedUsageType === 'expense' ? isMandatoryExpense : false,
 				isMandatoryGain: selectedUsageType === 'gain' ? isMandatoryGain : false,
+				...persistedTagIcon,
 			});
 
 			if (result.success) {
@@ -355,6 +438,7 @@ export default function AddRegisterTagScreen() {
 						tagId: result.tagId,
 						tagName: trimmedName,
 						usageType: selectedUsageType,
+						...persistedTagIcon,
 					});
 					router.back();
 					return;
@@ -390,6 +474,8 @@ export default function AddRegisterTagScreen() {
 		isMandatoryExpense,
 		isMandatoryGain,
 		selectedUsageType,
+		selectedTagIcon,
+		serializeTagIcon,
 		shouldReturnAfterCreate,
 	]);
 
@@ -483,6 +569,17 @@ export default function AddRegisterTagScreen() {
 			: selectedUsageType === 'gain'
 				? 'Ative esta opção para que a categoria seja listada na tela de ganhos obrigatórios.'
 				: 'Selecione o tipo de utilização acima para liberar a opção de obrigatoriedade.';
+	const isTagIconSelectionEnabled = tagName.trim().length > 0;
+	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
+	const selectedTagIconSurfaceClassName = isDarkMode
+		? ''
+		: '';
+
+	React.useEffect(() => {
+		if (!isTagIconSelectionEnabled && isTagIconSheetOpen) {
+			setIsTagIconSheetOpen(false);
+		}
+	}, [isTagIconSelectionEnabled, isTagIconSheetOpen]);
 
 	return (
 		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -553,6 +650,54 @@ export default function AddRegisterTagScreen() {
 												onFocus={() => handleInputFocus('tag-name')}
 											/>
 										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Icone da categoria
+										</Text>
+										<Pressable
+											onPress={() => {
+												if (!isTagIconSelectionEnabled) {
+													return;
+												}
+
+												setIsTagIconSheetOpen(true);
+											}}
+											disabled={!isTagIconSelectionEnabled}
+											accessibilityRole="button"
+											accessibilityLabel="Escolher icone da categoria"
+											className={`${fieldContainerCardClassName} px-4 py-3 ${!isTagIconSelectionEnabled ? 'opacity-50' : ''}`}
+										>
+											<HStack className="items-center justify-between gap-4">
+												<HStack className="items-center gap-3 flex-1">
+													<View
+														className={`h-12 w-12 items-center justify-center rounded-2xl ${selectedTagIconSurfaceClassName}`}
+													>
+														<TagIcon
+															iconFamily={selectedTagIcon.iconFamily}
+															iconName={selectedTagIcon.iconName}
+															iconStyle={selectedTagIcon.iconStyle}
+															size={24}
+															color={selectedTagIconColor}
+														/>
+													</View>
+													<VStack className="flex-1">
+														<Text className={`${bodyText} text-sm font-medium`}>
+															{selectedTagIcon.label}
+														</Text>
+														<Text className={`${helperText} text-xs`}>
+															{isTagIconSelectionEnabled
+																? 'Toque para escolher entre varios icones e marcas.'
+																: 'Preencha o nome da categoria para liberar a escolha do icone.'}
+														</Text>
+													</VStack>
+												</HStack>
+												<Text className={`${helperText} text-xs`}>
+													{isTagIconSelectionEnabled ? 'Alterar' : 'Bloqueado'}
+												</Text>
+											</HStack>
+										</Pressable>
 									</VStack>
 
 									<VStack className="mb-4">
@@ -627,7 +772,7 @@ export default function AddRegisterTagScreen() {
 											{selectedUsageType && (
 												<View className="mt-2">
 													<HStack className="items-center justify-between gap-4">
-														<HStack className="mb-1 ml-1 gap-1">
+														<HStack className="ml-1 gap-1">
 															<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
 															<Popover
 																placement="bottom"
@@ -690,6 +835,69 @@ export default function AddRegisterTagScreen() {
 							</ScrollView>
 						</View>
 					</KeyboardAvoidingView>
+
+					<Actionsheet isOpen={isTagIconSheetOpen && isTagIconSelectionEnabled} onClose={handleCloseTagIconSheet}>
+						<ActionsheetBackdrop />
+						<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
+							<ActionsheetDragIndicatorWrapper>
+								<ActionsheetDragIndicator />
+							</ActionsheetDragIndicatorWrapper>
+
+							<VStack className="w-full px-4 pb-3">
+								<Heading size="sm" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+									Escolha um icone
+								</Heading>
+								<Text className={`${helperText} mt-1 text-xs`}>
+									O nome da categoria nao precisa combinar com o icone escolhido.
+								</Text>
+							</VStack>
+
+							<ActionsheetScrollView
+								className="w-full"
+								contentContainerStyle={{ paddingBottom: Math.max(24, insets.bottom + 16) }}
+							>
+								<VStack className="px-2 pb-2">
+									{iconOptions.map(iconOption => {
+										const isSelected = iconOption.key === selectedTagIcon.key;
+
+										return (
+											<ActionsheetItem
+												key={iconOption.key}
+												onPress={() => handleSelectTagIcon(iconOption)}
+												className={isSelected ? (isDarkMode ? 'bg-slate-900 rounded-2xl' : 'bg-amber-50 rounded-2xl') : ''}
+											>
+												<HStack className="items-center gap-1 w-full gap-2">
+													<View
+														className={`h-11 w-11 items-center justify-center rounded-2xl ${selectedTagIconSurfaceClassName}`}
+													>
+														<TagIcon
+															iconFamily={iconOption.iconFamily}
+															iconName={iconOption.iconName}
+															iconStyle={iconOption.iconStyle}
+															size={20}
+															color={selectedTagIconColor}
+														/>
+													</View>
+													<VStack className="flex-1 items-start justify-center">
+														<ActionsheetItemText
+															className={isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900'}
+														>
+															{iconOption.label}
+														</ActionsheetItemText>
+														{isSelected ? (
+															<Text className="text-xs text-amber-500 dark:text-amber-300">
+																Selecionado atualmente
+															</Text>
+														) : null}
+													</VStack>
+												</HStack>
+											</ActionsheetItem>
+										);
+									})}
+								</VStack>
+							</ActionsheetScrollView>
+						</ActionsheetContent>
+					</Actionsheet>
 
 					<View
 						style={{
