@@ -57,7 +57,8 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
 
 import { Info } from 'lucide-react-native';
-import { CircleIcon } from '@/components/ui/icon';
+
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type BankOption = {
 	id: string;
@@ -120,38 +121,24 @@ const mergeDateWithCurrentTime = (date: Date) => {
 };
 
 export default function TransferScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
-	const { height: windowHeight } = useWindowDimensions();
 
-	const surfaceBackground = isDarkMode ? '#020617' : '#FFFFFF';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
-	const bodyText = isDarkMode ? 'text-slate-300' : 'text-slate-700';
-	const helperText = isDarkMode ? 'text-slate-400' : 'text-slate-500';
-	const inputField = isDarkMode
-		? 'text-slate-100 placeholder:text-slate-500'
-		: 'text-slate-900 placeholder:text-slate-500';
-	const focusFieldClassName =
-		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
-	const fieldContainerClassName = `h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const textareaContainerClassName =
-		`h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-300/80 text-slate-900 hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
-
-	const infoCardStyle = React.useMemo(
-		() => ({
-			borderRadius: 20,
-			borderWidth: 1,
-			borderColor: isDarkMode ? 'rgba(148, 163, 184, 0.14)' : 'rgba(226, 232, 240, 1)',
-			backgroundColor: isDarkMode ? 'rgba(15, 23, 42, 0.78)' : '#FFFFFF',
-		}),
-		[isDarkMode],
-	);
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets
+	} = useScreenStyles();
 
 	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedSourceBankId, setSelectedSourceBankId] = React.useState<string | null>(null);
@@ -241,7 +228,7 @@ export default function TransferScreen() {
 							y: Math.max(0, y - keyboardScrollOffset(key)),
 							animated: true,
 						}),
-					() => {},
+					() => { },
 				);
 			}
 		},
@@ -701,42 +688,42 @@ export default function TransferScreen() {
 
 									<VStack className="mb-4 flex-1">
 										<HStack className="mb-1 ml-1 gap-2">
-										<Text className={`${bodyText} text-sm`}>Banco de Origem</Text>
-										<Popover
-											placement="bottom"
-											size="md"
-											offset={0}
-											shouldFlip
-											focusScope={false}
-											trapFocus={false}
-											trigger={triggerProps => (
-												<Pressable
-													{...triggerProps}
-													hitSlop={8}
-													accessibilityRole="button"
-													accessibilityLabel="Informações sobre o banco de origem"
-												>
-													<Info
-														size={14}
-														color={isDarkMode ? '#94A3B8' : '#64748B'}
-														style={{ marginLeft: 4 }}
-													/>
-												</Pressable>
-											)}
-										>
-											<PopoverBackdrop className="bg-transparent" />
-											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-												<PopoverBody className="px-3 py-3">
-													<Text className={`${bodyText} text-xs leading-5`}>
-														Selecione o banco de origem para a transferência. O saldo disponível será
-														carregado para validar se a transferência pode ser realizada. Se o banco de origem
-														não tiver saldo registrado para o mês atual, a transferência não poderá ser
-														realizada.
-													</Text>
-												</PopoverBody>
-											</PopoverContent>
-										</Popover>
-									</HStack>
+											<Text className={`${bodyText} text-sm`}>Banco de Origem</Text>
+											<Popover
+												placement="bottom"
+												size="md"
+												offset={0}
+												shouldFlip
+												focusScope={false}
+												trapFocus={false}
+												trigger={triggerProps => (
+													<Pressable
+														{...triggerProps}
+														hitSlop={8}
+														accessibilityRole="button"
+														accessibilityLabel="Informações sobre o banco de origem"
+													>
+														<Info
+															size={14}
+															color={isDarkMode ? '#94A3B8' : '#64748B'}
+															style={{ marginLeft: 4 }}
+														/>
+													</Pressable>
+												)}
+											>
+												<PopoverBackdrop className="bg-transparent" />
+												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+													<PopoverBody className="px-3 py-3">
+														<Text className={`${bodyText} text-xs leading-5`}>
+															Selecione o banco de origem para a transferência. O saldo disponível será
+															carregado para validar se a transferência pode ser realizada. Se o banco de origem
+															não tiver saldo registrado para o mês atual, a transferência não poderá ser
+															realizada.
+														</Text>
+													</PopoverBody>
+												</PopoverContent>
+											</Popover>
+										</HStack>
 										<Select
 											selectedValue={selectedSourceBankId ?? undefined}
 											onValueChange={value => setSelectedSourceBankId(value)}
@@ -818,7 +805,7 @@ export default function TransferScreen() {
 											</SelectPortal>
 										</Select>
 
-								{selectedSourceBankId &&
+										{selectedSourceBankId &&
 											selectedTargetBankId &&
 											selectedSourceBankId === selectedTargetBankId && (
 												<Text className="mt-1 text-xs text-red-600 dark:text-red-400">
