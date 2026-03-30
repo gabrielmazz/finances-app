@@ -16,6 +16,8 @@ type SkeletonVariant = 'rounded' | 'sharp' | 'circular';
 type SkeletonProps = ViewProps & {
   className?: string;
   variant?: SkeletonVariant;
+  baseColor?: string;
+  highlightColor?: string;
 };
 
 type SkeletonTextProps = Omit<SkeletonProps, 'children' | 'onLayout' | 'variant'> & {
@@ -35,12 +37,15 @@ const DEFAULT_TEXT_LINE_WIDTHS: DimensionValue[] = ['100%', '92%', '78%', '88%']
 
 const Skeleton = React.forwardRef<React.ComponentRef<typeof View>, SkeletonProps>(
   function Skeleton(
-    { className, variant = 'rounded', style, onLayout, ...props },
+    { className, variant = 'rounded', style, onLayout, baseColor, highlightColor, ...props },
     ref
   ) {
     const { isDarkMode } = useAppTheme();
     const shimmerProgress = React.useRef(new Animated.Value(0)).current;
     const [layoutWidth, setLayoutWidth] = React.useState(0);
+    const resolvedBaseColor = baseColor ?? (isDarkMode ? '#1E293B' : '#E2E8F0');
+    const resolvedHighlightColor =
+      highlightColor ?? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.42)');
 
     React.useEffect(() => {
       if (layoutWidth <= 0) {
@@ -90,7 +95,7 @@ const Skeleton = React.forwardRef<React.ComponentRef<typeof View>, SkeletonProps
         style={[
           {
             borderRadius: VARIANT_RADIUS[variant],
-            backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0',
+            backgroundColor: resolvedBaseColor,
           },
           style,
         ]}
@@ -115,7 +120,7 @@ const Skeleton = React.forwardRef<React.ComponentRef<typeof View>, SkeletonProps
             <LinearGradient
               colors={[
                 'transparent',
-                isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.42)',
+                resolvedHighlightColor,
                 'transparent',
               ]}
               start={{ x: 0, y: 0.5 }}

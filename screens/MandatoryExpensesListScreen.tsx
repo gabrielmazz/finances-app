@@ -43,6 +43,7 @@ import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -55,6 +56,13 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	lastPaymentCycle?: string | null;
 	lastPaymentDate?: Date | null;
 	isPaidForCurrentCycle?: boolean;
+};
+
+type TagMetadata = {
+	name: string;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
 };
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
@@ -124,6 +132,7 @@ export default function MandatoryExpensesListScreen() {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
+	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
@@ -204,6 +213,7 @@ export default function MandatoryExpensesListScreen() {
 			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
 
 			const tagsRecord: Record<string, string> = {};
+			const tagMetadataRecord: Record<string, TagMetadata> = {};
 			if (tagsResult.success && Array.isArray(tagsResult.data)) {
 				(tagsResult.data as Array<Record<string, unknown>>)
 					.filter(tag => {
@@ -220,6 +230,12 @@ export default function MandatoryExpensesListScreen() {
 									? tagNameValue.trim()
 									: 'Tag sem nome';
 							tagsRecord[tagIdValue] = label;
+							tagMetadataRecord[tagIdValue] = {
+								name: label,
+								iconFamily: typeof tag['iconFamily'] === 'string' ? tag['iconFamily'] as TagIconFamily : null,
+								iconName: typeof tag['iconName'] === 'string' ? tag['iconName'] as string : null,
+								iconStyle: typeof tag['iconStyle'] === 'string' ? tag['iconStyle'] as TagIconStyle : null,
+							};
 						}
 					});
 			}
@@ -245,6 +261,7 @@ export default function MandatoryExpensesListScreen() {
 			}));
 
 			setTagsMap(tagsRecord);
+			setTagMetadataMap(tagMetadataRecord);
 			setExpenses(expensesWithStatus);
 			await syncMandatoryExpenseNotifications(
 				expensesWithStatus.map(expense => ({
@@ -315,10 +332,21 @@ export default function MandatoryExpensesListScreen() {
 				templateDueDay: String(expense.dueDay),
 				templateDescription: expense.description ? encodeURIComponent(expense.description) : undefined,
 				templateMandatoryExpenseId: expense.id,
-				templateTagName: tagsMap[expense.tagId] ? encodeURIComponent(tagsMap[expense.tagId]) : undefined,
+				templateTagName: tagMetadataMap[expense.tagId]?.name
+					? encodeURIComponent(tagMetadataMap[expense.tagId].name)
+					: undefined,
+				templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
+					? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
+					: undefined,
+				templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
+					? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
+					: undefined,
+				templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
+					? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
+					: undefined,
 			},
 		});
-	}, [tagsMap]);
+	}, [tagMetadataMap]);
 
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isActionProcessing) {

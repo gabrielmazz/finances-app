@@ -11,6 +11,7 @@ interface AddTagParams {
 	usageType: 'expense' | 'gain';
 	isMandatoryExpense?: boolean;
 	isMandatoryGain?: boolean;
+	showInBothLists?: boolean;
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
@@ -22,6 +23,7 @@ interface UpdateTagParams {
 	usageType?: 'expense' | 'gain';
 	isMandatoryExpense?: boolean;
 	isMandatoryGain?: boolean;
+	showInBothLists?: boolean;
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
@@ -36,19 +38,26 @@ export async function addTagFirebase({
 	usageType,
 	isMandatoryExpense = false,
 	isMandatoryGain = false,
+	showInBothLists = false,
 	iconFamily = null,
 	iconName = null,
 	iconStyle = null,
 }: AddTagParams) {
 	try {
 		const tagRef = doc(collection(db, 'tags'));
+		const shouldShowInBothLists = Boolean(showInBothLists);
+		const shouldMarkMandatoryExpense =
+			usageType === 'expense' ? shouldShowInBothLists || Boolean(isMandatoryExpense) : false;
+		const shouldMarkMandatoryGain =
+			usageType === 'gain' ? shouldShowInBothLists || Boolean(isMandatoryGain) : false;
 
 		await setDoc(tagRef, {
 			name: tagName,
 			personId,
 			usageType,
-			isMandatoryExpense: usageType === 'expense' ? Boolean(isMandatoryExpense) : false,
-			isMandatoryGain: usageType === 'gain' ? Boolean(isMandatoryGain) : false,
+			isMandatoryExpense: shouldMarkMandatoryExpense,
+			isMandatoryGain: shouldMarkMandatoryGain,
+			showInBothLists: shouldShowInBothLists,
 			iconFamily,
 			iconName,
 			iconStyle,
@@ -69,6 +78,7 @@ export async function updateTagFirebase({
 	usageType,
 	isMandatoryExpense,
 	isMandatoryGain,
+	showInBothLists,
 	iconFamily,
 	iconName,
 	iconStyle,
@@ -93,14 +103,22 @@ export async function updateTagFirebase({
 			}
 		}
 
+		if (typeof showInBothLists === 'boolean') {
+			updates.showInBothLists = showInBothLists;
+		}
+
 		if (typeof isMandatoryExpense === 'boolean') {
 			const isGainTag = usageType === 'gain';
-			updates.isMandatoryExpense = isGainTag ? false : isMandatoryExpense;
+			updates.isMandatoryExpense = isGainTag ? false : showInBothLists === true ? true : isMandatoryExpense;
+		} else if (usageType === 'expense' && showInBothLists === true) {
+			updates.isMandatoryExpense = true;
 		}
 
 		if (typeof isMandatoryGain === 'boolean') {
 			const isExpenseTag = usageType === 'expense';
-			updates.isMandatoryGain = isExpenseTag ? false : isMandatoryGain;
+			updates.isMandatoryGain = isExpenseTag ? false : showInBothLists === true ? true : isMandatoryGain;
+		} else if (usageType === 'gain' && showInBothLists === true) {
+			updates.isMandatoryGain = true;
 		}
 
 		if (typeof iconFamily === 'string' && typeof iconName === 'string') {

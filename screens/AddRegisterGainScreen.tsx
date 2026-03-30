@@ -332,6 +332,9 @@ export default function AddRegisterGainScreen() {
 		templateDescription?: string | string[];
 		templateDueDay?: string | string[];
 		templateTagName?: string | string[];
+		templateTagIconFamily?: string | string[];
+		templateTagIconName?: string | string[];
+		templateTagIconStyle?: string | string[];
 		templateMandatoryGainId?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
@@ -373,6 +376,9 @@ export default function AddRegisterGainScreen() {
 		const description = decodeParam(params.templateDescription);
 		const tagId = decodeParam(params.templateTagId);
 		const tagName = decodeParam(params.templateTagName);
+		const tagIconFamily = decodeParam(params.templateTagIconFamily);
+		const tagIconName = decodeParam(params.templateTagIconName);
+		const tagIconStyle = decodeParam(params.templateTagIconStyle);
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const mandatoryGainId = decodeParam(params.templateMandatoryGainId);
@@ -389,6 +395,9 @@ export default function AddRegisterGainScreen() {
 			!description &&
 			typeof tagId === 'undefined' &&
 			typeof tagName === 'undefined' &&
+			typeof tagIconFamily === 'undefined' &&
+			typeof tagIconName === 'undefined' &&
+			typeof tagIconStyle === 'undefined' &&
 			typeof valueInCents === 'undefined' &&
 			typeof dueDay === 'undefined' &&
 			typeof mandatoryGainId === 'undefined'
@@ -401,6 +410,14 @@ export default function AddRegisterGainScreen() {
 			description,
 			tagId,
 			tagName,
+			tagIcon:
+				typeof tagIconFamily === 'string' && typeof tagIconName === 'string'
+					? {
+						iconFamily: tagIconFamily as TagIconFamily,
+						iconName: tagIconName,
+						iconStyle: typeof tagIconStyle === 'string' ? tagIconStyle as TagIconStyle : null,
+					}
+					: null,
 			valueInCents,
 			dueDay,
 			mandatoryGainId,
@@ -415,6 +432,9 @@ export default function AddRegisterGainScreen() {
 	}, [
 		params.templateDescription,
 		params.templateDueDay,
+		params.templateTagIconFamily,
+		params.templateTagIconName,
+		params.templateTagIconStyle,
 		params.templateLockTag,
 		params.templateTagName,
 		params.templateMandatoryGainId,
@@ -596,6 +616,14 @@ export default function AddRegisterGainScreen() {
 			setSelectedTagId(templateData.tagId);
 		}
 
+		if (templateData.tagName) {
+			setSelectedMovementTagName(templateData.tagName);
+		}
+
+		if (templateData.tagIcon) {
+			setSelectedMovementTagIcon(templateData.tagIcon);
+		}
+
 		if (templateData.description) {
 			setExplanationGain(templateData.description ?? null);
 		}
@@ -635,7 +663,11 @@ export default function AddRegisterGainScreen() {
 							.filter((tag: any) => {
 								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
 								const isMandatoryGain = Boolean(tag?.isMandatoryGain);
-								return (usageType === 'gain' || usageType === undefined || usageType === null) && !isMandatoryGain;
+								const showInBothLists = Boolean(tag?.showInBothLists);
+								return (
+									(usageType === 'gain' || usageType === undefined || usageType === null) &&
+									(!isMandatoryGain || showInBothLists)
+								);
 							})
 							.map((tag: any) => ({
 								id: tag.id,
@@ -1071,32 +1103,60 @@ export default function AddRegisterGainScreen() {
 	}, [editingGainId, isDarkMode]);
 
 	React.useEffect(() => {
-		try {
-			if (!selectedTagId || selectedMovementTagName) {
-				return;
-			} else {
-				const fetchTagData = async () => {
-					const tagResult = await getTagDataFirebase(selectedTagId);
-
-					if (tagResult.success && tagResult.data) {
-						setSelectedMovementTagName(tagResult.data.name);
-						setSelectedMovementTagIcon({
-							iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
-							iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
-							iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
-						});
-					} else {
-						setSelectedMovementTagName(null);
-						setSelectedMovementTagIcon(null);
-					}
-				};
-
-				void fetchTagData();
-			}
-		} catch (error) {
-			console.error('Erro ao buscar nome da tag:', error);
+		const matchedTag = tags.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			setSelectedMovementTagName(matchedTag.name);
+			setSelectedMovementTagIcon({
+				iconFamily: matchedTag.iconFamily ?? null,
+				iconName: matchedTag.iconName ?? null,
+				iconStyle: matchedTag.iconStyle ?? null,
+			});
+			return;
 		}
-	}, [selectedTagId, selectedMovementTagName]);
+
+		if (!selectedTagId) {
+			setSelectedMovementTagName(null);
+			setSelectedMovementTagIcon(null);
+			return;
+		}
+
+		let isMounted = true;
+
+		const fetchTagData = async () => {
+			try {
+				const tagResult = await getTagDataFirebase(selectedTagId);
+
+				if (!isMounted) {
+					return;
+				}
+
+				if (tagResult.success && tagResult.data) {
+					setSelectedMovementTagName(typeof tagResult.data.name === 'string' ? tagResult.data.name : null);
+					setSelectedMovementTagIcon({
+						iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
+						iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
+						iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
+					});
+					return;
+				}
+
+				setSelectedMovementTagName(null);
+				setSelectedMovementTagIcon(null);
+			} catch (error) {
+				console.error('Erro ao buscar nome da tag:', error);
+				if (isMounted) {
+					setSelectedMovementTagName(null);
+					setSelectedMovementTagIcon(null);
+				}
+			}
+		};
+
+		void fetchTagData();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [selectedTagId, tags]);
 
 	React.useEffect(() => {
 		try {
@@ -1144,8 +1204,40 @@ export default function AddRegisterGainScreen() {
 		return null;
 	}, [selectedMovementTagName, selectedTagId, tags, templateData?.tagId, templateTagDisplayName]);
 	const selectedTagOption = React.useMemo(() => {
-		return tags.find(tag => tag.id === selectedTagId) ?? null;
-	}, [selectedTagId, tags]);
+		const matchedTag = tags.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			return matchedTag;
+		}
+
+		if (selectedTagId && selectedMovementTagIcon?.iconFamily && selectedMovementTagIcon.iconName) {
+			return {
+				id: selectedTagId,
+				name: selectedMovementTagName ?? templateTagDisplayName ?? 'Categoria selecionada',
+				iconFamily: selectedMovementTagIcon.iconFamily,
+				iconName: selectedMovementTagIcon.iconName,
+				iconStyle: selectedMovementTagIcon.iconStyle ?? null,
+			};
+		}
+
+		if (selectedTagId && templateData?.tagId === selectedTagId && templateData.tagIcon?.iconFamily && templateData.tagIcon.iconName) {
+			return {
+				id: selectedTagId,
+				name: templateTagDisplayName ?? 'Categoria selecionada',
+				iconFamily: templateData.tagIcon.iconFamily,
+				iconName: templateData.tagIcon.iconName,
+				iconStyle: templateData.tagIcon.iconStyle ?? null,
+			};
+		}
+
+		return null;
+	}, [
+		selectedMovementTagIcon,
+		selectedMovementTagName,
+		selectedTagId,
+		tags,
+		templateData,
+		templateTagDisplayName,
+	]);
 
 	const selectedBankLabel = React.useMemo(() => {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
@@ -1520,6 +1612,17 @@ export default function AddRegisterGainScreen() {
 									{isTagSelectionLocked ? (
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
 											<HStack className="items-center gap-3">
+												<View
+													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+												>
+													<TagIcon
+														iconFamily={selectedTagOption?.iconFamily}
+														iconName={selectedTagOption?.iconName}
+														iconStyle={selectedTagOption?.iconStyle}
+														size={18}
+														color={selectedTagIconColor}
+													/>
+												</View>
 												<Text className={`${bodyText} flex-1 text-sm`}>
 													{selectedTagLabel ?? 'Categoria definida automaticamente'}
 												</Text>

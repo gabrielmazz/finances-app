@@ -897,6 +897,7 @@ export async function getBankMovementsByPeriodFirebase({
             personId,
             startDate: normalizedStartDate,
             endDate: normalizedEndDate,
+            bankId,
         });
 
         const normalizedRescues = cashRescues.map(rescue => ({

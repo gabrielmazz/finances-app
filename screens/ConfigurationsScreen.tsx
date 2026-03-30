@@ -188,6 +188,7 @@ type PendingAction =
 				usageType?: 'expense' | 'gain';
 				isMandatoryExpense?: boolean;
 				isMandatoryGain?: boolean;
+				showInBothLists?: boolean;
 				iconFamily?: TagIconFamily | null;
 				iconName?: string | null;
 				iconStyle?: TagIconStyle | null;
@@ -377,6 +378,7 @@ export default function ConfigurationsScreen() {
 			usageType?: 'expense' | 'gain';
 			isMandatoryExpense?: boolean;
 			isMandatoryGain?: boolean;
+			showInBothLists?: boolean;
 			iconFamily?: TagIconFamily | null;
 			iconName?: string | null;
 			iconStyle?: TagIconStyle | null;
@@ -426,13 +428,13 @@ const handleToggleDarkMode = React.useCallback(
 				return true;
 			}
 			if (tagFilter === 'expense') {
-				return tag.usageType === 'expense' && !tag.isMandatoryExpense;
+				return tag.usageType === 'expense' && (!tag.isMandatoryExpense || tag.showInBothLists);
 			}
 			if (tagFilter === 'mandatory-expense') {
 				return tag.usageType === 'expense' && Boolean(tag.isMandatoryExpense);
 			}
 			if (tagFilter === 'gain') {
-				return tag.usageType === 'gain' && !tag.isMandatoryGain;
+				return tag.usageType === 'gain' && (!tag.isMandatoryGain || tag.showInBothLists);
 			}
 			if (tagFilter === 'mandatory-gain') {
 				return tag.usageType === 'gain' && Boolean(tag.isMandatoryGain);
@@ -596,6 +598,7 @@ const handleToggleDarkMode = React.useCallback(
 				: undefined;
 			const mandatoryExpenseFlag = pendingAction.payload.tag.isMandatoryExpense ? 'true' : 'false';
 			const mandatoryGainFlag = pendingAction.payload.tag.isMandatoryGain ? 'true' : 'false';
+			const showInBothListsFlag = pendingAction.payload.tag.showInBothLists ? 'true' : 'false';
 
 			router.push({
 				pathname: '/add-register-tag',
@@ -608,6 +611,7 @@ const handleToggleDarkMode = React.useCallback(
 					...(encodedIconStyle ? { tagIconStyle: encodedIconStyle } : {}),
 					isMandatoryExpense: mandatoryExpenseFlag,
 					isMandatoryGain: mandatoryGainFlag,
+					showInBothLists: showInBothListsFlag,
 				},
 			});
 			setPendingAction(null);
@@ -935,6 +939,11 @@ const handleToggleDarkMode = React.useCallback(
 														Ganho obrigatório
 													</Text>
 												)}
+												{tag.showInBothLists && (
+													<Text className="text-xs text-sky-600 dark:text-sky-400 mt-1">
+														Disponível na lista normal e na obrigatória
+													</Text>
+												)}
 											</VStack>
 										</HStack>
 										<View className="flex-row justify-end items-center gap-2 mt-4">
@@ -955,6 +964,7 @@ const handleToggleDarkMode = React.useCallback(
 																		: undefined,
 																isMandatoryExpense: Boolean(tag.isMandatoryExpense),
 																isMandatoryGain: Boolean(tag.isMandatoryGain),
+																showInBothLists: Boolean(tag.showInBothLists),
 																iconFamily: tag.iconFamily ?? null,
 																iconName: tag.iconName ?? null,
 																iconStyle: tag.iconStyle ?? null,
@@ -1136,6 +1146,7 @@ const handleToggleDarkMode = React.useCallback(
 									: undefined,
 							isMandatoryExpense: Boolean(tag?.isMandatoryExpense),
 							isMandatoryGain: Boolean(tag?.isMandatoryGain),
+							showInBothLists: Boolean(tag?.showInBothLists),
 							iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
 							iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
 							iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,

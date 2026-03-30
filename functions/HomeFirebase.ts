@@ -1,6 +1,6 @@
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
-import { computeMonthlyBankBalances } from '@/utils/monthlyBalance';
+import { computeMonthlyBankBalances, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import {
 	collection,
 	getDocs,
@@ -207,6 +207,10 @@ const parseToDate = (value: unknown): Date | null => {
 
 const aggregateMonthlyValuesByBankId = (items: HomeMovementDocument[], bankIds: Set<string>) =>
 	items.reduce<Record<string, number>>((acc, item) => {
+		if (!shouldIncludeMovementInGainExpenseTotals(item)) {
+			return acc;
+		}
+
 		const bankId =
 			typeof item?.bankId === 'string' && item.bankId.trim().length > 0 ? item.bankId.trim() : null;
 		if (!bankId || !bankIds.has(bankId)) {

@@ -19,6 +19,12 @@ type InvestmentMovement = {
 	lastManualSyncValueInCents?: number | null;
 };
 
+type GainExpenseTotalsMovement = {
+	isInvestmentDeposit?: boolean | null;
+	isInvestmentRedemption?: boolean | null;
+	isFinanceInvestment?: boolean | null;
+};
+
 export type MonthlyBankBalanceInput = {
 	banks: MinimalBankInfo[];
 	initialBalancesByBank: Record<string, number | null | undefined>;
@@ -85,6 +91,14 @@ const resolveInvestmentInitialValue = (investment: InvestmentMovement) => {
 		return investment.initialValueInCents;
 	}
 	return typeof investment?.valueInCents === 'number' ? investment.valueInCents : 0;
+};
+
+export const shouldIncludeMovementInGainExpenseTotals = (
+	movement: GainExpenseTotalsMovement | null | undefined,
+) => {
+	return !Boolean(
+		movement?.isFinanceInvestment || movement?.isInvestmentDeposit || movement?.isInvestmentRedemption,
+	);
 };
 
 export function computeMonthlyBankBalances({
@@ -193,7 +207,7 @@ export function computeMonthlyBankBalances({
 		const currentBalanceInCents = hasInitial
 			? initialBalanceInCents +
 				summary.totalGainsInCents -
-				(summary.totalExpensesInCents + summary.totalInvestedInCents)
+				(summary.totalExpensesInCents + summary.totalInitialInvestedInCents)
 			: null;
 
 		return {
