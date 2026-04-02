@@ -261,6 +261,14 @@ const PIE_TOTAL_COLORS = {
 	gains: '#10B981',
 };
 
+const MANDATORY_SETTLED_TONE: TimelineMovementTone = {
+	accentColor: '#10B981',
+	amountColor: '#10B981',
+	lineColor: 'rgba(16, 185, 129, 0.28)',
+	iconGradient: ['#047857', '#34D399'],
+	cardGradient: ['#065F46', '#10B981'],
+};
+
 const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementTone> = {
 	gain: {
 		accentColor: '#10B981',
@@ -276,20 +284,8 @@ const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementT
 		iconGradient: ['#B91C1C', '#EF4444'],
 		cardGradient: ['#7F1D1D', '#EF4444'],
 	},
-	mandatoryExpense: {
-		accentColor: '#F97316',
-		amountColor: '#EF4444',
-		lineColor: 'rgba(249, 115, 22, 0.3)',
-		iconGradient: ['#B91C1C', '#FACC15'],
-		cardGradient: ['#991B1B', '#FACC15'],
-	},
-	mandatoryGain: {
-		accentColor: '#84CC16',
-		amountColor: '#10B981',
-		lineColor: 'rgba(132, 204, 22, 0.3)',
-		iconGradient: ['#047857', '#FACC15'],
-		cardGradient: ['#065F46', '#FACC15'],
-	},
+	mandatoryExpense: MANDATORY_SETTLED_TONE,
+	mandatoryGain: MANDATORY_SETTLED_TONE,
 	bankTransfer: {
 		accentColor: '#F59E0B',
 		amountColor: '#F59E0B',
@@ -592,8 +588,8 @@ export default function BankMovementsScreen() {
 
 			if (movement.isFromMandatory) {
 				return movement.type === 'gain'
-					? 'Ganho obrigatório deste mês'
-					: 'Gasto obrigatório deste mês';
+					? 'Recebimento obrigatório concluído'
+					: 'Pagamento obrigatório concluído';
 			}
 
 			if (movement.moneyFormat || isCashView) {
@@ -609,8 +605,8 @@ export default function BankMovementsScreen() {
 		(movement: MovementRecord) => {
 			if (movement.isFromMandatory) {
 				return movement.type === 'gain'
-					? 'Este lançamento está vinculado ao ganho obrigatório do mês atual.'
-					: 'Este lançamento está vinculado ao gasto obrigatório do mês atual.';
+					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
+					: 'Este lançamento marcou como pago o gasto obrigatório do ciclo atual.';
 			}
 
 			if (movement.isCashRescue) {
@@ -1805,8 +1801,8 @@ export default function BankMovementsScreen() {
 															: movement.isBankTransfer
 																? 'Transferências entre bancos são geradas automaticamente para manter os saldos alinhados.'
 																: movement.isFinanceInvestment ||
-																		movement.isInvestmentDeposit ||
-																		movement.isInvestmentRedemption
+																	movement.isInvestmentDeposit ||
+																	movement.isInvestmentRedemption
 																	? 'Use a tela de investimentos para ajustar este lançamento.'
 																	: 'Os botões abaixo permitem editar ou excluir esta movimentação.';
 													const detailItems = [
@@ -1991,7 +1987,7 @@ export default function BankMovementsScreen() {
 																	>
 																		<VStack className="gap-3">
 																			<HStack className="items-start justify-between gap-4">
-																				<VStack className="flex-1 gap-1">
+																				<VStack className="flex-1">
 																					<Text
 																						style={{
 																							fontSize: 10,
@@ -2014,7 +2010,7 @@ export default function BankMovementsScreen() {
 																					</Text>
 																				</VStack>
 
-																				<VStack className="items-end gap-1">
+																				<VStack className="items-end">
 																					<Text
 																						style={{
 																							fontSize: 10,
@@ -2034,9 +2030,6 @@ export default function BankMovementsScreen() {
 
 																			<View
 																				style={{
-																					paddingTop: 2,
-																					borderTopWidth: 1,
-																					borderTopColor: 'rgba(255,255,255,0.16)',
 																					flexDirection: 'row',
 																					flexWrap: 'wrap',
 																					columnGap: 14,
@@ -2049,10 +2042,6 @@ export default function BankMovementsScreen() {
 																						style={{
 																							width: '46%',
 																							minWidth: 128,
-																							paddingTop: 8,
-																							paddingBottom: 8,
-																							borderBottomWidth: 1,
-																							borderBottomColor: 'rgba(255,255,255,0.12)',
 																						}}
 																					>
 																						<Text
@@ -2081,12 +2070,10 @@ export default function BankMovementsScreen() {
 																			</View>
 
 																			{movement.explanation?.trim() &&
-																			getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
+																				getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
 																				<View
 																					style={{
 																						paddingTop: 2,
-																						borderTopWidth: 1,
-																						borderTopColor: 'rgba(255,255,255,0.16)',
 																					}}
 																				>
 																					<Text
@@ -2113,36 +2100,10 @@ export default function BankMovementsScreen() {
 																				</View>
 																			) : null}
 
-																			<View
-																				style={{
-																					paddingTop: 2,
-																					borderTopWidth: 1,
-																					borderTopColor: 'rgba(255,255,255,0.16)',
-																				}}
-																			>
-																				<HStack className="items-start gap-3">
-																					<View style={{ marginTop: 2 }}>
-																						<Icon as={InfoIcon} size="sm" className="text-white" />
-																					</View>
-																					<Text
-																						style={{
-																							flex: 1,
-																							fontSize: 12,
-																							lineHeight: 17,
-																							color: 'rgba(255,255,255,0.92)',
-																						}}
-																					>
-																						{detailHint}
-																					</Text>
-																				</HStack>
-																			</View>
-
 																			<HStack
 																				className="flex-wrap gap-4"
 																				style={{
 																					paddingTop: 2,
-																					borderTopWidth: 1,
-																					borderTopColor: 'rgba(255,255,255,0.16)',
 																				}}
 																			>
 																				<TouchableOpacity

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
@@ -7,9 +8,11 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { AddIcon, EditIcon, TrashIcon, ArrowDownIcon } from '@/components/ui/icon';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import {
 	Select,
 	SelectBackdrop,
@@ -36,6 +39,7 @@ import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/f
 import { Menu } from '@/components/uiverse/menu';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialListIllustration from '../assets/UnDraw/financialListScreen.svg';
 
 import { auth } from '@/FirebaseConfig';
@@ -50,9 +54,8 @@ import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
-import { Divider } from '@/components/ui/divider';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type FinanceInvestment = {
 	id: string;
@@ -203,9 +206,60 @@ const simulateDailyYield = (investment: FinanceInvestment) => {
 	return dailyRate > 0 ? baseValue * dailyRate : 0;
 };
 
+function FinancialListSkeleton({
+	compactCardClassName,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+}: {
+	compactCardClassName: string;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+}) {
+	return (
+		<VStack className="mt-4 gap-4">
+			{Array.from({ length: 3 }).map((_, index) => (
+				<Box key={`financial-list-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
+					<VStack className="gap-3">
+						<HStack className="items-start justify-between gap-3">
+							<VStack className="flex-1 gap-2">
+								<Skeleton className="h-5 w-40" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+								<Skeleton className="h-3 w-28" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							</VStack>
+							<Skeleton className="h-5 w-20" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</HStack>
+						<SkeletonText _lines={2} className="h-3" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						<HStack className="gap-3">
+							<Skeleton className="h-9 flex-1 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							<Skeleton className="h-9 flex-1 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</HStack>
+					</VStack>
+				</Box>
+			))}
+		</VStack>
+	);
+}
+
 export default function FinancialListScreen() {
-	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		insets,
+		compactCardClassName,
+		tintedCardClassName,
+		topSummaryCardClassName,
+		modalContentClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
+	} = useScreenStyles();
 	const [investments, setInvestments] = React.useState<FinanceInvestment[]>([]);
 	const [banksMap, setBanksMap] = React.useState<Record<string, BankMetadata>>({});
 	const bankOptions = React.useMemo(() => Object.values(banksMap), [banksMap]);
@@ -1017,542 +1071,578 @@ export default function FinancialListScreen() {
 		}
 	}, [investmentForSync, loadData, syncInput]);
 
+	const isInitialLoading = isLoading && investments.length === 0;
+
 	return (
-		<View
-			className="
-				flex-1 w-full h-full
-				pt-[64px]
-				items-center
-				justify-between
-				pb-6
-				relative
-			"
-			style={{ backgroundColor: pageBackground }}
-		>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<FloatingAlertViewport />
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<FloatingAlertViewport />
 
-			<ScrollView
-				keyboardShouldPersistTaps="handled"
-				style={{ backgroundColor: pageBackground }}
-				contentContainerStyle={{
-					flexGrow: 1,
-					paddingBottom: 48,
-					backgroundColor: pageBackground,
-				}}
-			>
-				<View className="w-full px-6">
-					<Heading size="3xl" className="text-center">
-						Meus investimentos
-					</Heading>
+				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+						<Image
+							source={LoginWallpaper}
+							alt="Background da lista de investimentos"
+							className="absolute h-full w-full rounded-b-3xl"
+							resizeMode="cover"
+						/>
 
-					<Box className="w-full items-center mt-4 mb-2">
-						<FinancialListIllustration width={180} height={180} />
-					</Box>
-
-					<Text className="text-justify text-gray-600 dark:text-gray-400">
-						Acompanhe como cada banco está fazendo seu dinheiro render. Veja o total investido, o rendimento
-						{" "}
-						<Text className="font-semibold text-red-500 dark:text-red-400">
-							Lembrando que isso se baseia em uma estimativa e não reflete valores reais de mercado e nem os rendimentos, portanto exige incosistências em relação à realidade.
-						</Text>
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<Box className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-4">
-						<VStack className="gap-2">
-							<Text className="text-gray-800 dark:text-gray-200 font-semibold">
-								Total investido nessa lista
-							</Text>
-							<Text className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-								{formatCurrencyBRL(totalInvested)}
-							</Text>
-							<Button variant="outline" onPress={handleNavigateToAdd} className="mt-2">
-								<ButtonIcon as={AddIcon} />
-								<ButtonText>Novo investimento</ButtonText>
-							</Button>
+						<VStack
+							className="h-full w-full items-center justify-start gap-4 px-6"
+							style={{ paddingTop: insets.top + 24 }}
+						>
+							<Heading size="xl" className="text-center text-white">
+								Meus investimentos
+							</Heading>
+							<FinancialListIllustration width="38%" height="38%" className="opacity-90" />
 						</VStack>
-					</Box>
+					</View>
 
-					<Box className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6">
-						<Text className="text-gray-800 dark:text-gray-200 font-semibold">
-							Total rendendo por dia
-						</Text>
-						<Text className="text-xl font-bold text-sky-600 dark:text-sky-400">
-							{formatCurrencyBRL(totalDailyYield)}
-						</Text>
-						<Text className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-							Base calculada individualmente por investimento de acordo com o CDI informado e o banco
-							selecionado.
-						</Text>
-						<Text className="text-gray-800 dark:text-gray-200 font-semibold mt-4">
-							Valor simulado acumulado
-						</Text>
-						<Text className="text-xl font-bold text-violet-600 dark:text-violet-400">
-							{formatCurrencyBRL(totalSimulatedAmount)}
-						</Text>
-					</Box>
-
-					{isLoading ? (
-						<Text className="text-center text-gray-500">Carregando investimentos salvos…</Text>
-					) : investments.length === 0 ? (
-						<Box className="bg-white dark:bg-gray-900 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 items-center">
-							<Text className="text-center text-gray-600 dark:text-gray-400">
-								Você ainda não salvou nenhum investimento.
-							</Text>
-							<Button variant="link" action="primary" onPress={handleNavigateToAdd} className="mt-2">
-								<ButtonText>Registrar agora</ButtonText>
-							</Button>
-						</Box>
-					) : (
-						<VStack className="gap-4">
-							{investments.map(investment => {
-								const simulatedValue = simulateCurrentValue(investment);
-								const dailyYield = simulateDailyYield(investment);
-								const bankInfo = banksMap[investment.bankId];
-								return (
-									<Box
-										key={investment.id}
-										className="
-											w-full
-											bg-white dark:bg-gray-900
-											border border-gray-200 dark:border-gray-700
-											rounded-xl
-											p-4
-										"
-									>
-										<HStack className="justify-between items-start mb-2">
-											<View className="flex-1 pr-3">
-												<Text className="text-lg font-semibold mb-1">{investment.name}</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Banco:{' '}
-													<Text className="font-semibold">{bankInfo?.name ?? 'Não informado'}</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Valor atual do investimento:{' '}
-													<Text className="font-bold text-emerald-600 dark:text-emerald-400">
-														{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
-													</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Valor inicial registrado:{' '}
-													<Text className="font-bold text-orange-600 dark:text-orange-300">
-														{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
-													</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													CDI informado:{' '}
-													<Text className="font-semibold">{investment.cdiPercentage}%</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Prazo de resgate:{' '}
-													<Text className="font-semibold">
-														{redemptionTermLabels[investment.redemptionTerm]}
-													</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Última sincronização manual:{' '}
-													{typeof investment.lastManualSyncValueInCents === 'number' &&
-													investment.lastManualSyncAtISO ? (
-														<Text className="font-semibold">
-															{formatCurrencyBRL(
-																convertCentsToBRL(investment.lastManualSyncValueInCents),
-															)}{' '}
-															em {formatDateToBR(investment.lastManualSyncAtISO)}
-														</Text>
-													) : (
-														<Text className="font-semibold">Nunca sincronizado</Text>
-													)}
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Valor simulado hoje:{' '}
-													<Text className="font-semibold text-emerald-600 dark:text-emerald-400">
-														{formatCurrencyBRL(simulatedValue)}
-													</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Rendimento diário estimado:{' '}
-													<Text className="font-semibold text-sky-600 dark:text-sky-400">
-														{formatCurrencyBRL(dailyYield)}
-													</Text>
-												</Text>
-												<Text className="text-gray-600 dark:text-gray-400">
-													Registrado em {formatDateToBR(investment.createdAtISO)}
-												</Text>
-											</View>
-											</HStack>
-
-											<Divider className="my-4" />
-
-											<HStack className="gap-3 flex-wrap justify-end">
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => handleOpenDepositModal(investment)}
-											>
-												<ButtonIcon as={AddIcon} />
-											</Button>
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => handleOpenWithdrawalModal(investment)}
-											>
-												<ButtonIcon as={ArrowDownIcon} />
-											</Button>
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => handleOpenManualSyncModal(investment)}
-											>
-												<ButtonText>Sincronizar</ButtonText>
-											</Button>
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => handleOpenEditModal(investment)}
-											>
-												<ButtonIcon as={EditIcon} />
-											</Button>
-											<Button
-												size="md"
-												variant="link"
-												action="negative"
-												onPress={() => handleRequestDelete(investment)}
-											>
-												<ButtonIcon as={TrashIcon} />
-											</Button>
-										</HStack>
-									</Box>
-								);
-							})}
-						</VStack>
-					)}
-				</View>
-			</ScrollView>
-
-			<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
-
-			<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[380px]">
-					<ModalHeader>
-						<Heading size="lg">Editar investimento</Heading>
-						<ModalCloseButton onPress={closeEditModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-600 dark:text-gray-300 mb-4">
-							Ajuste valores, CDI ou banco e acompanhe a simulação atualizada.
-						</Text>
-						<VStack className="gap-4">
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Nome</Text>
-								<Input>
-									<InputField
-										value={editName}
-										onChangeText={text => setEditName(text)}
-										autoCapitalize="sentences"
-									/>
-								</Input>
-							</Box>
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Valor inicial
-								</Text>
-								<Input>
-									<InputField
-										value={editInitialInput}
-										onChangeText={handleEditInitialInputChange}
-										keyboardType="numeric"
-									/>
-								</Input>
-							</Box>
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">CDI (%)</Text>
-								<Input>
-									<InputField
-										value={editCdiInput}
-										onChangeText={text => setEditCdiInput(sanitizeNumberInput(text))}
-										keyboardType="decimal-pad"
-									/>
-								</Input>
-							</Box>
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Prazo de resgate
-								</Text>
-								<Select selectedValue={editTerm} onValueChange={value => setEditTerm(value as RedemptionTerm)}>
-									<SelectTrigger>
-										<SelectInput value={redemptionTermLabels[editTerm]} />
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{redemptionOptions.map(option => (
-												<SelectItem key={option.value} label={option.label} value={option.value} />
-											))}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-							</Box>
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Banco</Text>
-								<Select
-									selectedValue={editBankId ?? undefined}
-									onValueChange={value => setEditBankId(value)}
-									isDisabled={bankOptions.length === 0}
-								>
-									<SelectTrigger>
-										<SelectInput
-											placeholder="Selecione o banco"
-											value={editBankId ? bankOptions.find(bank => bank.id === editBankId)?.name ?? '' : ''}
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						style={{ marginTop: heroHeight - 64 }}
+						contentContainerStyle={{ paddingBottom: 48 }}
+					>
+						<VStack className="mt-4 gap-4">
+							<Box className={`${topSummaryCardClassName} px-5 py-5`}>
+								{isInitialLoading ? (
+									<VStack className="gap-4">
+										<Skeleton
+											className="h-3 w-28"
+											baseColor={skeletonMutedBaseColor}
+											highlightColor={skeletonMutedHighlightColor}
 										/>
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{bankOptions.length > 0 ? (
-												bankOptions.map(bank => (
-													<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-												))
-											) : (
-												<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
-											)}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
+										<Skeleton
+											className="h-8 w-56"
+											baseColor={skeletonMutedBaseColor}
+											highlightColor={skeletonMutedHighlightColor}
+										/>
+										<SkeletonText
+											_lines={2}
+											className="h-3"
+											baseColor={skeletonMutedBaseColor}
+											highlightColor={skeletonMutedHighlightColor}
+										/>
+										<View className="flex-row flex-wrap gap-3">
+											{Array.from({ length: 3 }).map((_, index) => (
+												<Skeleton
+													key={`financial-list-summary-${index}`}
+													className="h-24 min-w-[145px] flex-1 rounded-2xl"
+													baseColor={skeletonMutedBaseColor}
+													highlightColor={skeletonMutedHighlightColor}
+												/>
+											))}
+										</View>
+										<Skeleton
+											className="h-16 rounded-[24px]"
+											baseColor={skeletonMutedBaseColor}
+											highlightColor={skeletonMutedHighlightColor}
+										/>
+									</VStack>
+								) : (
+									<VStack className="gap-4">
+										<VStack className="gap-2">
+											<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
+												Resumo consolidado
+											</Text>
+											<Heading size="md">Acompanhe crescimento, liquidez e sincronização manual da sua carteira</Heading>
+											<Text className={`${bodyText} text-sm`}>
+												A simulação usa o CDI salvo em cada item e serve como referência visual até a próxima atualização real.
+											</Text>
+										</VStack>
+
+										<View className="flex-row flex-wrap gap-3">
+											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Total investido</Text>
+												<Text className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+													{formatCurrencyBRL(totalInvested)}
+												</Text>
+											</Box>
+											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Simulado hoje</Text>
+												<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-400">
+													{formatCurrencyBRL(totalSimulatedAmount)}
+												</Text>
+											</Box>
+											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Rendimento diário</Text>
+												<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-400">
+													{formatCurrencyBRL(totalDailyYield)}
+												</Text>
+											</Box>
+										</View>
+
+										<Box className={`${compactCardClassName} px-4 py-4`}>
+											<VStack className="gap-3">
+												<HStack className="items-center justify-between gap-3">
+													<VStack className="flex-1 gap-1">
+														<Text className="font-semibold">Carteira ativa</Text>
+														<Text className={`${helperText} text-sm`}>
+															{investments.length} investimento(s) distribuídos em {bankSummaries.length} banco(s).
+														</Text>
+													</VStack>
+													<Button className={submitButtonClassName} onPress={handleNavigateToAdd}>
+														<ButtonIcon as={AddIcon} />
+														<ButtonText>Novo investimento</ButtonText>
+													</Button>
+												</HStack>
+
+												{bankSummaries.length > 0 ? (
+													<View className="flex-row flex-wrap gap-2">
+														{bankSummaries.slice(0, 3).map(summary => (
+															<Box key={summary.bankId} className={`${tintedCardClassName} min-w-[120px] px-3 py-3`}>
+																<VStack className="gap-1">
+																	<HStack className="items-center gap-2">
+																		<View
+																			className="h-2.5 w-2.5 rounded-full"
+																			style={{
+																				backgroundColor: summary.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B'),
+																			}}
+																		/>
+																		<Text className="font-medium" numberOfLines={1}>
+																			{summary.bankName}
+																		</Text>
+																	</HStack>
+																	<Text className={`${helperText} text-xs`}>
+																		{summary.investmentCount} item(s)
+																	</Text>
+																	<Text className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+																		{formatCurrencyBRL(summary.totalInvested)}
+																	</Text>
+																</VStack>
+															</Box>
+														))}
+													</View>
+												) : null}
+											</VStack>
+										</Box>
+									</VStack>
+								)}
 							</Box>
+
+							{isInitialLoading ? (
+								<FinancialListSkeleton
+									compactCardClassName={compactCardClassName}
+									skeletonBaseColor={skeletonBaseColor}
+									skeletonHighlightColor={skeletonHighlightColor}
+								/>
+							) : investments.length === 0 ? (
+								<Box className={`${compactCardClassName} items-center px-5 py-6`}>
+									<Text className={`text-center ${helperText}`}>
+										Você ainda não salvou nenhum investimento.
+									</Text>
+									<Button variant="link" action="primary" onPress={handleNavigateToAdd} className="mt-2">
+										<ButtonText>Registrar agora</ButtonText>
+									</Button>
+								</Box>
+							) : (
+								<VStack className="gap-4">
+									{investments.map(investment => {
+										const simulatedValue = simulateCurrentValue(investment);
+										const dailyYield = simulateDailyYield(investment);
+										const bankInfo = banksMap[investment.bankId];
+										const lastSyncLabel =
+											typeof investment.lastManualSyncValueInCents === 'number' && investment.lastManualSyncAtISO
+												? `${formatCurrencyBRL(convertCentsToBRL(investment.lastManualSyncValueInCents))} em ${formatDateToBR(investment.lastManualSyncAtISO)}`
+												: 'Nunca sincronizado';
+
+										return (
+											<Box key={investment.id} className={`${compactCardClassName} px-4 py-4`}>
+												<VStack className="gap-4">
+													<HStack className="items-start justify-between gap-3">
+														<VStack className="flex-1 gap-1">
+															<Text className="text-base font-semibold">{investment.name}</Text>
+															<Text className={`${helperText} text-sm`}>
+																{bankInfo?.name ?? 'Banco não informado'} • {redemptionTermLabels[investment.redemptionTerm]}
+															</Text>
+														</VStack>
+														<Text className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
+															{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
+														</Text>
+													</HStack>
+
+													<View className="flex-row flex-wrap gap-2">
+														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
+															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor inicial</Text>
+															<Text className={`${bodyText} mt-1 text-sm`}>
+																{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
+															</Text>
+														</Box>
+														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
+															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Simulado hoje</Text>
+															<Text className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
+																{formatCurrencyBRL(simulatedValue)}
+															</Text>
+														</Box>
+														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
+															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Rendimento diário</Text>
+															<Text className="mt-1 text-sm text-sky-600 dark:text-sky-400">
+																{formatCurrencyBRL(dailyYield)}
+															</Text>
+														</Box>
+														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
+															<Text className={`${helperText} text-xs uppercase tracking-wide`}>CDI</Text>
+															<Text className={`${bodyText} mt-1 text-sm`}>{investment.cdiPercentage}%</Text>
+														</Box>
+													</View>
+
+													<Box className={`${tintedCardClassName} px-3 py-3`}>
+														<VStack className="gap-1">
+															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Sincronização manual</Text>
+															<Text className={`${bodyText} text-sm`}>{lastSyncLabel}</Text>
+															<Text className={`${helperText} text-xs`}>
+																Cadastrado em {formatDateToBR(investment.createdAtISO)}
+															</Text>
+														</VStack>
+													</Box>
+
+													{investment.description ? (
+														<Text className={`${helperText} text-sm`}>{investment.description}</Text>
+													) : null}
+
+													<HStack className="flex-wrap gap-3">
+														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenDepositModal(investment)}>
+															<ButtonIcon as={AddIcon} />
+															<ButtonText>Aportar</ButtonText>
+														</Button>
+														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenWithdrawalModal(investment)}>
+															<ButtonIcon as={ArrowDownIcon} />
+															<ButtonText>Resgatar</ButtonText>
+														</Button>
+														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenManualSyncModal(investment)}>
+															<ButtonText>Sincronizar</ButtonText>
+														</Button>
+														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenEditModal(investment)}>
+															<ButtonIcon as={EditIcon} />
+															<ButtonText>Editar</ButtonText>
+														</Button>
+														<Button size="sm" variant="outline" action="negative" onPress={() => handleRequestDelete(investment)}>
+															<ButtonIcon as={TrashIcon} />
+															<ButtonText>Excluir</ButtonText>
+														</Button>
+													</HStack>
+												</VStack>
+											</Box>
+										);
+									})}
+								</VStack>
+							)}
 						</VStack>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={closeEditModal} isDisabled={isSavingEdit}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button onPress={handleSubmitEdit} isDisabled={isSavingEdit}>
-							{isSavingEdit ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Salvando</ButtonText>
-								</>
-							) : (
-								<ButtonText>Salvar alterações</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+					</ScrollView>
+				</View>
 
-			<Modal isOpen={Boolean(investmentForDepositSync)} onClose={handleCloseDepositSyncModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">Sincronizar antes de aportar</Heading>
-						<ModalCloseButton onPress={handleCloseDepositSyncModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-600 dark:text-gray-300 mb-3">
-							Confirme o valor disponível hoje em{' '}
-							<Text className="font-semibold">
-								{investmentForDepositSync?.name ?? 'seu investimento'}
+				<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
+
+				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Editar investimento</Heading>
+							<ModalCloseButton onPress={closeEditModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} mb-4 text-sm`}>
+								Ajuste nome, valor base, CDI e banco do investimento.
 							</Text>
-							. Esse valor será a base do novo aporte.
-						</Text>
-						<Input>
-							<InputField
-								value={depositSyncInput}
-								onChangeText={handleDepositSyncInputChange}
-								keyboardType="numeric"
-								placeholder="Ex: 1.000,00"
-							/>
-						</Input>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseDepositSyncModal} isDisabled={isSavingDepositSync}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button onPress={handleConfirmDepositSync} isDisabled={isSavingDepositSync}>
-							{isSavingDepositSync ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Sincronizando</ButtonText>
-								</>
-							) : (
-								<ButtonText>Sincronizar e continuar</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+							<VStack className="gap-4">
+								<VStack className="gap-2">
+									<Text className={`${bodyText} ml-1 text-sm`}>Nome</Text>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											value={editName}
+											onChangeText={text => setEditName(text)}
+											autoCapitalize="sentences"
+											className={inputField}
+										/>
+									</Input>
+								</VStack>
+								<VStack className="gap-2">
+									<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial</Text>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											value={editInitialInput}
+											onChangeText={handleEditInitialInputChange}
+											keyboardType="numeric"
+											className={inputField}
+										/>
+									</Input>
+								</VStack>
+								<VStack className="gap-2">
+									<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											value={editCdiInput}
+											onChangeText={text => setEditCdiInput(sanitizeNumberInput(text))}
+											keyboardType="decimal-pad"
+											className={inputField}
+										/>
+									</Input>
+								</VStack>
+								<VStack className="gap-2">
+									<Text className={`${bodyText} ml-1 text-sm`}>Prazo de resgate</Text>
+									<Select selectedValue={editTerm} onValueChange={value => setEditTerm(value as RedemptionTerm)}>
+										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+											<SelectInput value={redemptionTermLabels[editTerm]} className={inputField} />
+											<SelectIcon />
+										</SelectTrigger>
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+												{redemptionOptions.map(option => (
+													<SelectItem key={option.value} label={option.label} value={option.value} />
+												))}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+								</VStack>
+								<VStack className="gap-2">
+									<Text className={`${bodyText} ml-1 text-sm`}>Banco</Text>
+									<Select
+										selectedValue={editBankId ?? undefined}
+										onValueChange={value => setEditBankId(value)}
+										isDisabled={bankOptions.length === 0}
+									>
+										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+											<SelectInput
+												placeholder="Selecione o banco"
+												value={editBankId ? bankOptions.find(bank => bank.id === editBankId)?.name ?? '' : ''}
+												className={inputField}
+											/>
+											<SelectIcon />
+										</SelectTrigger>
+										<SelectPortal>
+											<SelectBackdrop />
+											<SelectContent>
+												<SelectDragIndicatorWrapper>
+													<SelectDragIndicator />
+												</SelectDragIndicatorWrapper>
+												{bankOptions.length > 0 ? (
+													bankOptions.map(bank => (
+														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													))
+												) : (
+													<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
+												)}
+											</SelectContent>
+										</SelectPortal>
+									</Select>
+								</VStack>
+							</VStack>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={closeEditModal} isDisabled={isSavingEdit}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleSubmitEdit} isDisabled={isSavingEdit} className={submitButtonClassName}>
+								{isSavingEdit ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Salvando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Salvar alterações</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
-			<Modal isOpen={Boolean(investmentForDeposit)} onClose={handleCloseDepositModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">Adicionar ao investimento</Heading>
-						<ModalCloseButton onPress={handleCloseDepositModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Box className="mb-3">
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor atual (base)</Text>
-							<Input isDisabled>
-								<InputField value={syncedDepositDisplayValue} editable={false} />
+				<Modal isOpen={Boolean(investmentForDepositSync)} onClose={handleCloseDepositSyncModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Sincronizar antes de aportar</Heading>
+							<ModalCloseButton onPress={handleCloseDepositSyncModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} mb-3 text-sm`}>
+								Confirme o valor disponível hoje em{' '}
+								<Text className="font-semibold">{investmentForDepositSync?.name ?? 'seu investimento'}</Text>.
+							</Text>
+							<Input className={fieldContainerClassName}>
+								<InputField
+									value={depositSyncInput}
+									onChangeText={handleDepositSyncInputChange}
+									keyboardType="numeric"
+									placeholder="Ex: 1.000,00"
+									className={inputField}
+								/>
 							</Input>
-						</Box>
-						<Text className="text-gray-600 dark:text-gray-300 mb-3">
-							Informe o valor que deseja acrescentar em{' '}
-							<Text className="font-semibold">
-								{investmentForDeposit?.name ?? 'seu investimento'}
-							</Text>
-							.
-						</Text>
-						<Input>
-							<InputField
-								value={depositInput}
-								onChangeText={handleDepositInputChange}
-								keyboardType="numeric"
-								placeholder="Ex: 500,00"
-							/>
-						</Input>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseDepositModal} isDisabled={isSavingDeposit}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button onPress={handleConfirmDeposit} isDisabled={isSavingDeposit}>
-							{isSavingDeposit ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Adicionando</ButtonText>
-								</>
-							) : (
-								<ButtonText>Adicionar valor</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseDepositSyncModal} isDisabled={isSavingDepositSync}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleConfirmDepositSync} isDisabled={isSavingDepositSync} className={submitButtonClassName}>
+								{isSavingDepositSync ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Sincronizando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Sincronizar e continuar</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
-			<Modal isOpen={Boolean(investmentForWithdrawalSync)} onClose={handleCloseWithdrawalSyncModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">Sincronizar antes de resgatar</Heading>
-						<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-600 dark:text-gray-300 mb-3">
-							Confirme o valor disponível hoje em{' '}
-							<Text className="font-semibold">
-								{investmentForWithdrawalSync?.name ?? 'seu investimento'}
+				<Modal isOpen={Boolean(investmentForDeposit)} onClose={handleCloseDepositModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Adicionar ao investimento</Heading>
+							<ModalCloseButton onPress={handleCloseDepositModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
+								<VStack className="gap-1">
+									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor base</Text>
+									<Text className="text-lg font-semibold">{syncedDepositDisplayValue}</Text>
+								</VStack>
+							</Box>
+							<Text className={`${bodyText} mb-3 text-sm`}>
+								Informe o valor que deseja acrescentar em{' '}
+								<Text className="font-semibold">{investmentForDeposit?.name ?? 'seu investimento'}</Text>.
 							</Text>
-							. Esse valor será usado como base do resgate.
-						</Text>
-						<Input>
-							<InputField
-								value={withdrawSyncInput}
-								onChangeText={handleWithdrawSyncInputChange}
-								keyboardType="numeric"
-								placeholder="Ex: 1.000,00"
-							/>
-						</Input>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseWithdrawalSyncModal} isDisabled={isSavingWithdrawalSync}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button onPress={handleConfirmWithdrawalSync} isDisabled={isSavingWithdrawalSync}>
-							{isSavingWithdrawalSync ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Sincronizando</ButtonText>
-								</>
-							) : (
-								<ButtonText>Sincronizar e continuar</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
-
-			<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">Resgatar investimento</Heading>
-						<ModalCloseButton onPress={handleCloseWithdrawalModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Box className="mb-3">
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">Valor atual (base)</Text>
-							<Input isDisabled>
-								<InputField value={syncedWithdrawalDisplayValue} editable={false} />
+							<Input className={fieldContainerClassName}>
+								<InputField
+									value={depositInput}
+									onChangeText={handleDepositInputChange}
+									keyboardType="numeric"
+									placeholder="Ex: 500,00"
+									className={inputField}
+								/>
 							</Input>
-						</Box>
-						<Text className="text-gray-600 dark:text-gray-300 mb-3">
-							Quanto você deseja resgatar de{' '}
-							<Text className="font-semibold">
-								{investmentForWithdrawal?.name ?? 'seu investimento'}
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseDepositModal} isDisabled={isSavingDeposit}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleConfirmDeposit} isDisabled={isSavingDeposit} className={submitButtonClassName}>
+								{isSavingDeposit ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Adicionando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Adicionar valor</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+
+				<Modal isOpen={Boolean(investmentForWithdrawalSync)} onClose={handleCloseWithdrawalSyncModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Sincronizar antes de resgatar</Heading>
+							<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} mb-3 text-sm`}>
+								Confirme o valor disponível hoje em{' '}
+								<Text className="font-semibold">{investmentForWithdrawalSync?.name ?? 'seu investimento'}</Text>.
 							</Text>
-							?
-						</Text>
-						<Input>
-							<InputField
-								value={withdrawInput}
-								onChangeText={handleWithdrawInputChange}
-								keyboardType="numeric"
-								placeholder="Ex: 250,00"
-							/>
-						</Input>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseWithdrawalModal} isDisabled={isSavingWithdrawal}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button onPress={handleConfirmWithdrawal} isDisabled={isSavingWithdrawal}>
-							{isSavingWithdrawal ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Resgatando</ButtonText>
-								</>
-							) : (
-								<ButtonText>Confirmar resgate</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+							<Input className={fieldContainerClassName}>
+								<InputField
+									value={withdrawSyncInput}
+									onChangeText={handleWithdrawSyncInputChange}
+									keyboardType="numeric"
+									placeholder="Ex: 1.000,00"
+									className={inputField}
+								/>
+							</Input>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseWithdrawalSyncModal} isDisabled={isSavingWithdrawalSync}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleConfirmWithdrawalSync} isDisabled={isSavingWithdrawalSync} className={submitButtonClassName}>
+								{isSavingWithdrawalSync ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Sincronizando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Sincronizar e continuar</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+
+				<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Resgatar investimento</Heading>
+							<ModalCloseButton onPress={handleCloseWithdrawalModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
+								<VStack className="gap-1">
+									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor base</Text>
+									<Text className="text-lg font-semibold">{syncedWithdrawalDisplayValue}</Text>
+								</VStack>
+							</Box>
+							<Text className={`${bodyText} mb-3 text-sm`}>
+								Quanto você deseja resgatar de{' '}
+								<Text className="font-semibold">{investmentForWithdrawal?.name ?? 'seu investimento'}</Text>?
+							</Text>
+							<Input className={fieldContainerClassName}>
+								<InputField
+									value={withdrawInput}
+									onChangeText={handleWithdrawInputChange}
+									keyboardType="numeric"
+									placeholder="Ex: 250,00"
+									className={inputField}
+								/>
+							</Input>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseWithdrawalModal} isDisabled={isSavingWithdrawal}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button onPress={handleConfirmWithdrawal} isDisabled={isSavingWithdrawal} className={submitButtonClassName}>
+								{isSavingWithdrawal ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Resgatando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Confirmar resgate</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
 				<Modal isOpen={Boolean(investmentForSync)} onClose={handleCloseManualSyncModal}>
 					<ModalBackdrop />
-					<ModalContent className="max-w-[360px]">
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
 							<Heading size="lg">Sincronizar valor real</Heading>
 							<ModalCloseButton onPress={handleCloseManualSyncModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className="text-gray-600 dark:text-gray-300 mb-3">
+							<Text className={`${bodyText} mb-3 text-sm`}>
 								Informe o valor atual disponível em{' '}
-								<Text className="font-semibold">{investmentForSync?.name ?? 'seu investimento'}</Text>. Esse
-								valor passará a ser a base para o cálculo simulado até a próxima atualização manual.
+								<Text className="font-semibold">{investmentForSync?.name ?? 'seu investimento'}</Text>.
 							</Text>
-							<Input>
+							<Input className={fieldContainerClassName}>
 								<InputField
 									value={syncInput}
 									onChangeText={handleManualSyncInputChange}
 									keyboardType="numeric"
 									placeholder="Ex: 1.250,45"
+									className={inputField}
 								/>
 							</Input>
 						</ModalBody>
@@ -1560,7 +1650,7 @@ export default function FinancialListScreen() {
 							<Button variant="outline" onPress={handleCloseManualSyncModal} isDisabled={isSavingSync}>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmManualSync} isDisabled={isSavingSync}>
+							<Button onPress={handleConfirmManualSync} isDisabled={isSavingSync} className={submitButtonClassName}>
 								{isSavingSync ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1574,44 +1664,38 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-			<Modal isOpen={Boolean(investmentPendingDeletion)} onClose={handleCloseDeleteModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">Excluir investimento</Heading>
-						<ModalCloseButton onPress={handleCloseDeleteModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">
-							Tem certeza de que deseja remover{' '}
-							<Text className="font-semibold">
-								{investmentPendingDeletion?.name ?? 'este investimento'}
-							</Text>
-							? Essa ação não pode ser desfeita.
-						</Text>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseDeleteModal} isDisabled={isDeleting}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button
-							variant="solid"
-							action="negative"
-							onPress={handleConfirmDelete}
-							isDisabled={isDeleting}
-						>
-							{isDeleting ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Excluindo</ButtonText>
-								</>
-							) : (
-								<ButtonText>Excluir</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
-		</View>
+				<Modal isOpen={Boolean(investmentPendingDeletion)} onClose={handleCloseDeleteModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">Excluir investimento</Heading>
+							<ModalCloseButton onPress={handleCloseDeleteModal} />
+						</ModalHeader>
+						<ModalBody>
+									<Text className={`${bodyText} text-sm`}>
+										Tem certeza de que deseja remover{' '}
+										<Text className="font-semibold">{investmentPendingDeletion?.name ?? 'este investimento'}</Text>
+										? Essa ação não pode ser desfeita.
+									</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseDeleteModal} isDisabled={isDeleting}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button variant="solid" action="negative" onPress={handleConfirmDelete} isDisabled={isDeleting}>
+								{isDeleting ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Excluindo</ButtonText>
+									</>
+								) : (
+									<ButtonText>Excluir</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+			</View>
+		</SafeAreaView>
 	);
 }

@@ -18,8 +18,10 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import {
 	Select,
 	SelectBackdrop,
@@ -32,7 +34,6 @@ import {
 	SelectPortal,
 	SelectTrigger,
 } from '@/components/ui/select';
-import { Divider } from '@/components/ui/divider';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { Menu } from '@/components/uiverse/menu';
@@ -48,8 +49,9 @@ import {
 	getCurrentMonthSummaryByBankFirebaseGains,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
-import { useAppTheme } from '@/contexts/ThemeContext';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
@@ -130,9 +132,84 @@ const formatCurrencyBRL = (valueInCents: number) =>
 		currency: 'BRL',
 	}).format(valueInCents / 100);
 
+function AddFinanceFormSkeleton({
+	bodyText,
+	tintedCardClassName,
+	fieldContainerClassName,
+	compactCardClassName,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+	skeletonMutedBaseColor,
+	skeletonMutedHighlightColor,
+}: {
+	bodyText: string;
+	tintedCardClassName: string;
+	fieldContainerClassName: string;
+	compactCardClassName: string;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+	skeletonMutedBaseColor: string;
+	skeletonMutedHighlightColor: string;
+}) {
+	return (
+		<VStack className="mt-4 gap-4">
+			<Box className={`${tintedCardClassName} px-5 py-5`}>
+				<VStack className="gap-3">
+					<Skeleton className="h-3 w-24" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<Skeleton className="h-8 w-52" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<SkeletonText
+						_lines={2}
+						className="h-3"
+						baseColor={skeletonMutedBaseColor}
+						highlightColor={skeletonMutedHighlightColor}
+					/>
+				</VStack>
+			</Box>
+
+			{Array.from({ length: 5 }).map((_, index) => (
+				<VStack key={`add-finance-skeleton-${index}`} className="gap-2">
+					<Text className={`${bodyText} ml-1 text-sm`}>{index === 4 ? 'Banco' : 'Campo'}</Text>
+					<Skeleton className={fieldContainerClassName} baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+				</VStack>
+			))}
+
+			<Box className={`${compactCardClassName} px-4 py-4`}>
+				<VStack className="gap-3">
+					<Skeleton className="h-4 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<SkeletonText
+						_lines={2}
+						className="h-3"
+						baseColor={skeletonMutedBaseColor}
+						highlightColor={skeletonMutedHighlightColor}
+					/>
+				</VStack>
+			</Box>
+
+			<Skeleton className="h-11 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+		</VStack>
+	);
+}
+
 export default function AddFinanceScreen() {
-	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		insets,
+		compactCardClassName,
+		tintedCardClassName,
+		topSummaryCardClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
+	} = useScreenStyles();
 	// Estado para guardar o nome do investimento que o usuário está digitando.
 	const [investmentName, setInvestmentName] = React.useState('');
 	// Guardamos o valor inicial como string formatada e em centavos.
@@ -604,243 +681,258 @@ export default function AddFinanceScreen() {
 		bankOptions,
 		selectedBankId,
 	]);
+	const selectedBankLabel = selectedBankId ? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? '' : '';
+	const isInitialLoading = isLoadingBanks && bankOptions.length === 0;
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-				style={{ backgroundColor: pageBackground }}
-			>
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<FloatingAlertViewport />
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 					className="flex-1 w-full"
 				>
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="interactive"
-						style={{ backgroundColor: pageBackground }}
-						contentContainerStyle={{
-							flexGrow: 1,
-							paddingBottom: contentBottomPadding,
-							backgroundColor: pageBackground,
-						}}
-					>
-						<View className="w-full px-6">
-						<VStack className="gap-4 items-center">
-							<Heading size="3xl" className="text-center">
-								Registrar investimento
-							</Heading>
-
-							<Box className="w-full items-center mt-4 mb-2">
-								<AddFinancialIllustration width={180} height={180} />
-							</Box>
-
-							<Text className="text-justify text-gray-600 dark:text-gray-400">
-								Adicione seus investimentos financeiros de forma independente. Eles ficarão disponíveis na
-								lista separada de investimentos, facilitando o acompanhamento.
-							</Text>
-
-						</VStack>
-
-						<Divider className="my-4" />
-
-						<VStack className="gap-4">
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Nome do investimento
-								</Text>
-								<Input>
-									<InputField
-										ref={investmentNameInputRef}
-										value={investmentName}
-										onChangeText={text => {
-											// Mantemos o estado sempre atualizado enquanto o usuário digita.
-											setInvestmentName(text);
-											setHasSavedOnce(false);
-										}}
-										placeholder="Ex: CDB Banco X"
-										autoCapitalize="sentences"
-										returnKeyType="next"
-										onFocus={() => handleInputFocus('investment-name')}
-									/>
-								</Input>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Valor inicial investido
-								</Text>
-								<Input>
-									<InputField
-										ref={initialValueInputRef}
-										value={initialValueInput}
-										onChangeText={handleInitialValueChange}
-										placeholder="Ex: R$ 1.500,00"
-										keyboardType="numeric"
-										onFocus={() => handleInputFocus('initial-value')}
-									/>
-								</Input>
-							</Box>
-
-							<DatePickerField
-								label="Dia do investimento"
-								value={investmentDate}
-								onChange={formatted => handleDateSelect(formatted)}
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+							<Image
+								source={LoginWallpaper}
+								alt="Background da tela de investimento"
+								className="w-full h-full rounded-b-3xl absolute"
+								resizeMode="cover"
 							/>
 
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">CDI (%)</Text>
-								<Input>
-									<InputField
-										ref={cdiInputRef}
-										value={cdiInput}
-										onChangeText={text => {
-											setCdiInput(sanitizeNumberInput(text));
-											setHasSavedOnce(false);
-										}}
-										placeholder="Ex: 110"
-										keyboardType="decimal-pad"
-										onFocus={() => handleInputFocus('cdi')}
-									/>
-								</Input>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Prazo para resgate
-								</Text>
-								<Select
-									selectedValue={selectedRedemptionTerm}
-									onValueChange={value => {
-										// O componente Select devolve string, por isso forçamos para o tipo definido.
-										setSelectedRedemptionTerm(value as RedemptionTerm);
-										setHasSavedOnce(false);
-									}}
-								>
-									<SelectTrigger>
-										<SelectInput
-											placeholder="Escolha uma opção"
-											value={redemptionTermLabels[selectedRedemptionTerm]}
-										/>
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{redemptionOptions.map(option => (
-												<SelectItem
-													key={option.value}
-													label={option.label}
-													value={option.value}
-												/>
-											))}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Banco vinculado
-								</Text>
-								<Select
-									selectedValue={selectedBankId ?? undefined}
-									onValueChange={value => {
-										setSelectedBankId(value);
-										setHasSavedOnce(false);
-									}}
-									isDisabled={isLoadingBanks || bankOptions.length === 0}
-								>
-									<SelectTrigger>
-										<SelectInput
-											placeholder="Selecione o banco onde o investimento está registrado"
-											value={
-												selectedBankId
-													? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? ''
-													: ''
-											}
-										/>
-										<SelectIcon />
-									</SelectTrigger>
-									<SelectPortal>
-										<SelectBackdrop />
-										<SelectContent>
-											<SelectDragIndicatorWrapper>
-												<SelectDragIndicator />
-											</SelectDragIndicatorWrapper>
-											{bankOptions.length > 0 ? (
-												bankOptions.map(bank => (
-													<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-												))
-											) : (
-												<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
-											)}
-										</SelectContent>
-									</SelectPortal>
-								</Select>
-							</Box>
-
-							<Box>
-								<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-									Saldo atual do banco
-								</Text>
-								<Input isDisabled>
-									<InputField
-										value={
-											!selectedBankId
-												? 'Selecione um banco para visualizar o saldo'
-												: isLoadingBankBalance
-													? 'Carregando saldo...'
-													: typeof currentBankBalanceInCents === 'number'
-														? formatCurrencyBRL(currentBankBalanceInCents)
-														: 'Saldo indisponível'
-										}
-									/>
-								</Input>
-							</Box>
-
-							<Button
-								className="mt-2"
-								variant="outline"
-								onPress={handleSaveInvestment}
-								isDisabled={!isFormValid || isSaving}
+							<VStack
+								className="w-full h-full items-center justify-start px-6 gap-4"
+								style={{ paddingTop: insets.top + 24 }}
 							>
-								{isSaving ? (
-									<>
-										<ButtonSpinner color="white" />
-										<ButtonText>Salvando</ButtonText>
-									</>
-								) : (
-									<ButtonText>Salvar investimento</ButtonText>
-								)}
-							</Button>
-
-							{hasSavedOnce && (
-								<HStack className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 items-center justify-between">
-									<Text className="text-emerald-700 flex-1 pr-2">
-										Pronto! O investimento está disponível na lista independente.
-									</Text>
-									<Button variant="link" action="primary" onPress={() => router.push('/financial-list')}>
-										<ButtonText>Ver lista</ButtonText>
-									</Button>
-								</HStack>
-							)}
-						</VStack>
+								<Heading size="xl" className="text-white text-center">
+									Registrar investimento
+								</Heading>
+								<AddFinancialIllustration width="40%" height="40%" className="opacity-90" />
+							</VStack>
 						</View>
-					</ScrollView>
+
+						<ScrollView
+							ref={scrollViewRef}
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="interactive"
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							style={{ marginTop: heroHeight - 64 }}
+							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+						>
+							<VStack className="justify-between mt-4">
+								<Box className={`${topSummaryCardClassName} px-5 py-5`}>
+									<VStack className="gap-3">
+										<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
+											Investimento separado da conta
+										</Text>
+										<Heading size="md">Registre um ativo e acompanhe depois na lista dedicada</Heading>
+										<Text className={`${bodyText} text-sm`}>
+											Defina o valor inicial, CDI, prazo e banco vinculado. O registro continua isolado da lista comum, mas segue o mesmo padrão visual do sistema.
+										</Text>
+									</VStack>
+								</Box>
+
+								{isInitialLoading ? (
+									<AddFinanceFormSkeleton
+										bodyText={bodyText}
+										tintedCardClassName={tintedCardClassName}
+										fieldContainerClassName={fieldContainerClassName}
+										compactCardClassName={compactCardClassName}
+										skeletonBaseColor={skeletonBaseColor}
+										skeletonHighlightColor={skeletonHighlightColor}
+										skeletonMutedBaseColor={skeletonMutedBaseColor}
+										skeletonMutedHighlightColor={skeletonMutedHighlightColor}
+									/>
+								) : (
+									<VStack className="mt-4 gap-4">
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Nome do investimento</Text>
+											<Input className={fieldContainerClassName}>
+												<InputField
+													ref={investmentNameInputRef}
+													value={investmentName}
+													onChangeText={text => {
+														setInvestmentName(text);
+														setHasSavedOnce(false);
+													}}
+													placeholder="Ex: CDB Banco X"
+													autoCapitalize="sentences"
+													returnKeyType="next"
+													className={inputField}
+													onFocus={() => handleInputFocus('investment-name')}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial investido</Text>
+											<Input className={fieldContainerClassName}>
+												<InputField
+													ref={initialValueInputRef}
+													value={initialValueInput}
+													onChangeText={handleInitialValueChange}
+													placeholder="Ex: R$ 1.500,00"
+													keyboardType="numeric"
+													className={inputField}
+													onFocus={() => handleInputFocus('initial-value')}
+												/>
+											</Input>
+										</VStack>
+
+										<DatePickerField
+											label="Dia do investimento"
+											labelClassName={`${bodyText} ml-1 text-sm`}
+											value={investmentDate}
+											onChange={formatted => handleDateSelect(formatted)}
+											triggerClassName={fieldContainerClassName}
+											inputClassName={inputField}
+										/>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
+											<Input className={fieldContainerClassName}>
+												<InputField
+													ref={cdiInputRef}
+													value={cdiInput}
+													onChangeText={text => {
+														setCdiInput(sanitizeNumberInput(text));
+														setHasSavedOnce(false);
+													}}
+													placeholder="Ex: 110"
+													keyboardType="decimal-pad"
+													className={inputField}
+													onFocus={() => handleInputFocus('cdi')}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Prazo para resgate</Text>
+											<Select
+												selectedValue={selectedRedemptionTerm}
+												onValueChange={value => {
+													setSelectedRedemptionTerm(value as RedemptionTerm);
+													setHasSavedOnce(false);
+												}}
+											>
+												<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+													<SelectInput
+														placeholder="Escolha uma opção"
+														value={redemptionTermLabels[selectedRedemptionTerm]}
+														className={inputField}
+													/>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{redemptionOptions.map(option => (
+															<SelectItem key={option.value} label={option.label} value={option.value} />
+														))}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Banco vinculado</Text>
+											<Select
+												selectedValue={selectedBankId ?? undefined}
+												onValueChange={value => {
+													setSelectedBankId(value);
+													setHasSavedOnce(false);
+												}}
+												isDisabled={isLoadingBanks || bankOptions.length === 0}
+											>
+												<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+													<SelectInput
+														placeholder="Selecione o banco do investimento"
+														value={selectedBankLabel}
+														className={inputField}
+													/>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{bankOptions.length > 0 ? (
+															bankOptions.map(bank => <SelectItem key={bank.id} label={bank.name} value={bank.id} />)
+														) : (
+															<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
+														)}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+
+										<Box className={`${tintedCardClassName} px-4 py-4`}>
+											<VStack className="gap-3">
+												<VStack className="gap-1">
+													<Text className="font-semibold">Saldo disponível do banco</Text>
+													<Text className={`${helperText} text-sm`}>
+														Validamos esse valor antes do cadastro para evitar lançar um investimento acima do saldo atual.
+													</Text>
+												</VStack>
+
+												{selectedBankId && isLoadingBankBalance ? (
+													<Skeleton
+														className="h-10 rounded-2xl"
+														baseColor={skeletonBaseColor}
+														highlightColor={skeletonHighlightColor}
+													/>
+												) : (
+													<Input className={fieldContainerClassName} isDisabled>
+														<InputField
+															value={
+																!selectedBankId
+																	? 'Selecione um banco para visualizar o saldo'
+																	: typeof currentBankBalanceInCents === 'number'
+																		? formatCurrencyBRL(currentBankBalanceInCents)
+																		: 'Saldo indisponível'
+															}
+															className={inputField}
+														/>
+													</Input>
+												)}
+											</VStack>
+										</Box>
+
+										<Button className={submitButtonClassName} onPress={handleSaveInvestment} isDisabled={!isFormValid || isSaving}>
+											{isSaving ? (
+												<>
+													<ButtonSpinner />
+													<ButtonText>Salvando</ButtonText>
+												</>
+											) : (
+												<ButtonText>Salvar investimento</ButtonText>
+											)}
+										</Button>
+
+										{hasSavedOnce ? (
+											<Box className={`${compactCardClassName} px-4 py-4`}>
+												<HStack className="items-center justify-between gap-3">
+													<Text className="flex-1 text-sm text-emerald-600 dark:text-emerald-400">
+														Pronto. O investimento já está disponível na lista dedicada.
+													</Text>
+													<Button variant="link" action="primary" onPress={() => router.push('/financial-list')}>
+														<ButtonText>Ver lista</ButtonText>
+													</Button>
+												</HStack>
+											</Box>
+										) : null}
+									</VStack>
+								)}
+							</VStack>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 
 				<Menu defaultValue={1} />

@@ -1,6 +1,7 @@
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { computeMonthlyBankBalances, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import {
 	collection,
 	getDocs,
@@ -77,6 +78,7 @@ export type HomeTimelineMovement = {
 	isInvestmentDeposit: boolean;
 	isInvestmentRedemption: boolean;
 	investmentNameSnapshot: string | null;
+	isFromMandatory: boolean;
 };
 
 export type HomeOverviewData = {
@@ -502,16 +504,67 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		orderBy('date', 'desc'),
 		limitQuery(6),
 	);
+	const mandatoryExpensesQuery = query(
+		collection(db, 'mandatoryExpenses'),
+		where('personId', 'in', context.allowedPersonIds),
+	);
+	const mandatoryGainsQuery = query(
+		collection(db, 'mandatoryGains'),
+		where('personId', 'in', context.allowedPersonIds),
+	);
 
-	const [recentExpensesSnapshot, recentGainsSnapshot] = await Promise.all([
+	const [
+		recentExpensesSnapshot,
+		recentGainsSnapshot,
+		mandatoryExpensesSnapshot,
+		mandatoryGainsSnapshot,
+	] = await Promise.all([
 		getDocs(recentExpensesQuery),
 		getDocs(recentGainsQuery),
+		getDocs(mandatoryExpensesQuery),
+		getDocs(mandatoryGainsQuery),
 	]);
+
+	const mandatoryExpenseIds = new Set(
+		mandatoryExpensesSnapshot.docs
+			.map(
+				docSnap =>
+					({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }) as HomeMovementDocument & {
+						id: string;
+					},
+			)
+			.filter(
+				item =>
+					typeof item.lastPaymentExpenseId === 'string' &&
+					isCycleKeyCurrent(typeof item.lastPaymentCycle === 'string' ? item.lastPaymentCycle : undefined),
+			)
+			.map(item => item.lastPaymentExpenseId as string),
+	);
+
+	const mandatoryGainIds = new Set(
+		mandatoryGainsSnapshot.docs
+			.map(
+				docSnap =>
+					({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }) as HomeMovementDocument & {
+						id: string;
+					},
+			)
+			.filter(
+				item =>
+					typeof item.lastReceiptGainId === 'string' &&
+					isCycleKeyCurrent(typeof item.lastReceiptCycle === 'string' ? item.lastReceiptCycle : undefined),
+			)
+			.map(item => item.lastReceiptGainId as string),
+	);
 
 	const normalizeMovement = (
 		item: HomeMovementDocument,
 		type: 'expense' | 'gain',
 	): HomeTimelineMovement => {
+		const movementId =
+			typeof item?.id === 'string' && item.id.length > 0
+				? item.id
+				: `${type}-${String(item?.createdAt ?? item?.date ?? Math.random())}`;
 		const bankId =
 			typeof item?.bankId === 'string' && item.bankId.trim().length > 0 ? item.bankId.trim() : null;
 		const parsedDate = parseToDate(item?.date ?? item?.createdAt);
@@ -533,12 +586,11 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 			item.bankTransferTargetBankNameSnapshot.trim().length > 0
 				? item.bankTransferTargetBankNameSnapshot.trim()
 				: null;
+		const isFromMandatory =
+			type === 'expense' ? mandatoryExpenseIds.has(movementId) : mandatoryGainIds.has(movementId);
 
 		return {
-			id:
-				typeof item?.id === 'string' && item.id.length > 0
-					? item.id
-					: `${type}-${String(item?.createdAt ?? item?.date ?? Math.random())}`,
+			id: movementId,
 			type,
 			name:
 				typeof item?.name === 'string' && item.name.trim().length > 0
@@ -562,6 +614,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 			isInvestmentDeposit: Boolean(item?.isInvestmentDeposit),
 			isInvestmentRedemption: Boolean(item?.isInvestmentRedemption),
 			investmentNameSnapshot,
+			isFromMandatory,
 		};
 	};
 

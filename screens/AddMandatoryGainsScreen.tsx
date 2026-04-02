@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
@@ -34,9 +35,10 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { HStack } from '@/components/ui/hstack';
 import { Switch } from '@/components/ui/switch';
 import { Box } from '@/components/ui/box';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import Navigator from '@/components/uiverse/navigator';
 
 import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase } from '@/functions/TagFirebase';
@@ -54,13 +56,13 @@ import {
 } from '@/utils/mandatoryGainNotifications';
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
 import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGainsScreen.svg';
-import { Divider } from '@/components/ui/divider';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type TagOption = {
 	id: string;
@@ -73,6 +75,14 @@ type ReceiptInfo = {
 	gainId: string | null;
 	receivedAt: Date | null;
 	cycleKey: string | null;
+};
+type MandatoryGainFormSnapshot = {
+	name: string;
+	valueInCents: number | null;
+	dueDay: string;
+	tagId: string | null;
+	description: string;
+	reminderEnabled: boolean;
 };
 type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'description';
 
@@ -115,9 +125,94 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	return null;
 };
 
+function MandatoryGainFormSkeleton({
+	bodyText,
+	tintedCardClassName,
+	compactCardClassName,
+	fieldContainerClassName,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+	skeletonMutedBaseColor,
+	skeletonMutedHighlightColor,
+}: {
+	bodyText: string;
+	tintedCardClassName: string;
+	compactCardClassName: string;
+	fieldContainerClassName: string;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+	skeletonMutedBaseColor: string;
+	skeletonMutedHighlightColor: string;
+}) {
+	return (
+		<VStack className="mt-4 gap-4">
+			<Box className={`${tintedCardClassName} px-5 py-5`}>
+				<VStack className="gap-3">
+					<Skeleton className="h-3 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<Skeleton className="h-8 w-48" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<SkeletonText
+						_lines={2}
+						className="h-3"
+						baseColor={skeletonMutedBaseColor}
+						highlightColor={skeletonMutedHighlightColor}
+					/>
+				</VStack>
+			</Box>
+
+			{Array.from({ length: 4 }).map((_, index) => (
+				<VStack key={`mandatory-gain-form-skeleton-${index}`} className="gap-2">
+					<Skeleton className="ml-1 h-3 w-32" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+					<Skeleton
+						className={fieldContainerClassName}
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				</VStack>
+			))}
+
+			<VStack className="gap-2">
+				<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
+				<Skeleton className="h-24 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+			</VStack>
+
+			<Box className={`${compactCardClassName} px-4 py-4`}>
+				<VStack className="gap-3">
+					<Skeleton className="h-4 w-32" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<SkeletonText
+						_lines={2}
+						className="h-3"
+						baseColor={skeletonMutedBaseColor}
+						highlightColor={skeletonMutedHighlightColor}
+					/>
+				</VStack>
+			</Box>
+
+			<Skeleton className="h-11 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+		</VStack>
+	);
+}
+
 export default function AddMandatoryGainsScreen() {
-	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		insets,
+		compactCardClassName,
+		tintedCardClassName,
+		topSummaryCardClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
+	} = useScreenStyles();
 	const params = useLocalSearchParams<{ gainTemplateId?: string | string[] }>();
 	const editingGainTemplateId = React.useMemo(() => {
 		const raw = Array.isArray(params.gainTemplateId) ? params.gainTemplateId[0] : params.gainTemplateId;
@@ -139,6 +234,7 @@ export default function AddMandatoryGainsScreen() {
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
 	const [currentReceiptInfo, setCurrentReceiptInfo] = React.useState<ReceiptInfo | null>(null);
 	const [isReceiptActionLoading, setIsReceiptActionLoading] = React.useState(false);
+	const [persistedFormSnapshot, setPersistedFormSnapshot] = React.useState<MandatoryGainFormSnapshot | null>(null);
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
 			return null;
@@ -151,7 +247,7 @@ export default function AddMandatoryGainsScreen() {
 	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
 	const selectedTagIconContainerClassName = isDarkMode
 		? 'border border-slate-800 bg-slate-900'
-		: 'border border-amber-200 bg-amber-50';
+		: 'border border-slate-200';
 
 	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const gainNameInputRef = React.useRef<TextInput | null>(null);
@@ -182,20 +278,99 @@ export default function AddMandatoryGainsScreen() {
 		setDueDay(sanitizeDueDay(input));
 	}, []);
 
-	const handleReminderToggle = React.useCallback(async (value: boolean) => {
-		if (value) {
-			const granted = await ensureNotificationPermissionForMandatoryGains();
-			if (!granted) {
-				showFloatingAlert({
-					message: 'Ative as notificações do aplicativo nas configurações para receber lembretes.',
-					action: 'warning',
-					position: 'bottom',
-				});
-				return;
-			}
+	const isDueDayValid = React.useMemo(() => {
+		if (!dueDay) {
+			return false;
 		}
+		const parsed = Number(dueDay);
+		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= 31;
+	}, [dueDay]);
+
+	const handleReminderToggle = React.useCallback(async (value: boolean) => {
+		if (!value) {
+			setReminderEnabled(false);
+			return;
+		}
+
+		if (!gainName.trim() || valueInCents === null || valueInCents <= 0 || !isDueDayValid || !selectedTagId) {
+			showNotifierAlert({
+				title: 'Lembrete indisponível',
+				description: 'Preencha nome, valor, dia do recebimento e categoria antes de ativar o lembrete.',
+				type: 'warn',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
+		const permissionResult = await ensureNotificationPermissionForMandatoryGains();
+		if (!permissionResult.granted) {
+			showNotifierAlert({
+				title: 'Lembrete indisponível',
+				description:
+					permissionResult.reason === 'unavailable'
+						? 'Este ambiente não suporta notificações locais. Use um build de desenvolvimento ou produção para ativar lembretes.'
+						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
+				type: 'warn',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
 		setReminderEnabled(value);
-	}, []);
+	}, [gainName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
+
+	const buildFormSnapshot = React.useCallback(
+		(): MandatoryGainFormSnapshot => ({
+			name: gainName.trim(),
+			valueInCents,
+			dueDay: dueDay.trim(),
+			tagId: selectedTagId,
+			description: description.trim(),
+			reminderEnabled,
+		}),
+		[description, dueDay, gainName, reminderEnabled, selectedTagId, valueInCents],
+	);
+
+	const hasGainName = gainName.trim().length > 0;
+	const hasGainValue = valueInCents !== null && valueInCents > 0;
+	const isFormBusy = isSubmitting || isPrefilling;
+	const isCoreTemplateReady = hasGainName && hasGainValue && isDueDayValid;
+	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId);
+	const isValueFieldDisabled = !hasGainName || isFormBusy;
+	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
+	const isTagSelectDisabled = isLoadingTags || tagOptions.length === 0 || !isCoreTemplateReady || isFormBusy;
+	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
+	const hasPendingTemplateChanges = React.useMemo(() => {
+		if (!selectedGainTemplateId || !persistedFormSnapshot) {
+			return false;
+		}
+
+		const currentSnapshot = buildFormSnapshot();
+		return (
+			currentSnapshot.name !== persistedFormSnapshot.name ||
+			currentSnapshot.valueInCents !== persistedFormSnapshot.valueInCents ||
+			currentSnapshot.dueDay !== persistedFormSnapshot.dueDay ||
+			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
+			currentSnapshot.description !== persistedFormSnapshot.description ||
+			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled
+		);
+	}, [buildFormSnapshot, persistedFormSnapshot, selectedGainTemplateId]);
+
+	const tagHelperMessage = isLoadingTags
+		? 'Carregando categorias obrigatórias...'
+		: tagOptions.length === 0
+			? 'Cadastre uma tag de ganho marcada como obrigatória para continuar.'
+			: !isCoreTemplateReady
+				? 'Preencha nome, valor e dia do recebimento para liberar a categoria.'
+				: 'Selecione a categoria obrigatória que identifica este template.';
+
+	const reminderHelperMessage = !isTemplateReady
+		? 'Preencha nome, valor, dia do recebimento e categoria antes de ativar o lembrete.'
+		: reminderEnabled
+			? `Lembrete mensal ativo para o dia ${dueDay.padStart(2, '0')} às 09:00.`
+			: 'Ative para receber um lembrete mensal no dia configurado.';
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -280,14 +455,6 @@ export default function AddMandatoryGainsScreen() {
 
 	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
 
-	const isDueDayValid = React.useMemo(() => {
-		if (!dueDay) {
-			return false;
-		}
-		const parsed = Number(dueDay);
-		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= 31;
-	}, [dueDay]);
-
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
 		setSelectedGainTemplateId(null);
 		setGainName('');
@@ -303,15 +470,16 @@ export default function AddMandatoryGainsScreen() {
 			return null;
 		});
 		setCurrentReceiptInfo(null);
+		setPersistedFormSnapshot(null);
 	}, []);
 
 	const loadTags = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Usuário não autenticado. Faça login novamente.',
+				type: 'error',
+				isDarkMode,
 			});
 			return;
 		}
@@ -345,24 +513,25 @@ export default function AddMandatoryGainsScreen() {
 					iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
 					iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
 					iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
-				}));
+				}))
+				.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 
 			setTagOptions(formattedTags);
 			setSelectedTagId(current => (current && formattedTags.some(tag => tag.id === current) ? current : null));
 
 			if (formattedTags.length === 0) {
-				showFloatingAlert({
-					message: 'Cadastre uma tag de ganhos marcada como obrigatória para utilizar esta tela.',
-					action: 'warning',
-					position: 'bottom',
+				showNotifierAlert({
+					description: 'Cadastre uma tag de ganhos marcada como obrigatória para utilizar esta tela.',
+					type: 'warn',
+					isDarkMode,
 				});
 			}
 		} catch (error) {
 			console.error('Erro ao carregar tags obrigatórias de ganhos:', error);
-			showFloatingAlert({
-				message: 'Erro ao carregar tags obrigatórias.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Erro ao carregar tags obrigatórias.',
+				type: 'error',
+				isDarkMode,
 			});
 		} finally {
 			setIsLoadingTags(false);
@@ -395,10 +564,10 @@ export default function AddMandatoryGainsScreen() {
 				}
 
 				if (!response.success || !response.data) {
-					showFloatingAlert({
-						message: 'Não foi possível carregar os dados do ganho obrigatório.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						description: 'Não foi possível carregar os dados do ganho obrigatório.',
+						type: 'error',
+						isDarkMode,
 					});
 					resetForm({ keepTag: true });
 					return;
@@ -435,13 +604,21 @@ export default function AddMandatoryGainsScreen() {
 					cycleKey: lastReceiptCycle,
 					receivedAt: lastReceiptDate,
 				});
+				setPersistedFormSnapshot({
+					name: name.trim(),
+					valueInCents: value,
+					dueDay: String(dueDayValue).padStart(2, '0'),
+					tagId,
+					description: descriptionValue.trim(),
+					reminderEnabled: reminderFlag,
+				});
 			} catch (error) {
 				console.error('Erro ao carregar ganho obrigatório para edição:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Erro ao carregar o ganho obrigatório selecionado.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						description: 'Erro ao carregar o ganho obrigatório selecionado.',
+						type: 'error',
+						isDarkMode,
 					});
 					resetForm({ keepTag: true });
 				}
@@ -463,47 +640,57 @@ export default function AddMandatoryGainsScreen() {
 		const trimmedName = gainName.trim();
 
 		if (!trimmedName) {
-			showFloatingAlert({
-				message: 'Informe o nome do ganho obrigatório.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe o nome do ganho obrigatório.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
 		if (valueInCents === null || valueInCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe um valor válido.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
 		if (!isDueDayValid) {
-			showFloatingAlert({
-				message: 'Informe um dia do mês entre 1 e 31.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe um dia do mês entre 1 e 31.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
 		if (!selectedTagId) {
-			showFloatingAlert({
-				message: 'Selecione uma tag obrigatória.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Selecione uma tag obrigatória.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Usuário não autenticado.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
@@ -523,6 +710,7 @@ export default function AddMandatoryGainsScreen() {
 			};
 
 			let persistedId = selectedGainTemplateId;
+			const successTitle = selectedGainTemplateId ? 'Ganho obrigatório atualizado' : 'Ganho obrigatório registrado';
 
 			if (selectedGainTemplateId) {
 				const result = await updateMandatoryGainFirebase({
@@ -533,11 +721,6 @@ export default function AddMandatoryGainsScreen() {
 				if (!result.success) {
 					throw new Error('Erro ao atualizar o ganho obrigatório.');
 				}
-				showFloatingAlert({
-					message: 'Ganho obrigatório atualizado com sucesso!',
-					action: 'success',
-					position: 'bottom',
-				});
 			} else {
 				const result = await addMandatoryGainFirebase({
 					...payload,
@@ -548,16 +731,16 @@ export default function AddMandatoryGainsScreen() {
 					throw new Error('Erro ao registrar ganho obrigatório.');
 				}
 				persistedId = result.id;
-				showFloatingAlert({
-					message: 'Ganho obrigatório registrado com sucesso!',
-					action: 'success',
-					position: 'bottom',
-				});
 			}
+
+			let reminderFeedback:
+				| { success: true }
+				| { success: false; reason: 'permissions-denied' | 'unavailable' }
+				| null = null;
 
 			if (persistedId) {
 				if (reminderEnabled) {
-					await scheduleMandatoryGainNotification({
+					reminderFeedback = await scheduleMandatoryGainNotification({
 						gainTemplateId: persistedId,
 						name: payload.name,
 						dueDay: payload.dueDay,
@@ -568,17 +751,43 @@ export default function AddMandatoryGainsScreen() {
 					});
 				} else {
 					await cancelMandatoryGainNotification(persistedId);
+					reminderFeedback = { success: true };
 				}
+			}
+
+			if (reminderEnabled && reminderFeedback && !reminderFeedback.success) {
+				showNotifierAlert({
+					title: successTitle,
+					description:
+						reminderFeedback.reason === 'unavailable'
+							? 'O template foi salvo, mas o lembrete não foi agendado porque este ambiente não suporta notificações locais.'
+							: 'O template foi salvo, mas o lembrete não foi agendado porque as notificações do aplicativo estão desativadas.',
+					type: 'warn',
+					isDarkMode,
+					duration: 5000,
+				});
+			} else {
+				showNotifierAlert({
+					title: successTitle,
+					description: reminderEnabled
+						? 'Template salvo com lembrete mensal ativo.'
+						: 'Template salvo com lembrete mensal desativado.',
+					type: 'success',
+					isDarkMode,
+					duration: 4000,
+				});
 			}
 
 			resetForm({ keepTag: true });
 			router.back();
 		} catch (error) {
 			console.error('Erro ao salvar ganho obrigatório:', error);
-			showFloatingAlert({
-				message: 'Não foi possível salvar o ganho obrigatório.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Não foi possível salvar o ganho obrigatório.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 		} finally {
 			setIsSubmitting(false);
@@ -587,6 +796,7 @@ export default function AddMandatoryGainsScreen() {
 		description,
 		dueDay,
 		gainName,
+		isDarkMode,
 		isDueDayValid,
 		reminderEnabled,
 		resetForm,
@@ -603,36 +813,48 @@ export default function AddMandatoryGainsScreen() {
 
 	const handleRegisterReceiptNavigation = React.useCallback(() => {
 		if (!selectedGainTemplateId) {
-			showFloatingAlert({
-				message: 'Salve o ganho obrigatório antes de registrá-lo como recebido.',
-				action: 'warning',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Controle mensal indisponível',
+				description: 'Salve o ganho obrigatório antes de registrá-lo como recebido.',
+				type: 'warn',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
 		if (isReceivedForCurrentCycle) {
-			showFloatingAlert({
-				message: 'Este ganho já foi registrado como recebido neste mês.',
-				action: 'warning',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Recebimento já registrado',
+				description: 'Este ganho já foi registrado como recebido neste mês.',
+				type: 'warn',
+				isDarkMode,
+				duration: 4500,
 			});
 			return;
 		}
 
-		if (valueInCents === null || !selectedTagId) {
-			showFloatingAlert({
-				message: 'Informe o valor e selecione uma tag antes de registrar o recebimento.',
-				action: 'error',
-				position: 'bottom',
+		if (!isTemplateReady || hasPendingTemplateChanges) {
+			showNotifierAlert({
+				title: 'Salve as alterações primeiro',
+				description: 'Salve o template atualizado antes de registrar o ganho deste mês.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
+			return;
+		}
+
+		const requiredValueInCents = valueInCents;
+		const requiredTagId = selectedTagId;
+		if (requiredValueInCents === null || !requiredTagId) {
 			return;
 		}
 
 		const params: Record<string, string> = {
 			templateName: encodeURIComponent(gainName || 'Ganho obrigatório'),
-			templateValueInCents: String(valueInCents),
-			templateTagId: selectedTagId,
+			templateValueInCents: String(requiredValueInCents),
+			templateTagId: requiredTagId,
 			templateMandatoryGainId: selectedGainTemplateId,
 		};
 
@@ -651,7 +873,19 @@ export default function AddMandatoryGainsScreen() {
 			pathname: '/add-register-gain',
 			params,
 		});
-	}, [description, dueDay, gainName, isReceivedForCurrentCycle, selectedGainTemplateId, selectedTagId, selectedTagLabel, valueInCents]);
+	}, [
+		description,
+		dueDay,
+		gainName,
+		hasPendingTemplateChanges,
+		isDarkMode,
+		isReceivedForCurrentCycle,
+		isTemplateReady,
+		selectedGainTemplateId,
+		selectedTagId,
+		selectedTagLabel,
+		valueInCents,
+	]);
 
 	const handleReclaimReceipt = React.useCallback(async () => {
 		if (!selectedGainTemplateId) {
@@ -673,279 +907,292 @@ export default function AddMandatoryGainsScreen() {
 			}
 
 			setCurrentReceiptInfo(null);
-			showFloatingAlert({
-				message: 'Recebimento reivindicado. Registre novamente quando necessário.',
-				action: 'success',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Recebimento do mês desfeito',
+				description: 'O registro mensal foi removido. Faça um novo lançamento quando necessário.',
+				type: 'success',
+				isDarkMode,
+				duration: 4000,
 			});
 		} catch (error) {
 			console.error('Erro ao reivindicar recebimento do ganho obrigatório:', error);
-			showFloatingAlert({
-				message: 'Não foi possível reivindicar o recebimento. Tente novamente.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				title: 'Erro ao desfazer recebimento',
+				description: 'Não foi possível desfazer o recebimento. Tente novamente.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
 			});
 		} finally {
 			setIsReceiptActionLoading(false);
 		}
-	}, [currentReceiptInfo?.gainId, selectedGainTemplateId]);
+	}, [currentReceiptInfo?.gainId, isDarkMode, selectedGainTemplateId]);
 
 	const isSaveDisabled =
-		!gainName.trim() || valueInCents === null || !isDueDayValid || !selectedTagId || isSubmitting || isPrefilling;
+		!isTemplateReady || isFormBusy;
+	const screenTitle = selectedGainTemplateId ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório';
+	const isInitialLoading = isLoadingTags || isPrefilling;
+	const monthlyControlMessage = !selectedGainTemplateId
+		? 'Salve este template para liberar o registro do ciclo atual.'
+		: hasPendingTemplateChanges
+			? 'Salve as alterações para usar os dados atualizados ao registrar o recebimento deste mês.'
+			: isReceivedForCurrentCycle
+				? `Recebimento registrado em ${currentReceiptInfo?.receivedAt ? formatDateToBR(currentReceiptInfo.receivedAt) : 'data não disponível'}.`
+				: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<FloatingAlertViewport />
-
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 					className="flex-1 w-full"
 				>
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						style={{ backgroundColor: pageBackground }}
-						contentContainerStyle={{
-							flexGrow: 1,
-							paddingBottom: contentBottomPadding,
-							backgroundColor: pageBackground,
-						}}
-					>
-						<View className="w-full px-6">
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+							<Image
+								source={LoginWallpaper}
+								alt="Background da tela de ganho obrigatório"
+								className="w-full h-full rounded-b-3xl absolute"
+								resizeMode="cover"
+							/>
 
-					<Heading size="3xl" className="text-center mb-4">
-						{selectedGainTemplateId ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório'}
-					</Heading>
-
-					<Box className="w-full items-center mb-2">
-						<AddMandatoryGainListIllustration width={180} height={180} />
-					</Box>
-
-					<Text className="text-justify text-gray-600 dark:text-gray-400">
-						Organize seus recebimentos recorrentes para garantir que os ganhos previstos sejam registrados em dia. Você pode acompanhar e gerenciar seus ganhos obrigatórios facilmente aqui.
-					</Text>
-
-					<Divider className="my-6 mb-6" />
-
-					<VStack className="gap-4">
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Valor mensal do ganho obrigatório
-							</Text>
-							<Input isDisabled={isPrefilling}>
-								<InputField
-									ref={gainNameInputRef}
-									placeholder="Ex: Salário, Aluguel, Freelance..."
-									value={gainName}
-									onChangeText={setGainName}
-									autoCapitalize="sentences"
-									onFocus={() => handleInputFocus('gain-name')}
-								/>
-							</Input>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Valor previsto para recebimento
-							</Text>
-							<Input isDisabled={isPrefilling}>
-								<InputField
-									ref={gainValueInputRef}
-									placeholder="Ex: R$ 1.500,00"
-									value={valueDisplay}
-									onChangeText={handleValueChange}
-									keyboardType="numeric"
-									onFocus={() => handleInputFocus('gain-value')}
-								/>
-							</Input>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Dia do mês para recebimento
-							</Text>
-							<Input isDisabled={isPrefilling}>
-								<InputField
-									ref={dueDayInputRef}
-									placeholder="Dia do recebimento (1-31)"
-									value={dueDay}
-									onChangeText={handleDueDayChange}
-									keyboardType="numeric"
-									onFocus={() => handleInputFocus('due-day')}
-								/>
-							</Input>
-							{dueDay.length > 0 && !isDueDayValid && (
-								<Text className="text-sm text-error-600">Informe um dia válido entre 1 e 31.</Text>
-							)}
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Tag obrigatória do ganho
-							</Text>
-							<Select
-								selectedValue={selectedTagId ?? undefined}
-								onValueChange={setSelectedTagId}
-								isDisabled={isLoadingTags || tagOptions.length === 0 || isPrefilling}
+							<VStack
+								className="w-full h-full items-center justify-start px-6 gap-4"
+								style={{ paddingTop: insets.top + 24 }}
 							>
-								<HStack className="items-center gap-3">
-									<View
-										className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
-									>
-										<TagIcon
-											iconFamily={selectedTagOption?.iconFamily}
-											iconName={selectedTagOption?.iconName}
-											iconStyle={selectedTagOption?.iconStyle}
-											size={18}
-											color={selectedTagIconColor}
-										/>
-									</View>
-									<View className="flex-1">
-										<SelectTrigger>
-											<SelectInput
-												placeholder="Selecione uma tag obrigatória"
-												value={selectedTagLabel ?? ''}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-									</View>
-								</HStack>
-								<SelectPortal>
-									<SelectBackdrop />
-									<SelectContent>
-										<SelectDragIndicatorWrapper>
-											<SelectDragIndicator />
-										</SelectDragIndicatorWrapper>
-										{tagOptions.length > 0 ? (
-											tagOptions.map(tag => <SelectItem key={tag.id} label={tag.name} value={tag.id} />)
-										) : (
-											<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
-										)}
-									</SelectContent>
-								</SelectPortal>
-							</Select>
-						</Box>
-
-						<Box>
-							<Text className="mb-2 font-semibold text-gray-700 dark:text-gray-200">
-								Descrição ou observações
-							</Text>
-							<Textarea className="h-28" isDisabled={isPrefilling}>
-								<TextareaInput
-									ref={descriptionInputRef}
-									placeholder="Descrição ou observações (opcional)"
-									multiline
-									value={description}
-									onChangeText={setDescription}
-									onFocus={() => handleInputFocus('description')}
-								/>
-							</Textarea>
-						</Box>
-
-						<Box
-							className="
-								w-full
-								bg-white dark:bg-gray-900
-								border border-gray-200 dark:border-gray-700
-								rounded-lg
-								p-4
-								bg-transparent
-							"
-						>
-							<Text className="font-semibold mb-2">Recebimento deste mês</Text>
-							{!selectedGainTemplateId ? (
-								<Text className="text-gray-600 dark:text-gray-400 mb-3">
-									Salve o ganho obrigatório para habilitar o controle de recebimento mensal.
-								</Text>
-							) : isReceivedForCurrentCycle ? (
-								<>
-									<Text className="text-emerald-600 dark:text-emerald-400 mb-3">
-										Recebimento registrado em{' '}
-										{currentReceiptInfo?.receivedAt ? formatDateToBR(currentReceiptInfo.receivedAt) : 'data não disponível'}.
-									</Text>
-									<Button
-										variant="outline"
-										action="secondary"
-										onPress={handleReclaimReceipt}
-										isDisabled={isReceiptActionLoading}
-									>
-										{isReceiptActionLoading ? (
-											<>
-												<ButtonSpinner color="white" />
-												<ButtonText>Processando</ButtonText>
-											</>
-										) : (
-											<ButtonText>Reivindicar recebimento</ButtonText>
-										)}
-									</Button>
-								</>
-							) : (
-								<>
-									<Text className="text-gray-600 dark:text-gray-400 mb-3">
-										Registre este ganho como recebido para marcá-lo neste ciclo ({getCurrentCycleKey()}).
-									</Text>
-									<Button
-										variant="outline"
-										action="primary"
-										onPress={handleRegisterReceiptNavigation}
-										isDisabled={isPrefilling || !selectedGainTemplateId || valueInCents === null || !selectedTagId}
-									>
-										<ButtonText>Adicionar aos ganhos</ButtonText>
-									</Button>
-								</>
-							)}
-						</Box>
-
-						<Box className="border border-outline-200 rounded-lg px-4 py-3 opacity-100">
-							<HStack className="items-center justify-between">
-								<Box className="flex-1 mr-3">
-									<Text className="font-semibold">Lembrete no dia previsto</Text>
-									<Text className="text-gray-600 dark:text-gray-400 text-sm">
-										Receba uma notificação quando o dia do ganho chegar para não esquecer o registro.
-									</Text>
-								</Box>
-								<Switch
-									value={reminderEnabled}
-									onValueChange={handleReminderToggle}
-									disabled={isPrefilling}
-									trackColor={{ false: '#d4d4d4', true: '#525252' }}
-									thumbColor="#fafafa"
-									ios_backgroundColor="#d4d4d4"
-								/>
-							</HStack>
-						</Box>
-
-						<Button onPress={handleSubmit} isDisabled={isSaveDisabled} variant="outline">
-							{isSubmitting ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText className="ml-2">{selectedGainTemplateId ? 'Atualizando' : 'Registrando'}</ButtonText>
-								</>
-							) : (
-								<ButtonText>{selectedGainTemplateId ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
-							)}
-						</Button>
-					</VStack>
+								<Heading size="xl" className="text-white text-center">
+									{screenTitle}
+								</Heading>
+								<AddMandatoryGainListIllustration width="38%" height="38%" className="opacity-90" />
+							</VStack>
 						</View>
-					</ScrollView>
+
+						<ScrollView
+							ref={scrollViewRef}
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="on-drag"
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							style={{ marginTop: heroHeight - 64 }}
+							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+						>
+							<VStack className="justify-between">
+								{isInitialLoading ? (
+									<MandatoryGainFormSkeleton
+										bodyText={bodyText}
+										tintedCardClassName={tintedCardClassName}
+										compactCardClassName={compactCardClassName}
+										fieldContainerClassName={fieldContainerClassName}
+										skeletonBaseColor={skeletonBaseColor}
+										skeletonHighlightColor={skeletonHighlightColor}
+										skeletonMutedBaseColor={skeletonMutedBaseColor}
+										skeletonMutedHighlightColor={skeletonMutedHighlightColor}
+									/>
+								) : (
+									<VStack className="mt-4 gap-4">
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Nome do ganho</Text>
+											<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
+												<InputField
+													ref={gainNameInputRef}
+													placeholder="Ex: Salário, Aluguel, Freelance..."
+													value={gainName}
+													onChangeText={setGainName}
+													autoCapitalize="sentences"
+													returnKeyType="next"
+													className={inputField}
+													onFocus={() => handleInputFocus('gain-name')}
+													onSubmitEditing={() => gainValueInputRef.current?.focus?.()}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Valor previsto</Text>
+											<Input className={fieldContainerClassName} isDisabled={isValueFieldDisabled}>
+												<InputField
+													ref={gainValueInputRef}
+													placeholder="Ex: R$ 1.500,00"
+													value={valueDisplay}
+													onChangeText={handleValueChange}
+													keyboardType="numeric"
+													returnKeyType="next"
+													className={inputField}
+													onFocus={() => handleInputFocus('gain-value')}
+													onSubmitEditing={() => dueDayInputRef.current?.focus?.()}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Dia do recebimento</Text>
+											<Input className={fieldContainerClassName} isDisabled={isDueDayFieldDisabled}>
+												<InputField
+													ref={dueDayInputRef}
+													placeholder="Informe um dia entre 1 e 31"
+													value={dueDay}
+													onChangeText={handleDueDayChange}
+													keyboardType="numeric"
+													returnKeyType="done"
+													className={inputField}
+													onFocus={() => handleInputFocus('due-day')}
+												/>
+											</Input>
+											{dueDay.length > 0 && !isDueDayValid ? (
+												<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
+													Informe um dia válido entre 1 e 31.
+												</Text>
+											) : null}
+										</VStack>
+
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Categoria obrigatória</Text>
+											<Select
+												selectedValue={selectedTagId ?? undefined}
+												onValueChange={setSelectedTagId}
+												isDisabled={isTagSelectDisabled}
+											>
+												<HStack className="items-end gap-3">
+													<View
+														className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+													>
+														<TagIcon
+															iconFamily={selectedTagOption?.iconFamily}
+															iconName={selectedTagOption?.iconName}
+															iconStyle={selectedTagOption?.iconStyle}
+															size={18}
+															color={selectedTagIconColor}
+														/>
+													</View>
+													<View className="flex-1">
+														<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+															<SelectInput
+																placeholder="Selecione a categoria do ganho"
+																value={selectedTagLabel ?? ''}
+																className={inputField}
+															/>
+															<SelectIcon />
+														</SelectTrigger>
+													</View>
+												</HStack>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{tagOptions.length > 0 ? (
+															tagOptions.map(tag => <SelectItem key={tag.id} label={tag.name} value={tag.id} />)
+													) : (
+														<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+										<Text className={`${helperText} ml-1 text-sm`}>{tagHelperMessage}</Text>
+									</VStack>
+
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
+										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
+											<TextareaInput
+												ref={descriptionInputRef}
+												placeholder="Adicione um contexto rápido para este ganho"
+												multiline
+												value={description}
+												onChangeText={setDescription}
+												className={`${inputField} pt-2`}
+												onFocus={() => handleInputFocus('description')}
+												editable={!isDescriptionDisabled}
+											/>
+										</Textarea>
+									</VStack>
+
+									<Box className={`${tintedCardClassName} px-4 py-4`}>
+										<VStack className="gap-3">
+											<VStack className="gap-1">
+												<Text className="font-semibold">Controle do mês</Text>
+												<Text className={`${helperText} text-sm`}>
+													{monthlyControlMessage}
+												</Text>
+											</VStack>
+
+											{selectedGainTemplateId ? (
+												isReceivedForCurrentCycle ? (
+													<Button
+														variant="outline"
+														action="secondary"
+														onPress={handleReclaimReceipt}
+														isDisabled={isReceiptActionLoading}
+													>
+														{isReceiptActionLoading ? (
+															<>
+																<ButtonSpinner />
+																<ButtonText>Processando</ButtonText>
+															</>
+														) : (
+															<ButtonText>Desfazer recebimento do mês</ButtonText>
+														)}
+													</Button>
+												) : (
+													<Button
+														variant="outline"
+														action="primary"
+														onPress={handleRegisterReceiptNavigation}
+														isDisabled={
+															isFormBusy ||
+															!selectedGainTemplateId ||
+															!isTemplateReady ||
+															hasPendingTemplateChanges
+														}
+													>
+														<ButtonText>Registrar ganho do mês</ButtonText>
+													</Button>
+												)
+											) : null}
+										</VStack>
+										</Box>
+
+										<Box className={`${compactCardClassName} px-4 py-4`}>
+											<HStack className="items-center justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text className="font-semibold">Lembrete do recebimento</Text>
+													<Text className={`${helperText} text-sm`}>
+														{reminderHelperMessage}
+													</Text>
+												</VStack>
+												<Switch
+													value={reminderEnabled}
+													onValueChange={handleReminderToggle}
+													disabled={isFormBusy}
+													trackColor={{ false: '#d4d4d4', true: '#525252' }}
+													thumbColor="#fafafa"
+													ios_backgroundColor="#d4d4d4"
+												/>
+											</HStack>
+										</Box>
+
+										<Button className={submitButtonClassName} onPress={handleSubmit} isDisabled={isSaveDisabled}>
+											{isSubmitting ? (
+												<>
+													<ButtonSpinner />
+													<ButtonText>{selectedGainTemplateId ? 'Atualizando' : 'Registrando'}</ButtonText>
+												</>
+											) : (
+												<ButtonText>{selectedGainTemplateId ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
+											)}
+										</Button>
+									</VStack>
+								)}
+							</VStack>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 
-				<Menu defaultValue={1} />
+				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+					<Navigator defaultValue={1} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);
