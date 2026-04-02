@@ -363,14 +363,14 @@ export default function MandatoryExpensesListScreen() {
 			setTagMetadataMap(tagMetadataRecord);
 			setExpenses(expensesWithStatus);
 			await syncMandatoryExpenseNotifications(
-				expensesWithStatus.map(expense => ({
-					id: expense.id,
-					name: expense.name,
-					dueDay: expense.dueDay,
-					reminderEnabled: expense.reminderEnabled,
-					reminderHour: 9,
-					reminderMinute: 0,
-					description: expense.description,
+				expensesResult.data.map((expense: any) => ({
+					id: typeof expense?.id === 'string' ? expense.id : '',
+					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
+					dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
+					reminderEnabled: expense?.reminderEnabled !== false,
+					reminderHour: typeof expense?.reminderHour === 'number' ? expense.reminderHour : 9,
+					reminderMinute: typeof expense?.reminderMinute === 'number' ? expense.reminderMinute : 0,
+					description: typeof expense?.description === 'string' ? expense.description : null,
 				})),
 			);
 		} catch (error) {

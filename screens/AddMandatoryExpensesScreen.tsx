@@ -54,6 +54,10 @@ import {
 	ensureNotificationPermissionForMandatoryExpenses,
 	scheduleMandatoryExpenseNotification,
 } from '@/utils/mandatoryExpenseNotifications';
+import {
+	formatMandatoryReminderNextTrigger,
+	type MandatoryReminderScheduleResult,
+} from '@/utils/mandatoryReminderNotifications';
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -304,7 +308,7 @@ export default function AddMandatoryExpensesScreen() {
 				title: 'Lembrete indisponível',
 				description:
 					permissionResult.reason === 'unavailable'
-						? 'Este ambiente não suporta notificações locais. Use um build de desenvolvimento ou produção para ativar lembretes.'
+						? 'Não foi possível acessar as notificações locais neste ambiente. Se você instalou um build antigo, gere um novo build com a configuração atualizada.'
 						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
 				type: 'warn',
 				isDarkMode,
@@ -729,10 +733,7 @@ export default function AddMandatoryExpensesScreen() {
 				persistedExpenseId = result.id;
 			}
 
-			let reminderFeedback:
-				| { success: true }
-				| { success: false; reason: 'permissions-denied' | 'unavailable' }
-				| null = null;
+			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
 
 			if (persistedExpenseId) {
 				if (reminderEnabled) {
@@ -747,17 +748,14 @@ export default function AddMandatoryExpensesScreen() {
 					});
 				} else {
 					await cancelMandatoryExpenseNotification(persistedExpenseId);
-					reminderFeedback = { success: true };
+					reminderFeedback = null;
 				}
 			}
 
 			if (reminderEnabled && reminderFeedback && !reminderFeedback.success) {
 				showNotifierAlert({
 					title: successTitle,
-					description:
-						reminderFeedback.reason === 'unavailable'
-							? 'O template foi salvo, mas o lembrete não foi agendado porque este ambiente não suporta notificações locais.'
-							: 'O template foi salvo, mas o lembrete não foi agendado porque as notificações do aplicativo estão desativadas.',
+					description: `O template foi salvo, mas o lembrete não foi agendado. ${reminderFeedback.message}`,
 					type: 'warn',
 					isDarkMode,
 					duration: 5000,
@@ -765,9 +763,10 @@ export default function AddMandatoryExpensesScreen() {
 			} else {
 				showNotifierAlert({
 					title: successTitle,
-					description: reminderEnabled
-						? 'Template salvo com lembrete mensal ativo.'
-						: 'Template salvo com lembrete mensal desativado.',
+					description:
+						reminderEnabled && reminderFeedback?.success
+							? `Lembrete ativo. Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`
+							: 'Template salvo com lembrete mensal desativado.',
 					type: 'success',
 					isDarkMode,
 					duration: 4000,
