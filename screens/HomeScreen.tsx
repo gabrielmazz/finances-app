@@ -47,6 +47,7 @@ import { PieChart } from 'react-native-gifted-charts';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import Svg, {
 	Defs,
 	LinearGradient as SvgLinearGradient,
@@ -54,6 +55,7 @@ import Svg, {
 	Rect,
 	Stop,
 } from 'react-native-svg';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type HomeTimelineStatus = {
 	title: string;
@@ -75,11 +77,11 @@ type TimelineMovementCardPalette = {
 
 type HomeBankCarouselItem =
 	| ({
-			kind: 'bank';
-	  } & HomeBankBalanceCard)
+		kind: 'bank';
+	} & HomeBankBalanceCard)
 	| ({
-			kind: 'cash';
-	  } & HomeCashSummary);
+		kind: 'cash';
+	} & HomeCashSummary);
 
 const TIMELINE_CHEVRON_DOWN = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-down.png');
 const TIMELINE_CHEVRON_UP = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-up.png');
@@ -120,6 +122,10 @@ const resolveTimelineAccentColor = (movement: HomeTimelineMovement) => {
 		return '#F59E0B';
 	}
 
+	if (movement.isFromMandatory) {
+		return '#10B981';
+	}
+
 	return movement.type === 'expense' ? '#DC2626' : '#10B981';
 };
 
@@ -134,6 +140,12 @@ const buildTimelineMovementCardPalette = (
 			gradientEndColor: '#FFD166',
 			overlayColor: '#FFF0A6',
 		}
+		: movement.isFromMandatory
+			? {
+				baseColor: '#77AA77',
+				gradientEndColor: '#44FFDD',
+				overlayColor: '#CCFF88',
+			}
 		: movement.type === 'expense'
 			? {
 				baseColor: '#C96B72',
@@ -435,21 +447,28 @@ const HomeMovementsSkeleton = ({
 );
 
 export default function HomeScreen() {
-	const { isDarkMode } = useAppTheme();
-	const insets = useSafeAreaInsets();
 	const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-	const surfaceBackground = isDarkMode ? '#020617' : '#ffffff';
-	const cardBackground = isDarkMode ? 'bg-slate-950' : 'bg-white';
 	const bankCarouselRef = React.useRef<ICarouselInstance>(null);
 	const bankCarouselProgress = useSharedValue(0);
 	const { shouldHideValues } = useValueVisibility();
 	const bankCarouselWidth = Math.max(windowWidth - 48, 1);
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
-	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
 	const currentUserId = auth.currentUser?.uid ?? null;
 	const authDisplayFirstName = extractFirstName(auth.currentUser?.displayName);
 	const { overview, movements, investments } = useHomeScreenData(currentUserId);
+
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		inputField,
+		fieldContainerClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+	} = useScreenStyles();
 
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
 	const [expandedTimelineStatuses, setExpandedTimelineStatuses] = React.useState<string[]>([]);
@@ -804,6 +823,10 @@ export default function HomeScreen() {
 			return 'Transferência';
 		}
 
+		if (movement.isFromMandatory) {
+			return movement.type === 'expense' ? 'Pago' : 'Recebido';
+		}
+
 		if (movement.isInvestmentDeposit) {
 			return 'Aporte';
 		}
@@ -819,6 +842,10 @@ export default function HomeScreen() {
 		(movement: HomeTimelineMovement): 'positive' | 'negative' | 'warning' => {
 			if (movement.isBankTransfer) {
 				return 'warning';
+			}
+
+			if (movement.isFromMandatory) {
+				return 'positive';
 			}
 
 			return movement.type === 'expense' ? 'negative' : 'positive';
@@ -1103,11 +1130,49 @@ export default function HomeScreen() {
 							onMomentumScrollBegin={handleDismissInvestmentPopover}
 						>
 							<View className="mb-6 mt-4">
-								<Heading size="lg">Meus Bancos e Dinheiro</Heading>
-								<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-									Visão geral dos saldos atuais por banco e do dinheiro disponível, com gastos e
-									ganhos do mês.
-								</Text>
+								<VStack className="px-2 pb-3">
+									<HStack className="gap-1 items-center">
+										<Heading
+											className="text-lg uppercase tracking-widest "
+											size="lg"
+										>
+											Meus Bancos e Dinheiro
+										</Heading>
+
+										<Popover
+											placement="bottom"
+											size="md"
+											offset={0}
+											shouldFlip
+											focusScope={false}
+											trapFocus={false}
+											trigger={triggerProps => (
+												<Pressable
+													{...triggerProps}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Informações sobre o formato de pagamento"
+												>
+													<Info
+														size={14}
+														color={isDarkMode ? '#94A3B8' : '#64748B'}
+														style={{ marginLeft: 4 }}
+													/>
+												</Pressable>
+											)}
+										>
+											<PopoverBackdrop className="bg-transparent" />
+											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+												<PopoverBody className="px-3 py-3">
+													<Text className={`${bodyText} text-xs leading-5`}>
+														Exibimos aqui um resumo dos seus bancos e do dinheiro em espécie que você registrou. Toque em cada cartão para ver detalhes e movimentações específicas de cada um.
+														Se você não vê um banco ou valor que espera, verifique se eles estão registrados corretamente na seção de movimentações bancárias. Os dados aqui refletem o que foi registrado lá.
+													</Text>
+												</PopoverBody>
+											</PopoverContent>
+										</Popover>
+									</HStack>
+								</VStack>
 
 								{overview.loading && bankCarouselItems.length === 0 ? (
 									<HomeBankOverviewSkeleton
@@ -1254,10 +1319,49 @@ export default function HomeScreen() {
 							</View>
 
 							<View className="mb-6">
-								<Heading size="lg">Investimentos</Heading>
-								<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-									Distribuição atual da carteira.
-								</Text>
+								<VStack className="px-2 pb-3">
+									<HStack className="gap-1 items-center">
+										<Heading
+											className="text-lg uppercase tracking-widest "
+											size="lg"
+										>
+											Investimentos
+										</Heading>
+
+										<Popover
+											placement="bottom"
+											size="md"
+											offset={0}
+											shouldFlip
+											focusScope={false}
+											trapFocus={false}
+											trigger={triggerProps => (
+												<Pressable
+													{...triggerProps}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Informações sobre o formato de pagamento"
+												>
+													<Info
+														size={14}
+														color={isDarkMode ? '#94A3B8' : '#64748B'}
+														style={{ marginLeft: 4 }}
+													/>
+												</Pressable>
+											)}
+										>
+											<PopoverBackdrop className="bg-transparent" />
+											<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+												<PopoverBody className="px-3 py-3">
+													<Text className={`${bodyText} text-xs leading-5`}>
+														Exibimos aqui um resumo dos seus investimentos registrados. O gráfico de distribuição é baseado no valor atual/base dos investimentos, então se algum investimento não possui esse valor registrado ou ele é zero, ele não aparecerá na distribuição. Toque em cada fatia do gráfico para ver o valor atual/base de cada investimento.
+														Se você não vê um investimento que espera, verifique se ele está registrado corretamente na seção de investimentos. Os dados aqui refletem o que foi registrado lá.
+													</Text>
+												</PopoverBody>
+											</PopoverContent>
+										</Popover>
+									</HStack>
+								</VStack>
 
 								<View style={{ marginTop: 8 }}>
 									{investments.error ? (
@@ -1494,7 +1598,48 @@ export default function HomeScreen() {
 							<View className="mb-6">
 								<HStack className="items-start justify-between gap-3">
 									<TouchableOpacity activeOpacity={0.85} onPress={handleToggleMovements} style={{ flex: 1 }}>
-										<Heading size="lg">Últimas movimentações</Heading>
+										<VStack className="">
+											<HStack className="gap-1 items-center">
+												<Heading
+													className="text-lg uppercase tracking-widest "
+												>
+													Últimas Movimentações
+												</Heading>
+
+												<Popover
+													placement="bottom"
+													size="md"
+													offset={0}
+													shouldFlip
+													focusScope={false}
+													trapFocus={false}
+													trigger={triggerProps => (
+														<Pressable
+															{...triggerProps}
+															hitSlop={8}
+															accessibilityRole="button"
+															accessibilityLabel="Informações sobre o formato de pagamento"
+														>
+															<Info
+																size={14}
+																color={isDarkMode ? '#94A3B8' : '#64748B'}
+																style={{ marginLeft: 4 }}
+															/>
+														</Pressable>
+													)}
+												>
+													<PopoverBackdrop className="bg-transparent" />
+													<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+														<PopoverBody className="px-3 py-3">
+															<Text className={`${bodyText} text-xs leading-5`}>
+																Exibimos aqui um resumo das suas últimas movimentações financeiras, incluindo despesas, ganhos e transferências. Toque em cada movimentação para ver detalhes específicos como valor, data e descrição.
+																Se você não vê uma movimentação que espera, verifique se ela está registrada corretamente na seção de movimentações. Os dados aqui refletem o que foi registrado lá.
+															</Text>
+														</PopoverBody>
+													</PopoverContent>
+												</Popover>
+											</HStack>
+										</VStack>
 										<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
 											{isMovementsExpanded
 												? 'Clique para ocultar as últimas transações.'

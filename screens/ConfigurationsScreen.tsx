@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -13,10 +14,11 @@ import {
 	AccordionContentText,
 	AccordionIcon,
 } from '@/components/ui/accordion';
-import { Divider } from '@/components/ui/divider';
 import { Button, ButtonText, ButtonIcon, ButtonSpinner } from '@/components/ui/button';
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon, EditIcon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import {
 	Modal,
 	ModalBackdrop,
@@ -66,7 +68,7 @@ import {
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
 import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
-import { Input, InputField, InputIcon } from '@/components/ui/input';
+import { Input, InputField } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Box } from '@/components/ui/box';
@@ -75,6 +77,8 @@ import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -197,6 +201,54 @@ type PendingAction =
 	};
 
 type DrawerType = 'users' | 'banks' | 'tags' | 'related-users';
+
+function ConfigurationsSkeleton({
+	topSummaryCardClassName,
+	compactCardClassName,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+	skeletonMutedBaseColor,
+	skeletonMutedHighlightColor,
+}: {
+	topSummaryCardClassName: string;
+	compactCardClassName: string;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+	skeletonMutedBaseColor: string;
+	skeletonMutedHighlightColor: string;
+}) {
+	return (
+		<VStack className="mt-4 gap-4">
+			<Box className={`${topSummaryCardClassName} px-5 py-5`}>
+				<VStack className="gap-4">
+					<Skeleton className="h-3 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<Skeleton className="h-8 w-56" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<SkeletonText _lines={2} className="h-3" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					<HStack className="gap-3">
+						<Skeleton className="h-20 flex-1 rounded-2xl" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+						<Skeleton className="h-20 flex-1 rounded-2xl" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+					</HStack>
+				</VStack>
+			</Box>
+
+			{Array.from({ length: 4 }).map((_, index) => (
+				<Box key={`configurations-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
+					<VStack className="gap-3">
+						<HStack className="items-center justify-between gap-3">
+							<VStack className="flex-1 gap-2">
+								<Skeleton className="h-5 w-52" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+								<Skeleton className="h-3 w-32" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							</VStack>
+							<Skeleton className="h-5 w-5 rounded-full" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</HStack>
+						<SkeletonText _lines={2} className="h-3" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						<Skeleton className="h-10 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+					</VStack>
+				</Box>
+			))}
+		</VStack>
+	);
+}
 
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
 
@@ -368,6 +420,27 @@ export async function fetchAllTags() {
 // ================================================================================================================= //
 
 export default function ConfigurationsScreen() {
+	const {
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		compactCardClassName,
+		tintedCardClassName,
+		topSummaryCardClassName,
+		submitButtonClassName,
+		modalContentClassName,
+		drawerContentClassName,
+		drawerHeaderCardClassName,
+		heroHeight,
+		insets,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
+	} = useScreenStyles();
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null }>>([]);
@@ -398,12 +471,12 @@ export default function ConfigurationsScreen() {
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
 	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
-const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
-const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
-const [isProcessingAction, setIsProcessingAction] = React.useState(false);
-const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
-const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
-const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
+	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
+	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
+	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+	const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
+	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
+	const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
 
 	const handleToggleValueVisibility = React.useCallback(
 		(value: boolean) => {
@@ -412,15 +485,15 @@ const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
 		[setShouldHideValues],
 	);
 
-const handleToggleDarkMode = React.useCallback(
-	(value: boolean) => {
-		if (isLoadingTheme || value === isDarkMode) {
-			return;
-		}
-		setThemeMode(value ? 'dark' : 'light');
-	},
-	[isDarkMode, isLoadingTheme, setThemeMode],
-);
+	const handleToggleDarkMode = React.useCallback(
+		(value: boolean) => {
+			if (isLoadingTheme || value === isDarkMode) {
+				return;
+			}
+			setThemeMode(value ? 'dark' : 'light');
+		},
+		[isDarkMode, isLoadingTheme, setThemeMode],
+	);
 
 	const filteredTags = React.useMemo(() => {
 		return tagData.filter(tag => {
@@ -739,19 +812,40 @@ const handleToggleDarkMode = React.useCallback(
 
 	const drawerContent = React.useMemo(() => {
 		const renderEmptyState = (message: string) => (
-			<View className="py-10 px-4">
-				<Text className="text-center text-gray-600 dark:text-gray-300">{message}</Text>
-			</View>
+			<Box className={`${compactCardClassName} px-4 py-10`}>
+				<Text className={`text-center ${helperText}`}>{message}</Text>
+			</Box>
 		);
 
 		const renderCardContainer = (children: React.ReactNode, key?: string) => (
-			<View
-				key={key}
-				className="border border-outline-200 rounded-2xl p-4 bg-white dark:bg-gray-900 shadow-sm"
-			>
+			<Box key={key} className={`${compactCardClassName} px-4 py-4`}>
 				{children}
-			</View>
+			</Box>
 		);
+
+		const renderLoadingState = () => (
+			<VStack className="gap-3">
+				{Array.from({ length: 3 }).map((_, index) => (
+					<Box key={`drawer-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
+						<VStack className="gap-3">
+							<Skeleton className="h-4 w-28" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							<Skeleton className="h-5 w-48" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							<Skeleton className="h-9 w-28 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</VStack>
+					</Box>
+				))}
+			</VStack>
+		);
+
+		const getTagTypeLabel = (tag: (typeof tagData)[number]) => {
+			if (tag.usageType === 'gain') {
+				return 'Ganhos';
+			}
+			if (tag.usageType === 'expense') {
+				return 'Despesas';
+			}
+			return 'Não definido';
+		};
 
 		if (!openDrawer) {
 			return renderEmptyState('Selecione uma lista para visualizar.');
@@ -767,20 +861,18 @@ const handleToggleDarkMode = React.useCallback(
 			}
 
 			return (
-				<VStack space="md">
+				<VStack className="gap-3">
 					{userData.map(user =>
 						renderCardContainer(
-							<>
-								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
-									Email cadastrado
-								</Text>
-								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
-									{user.email ?? user.id}
-								</Text>
-								<View className="flex-row justify-end items-center mt-4">
+							<VStack className="gap-3">
+								<VStack className="gap-1">
+									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Usuário cadastrado</Text>
+									<Text className="text-base font-semibold">{user.email ?? user.id}</Text>
+								</VStack>
+								<HStack className="justify-end">
 									<Button
-										size="xl"
-										variant="link"
+										size="sm"
+										variant="outline"
 										action="negative"
 										onPress={() =>
 											setPendingAction({
@@ -793,11 +885,13 @@ const handleToggleDarkMode = React.useCallback(
 										}
 									>
 										<ButtonIcon as={TrashIcon} />
+										<ButtonText>Excluir</ButtonText>
 									</Button>
-								</View>
-							</>,
+								</HStack>
+							</VStack>,
 							user.id,
-						))}
+						),
+					)}
 				</VStack>
 			);
 		}
@@ -812,20 +906,24 @@ const handleToggleDarkMode = React.useCallback(
 			}
 
 			return (
-				<VStack space="md">
+				<VStack className="gap-3">
 					{bankData.map(bank =>
 						renderCardContainer(
-							<>
-								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
-									Banco cadastrado
-								</Text>
-								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
-									{bank.name}
-								</Text>
-								<View className="flex-row justify-end items-center gap-2 mt-4">
+							<VStack className="gap-3">
+								<HStack className="items-center gap-3">
+									<View
+										className="h-3 w-3 rounded-full"
+										style={{ backgroundColor: bank.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B') }}
+									/>
+									<VStack className="flex-1 gap-1">
+										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Banco cadastrado</Text>
+										<Text className="text-base font-semibold">{bank.name}</Text>
+									</VStack>
+								</HStack>
+								<HStack className="justify-end gap-2">
 									<Button
-										size="xl"
-										variant="link"
+										size="sm"
+										variant="outline"
 										action="primary"
 										onPress={() =>
 											setPendingAction({
@@ -835,10 +933,11 @@ const handleToggleDarkMode = React.useCallback(
 										}
 									>
 										<ButtonIcon as={EditIcon} />
+										<ButtonText>Editar</ButtonText>
 									</Button>
 									<Button
-										size="xl"
-										variant="link"
+										size="sm"
+										variant="outline"
 										action="negative"
 										onPress={() =>
 											setPendingAction({
@@ -851,11 +950,13 @@ const handleToggleDarkMode = React.useCallback(
 										}
 									>
 										<ButtonIcon as={TrashIcon} />
+										<ButtonText>Excluir</ButtonText>
 									</Button>
-								</View>
-							</>,
+								</HStack>
+							</VStack>,
 							bank.id,
-						))}
+						),
+					)}
 				</VStack>
 			);
 		}
@@ -865,25 +966,17 @@ const handleToggleDarkMode = React.useCallback(
 				return renderEmptyState('Você precisa ser administrador para visualizar as tags.');
 			}
 
-			const getTagTypeLabel = (tag: (typeof tagData)[number]) => {
-				if (tag.usageType === 'gain') {
-					return 'Ganhos';
-				}
-				if (tag.usageType === 'expense') {
-					return 'Despesas';
-				}
-				return 'Não definido';
-			};
-
 			return (
-				<VStack space="md">
-					<Box className="border border-outline-200 rounded-2xl p-4 bg-white dark:bg-gray-900">
-						<Text className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">
-							Filtrar tags por tipo
-						</Text>
+				<VStack className="gap-3">
+					<Box className={`${compactCardClassName} px-4 py-4`}>
+						<Text className="mb-2 text-sm font-semibold">Filtrar tags por tipo</Text>
 						<Select selectedValue={tagFilter} onValueChange={value => setTagFilter(value as any)}>
-							<SelectTrigger>
-								<SelectInput placeholder="Selecione um filtro" value={tagFilterLabels[tagFilter]} />
+							<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+								<SelectInput
+									placeholder="Selecione um filtro"
+									value={tagFilterLabels[tagFilter]}
+									className={inputField}
+								/>
 								<SelectIcon />
 							</SelectTrigger>
 							<SelectPortal>
@@ -902,15 +995,13 @@ const handleToggleDarkMode = React.useCallback(
 						</Select>
 					</Box>
 
-					<Divider className="my-2" />
-
 					{!filteredTags.length
 						? renderEmptyState('Nenhuma tag encontrada para o filtro selecionado.')
 						: filteredTags.map(tag =>
 								renderCardContainer(
-									<>
+									<VStack className="gap-3">
 										<HStack className="items-start gap-3">
-											<View className="h-11 w-11 items-center justify-center rounded-2xl border border-outline-200 bg-background-50 dark:border-slate-700 dark:bg-slate-950">
+											<View className={`${tintedCardClassName} h-11 w-11 items-center justify-center`}>
 												<TagIcon
 													iconFamily={tag.iconFamily}
 													iconName={tag.iconName}
@@ -919,37 +1010,33 @@ const handleToggleDarkMode = React.useCallback(
 													color={isDarkMode ? '#FCD34D' : '#D97706'}
 												/>
 											</View>
-											<VStack className="flex-1">
-												<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
-													Tag cadastrada
-												</Text>
-												<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
-													{tag.name}
-												</Text>
-												<Text className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-													Tipo: {getTagTypeLabel(tag)}
-												</Text>
-												{tag.isMandatoryExpense && (
-													<Text className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-														Despesa obrigatória
-													</Text>
-												)}
-												{tag.isMandatoryGain && (
-													<Text className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-														Ganho obrigatório
-													</Text>
-												)}
-												{tag.showInBothLists && (
-													<Text className="text-xs text-sky-600 dark:text-sky-400 mt-1">
-														Disponível na lista normal e na obrigatória
-													</Text>
-												)}
+											<VStack className="flex-1 gap-1">
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Tag cadastrada</Text>
+												<Text className="text-base font-semibold">{tag.name}</Text>
+												<Text className={`${helperText} text-sm`}>Tipo: {getTagTypeLabel(tag)}</Text>
 											</VStack>
 										</HStack>
-										<View className="flex-row justify-end items-center gap-2 mt-4">
+										<View className="flex-row flex-wrap gap-2">
+											{tag.isMandatoryExpense ? (
+												<Box className={`${tintedCardClassName} px-3 py-2`}>
+													<Text className="text-xs text-orange-600 dark:text-orange-400">Despesa obrigatória</Text>
+												</Box>
+											) : null}
+											{tag.isMandatoryGain ? (
+												<Box className={`${tintedCardClassName} px-3 py-2`}>
+													<Text className="text-xs text-emerald-600 dark:text-emerald-400">Ganho obrigatório</Text>
+												</Box>
+											) : null}
+											{tag.showInBothLists ? (
+												<Box className={`${tintedCardClassName} px-3 py-2`}>
+													<Text className="text-xs text-sky-600 dark:text-sky-400">Listas normal e obrigatória</Text>
+												</Box>
+											) : null}
+										</View>
+										<HStack className="justify-end gap-2">
 											<Button
-												size="xl"
-												variant="link"
+												size="sm"
+												variant="outline"
 												action="primary"
 												onPress={() =>
 													setPendingAction({
@@ -974,10 +1061,11 @@ const handleToggleDarkMode = React.useCallback(
 												}
 											>
 												<ButtonIcon as={EditIcon} />
+												<ButtonText>Editar</ButtonText>
 											</Button>
 											<Button
-												size="xl"
-												variant="link"
+												size="sm"
+												variant="outline"
 												action="negative"
 												onPress={() =>
 													setPendingAction({
@@ -990,9 +1078,10 @@ const handleToggleDarkMode = React.useCallback(
 												}
 											>
 												<ButtonIcon as={TrashIcon} />
+												<ButtonText>Excluir</ButtonText>
 											</Button>
-										</View>
-									</>,
+										</HStack>
+									</VStack>,
 									tag.id,
 								),
 						  )}
@@ -1002,7 +1091,7 @@ const handleToggleDarkMode = React.useCallback(
 
 		if (openDrawer === 'related-users') {
 			if (isLoadingRelatedUsers) {
-				return renderEmptyState('Carregando usuários vinculados...');
+				return renderLoadingState();
 			}
 
 			if (!relatedUserData.length) {
@@ -1010,20 +1099,18 @@ const handleToggleDarkMode = React.useCallback(
 			}
 
 			return (
-				<VStack space="md">
+				<VStack className="gap-3">
 					{relatedUserData.map(relatedUser =>
 						renderCardContainer(
-							<>
-								<Text className="text-xs uppercase tracking-wide text-gray-600 dark:text-gray-400">
-									Usuário vinculado
-								</Text>
-								<Text className="text-lg font-medium mt-1 text-gray-900 dark:text-gray-50">
-									{relatedUser.email || relatedUser.id}
-								</Text>
-								<View className="flex-row justify-end items-center mt-4">
+							<VStack className="gap-3">
+								<VStack className="gap-1">
+									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Usuário vinculado</Text>
+									<Text className="text-base font-semibold">{relatedUser.email || relatedUser.id}</Text>
+								</VStack>
+								<HStack className="justify-end">
 									<Button
-										size="xl"
-										variant="link"
+										size="sm"
+										variant="outline"
 										action="negative"
 										onPress={() =>
 											setPendingAction({
@@ -1036,11 +1123,13 @@ const handleToggleDarkMode = React.useCallback(
 										}
 									>
 										<ButtonIcon as={TrashIcon} />
+										<ButtonText>Desvincular</ButtonText>
 									</Button>
-								</View>
-							</>,
+								</HStack>
+							</VStack>,
 							relatedUser.id,
-						))}
+						),
+					)}
 				</VStack>
 			);
 		}
@@ -1057,6 +1146,13 @@ const handleToggleDarkMode = React.useCallback(
 		relatedUserData,
 		isLoadingRelatedUsers,
 		isDarkMode,
+		compactCardClassName,
+		helperText,
+		fieldContainerClassName,
+		inputField,
+		tintedCardClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
 		setPendingAction,
 	]);
 
@@ -1266,356 +1362,357 @@ const handleToggleDarkMode = React.useCallback(
 			}
 		};
 
-		void fetchUserName();
-	}, [userId]);
+			void fetchUserName();
+		}, [userId]);
+
+	const isInitialLoading = isAdminLoading;
+	const managedRecordsCount = userData.length + bankData.length + tagData.length;
+	const relatedUsersLabel = isLoadingRelatedUsers
+		? 'Carregando vínculos...'
+		: `${relatedUserData.length} usuário(s) vinculados`;
 
 	return (
-		<>
-			<View
-				className="
-						flex-1 w-full h-full
-						mt-[64px]
-						pb-6
-						relative
-					"
-			>
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<FloatingAlertViewport />
 
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-					}}
-					nestedScrollEnabled
-					showsVerticalScrollIndicator={false}
-				>
+				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+						<Image
+							source={LoginWallpaper}
+							alt="Background da tela de configurações"
+							className="absolute h-full w-full rounded-b-3xl"
+							resizeMode="cover"
+						/>
 
-					<View className="w-full px-6">
-
-						<Heading
-							size="3xl"
-							className="
-								text-center 
-							"
+						<VStack
+							className="h-full w-full items-center justify-start gap-4 px-6"
+							style={{ paddingTop: insets.top + 24 }}
 						>
-							Menu de Configurações
-						</Heading>
-
-						<Box className="w-full items-center mt-4">
-							<ConfigurationIllustration width={160} height={160} />
-						</Box>
-
-						<Text className="text-justify text-gray-600 dark:text-gray-400 mt-4">
-							Neste menu de configurações, você pode gerenciar usuários, bancos e tags associados ao
-							aplicativo. Se você for um administrador, terá acesso a funcionalidades adicionais para
-							gerenciar o sistema de forma mais eficaz.
-						</Text>
-
-						<Divider className="my-6 mb-6" />
-
-						<VStack>
-
-							<Text className="text-typography-500">Email do Usuário Atual e seu ID:</Text>
-							<Input
-								isDisabled={true}
-								className="w-full"
-							>
-								<InputField
-									type="text"
-									placeholder="Email do Usuário"
-									value={
-										currentUserEmail ? `${currentUserEmail} (ID: ${userId})` : `Desconhecido (ID: ${userId})`
-									}
-									className="
-										vw-full
-										text-[12px]
-									"
-								/>
-							</Input>
-
-					</VStack>
-
-					<Accordion
-							size="md"
-							variant="unfilled"
-							type="single"
-							isCollapsible
-							className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mt-6"
-						>
-							{accordionItems.map((item, index) => {
-								const requiresAdmin = item.actionRequiresAdmin !== false;
-								const canExecuteAction = !requiresAdmin || isAdmin;
-
-								return (
-									<React.Fragment key={item.id}>
-
-										<AccordionItem value={item.id}>
-
-											<AccordionHeader>
-
-												<AccordionTrigger>
-
-													{({ isExpanded }: { isExpanded: boolean }) => (
-														<View className="flex-row items-center justify-between w-full">
-
-															<AccordionTitleText className="font-semibold">
-																{item.title}
-															</AccordionTitleText>
-
-															<AccordionIcon
-																as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																className="text-typography-700 ml-3"
-															/>
-
-														</View>
-													)}
-
-												</AccordionTrigger>
-
-											</AccordionHeader>
-
-											<AccordionContent>
-
-												<AccordionContentText>
-													{item.content}
-												</AccordionContentText>
-
-
-												{/* Conteúdo adicional visível apenas para administradores */}
-												{item.showUsersTable && isAdmin && (
-													<View className="mt-6 space-y-2">
-														<Text className="text-typografia-500 text-gray-400 mb-2">
-															{userData.length > 0
-																? `${userData.length} usuário(s) cadastrados.`
-																: 'Nenhum usuário cadastrado até o momento.'}
-														</Text>
-														<Button
-															size="sm"
-															variant="outline"
-															onPress={() => handleOpenDrawer('users')}
-														>
-															<ButtonText>Visualizar usuários cadastrados</ButtonText>
-														</Button>
-													</View>
-												)}
-
-												{item.showBanksTable && isAdmin && (
-													<View className="mt-6 space-y-2">
-														<Text className="text-typografia-500 text-gray-400 mb-2">
-															{bankData.length > 0
-																? `${bankData.length} banco(s) cadastrados.`
-																: 'Nenhum banco cadastrado até o momento.'}
-														</Text>
-														<Button
-															size="sm"
-															variant="outline"
-															onPress={() => handleOpenDrawer('banks')}
-														>
-															<ButtonText>Visualizar bancos cadastrados</ButtonText>
-														</Button>
-													</View>
-												)}
-
-												{item.showTagsTable && isAdmin && (
-													<View className="mt-6 space-y-2">
-														<Text className="text-typografia-500 text-gray-400 mb-2">
-															{tagData.length > 0
-																? `${tagData.length} tag(s) cadastradas.`
-																: 'Nenhuma tag cadastrada até o momento.'}
-														</Text>
-														<Button
-															size="sm"
-															variant="outline"
-															onPress={() => handleOpenDrawer('tags')}
-														>
-															<ButtonText>Visualizar tags cadastradas</ButtonText>
-														</Button>
-													</View>
-												)}
-
-												{item.showRelatedUsersTable && (
-													<View className="mt-6 space-y-2">
-														<Text className="text-typografia-500 text-gray-400 mb-2">
-															{isLoadingRelatedUsers
-																? 'Carregando usuários vinculados...'
-																: relatedUserData.length > 0
-																	? `${relatedUserData.length} usuário(s) vinculados.`
-																	: 'Você ainda não vinculou nenhum usuário.'}
-														</Text>
-														<Button
-															size="sm"
-															variant="outline"
-															onPress={() => handleOpenDrawer('related-users')}
-															isDisabled={isLoadingRelatedUsers}
-														>
-															{isLoadingRelatedUsers ? (
-																<>
-																	<ButtonSpinner />
-																	<ButtonText>Carregando</ButtonText>
-																</>
-															) : (
-																<ButtonText>Visualizar usuários vinculados</ButtonText>
-															)}
-														</Button>
-													</View>
-												)}
-
-												{item.showThemeSwitch && (
-													<View className="mt-6 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
-														<View className="flex-row items-center justify-between">
-															<View className="flex-1 pr-4">
-																<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
-																	Modo escuro
-																</Text>
-																<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-																	Ative para usar a interface em tons escuros em todas as telas.
-																</Text>
-															</View>
-															<Switch
-																value={isDarkMode}
-																onValueChange={handleToggleDarkMode}
-																disabled={isLoadingTheme}
-																trackColor={{ false: '#d4d4d4', true: '#525252' }}
-																thumbColor="#fafafa"
-																ios_backgroundColor="#d4d4d4"
-															/>
-														</View>
-														<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-															{isLoadingTheme
-																? 'Carregando sua preferência de tema...'
-																: isDarkMode
-																	? 'Modo escuro ativado.'
-																	: 'Modo claro ativado.'}
-														</Text>
-													</View>
-												)}
-
-												{item.showValueVisibilitySwitch && (
-													<View className="mt-6 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3">
-														<View className="flex-row items-center justify-between">
-															<View className="flex-1 pr-4">
-																<Text className="text-base font-semibold text-gray-800 dark:text-gray-100">
-																	Ocultar valores financeiros
-																</Text>
-																<Text className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-																	Ative para esconder totais de ganhos, despesas e saldos nas demais telas.
-																</Text>
-															</View>
-															<Switch
-																value={shouldHideValues}
-																onValueChange={handleToggleValueVisibility}
-																disabled={isLoadingPreference}
-																trackColor={{ false: '#d4d4d4', true: '#525252' }}
-																thumbColor="#fafafa"
-																ios_backgroundColor="#d4d4d4"
-															/>
-														</View>
-														<Text className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-															{isLoadingPreference
-																? 'Verificando a preferência salva...'
-																: shouldHideValues
-																	? 'Os valores financeiros estão ocultos.'
-																	: 'Os valores financeiros estão visíveis.'}
-														</Text>
-													</View>
-												)}
-
-
-												{item.action ? (
-													<Button
-														size="sm"
-														variant="outline"
-														className="mt-4"
-														// isDisabled={!canExecuteAction}
-														onPress={() => {
-															router.push(item.action!.router);
-														}}
-													>
-														<ButtonText>{item.action.label}</ButtonText>
-													</Button>
-												) : null}
-											</AccordionContent>
-
-										</AccordionItem>
-
-										{index < accordionItems.length - 1 ? <Divider /> : null}
-
-									</React.Fragment>
-								);
-							})}
-
-						</Accordion>
+							<Heading size="xl" className="text-center text-white">
+								Menu de Configurações
+							</Heading>
+							<ConfigurationIllustration width="38%" height="38%" className="opacity-90" />
+						</VStack>
 					</View>
 
-				</ScrollView>
-			</View>
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						contentContainerStyle={{ paddingBottom: 48 }}
+						nestedScrollEnabled
+						showsVerticalScrollIndicator={false}
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						style={{ marginTop: heroHeight - 64 }}
+					>
+						{isInitialLoading ? (
+							<ConfigurationsSkeleton
+								topSummaryCardClassName={topSummaryCardClassName}
+								compactCardClassName={compactCardClassName}
+								skeletonBaseColor={skeletonBaseColor}
+								skeletonHighlightColor={skeletonHighlightColor}
+								skeletonMutedBaseColor={skeletonMutedBaseColor}
+								skeletonMutedHighlightColor={skeletonMutedHighlightColor}
+							/>
+						) : (
+							<VStack className="mt-4 gap-4">
+								<Box className={`${topSummaryCardClassName} px-5 py-5`}>
+									<VStack className="gap-4">
+										<VStack className="gap-2">
+											<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
+												Painel central
+											</Text>
+											<Heading size="md">Gerencie acessos, cadastros e preferências visuais do aplicativo</Heading>
+											<Text className={`${bodyText} text-sm`}>
+												O conteúdo abaixo mantém toda a lógica atual do sistema, mas reorganiza a leitura para deixar ações, listas e preferências mais diretas.
+											</Text>
+										</VStack>
 
-			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
-					<ModalHeader>
-						<Heading size="lg">{actionModalCopy.title}</Heading>
-						<ModalCloseButton onPress={handleCloseActionModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button
-							variant="solid"
-							action={confirmButtonAction}
-							onPress={handleConfirmAction}
-							isDisabled={isProcessingAction}
-						>
-							{isProcessingAction ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Processando</ButtonText>
-								</>
-							) : (
-								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+										<View className="flex-row flex-wrap gap-3">
+											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Acesso</Text>
+												<Text className="mt-2 text-lg font-semibold">
+													{isAdmin ? 'Administrador' : 'Padrão'}
+												</Text>
+											</Box>
+											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Cadastros monitorados</Text>
+												<Text className="mt-2 text-lg font-semibold">
+													{isAdmin ? managedRecordsCount : relatedUserData.length}
+												</Text>
+											</Box>
+										</View>
 
-			<Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} size="lg" anchor="right">
-				<DrawerBackdrop onPress={handleCloseDrawer} />
-				<DrawerContent>
-					<DrawerHeader className="flex-row items-start justify-between gap-3">
-						<VStack className="flex-1 space-y-1">
+										<Box className={`${compactCardClassName} px-4 py-4`}>
+											<VStack className="gap-3">
+												<VStack className="gap-1">
+													<Text className="font-semibold">Sessão atual</Text>
+													<Text className={`${helperText} text-sm`}>
+														Use este identificador para relacionar contas e validar permissões.
+													</Text>
+												</VStack>
+												<Input isDisabled className={fieldContainerClassName}>
+													<InputField
+														value={
+															currentUserEmail
+																? `${currentUserEmail} (ID: ${userId})`
+																: `Desconhecido (ID: ${userId})`
+														}
+														className={`${inputField} text-xs`}
+													/>
+												</Input>
+												<Text className={`${helperText} text-xs`}>{relatedUsersLabel}</Text>
+											</VStack>
+										</Box>
+									</VStack>
+								</Box>
 
-							<Box
-								className="
-									w-full
-									mt-12
-								"
+								<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full gap-3">
+									{accordionItems.map(item => {
+										const requiresAdmin = item.actionRequiresAdmin !== false;
+
+										return (
+											<AccordionItem key={item.id} value={item.id} className={`${compactCardClassName} mb-3 overflow-hidden`}>
+												<AccordionHeader>
+													<AccordionTrigger className="px-4 py-4">
+														{({ isExpanded }: { isExpanded: boolean }) => (
+															<View className="flex-row items-center justify-between w-full">
+																<AccordionTitleText className="pr-4 font-semibold leading-5">
+																	{item.title}
+																</AccordionTitleText>
+																<AccordionIcon
+																	as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																	className={helperText}
+																/>
+															</View>
+														)}
+													</AccordionTrigger>
+												</AccordionHeader>
+
+												<AccordionContent className="px-4 pb-4 pt-0">
+													<AccordionContentText className={`${helperText} text-sm`}>
+														{item.content}
+													</AccordionContentText>
+
+													{requiresAdmin && !isAdmin ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<Text className={`${helperText} text-sm`}>
+																Esta seção exibe informações administrativas apenas para usuários com essa permissão.
+															</Text>
+														</Box>
+													) : null}
+
+													{item.showUsersTable && isAdmin ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<Text className={`${helperText} text-sm`}>
+																	{userData.length > 0
+																		? `${userData.length} usuário(s) cadastrados.`
+																		: 'Nenhum usuário cadastrado até o momento.'}
+																</Text>
+																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('users')}>
+																	<ButtonText>Visualizar usuários</ButtonText>
+																</Button>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.showBanksTable && isAdmin ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<Text className={`${helperText} text-sm`}>
+																	{bankData.length > 0
+																		? `${bankData.length} banco(s) cadastrados.`
+																		: 'Nenhum banco cadastrado até o momento.'}
+																</Text>
+																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('banks')}>
+																	<ButtonText>Visualizar bancos</ButtonText>
+																</Button>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.showTagsTable && isAdmin ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<Text className={`${helperText} text-sm`}>
+																	{tagData.length > 0
+																		? `${tagData.length} tag(s) cadastradas.`
+																		: 'Nenhuma tag cadastrada até o momento.'}
+																</Text>
+																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('tags')}>
+																	<ButtonText>Visualizar tags</ButtonText>
+																</Button>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.showRelatedUsersTable ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<Text className={`${helperText} text-sm`}>
+																	{isLoadingRelatedUsers
+																		? 'Carregando usuários vinculados...'
+																		: relatedUserData.length > 0
+																			? `${relatedUserData.length} usuário(s) vinculados.`
+																			: 'Você ainda não vinculou nenhum usuário.'}
+																</Text>
+																<Button
+																	size="sm"
+																	variant="outline"
+																	onPress={() => handleOpenDrawer('related-users')}
+																	isDisabled={isLoadingRelatedUsers}
+																>
+																	{isLoadingRelatedUsers ? (
+																		<>
+																			<ButtonSpinner />
+																			<ButtonText>Carregando</ButtonText>
+																		</>
+																	) : (
+																		<ButtonText>Visualizar vínculos</ButtonText>
+																	)}
+																</Button>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.showThemeSwitch ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<HStack className="items-center justify-between gap-4">
+																	<VStack className="flex-1 gap-1">
+																		<Text className="text-base font-semibold">Modo escuro</Text>
+																		<Text className={`${helperText} text-sm`}>
+																			Alterne a aparência global do aplicativo.
+																		</Text>
+																	</VStack>
+																	<Switch
+																		value={isDarkMode}
+																		onValueChange={handleToggleDarkMode}
+																		disabled={isLoadingTheme}
+																		trackColor={{ false: '#d4d4d4', true: '#525252' }}
+																		thumbColor="#fafafa"
+																		ios_backgroundColor="#d4d4d4"
+																	/>
+																</HStack>
+																<Text className={`${helperText} text-xs`}>
+																	{isLoadingTheme
+																		? 'Carregando sua preferência de tema...'
+																		: isDarkMode
+																			? 'Modo escuro ativado.'
+																			: 'Modo claro ativado.'}
+																</Text>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.showValueVisibilitySwitch ? (
+														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+															<VStack className="gap-3">
+																<HStack className="items-center justify-between gap-4">
+																	<VStack className="flex-1 gap-1">
+																		<Text className="text-base font-semibold">Ocultar valores</Text>
+																		<Text className={`${helperText} text-sm`}>
+																			Esconda totais e saldos nas demais telas.
+																		</Text>
+																	</VStack>
+																	<Switch
+																		value={shouldHideValues}
+																		onValueChange={handleToggleValueVisibility}
+																		disabled={isLoadingPreference}
+																		trackColor={{ false: '#d4d4d4', true: '#525252' }}
+																		thumbColor="#fafafa"
+																		ios_backgroundColor="#d4d4d4"
+																	/>
+																</HStack>
+																<Text className={`${helperText} text-xs`}>
+																	{isLoadingPreference
+																		? 'Verificando a preferência salva...'
+																		: shouldHideValues
+																			? 'Os valores financeiros estão ocultos.'
+																			: 'Os valores financeiros estão visíveis.'}
+																</Text>
+															</VStack>
+														</Box>
+													) : null}
+
+													{item.action ? (
+														<Button
+															size="sm"
+															className={`mt-4 ${submitButtonClassName}`}
+															onPress={() => {
+																router.push(item.action!.router);
+															}}
+														>
+															<ButtonText>{item.action.label}</ButtonText>
+														</Button>
+													) : null}
+												</AccordionContent>
+											</AccordionItem>
+										);
+									})}
+								</Accordion>
+							</VStack>
+						)}
+					</ScrollView>
+				</View>
+
+				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<Heading size="lg">{actionModalCopy.title}</Heading>
+							<ModalCloseButton onPress={handleCloseActionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} text-sm`}>{actionModalCopy.message}</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								action={confirmButtonAction}
+								onPress={handleConfirmAction}
+								isDisabled={isProcessingAction}
+								className={actionModalCopy.isEdit ? submitButtonClassName : undefined}
 							>
-								<Heading size="lg">
+								{isProcessingAction ? (
+									<>
+										<ButtonSpinner color="white" />
+										<ButtonText>Processando</ButtonText>
+									</>
+								) : (
+									<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
-									{drawerCopy.title || 'Itens cadastrados'}
-
-								</Heading>
-
+				<Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} size="lg" anchor="right">
+					<DrawerBackdrop onPress={handleCloseDrawer} />
+					<DrawerContent className={drawerContentClassName}>
+						<DrawerHeader className="flex-row items-start justify-between gap-3 px-6 pt-8">
+							<Box className={`${drawerHeaderCardClassName} flex-1 px-4 py-4`}>
+								<VStack className="gap-1">
+									<Heading size="lg">{drawerCopy.title || 'Itens cadastrados'}</Heading>
+									{drawerCopy.subtitle ? (
+										<Text className={`${helperText} text-sm`}>{drawerCopy.subtitle}</Text>
+									) : null}
+								</VStack>
 							</Box>
-
-							{drawerCopy.subtitle ? (
-								<Text className="text-sm text-gray-600 dark:text-gray-300">{drawerCopy.subtitle}</Text>
-							) : null}
-						</VStack>
-						<DrawerCloseButton onPress={handleCloseDrawer} />
-					</DrawerHeader>
-					<DrawerBody>
-						{drawerContent}
-					</DrawerBody>
-					<DrawerFooter />
-				</DrawerContent>
-			</Drawer>
-		</>
+							<DrawerCloseButton onPress={handleCloseDrawer} />
+						</DrawerHeader>
+						<DrawerBody className="px-6">
+							{drawerContent}
+						</DrawerBody>
+						<DrawerFooter />
+					</DrawerContent>
+				</Drawer>
+			</View>
+		</SafeAreaView>
 	);
 }

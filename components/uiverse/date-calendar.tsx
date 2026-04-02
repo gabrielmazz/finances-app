@@ -16,6 +16,10 @@ import {
 	ModalHeader,
 } from '@/components/ui/modal';
 import { AddIcon, EditIcon, TrashIcon } from '@/components/ui/icon';
+import { TagIcon } from '@/hooks/useTagIcons';
+import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { Heading } from '../ui/heading';
 
 export type DateCalendarItem = {
 	id: string;
@@ -29,9 +33,17 @@ export type DateCalendarItem = {
 	lastStatusDate?: Date | null;
 };
 
+export type DateCalendarTagMetadata = {
+	name: string;
+	iconFamily?: TagIconFamily | null;
+	iconName?: string | null;
+	iconStyle?: TagIconStyle | null;
+};
+
 type DateCalendarProps = {
 	items: DateCalendarItem[];
 	tagsMap: Record<string, string>;
+	tagMetadataMap?: Record<string, DateCalendarTagMetadata>;
 	formatCurrency: (valueInCents: number) => string;
 	getStatusText: (item: DateCalendarItem) => string;
 	getStatusClassName: (item: DateCalendarItem) => string;
@@ -41,6 +53,7 @@ type DateCalendarProps = {
 	dueLabel?: string;
 	completedLabel?: string;
 	pendingLabel?: string;
+	valueTone?: 'expense' | 'gain';
 };
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -82,6 +95,7 @@ const formatLongDate = (value: Date) =>
 function DateCalendar({
 	items,
 	tagsMap,
+	tagMetadataMap,
 	formatCurrency,
 	getStatusText,
 	getStatusClassName,
@@ -91,7 +105,16 @@ function DateCalendar({
 	dueLabel = 'Vencimento',
 	completedLabel = 'pagos',
 	pendingLabel = 'pend.',
+	valueTone = 'expense',
 }: DateCalendarProps) {
+	const {
+		bodyText,
+		helperText,
+		compactCardClassName,
+		subtleCardClassName,
+		modalContentClassName,
+		tintedCardClassName,
+	} = useScreenStyles();
 	const visibleMonth = React.useMemo(() => new Date(), []);
 	const visibleMonthLabel = React.useMemo(
 		() =>
@@ -150,66 +173,47 @@ function DateCalendar({
 		() => (selectedDayItems ? formatLongDate(selectedDayItems.date) : 'dia selecionado'),
 		[selectedDayItems],
 	);
+	const amountTextClassName =
+		valueTone === 'gain' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-300';
+	const highlightedDayClassName =
+		valueTone === 'gain'
+			? 'bg-emerald-500 dark:bg-emerald-400'
+			: 'bg-amber-400 dark:bg-yellow-300';
+	const highlightedDayTextClassName = valueTone === 'gain' ? 'text-white' : 'text-slate-900';
 
 	return (
 		<>
-			<Box className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-sm mb-5">
-				<HStack className="justify-between items-center mb-3">
+			<Box className={`${compactCardClassName} overflow-hidden px-2 py-2`}>
+				<HStack className="justify-between items-start gap-3 mb-4">
 					<VStack className="flex-1">
-						<Text className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
-							Calendário de vencimentos
-						</Text>
-						<Text className="text-xl font-semibold capitalize">{visibleMonthLabel}</Text>
+						<Heading
+							className="text-lg uppercase tracking-widest "
+						>
+							Calendário de Vencimentos
+						</Heading>
+						<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{visibleMonthLabel}</Text>
 					</VStack>
 				</HStack>
 
-				<Text className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-					Visualize todos os vencimentos do mês e toque em um dia destacado para abrir as ações.
-				</Text>
-
-				<View className="flex-row w-full mb-2">
-					{WEEKDAY_LABELS.map((labelItem, index) => (
-						<View
-							key={`${labelItem}-${index}`}
-							className="items-center justify-center"
-							style={{ width: CELL_PERCENT, height: 32 }}
-						>
-							<Text className="text-center font-semibold text-gray-600 dark:text-gray-300 uppercase">
-								{labelItem}
-							</Text>
-						</View>
-					))}
-				</View>
-
-				<View className="flex-row flex-wrap w-full">
-					{calendarData.prevPlaceholders.map(item => (
-						<View
-							key={`prev-${item.day}`}
-							style={{
-								width: CELL_PERCENT,
-								height: CELL_HEIGHT,
-							}}
-							className="items-center"
-						>
-							<View className="flex-1 items-center justify-center">
-								<Text className="text-center text-gray-500 dark:text-gray-600">{item.day}</Text>
-							</View>
-							<View className="h-7" />
-						</View>
-					))}
-					{calendarData.days.map(({ day, date }) => {
-						const dayItems = itemsByDay[day] ?? [];
-						const hasItems = dayItems.length > 0;
-						const completedCount = dayItems.filter(item => item.isCompletedForCurrentCycle).length;
-						const pendingCount = dayItems.length - completedCount;
-						const badgeBg =
-							pendingCount > 0
-								? 'bg-orange-100 dark:bg-orange-900/70 border border-orange-200 dark:border-orange-800'
-								: 'bg-emerald-100 dark:bg-emerald-900/70 border border-emerald-200 dark:border-emerald-800';
-
-						return (
+				<View className={`${subtleCardClassName}`}>
+					<View className="flex-row">
+						{WEEKDAY_LABELS.map((labelItem, index) => (
 							<View
-								key={day}
+								key={`${labelItem}-${index}`}
+								className="items-center justify-center"
+								style={{ width: CELL_PERCENT, height: 25 }}
+							>
+								<Text className={`text-center font-semibold uppercase ${helperText}`}>
+									{labelItem}
+								</Text>
+							</View>
+						))}
+					</View>
+
+					<View className="flex-row flex-wrap w-full">
+						{calendarData.prevPlaceholders.map(item => (
+							<View
+								key={`prev-${item.day}`}
 								style={{
 									width: CELL_PERCENT,
 									height: CELL_HEIGHT,
@@ -217,60 +221,93 @@ function DateCalendar({
 								className="items-center"
 							>
 								<View className="flex-1 items-center justify-center">
-									<Pressable
-										className={`w-12 h-12 items-center justify-center rounded-full ${
-											hasItems ? 'bg-[#FFE000]' : 'bg-gray-100 dark:bg-gray-800'
-										} ${hasItems ? '' : 'opacity-80'}`}
-										disabled={!hasItems}
-										onPress={() => handleSelectCalendarDay(day, date)}
-										hitSlop={hasItems ? 8 : 0}
-									>
-										<Text
-											className={`text-center ${
-												hasItems ? 'text-gray-900 font-semibold' : 'text-gray-800 dark:text-gray-200'
-											}`}
+									<Text className={`text-center ${helperText}`}>{item.day}</Text>
+								</View>
+								<View className="h-7" />
+							</View>
+						))}
+						{calendarData.days.map(({ day, date }) => {
+							const dayItems = itemsByDay[day] ?? [];
+							const hasItems = dayItems.length > 0;
+							const completedCount = dayItems.filter(item => item.isCompletedForCurrentCycle).length;
+							const pendingCount = dayItems.length - completedCount;
+							const badgeBg =
+								pendingCount > 0
+									? 'bg-orange-100 dark:bg-orange-900/70 border border-orange-200 dark:border-orange-800'
+									: 'bg-emerald-100 dark:bg-emerald-900/70 border border-emerald-200 dark:border-emerald-800';
+
+							return (
+								<View
+									key={day}
+									style={{
+										width: CELL_PERCENT,
+										height: CELL_HEIGHT,
+									}}
+									className="items-center"
+								>
+									<View className="flex-1 items-center justify-center">
+										<Pressable
+											className={`w-12 h-12 items-center justify-center rounded-full ${hasItems
+													? highlightedDayClassName
+													: 'bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
+												} ${hasItems ? '' : 'opacity-80'}`}
+											disabled={!hasItems}
+											onPress={() => handleSelectCalendarDay(day, date)}
+											hitSlop={hasItems ? 8 : 0}
 										>
-											{day}
-										</Text>
-									</Pressable>
-								</View>
-								<View className="h-7 items-center justify-center">
-									{hasItems ? (
-										<View className={`px-2 py-1 rounded-full ${badgeBg}`}>
-											<Text className="text-[10px] text-center font-semibold text-gray-800 dark:text-gray-100" numberOfLines={1}>
-												{pendingCount === 0
-													? `${dayItems.length} ${completedLabel}`
-													: `${pendingCount}/${dayItems.length} ${pendingLabel}`}
+											<Text
+												className={`text-center ${hasItems
+														? `${highlightedDayTextClassName} font-semibold`
+														: 'text-slate-700 dark:text-slate-200'
+													}`}
+											>
+												{day}
 											</Text>
-										</View>
-									) : null}
+										</Pressable>
+									</View>
+									<View className="h-7 items-center justify-center">
+										{hasItems ? (
+											<View className={`px-2 py-1 rounded-full ${badgeBg}`}>
+												<Text className="text-[10px] text-center font-semibold text-gray-800 dark:text-gray-100" numberOfLines={1}>
+													{pendingCount === 0
+														? `${dayItems.length} ${completedLabel}`
+														: `${pendingCount}/${dayItems.length} ${pendingLabel}`}
+												</Text>
+											</View>
+										) : null}
+									</View>
 								</View>
+							);
+						})}
+						{calendarData.nextPlaceholders.map(item => (
+							<View
+								key={`next-${item.day}`}
+								style={{
+									width: CELL_PERCENT,
+									height: CELL_HEIGHT,
+								}}
+								className="items-center"
+							>
+								<View className="flex-1 items-center justify-center">
+									<Text className={`text-center ${helperText}`}>{item.day}</Text>
+								</View>
+								<View className="h-7" />
 							</View>
-						);
-					})}
-					{calendarData.nextPlaceholders.map(item => (
-						<View
-							key={`next-${item.day}`}
-							style={{
-								width: CELL_PERCENT,
-								height: CELL_HEIGHT,
-							}}
-							className="items-center"
-						>
-							<View className="flex-1 items-center justify-center">
-								<Text className="text-center text-gray-500 dark:text-gray-600">{item.day}</Text>
-							</View>
-							<View className="h-7" />
-						</View>
-					))}
+						))}
+					</View>
 				</View>
 			</Box>
 
 			<Modal isOpen={Boolean(selectedDayItems)} onClose={handleCloseDayModal}>
 				<ModalBackdrop />
-				<ModalContent className="max-w-[420px]">
+				<ModalContent className={`max-w-[420px] ${modalContentClassName}`}>
 					<ModalHeader>
-						<Text className="text-xl font-semibold">Vencimentos em {selectedDayLabel}</Text>
+						<VStack className="flex-1">
+							<Text className="text-xl font-semibold">Resumo de {selectedDayLabel}</Text>
+							<Text className={`${helperText} mt-1 text-sm`}>
+								{selectedDayItems?.items.length ?? 0} item(ns) programado(s) neste dia.
+							</Text>
+						</VStack>
 						<ModalCloseButton onPress={handleCloseDayModal} />
 					</ModalHeader>
 					<ModalBody>
@@ -278,50 +315,79 @@ function DateCalendar({
 							{selectedDayItems?.items.map(item => (
 								<Box
 									key={`selected-${item.id}`}
-									className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full"
+									className={`${subtleCardClassName} w-full px-4 py-4`}
 								>
-									<VStack className="gap-1">
-										<Text className="text-lg font-semibold">{item.name}</Text>
-										<Text className="text-gray-700 dark:text-gray-300">
-											{valueLabel}:{' '}
-											<Text className="text-orange-500 dark:text-orange-300">{formatCurrency(item.valueInCents)}</Text>
-										</Text>
-										<Text className="text-gray-700 dark:text-gray-300">
-											{dueLabel}:{' '}
-											<Text className={getDueDayColorClass(item.dueDay, item)}>
-												dia {String(item.dueDay).padStart(2, '0')}
+									<HStack className="items-start gap-3">
+										<View className="h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+											<TagIcon
+												iconFamily={tagMetadataMap?.[item.tagId]?.iconFamily}
+												iconName={tagMetadataMap?.[item.tagId]?.iconName}
+												iconStyle={tagMetadataMap?.[item.tagId]?.iconStyle}
+												size={18}
+												color={valueTone === 'gain' ? '#10B981' : '#D97706'}
+											/>
+										</View>
+
+										<VStack className="flex-1 gap-1">
+											<HStack className="items-start justify-between gap-3">
+												<VStack className="flex-1">
+													<Text className="text-base font-semibold">{item.name}</Text>
+													<Text className={`${helperText} text-sm`}>
+														{tagMetadataMap?.[item.tagId]?.name ?? tagsMap[item.tagId] ?? 'Tag não encontrada'}
+													</Text>
+												</VStack>
+												<Text className={`text-base font-semibold ${amountTextClassName}`}>
+													{formatCurrency(item.valueInCents)}
+												</Text>
+											</HStack>
+
+											<HStack className="flex-wrap items-center gap-2 pt-1">
+												<Box className={`${compactCardClassName} px-3 py-1.5`}>
+													<Text className={`${bodyText} text-xs`}>
+														{dueLabel}: <Text className={getDueDayColorClass(item.dueDay, item)}>dia {String(item.dueDay).padStart(2, '0')}</Text>
+													</Text>
+												</Box>
+												<Box className={`${compactCardClassName} px-3 py-1.5`}>
+													<Text className={`${bodyText} text-xs`}>
+														{valueLabel}
+													</Text>
+												</Box>
+											</HStack>
+
+											<Text className={getStatusClassName(item)}>{getStatusText(item)}</Text>
+											<Text className={`${helperText} text-sm`}>
+												Lembrete: {item.reminderEnabled === false ? 'desativado' : 'ativado'}
 											</Text>
-										</Text>
-										<Text className="text-gray-600">Tag: {tagsMap[item.tagId] ?? 'Tag não encontrada'}</Text>
-										<Text className="text-gray-600">
-											Lembrete: {item.reminderEnabled === false ? 'desativado' : 'ativado'}
-										</Text>
-										<Text className={getStatusClassName(item)}>{getStatusText(item)}</Text>
-										{item.description ? <Text className="text-gray-600">Observações: {item.description}</Text> : null}
-									</VStack>
+											{item.description ? (
+												<Text className={`${bodyText} text-sm`}>Observações: {item.description}</Text>
+											) : null}
+										</VStack>
+									</HStack>
 									<Divider className="my-3" />
 									<HStack className="gap-3 flex-wrap justify-end">
 										<Button
 											size="sm"
-											variant="link"
+											variant="outline"
 											action="primary"
 											onPress={() => handleDayAction('register', item)}
 											isDisabled={item.isCompletedForCurrentCycle}
 										>
 											<ButtonIcon as={AddIcon} />
+											<ButtonText>Registrar</ButtonText>
 										</Button>
 										<Button
 											size="sm"
-											variant="link"
+											variant="outline"
 											action="primary"
 											onPress={() => handleDayAction('edit', item)}
 										>
 											<ButtonIcon as={EditIcon} />
+											<ButtonText>Editar</ButtonText>
 										</Button>
 										{item.isCompletedForCurrentCycle && (
 											<Button
 												size="sm"
-												variant="link"
+												variant="outline"
 												action="secondary"
 												onPress={() => handleDayAction('reclaim', item)}
 											>
@@ -330,18 +396,19 @@ function DateCalendar({
 										)}
 										<Button
 											size="sm"
-											variant="link"
+											variant="outline"
 											action="negative"
 											onPress={() => handleDayAction('delete', item)}
 										>
 											<ButtonIcon as={TrashIcon} />
+											<ButtonText>Excluir</ButtonText>
 										</Button>
 									</HStack>
 								</Box>
 							))}
 						</VStack>
 						{selectedDayItems?.items.length === 0 ? (
-							<Text className="text-center text-gray-500">Nenhum item encontrado para este dia.</Text>
+							<Text className={`text-center ${helperText}`}>Nenhum item encontrado para este dia.</Text>
 						) : null}
 					</ModalBody>
 				</ModalContent>

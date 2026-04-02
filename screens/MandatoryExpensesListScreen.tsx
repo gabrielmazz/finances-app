@@ -1,17 +1,19 @@
 import React from 'react';
-import { ScrollView, View, StatusBar } from 'react-native';
+import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { Menu } from '@/components/uiverse/menu';
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { AddIcon, EditIcon, TrashIcon } from '@/components/ui/icon';
+import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { AddIcon, CalendarDaysIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
 	ModalBackdrop,
@@ -21,6 +23,7 @@ import {
 	ModalFooter,
 	ModalHeader,
 } from '@/components/ui/modal';
+import Navigator from '@/components/uiverse/navigator';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -36,14 +39,15 @@ import {
 } from '@/utils/mandatoryExpenseNotifications';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
 import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpensesListScreen.svg';
-import { Divider } from '@/components/ui/divider';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
+import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -71,9 +75,13 @@ const formatCurrencyBRLBase = (valueInCents: number) =>
 		currency: 'BRL',
 	}).format(valueInCents / 100);
 
-const getDueDayColorClass = (dueDay: number) => {
+const getDueDayColorClass = (dueDay: number, isPaidForCurrentCycle?: boolean) => {
 	const today = new Date().getDate();
 	const difference = dueDay - today;
+
+	if (isPaidForCurrentCycle) {
+		return 'text-emerald-600 dark:text-emerald-400';
+	}
 
 	if (difference <= 3) {
 		return 'text-red-600 dark:text-red-400';
@@ -124,11 +132,97 @@ const formatPaymentDate = (value: Date | null) => {
 	}).format(value);
 };
 
-const INITIAL_VISIBLE_EXPENSES = 4;
+type MandatoryItemTone = {
+	accentColor: string;
+	amountColor: string;
+	lineColor: string;
+	iconGradient: [string, string];
+	cardGradient: [string, string];
+};
+
+const MANDATORY_EXPENSE_PENDING_TONE: MandatoryItemTone = {
+	accentColor: '#F97316',
+	amountColor: '#D97706',
+	lineColor: 'rgba(249, 115, 22, 0.3)',
+	iconGradient: ['#B91C1C', '#FACC15'],
+	cardGradient: ['#991B1B', '#FACC15'],
+};
+
+const MANDATORY_EXPENSE_COMPLETED_TONE: MandatoryItemTone = {
+	accentColor: '#10B981',
+	amountColor: '#10B981',
+	lineColor: 'rgba(16, 185, 129, 0.28)',
+	iconGradient: ['#047857', '#34D399'],
+	cardGradient: ['#065F46', '#10B981'],
+};
+
+function MandatoryExpensesTimelineSkeleton({
+	compactCardClassName,
+	tintedCardClassName,
+	skeletonBaseColor,
+	skeletonHighlightColor,
+	skeletonMutedBaseColor,
+	skeletonMutedHighlightColor,
+}: {
+	compactCardClassName: string;
+	tintedCardClassName: string;
+	skeletonBaseColor: string;
+	skeletonHighlightColor: string;
+	skeletonMutedBaseColor: string;
+	skeletonMutedHighlightColor: string;
+}) {
+	return (
+		<VStack className="mt-4 gap-4">
+
+			<Skeleton className="h-[320px] rounded-3xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+
+			{Array.from({ length: 2 }).map((_, index) => (
+				<HStack key={`mandatory-expense-skeleton-${index}`} className="items-start gap-3">
+					<VStack className="items-center pt-2" style={{ width: '7%' }}>
+						<Skeleton variant="circular" style={{ width: 14, height: 14 }} />
+						<Skeleton
+							style={{ width: 3, height: 124, marginTop: 6, borderRadius: 999 }}
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+					</VStack>
+					<Box className={`${compactCardClassName} flex-1 px-4 py-4`}>
+						<VStack className="gap-3">
+							<HStack className="items-start justify-between gap-3">
+								<Skeleton className="h-11 w-11 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+								<VStack className="flex-1 gap-2">
+									<Skeleton className="h-5 w-40" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+									<Skeleton className="h-3 w-28" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+								</VStack>
+								<Skeleton className="h-5 w-20" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+							</HStack>
+							<SkeletonText _lines={2} className="h-3" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</VStack>
+					</Box>
+				</HStack>
+			))}
+		</VStack>
+	);
+}
 
 export default function MandatoryExpensesListScreen() {
-	const { isDarkMode } = useAppTheme();
-	const pageBackground = isDarkMode ? '#0b1220' : '#f4f5f7';
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		heroHeight,
+		insets,
+		compactCardClassName,
+		tintedCardClassName,
+		modalContentClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
+		submitButtonClassName
+	} = useScreenStyles();
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
@@ -136,7 +230,7 @@ export default function MandatoryExpensesListScreen() {
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
-	const [visibleExpenseCount, setVisibleExpenseCount] = React.useState(INITIAL_VISIBLE_EXPENSES);
+	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -176,21 +270,26 @@ export default function MandatoryExpensesListScreen() {
 		[],
 	);
 
-	const visibleExpenses = React.useMemo(
-		() => expenses.slice(0, Math.max(visibleExpenseCount, 0)),
-		[expenses, visibleExpenseCount],
+	const timelinePalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+		}),
+		[isDarkMode],
 	);
 
-	const hasMoreExpenses = expenses.length > visibleExpenseCount;
-	const canCollapseExpenses = visibleExpenseCount > INITIAL_VISIBLE_EXPENSES;
+	React.useEffect(() => {
+		const visibleIds = new Set(expenses.map(expense => expense.id));
+		setExpandedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
+	}, [expenses]);
 
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Usuário não autenticado. Faça login novamente.',
+				type: 'error',
+				isDarkMode,
 			});
 			return;
 		}
@@ -276,10 +375,10 @@ export default function MandatoryExpensesListScreen() {
 			);
 		} catch (error) {
 			console.error('Erro ao carregar gastos obrigatórios:', error);
-			showFloatingAlert({
-				message: 'Não foi possível carregar os gastos obrigatórios.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Não foi possível carregar os gastos obrigatórios.',
+				type: 'error',
+				isDarkMode,
 			});
 		} finally {
 			setIsLoading(false);
@@ -315,10 +414,10 @@ export default function MandatoryExpensesListScreen() {
 
 	const handleRegisterExpense = React.useCallback((expense: MandatoryExpenseItem) => {
 		if (expense.isPaidForCurrentCycle) {
-			showFloatingAlert({
-				message: 'Este gasto já foi registrado como pago neste mês.',
-				action: 'warning',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Este gasto já foi registrado como pago neste mês.',
+				type: 'warn',
+				isDarkMode,
 			});
 			return;
 		}
@@ -378,17 +477,17 @@ export default function MandatoryExpensesListScreen() {
 				const result = await deleteMandatoryExpenseFirebase(pendingAction.expense.id);
 				if (result.success) {
 					await cancelMandatoryExpenseNotification(pendingAction.expense.id);
-					showFloatingAlert({
-						message: 'Gasto obrigatório removido.',
-						action: 'success',
-						position: 'bottom',
+					showNotifierAlert({
+						description: 'Gasto obrigatório removido com sucesso.',
+						type: 'success',
+						isDarkMode,
 					});
 					await loadData();
 				} else {
-					showFloatingAlert({
-						message: 'Não foi possível remover o gasto obrigatório.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						description: 'Não foi possível remover o gasto obrigatório.',
+						type: 'error',
+						isDarkMode,
 					});
 				}
 				return;
@@ -400,10 +499,10 @@ export default function MandatoryExpensesListScreen() {
 				if (linkedExpenseId) {
 					const deleteResult = await deleteExpenseFirebase(linkedExpenseId);
 					if (!deleteResult.success) {
-						showFloatingAlert({
-							message: 'Não foi possível remover a despesa vinculada.',
-							action: 'error',
-							position: 'bottom',
+						showNotifierAlert({
+							description: 'Não foi possível remover a despesa vinculada.',
+							type: 'error',
+							isDarkMode,
 						});
 						return;
 					}
@@ -411,28 +510,28 @@ export default function MandatoryExpensesListScreen() {
 
 				const clearResult = await clearMandatoryExpensePaymentFirebase(pendingAction.expense.id);
 				if (!clearResult.success) {
-					showFloatingAlert({
-						message: 'Não foi possível reivindicar o pagamento.',
-						action: 'error',
-						position: 'bottom',
+					showNotifierAlert({
+						description: 'Não foi possível reivindicar o pagamento.',
+						type: 'error',
+						isDarkMode,
 					});
 					return;
 				}
 
-				showFloatingAlert({
-					message: 'Pagamento reivindicado. Registre novamente quando necessário.',
-					action: 'success',
-					position: 'bottom',
+				showNotifierAlert({
+					description: 'Pagamento reivindicado. Registre novamente quando necessário.',
+					type: 'success',
+					isDarkMode,
 				});
 				await loadData();
 				return;
 			}
 		} catch (error) {
 			console.error('Erro ao processar a ação do gasto obrigatório:', error);
-			showFloatingAlert({
-				message: 'Erro inesperado ao processar a ação selecionada.',
-				action: 'error',
-				position: 'bottom',
+			showNotifierAlert({
+				description: 'Erro inesperado ao processar a ação selecionada.',
+				type: 'error',
+				isDarkMode,
 			});
 		} finally {
 			setIsActionProcessing(false);
@@ -440,24 +539,18 @@ export default function MandatoryExpensesListScreen() {
 		}
 	}, [handleEdit, handleRegisterExpense, loadData, pendingAction]);
 
-	const handleBackToHome = React.useCallback(() => {
-		router.replace('/home?tab=0');
-		return true;
-	}, []);
-
 	const handleCalendarAction = React.useCallback(
 		(action: PendingExpenseAction['type'], expense: MandatoryExpenseItem) => {
 			setPendingAction({ type: action, expense });
 		},
 		[],
 	);
-
-	const handleShowMoreExpenses = React.useCallback(() => {
-		setVisibleExpenseCount(Math.max(expenses.length, INITIAL_VISIBLE_EXPENSES));
-	}, [expenses.length]);
-
-	const handleCollapseExpenses = React.useCallback(() => {
-		setVisibleExpenseCount(INITIAL_VISIBLE_EXPENSES);
+	const handleToggleExpenseCard = React.useCallback((expenseId: string) => {
+		setExpandedExpenseIds(previousState =>
+			previousState.includes(expenseId)
+				? previousState.filter(id => id !== expenseId)
+				: [...previousState, expenseId],
+		);
 	}, []);
 
 	const actionModalCopy = React.useMemo(() => {
@@ -510,180 +603,445 @@ export default function MandatoryExpensesListScreen() {
 	const isModalOpen = Boolean(pendingAction);
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: pageBackground }}>
-			<StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} backgroundColor={pageBackground} />
-			<View
-				className="
-					flex-1 w-full h-full
-					mt-[64px]
-					items-center
-					justify-between
-					pb-6
-					relative
-				"
-				style={{ backgroundColor: pageBackground }}
-			>
-				<FloatingAlertViewport />
-
-				<ScrollView
-					keyboardShouldPersistTaps="handled"
-					keyboardDismissMode="on-drag"
-					style={{ backgroundColor: pageBackground }}
-					contentContainerStyle={{
-						flexGrow: 1,
-						paddingBottom: 48,
-						backgroundColor: pageBackground,
-					}}
-				>
-					<View className="w-full px-6">
-
-						<Heading size="3xl" className="text-center">
-							Gastos obrigatórios
-						</Heading>
-
-						<Box className="w-full items-center ">
-							<MandatoryExpensesListIllustration width={170} height={170} />
-						</Box>
-
-						<Text className="text-justify text-gray-600 dark:text-gray-400">
-							Acompanhe seus pagamentos recorrentes, registre-os facilmente e nunca perca um vencimento. Sempre renovando a cada mês para manter suas finanças em dia.
-						</Text>
-
-						<Divider className="my-6 mb-6" />
-
-						<DateCalendar
-							items={calendarExpenses}
-							tagsMap={tagsMap}
-							formatCurrency={formatCurrencyBRL}
-							getStatusText={getExpenseStatusText}
-							getStatusClassName={getExpenseStatusClassName}
-							getDueDayColorClass={(dueDay: number) => getDueDayColorClass(dueDay)}
-							onAction={handleCalendarAction}
-							valueLabel="Previsto"
-							dueLabel="Vencimento"
-							completedLabel="pagos"
-							pendingLabel="pend."
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+						<Image
+							source={LoginWallpaper}
+							alt="Background da tela de gastos obrigatórios"
+							className="w-full h-full rounded-b-3xl absolute"
+							resizeMode="cover"
 						/>
 
-						<Button className="mb-6" onPress={handleOpenCreate} variant="outline">
-							<ButtonText>Registrar novo gasto obrigatório</ButtonText>
-						</Button>
-
-						{isLoading ? (
-							<Text className="text-center text-gray-500">Carregando gastos obrigatórios...</Text>
-						) : expenses.length === 0 ? (
-							<Text className="text-center text-gray-500">
-								Nenhum gasto obrigatório cadastrado até o momento.
-							</Text>
-						) : (
-							<VStack>
-								<Text className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-									Mostrando {visibleExpenses.length} de {expenses.length} gastos obrigatórios cadastrados.
-								</Text>
-								{visibleExpenses.map(expense => (
-									<Box
-										key={expense.id}
-										className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3 w-full mb-6"
-									>
-										<HStack className="justify-between items-start mb-2">
-											<View className="flex-1 pr-3">
-												<Text className="text-lg font-semibold">{expense.name}</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Valor previsto: {' '}
-													<Text className="text-orange-500 dark:text-orange-300">
-														{formatCurrencyBRL(expense.valueInCents)}
-													</Text>
-												</Text>
-												<Text className="text-gray-700 dark:text-gray-300">
-													Vencimento: {''}
-													<Text className={getDueDayColorClass(expense.dueDay)}>
-														dia {String(expense.dueDay).padStart(2, '0')}
-													</Text>
-												</Text>
-												<Text className="text-gray-600">
-													Tag: {tagsMap[expense.tagId] ?? 'Tag não encontrada'}
-												</Text>
-												<Text className="text-gray-600">
-													Lembrete: {expense.reminderEnabled === false ? 'desativado' : 'ativado'}
-												</Text>
-												<Text
-													className={
-														expense.isPaidForCurrentCycle
-															? 'text-emerald-600 dark:text-emerald-400 mt-1'
-															: 'text-gray-500 dark:text-gray-400 mt-1'
-													}
-												>
-													{expense.isPaidForCurrentCycle
-														? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
-														: 'Aguardando registro como despesa neste mês.'}
-												</Text>
-												{expense.description && (
-													<Text className="text-gray-600 mt-1">Observações: {expense.description}</Text>
-												)}
-											</View>
-										</HStack>
-
-										<Divider className="my-4" />
-
-										<HStack className="gap-3 flex-wrap justify-end">
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => setPendingAction({ type: 'register', expense })}
-												isDisabled={expense.isPaidForCurrentCycle}
-											>
-												<ButtonIcon as={AddIcon} />
-											</Button>
-											<Button
-												size="md"
-												variant="link"
-												action="primary"
-												onPress={() => setPendingAction({ type: 'edit', expense })}
-											>
-												<ButtonIcon as={EditIcon} />
-											</Button>
-											{expense.isPaidForCurrentCycle && (
-												<Button
-													size="md"
-													variant="link"
-													action="secondary"
-													onPress={() => setPendingAction({ type: 'reclaim', expense })}
-												>
-													<ButtonText>Reivindicar</ButtonText>
-												</Button>
-											)}
-											<Button
-												size="md"
-												variant="link"
-												action="negative"
-												onPress={() => setPendingAction({ type: 'delete', expense })}
-											>
-												<ButtonIcon as={TrashIcon} />
-											</Button>
-										</HStack>
-									</Box>
-								))}
-
-								{(hasMoreExpenses || canCollapseExpenses) && (
-									<Button
-										variant="outline"
-										onPress={hasMoreExpenses ? handleShowMoreExpenses : handleCollapseExpenses}
-										className="mb-6"
-									>
-										<ButtonText>{hasMoreExpenses ? 'Mostrar mais' : 'Mostrar menos'}</ButtonText>
-									</Button>
-								)}
-							</VStack>
-						)}
+						<VStack
+							className="w-full h-full items-center justify-start px-6 gap-4"
+							style={{ paddingTop: insets.top + 24 }}
+						>
+							<Heading size="xl" className="text-white text-center">
+								Gastos obrigatórios
+							</Heading>
+							<MandatoryExpensesListIllustration width="38%" height="38%" className="opacity-90" />
+						</VStack>
 					</View>
-				</ScrollView>
 
-				<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
+					<ScrollView
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						style={{ marginTop: heroHeight - 64 }}
+						contentContainerStyle={{ paddingBottom: 48 }}
+					>
+						<VStack className="justify-between mt-4">
+
+							{isLoading ? (
+								<MandatoryExpensesTimelineSkeleton
+									compactCardClassName={compactCardClassName}
+									tintedCardClassName={tintedCardClassName}
+									skeletonBaseColor={skeletonBaseColor}
+									skeletonHighlightColor={skeletonHighlightColor}
+									skeletonMutedBaseColor={skeletonMutedBaseColor}
+									skeletonMutedHighlightColor={skeletonMutedHighlightColor}
+								/>
+							) : (
+								<VStack className="mt-4 gap-4">
+									<DateCalendar
+										items={calendarExpenses}
+										tagsMap={tagsMap}
+										tagMetadataMap={tagMetadataMap}
+										formatCurrency={formatCurrencyBRL}
+										getStatusText={getExpenseStatusText}
+										getStatusClassName={getExpenseStatusClassName}
+										getDueDayColorClass={(dueDay: number, expense?: DateCalendarItem) =>
+											getDueDayColorClass(
+												dueDay,
+												(expense as MandatoryExpenseItem | undefined)?.isCompletedForCurrentCycle,
+											)}
+										onAction={handleCalendarAction}
+										valueLabel="Previsto"
+										dueLabel="Vencimento"
+										completedLabel="pagos"
+										pendingLabel="pend."
+										valueTone="expense"
+									/>
+
+
+									<Button
+										className={`${submitButtonClassName}`}
+										onPress={handleOpenCreate}
+									>
+										<ButtonIcon as={AddIcon} size="sm" />
+										<ButtonText>Adicionar gasto obrigatório</ButtonText>
+										{isLoading && <ButtonSpinner />}
+									</Button>
+
+									{expenses.length === 0 ? (
+										<Box className={`${compactCardClassName} px-5 py-6`}>
+											<Text className={`text-center ${helperText}`}>
+												Nenhum gasto obrigatório cadastrado até o momento.
+											</Text>
+										</Box>
+									) : (
+										<VStack className="gap-2">
+											<View style={{ marginTop: 10 }}>
+												{expenses.map((expense, index) => {
+													const isExpanded = expandedExpenseIds.includes(expense.id);
+													const tagMetadata = tagMetadataMap[expense.tagId];
+													const tone = expense.isPaidForCurrentCycle
+														? MANDATORY_EXPENSE_COMPLETED_TONE
+														: MANDATORY_EXPENSE_PENDING_TONE;
+													const summaryText = expense.isPaidForCurrentCycle
+														? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
+														: 'Registre a despesa do mês para concluir este item.';
+
+													return (
+														<View key={expense.id} style={{ flexDirection: 'row' }}>
+															<View
+																style={{
+																	alignItems: 'center',
+																	width: '7%',
+																	paddingTop: 6,
+																}}
+															>
+																<View
+																	style={{
+																		width: 14,
+																		height: 14,
+																		borderRadius: 999,
+																		backgroundColor: tone.accentColor,
+																		borderWidth: 2,
+																		borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+																		shadowColor: tone.accentColor,
+																		shadowOpacity: isDarkMode ? 0.26 : 0.14,
+																		shadowRadius: 8,
+																		shadowOffset: { width: 0, height: 4 },
+																		elevation: 2,
+																	}}
+																/>
+																{index < expenses.length - 1 ? (
+																	<View
+																		style={{
+																			flex: 1,
+																			width: 3,
+																			borderRadius: 999,
+																			marginVertical: 2,
+																			backgroundColor: tone.lineColor,
+																		}}
+																	/>
+																) : (
+																	<View />
+																)}
+															</View>
+
+															<View style={{ width: '93%', paddingBottom: 14 }}>
+																<TouchableOpacity
+																	activeOpacity={0.85}
+																	onPress={() => handleToggleExpenseCard(expense.id)}
+																	style={{ width: '100%' }}
+																>
+																	<HStack className="items-center justify-between gap-3">
+																		<HStack className="items-center gap-3" style={{ flex: 1 }}>
+																			<LinearGradient
+																				colors={tone.iconGradient}
+																				start={{ x: 0, y: 0 }}
+																				end={{ x: 1, y: 1 }}
+																				style={{
+																					width: 44,
+																					height: 44,
+																					borderRadius: 16,
+																					alignItems: 'center',
+																					justifyContent: 'center',
+																					flexShrink: 0,
+																				}}
+																			>
+																				<TagIcon
+																					iconFamily={tagMetadata?.iconFamily}
+																					iconName={tagMetadata?.iconName}
+																					iconStyle={tagMetadata?.iconStyle}
+																					size={18}
+																					color="#FFFFFF"
+																				/>
+																			</LinearGradient>
+
+																			<View style={{ flex: 1 }}>
+																				<Text
+																					numberOfLines={1}
+																					style={{
+																						color: timelinePalette.title,
+																						fontSize: 15,
+																						fontWeight: '700',
+																					}}
+																				>
+																					{expense.name}
+																				</Text>
+																				<Text
+																					numberOfLines={1}
+																					style={{
+																						marginTop: 2,
+																						color: timelinePalette.subtitle,
+																						fontSize: 12,
+																						lineHeight: 18,
+																					}}
+																				>
+																					{tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Tag não encontrada'}
+																				</Text>
+																			</View>
+																		</HStack>
+
+																		<HStack className="items-center gap-2">
+																			<VStack className="items-end">
+																				<Text
+																					style={{
+																						color: tone.amountColor,
+																						fontSize: 15,
+																						fontWeight: '700',
+																					}}
+																				>
+																					{formatCurrencyBRL(expense.valueInCents)}
+																				</Text>
+																				<HStack className="mt-1 items-center gap-1">
+																					<Icon
+																						as={CalendarDaysIcon}
+																						size="xs"
+																						className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
+																					/>
+																					<Text
+																						style={{
+																							color: timelinePalette.subtitle,
+																							fontSize: 11,
+																						}}
+																					>
+																						dia {String(expense.dueDay).padStart(2, '0')}
+																					</Text>
+																				</HStack>
+																			</VStack>
+
+																			<Icon
+																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																				size="sm"
+																				className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+																			/>
+																		</HStack>
+																	</HStack>
+																</TouchableOpacity>
+
+																{isExpanded ? (
+																	<LinearGradient
+																		colors={tone.cardGradient}
+																		start={{ x: 0, y: 0 }}
+																		end={{ x: 1, y: 1 }}
+																		style={{
+																			marginTop: 10,
+																			marginRight: 16,
+																			borderRadius: 20,
+																			paddingHorizontal: 16,
+																			paddingVertical: 14,
+																		}}
+																	>
+																		<VStack className="gap-3">
+																			<HStack className="items-start justify-between gap-4">
+																				<VStack className="flex-1">
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.74)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Resumo
+																					</Text>
+																					<Text
+																						style={{
+																							fontSize: 13,
+																							lineHeight: 19,
+																							color: '#FFFFFF',
+																						}}
+																					>
+																						{summaryText}
+																					</Text>
+																				</VStack>
+
+																				<VStack className="items-end">
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.74)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Valor
+																					</Text>
+																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																						{formatCurrencyBRL(expense.valueInCents)}
+																					</Heading>
+																				</VStack>
+																			</HStack>
+
+																			<View
+																				style={{
+																					flexDirection: 'row',
+																					flexWrap: 'wrap',
+																					columnGap: 14,
+																					rowGap: 10,
+																				}}
+																			>
+																				{[
+																					{ label: 'Tipo', value: 'Gasto obrigatório' },
+																					{ label: 'Vencimento', value: `dia ${String(expense.dueDay).padStart(2, '0')}` },
+																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
+																					{ label: 'Lembrete', value: expense.reminderEnabled === false ? 'Desativado' : 'Ativado' },
+																				].map(item => (
+																					<View
+																						key={`${expense.id}-${item.label}`}
+																						style={{ width: '46%', minWidth: 128 }}
+																					>
+																						<Text
+																							style={{
+																								fontSize: 10,
+																								fontWeight: '700',
+																								letterSpacing: 0.4,
+																								color: 'rgba(255,255,255,0.72)',
+																								textTransform: 'uppercase',
+																							}}
+																						>
+																							{item.label}
+																						</Text>
+																						<Text
+																							style={{
+																								marginTop: 3,
+																								fontSize: 13,
+																								lineHeight: 18,
+																								color: '#FFFFFF',
+																							}}
+																						>
+																							{item.value}
+																						</Text>
+																					</View>
+																				))}
+																			</View>
+
+																			{expense.description ? (
+																				<View style={{ paddingTop: 2 }}>
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.72)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						Descrição
+																					</Text>
+																					<Text
+																						style={{
+																							marginTop: 6,
+																							fontSize: 13,
+																							lineHeight: 18,
+																							color: '#FFFFFF',
+																						}}
+																					>
+																						{expense.description}
+																					</Text>
+																				</View>
+																			) : null}
+
+																			<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
+																				<TouchableOpacity
+																					activeOpacity={0.85}
+																					onPress={() => setPendingAction({ type: 'register', expense })}
+																					disabled={expense.isPaidForCurrentCycle}
+																					style={{
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 8,
+																						opacity: expense.isPaidForCurrentCycle ? 0.45 : 1,
+																					}}
+																				>
+																					<Icon as={AddIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">Registrar</Text>
+																				</TouchableOpacity>
+
+																				<TouchableOpacity
+																					activeOpacity={0.85}
+																					onPress={() => setPendingAction({ type: 'edit', expense })}
+																					style={{
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 8,
+																					}}
+																				>
+																					<Icon as={EditIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">Editar</Text>
+																				</TouchableOpacity>
+
+																				{expense.isPaidForCurrentCycle ? (
+																					<TouchableOpacity
+																						activeOpacity={0.85}
+																						onPress={() => setPendingAction({ type: 'reclaim', expense })}
+																						style={{
+																							flexDirection: 'row',
+																							alignItems: 'center',
+																							gap: 8,
+																							paddingVertical: 8,
+																						}}
+																					>
+																						<Icon as={RepeatIcon} size="sm" className="text-white" />
+																						<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																					</TouchableOpacity>
+																				) : null}
+
+																				<TouchableOpacity
+																					activeOpacity={0.85}
+																					onPress={() => setPendingAction({ type: 'delete', expense })}
+																					style={{
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 8,
+																					}}
+																				>
+																					<Icon as={TrashIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">Excluir</Text>
+																				</TouchableOpacity>
+																			</HStack>
+																		</VStack>
+																	</LinearGradient>
+																) : null}
+															</View>
+														</View>
+													);
+												})}
+											</View>
+
+										</VStack>
+									)}
+								</VStack>
+							)}
+						</VStack>
+					</ScrollView>
+				</View>
+
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={1} />
+				</View>
 
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 					<ModalBackdrop />
-					<ModalContent className="max-w-[360px]">
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
 							<Heading size="lg">{actionModalCopy.title}</Heading>
 							<ModalCloseButton onPress={handleCloseActionModal} />

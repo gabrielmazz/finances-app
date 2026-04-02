@@ -107,6 +107,10 @@ type ScheduleResult =
 	| { success: true }
 	| { success: false; reason: 'permissions-denied' | 'unavailable' };
 
+type NotificationPermissionResult =
+	| { granted: true }
+	| { granted: false; reason: 'permissions-denied' | 'unavailable' };
+
 export const scheduleMandatoryGainNotification = async ({
 	gainTemplateId,
 	name,
@@ -222,15 +226,20 @@ export const syncMandatoryGainNotifications = async (gains: SyncGain[]) => {
 	}
 };
 
-export const ensureNotificationPermissionForMandatoryGains = async () => {
+export const ensureNotificationPermissionForMandatoryGains = async (): Promise<NotificationPermissionResult> => {
 	if (!getNotificationsModule()) {
 		warnNotificationsUnavailable();
-		return false;
+		return { granted: false, reason: 'unavailable' };
 	}
 
 	if (await hasNotificationPermission()) {
-		return true;
+		return { granted: true };
 	}
 
-	return requestNotificationPermission();
+	const granted = await requestNotificationPermission();
+	if (granted) {
+		return { granted: true };
+	}
+
+	return { granted: false, reason: 'permissions-denied' };
 };

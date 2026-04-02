@@ -36,6 +36,30 @@ export function useScreenStyles() {
 	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerCardClassName = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const textareaContainerClassName = `h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const sectionCardClassName = isDarkMode
+		? 'rounded-3xl border border-slate-800 bg-slate-950'
+		: 'rounded-3xl border border-slate-200 bg-white';
+	const compactCardClassName = isDarkMode
+		? ''
+		: '';
+	const tintedCardClassName = isDarkMode
+		? 'rounded-2xl border border-slate-800 bg-slate-900/80'
+		: 'rounded-2xl border border-slate-200 bg-slate-50';
+	const subtleCardClassName = isDarkMode
+		? ''
+		: '';
+	const modalContentClassName = isDarkMode
+		? 'rounded-[28px] border border-slate-800 bg-slate-950'
+		: 'rounded-[28px] border border-slate-200 bg-white';
+	const drawerContentClassName = isDarkMode
+		? 'rounded-l-[28px] border-l border-slate-800 bg-slate-950'
+		: 'rounded-l-[28px] border-l border-slate-200 bg-white';
+	const drawerHeaderCardClassName = isDarkMode
+		? 'rounded-2xl border border-slate-800 bg-slate-900/60'
+		: 'rounded-2xl border border-slate-200 bg-slate-50';
+	const topSummaryCardClassName = isDarkMode
+		? 'rounded-[28px] border border-slate-800 bg-slate-950'
+		: 'rounded-[28px] border border-slate-200 bg-white';
 
 	const submitButtonClassName = isDarkMode
 		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl'
@@ -88,6 +112,10 @@ export function useScreenStyles() {
 	const checkboxLabelClassName = isDarkMode
 		? 'text-slate-300 data-[checked=true]:text-slate-100'
 		: 'text-slate-700 data-[checked=true]:text-slate-900';
+	const skeletonBaseColor = isDarkMode ? 'rgba(30, 41, 59, 0.96)' : '#E2E8F0';
+	const skeletonHighlightColor = isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.55)';
+	const skeletonMutedBaseColor = isDarkMode ? 'rgba(15, 23, 42, 0.88)' : '#F1F5F9';
+	const skeletonMutedHighlightColor = isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.7)';
 
 	return {
 		isDarkMode,
@@ -102,6 +130,14 @@ export function useScreenStyles() {
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
 		textareaContainerClassName,
+		sectionCardClassName,
+		compactCardClassName,
+		tintedCardClassName,
+		subtleCardClassName,
+		modalContentClassName,
+		drawerContentClassName,
+		drawerHeaderCardClassName,
+		topSummaryCardClassName,
 		submitButtonClassName,
 		submitButtonTextClassName,
 		heroHeight,
@@ -117,5 +153,9 @@ export function useScreenStyles() {
 		checkboxIndicatorClassName,
 		checkboxIconClassName,
 		checkboxLabelClassName,
+		skeletonBaseColor,
+		skeletonHighlightColor,
+		skeletonMutedBaseColor,
+		skeletonMutedHighlightColor,
 	};
 }
