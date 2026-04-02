@@ -188,6 +188,7 @@ O projeto usa **dois apps Firebase** inicializados:
 ### Notificações Push
 - Detectar ambiente antes de agendar: Expo Go tem limitações
 - Notificações são locais (sem servidor) — reinstalar app as apaga
+- Alterações em `app.json` para `expo-notifications` exigem novo build nativo
 
 ---
 
@@ -224,31 +225,25 @@ As seguintes áreas não têm documentação detalhada no vault ainda:
 
 > Atualizar manualmente a cada sessão com o que está sendo trabalhado.
 
-**Branch atual:** `NS30-icones-vinculados-as-tags`
+**Branch atual:** `NS31-redesign-das-telas-de-gastos-ganhos-e-investimentos`
 
 **Em andamento:**
-- NS30 — Ícones vinculados às tags nas telas de movimentos
-- Alterações em: `BankMovementsScreen`, `AddRegisterTagScreen`, vários screens com padronização
-- Timeline — obrigatórios concluídos com destaque verde consistente entre Home, Movimentos e calendário/lista de gastos obrigatórios
-- Padronização das telas `AddMandatoryExpensesScreen` e `AddMandatoryGainsScreen` com bloqueios progressivos, cards coerentes ao fluxo e feedback de lembretes via `notifier-alert`
+- NS31 — refatoração dos lembretes de vencimento/recebimento para obrigatórios
+- Novo serviço compartilhado em `utils/mandatoryReminderNotifications.ts`
+- Feedback de lembrete com próxima data real agendada e mensagens personalizadas por gasto/ganho
+- Configuração nativa ajustada em `app.json` para `expo-notifications`
 
 **Arquivos com mudanças não commitadas:**
-- `components/uiverse/date-calendar.tsx`
-- `functions/HomeFirebase.ts`
-- `hooks/useScreenStyle.ts`
-- `screens/AddFinanceScreen.tsx`
+- `app.json`
 - `screens/AddMandatoryExpensesScreen.tsx`
 - `screens/AddMandatoryGainsScreen.tsx`
-- `screens/BankMovementsScreen.tsx`
-- `screens/ConfigurationsScreen.tsx`
-- `screens/FinancialListScreen.tsx`
-- `screens/HomeScreen.tsx`
 - `screens/MandatoryExpensesListScreen.tsx`
 - `screens/MandatoryGainsListScreen.tsx`
 - `utils/mandatoryExpenseNotifications.ts`
 - `utils/mandatoryGainNotifications.ts`
+- `utils/mandatoryReminderNotifications.ts`
 - `Arquitetura.md`
 
 **Último commit:** `NS30 - Alteração na tela de movimento de bancos, trazendo as novas implementações de tags`
 
-**Próximos passos:** validar visualmente os estados "Pago/Recebido" nas timelines da Home, Movimentos bancários e obrigatórios.
+**Próximos passos:** validar em build nativo o disparo dos lembretes de obrigatórios e revisar a experiência de edição/exclusão após reagendamento.

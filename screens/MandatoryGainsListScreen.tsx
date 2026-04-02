@@ -366,14 +366,14 @@ export default function MandatoryGainsListScreen() {
 			setTagMetadataMap(tagMetadataRecord);
 			setGains(gainsWithStatus);
 			await syncMandatoryGainNotifications(
-				gainsWithStatus.map(gain => ({
-					id: gain.id,
-					name: gain.name,
-					dueDay: gain.dueDay,
-					reminderEnabled: gain.reminderEnabled,
-					reminderHour: 9,
-					reminderMinute: 0,
-					description: gain.description,
+				gainsResult.data.map((gain: any) => ({
+					id: typeof gain?.id === 'string' ? gain.id : '',
+					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
+					dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
+					reminderEnabled: gain?.reminderEnabled !== false,
+					reminderHour: typeof gain?.reminderHour === 'number' ? gain.reminderHour : 9,
+					reminderMinute: typeof gain?.reminderMinute === 'number' ? gain.reminderMinute : 0,
+					description: typeof gain?.description === 'string' ? gain.description : null,
 				})),
 			);
 		} catch (error) {
