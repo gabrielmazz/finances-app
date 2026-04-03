@@ -2,12 +2,15 @@ import React from 'react';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
-import { Alert, BackHandler, Pressable, View } from 'react-native';
+import { BackHandler, Pressable, View } from 'react-native';
 
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { Text } from '@/components/ui/text';
 import { auth } from '@/FirebaseConfig';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -35,13 +38,39 @@ type NavigatorGroup = {
 	options: NavigatorOption[];
 };
 
-const logoutUser = async () => {
+// Logout dispara onAuthStateChanged → AuthContext atualiza → _layout.tsx redireciona para '/' automaticamente.
+// Conforme documentado em [[Autenticação]] e [[Navegação]].
+const logoutUser = async (isDarkMode = false, userId?: string | null, displayName?: string | null) => {
+	// Busca o nome no Firestore (fonte primária) com fallback para displayName do Auth
+	let userName = displayName?.trim() || null;
+	if (userId) {
+		try {
+			const userData = await getUserDataFirebase(userId);
+			if (userData.success) {
+				const storedName = (userData.data as { name?: unknown })?.name;
+				if (typeof storedName === 'string' && storedName.trim()) {
+					userName = storedName.trim().split(/\s+/)[0] ?? userName;
+				}
+			}
+		} catch {
+			// Fallback silencioso para displayName do Auth
+		}
+	}
+
 	try {
+		showNotifierAlert({
+			description: userName ? `Até mais, ${userName}!` : 'Até mais!',
+			type: 'info',
+			isDarkMode,
+		});
 		await signOut(auth);
-		router.replace('/');
 	} catch (error) {
 		console.error('Erro ao deslogar usuário:', error);
-		Alert.alert('Erro ao deslogar', 'Não foi possível encerrar a sessão. Tente novamente.');
+		showNotifierAlert({
+			description: 'Não foi possível encerrar a sessão. Tente novamente.',
+			type: 'error',
+			isDarkMode,
+		});
 	}
 };
 
@@ -183,9 +212,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				id: 'logout',
 				label: 'Sair',
 				icon: 'log-out-outline',
-				onSelect: () => {
-					void logoutUser();
-				},
+				onSelect: () => {},
 			},
 		],
 	},
@@ -241,6 +268,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	onHardwareBack,
 }) => {
 	const { isDarkMode } = useAppTheme();
+	const { user } = useAuth();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
@@ -363,8 +391,12 @@ export const Navigator: React.FC<NavigatorProps> = ({
 
 	const handleSelect = React.useCallback((option: NavigatorOption) => {
 		setOpenGroupValue(null);
+		if (option.id === 'logout') {
+			void logoutUser(isDarkMode, user?.uid, user?.displayName);
+			return;
+		}
 		option.onSelect();
-	}, []);
+	}, [isDarkMode, user?.uid, user?.displayName]);
 
 	const handleMenuOpen = React.useCallback((groupValue: number) => {
 		setOpenGroupValue(groupValue);
