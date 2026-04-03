@@ -9,6 +9,7 @@ import {
 	ScrollView as RNScrollView,
 	TextInput,
 	findNodeHandle,
+	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -25,6 +26,7 @@ import {
 	SelectPortal,
 	SelectTrigger,
 } from '@/components/ui/select';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
@@ -35,7 +37,6 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { HStack } from '@/components/ui/hstack';
 import { Switch } from '@/components/ui/switch';
 import { Box } from '@/components/ui/box';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
@@ -60,6 +61,7 @@ import {
 } from '@/utils/mandatoryReminderNotifications';
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
@@ -67,6 +69,17 @@ import AddMandatoryExpensesListIllustration from '../assets/UnDraw/addMandatoryE
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { Info } from 'lucide-react-native';
+import {
+	DEFAULT_MANDATORY_REMINDER_HOUR,
+	DEFAULT_MANDATORY_REMINDER_MINUTE,
+	DEFAULT_MANDATORY_REMINDER_TIME,
+	finalizeMandatoryReminderTimeInput,
+	formatMandatoryReminderTime,
+	formatMandatoryReminderTimeInput,
+	isMandatoryReminderTimeValid,
+	parseMandatoryReminderTime,
+} from '@/utils/mandatoryReminderTime';
 
 type TagOption = {
 	id: string;
@@ -84,11 +97,13 @@ type MandatoryExpenseFormSnapshot = {
 	name: string;
 	valueInCents: number | null;
 	dueDay: string;
+	usesBusinessDays: boolean;
 	tagId: string | null;
 	description: string;
+	reminderTime: string;
 	reminderEnabled: boolean;
 };
-type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'description';
+type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'description' | 'reminder-time';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -124,73 +139,6 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	return null;
 };
 
-function MandatoryExpenseFormSkeleton({
-	bodyText,
-	tintedCardClassName,
-	compactCardClassName,
-	fieldContainerClassName,
-	skeletonBaseColor,
-	skeletonHighlightColor,
-	skeletonMutedBaseColor,
-	skeletonMutedHighlightColor,
-}: {
-	bodyText: string;
-	tintedCardClassName: string;
-	compactCardClassName: string;
-	fieldContainerClassName: string;
-	skeletonBaseColor: string;
-	skeletonHighlightColor: string;
-	skeletonMutedBaseColor: string;
-	skeletonMutedHighlightColor: string;
-}) {
-	return (
-		<VStack className="mt-4 gap-4">
-			<Box className={`${tintedCardClassName} px-5 py-5`}>
-				<VStack className="gap-3">
-					<Skeleton className="h-3 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<Skeleton className="h-8 w-48" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<SkeletonText
-						_lines={2}
-						className="h-3"
-						baseColor={skeletonMutedBaseColor}
-						highlightColor={skeletonMutedHighlightColor}
-					/>
-				</VStack>
-			</Box>
-
-			{Array.from({ length: 4 }).map((_, index) => (
-				<VStack key={`mandatory-expense-form-skeleton-${index}`} className="gap-2">
-					<Skeleton className="ml-1 h-3 w-32" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-					<Skeleton
-						className={fieldContainerClassName}
-						baseColor={skeletonBaseColor}
-						highlightColor={skeletonHighlightColor}
-					/>
-				</VStack>
-			))}
-
-			<VStack className="gap-2">
-				<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
-				<Skeleton className="h-24 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-			</VStack>
-
-			<Box className={`${compactCardClassName} px-4 py-4`}>
-				<VStack className="gap-3">
-					<Skeleton className="h-4 w-32" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<SkeletonText
-						_lines={2}
-						className="h-3"
-						baseColor={skeletonMutedBaseColor}
-						highlightColor={skeletonMutedHighlightColor}
-					/>
-				</VStack>
-			</Box>
-
-			<Skeleton className="h-11 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-		</VStack>
-	);
-}
-
 export default function AddMandatoryExpensesScreen() {
 	const {
 		isDarkMode,
@@ -207,10 +155,7 @@ export default function AddMandatoryExpensesScreen() {
 		compactCardClassName,
 		tintedCardClassName,
 		topSummaryCardClassName,
-		skeletonBaseColor,
-		skeletonHighlightColor,
-		skeletonMutedBaseColor,
-		skeletonMutedHighlightColor,
+		infoCardStyle
 	} = useScreenStyles();
 	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
 	const editingExpenseId = React.useMemo(() => {
@@ -226,8 +171,11 @@ export default function AddMandatoryExpensesScreen() {
 	const [valueDisplay, setValueDisplay] = React.useState('');
 	const [valueInCents, setValueInCents] = React.useState<number | null>(null);
 	const [dueDay, setDueDay] = React.useState('');
+	const [usesBusinessDays, setUsesBusinessDays] = React.useState(false);
 	const [description, setDescription] = React.useState('');
-	const [reminderEnabled, setReminderEnabled] = React.useState(true);
+	// Segue [[Despesas Fixas]]: o lembrete só é liberado quando o template base estiver completo.
+	const [reminderEnabled, setReminderEnabled] = React.useState(false);
+	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
@@ -253,10 +201,21 @@ export default function AddMandatoryExpensesScreen() {
 	const expenseValueInputRef = React.useRef<TextInput | null>(null);
 	const dueDayInputRef = React.useRef<TextInput | null>(null);
 	const descriptionInputRef = React.useRef<TextInput | null>(null);
+	const reminderTimeInputRef = React.useRef<TextInput | null>(null);
 	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
-		(key: FocusableInputKey) => (key === 'description' ? 180 : 120),
+		(key: FocusableInputKey) => {
+			if (key === 'description') {
+				return 180;
+			}
+
+			if (key === 'reminder-time') {
+				return 150;
+			}
+
+			return 120;
+		},
 		[],
 	);
 
@@ -277,13 +236,22 @@ export default function AddMandatoryExpensesScreen() {
 		setDueDay(sanitizeDueDay(input));
 	}, []);
 
+	const handleReminderTimeChange = React.useCallback((input: string) => {
+		setReminderTime(formatMandatoryReminderTimeInput(input));
+	}, []);
+
+	const handleReminderTimeBlur = React.useCallback(() => {
+		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? currentValue);
+	}, []);
+
 	const isDueDayValid = React.useMemo(() => {
 		if (!dueDay) {
 			return false;
 		}
 		const parsed = Number(dueDay);
-		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= 31;
-	}, [dueDay]);
+		const maxDueDay = usesBusinessDays ? MAX_MONTHLY_BUSINESS_DAY : 31;
+		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= maxDueDay;
+	}, [dueDay, usesBusinessDays]);
 
 	const handleReminderToggle = React.useCallback(async (value: boolean) => {
 		if (!value) {
@@ -308,7 +276,7 @@ export default function AddMandatoryExpensesScreen() {
 				title: 'Lembrete indisponível',
 				description:
 					permissionResult.reason === 'unavailable'
-						? 'Não foi possível acessar as notificações locais neste ambiente. Se você instalou um build antigo, gere um novo build com a configuração atualizada.'
+						? 'Os lembretes não funcionam no Expo Go. Gere um build de desenvolvimento ou produção para testar as notificações deste gasto.'
 						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
 				type: 'warn',
 				isDarkMode,
@@ -316,8 +284,19 @@ export default function AddMandatoryExpensesScreen() {
 			});
 			return;
 		}
+		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? DEFAULT_MANDATORY_REMINDER_TIME);
 		setReminderEnabled(value);
 	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
+
+	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
+	const formattedReminderTimeLabel = React.useMemo(
+		() =>
+			formatMandatoryReminderTime(
+				parseMandatoryReminderTime(reminderTime)?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
+				parseMandatoryReminderTime(reminderTime)?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
+			),
+		[reminderTime],
+	);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -330,6 +309,8 @@ export default function AddMandatoryExpensesScreen() {
 					return dueDayInputRef;
 				case 'description':
 					return descriptionInputRef;
+				case 'reminder-time':
+					return reminderTimeInputRef;
 				default:
 					return null;
 			}
@@ -407,11 +388,13 @@ export default function AddMandatoryExpensesScreen() {
 			name: expenseName.trim(),
 			valueInCents,
 			dueDay: dueDay.trim(),
+			usesBusinessDays,
 			tagId: selectedTagId,
 			description: description.trim(),
+			reminderTime,
 			reminderEnabled,
 		}),
-		[description, dueDay, expenseName, reminderEnabled, selectedTagId, valueInCents],
+		[description, dueDay, expenseName, reminderEnabled, reminderTime, selectedTagId, usesBusinessDays, valueInCents],
 	);
 
 	const hasExpenseName = expenseName.trim().length > 0;
@@ -423,6 +406,7 @@ export default function AddMandatoryExpensesScreen() {
 	const isDueDayFieldDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || tagOptions.length === 0 || !isCoreTemplateReady || isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
+	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
 	const hasPendingTemplateChanges = React.useMemo(() => {
 		if (!selectedExpenseId || !persistedFormSnapshot) {
 			return false;
@@ -433,8 +417,10 @@ export default function AddMandatoryExpensesScreen() {
 			currentSnapshot.name !== persistedFormSnapshot.name ||
 			currentSnapshot.valueInCents !== persistedFormSnapshot.valueInCents ||
 			currentSnapshot.dueDay !== persistedFormSnapshot.dueDay ||
+			currentSnapshot.usesBusinessDays !== persistedFormSnapshot.usesBusinessDays ||
 			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
 			currentSnapshot.description !== persistedFormSnapshot.description ||
+			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
 			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled
 		);
 	}, [buildFormSnapshot, persistedFormSnapshot, selectedExpenseId]);
@@ -450,8 +436,24 @@ export default function AddMandatoryExpensesScreen() {
 	const reminderHelperMessage = !isTemplateReady
 		? 'Preencha nome, valor, vencimento e categoria antes de ativar o lembrete.'
 		: reminderEnabled
-			? `Lembrete mensal ativo para o dia ${dueDay.padStart(2, '0')} às 09:00.`
+			? isReminderTimeValid
+				? `Lembrete ativo para ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), usesBusinessDays)} às ${formattedReminderTimeLabel}.`
+				: 'Defina um horário válido no padrão 24h para agendar o lembrete.'
 			: 'Ative para receber um lembrete mensal no dia configurado.';
+
+	const dueDayFieldLabel = usesBusinessDays ? 'Número do dia útil do vencimento' : 'Dia do vencimento';
+	const dueDayPlaceholder = usesBusinessDays
+		? `Informe um número entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}`
+		: 'Informe um dia entre 1 e 31';
+	const dueDayErrorMessage = usesBusinessDays
+		? `Informe um dia útil válido entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
+		: 'Informe um dia válido entre 1 e 31.';
+	const dueDayHelperMessage = usesBusinessDays
+		? 'Use a posição do dia útil no mês. Ex.: 5 = quinto dia útil. Fins de semana e feriados nacionais do Brasil não contam.'
+		: 'Use um dia fixo do mês. Se a data coincidir com feriado nacional, o calendário destacará esse dia em roxo.';
+	const businessDayToggleHelperMessage = usesBusinessDays
+		? `Esta despesa será tratada como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
+		: 'Ative quando o vencimento seguir um dia útil do mês, como uma cobrança no 5º dia útil.';
 
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
 		setSelectedExpenseId(null);
@@ -459,8 +461,10 @@ export default function AddMandatoryExpensesScreen() {
 		setValueDisplay('');
 		setValueInCents(null);
 		setDueDay('');
+		setUsesBusinessDays(false);
 		setDescription('');
-		setReminderEnabled(true);
+		setReminderEnabled(false);
+		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
 		setSelectedTagId(current => {
 			if (options?.keepTag && current) {
 				return current;
@@ -578,9 +582,14 @@ export default function AddMandatoryExpensesScreen() {
 				const name = typeof data.name === 'string' ? data.name : '';
 				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
 				const dueDayValue = typeof data.dueDay === 'number' ? data.dueDay : 1;
+				const usesBusinessDaysValue = data.usesBusinessDays === true;
 				const tagId = typeof data.tagId === 'string' ? data.tagId : null;
 				const descriptionValue = typeof data.description === 'string' ? data.description : '';
 				const reminderFlag = data.reminderEnabled !== false;
+				const reminderHour =
+					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
+				const reminderMinute =
+					typeof data.reminderMinute === 'number' ? data.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
 				const lastPaymentExpenseId =
 					typeof data.lastPaymentExpenseId === 'string' && data.lastPaymentExpenseId.length > 0
 						? data.lastPaymentExpenseId
@@ -596,9 +605,11 @@ export default function AddMandatoryExpensesScreen() {
 				setValueInCents(value);
 				setValueDisplay(value ? formatCurrencyBRL(value) : '');
 				setDueDay(String(dueDayValue).padStart(2, '0'));
+				setUsesBusinessDays(usesBusinessDaysValue);
 				setSelectedTagId(tagId);
 				setDescription(descriptionValue);
 				setReminderEnabled(reminderFlag);
+				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
 				setCurrentPaymentInfo({
 					expenseId: lastPaymentExpenseId,
 					cycleKey: lastPaymentCycle,
@@ -608,8 +619,10 @@ export default function AddMandatoryExpensesScreen() {
 					name: name.trim(),
 					valueInCents: value,
 					dueDay: String(dueDayValue).padStart(2, '0'),
+					usesBusinessDays: usesBusinessDaysValue,
 					tagId,
 					description: descriptionValue.trim(),
+					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
 					reminderEnabled: reminderFlag,
 				});
 			} catch (error) {
@@ -664,7 +677,9 @@ export default function AddMandatoryExpensesScreen() {
 		if (!isDueDayValid) {
 			showNotifierAlert({
 				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe um dia do mês entre 1 e 31.',
+				description: usesBusinessDays
+					? `Informe um número de dia útil entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
+					: 'Informe um dia do mês entre 1 e 31.',
 				type: 'error',
 				isDarkMode,
 				duration: 4500,
@@ -676,6 +691,18 @@ export default function AddMandatoryExpensesScreen() {
 			showNotifierAlert({
 				title: 'Erro ao salvar gasto obrigatório',
 				description: 'Selecione uma tag obrigatória.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
+		const parsedReminderTime = parseMandatoryReminderTime(reminderTime);
+		if (reminderEnabled && !parsedReminderTime) {
+			showNotifierAlert({
+				title: 'Erro ao salvar gasto obrigatório',
+				description: 'Informe um horário válido para o lembrete no formato 24h, como 19:00.',
 				type: 'error',
 				isDarkMode,
 				duration: 4500,
@@ -702,11 +729,12 @@ export default function AddMandatoryExpensesScreen() {
 				name: trimmedName,
 				valueInCents,
 				dueDay: Number(dueDay),
+				usesBusinessDays,
 				tagId: selectedTagId,
 				description: description.trim().length > 0 ? description.trim() : null,
 				reminderEnabled,
-				reminderHour: 9,
-				reminderMinute: 0,
+				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
+				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
 			};
 
 			let persistedExpenseId = selectedExpenseId;
@@ -741,6 +769,7 @@ export default function AddMandatoryExpensesScreen() {
 						expenseId: persistedExpenseId,
 						name: payload.name,
 						dueDay: payload.dueDay,
+						usesBusinessDays: payload.usesBusinessDays,
 						reminderHour: payload.reminderHour,
 						reminderMinute: payload.reminderMinute,
 						description: payload.description ?? undefined,
@@ -793,7 +822,9 @@ export default function AddMandatoryExpensesScreen() {
 		expenseName,
 		isDarkMode,
 		isDueDayValid,
+		usesBusinessDays,
 		reminderEnabled,
+		reminderTime,
 		resetForm,
 		router,
 		selectedExpenseId,
@@ -850,6 +881,9 @@ export default function AddMandatoryExpensesScreen() {
 			templateDueDay: dueDay || '1',
 			templateMandatoryExpenseId: selectedExpenseId,
 		};
+		if (usesBusinessDays) {
+			params.templateUsesBusinessDays = '1';
+		}
 
 		if (selectedTagLabel) {
 			params.templateTagName = encodeURIComponent(selectedTagLabel);
@@ -873,6 +907,7 @@ export default function AddMandatoryExpensesScreen() {
 		selectedExpenseId,
 		selectedTagId,
 		selectedTagLabel,
+		usesBusinessDays,
 		valueInCents,
 	]);
 
@@ -918,13 +953,16 @@ export default function AddMandatoryExpensesScreen() {
 	}, [currentPaymentInfo?.expenseId, isDarkMode, selectedExpenseId]);
 
 	const isSaveDisabled =
-		!isTemplateReady || isFormBusy;
-	const screenTitle = selectedExpenseId ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
-	const isInitialLoading = isLoadingTags || isPrefilling;
-	const monthlyControlMessage = !selectedExpenseId
-		? 'Salve este template para liberar o registro do ciclo atual.'
-		: hasPendingTemplateChanges
-			? 'Salve as alterações para usar os dados atualizados ao registrar o pagamento deste mês.'
+		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
+	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
+	const isEditingMode = Boolean(editingExpenseId);
+	const screenTitle = isEditingMode ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
+	const monthlyControlMessage = isPrefilling && isEditingMode
+		? 'Carregando os dados do gasto obrigatório salvo.'
+		: !selectedExpenseId
+			? 'Salve este template para liberar o registro do ciclo atual.'
+			: hasPendingTemplateChanges
+				? 'Salve as alterações para usar os dados atualizados ao registrar o pagamento deste mês.'
 			: isPaidForCurrentCycle
 				? `Pagamento registrado em ${currentPaymentInfo?.paidAt ? formatDateToBR(currentPaymentInfo.paidAt) : 'data não disponível'}.`
 				: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
@@ -967,19 +1005,7 @@ export default function AddMandatoryExpensesScreen() {
 							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
 						>
 							<VStack className="justify-between">
-								{isInitialLoading ? (
-									<MandatoryExpenseFormSkeleton
-										bodyText={bodyText}
-										tintedCardClassName={tintedCardClassName}
-										compactCardClassName={compactCardClassName}
-										fieldContainerClassName={fieldContainerClassName}
-										skeletonBaseColor={skeletonBaseColor}
-										skeletonHighlightColor={skeletonHighlightColor}
-										skeletonMutedBaseColor={skeletonMutedBaseColor}
-										skeletonMutedHighlightColor={skeletonMutedHighlightColor}
-									/>
-								) : (
-									<VStack className="mt-4 gap-4">
+								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
 										<Text className={`${bodyText} ml-1 text-sm`}>Nome da despesa</Text>
 										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
@@ -1015,11 +1041,11 @@ export default function AddMandatoryExpensesScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Dia do vencimento</Text>
+										<Text className={`${bodyText} ml-1 text-sm`}>{dueDayFieldLabel}</Text>
 										<Input className={fieldContainerClassName} isDisabled={isDueDayFieldDisabled}>
 											<InputField
 												ref={dueDayInputRef}
-												placeholder="Informe um dia entre 1 e 31"
+												placeholder={dueDayPlaceholder}
 												value={dueDay}
 												onChangeText={handleDueDayChange}
 												keyboardType="numeric"
@@ -1028,11 +1054,48 @@ export default function AddMandatoryExpensesScreen() {
 												onFocus={() => handleInputFocus('due-day')}
 											/>
 										</Input>
+										<Text className={`${helperText} ml-1 text-sm`}>
+											{dueDayHelperMessage}
+										</Text>
 										{dueDay.length > 0 && !isDueDayValid ? (
 											<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
-												Informe um dia válido entre 1 e 31.
+												{dueDayErrorMessage}
 											</Text>
 										) : null}
+									</VStack>
+
+									<Box className={`px-4 rounded-2xl border ${tintedCardClassName}`}>
+										<VStack className="gap-3">
+											<HStack className="items-center justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text className="font-semibold">Contar por dia útil</Text>
+												</VStack>
+												<Switch
+													value={usesBusinessDays}
+													onValueChange={setUsesBusinessDays}
+													disabled={isFormBusy}
+													trackColor={{ false: '#CBD5E1', true: '#7C3AED' }}
+													thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
+													ios_backgroundColor="#CBD5E1"
+												/>
+											</HStack>
+										</VStack>
+									</Box>
+
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
+										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
+											<TextareaInput
+												ref={descriptionInputRef}
+												placeholder="Adicione um contexto rápido para este gasto"
+												multiline
+												value={description}
+												onChangeText={setDescription}
+												className={`${inputField} pt-2`}
+												onFocus={() => handleInputFocus('description')}
+												editable={!isDescriptionDisabled}
+											/>
+										</Textarea>
 									</VStack>
 
 									<VStack className="gap-2">
@@ -1079,101 +1142,104 @@ export default function AddMandatoryExpensesScreen() {
 												</SelectContent>
 											</SelectPortal>
 										</Select>
-										<Text className={`${helperText} ml-1 text-sm`}>{tagHelperMessage}</Text>
 									</VStack>
 
-									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
-										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
-											<TextareaInput
-												ref={descriptionInputRef}
-												placeholder="Adicione um contexto rápido para este gasto"
-												multiline
-												value={description}
-												onChangeText={setDescription}
-												className={`${inputField} pt-2`}
-												onFocus={() => handleInputFocus('description')}
-												editable={!isDescriptionDisabled}
-											/>
-										</Textarea>
-									</VStack>
-
-									<Box className={`${tintedCardClassName} px-4 py-4`}>
+									<Box className={`${compactCardClassName} px-4 py-4 rounded-2xl border ${tintedCardClassName}`}>
 										<VStack className="gap-3">
-											<VStack className="gap-1">
-												<Text className="font-semibold">Controle do mês</Text>
-												<Text className={`${helperText} text-sm`}>
-													{monthlyControlMessage}
-												</Text>
-											</VStack>
+											<HStack className="items-center justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text className="font-semibold">Lembrete do vencimento</Text>
+													<Text className={`${helperText} text-sm`}>
+														{reminderHelperMessage}
+													</Text>
+												</VStack>
+												<Switch
+													value={reminderEnabled}
+													onValueChange={handleReminderToggle}
+													disabled={!isTemplateReady || isFormBusy}
+													trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
+													thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
+													ios_backgroundColor="#CBD5E1"
+												/>
+											</HStack>
 
-											{selectedExpenseId ? (
-												isPaidForCurrentCycle ? (
-													<Button
-														variant="outline"
-														action="secondary"
-														onPress={handleReclaimPayment}
-														isDisabled={isPaymentActionLoading}
-													>
-														{isPaymentActionLoading ? (
-															<>
-																<ButtonSpinner />
-																<ButtonText>Processando</ButtonText>
-															</>
-														) : (
-															<ButtonText>Desfazer pagamento do mês</ButtonText>
-														)}
-													</Button>
-												) : (
-													<Button
-														variant="outline"
-														action="primary"
-														onPress={handleRegisterPaymentNavigation}
-														isDisabled={
-															isFormBusy ||
-															!selectedExpenseId ||
-															!isTemplateReady ||
-															hasPendingTemplateChanges
-														}
-													>
-														<ButtonText>Registrar despesa do mês</ButtonText>
-													</Button>
-												)
+											{reminderEnabled ? (
+												<VStack className="gap-2">
+													<HStack className="items-center gap-1">
+														<Text className={`${bodyText} ml-1 text-sm`}>Horário do lembrete</Text>
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={0}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={triggerProps => (
+																<Pressable
+																	{...triggerProps}
+																	hitSlop={8}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre o formato do horário do lembrete"
+																>
+																	<Info
+																		size={14}
+																		color={isDarkMode ? '#94A3B8' : '#64748B'}
+																		style={{ marginLeft: 4 }}
+																	/>
+																</Pressable>
+															)}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={`${bodyText} text-xs leading-5`}>
+																		Use o padrão 24h. Você pode digitar `1900` ou `19:00` e o campo completa para `19:00` automaticamente.
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</HStack>
+
+													<Input className={fieldContainerClassName} isDisabled={isReminderTimeFieldDisabled}>
+														<InputField
+															ref={reminderTimeInputRef}
+															placeholder="Ex: 19:00"
+															value={reminderTime}
+															onChangeText={handleReminderTimeChange}
+															onBlur={handleReminderTimeBlur}
+															keyboardType="numeric"
+															returnKeyType="done"
+															maxLength={5}
+															className={inputField}
+															onFocus={() => handleInputFocus('reminder-time')}
+														/>
+													</Input>
+
+													<Text className={`${helperText} ml-1 text-sm`}>
+														Digite no formato `HH:MM` ou apenas os números que o campo aplica a máscara sozinho.
+													</Text>
+
+													{!isReminderTimeValid ? (
+														<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
+															Informe um horário válido entre 00:00 e 23:59.
+														</Text>
+													) : null}
+												</VStack>
 											) : null}
 										</VStack>
-									</Box>
-
-									<Box className={`${compactCardClassName} px-4 py-4`}>
-										<HStack className="items-center justify-between gap-4">
-											<VStack className="flex-1 gap-1">
-												<Text className="font-semibold">Lembrete do vencimento</Text>
-												<Text className={`${helperText} text-sm`}>
-													{reminderHelperMessage}
-												</Text>
-											</VStack>
-											<Switch
-												value={reminderEnabled}
-												onValueChange={handleReminderToggle}
-												disabled={isFormBusy}
-												trackColor={{ false: '#d4d4d4', true: '#525252' }}
-												thumbColor="#fafafa"
-												ios_backgroundColor="#d4d4d4"
-											/>
-										</HStack>
 									</Box>
 
 									<Button className={submitButtonClassName} onPress={handleSubmit} isDisabled={isSaveDisabled}>
 										{isSubmitting ? (
 											<>
 												<ButtonSpinner />
-												<ButtonText>{selectedExpenseId ? 'Atualizando' : 'Registrando'}</ButtonText>
+												<ButtonText>{isEditingMode ? 'Atualizando' : 'Registrando'}</ButtonText>
 											</>
 										) : (
-											<ButtonText>{selectedExpenseId ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
+											<ButtonText>{isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
 										)}
 									</Button>
 								</VStack>
-								)}
 							</VStack>
 						</ScrollView>
 					</View>

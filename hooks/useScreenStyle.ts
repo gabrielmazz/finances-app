@@ -65,6 +65,10 @@ export function useScreenStyles() {
 		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
 
+	const submitButtonCancelClassName = isDarkMode
+		? 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-2xl border border-slate-700'
+		: 'bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-2xl border border-slate-300';
+
 	const submitButtonTextClassName = isDarkMode ? 'text-slate-900' : 'text-white';
 
 	const heroHeight = Math.max(windowHeight * 0.28, 250) + insets.top;
@@ -139,6 +143,7 @@ export function useScreenStyles() {
 		drawerHeaderCardClassName,
 		topSummaryCardClassName,
 		submitButtonClassName,
+		submitButtonCancelClassName,
 		submitButtonTextClassName,
 		heroHeight,
 		infoCardStyle,

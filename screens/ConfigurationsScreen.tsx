@@ -27,6 +27,7 @@ import {
 	ModalContent,
 	ModalFooter,
 	ModalHeader,
+	ModalTitle,
 } from '@/components/ui/modal';
 import {
 	Drawer,
@@ -1662,7 +1663,7 @@ export default function ConfigurationsScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">{actionModalCopy.title}</Heading>
+							<ModalTitle>{actionModalCopy.title}</ModalTitle>
 							<ModalCloseButton onPress={handleCloseActionModal} />
 						</ModalHeader>
 						<ModalBody>

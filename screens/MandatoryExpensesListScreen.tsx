@@ -22,6 +22,7 @@ import {
 	ModalContent,
 	ModalFooter,
 	ModalHeader,
+	ModalTitle,
 } from '@/components/ui/modal';
 import Navigator from '@/components/uiverse/navigator';
 
@@ -39,6 +40,12 @@ import {
 } from '@/utils/mandatoryExpenseNotifications';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import {
+	formatConfiguredMonthlyDueLabel,
+	formatResolvedMonthDateLabel,
+	formatResolvedMonthDayLabel,
+	resolveMonthlyOccurrence,
+} from '@/utils/businessCalendar';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
@@ -56,6 +63,9 @@ type PendingExpenseAction =
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
 
 type MandatoryExpenseItem = DateCalendarItem & {
+	usesBusinessDays?: boolean;
+	resolvedDueDate?: Date | null;
+	holidayName?: string | null;
 	lastPaymentExpenseId?: string | null;
 	lastPaymentCycle?: string | null;
 	lastPaymentDate?: Date | null;
@@ -130,6 +140,31 @@ const formatPaymentDate = (value: Date | null) => {
 		month: '2-digit',
 		year: 'numeric',
 	}).format(value);
+};
+
+const formatExpenseScheduleLabel = (expense: MandatoryExpenseItem) => {
+	const configuredLabel = formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays);
+	const resolvedDate = expense.resolvedDueDate ?? null;
+
+	if (!resolvedDate) {
+		return configuredLabel;
+	}
+
+	if (expense.usesBusinessDays) {
+		return `${configuredLabel} • ${formatResolvedMonthDayLabel(resolvedDate)}`;
+	}
+
+	return configuredLabel;
+};
+
+const formatExpenseResolvedDateLabel = (expense: MandatoryExpenseItem) => {
+	const resolvedDate = expense.resolvedDueDate ?? null;
+	if (!resolvedDate) {
+		return 'data não disponível';
+	}
+
+	const holidaySuffix = expense.holidayName ? ` • ${expense.holidayName}` : '';
+	return `${formatResolvedMonthDateLabel(resolvedDate)}${holidaySuffix}`;
 };
 
 type MandatoryItemTone = {
@@ -221,7 +256,8 @@ export default function MandatoryExpensesListScreen() {
 		skeletonHighlightColor,
 		skeletonMutedBaseColor,
 		skeletonMutedHighlightColor,
-		submitButtonClassName
+		submitButtonClassName,
+		submitButtonCancelClassName,
 	} = useScreenStyles();
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
@@ -339,20 +375,34 @@ export default function MandatoryExpensesListScreen() {
 					});
 			}
 
-			const formattedExpenses: MandatoryExpenseItem[] = expensesResult.data.map((expense: any) => ({
-				id: expense.id,
-				name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
-				valueInCents: typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0,
-				dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
-				tagId: typeof expense?.tagId === 'string' ? expense.tagId : '',
-				description: typeof expense?.description === 'string' ? expense.description : null,
-				reminderEnabled: expense?.reminderEnabled !== false,
-				lastPaymentExpenseId:
-					typeof expense?.lastPaymentExpenseId === 'string' ? expense.lastPaymentExpenseId : null,
-				lastPaymentCycle:
-					typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
-				lastPaymentDate: normalizeDateValue(expense?.lastPaymentDate ?? null),
-			}));
+			const referenceDate = new Date();
+			const formattedExpenses: MandatoryExpenseItem[] = expensesResult.data.map((expense: any) => {
+				const dueDay = typeof expense?.dueDay === 'number' ? expense.dueDay : 1;
+				const usesBusinessDays = expense?.usesBusinessDays === true;
+				const resolvedOccurrence = resolveMonthlyOccurrence({
+					referenceDate,
+					dueDay,
+					usesBusinessDays,
+				});
+
+				return {
+					id: expense.id,
+					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
+					valueInCents: typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0,
+					dueDay,
+					usesBusinessDays,
+					resolvedDueDate: resolvedOccurrence.date,
+					holidayName: resolvedOccurrence.holiday?.name ?? null,
+					tagId: typeof expense?.tagId === 'string' ? expense.tagId : '',
+					description: typeof expense?.description === 'string' ? expense.description : null,
+					reminderEnabled: expense?.reminderEnabled !== false,
+					lastPaymentExpenseId:
+						typeof expense?.lastPaymentExpenseId === 'string' ? expense.lastPaymentExpenseId : null,
+					lastPaymentCycle:
+						typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
+					lastPaymentDate: normalizeDateValue(expense?.lastPaymentDate ?? null),
+				};
+			});
 
 			const expensesWithStatus = formattedExpenses.map(expense => ({
 				...expense,
@@ -367,6 +417,7 @@ export default function MandatoryExpensesListScreen() {
 					id: typeof expense?.id === 'string' ? expense.id : '',
 					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
 					dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
+					usesBusinessDays: expense?.usesBusinessDays === true,
 					reminderEnabled: expense?.reminderEnabled !== false,
 					reminderHour: typeof expense?.reminderHour === 'number' ? expense.reminderHour : 9,
 					reminderMinute: typeof expense?.reminderMinute === 'number' ? expense.reminderMinute : 0,
@@ -429,6 +480,7 @@ export default function MandatoryExpensesListScreen() {
 				templateValueInCents: String(expense.valueInCents),
 				templateTagId: expense.tagId,
 				templateDueDay: String(expense.dueDay),
+				templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
 				templateDescription: expense.description ? encodeURIComponent(expense.description) : undefined,
 				templateMandatoryExpenseId: expense.id,
 				templateTagName: tagMetadataMap[expense.tagId]?.name
@@ -599,6 +651,25 @@ export default function MandatoryExpensesListScreen() {
 			action: 'negative' as const,
 		};
 	}, [pendingAction]);
+	const actionConfirmButtonClassName = React.useMemo(() => {
+		if (actionModalCopy.action === 'negative') {
+			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
+		}
+
+		if (actionModalCopy.action === 'secondary') {
+			return 'rounded-2xl bg-slate-700';
+		}
+
+		return submitButtonClassName;
+	}, [actionModalCopy.action, isDarkMode, submitButtonClassName]);
+	const actionConfirmButtonTextClassName = React.useMemo(() => {
+		if (actionModalCopy.action === 'primary') {
+			return isDarkMode ? 'text-slate-900' : 'text-white';
+		}
+
+		return 'text-white';
+	}, [actionModalCopy.action, isDarkMode]);
+	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
 
@@ -807,14 +878,14 @@ export default function MandatoryExpensesListScreen() {
 																						className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
 																					/>
 																					<Text
-																						style={{
-																							color: timelinePalette.subtitle,
-																							fontSize: 11,
-																						}}
-																					>
-																						dia {String(expense.dueDay).padStart(2, '0')}
-																					</Text>
-																				</HStack>
+																					style={{
+																						color: timelinePalette.subtitle,
+																						fontSize: 11,
+																					}}
+																				>
+																					{formatExpenseScheduleLabel(expense)}
+																				</Text>
+																			</HStack>
 																			</VStack>
 
 																			<Icon
@@ -892,7 +963,8 @@ export default function MandatoryExpensesListScreen() {
 																			>
 																				{[
 																					{ label: 'Tipo', value: 'Gasto obrigatório' },
-																					{ label: 'Vencimento', value: `dia ${String(expense.dueDay).padStart(2, '0')}` },
+																					{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
+																					{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: expense.reminderEnabled === false ? 'Desativado' : 'Ativado' },
 																				].map(item => (
@@ -1043,14 +1115,19 @@ export default function MandatoryExpensesListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">{actionModalCopy.title}</Heading>
+							<ModalTitle>{actionModalCopy.title}</ModalTitle>
 							<ModalCloseButton onPress={handleCloseActionModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
+							<Text className={bodyText}>{actionModalCopy.message}</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isActionProcessing}>
+							<Button
+								variant="outline"
+								onPress={handleCloseActionModal}
+								isDisabled={isActionProcessing}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
 							<Button
@@ -1058,14 +1135,17 @@ export default function MandatoryExpensesListScreen() {
 								action={actionModalCopy.action}
 								onPress={handleConfirmAction}
 								isDisabled={isActionProcessing}
+								className={actionConfirmButtonClassName}
 							>
 								{isActionProcessing ? (
 									<>
-										<ButtonSpinner color="white" />
-										<ButtonText>Processando</ButtonText>
+										<ButtonSpinner color={actionSpinnerColor} />
+										<ButtonText className={actionConfirmButtonTextClassName}>Processando</ButtonText>
 									</>
 								) : (
-									<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+									<ButtonText className={actionConfirmButtonTextClassName}>
+										{actionModalCopy.confirmLabel}
+									</ButtonText>
 								)}
 							</Button>
 						</ModalFooter>

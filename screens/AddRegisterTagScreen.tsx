@@ -893,7 +893,7 @@ export default function AddRegisterTagScreen() {
 											{selectedUsageType && (
 												<>
 													<View className="mt-2">
-														<HStack className="items-center justify-between gap-4">
+														<HStack className="items-center justify-between gap-6">
 															<HStack className="ml-1 gap-1 flex-1">
 																<Text className={`${bodyText} text-sm flex-1`}>
 																	{showInBothListsLabel}
@@ -943,7 +943,7 @@ export default function AddRegisterTagScreen() {
 
 													{!showInBothLists && (
 														<View className="">
-															<HStack className="items-center justify-between gap-4">
+															<HStack className="items-center justify-between gap-6">
 																<HStack className="ml-1 gap-1">
 																	<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
 																	<Popover

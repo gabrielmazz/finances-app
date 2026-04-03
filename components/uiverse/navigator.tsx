@@ -1,5 +1,5 @@
 import React from 'react';
-import { router, usePathname } from 'expo-router';
+import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { Alert, Pressable, View } from 'react-native';
@@ -15,7 +15,10 @@ export type NavigatorProps = {
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
+type RouteParams = Record<string, string | string[] | undefined>;
+
 type NavigatorOption = {
+	id: string;
 	label: string;
 	value?: number;
 	icon: IoniconName;
@@ -49,6 +52,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 		inactiveIcon: 'home-outline',
 		options: [
 			{
+				id: 'home-start',
 				label: 'Início',
 				value: 0,
 				icon: 'home-outline',
@@ -64,6 +68,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 		inactiveIcon: 'grid-outline',
 		options: [
 			{
+				id: 'register-expense',
 				label: 'Registrar despesa',
 				value: 1,
 				icon: 'remove-circle-outline',
@@ -71,6 +76,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-register-expenses'),
 			},
 			{
+				id: 'register-gain',
 				label: 'Registrar ganho',
 				value: 1,
 				icon: 'add-circle-outline',
@@ -78,6 +84,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-register-gain'),
 			},
 			{
+				id: 'monthly-balance',
 				label: 'Saldo mensal',
 				value: 1,
 				icon: 'calendar-outline',
@@ -85,6 +92,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/register-monthly-balance'),
 			},
 			{
+				id: 'transfer',
 				label: 'Transferência',
 				value: 1,
 				icon: 'swap-horizontal-outline',
@@ -92,6 +100,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/transfer-screen'),
 			},
 			{
+				id: 'register-rescue',
 				label: 'Registrar saque',
 				value: 1,
 				icon: 'cash-outline',
@@ -99,20 +108,23 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-rescue'),
 			},
 			{
+				id: 'mandatory-expenses',
 				label: 'Gastos obrigatórios',
 				value: 1,
 				icon: 'document-text-outline',
-				matchPaths: ['/mandatory-expenses'],
+				matchPaths: ['/mandatory-expenses', '/add-mandatory-expenses'],
 				onSelect: () => router.push('/mandatory-expenses'),
 			},
 			{
+				id: 'mandatory-gains',
 				label: 'Ganhos obrigatórios',
 				value: 1,
 				icon: 'trending-up-outline',
-				matchPaths: ['/mandatory-gains'],
+				matchPaths: ['/mandatory-gains', '/add-mandatory-gains'],
 				onSelect: () => router.push('/mandatory-gains'),
 			},
 			{
+				id: 'financial-list',
 				label: 'Investimentos',
 				value: 1,
 				icon: 'wallet-outline',
@@ -128,12 +140,14 @@ const NAV_GROUPS: NavigatorGroup[] = [
 		inactiveIcon: 'settings-outline',
 		options: [
 			{
+				id: 'settings',
 				label: 'Configurações',
 				value: 2,
 				icon: 'settings-outline',
 				onSelect: () => router.replace('/home?tab=2'),
 			},
 			{
+				id: 'register-user',
 				label: 'Novo usuário',
 				value: 2,
 				icon: 'person-add-outline',
@@ -141,6 +155,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-register-user'),
 			},
 			{
+				id: 'register-bank',
 				label: 'Novo banco',
 				value: 2,
 				icon: 'business-outline',
@@ -148,6 +163,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-register-bank'),
 			},
 			{
+				id: 'register-tag',
 				label: 'Nova tag',
 				value: 2,
 				icon: 'pricetag-outline',
@@ -155,6 +171,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-register-tag'),
 			},
 			{
+				id: 'add-user-relation',
 				label: 'Relacionar usuário',
 				value: 2,
 				icon: 'people-outline',
@@ -162,6 +179,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => router.push('/add-user-relation'),
 			},
 			{
+				id: 'logout',
 				label: 'Sair',
 				icon: 'log-out-outline',
 				onSelect: () => {
@@ -180,9 +198,9 @@ const normalizeValue = (value?: number) => {
 	return Math.min(Math.max(Math.trunc(value), 0), NAV_GROUPS.length - 1);
 };
 
-const getDefaultLabel = (value: number) => {
-	const selectedGroup = NAV_GROUPS.find(item => item.value === value) ?? NAV_GROUPS[0];
-	return selectedGroup?.options[0]?.label ?? '';
+const getDefaultOption = (value: number, groups: NavigatorGroup[]) => {
+	const selectedGroup = groups.find(item => item.value === value) ?? groups[0];
+	return selectedGroup?.options[0] ?? null;
 };
 
 const normalizePathname = (pathname?: string | null) => {
@@ -194,13 +212,21 @@ const normalizePathname = (pathname?: string | null) => {
 	return normalized.length > 0 ? normalized : '/';
 };
 
-const getActiveRoute = (pathname: string) => {
-	for (const group of NAV_GROUPS) {
+const hasRouteParamValue = (value?: string | string[]) => {
+	if (Array.isArray(value)) {
+		return value.some(item => typeof item === 'string' && item.trim().length > 0);
+	}
+
+	return typeof value === 'string' && value.trim().length > 0;
+};
+
+const getActiveRoute = (pathname: string, groups: NavigatorGroup[]) => {
+	for (const group of groups) {
 		for (const option of group.options) {
 			if (option.matchPaths?.some(matchPath => normalizePathname(matchPath) === pathname)) {
 				return {
 					groupValue: group.value,
-					label: option.label,
+					optionId: option.id,
 				};
 			}
 		}
@@ -212,26 +238,102 @@ const getActiveRoute = (pathname: string) => {
 export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 	const { isDarkMode } = useAppTheme();
 	const pathname = usePathname();
+	const routeParams = useLocalSearchParams() as RouteParams;
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
+	const normalizedPathname = React.useMemo(() => normalizePathname(pathname), [pathname]);
+	const mandatoryExpensesState = React.useMemo(() => {
+		if (normalizedPathname !== '/add-mandatory-expenses') {
+			return null;
+		}
+
+		return {
+			label: hasRouteParamValue(routeParams.expenseId)
+				? 'Editar gasto obrigatório'
+				: 'Registrar gasto obrigatório',
+			icon: (hasRouteParamValue(routeParams.expenseId)
+				? 'create-outline'
+				: 'add-circle-outline') as IoniconName,
+			onSelect: () => {},
+		};
+	}, [normalizedPathname, routeParams.expenseId]);
+	const mandatoryGainsState = React.useMemo(() => {
+		if (normalizedPathname !== '/add-mandatory-gains') {
+			return null;
+		}
+
+		return {
+			label: hasRouteParamValue(routeParams.gainTemplateId)
+				? 'Editar ganho obrigatório'
+				: 'Registrar ganho obrigatório',
+			icon: (hasRouteParamValue(routeParams.gainTemplateId)
+				? 'create-outline'
+				: 'add-circle-outline') as IoniconName,
+			onSelect: () => {},
+		};
+	}, [normalizedPathname, routeParams.gainTemplateId]);
+	// Mantém o estado ativo do menu alinhado com a rota corrente, conforme o fluxo de navegação documentado em Arquitetura.md.
+	const resolvedGroups = React.useMemo(
+		() =>
+			NAV_GROUPS.map(group => ({
+				...group,
+				options: group.options.map(option => {
+					if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
+						return { ...option, ...mandatoryExpensesState };
+					}
+
+					if (option.id === 'mandatory-gains' && mandatoryGainsState) {
+						return { ...option, ...mandatoryGainsState };
+					}
+
+					return option;
+				}),
+			})),
+		[mandatoryExpensesState, mandatoryGainsState],
+	);
 	const activeRoute = React.useMemo(
-		() => getActiveRoute(normalizePathname(pathname)),
-		[pathname],
+		() => getActiveRoute(normalizedPathname, resolvedGroups),
+		[normalizedPathname, resolvedGroups],
 	);
 	const activeValue = activeRoute?.groupValue ?? normalizedDefault;
-	const activeLabel = activeRoute?.label ?? getDefaultLabel(activeValue);
+	const activeOptionId = activeRoute?.optionId ?? getDefaultOption(activeValue, resolvedGroups)?.id ?? null;
 
 	const palette = React.useMemo(
 		() => ({
 			activeColor: '#facc15',
-			activeSurface: isDarkMode ? 'rgba(250, 204, 21, 0.12)' : 'rgba(250, 204, 21, 0.16)',
+			activeSurface: isDarkMode ? 'rgba(255, 204, 0, 0.12)' : 'rgba(250, 204, 21, 0.16)',
 			inactiveColor: isDarkMode ? '#94a3b8' : '#64748b',
-			menuSurface: isDarkMode
-				? 'bg-slate-900 border-amber-100/30 shadow-lg'
-				: 'bg-white border-amber-100 shadow-md',
+			menuSurface: 'border-transparent',
+			menuSurfaceStyle: isDarkMode
+				? {
+					backgroundColor: '#030417',
+					borderWidth: 0,
+					borderRadius: 18,
+					shadowColor: '#020617',
+					shadowOpacity: 0.42,
+					shadowRadius: 24,
+					shadowOffset: {
+						width: 0,
+						height: 18,
+					},
+					elevation: 18,
+				}
+				: {
+					backgroundColor: '#FFFFFF',
+					borderWidth: 0,
+					borderRadius: 18,
+					shadowColor: '#0F172A',
+					shadowOpacity: 0.1,
+					shadowRadius: 16,
+					shadowOffset: {
+						width: 0,
+						height: 10,
+					},
+					elevation: 8,
+				},
 			menuItem: isDarkMode
-				? 'min-w-[176px] bg-slate-900 data-[hover=true]:bg-slate-800 data-[active=true]:bg-slate-800 data-[focus=true]:bg-slate-800'
-				: 'min-w-[176px] bg-white data-[hover=true]:bg-yellow-50 data-[active=true]:bg-yellow-50 data-[focus=true]:bg-yellow-50',
+				? 'min-w-[176px] rounded-2xl bg-transparent data-[hover=true]:bg-[#101a2c] data-[active=true]:bg-[#101a2c] data-[focus=true]:bg-[#101a2c]'
+				: 'min-w-[176px] rounded-2xl bg-transparent data-[hover=true]:bg-yellow-50 data-[active=true]:bg-yellow-50 data-[focus=true]:bg-yellow-50',
 			menuItemText: isDarkMode ? 'text-slate-100' : 'text-slate-700',
 			menuItemActive: isDarkMode ? 'text-yellow-300' : 'text-slate-900',
 			menuIcon: isDarkMode ? '#cbd5e1' : '#64748b',
@@ -273,7 +375,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 					paddingVertical: 2,
 				}}
 			>
-				{NAV_GROUPS.map(group => {
+				{resolvedGroups.map(group => {
 					const isActive = group.value === activeValue;
 
 					return (
@@ -283,9 +385,10 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 							onOpen={() => handleMenuOpen(group.value)}
 							onClose={() => handleMenuClose(group.value)}
 							placement="top"
-							offset={-8}
+							offset={-23}
 							closeOnSelect
 							className={palette.menuSurface}
+							style={palette.menuSurfaceStyle}
 							trigger={triggerProps => (
 								<Pressable
 									{...(triggerProps as Record<string, unknown>)}
@@ -334,7 +437,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 							)}
 						>
 							{group.options.flatMap((option, optionIndex) => {
-								const isActiveOption = activeLabel === option.label;
+								const isActiveOption = activeOptionId === option.id;
 								return (
 									<MenuItem
 										key={`item-${group.label}-${option.label}-${optionIndex}`}

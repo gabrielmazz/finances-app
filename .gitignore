@@ -52,3 +52,6 @@ git-revert.sh
 
 # Ignorar arquivos do expo
 eas.json
+
+# Arquivo da Arquitetura do Projeto
+Arquitetura.md

@@ -6,7 +6,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
-import { Modal, ModalBackdrop, ModalBody, ModalCloseButton, ModalContent, ModalHeader } from '@/components/ui/modal';
+import { Modal, ModalBackdrop, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalTitle } from '@/components/ui/modal';
 import { AddIcon, ArrowLeftIcon, ArrowRightIcon } from '@/components/ui/icon';
 import { Divider } from '@/components/ui/divider';
 
@@ -194,18 +194,21 @@ export function DatePickerField({
 				<ModalBackdrop />
 				<ModalContent className="max-w-[360px]">
 					<ModalHeader>
-						<HStack className="justify-between items-center w-full">
-							<Button variant="link" size="sm" onPress={goToPrevMonth}>
-								<ButtonIcon as={ArrowLeftIcon} />
-							</Button>
-							<Text className="text-lg font-semibold capitalize">{monthLabel}</Text>
-							<Button variant="link" size="sm" onPress={goToNextMonth}>
-								<ButtonIcon as={ArrowRightIcon} />
-							</Button>
-						</HStack>
+						<VStack className="flex-1 gap-4">
+							<ModalTitle>Selecionar data</ModalTitle>
+							<HStack className="justify-between items-center w-full">
+								<Button variant="link" size="sm" onPress={goToPrevMonth}>
+									<ButtonIcon as={ArrowLeftIcon} />
+								</Button>
+								<Text className="text-base font-semibold capitalize text-slate-900 dark:text-slate-100">{monthLabel}</Text>
+								<Button variant="link" size="sm" onPress={goToNextMonth}>
+									<ButtonIcon as={ArrowRightIcon} />
+								</Button>
+							</HStack>
+						</VStack>
 						<ModalCloseButton onPress={handleClose} />
 					</ModalHeader>
-					<ModalBody>
+					<ModalBody className="pb-6">
 						<VStack className="gap-3">
 							<View className="flex-row w-full">
 								{WEEKDAY_LABELS.map((labelItem, index) => (

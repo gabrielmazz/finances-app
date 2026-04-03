@@ -1,17 +1,16 @@
 import React from 'react';
 import {
-	Image as RNImage,
 	Pressable,
 	ScrollView,
 	StatusBar,
-	StyleSheet,
 	TouchableOpacity,
 	View,
 	type GestureResponderEvent,
 	useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
 
@@ -24,13 +23,13 @@ import {
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import Navigator from '@/components/uiverse/navigator';
-import { Badge, BadgeText } from '@/components/ui/badge';
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
+import { CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import {
@@ -41,38 +40,30 @@ import {
 	normalizeHexColor,
 	type BankCardPalette,
 } from '@/components/uiverse/bank-card-surface';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { PieChart } from 'react-native-gifted-charts';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
-import Svg, {
-	Defs,
-	LinearGradient as SvgLinearGradient,
-	Polygon,
-	Rect,
-	Stop,
-} from 'react-native-svg';
+import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
-type HomeTimelineStatus = {
-	title: string;
-	subtitle: string;
-	status: string;
-	renderContent?: React.ReactNode;
-	movement: HomeTimelineMovement;
-};
+type HomeTimelineToneKey =
+	| 'gain'
+	| 'expense'
+	| 'mandatoryGain'
+	| 'mandatoryExpense'
+	| 'bankTransfer'
+	| 'investmentRedemption'
+	| 'investmentDeposit';
 
-type TimelineMovementCardPalette = {
-	baseColor: string;
-	gradientEndColor: string;
-	overlayColor: string;
-	labelColor: string;
-	bodyColor: string;
+type HomeTimelineTone = {
+	accentColor: string;
 	amountColor: string;
-	shadowColor: string;
+	lineColor: string;
+	iconGradient: [string, string];
+	cardGradient: [string, string];
 };
 
 type HomeBankCarouselItem =
@@ -83,15 +74,13 @@ type HomeBankCarouselItem =
 		kind: 'cash';
 	} & HomeCashSummary);
 
-const TIMELINE_CHEVRON_DOWN = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-down.png');
-const TIMELINE_CHEVRON_UP = require('react-native-vertical-status-progress/lib/commonjs/assets/chevron-up.png');
-
 const INVESTMENT_PIE_COLOR_PALETTE = ['#FACC15', '#F59E0B', '#FDE047', '#EAB308', '#FBBF24', '#CA8A04', '#FCD34D', '#D97706'];
 const INVESTMENT_CHART_INITIAL_ANGLE = -Math.PI / 2;
 const INVESTMENT_CHART_PADDING_HORIZONTAL = 28;
 const INVESTMENT_CHART_PADDING_VERTICAL = 12;
 const INVESTMENT_CHART_TOUCH_OUTER_TOLERANCE = 8;
 const INVESTMENT_CHART_TOUCH_INNER_TOLERANCE = 6;
+const HOME_BANK_OVERVIEW_SKELETON_CARD_COLOR = '#334155';
 const extractFirstName = (value: unknown) => {
 	if (typeof value !== 'string') {
 		return null;
@@ -117,105 +106,76 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
-const resolveTimelineAccentColor = (movement: HomeTimelineMovement) => {
+const MANDATORY_SETTLED_TONE: HomeTimelineTone = {
+	accentColor: '#10B981',
+	amountColor: '#10B981',
+	lineColor: 'rgba(16, 185, 129, 0.28)',
+	iconGradient: ['#047857', '#34D399'],
+	cardGradient: ['#065F46', '#10B981'],
+};
+
+// Mantém a timeline da Home alinhada ao padrão visual documentado em [[Dashboard Home]].
+const HOME_TIMELINE_TONES: Record<HomeTimelineToneKey, HomeTimelineTone> = {
+	gain: {
+		accentColor: '#10B981',
+		amountColor: '#10B981',
+		lineColor: 'rgba(16, 185, 129, 0.28)',
+		iconGradient: ['#047857', '#34D399'],
+		cardGradient: ['#065F46', '#10B981'],
+	},
+	expense: {
+		accentColor: '#EF4444',
+		amountColor: '#EF4444',
+		lineColor: 'rgba(239, 68, 68, 0.28)',
+		iconGradient: ['#B91C1C', '#EF4444'],
+		cardGradient: ['#7F1D1D', '#EF4444'],
+	},
+	mandatoryExpense: MANDATORY_SETTLED_TONE,
+	mandatoryGain: MANDATORY_SETTLED_TONE,
+	bankTransfer: {
+		accentColor: '#F59E0B',
+		amountColor: '#F59E0B',
+		lineColor: 'rgba(245, 158, 11, 0.3)',
+		iconGradient: ['#92400E', '#F59E0B'],
+		cardGradient: ['#78350F', '#F59E0B'],
+	},
+	investmentRedemption: {
+		accentColor: '#38BDF8',
+		amountColor: '#38BDF8',
+		lineColor: 'rgba(56, 189, 248, 0.3)',
+		iconGradient: ['#0C4A6E', '#38BDF8'],
+		cardGradient: ['#075985', '#67E8F9'],
+	},
+	investmentDeposit: {
+		accentColor: '#7C3AED',
+		amountColor: '#7C3AED',
+		lineColor: 'rgba(124, 58, 237, 0.3)',
+		iconGradient: ['#312E81', '#7C3AED'],
+		cardGradient: ['#312E81', '#7C3AED'],
+	},
+};
+
+const resolveHomeTimelineToneKey = (movement: HomeTimelineMovement): HomeTimelineToneKey => {
 	if (movement.isBankTransfer) {
-		return '#F59E0B';
+		return 'bankTransfer';
+	}
+
+	if (movement.isInvestmentRedemption) {
+		return 'investmentRedemption';
+	}
+
+	if (movement.isInvestmentDeposit) {
+		return 'investmentDeposit';
 	}
 
 	if (movement.isFromMandatory) {
-		return '#10B981';
+		return movement.type === 'gain' ? 'mandatoryGain' : 'mandatoryExpense';
 	}
 
-	return movement.type === 'expense' ? '#DC2626' : '#10B981';
+	return movement.type === 'gain' ? 'gain' : 'expense';
 };
 
-const buildTimelineMovementCardPalette = (
-	movement: HomeTimelineMovement,
-	isDarkMode: boolean,
-): TimelineMovementCardPalette => {
-	const accentColor = resolveTimelineAccentColor(movement);
-	const tone = movement.isBankTransfer
-		? {
-			baseColor: '#B88A4A',
-			gradientEndColor: '#FFD166',
-			overlayColor: '#FFF0A6',
-		}
-		: movement.isFromMandatory
-			? {
-				baseColor: '#77AA77',
-				gradientEndColor: '#44FFDD',
-				overlayColor: '#CCFF88',
-			}
-		: movement.type === 'expense'
-			? {
-				baseColor: '#C96B72',
-				gradientEndColor: '#FF9AA2',
-				overlayColor: '#FFD1DC',
-			}
-			: {
-				baseColor: '#77AA77',
-				gradientEndColor: '#44FFDD',
-				overlayColor: '#CCFF88',
-			};
-
-	return {
-		baseColor: isDarkMode ? mixHexColors(tone.baseColor, '#0F172A', 0.34) ?? tone.baseColor : tone.baseColor,
-		gradientEndColor: isDarkMode
-			? mixHexColors(tone.gradientEndColor, '#0F172A', 0.16) ?? tone.gradientEndColor
-			: tone.gradientEndColor,
-		overlayColor: isDarkMode ? mixHexColors(tone.overlayColor, '#FFFFFF', 0.08) ?? tone.overlayColor : tone.overlayColor,
-		labelColor: 'rgba(255,255,255,0.82)',
-		bodyColor: 'rgba(255,255,255,0.94)',
-		amountColor: '#FFFFFF',
-		shadowColor: hexToRgba(accentColor, isDarkMode ? 0.42 : 0.18) ?? accentColor,
-	};
-};
-
-const TimelineMovementCardPattern = React.memo(({ palette }: { palette: TimelineMovementCardPalette }) => {
-	const rawBackgroundGradientId = React.useId();
-	const rawLeftOverlayId = React.useId();
-	const rawRightOverlayId = React.useId();
-	const backgroundGradientId = React.useMemo(
-		() => `timeline-card-background-${rawBackgroundGradientId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		[rawBackgroundGradientId],
-	);
-	const leftOverlayId = React.useMemo(
-		() => `timeline-card-left-overlay-${rawLeftOverlayId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		[rawLeftOverlayId],
-	);
-	const rightOverlayId = React.useMemo(
-		() => `timeline-card-right-overlay-${rawRightOverlayId.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		[rawRightOverlayId],
-	);
-
-	return (
-		<View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-			<Svg width="100%" height="100%" viewBox="0 0 800 320" preserveAspectRatio="xMidYMid slice">
-				<Defs>
-					<SvgLinearGradient id={backgroundGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-						<Stop offset="0" stopColor={palette.baseColor} />
-						<Stop offset="1" stopColor={palette.gradientEndColor} />
-					</SvgLinearGradient>
-
-					<SvgLinearGradient id={leftOverlayId} x1="0%" y1="0%" x2="0%" y2="100%">
-						<Stop offset="0" stopColor={palette.overlayColor} stopOpacity={0} />
-						<Stop offset="1" stopColor={palette.overlayColor} stopOpacity={1} />
-					</SvgLinearGradient>
-
-					<SvgLinearGradient id={rightOverlayId} x1="0%" y1="0%" x2="100%" y2="100%">
-						<Stop offset="0" stopColor={palette.overlayColor} stopOpacity={0} />
-						<Stop offset="1" stopColor={palette.overlayColor} stopOpacity={1} />
-					</SvgLinearGradient>
-				</Defs>
-
-				<Rect width="800" height="320" fill={palette.baseColor} />
-				<Rect width="800" height="320" fill={`url(#${backgroundGradientId})`} />
-				<Polygon fill={`url(#${leftOverlayId})`} fillOpacity={0.38} points="0,320 0,0 800,0" />
-				<Polygon fill={`url(#${rightOverlayId})`} fillOpacity={0.38} points="800,320 800,0 0,0" />
-			</Svg>
-		</View>
-	);
-});
+const getHomeTimelineItemKey = (movement: HomeTimelineMovement) => `${movement.type}:${movement.id}`;
 
 const HomeBankOverviewSkeleton = ({
 	bankCarouselHeight,
@@ -384,8 +344,6 @@ const HomeMovementsSkeleton = ({
 	timelinePalette,
 }: {
 	timelinePalette: {
-		cardBorder: string;
-		emptySurface: string;
 		timelineBase: string;
 	};
 }) => (
@@ -415,31 +373,24 @@ const HomeMovementsSkeleton = ({
 					)}
 				</View>
 
-				<View style={{ width: '93%', paddingBottom: 12 }}>
-					<Box
-						style={{
-							marginRight: 21,
-							borderRadius: 18,
-							borderWidth: 1,
-							borderColor: timelinePalette.cardBorder,
-							backgroundColor: timelinePalette.emptySurface,
-							paddingHorizontal: 18,
-							paddingVertical: 18,
-						}}
-					>
-						<VStack className="gap-3">
-							<HStack className="items-start justify-between gap-3">
-								<VStack className="flex-1 gap-2">
-									<Skeleton className="h-5 w-36" />
-									<Skeleton className="h-3 w-32" />
-								</VStack>
+				<View style={{ width: '93%', paddingBottom: 14 }}>
+					<HStack className="items-center justify-between gap-3">
+						<HStack className="items-center gap-3" style={{ flex: 1 }}>
+							<Skeleton className="h-11 w-11 rounded-2xl" />
+							<VStack className="flex-1 gap-2">
+								<Skeleton className="h-5 w-36" />
+								<Skeleton className="h-3 w-28" />
+							</VStack>
+						</HStack>
 
+						<HStack className="items-center gap-2">
+							<VStack className="items-end gap-2">
 								<Skeleton className="h-5 w-20" />
-							</HStack>
-
-							<SkeletonText _lines={2} gap={10} className="h-3" />
-						</VStack>
-					</Box>
+								<Skeleton className="h-3 w-14" />
+							</VStack>
+							<Skeleton className="h-4 w-4 rounded-full" />
+						</HStack>
+					</HStack>
 				</View>
 			</View>
 		))}
@@ -447,7 +398,7 @@ const HomeMovementsSkeleton = ({
 );
 
 export default function HomeScreen() {
-	const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+	const { width: windowWidth } = useWindowDimensions();
 	const bankCarouselRef = React.useRef<ICarouselInstance>(null);
 	const bankCarouselProgress = useSharedValue(0);
 	const { shouldHideValues } = useValueVisibility();
@@ -463,11 +414,11 @@ export default function HomeScreen() {
 		surfaceBackground,
 		cardBackground,
 		bodyText,
-		inputField,
-		fieldContainerClassName,
 		heroHeight,
 		infoCardStyle,
 		insets,
+		skeletonBaseColor,
+		skeletonHighlightColor,
 	} = useScreenStyles();
 
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
@@ -568,7 +519,6 @@ export default function HomeScreen() {
 	const cashSummary = overview.data.cashSummary;
 	const currentMonthExpensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const currentMonthGainsByBankId = overview.data.currentMonthGainsByBankId;
-	const bankColorsById = movements.data.bankColorsById;
 	const timelineMovements = movements.data.timelineMovements;
 	const investmentPortfolio = investments.data.portfolio;
 	const bankCarouselItems = React.useMemo<HomeBankCarouselItem[]>(() => {
@@ -620,23 +570,7 @@ export default function HomeScreen() {
 		[isDarkMode],
 	);
 	const bankOverviewSkeletonPalette = React.useMemo(
-		() => buildBankCardPalette(CASH_CARD_COLOR, isDarkMode),
-		[isDarkMode],
-	);
-	const bankOverviewSkeletonBaseColor = React.useMemo(
-		() => (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.2)'),
-		[isDarkMode],
-	);
-	const bankOverviewSkeletonHighlightColor = React.useMemo(
-		() => (isDarkMode ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.36)'),
-		[isDarkMode],
-	);
-	const bankOverviewPaginationSkeletonBaseColor = React.useMemo(
-		() => (isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.14)'),
-		[isDarkMode],
-	);
-	const bankOverviewPaginationSkeletonHighlightColor = React.useMemo(
-		() => (isDarkMode ? 'rgba(255,255,255,0.24)' : 'rgba(255,255,255,0.52)'),
+		() => buildBankCardPalette(HOME_BANK_OVERVIEW_SKELETON_CARD_COLOR, isDarkMode),
 		[isDarkMode],
 	);
 
@@ -814,272 +748,202 @@ export default function HomeScreen() {
 		[isDarkMode],
 	);
 
-	const getTimelineAccentColor = React.useCallback((movement: HomeTimelineMovement) => {
-		return resolveTimelineAccentColor(movement);
-	}, []);
+	React.useEffect(() => {
+		const visibleIds = new Set(timelineMovements.map(movement => getHomeTimelineItemKey(movement)));
+		setExpandedTimelineStatuses(previousState => previousState.filter(id => visibleIds.has(id)));
+	}, [timelineMovements]);
 
-	const getTimelineBadgeLabel = React.useCallback((movement: HomeTimelineMovement) => {
-		if (movement.isBankTransfer) {
-			return 'Transferência';
-		}
-
-		if (movement.isFromMandatory) {
-			return movement.type === 'expense' ? 'Pago' : 'Recebido';
-		}
-
-		if (movement.isInvestmentDeposit) {
-			return 'Aporte';
-		}
-
-		if (movement.isInvestmentRedemption) {
-			return 'Resgate';
-		}
-
-		return movement.type === 'expense' ? 'Despesa' : 'Ganho';
-	}, []);
-
-	const getTimelineBadgeAction = React.useCallback(
-		(movement: HomeTimelineMovement): 'positive' | 'negative' | 'warning' => {
-			if (movement.isBankTransfer) {
-				return 'warning';
+	const formatSignedCurrencyBRL = React.useCallback(
+		(movement: HomeTimelineMovement) => {
+			const formattedValue = formatCurrencyBRL(movement.valueInCents);
+			if (formattedValue === HIDDEN_VALUE_PLACEHOLDER) {
+				return formattedValue;
 			}
 
-			if (movement.isFromMandatory) {
-				return 'positive';
-			}
-
-			return movement.type === 'expense' ? 'negative' : 'positive';
+			return `${movement.type === 'gain' ? '+' : '-'}${formattedValue}`;
 		},
+		[formatCurrencyBRL],
+	);
+
+	const formatMovementCompactDate = React.useCallback((value: Date | null) => {
+		if (!value) {
+			return 'Sem data';
+		}
+
+		return new Intl.DateTimeFormat('pt-BR', {
+			day: '2-digit',
+			month: '2-digit',
+		}).format(value);
+	}, []);
+
+	const getTimelineTone = React.useCallback(
+		(movement: HomeTimelineMovement) => HOME_TIMELINE_TONES[resolveHomeTimelineToneKey(movement)],
 		[],
 	);
 
-	const getTimelineContextLabel = React.useCallback((movement: HomeTimelineMovement) => {
-		if (movement.isBankTransfer) {
-			const sourceBankName =
-				movement.bankTransferSourceBankNameSnapshot?.trim() || movement.bankName || 'Origem';
-			const targetBankName =
-				movement.bankTransferTargetBankNameSnapshot?.trim() || movement.bankName || 'Destino';
-
-			return `${sourceBankName} -> ${targetBankName}`;
+	const resolveTimelineTypeLabel = React.useCallback((movement?: HomeTimelineMovement | null) => {
+		if (!movement) {
+			return '';
 		}
 
-		if (movement.isInvestmentDeposit || movement.isInvestmentRedemption) {
-			return movement.investmentNameSnapshot?.trim() || 'Movimentação em investimento';
+		if (movement.isBankTransfer) {
+			if (movement.bankTransferDirection === 'outgoing') {
+				return 'Transferência enviada';
+			}
+			if (movement.bankTransferDirection === 'incoming') {
+				return 'Transferência recebida';
+			}
+			return 'Transferência entre bancos';
+		}
+
+		if (movement.isInvestmentDeposit) {
+			return 'Aporte de investimento';
+		}
+
+		if (movement.isInvestmentRedemption) {
+			return 'Resgate de investimento';
+		}
+
+		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
+	}, []);
+
+	const getFallbackTimelineIcon = React.useCallback((movement: HomeTimelineMovement): TagIconSelection => {
+		if (movement.isBankTransfer) {
+			return { iconFamily: 'ionicons', iconName: 'swap-horizontal-outline' };
+		}
+
+		if (movement.isInvestmentRedemption) {
+			return { iconFamily: 'ionicons', iconName: 'arrow-down-circle-outline' };
+		}
+
+		if (movement.isInvestmentDeposit) {
+			return { iconFamily: 'ionicons', iconName: 'arrow-up-circle-outline' };
+		}
+
+		if (movement.isFromMandatory) {
+			return { iconFamily: 'ionicons', iconName: 'shield-checkmark-outline' };
 		}
 
 		if (movement.moneyFormat) {
-			return 'Em dinheiro';
+			return { iconFamily: 'ionicons', iconName: 'cash-outline' };
 		}
 
-		if (movement.bankName) {
-			return movement.bankName;
+		return movement.type === 'gain'
+			? { iconFamily: 'ionicons', iconName: 'trending-up-outline' }
+			: { iconFamily: 'ionicons', iconName: 'trending-down-outline' };
+	}, []);
+
+	const getTimelineIcon = React.useCallback(
+		(movement: HomeTimelineMovement): TagIconSelection => {
+			if (movement.tagIconFamily && movement.tagIconName) {
+				return {
+					iconFamily: movement.tagIconFamily,
+					iconName: movement.tagIconName,
+					iconStyle: movement.tagIconStyle,
+				};
+			}
+
+			return getFallbackTimelineIcon(movement);
+		},
+		[getFallbackTimelineIcon],
+	);
+
+	const getTimelineSummarySubtitle = React.useCallback(
+		(movement: HomeTimelineMovement) => {
+			if (movement.isBankTransfer) {
+				return movement.bankTransferDirection === 'outgoing'
+					? `Transferência para ${movement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'}`
+					: `Transferência de ${movement.bankTransferSourceBankNameSnapshot ?? 'banco de origem'}`;
+			}
+
+			if (movement.isInvestmentRedemption) {
+				return movement.investmentNameSnapshot
+					? `Resgate de ${movement.investmentNameSnapshot}`
+					: 'Resgate de investimento';
+			}
+
+			if (movement.isInvestmentDeposit) {
+				return movement.investmentNameSnapshot
+					? `Aporte em ${movement.investmentNameSnapshot}`
+					: 'Aporte de investimento';
+			}
+
+			if (movement.isFromMandatory) {
+				return movement.type === 'gain'
+					? 'Recebimento obrigatório concluído'
+					: 'Pagamento obrigatório concluído';
+			}
+
+			if (movement.tagName?.trim()) {
+				return movement.tagName.trim();
+			}
+
+			return resolveTimelineTypeLabel(movement);
+		},
+		[resolveTimelineTypeLabel],
+	);
+
+	const getTimelinePrimarySourceLabel = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isBankTransfer) {
+			return movement.bankTransferSourceBankNameSnapshot?.trim() || movement.bankName || 'Banco de origem';
+		}
+
+		if (movement.moneyFormat) {
+			return 'Dinheiro em espécie';
+		}
+
+		if (movement.bankName?.trim()) {
+			return movement.bankName.trim();
 		}
 
 		return 'Sem banco vinculado';
 	}, []);
 
-	const getTimelineBankBadgePalette = React.useCallback(
-		(bankId: string | null) => {
-			const normalizedColor = bankId ? normalizeHexColor(bankColorsById[bankId]) : null;
-			if (!normalizedColor) {
-				return {
-					backgroundColor: timelinePalette.emptySurface,
-					borderColor: timelinePalette.cardBorder,
-					textColor: timelinePalette.subtitle,
-				};
+	const getTimelineDetailMessage = React.useCallback(
+		(movement: HomeTimelineMovement) => {
+			if (movement.isFromMandatory) {
+				return movement.type === 'gain'
+					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
+					: 'Este lançamento marcou como pago o gasto obrigatório do ciclo atual.';
 			}
 
-			return {
-				backgroundColor:
-					hexToRgba(normalizedColor, isDarkMode ? 0.18 : 0.1) ?? timelinePalette.emptySurface,
-				borderColor:
-					hexToRgba(normalizedColor, isDarkMode ? 0.48 : 0.3) ?? timelinePalette.cardBorder,
-				textColor: normalizedColor,
-			};
+			if (movement.isBankTransfer) {
+				return movement.bankTransferDirection === 'outgoing'
+					? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ?? 'o banco de destino'}.`
+					: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
+			}
+
+			if (movement.isInvestmentRedemption) {
+				return movement.investmentNameSnapshot
+					? `Resgate automático do investimento "${movement.investmentNameSnapshot}".`
+					: 'Resgate automático registrado para este investimento.';
+			}
+
+			if (movement.isInvestmentDeposit) {
+				return movement.investmentNameSnapshot
+					? `Aporte automático no investimento "${movement.investmentNameSnapshot}".`
+					: 'Aporte automático registrado para este investimento.';
+			}
+
+			if (movement.explanation?.trim()) {
+				return movement.explanation.trim();
+			}
+
+			if (movement.tagName?.trim()) {
+				return `Lançamento classificado na tag "${movement.tagName.trim()}".`;
+			}
+
+			if (movement.moneyFormat) {
+				return 'Lançamento recente registrado em dinheiro.';
+			}
+
+			if (movement.bankName?.trim()) {
+				return `Lançamento recente vinculado ao banco ${movement.bankName.trim()}.`;
+			}
+
+			return 'Lançamento recente registrado na timeline da Home.';
 		},
-		[
-			bankColorsById,
-			isDarkMode,
-			timelinePalette.cardBorder,
-			timelinePalette.emptySurface,
-			timelinePalette.subtitle,
-		],
-	);
-
-	const timelineStatuses = React.useMemo<HomeTimelineStatus[]>(
-		() =>
-			timelineMovements.map((movement, index) => {
-				const movementCardPalette = buildTimelineMovementCardPalette(movement, isDarkMode);
-				const badgeLabel = getTimelineBadgeLabel(movement);
-				const contextLabel = getTimelineContextLabel(movement);
-				const title =
-					typeof movement.name === 'string' && movement.name.trim().length > 0
-						? movement.name.trim()
-						: 'Movimentação';
-				const subtitle = [badgeLabel, contextLabel, formatMovementDate(movement.date)]
-					.filter(part => typeof part === 'string' && part.trim().length > 0)
-					.join(' • ');
-
-				return {
-					title,
-					status: movement.id || `movement-${index}`,
-					movement,
-					renderContent: (
-						<View
-							style={{
-								marginTop: 10,
-								marginRight: 21,
-								borderRadius: 18,
-								backgroundColor: movementCardPalette.baseColor,
-								overflow: 'hidden',
-								position: 'relative',
-								paddingHorizontal: 18,
-								paddingVertical: 18,
-								shadowColor: movementCardPalette.shadowColor,
-								shadowOpacity: isDarkMode ? 0.24 : 0.14,
-								shadowRadius: 16,
-								shadowOffset: { width: 0, height: 8 },
-								elevation: 4,
-							}}
-						>
-							<TimelineMovementCardPattern palette={movementCardPalette} />
-
-							<VStack className="gap-1">
-								<Text
-									style={{
-										fontSize: 11,
-										fontWeight: '700',
-										letterSpacing: 0.4,
-										color: movementCardPalette.labelColor,
-										textTransform: 'uppercase',
-									}}
-								>
-									Valor
-								</Text>
-								<Heading size="sm" style={{ color: movementCardPalette.amountColor }}>
-									{formatCurrencyBRL(movement.valueInCents)}
-								</Heading>
-							</VStack>
-
-							{movement.explanation ? (
-								<View style={{ marginTop: 16 }}>
-									<Text style={{ color: movementCardPalette.bodyColor, fontSize: 12, lineHeight: 18 }}>
-										{movement.explanation}
-									</Text>
-								</View>
-							) : null}
-						</View>
-					),
-					subtitle,
-				};
-			}),
-		[
-			formatCurrencyBRL,
-			formatMovementDate,
-			getTimelineBadgeLabel,
-			getTimelineContextLabel,
-			isDarkMode,
-			timelineMovements,
-		],
-	);
-
-	const getTimelineMarkerLabel = React.useCallback((movement: HomeTimelineMovement) => {
-		if (movement.isBankTransfer) {
-			return 'T';
-		}
-
-		return movement.type === 'expense' ? '-' : '+';
-	}, []);
-
-	const renderTimelineBall = React.useCallback(
-		(_: unknown, index: number) => {
-			const movement = timelineMovements[index];
-			const accentColor = movement ? getTimelineAccentColor(movement) : timelinePalette.timelineBase;
-			const markerLabel = movement ? getTimelineMarkerLabel(movement) : '';
-
-			return (
-				<View
-					style={{
-						width: 18,
-						height: 18,
-						marginTop: -3,
-						borderRadius: 999,
-						backgroundColor: accentColor,
-						alignItems: 'center',
-						justifyContent: 'center',
-						borderWidth: 2,
-						borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-						shadowColor: accentColor,
-						shadowOpacity: isDarkMode ? 0.3 : 0.18,
-						shadowRadius: 8,
-						shadowOffset: { width: 0, height: 4 },
-						elevation: 2,
-					}}
-				>
-					<Text
-						style={{
-							color: '#FFFFFF',
-							fontSize: 10,
-							lineHeight: 10,
-							fontWeight: '700',
-							textAlign: 'center',
-							textAlignVertical: 'center',
-							includeFontPadding: false,
-						}}
-					>
-						{markerLabel}
-					</Text>
-				</View>
-			);
-		},
-		[
-			getTimelineAccentColor,
-			getTimelineMarkerLabel,
-			isDarkMode,
-			timelineMovements,
-			timelinePalette.timelineBase,
-		],
-	);
-
-	const renderTimelineStick = React.useCallback(
-		(_: unknown, index: number) => {
-			const movement = timelineMovements[index];
-			const accentColor = movement ? getTimelineAccentColor(movement) : timelinePalette.timelineBase;
-
-			return (
-				<View
-					style={{
-						flex: 1,
-						width: 3,
-						borderRadius: 999,
-						marginVertical: 2,
-						backgroundColor:
-							hexToRgba(accentColor, isDarkMode ? 0.4 : 0.22) ?? timelinePalette.timelineBase,
-					}}
-				/>
-			);
-		},
-		[getTimelineAccentColor, isDarkMode, timelineMovements, timelinePalette.timelineBase],
-	);
-
-	const renderSectionChevron = React.useCallback(
-		(isOpen: boolean, tintColor: string) => (
-			<RNImage
-				source={isOpen ? TIMELINE_CHEVRON_UP : TIMELINE_CHEVRON_DOWN}
-				style={{
-					width: 18,
-					height: 14,
-					tintColor,
-				}}
-				resizeMode="contain"
-			/>
-		),
 		[],
-	);
-
-	const renderTimelineChevron = React.useCallback(
-		(isOpen: boolean) => renderSectionChevron(isOpen, timelinePalette.subtitle),
-		[renderSectionChevron, timelinePalette.subtitle],
 	);
 
 	return (
@@ -1178,10 +1042,10 @@ export default function HomeScreen() {
 									<HomeBankOverviewSkeleton
 										bankCarouselHeight={bankCarouselHeight}
 										cardPalette={bankOverviewSkeletonPalette}
-										skeletonBaseColor={bankOverviewSkeletonBaseColor}
-										skeletonHighlightColor={bankOverviewSkeletonHighlightColor}
-										paginationBaseColor={bankOverviewPaginationSkeletonBaseColor}
-										paginationHighlightColor={bankOverviewPaginationSkeletonHighlightColor}
+										skeletonBaseColor={skeletonBaseColor}
+										skeletonHighlightColor={skeletonHighlightColor}
+										paginationBaseColor={skeletonBaseColor}
+										paginationHighlightColor={skeletonHighlightColor}
 									/>
 								) : overview.error ? (
 									<Text className="mt-4 text-sm text-red-600 dark:text-red-400">{overview.error}</Text>
@@ -1659,142 +1523,318 @@ export default function HomeScreen() {
 											flexShrink: 0,
 										}}
 									>
-										{renderTimelineChevron(isMovementsExpanded)}
+										<Icon
+											as={isMovementsExpanded ? ChevronUpIcon : ChevronDownIcon}
+											size="sm"
+											className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+										/>
 									</TouchableOpacity>
 								</HStack>
 
 								{isMovementsExpanded ? (
-									movements.loading && timelineStatuses.length === 0 ? (
+									movements.loading && timelineMovements.length === 0 ? (
 										<HomeMovementsSkeleton timelinePalette={timelinePalette} />
-									) : timelineStatuses.length > 0 ? (
+									) : timelineMovements.length > 0 ? (
 										<View style={{ marginTop: 14 }}>
-											{timelineStatuses.map((status, index) => {
-												const movement = status.movement;
-												const isTimelineItemExpanded = expandedTimelineStatuses.includes(status.status);
-												const badgeLabel = getTimelineBadgeLabel(movement);
-												const badgeAction = getTimelineBadgeAction(movement);
-												const contextLabel = getTimelineContextLabel(movement);
-												const dateLabel = formatMovementDate(movement.date);
-												const shouldRenderCashBadge = Boolean(movement.moneyFormat);
-												const shouldRenderBankBadge =
-													Boolean(movement.bankId) &&
-													Boolean(movement.bankName) &&
-													!shouldRenderCashBadge &&
-													!movement.isBankTransfer &&
-													!movement.isInvestmentDeposit &&
-													!movement.isInvestmentRedemption;
-												const bankBadgePalette = shouldRenderBankBadge
-													? getTimelineBankBadgePalette(movement.bankId)
-													: null;
-												const shouldRenderContextSeparator =
-													Boolean(dateLabel) && (shouldRenderBankBadge || shouldRenderCashBadge);
+											{timelineMovements.map((movement, index) => {
+												const tone = getTimelineTone(movement);
+												const movementIcon = getTimelineIcon(movement);
+												const timelineItemKey = getHomeTimelineItemKey(movement);
+												const isTimelineItemExpanded = expandedTimelineStatuses.includes(timelineItemKey);
+												const metadataItems = [
+													{
+														label: 'Tipo',
+														value: resolveTimelineTypeLabel(movement),
+														},
+													{
+														label: movement.isBankTransfer ? 'Origem' : 'Conta',
+														value: getTimelinePrimarySourceLabel(movement),
+													},
+													{
+														label: 'Data',
+														value: formatMovementDate(movement.date),
+													},
+												];
+
+												if (movement.isBankTransfer) {
+													metadataItems.push({
+														label: 'Destino',
+														value:
+															movement.bankTransferTargetBankNameSnapshot?.trim() ||
+															movement.bankName ||
+															'Banco de destino',
+													});
+												} else if (movement.investmentNameSnapshot?.trim()) {
+													metadataItems.push({
+														label: 'Investimento',
+														value: movement.investmentNameSnapshot.trim(),
+													});
+												} else if (movement.tagName?.trim()) {
+													metadataItems.push({
+														label: 'Tag',
+														value: movement.tagName.trim(),
+													});
+												}
 
 												return (
-													<View key={status.status} style={{ flexDirection: 'row' }}>
+													<View key={timelineItemKey} style={{ flexDirection: 'row' }}>
 														<View
 															style={{
 																alignItems: 'center',
 																width: '7%',
-																paddingTop: 3,
+																paddingTop: 6,
 															}}
 														>
-															{renderTimelineBall(status, index)}
-															{index < timelineStatuses.length - 1 ? renderTimelineStick(status, index) : <View />}
+															<View
+																style={{
+																	width: 14,
+																	height: 14,
+																	borderRadius: 999,
+																	backgroundColor: tone.accentColor,
+																	borderWidth: 2,
+																	borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+																	shadowColor: tone.accentColor,
+																	shadowOpacity: isDarkMode ? 0.26 : 0.14,
+																	shadowRadius: 8,
+																	shadowOffset: { width: 0, height: 4 },
+																	elevation: 2,
+																}}
+															/>
+															{index < timelineMovements.length - 1 ? (
+																<View
+																	style={{
+																		flex: 1,
+																		width: 3,
+																		borderRadius: 999,
+																		marginVertical: 2,
+																		backgroundColor: tone.lineColor,
+																	}}
+																/>
+															) : (
+																<View />
+															)}
 														</View>
 
-														<View style={{ width: '93%', paddingBottom: 12 }}>
+														<View style={{ width: '93%', paddingBottom: 14 }}>
 															<TouchableOpacity
 																activeOpacity={0.85}
-																onPress={() => handleToggleTimelineStatus(status.status)}
-																style={{
-																	flexDirection: 'row',
-																	justifyContent: 'space-between',
-																	alignItems: 'center',
-																	width: '100%',
-																}}
+																onPress={() => handleToggleTimelineStatus(timelineItemKey)}
+																style={{ width: '100%' }}
 															>
-																<View style={{ width: '88%' }}>
-																	<Text
-																		style={{
-																			color: timelinePalette.title,
-																			fontSize: 15,
-																			fontWeight: '700',
-																		}}
-																	>
-																		{status.title}
-																	</Text>
+																<HStack className="items-center justify-between gap-3">
+																	<HStack className="items-center gap-3" style={{ flex: 1 }}>
+																		<LinearGradient
+																			colors={tone.iconGradient}
+																			start={{ x: 0, y: 0 }}
+																			end={{ x: 1, y: 1 }}
+																			style={{
+																				width: 44,
+																				height: 44,
+																				borderRadius: 16,
+																				alignItems: 'center',
+																				justifyContent: 'center',
+																				flexShrink: 0,
+																			}}
+																		>
+																			<TagIcon
+																				iconFamily={movementIcon.iconFamily}
+																				iconName={movementIcon.iconName}
+																				iconStyle={movementIcon.iconStyle}
+																				size={18}
+																				color="#FFFFFF"
+																			/>
+																		</LinearGradient>
 
-																	<HStack className="mt-1 items-center flex-wrap gap-2">
-																		<Badge size="sm" variant="outline" action={badgeAction}>
-																			<BadgeText className="tracking-wide">
-																				{badgeLabel}
-																			</BadgeText>
-																		</Badge>
-
-																		{shouldRenderBankBadge && bankBadgePalette ? (
-																			<Badge
-																				size="sm"
-																				variant="outline"
-																				action="muted"
+																		<View style={{ flex: 1 }}>
+																			<Text
+																				numberOfLines={1}
 																				style={{
-																					backgroundColor: bankBadgePalette.backgroundColor,
-																					borderColor: bankBadgePalette.borderColor,
+																					color: timelinePalette.title,
+																					fontSize: 15,
+																					fontWeight: '700',
 																				}}
 																			>
-																				<BadgeText style={{ color: bankBadgePalette.textColor }}>
-																					{movement.bankName}
-																				</BadgeText>
-																			</Badge>
-																		) : shouldRenderCashBadge && contextLabel ? (
-																			<Badge size="sm" variant="outline" action="muted">
-																				<BadgeText>{contextLabel}</BadgeText>
-																			</Badge>
-																		) : contextLabel ? (
+																				{movement.name}
+																			</Text>
 																			<Text
+																				numberOfLines={1}
 																				style={{
-																					flexShrink: 1,
+																					marginTop: 2,
 																					color: timelinePalette.subtitle,
 																					fontSize: 12,
 																					lineHeight: 18,
 																				}}
 																			>
-																				{contextLabel}
+																				{getTimelineSummarySubtitle(movement)}
 																			</Text>
-																		) : null}
-
-																		{shouldRenderContextSeparator ? (
-																			<Text
-																				style={{
-																					color: timelinePalette.subtitle,
-																					fontSize: 12,
-																					lineHeight: 18,
-																				}}
-																			>
-																				•
-																			</Text>
-																		) : null}
-
-																		{dateLabel ? (
-																			<Text
-																				style={{
-																					flexShrink: 1,
-																					color: timelinePalette.subtitle,
-																					fontSize: 12,
-																					lineHeight: 18,
-																				}}
-																			>
-																				{dateLabel}
-																			</Text>
-																		) : null}
+																		</View>
 																	</HStack>
-																</View>
 
-																<View style={{ width: '12%', alignItems: 'flex-start' }}>
-																	{renderTimelineChevron(isTimelineItemExpanded)}
-																</View>
+																	<HStack className="items-center gap-2">
+																		<VStack className="items-end">
+																			<Text
+																				style={{
+																					color: tone.amountColor,
+																					fontSize: 15,
+																					fontWeight: '700',
+																				}}
+																			>
+																				{formatSignedCurrencyBRL(movement)}
+																			</Text>
+																			<HStack className="mt-1 items-center gap-1">
+																				<Icon
+																					as={CalendarDaysIcon}
+																					size="xs"
+																					className={
+																						isDarkMode ? 'text-slate-500' : 'text-slate-400'
+																					}
+																				/>
+																				<Text
+																					style={{
+																						color: timelinePalette.subtitle,
+																						fontSize: 11,
+																					}}
+																				>
+																					{formatMovementCompactDate(movement.date)}
+																				</Text>
+																			</HStack>
+																		</VStack>
+
+																		<Icon
+																			as={isTimelineItemExpanded ? ChevronUpIcon : ChevronDownIcon}
+																			size="sm"
+																			className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+																		/>
+																	</HStack>
+																</HStack>
 															</TouchableOpacity>
 
-															{isTimelineItemExpanded ? status.renderContent ?? null : null}
+															{isTimelineItemExpanded ? (
+																<LinearGradient
+																	colors={tone.cardGradient}
+																	start={{ x: 0, y: 0 }}
+																	end={{ x: 1, y: 1 }}
+																	style={{
+																		marginTop: 10,
+																		marginRight: 16,
+																		borderRadius: 20,
+																		paddingHorizontal: 16,
+																		paddingVertical: 14,
+																	}}
+																>
+																	<VStack className="gap-3">
+																		<HStack className="items-start justify-between gap-4">
+																			<VStack className="flex-1">
+																				<Text
+																					style={{
+																						fontSize: 10,
+																						fontWeight: '700',
+																						letterSpacing: 0.4,
+																						color: 'rgba(255,255,255,0.74)',
+																						textTransform: 'uppercase',
+																					}}
+																				>
+																					Resumo
+																				</Text>
+																				<Text
+																					style={{
+																						fontSize: 13,
+																						lineHeight: 19,
+																						color: '#FFFFFF',
+																					}}
+																				>
+																					{getTimelineDetailMessage(movement)}
+																				</Text>
+																			</VStack>
+
+																			<VStack className="items-end">
+																				<Text
+																					style={{
+																						fontSize: 10,
+																						fontWeight: '700',
+																						letterSpacing: 0.4,
+																						color: 'rgba(255,255,255,0.74)',
+																						textTransform: 'uppercase',
+																					}}
+																				>
+																					Valor
+																				</Text>
+																				<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																					{formatSignedCurrencyBRL(movement)}
+																				</Heading>
+																			</VStack>
+																		</HStack>
+
+																		<View
+																			style={{
+																				flexDirection: 'row',
+																				flexWrap: 'wrap',
+																				columnGap: 14,
+																				rowGap: 10,
+																			}}
+																		>
+																			{metadataItems.map(item => (
+																				<View
+																					key={`${movement.id}-${item.label}`}
+																					style={{
+																						width: '46%',
+																						minWidth: 128,
+																					}}
+																				>
+																					<Text
+																						style={{
+																							fontSize: 10,
+																							fontWeight: '700',
+																							letterSpacing: 0.4,
+																							color: 'rgba(255,255,255,0.72)',
+																							textTransform: 'uppercase',
+																						}}
+																					>
+																						{item.label}
+																					</Text>
+																					<Text
+																						style={{
+																							marginTop: 3,
+																							fontSize: 13,
+																							lineHeight: 18,
+																							color: '#FFFFFF',
+																						}}
+																					>
+																						{item.value}
+																					</Text>
+																				</View>
+																			))}
+																		</View>
+
+																		{movement.explanation?.trim() &&
+																		getTimelineDetailMessage(movement) !== movement.explanation.trim() ? (
+																			<View style={{ paddingTop: 2 }}>
+																				<Text
+																					style={{
+																						fontSize: 10,
+																						fontWeight: '700',
+																						letterSpacing: 0.4,
+																						color: 'rgba(255,255,255,0.72)',
+																						textTransform: 'uppercase',
+																					}}
+																				>
+																					Descrição
+																				</Text>
+																				<Text
+																					style={{
+																						marginTop: 6,
+																						fontSize: 13,
+																						lineHeight: 18,
+																						color: '#FFFFFF',
+																					}}
+																				>
+																					{movement.explanation.trim()}
+																				</Text>
+																			</View>
+																		) : null}
+																	</VStack>
+																</LinearGradient>
+															) : null}
 														</View>
 													</View>
 												);

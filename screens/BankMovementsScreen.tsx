@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, TouchableOpacity, StatusBar } from 'react-native';
+import { ScrollView, View, TouchableOpacity, StatusBar , Pressable} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -12,6 +12,7 @@ import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import {
 	Modal,
 	ModalBackdrop,
@@ -20,6 +21,7 @@ import {
 	ModalContent,
 	ModalFooter,
 	ModalHeader,
+	ModalTitle,
 } from '@/components/ui/modal';
 import {
 	ArrowDownIcon,
@@ -69,6 +71,7 @@ import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 // Importação do SVG de ilustração
 import BankMovementsIllustration from '../assets/UnDraw/bankMovementsScreen.svg';
@@ -344,7 +347,6 @@ export default function BankMovementsScreen() {
 
 	const {
 		isDarkMode,
-		headingText,
 		surfaceBackground,
 		cardBackground,
 		bodyText,
@@ -353,8 +355,11 @@ export default function BankMovementsScreen() {
 		fieldContainerClassName,
 		fieldContainerCardClassName,
 		submitButtonClassName,
+		submitButtonCancelClassName,
 		heroHeight,
 		insets,
+		infoCardStyle,
+		modalContentClassName,
 	} = useScreenStyles();
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
@@ -1716,12 +1721,50 @@ export default function BankMovementsScreen() {
 											onPress={handleTogglePeriodTimeline}
 											style={{ flex: 1 }}
 										>
-											<Text className={`${bodyText} text-sm`}>Movimentações do período</Text>
-											<Text className={`${helperText} mt-1 text-xs`}>
-												{isPeriodTimelineExpanded
-													? 'Toque em uma movimentação para abrir ou ocultar os detalhes.'
-													: 'Toque para abrir a timeline do período.'}
-											</Text>
+										
+											<VStack className="px-2 pb-3">
+												<HStack className="gap-1 items-center">
+													<Heading
+														className="text-lg uppercase tracking-widest "
+														size="lg"
+													>
+														Movimentações do período
+													</Heading>
+
+													<Popover
+														placement="bottom"
+														size="md"
+														offset={0}
+														shouldFlip
+														focusScope={false}
+														trapFocus={false}
+														trigger={triggerProps => (
+															<Pressable
+																{...triggerProps}
+																hitSlop={8}
+																accessibilityRole="button"
+																accessibilityLabel="Informações sobre o formato de pagamento"
+															>
+																<Info
+																	size={14}
+																	color={isDarkMode ? '#94A3B8' : '#64748B'}
+																	style={{ marginLeft: 4 }}
+																/>
+															</Pressable>
+														)}
+													>
+														<PopoverBackdrop className="bg-transparent" />
+														<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+															<PopoverBody className="px-3 py-3">
+																<Text className={`${bodyText} text-xs leading-5`}>
+																	Exibimos aqui um resumo dos seus bancos e do dinheiro em espécie que você registrou. Toque em cada cartão para ver detalhes e movimentações específicas de cada um.
+																	Se você não vê um banco ou valor que espera, verifique se eles estão registrados corretamente na seção de movimentações bancárias. Os dados aqui refletem o que foi registrado lá.
+																</Text>
+															</PopoverBody>
+														</PopoverContent>
+													</Popover>
+												</HStack>
+											</VStack>
 										</TouchableOpacity>
 
 										<TouchableOpacity
@@ -2186,11 +2229,9 @@ export default function BankMovementsScreen() {
 
 					<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 						<ModalBackdrop />
-						<ModalContent className="max-w-[360px] rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 							<ModalHeader>
-								<Heading size="lg" className={headingText}>
-									{actionModalCopy.title}
-								</Heading>
+								<ModalTitle>{actionModalCopy.title}</ModalTitle>
 								<ModalCloseButton onPress={handleCloseActionModal} />
 							</ModalHeader>
 							<ModalBody>
@@ -2201,6 +2242,7 @@ export default function BankMovementsScreen() {
 									variant="outline"
 									onPress={handleCloseActionModal}
 									isDisabled={isProcessingAction}
+									className={submitButtonCancelClassName}
 								>
 									<ButtonText>Cancelar</ButtonText>
 								</Button>
@@ -2209,6 +2251,7 @@ export default function BankMovementsScreen() {
 									action={confirmButtonAction}
 									onPress={handleConfirmAction}
 									isDisabled={isProcessingAction}
+									className={submitButtonClassName}
 								>
 									{isProcessingAction && pendingAction?.type === 'delete' ? (
 										<>

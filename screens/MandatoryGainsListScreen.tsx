@@ -23,6 +23,7 @@ import {
 	ModalContent,
 	ModalFooter,
 	ModalHeader,
+	ModalTitle,
 } from '@/components/ui/modal';
 
 import { auth } from '@/FirebaseConfig';
@@ -39,6 +40,12 @@ import {
 } from '@/utils/mandatoryGainNotifications';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
+import {
+	formatConfiguredMonthlyDueLabel,
+	formatResolvedMonthDateLabel,
+	formatResolvedMonthDayLabel,
+	resolveMonthlyOccurrence,
+} from '@/utils/businessCalendar';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
@@ -50,6 +57,9 @@ import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type MandatoryGainItem = DateCalendarItem & {
+	usesBusinessDays?: boolean;
+	resolvedDueDate?: Date | null;
+	holidayName?: string | null;
 	lastReceiptGainId?: string | null;
 	lastReceiptCycle?: string | null;
 	lastReceiptDate?: Date | null;
@@ -154,6 +164,31 @@ const formatReceiptDate = (value: Date | null) => {
 	}).format(value);
 };
 
+const formatGainScheduleLabel = (gain: MandatoryGainItem) => {
+	const configuredLabel = formatConfiguredMonthlyDueLabel(gain.dueDay, gain.usesBusinessDays);
+	const resolvedDate = gain.resolvedDueDate ?? null;
+
+	if (!resolvedDate) {
+		return configuredLabel;
+	}
+
+	if (gain.usesBusinessDays) {
+		return `${configuredLabel} • ${formatResolvedMonthDayLabel(resolvedDate)}`;
+	}
+
+	return configuredLabel;
+};
+
+const formatGainResolvedDateLabel = (gain: MandatoryGainItem) => {
+	const resolvedDate = gain.resolvedDueDate ?? null;
+	if (!resolvedDate) {
+		return 'data não disponível';
+	}
+
+	const holidaySuffix = gain.holidayName ? ` • ${gain.holidayName}` : '';
+	return `${formatResolvedMonthDateLabel(resolvedDate)}${holidaySuffix}`;
+};
+
 function MandatoryGainsTimelineSkeleton({
 	compactCardClassName,
 	tintedCardClassName,
@@ -221,6 +256,7 @@ export default function MandatoryGainsListScreen() {
 		skeletonMutedBaseColor,
 		skeletonMutedHighlightColor,
 		submitButtonClassName,
+		submitButtonCancelClassName,
 	} = useScreenStyles();
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
@@ -344,18 +380,32 @@ export default function MandatoryGainsListScreen() {
 					});
 			}
 
-			const formattedGains: MandatoryGainItem[] = gainsResult.data.map((gain: any) => ({
-				id: gain.id,
-				name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
-				valueInCents: typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0,
-				dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
-				tagId: typeof gain?.tagId === 'string' ? gain.tagId : '',
-				description: typeof gain?.description === 'string' ? gain.description : null,
-				reminderEnabled: gain?.reminderEnabled !== false,
-				lastReceiptGainId: typeof gain?.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null,
-				lastReceiptCycle: typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
-				lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
-			}));
+			const referenceDate = new Date();
+			const formattedGains: MandatoryGainItem[] = gainsResult.data.map((gain: any) => {
+				const dueDay = typeof gain?.dueDay === 'number' ? gain.dueDay : 1;
+				const usesBusinessDays = gain?.usesBusinessDays === true;
+				const resolvedOccurrence = resolveMonthlyOccurrence({
+					referenceDate,
+					dueDay,
+					usesBusinessDays,
+				});
+
+				return {
+					id: gain.id,
+					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
+					valueInCents: typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0,
+					dueDay,
+					usesBusinessDays,
+					resolvedDueDate: resolvedOccurrence.date,
+					holidayName: resolvedOccurrence.holiday?.name ?? null,
+					tagId: typeof gain?.tagId === 'string' ? gain.tagId : '',
+					description: typeof gain?.description === 'string' ? gain.description : null,
+					reminderEnabled: gain?.reminderEnabled !== false,
+					lastReceiptGainId: typeof gain?.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null,
+					lastReceiptCycle: typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
+					lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
+				};
+			});
 
 			const gainsWithStatus = formattedGains.map(gain => ({
 				...gain,
@@ -370,6 +420,7 @@ export default function MandatoryGainsListScreen() {
 					id: typeof gain?.id === 'string' ? gain.id : '',
 					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
 					dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
+					usesBusinessDays: gain?.usesBusinessDays === true,
 					reminderEnabled: gain?.reminderEnabled !== false,
 					reminderHour: typeof gain?.reminderHour === 'number' ? gain.reminderHour : 9,
 					reminderMinute: typeof gain?.reminderMinute === 'number' ? gain.reminderMinute : 0,
@@ -427,6 +478,7 @@ export default function MandatoryGainsListScreen() {
 				templateValueInCents: String(gain.valueInCents),
 				templateTagId: gain.tagId,
 				templateDueDay: String(gain.dueDay),
+				templateUsesBusinessDays: gain.usesBusinessDays ? '1' : undefined,
 				templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
 				templateMandatoryGainId: gain.id,
 				templateTagName: tagMetadataMap[gain.tagId]?.name
@@ -602,6 +654,25 @@ export default function MandatoryGainsListScreen() {
 			action: 'negative' as const,
 		};
 	}, [pendingAction]);
+	const actionConfirmButtonClassName = React.useMemo(() => {
+		if (actionModalCopy.action === 'negative') {
+			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
+		}
+
+		if (actionModalCopy.action === 'secondary') {
+			return 'rounded-2xl bg-slate-700';
+		}
+
+		return submitButtonClassName;
+	}, [actionModalCopy.action, isDarkMode, submitButtonClassName]);
+	const actionConfirmButtonTextClassName = React.useMemo(() => {
+		if (actionModalCopy.action === 'primary') {
+			return isDarkMode ? 'text-slate-900' : 'text-white';
+		}
+
+		return 'text-white';
+	}, [actionModalCopy.action, isDarkMode]);
+	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
 
@@ -805,14 +876,14 @@ export default function MandatoryGainsListScreen() {
 																						className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
 																					/>
 																					<Text
-																						style={{
-																							color: timelinePalette.subtitle,
-																							fontSize: 11,
-																						}}
-																					>
-																						dia {String(gain.dueDay).padStart(2, '0')}
-																					</Text>
-																				</HStack>
+																					style={{
+																						color: timelinePalette.subtitle,
+																						fontSize: 11,
+																					}}
+																				>
+																					{formatGainScheduleLabel(gain)}
+																				</Text>
+																			</HStack>
 																			</VStack>
 
 																			<Icon
@@ -890,7 +961,8 @@ export default function MandatoryGainsListScreen() {
 																			>
 																				{[
 																					{ label: 'Tipo', value: 'Ganho obrigatório' },
-																					{ label: 'Recebimento', value: `dia ${String(gain.dueDay).padStart(2, '0')}` },
+																					{ label: 'Recebimento', value: formatConfiguredMonthlyDueLabel(gain.dueDay, gain.usesBusinessDays) },
+																					{ label: 'Neste mês', value: formatGainResolvedDateLabel(gain) },
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[gain.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: gain.reminderEnabled === false ? 'Desativado' : 'Ativado' },
 																				].map(item => (
@@ -1031,37 +1103,45 @@ export default function MandatoryGainsListScreen() {
 				</View>
 
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-				<ModalBackdrop />
-				<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
-					<ModalHeader>
-						<Heading size="lg">{actionModalCopy.title}</Heading>
-						<ModalCloseButton onPress={handleCloseActionModal} />
-					</ModalHeader>
-					<ModalBody>
-						<Text className="text-gray-700 dark:text-gray-300">{actionModalCopy.message}</Text>
-					</ModalBody>
-					<ModalFooter className="gap-3">
-						<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isActionProcessing}>
-							<ButtonText>Cancelar</ButtonText>
-						</Button>
-						<Button
-							variant="solid"
-							action={actionModalCopy.action}
-							onPress={handleConfirmAction}
-							isDisabled={isActionProcessing}
-						>
-							{isActionProcessing ? (
-								<>
-									<ButtonSpinner color="white" />
-									<ButtonText>Processando</ButtonText>
-								</>
-							) : (
-								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
-							)}
-						</Button>
-					</ModalFooter>
-				</ModalContent>
-			</Modal>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<ModalTitle>{actionModalCopy.title}</ModalTitle>
+							<ModalCloseButton onPress={handleCloseActionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={bodyText}>{actionModalCopy.message}</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button
+								variant="outline"
+								onPress={handleCloseActionModal}
+								isDisabled={isActionProcessing}
+								className={submitButtonCancelClassName}
+							>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								action={actionModalCopy.action}
+								onPress={handleConfirmAction}
+								isDisabled={isActionProcessing}
+								className={actionConfirmButtonClassName}
+							>
+								{isActionProcessing ? (
+									<>
+										<ButtonSpinner color={actionSpinnerColor} />
+										<ButtonText className={actionConfirmButtonTextClassName}>Processando</ButtonText>
+									</>
+								) : (
+									<ButtonText className={actionConfirmButtonTextClassName}>
+										{actionModalCopy.confirmLabel}
+									</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 			</View>
 		</SafeAreaView>
 	);

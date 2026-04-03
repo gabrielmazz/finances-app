@@ -21,6 +21,12 @@ type HomeBankRecord = {
 type HomeMovementDocument = Record<string, any>;
 type HomeInvestmentDocument = Record<string, any>;
 type HomeMonthlyBalanceDocument = Record<string, any>;
+type HomeTagMetadata = {
+	name: string | null;
+	iconFamily: string | null;
+	iconName: string | null;
+	iconStyle: string | null;
+};
 
 export type HomeBankBalanceCard = {
 	id: string;
@@ -67,6 +73,11 @@ export type HomeTimelineMovement = {
 	name: string;
 	valueInCents: number;
 	date: Date | null;
+	tagId: string | null;
+	tagName: string | null;
+	tagIconFamily: string | null;
+	tagIconName: string | null;
+	tagIconStyle: string | null;
 	bankId: string | null;
 	bankName: string | null;
 	explanation: string | null;
@@ -512,18 +523,39 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		collection(db, 'mandatoryGains'),
 		where('personId', 'in', context.allowedPersonIds),
 	);
+	const tagsQuery = query(collection(db, 'tags'), where('personId', 'in', context.allowedPersonIds));
 
 	const [
 		recentExpensesSnapshot,
 		recentGainsSnapshot,
 		mandatoryExpensesSnapshot,
 		mandatoryGainsSnapshot,
+		tagsSnapshot,
 	] = await Promise.all([
 		getDocs(recentExpensesQuery),
 		getDocs(recentGainsQuery),
 		getDocs(mandatoryExpensesQuery),
 		getDocs(mandatoryGainsQuery),
+		getDocs(tagsQuery),
 	]);
+
+	const tagMetadataById = tagsSnapshot.docs.reduce<Record<string, HomeTagMetadata>>((acc, docSnap) => {
+		const tag = docSnap.data() as HomeMovementDocument;
+		acc[docSnap.id] = {
+			name: typeof tag.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : null,
+			iconFamily:
+				typeof tag.iconFamily === 'string' && tag.iconFamily.trim().length > 0
+					? tag.iconFamily.trim()
+					: null,
+			iconName:
+				typeof tag.iconName === 'string' && tag.iconName.trim().length > 0 ? tag.iconName.trim() : null,
+			iconStyle:
+				typeof tag.iconStyle === 'string' && tag.iconStyle.trim().length > 0
+					? tag.iconStyle.trim()
+					: null,
+		};
+		return acc;
+	}, {});
 
 	const mandatoryExpenseIds = new Set(
 		mandatoryExpensesSnapshot.docs
@@ -588,6 +620,9 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 				: null;
 		const isFromMandatory =
 			type === 'expense' ? mandatoryExpenseIds.has(movementId) : mandatoryGainIds.has(movementId);
+		const tagId =
+			typeof item?.tagId === 'string' && item.tagId.trim().length > 0 ? item.tagId.trim() : null;
+		const tagMetadata = tagId ? tagMetadataById[tagId] ?? null : null;
 
 		return {
 			id: movementId,
@@ -603,6 +638,11 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 					? item.valueInCents
 					: 0,
 			date: parsedDate,
+			tagId,
+			tagName: tagMetadata?.name ?? null,
+			tagIconFamily: tagMetadata?.iconFamily ?? null,
+			tagIconName: tagMetadata?.iconName ?? null,
+			tagIconStyle: tagMetadata?.iconStyle ?? null,
 			bankId,
 			bankName: bankId ? context.bankNamesById[bankId] ?? 'Banco não identificado' : null,
 			explanation,

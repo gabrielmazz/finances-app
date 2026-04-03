@@ -148,6 +148,27 @@ O projeto usa **dois apps Firebase** inicializados:
 
 ---
 
+## Regras para atualização do Vault (NÃO IGNORAR)
+
+1. **Toda mudança de comportamento, fluxo ou arquitetura deve ser refletida no vault.**
+2. **Se a mudança afeta uma feature existente, atualize o arquivo correspondente dentro do vault.**
+3. **Se a mudança cria um novo módulo ou feature, crie um novo arquivo no vault seguindo o padrão estabelecido.**
+4. **Se a mudança torna alguma documentação existente desatualizada, corrija o vault imediatamente.**
+5. **Mantenha a seção "Active Context" deste arquivo atualizada com o que está sendo trabalhado.**
+
+## Regra para atualização de arquivos de código
+
+1. **Antes de implementar, consulte o arquivo relevante no vault para entender o contexto completo.**
+2. **Se a feature ou comportamento que você vai alterar não estiver documentado, pergunte ao usuário antes de implementar.**
+3. **Após implementar, revise o vault para garantir que a documentação esteja alinhada com as mudanças feitas.**
+4. **Mantenha a seção "Active Context" deste arquivo atualizada com os arquivos que foram modificados e o que está sendo trabalhado.**
+5. **Evite mudanças que não estejam alinhadas com o que está documentado no vault sem antes atualizar a documentação.**
+6. **Dentro do código, use comentários para referenciar o arquivo do vault quando fizer algo que tenha uma regra ou fluxo específico documentado.**
+    - Exemplo: `// Esta função segue a regra X documentada em [[Regras Críticas]] no vault`
+    - Evite código "mágico" sem referência à documentação.
+    - Se o arquivo estiver sem nenhum comentários explicativos são ainda mais importantes para manter a clareza, ou seja, será adicionado esse comentário
+7. Se caso encontre funções ou trechos de código desnecessarios, retire-os para manter o código limpo, mas antes de retirar, verifique se não há nenhuma regra ou fluxo documentado no vault que dependa desse código. Se houver, atualize o vault para refletir a remoção do código e as mudanças no comportamento ou fluxo.
+
 
 ## Regras Críticas
 
@@ -189,6 +210,7 @@ O projeto usa **dois apps Firebase** inicializados:
 - Detectar ambiente antes de agendar: Expo Go tem limitações
 - Notificações são locais (sem servidor) — reinstalar app as apaga
 - Alterações em `app.json` para `expo-notifications` exigem novo build nativo
+- Em Android, não tentar validar lembretes obrigatórios no Expo Go; usar build de desenvolvimento/produção
 
 ---
 
@@ -230,20 +252,45 @@ As seguintes áreas não têm documentação detalhada no vault ainda:
 **Em andamento:**
 - NS31 — refatoração dos lembretes de vencimento/recebimento para obrigatórios
 - Novo serviço compartilhado em `utils/mandatoryReminderNotifications.ts`
+- Novo utilitário de máscara e validação em `utils/mandatoryReminderTime.ts`
+- Horário customizável de lembrete nas telas de gastos e ganhos obrigatórios
 - Feedback de lembrete com próxima data real agendada e mensagens personalizadas por gasto/ganho
+- Remoção do carregamento por Skeleton nas telas de cadastro/edição de obrigatórios, mantendo o formulário visível durante prefill e carregamento de tags
 - Configuração nativa ajustada em `app.json` para `expo-notifications`
+- Correção do estado inicial dos switches de lembrete em obrigatórios: formulário novo/resetado começa com lembrete desligado e controle bloqueado até os campos mínimos serem preenchidos
+- Refino visual do modal `Resumo diário` dos obrigatórios com linha-resumo clicável + card expansível no padrão da timeline, metadados compactados em duas linhas, altura responsiva com rolagem interna e remoção da borda vermelha do botão de cancelar compartilhado
+- Padronização visual do `ModalCloseButton` nos modais compartilhados
+- Ajuste do `components/uiverse/navigator.tsx` para refletir as rotas de cadastro/edição de obrigatórios e alinhar o card do menu ao tema escuro do app
+- Padronização da timeline de últimas movimentações da `HomeScreen` com o mesmo modelo visual das telas de movimentações e obrigatórios
+- Padronização das cores do skeleton do carrossel de bancos da `HomeScreen`, removendo o fundo cinza e alinhando a paleta do card aos tokens globais de tela
+- Suporte a recorrências por dia útil em gastos/ganhos obrigatórios, com cálculo do mês baseado em fins de semana e feriados nacionais do Brasil
+- Destaque visual de feriados nacionais no `components/uiverse/date-calendar.tsx`, incluindo marcador roxo e círculo dividido quando o item cai em feriado
+- Propagação do contexto de dia útil para o prefill das telas de lançamento manual e para o agendamento dos lembretes obrigatórios
 
 **Arquivos com mudanças não commitadas:**
-- `app.json`
+- `components/uiverse/date-calendar.tsx`
+- `hooks/useScreenStyle.ts`
+- `components/uiverse/navigator.tsx`
+- `components/ui/modal/index.tsx`
+- `functions/MandatoryExpenseFirebase.ts`
+- `functions/MandatoryGainFirebase.ts`
 - `screens/AddMandatoryExpensesScreen.tsx`
 - `screens/AddMandatoryGainsScreen.tsx`
+- `screens/AddRegisterExpensesScreen.tsx`
+- `screens/AddRegisterGainScreen.tsx`
+- `screens/AddRegisterTagScreen.tsx`
+- `screens/BankMovementsScreen.tsx`
 - `screens/MandatoryExpensesListScreen.tsx`
 - `screens/MandatoryGainsListScreen.tsx`
+- `screens/HomeScreen.tsx`
+- `functions/HomeFirebase.ts`
+- `utils/businessCalendar.ts`
 - `utils/mandatoryExpenseNotifications.ts`
 - `utils/mandatoryGainNotifications.ts`
 - `utils/mandatoryReminderNotifications.ts`
+- `utils/mandatoryReminderTime.ts`
 - `Arquitetura.md`
 
 **Último commit:** `NS30 - Alteração na tela de movimento de bancos, trazendo as novas implementações de tags`
 
-**Próximos passos:** validar em build nativo o disparo dos lembretes de obrigatórios e revisar a experiência de edição/exclusão após reagendamento.
+**Próximos passos:** validar em build nativo o disparo dos lembretes com horário customizado e revisar a experiência de edição/exclusão após reagendamento.
