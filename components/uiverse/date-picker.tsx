@@ -6,12 +6,22 @@ import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
-import { Modal, ModalBackdrop, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalTitle } from '@/components/ui/modal';
-import { AddIcon, ArrowLeftIcon, ArrowRightIcon } from '@/components/ui/icon';
-import { Divider } from '@/components/ui/divider';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+	ModalTitle,
+} from '@/components/ui/modal';
+import { ArrowLeftIcon, ArrowRightIcon } from '@/components/ui/icon';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type DatePickerFieldProps = {
 	label?: string;
+	accessibilityLabel?: string;
 	value?: string | null;
 	onChange: (formattedValue: string, date: Date) => void;
 	placeholder?: string;
@@ -25,7 +35,8 @@ type DatePickerFieldProps = {
 // Domingo, Segunda, Terça, Quarta, Quinta, Sexta, Sábado (sem acentos para manter ASCII)
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 const CELL_PERCENT = '14.2857%';
-const CELL_HEIGHT = 52;
+const WEEKDAY_CELL_HEIGHT = 40;
+const DAY_CELL_HEIGHT = 52;
 
 const formatDateToBR = (date: Date) => {
 	const day = String(date.getDate()).padStart(2, '0');
@@ -83,6 +94,7 @@ const buildCalendarDays = (reference: Date) => {
 
 export function DatePickerField({
 	label,
+	accessibilityLabel,
 	value,
 	onChange,
 	placeholder = 'DD/MM/AAAA',
@@ -92,6 +104,18 @@ export function DatePickerField({
 	triggerClassName,
 	inputClassName,
 }: DatePickerFieldProps) {
+	const {
+		isDarkMode,
+		headingText,
+		labelText,
+		bodyText,
+		helperText,
+		inputField: defaultInputClassName,
+		fieldContainerClassName,
+		modalContentClassName,
+		submitButtonClassName,
+		submitButtonCancelClassName,
+	} = useScreenStyles();
 	const [isOpen, setIsOpen] = React.useState(false);
 	const [visibleMonth, setVisibleMonth] = React.useState<Date>(() => parseBRDate(value) ?? new Date());
 
@@ -151,9 +175,13 @@ export function DatePickerField({
 		handleSelect(new Date());
 	}, [handleSelect]);
 
-	const triggerFocusedClassName = isOpen
-		? 'border-[#FFE000] dark:border-yellow-300'
-		: '';
+	const triggerFocusedClassName = isOpen ? (isDarkMode ? 'border-yellow-300' : 'border-[#FFE000]') : '';
+	const resolvedTriggerClassName = `${triggerClassName ?? fieldContainerClassName} ${triggerFocusedClassName}`.trim();
+	const resolvedInputClassName = inputClassName ?? defaultInputClassName;
+	const monthNavigationContainerClassName = isDarkMode
+		? 'w-full border-y border-slate-800'
+		: 'w-full border-y border-slate-200';
+	const neutralDayClassName = isDarkMode ? 'bg-slate-900' : 'bg-slate-100';
 
 	return (
 		<VStack className={containerClassName ? `w-full ${containerClassName}` : 'w-full'}>
@@ -161,8 +189,8 @@ export function DatePickerField({
 				<Text
 					className={
 						labelClassName
-							? `mb-2 font-semibold text-gray-700 dark:text-gray-200 ${labelClassName}`
-							: 'mb-2 font-semibold text-gray-700 dark:text-gray-200'
+							? `mb-2 font-semibold ${labelText} ${labelClassName}`
+							: `mb-2 font-semibold ${labelText}`
 					}
 				>
 					{label}
@@ -173,18 +201,15 @@ export function DatePickerField({
 				disabled={isDisabled}
 				hitSlop={8}
 				accessibilityRole="button"
-				accessibilityLabel={label ?? 'Selecionar data'}
+				accessibilityLabel={accessibilityLabel ?? label ?? 'Selecionar data'}
 			>
 				<View pointerEvents="none">
-					<Input
-						isDisabled={isDisabled}
-						className={`${triggerClassName ?? ''} ${triggerFocusedClassName}`.trim()}
-					>
+					<Input isDisabled={isDisabled} className={resolvedTriggerClassName}>
 						<InputField
 							value={value ?? ''}
 							placeholder={placeholder}
 							editable={false}
-							className={inputClassName}
+							className={resolvedInputClassName}
 						/>
 					</Input>
 				</View>
@@ -192,32 +217,34 @@ export function DatePickerField({
 
 			<Modal isOpen={isOpen} onClose={handleClose}>
 				<ModalBackdrop />
-				<ModalContent className="max-w-[360px]">
+				<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 					<ModalHeader>
-						<VStack className="flex-1 gap-4">
-							<ModalTitle>Selecionar data</ModalTitle>
-							<HStack className="justify-between items-center w-full">
-								<Button variant="link" size="sm" onPress={goToPrevMonth}>
-									<ButtonIcon as={ArrowLeftIcon} />
-								</Button>
-								<Text className="text-base font-semibold capitalize text-slate-900 dark:text-slate-100">{monthLabel}</Text>
-								<Button variant="link" size="sm" onPress={goToNextMonth}>
-									<ButtonIcon as={ArrowRightIcon} />
-								</Button>
-							</HStack>
-						</VStack>
+						<ModalTitle>Selecionar data</ModalTitle>
 						<ModalCloseButton onPress={handleClose} />
 					</ModalHeader>
-					<ModalBody className="pb-6">
-						<VStack className="gap-3">
+					<View className={monthNavigationContainerClassName}>
+						<HStack className="w-full items-center px-4 py-3">
+							<Button variant="link" size="md" onPress={goToPrevMonth} className="h-10 w-10 rounded-2xl px-0">
+								<ButtonIcon as={ArrowLeftIcon} className={headingText} />
+							</Button>
+							<View className="flex-1 items-center justify-center px-2">
+								<Text className={`text-base font-semibold capitalize ${headingText}`}>{monthLabel}</Text>
+							</View>
+							<Button variant="link" size="md" onPress={goToNextMonth} className="h-10 w-10 rounded-2xl px-0">
+								<ButtonIcon as={ArrowRightIcon} className={headingText} />
+							</Button>
+						</HStack>
+					</View>
+					<ModalBody className="px-0 pt-0">
+						<VStack className="gap-2 px-6 pb-2 pt-4">
 							<View className="flex-row w-full">
 								{WEEKDAY_LABELS.map((labelItem, index) => (
 									<View
 										key={`${labelItem}-${index}`}
 										className="items-center justify-center"
-										style={{ width: CELL_PERCENT, height: CELL_HEIGHT }}
+										style={{ width: CELL_PERCENT, height: WEEKDAY_CELL_HEIGHT }}
 									>
-										<Text className="text-center font-semibold text-gray-600 dark:text-gray-300 uppercase">
+										<Text className={`text-center text-xs font-semibold uppercase ${helperText}`}>
 											{labelItem}
 										</Text>
 									</View>
@@ -229,12 +256,12 @@ export function DatePickerField({
 										key={`prev-${item.day}`}
 										style={{
 											width: CELL_PERCENT,
-											height: CELL_HEIGHT,
+											height: DAY_CELL_HEIGHT,
 											alignItems: 'center',
 											justifyContent: 'center',
 										}}
 									>
-										<Text className="text-center text-gray-500 dark:text-gray-600">{item.day}</Text>
+										<Text className={`text-center ${helperText}`}>{item.day}</Text>
 									</View>
 								))}
 								{days.map(({ day, date }) => {
@@ -248,18 +275,22 @@ export function DatePickerField({
 											key={day}
 											style={{
 												width: CELL_PERCENT,
-												height: CELL_HEIGHT,
+												height: DAY_CELL_HEIGHT,
 												alignItems: 'center',
 												justifyContent: 'center',
 											}}
 										>
 											<Pressable
-												className={`w-10 h-10 items-center justify-center rounded-full ${
-													isSelected ? 'bg-[#FFE000]' : 'bg-gray-100 dark:bg-gray-800'
+												className={`h-10 w-10 items-center justify-center rounded-full ${
+													isSelected ? 'bg-[#FFE000]' : neutralDayClassName
 												}`}
 												onPress={() => handleSelect(date)}
 											>
-												<Text className={`text-center ${isSelected ? 'text-white font-semibold' : 'text-gray-800 dark:text-gray-200'}`}>
+												<Text
+													className={`text-center font-medium ${
+														isSelected ? 'font-semibold text-slate-900' : bodyText
+													}`}
+												>
 													{day}
 												</Text>
 											</Pressable>
@@ -271,27 +302,25 @@ export function DatePickerField({
 										key={`next-${item.day}`}
 										style={{
 											width: CELL_PERCENT,
-											height: CELL_HEIGHT,
+											height: DAY_CELL_HEIGHT,
 											alignItems: 'center',
 											justifyContent: 'center',
 										}}
 									>
-										<Text className="text-center text-gray-500 dark:text-gray-600">{item.day}</Text>
+										<Text className={`text-center ${helperText}`}>{item.day}</Text>
 									</View>
 								))}
 							</View>
-							<Divider />
-							<HStack className="justify-between items-center">
-								<Button variant="outline" onPress={handleSelectToday}>
-									<ButtonIcon as={AddIcon} />
-									<ButtonText>Hoje</ButtonText>
-								</Button>
-								<Button variant="link" onPress={handleClose}>
-									<ButtonText>Fechar</ButtonText>
-								</Button>
-							</HStack>
 						</VStack>
 					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button variant="outline" onPress={handleClose} className={submitButtonCancelClassName}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button variant="solid" onPress={handleSelectToday} className={submitButtonClassName}>
+							<ButtonText>Hoje</ButtonText>
+						</Button>
+					</ModalFooter>
 				</ModalContent>
 			</Modal>
 		</VStack>

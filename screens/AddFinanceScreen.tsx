@@ -2,6 +2,7 @@ import React from 'react';
 import {
 	KeyboardAvoidingView,
 	Platform,
+	Pressable,
 	ScrollView,
 	View,
 	StatusBar,
@@ -21,6 +22,12 @@ import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
+import {
+	Popover,
+	PopoverBackdrop,
+	PopoverBody,
+	PopoverContent,
+} from '@/components/ui/popover';
 import {
 	Select,
 	SelectBackdrop,
@@ -51,6 +58,7 @@ import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalan
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { Info } from 'lucide-react-native';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
@@ -142,6 +150,7 @@ export default function AddFinanceScreen() {
 		fieldContainerClassName,
 		submitButtonClassName,
 		heroHeight,
+		infoCardStyle,
 		insets,
 		compactCardClassName,
 		notTintedCardClassName,
@@ -733,6 +742,44 @@ export default function AddFinanceScreen() {
 			: typeof currentBankBalanceInCents === 'number'
 				? formatCurrencyBRL(currentBankBalanceInCents)
 				: 'Saldo indisponível';
+	const renderFieldLabelWithPopover = (
+		label: string,
+		accessibilityLabel: string,
+		description: string,
+	) => (
+		<HStack className="ml-1 items-center gap-2">
+			<Text className={`${bodyText} text-sm`}>{label}</Text>
+			<Popover
+				placement="bottom"
+				size="md"
+				offset={0}
+				shouldFlip
+				focusScope={false}
+				trapFocus={false}
+				trigger={triggerProps => (
+					<Pressable
+						{...triggerProps}
+						hitSlop={8}
+						accessibilityRole="button"
+						accessibilityLabel={accessibilityLabel}
+					>
+						<Info
+							size={14}
+							color={isDarkMode ? '#94A3B8' : '#64748B'}
+							style={{ marginLeft: 4 }}
+						/>
+					</Pressable>
+				)}
+			>
+				<PopoverBackdrop className="bg-transparent" />
+				<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+					<PopoverBody className="px-3 py-3">
+						<Text className={`${bodyText} text-xs leading-5`}>{description}</Text>
+					</PopoverBody>
+				</PopoverContent>
+			</Popover>
+		</HStack>
+	);
 
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
@@ -773,7 +820,11 @@ export default function AddFinanceScreen() {
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Nome do investimento</Text>
+										{renderFieldLabelWithPopover(
+											'Nome do investimento',
+											'Informações sobre o nome do investimento',
+											'Use um nome fácil de identificar na lista, combinando o tipo do produto com a instituição, como "CDB Banco X".',
+										)}
 										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
 											<InputField
 												ref={investmentNameInputRef}
@@ -793,7 +844,11 @@ export default function AddFinanceScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial investido</Text>
+										{renderFieldLabelWithPopover(
+											'Valor inicial investido',
+											'Informações sobre o valor inicial investido',
+											'O valor informado representa o aporte inicial do investimento. Ele sai do banco selecionado e vira a base do cadastro.',
+										)}
 										<Input className={fieldContainerClassName} isDisabled={isInitialValueDisabled}>
 											<InputField
 												ref={initialValueInputRef}
@@ -809,9 +864,13 @@ export default function AddFinanceScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
+										{renderFieldLabelWithPopover(
+											'Dia do investimento',
+											'Informações sobre a data do investimento',
+											'Essa data marca o início do investimento e serve de referência para o acompanhamento e para os cálculos do período.',
+										)}
 										<DatePickerField
-											label="Dia do investimento"
-											labelClassName={`${bodyText} ml-1 text-sm`}
+											accessibilityLabel="Selecionar dia do investimento"
 											value={investmentDate}
 											onChange={formatted => handleDateSelect(formatted)}
 											triggerClassName={fieldContainerClassName}
@@ -821,7 +880,11 @@ export default function AddFinanceScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
+										{renderFieldLabelWithPopover(
+											'CDI (%)',
+											'Informações sobre o CDI do investimento',
+											'Informe o percentual contratado em relação ao CDI. Exemplo: 100 equivale a 100% do CDI e 110 equivale a 110% do CDI.',
+										)}
 										<Input className={fieldContainerClassName} isDisabled={isCdiDisabled}>
 											<InputField
 												ref={cdiInputRef}
@@ -840,7 +903,11 @@ export default function AddFinanceScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Prazo para resgate</Text>
+										{renderFieldLabelWithPopover(
+											'Prazo para resgate',
+											'Informações sobre o prazo para resgate',
+											'Escolha a liquidez estimada do investimento, ou seja, em quanto tempo o valor costuma ficar disponível após pedir o resgate.',
+										)}
 										<Select
 											selectedValue={selectedRedemptionTerm}
 											onValueChange={value => {
@@ -872,7 +939,11 @@ export default function AddFinanceScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Banco vinculado</Text>
+										{renderFieldLabelWithPopover(
+											'Banco vinculado',
+											'Informações sobre o banco vinculado ao investimento',
+											'Selecione o banco de origem do aporte inicial. O sistema consulta o saldo atual dessa conta antes de liberar o salvamento.',
+										)}
 										<Select
 											selectedValue={selectedBankId ?? undefined}
 											onValueChange={value => {
@@ -907,7 +978,11 @@ export default function AddFinanceScreen() {
 
 									<Box className={`${notTintedCardClassName} px-4 py-4`}>
 										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Saldo disponível do banco</Text>
+											{renderFieldLabelWithPopover(
+												'Saldo disponível do banco',
+												'Informações sobre o saldo disponível do banco',
+												'Esse saldo é usado para validar se existe valor suficiente para o aporte inicial. Se ele estiver indisponível ou negativo, o envio fica bloqueado.',
+											)}
 											<Input className={fieldContainerClassName} isDisabled>
 												<InputField value={bankBalanceDisplayValue} className={inputField} />
 											</Input>
