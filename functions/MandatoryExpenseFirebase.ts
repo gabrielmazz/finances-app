@@ -9,6 +9,7 @@ interface AddMandatoryExpenseParams {
 	name: string;
 	valueInCents: number;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	tagId: string;
 	personId: string;
 	description?: string | null;
@@ -22,6 +23,7 @@ interface UpdateMandatoryExpenseParams {
 	name?: string;
 	valueInCents?: number;
 	dueDay?: number;
+	usesBusinessDays?: boolean;
 	tagId?: string;
 	description?: string | null;
 	reminderEnabled?: boolean;
@@ -41,6 +43,7 @@ export async function addMandatoryExpenseFirebase({
 	name,
 	valueInCents,
 	dueDay,
+	usesBusinessDays = false,
 	tagId,
 	personId,
 	description,
@@ -55,6 +58,7 @@ export async function addMandatoryExpenseFirebase({
 			name,
 			valueInCents,
 			dueDay,
+			usesBusinessDays,
 			tagId,
 			personId,
 			description: description ?? null,
@@ -80,6 +84,7 @@ export async function updateMandatoryExpenseFirebase({
 	name,
 	valueInCents,
 	dueDay,
+	usesBusinessDays,
 	tagId,
 	description,
 	reminderEnabled,
@@ -102,6 +107,10 @@ export async function updateMandatoryExpenseFirebase({
 
 		if (typeof dueDay === 'number') {
 			updates.dueDay = dueDay;
+		}
+
+		if (typeof usesBusinessDays === 'boolean') {
+			updates.usesBusinessDays = usesBusinessDays;
 		}
 
 		if (typeof tagId === 'string') {

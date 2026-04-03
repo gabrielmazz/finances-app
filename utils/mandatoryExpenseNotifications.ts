@@ -12,6 +12,7 @@ type ScheduleOptions = {
 	expenseId: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
@@ -24,6 +25,7 @@ export const scheduleMandatoryExpenseNotification = async ({
 	expenseId,
 	name,
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	description,
@@ -34,6 +36,7 @@ export const scheduleMandatoryExpenseNotification = async ({
 		templateId: expenseId,
 		name,
 		dueDay,
+		usesBusinessDays,
 		reminderHour,
 		reminderMinute,
 		description,
@@ -48,4 +51,3 @@ export const syncMandatoryExpenseNotifications = async (expenses: SyncExpense[])
 
 export const ensureNotificationPermissionForMandatoryExpenses =
 	async (): Promise<MandatoryReminderPermissionResult> => ensureMandatoryReminderPermission();
-

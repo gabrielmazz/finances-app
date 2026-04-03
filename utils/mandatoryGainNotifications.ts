@@ -12,6 +12,7 @@ type ScheduleOptions = {
 	gainTemplateId: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
@@ -24,6 +25,7 @@ export const scheduleMandatoryGainNotification = async ({
 	gainTemplateId,
 	name,
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	description,
@@ -34,6 +36,7 @@ export const scheduleMandatoryGainNotification = async ({
 		templateId: gainTemplateId,
 		name,
 		dueDay,
+		usesBusinessDays,
 		reminderHour,
 		reminderMinute,
 		description,
@@ -48,4 +51,3 @@ export const syncMandatoryGainNotifications = async (gains: SyncGain[]) =>
 
 export const ensureNotificationPermissionForMandatoryGains =
 	async (): Promise<MandatoryReminderPermissionResult> => ensureMandatoryReminderPermission();
-

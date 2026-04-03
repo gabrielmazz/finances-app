@@ -33,6 +33,7 @@ import {
 	ModalContent,
 	ModalFooter,
 	ModalHeader,
+	ModalTitle,
 } from '@/components/ui/modal';
 
 import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
@@ -1339,7 +1340,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Editar investimento</Heading>
+							<ModalTitle>Editar investimento</ModalTitle>
 							<ModalCloseButton onPress={closeEditModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1456,7 +1457,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Sincronizar antes de aportar</Heading>
+							<ModalTitle>Sincronizar antes de aportar</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDepositSyncModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1496,7 +1497,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Adicionar ao investimento</Heading>
+							<ModalTitle>Adicionar ao investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDepositModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1542,7 +1543,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Sincronizar antes de resgatar</Heading>
+							<ModalTitle>Sincronizar antes de resgatar</ModalTitle>
 							<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1582,7 +1583,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Resgatar investimento</Heading>
+							<ModalTitle>Resgatar investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseWithdrawalModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1628,7 +1629,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Sincronizar valor real</Heading>
+							<ModalTitle>Sincronizar valor real</ModalTitle>
 							<ModalCloseButton onPress={handleCloseManualSyncModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -1668,15 +1669,15 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<Heading size="lg">Excluir investimento</Heading>
+							<ModalTitle>Excluir investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDeleteModal} />
 						</ModalHeader>
 						<ModalBody>
-									<Text className={`${bodyText} text-sm`}>
-										Tem certeza de que deseja remover{' '}
-										<Text className="font-semibold">{investmentPendingDeletion?.name ?? 'este investimento'}</Text>
-										? Essa ação não pode ser desfeita.
-									</Text>
+							<Text className={`${bodyText} text-sm`}>
+								Tem certeza de que deseja remover{' '}
+								<Text className="font-semibold">{investmentPendingDeletion?.name ?? 'este investimento'}</Text>
+								? Essa ação não pode ser desfeita.
+							</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button variant="outline" onPress={handleCloseDeleteModal} isDisabled={isDeleting}>

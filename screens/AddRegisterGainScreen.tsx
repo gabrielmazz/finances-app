@@ -65,6 +65,7 @@ import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/func
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
+import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
@@ -173,17 +174,14 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	return null;
 };
 
-const clampDayToMonth = (day: number, reference: Date) => {
-	const daysInMonth = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate();
-	return Math.min(Math.max(day, 1), daysInMonth);
-};
-
-const getSuggestedDateByDueDay = (dueDay: number) => {
-	const today = new Date();
-	const normalizedDay = clampDayToMonth(dueDay, today);
-	const date = new Date(today.getFullYear(), today.getMonth(), normalizedDay);
-	return formatDateToBR(date);
-};
+const getSuggestedDateByDueDay = (dueDay: number, usesBusinessDays = false) =>
+	formatDateToBR(
+		resolveMonthlyOccurrence({
+			referenceDate: new Date(),
+			dueDay,
+			usesBusinessDays,
+		}).date,
+	);
 
 export default function AddRegisterGainScreen() {
 
@@ -331,6 +329,7 @@ export default function AddRegisterGainScreen() {
 		templateTagId?: string | string[];
 		templateDescription?: string | string[];
 		templateDueDay?: string | string[];
+		templateUsesBusinessDays?: string | string[];
 		templateTagName?: string | string[];
 		templateTagIconFamily?: string | string[];
 		templateTagIconName?: string | string[];
@@ -381,6 +380,7 @@ export default function AddRegisterGainScreen() {
 		const tagIconStyle = decodeParam(params.templateTagIconStyle);
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
+		const usesBusinessDaysParam = decodeParam(params.templateUsesBusinessDays);
 		const mandatoryGainId = decodeParam(params.templateMandatoryGainId);
 		const lockTagParam = decodeParam(params.templateLockTag);
 		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
@@ -420,6 +420,7 @@ export default function AddRegisterGainScreen() {
 					: null,
 			valueInCents,
 			dueDay,
+			usesBusinessDays: usesBusinessDaysParam === '1',
 			mandatoryGainId,
 			lockTag: lockTagParam === '1',
 			investmentAdjustmentId,
@@ -432,6 +433,7 @@ export default function AddRegisterGainScreen() {
 	}, [
 		params.templateDescription,
 		params.templateDueDay,
+		params.templateUsesBusinessDays,
 		params.templateTagIconFamily,
 		params.templateTagIconName,
 		params.templateTagIconStyle,
@@ -609,7 +611,7 @@ export default function AddRegisterGainScreen() {
 		}
 
 		if (typeof templateData.dueDay === 'number') {
-			setGainDate(getSuggestedDateByDueDay(templateData.dueDay));
+			setGainDate(getSuggestedDateByDueDay(templateData.dueDay, templateData.usesBusinessDays));
 		}
 
 		if (templateData.tagId) {

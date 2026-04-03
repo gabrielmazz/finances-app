@@ -7,6 +7,7 @@ interface AddMandatoryGainParams {
 	name: string;
 	valueInCents: number;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	tagId: string;
 	personId: string;
 	description?: string | null;
@@ -20,6 +21,7 @@ interface UpdateMandatoryGainParams {
 	name?: string;
 	valueInCents?: number;
 	dueDay?: number;
+	usesBusinessDays?: boolean;
 	tagId?: string;
 	description?: string | null;
 	reminderEnabled?: boolean;
@@ -39,6 +41,7 @@ export async function addMandatoryGainFirebase({
 	name,
 	valueInCents,
 	dueDay,
+	usesBusinessDays = false,
 	tagId,
 	personId,
 	description,
@@ -53,6 +56,7 @@ export async function addMandatoryGainFirebase({
 			name,
 			valueInCents,
 			dueDay,
+			usesBusinessDays,
 			tagId,
 			personId,
 			description: description ?? null,
@@ -78,6 +82,7 @@ export async function updateMandatoryGainFirebase({
 	name,
 	valueInCents,
 	dueDay,
+	usesBusinessDays,
 	tagId,
 	description,
 	reminderEnabled,
@@ -100,6 +105,10 @@ export async function updateMandatoryGainFirebase({
 
 		if (typeof dueDay === 'number') {
 			updates.dueDay = dueDay;
+		}
+
+		if (typeof usesBusinessDays === 'boolean') {
+			updates.usesBusinessDays = usesBusinessDays;
 		}
 
 		if (typeof tagId === 'string') {

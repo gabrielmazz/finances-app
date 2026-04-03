@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { NotificationPermissionsStatus, SchedulableNotificationTriggerInput } from 'expo-notifications';
+import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -27,16 +29,23 @@ export type MandatoryReminderSyncItem = {
 	id: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
 	description?: string | null;
 };
 
-type ReminderStorageEntry = {
+type ReminderScheduledOccurrence = {
 	notificationId: string;
+	triggerAt: string;
+};
+
+type ReminderStorageEntry = {
 	fingerprint: string;
 	nextTriggerAt: string;
+	schedules: ReminderScheduledOccurrence[];
+	notificationId?: string;
 };
 
 type ReminderStorageMap = Record<string, ReminderStorageEntry>;
@@ -46,10 +55,13 @@ const STORAGE_KEY = '@mandatoryReminderNotifications';
 let cachedNotificationsModule: NotificationsModule | null = null;
 let hasWarnedUnavailableEnvironment = false;
 
+const BUSINESS_DAY_SCHEDULE_WINDOW_MONTHS = 12;
+
 const normalizeDay = (value: number) => Math.min(Math.max(Math.trunc(value) || 1, 1), 31);
 const normalizeHour = (value: number) => Math.min(Math.max(Math.trunc(value) || 0, 0), 23);
 const normalizeMinute = (value: number) => Math.min(Math.max(Math.trunc(value) || 0, 0), 59);
 const normalizeName = (value: string) => value.trim();
+const normalizeUsesBusinessDays = (value?: boolean) => value === true;
 const normalizeDescription = (value?: string | null) => {
 	if (typeof value !== 'string') {
 		return null;
@@ -59,7 +71,19 @@ const normalizeDescription = (value?: string | null) => {
 	return trimmed.length > 0 ? trimmed : null;
 };
 
-const isNotificationsEnvironmentSupported = () => Platform.OS === 'ios' || Platform.OS === 'android';
+const isExpoGoEnvironment = Constants.appOwnership === 'expo' || Boolean(Constants.expoGoConfig);
+
+const isNotificationsEnvironmentSupported = () => {
+	if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+		return false;
+	}
+
+	if (isExpoGoEnvironment) {
+		return false;
+	}
+
+	return true;
+};
 
 const warnNotificationsUnavailable = () => {
 	if (hasWarnedUnavailableEnvironment) {
@@ -67,7 +91,9 @@ const warnNotificationsUnavailable = () => {
 	}
 
 	hasWarnedUnavailableEnvironment = true;
-	console.warn('Não foi possível acessar as APIs de notificações locais neste ambiente.');
+	console.warn(
+		'Os lembretes obrigatórios não podem ser agendados no Expo Go. Use um build de desenvolvimento ou produção para testar notificações.',
+	);
 };
 
 const getNotificationsModule = (): NotificationsModule | null => {
@@ -137,6 +163,7 @@ const buildReminderFingerprint = ({
 	templateId,
 	name,
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	description,
@@ -145,6 +172,7 @@ const buildReminderFingerprint = ({
 	templateId: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
@@ -154,6 +182,7 @@ const buildReminderFingerprint = ({
 		templateId,
 		name: normalizeName(name),
 		dueDay: normalizeDay(dueDay),
+		usesBusinessDays: normalizeUsesBusinessDays(usesBusinessDays),
 		reminderHour: normalizeHour(reminderHour),
 		reminderMinute: normalizeMinute(reminderMinute),
 		description: normalizeDescription(description),
@@ -179,6 +208,33 @@ const writeReminderMap = async (map: ReminderStorageMap) => {
 	} catch (error) {
 		console.error('Erro ao salvar o mapa de lembretes obrigatórios:', error);
 	}
+};
+
+const getEntrySchedules = (entry?: ReminderStorageEntry | null): ReminderScheduledOccurrence[] => {
+	if (!entry) {
+		return [];
+	}
+
+	if (Array.isArray(entry.schedules)) {
+		return entry.schedules.filter(
+			schedule =>
+				typeof schedule?.notificationId === 'string' &&
+				schedule.notificationId.length > 0 &&
+				typeof schedule?.triggerAt === 'string' &&
+				schedule.triggerAt.length > 0,
+		);
+	}
+
+	if (typeof entry.notificationId === 'string' && entry.notificationId.length > 0) {
+		return [
+			{
+				notificationId: entry.notificationId,
+				triggerAt: entry.nextTriggerAt,
+			},
+		];
+	}
+
+	return [];
 };
 
 const isPermissionGranted = (Notifications: NotificationsModule, settings: NotificationPermissionsStatus) =>
@@ -232,7 +288,7 @@ const ensureNotificationChannel = async (kind: MandatoryReminderKind) => {
 	});
 };
 
-const buildReminderTrigger = (
+const buildFixedDayReminderTrigger = (
 	Notifications: NotificationsModule,
 	kind: MandatoryReminderKind,
 	dueDay: number,
@@ -264,6 +320,46 @@ const buildReminderTrigger = (
 	};
 };
 
+const buildBusinessDayReminderDates = ({
+	dueDay,
+	reminderHour,
+	reminderMinute,
+	fromDate = new Date(),
+}: {
+	dueDay: number;
+	reminderHour: number;
+	reminderMinute: number;
+	fromDate?: Date;
+}) => {
+	const dates: Date[] = [];
+	const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 12, 0, 0, 0);
+
+	while (dates.length < BUSINESS_DAY_SCHEDULE_WINDOW_MONTHS) {
+		const resolvedOccurrence = resolveMonthlyOccurrence({
+			referenceDate: cursor,
+			dueDay,
+			usesBusinessDays: true,
+		});
+		const triggerAt = new Date(
+			resolvedOccurrence.date.getFullYear(),
+			resolvedOccurrence.date.getMonth(),
+			resolvedOccurrence.date.getDate(),
+			normalizeHour(reminderHour),
+			normalizeMinute(reminderMinute),
+			0,
+			0,
+		);
+
+		if (triggerAt.getTime() > fromDate.getTime()) {
+			dates.push(triggerAt);
+		}
+
+		cursor.setMonth(cursor.getMonth() + 1);
+	}
+
+	return dates;
+};
+
 const getScheduledNotificationIdSet = async (Notifications: NotificationsModule) => {
 	const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
 	return new Set(
@@ -286,10 +382,11 @@ const cancelReminderNotificationInternal = async ({
 }) => {
 	const storageKey = buildReminderStorageKey(kind, templateId);
 	const currentEntry = map[storageKey];
+	const schedules = getEntrySchedules(currentEntry);
 
-	if (currentEntry?.notificationId) {
+	for (const schedule of schedules) {
 		try {
-			await Notifications.cancelScheduledNotificationAsync(currentEntry.notificationId);
+			await Notifications.cancelScheduledNotificationAsync(schedule.notificationId);
 		} catch (error) {
 			console.warn('Erro ao cancelar lembrete obrigatório agendado:', error);
 		}
@@ -308,6 +405,7 @@ const scheduleReminderNotificationInternal = async ({
 	templateId,
 	name,
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	description,
@@ -318,6 +416,7 @@ const scheduleReminderNotificationInternal = async ({
 	templateId: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
@@ -326,10 +425,87 @@ const scheduleReminderNotificationInternal = async ({
 }): Promise<MandatoryReminderScheduleResult> => {
 	await ensureNotificationChannel(kind);
 
-	const trigger = buildReminderTrigger(Notifications, kind, dueDay, reminderHour, reminderMinute);
-	const nextTriggerTimestamp = await Notifications.getNextTriggerDateAsync(trigger);
+	const content = buildReminderContent({ kind, name, description });
+	const storageKey = buildReminderStorageKey(kind, templateId);
+	const normalizedUsesBusinessDays = normalizeUsesBusinessDays(usesBusinessDays);
+	await cancelReminderNotificationInternal({ kind, templateId, Notifications, map });
+	const schedules: ReminderScheduledOccurrence[] = [];
+	let nextTriggerAt: Date | null = null;
 
-	if (nextTriggerTimestamp === null) {
+	if (normalizedUsesBusinessDays) {
+		const triggerDates = buildBusinessDayReminderDates({
+			dueDay,
+			reminderHour,
+			reminderMinute,
+		});
+
+		if (triggerDates.length === 0) {
+			return {
+				success: false,
+				reason: 'invalid-trigger',
+				message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
+			};
+		}
+
+		for (const triggerDate of triggerDates) {
+			const notificationId = await Notifications.scheduleNotificationAsync({
+				content: {
+					title: content.title,
+					body: content.body,
+					data: {
+						templateId,
+						kind,
+						dueDay: normalizeDay(dueDay),
+						usesBusinessDays: true,
+					},
+				},
+				trigger: {
+					type: Notifications.SchedulableTriggerInputTypes.DATE,
+					date: triggerDate,
+				},
+			});
+
+			schedules.push({
+				notificationId,
+				triggerAt: triggerDate.toISOString(),
+			});
+		}
+
+		nextTriggerAt = triggerDates[0] ?? null;
+	} else {
+		const trigger = buildFixedDayReminderTrigger(Notifications, kind, dueDay, reminderHour, reminderMinute);
+		const nextTriggerTimestamp = await Notifications.getNextTriggerDateAsync(trigger);
+
+		if (nextTriggerTimestamp === null) {
+			return {
+				success: false,
+				reason: 'invalid-trigger',
+				message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
+			};
+		}
+
+		const notificationId = await Notifications.scheduleNotificationAsync({
+			content: {
+				title: content.title,
+				body: content.body,
+				data: {
+					templateId,
+					kind,
+					dueDay: normalizeDay(dueDay),
+					usesBusinessDays: false,
+				},
+			},
+			trigger,
+		});
+
+		nextTriggerAt = new Date(nextTriggerTimestamp);
+		schedules.push({
+			notificationId,
+			triggerAt: nextTriggerAt.toISOString(),
+		});
+	}
+
+	if (!nextTriggerAt) {
 		return {
 			success: false,
 			reason: 'invalid-trigger',
@@ -337,40 +513,24 @@ const scheduleReminderNotificationInternal = async ({
 		};
 	}
 
-	const content = buildReminderContent({ kind, name, description });
-	const storageKey = buildReminderStorageKey(kind, templateId);
-	await cancelReminderNotificationInternal({ kind, templateId, Notifications, map });
-
-	const notificationId = await Notifications.scheduleNotificationAsync({
-		content: {
-			title: content.title,
-			body: content.body,
-			data: {
-				templateId,
-				kind,
-				dueDay: normalizeDay(dueDay),
-			},
-		},
-		trigger,
-	});
-
 	map[storageKey] = {
-		notificationId,
 		fingerprint: buildReminderFingerprint({
 			kind,
 			templateId,
 			name,
 			dueDay,
+			usesBusinessDays: normalizedUsesBusinessDays,
 			reminderHour,
 			reminderMinute,
 			description,
 		}),
-		nextTriggerAt: new Date(nextTriggerTimestamp).toISOString(),
+		nextTriggerAt: nextTriggerAt.toISOString(),
+		schedules,
 	};
 
 	return {
 		success: true,
-		nextTriggerAt: new Date(nextTriggerTimestamp),
+		nextTriggerAt,
 		title: content.title,
 		body: content.body,
 	};
@@ -399,6 +559,7 @@ export const scheduleMandatoryReminderNotification = async ({
 	templateId,
 	name,
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	description,
@@ -408,6 +569,7 @@ export const scheduleMandatoryReminderNotification = async ({
 	templateId: string;
 	name: string;
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
@@ -443,6 +605,7 @@ export const scheduleMandatoryReminderNotification = async ({
 		templateId,
 		name,
 		dueDay,
+		usesBusinessDays,
 		reminderHour,
 		reminderMinute,
 		description,
@@ -517,13 +680,16 @@ export const syncMandatoryReminderNotifications = async (
 			templateId: item.id,
 			name: item.name,
 			dueDay: item.dueDay,
+			usesBusinessDays: item.usesBusinessDays,
 			reminderHour: normalizedHour,
 			reminderMinute: normalizedMinute,
 			description: item.description,
 		});
 		const currentEntry = map[storageKey];
+		const currentSchedules = getEntrySchedules(currentEntry);
 		const isCurrentScheduleStillPresent =
-			typeof currentEntry?.notificationId === 'string' && scheduledNotificationIds.has(currentEntry.notificationId);
+			currentSchedules.length > 0 &&
+			currentSchedules.every(schedule => scheduledNotificationIds.has(schedule.notificationId));
 
 		if (currentEntry && currentEntry.fingerprint === fingerprint && isCurrentScheduleStillPresent) {
 			continue;
@@ -534,6 +700,7 @@ export const syncMandatoryReminderNotifications = async (
 			templateId: item.id,
 			name: item.name,
 			dueDay: item.dueDay,
+			usesBusinessDays: item.usesBusinessDays,
 			reminderHour: normalizedHour,
 			reminderMinute: normalizedMinute,
 			description: item.description,
@@ -586,4 +753,3 @@ export const formatMandatoryReminderNextTrigger = (date: Date) =>
 		hour: '2-digit',
 		minute: '2-digit',
 	}).format(date);
-
