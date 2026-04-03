@@ -47,7 +47,6 @@ import {
 import { CircleIcon } from '@/components/ui/icon';
 import { Info } from 'lucide-react-native';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { Switch } from '@/components/ui/switch';
@@ -745,8 +744,6 @@ export default function AddRegisterTagScreen() {
 				/>
 
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<FloatingAlertViewport />
-
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

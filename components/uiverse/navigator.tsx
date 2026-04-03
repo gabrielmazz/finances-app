@@ -2,7 +2,7 @@ import React from 'react';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, BackHandler, Pressable, View } from 'react-native';
 
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { Text } from '@/components/ui/text';
@@ -11,6 +11,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 
 export type NavigatorProps = {
 	defaultValue?: number;
+	onHardwareBack?: () => boolean;
 };
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -128,7 +129,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Investimentos',
 				value: 1,
 				icon: 'wallet-outline',
-				matchPaths: ['/financial-list'],
+				matchPaths: ['/financial-list', '/add-finance'],
 				onSelect: () => router.push('/financial-list'),
 			},
 		],
@@ -235,7 +236,10 @@ const getActiveRoute = (pathname: string, groups: NavigatorGroup[]) => {
 	return null;
 };
 
-export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
+export const Navigator: React.FC<NavigatorProps> = ({
+	defaultValue = 0,
+	onHardwareBack,
+}) => {
 	const { isDarkMode } = useAppTheme();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
@@ -272,7 +276,18 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 			onSelect: () => {},
 		};
 	}, [normalizedPathname, routeParams.gainTemplateId]);
-	// Mantém o estado ativo do menu alinhado com a rota corrente, conforme o fluxo de navegação documentado em Arquitetura.md.
+	const financialListState = React.useMemo(() => {
+		if (normalizedPathname !== '/add-finance') {
+			return null;
+		}
+
+		return {
+			label: 'Registrar investimento',
+			icon: 'add-circle-outline' as IoniconName,
+			onSelect: () => {},
+		};
+	}, [normalizedPathname]);
+	// Mantém o estado ativo do navigator alinhado com a rota corrente, conforme o fluxo documentado em Arquitetura/Navegação.md e Arquitetura/Investimentos.md.
 	const resolvedGroups = React.useMemo(
 		() =>
 			NAV_GROUPS.map(group => ({
@@ -286,10 +301,14 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 						return { ...option, ...mandatoryGainsState };
 					}
 
+					if (option.id === 'financial-list' && financialListState) {
+						return { ...option, ...financialListState };
+					}
+
 					return option;
 				}),
 			})),
-		[mandatoryExpensesState, mandatoryGainsState],
+		[mandatoryExpensesState, mandatoryGainsState, financialListState],
 	);
 	const activeRoute = React.useMemo(
 		() => getActiveRoute(normalizedPathname, resolvedGroups),
@@ -354,6 +373,21 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0 }) => {
 	const handleMenuClose = React.useCallback((groupValue: number) => {
 		setOpenGroupValue(currentValue => (currentValue === groupValue ? null : currentValue));
 	}, []);
+
+	React.useEffect(() => {
+		if (typeof onHardwareBack !== 'function') {
+			return;
+		}
+
+		const backHandler = BackHandler.addEventListener(
+			'hardwareBackPress',
+			onHardwareBack,
+		);
+
+		return () => {
+			backHandler.remove();
+		};
+	}, [onHardwareBack]);
 
 	return (
 		<View

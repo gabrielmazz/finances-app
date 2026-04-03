@@ -1504,11 +1504,6 @@ export default function HomeScreen() {
 												</Popover>
 											</HStack>
 										</VStack>
-										<Text className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-											{isMovementsExpanded
-												? 'Clique para ocultar as últimas transações.'
-												: 'Clique para mostrar as últimas transações.'}
-										</Text>
 									</TouchableOpacity>
 
 									<TouchableOpacity

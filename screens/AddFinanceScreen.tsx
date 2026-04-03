@@ -21,7 +21,6 @@ import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import {
 	Select,
 	SelectBackdrop,
@@ -35,8 +34,8 @@ import {
 	SelectTrigger,
 } from '@/components/ui/select';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
+import Navigator from '@/components/uiverse/navigator';
 
 import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 
@@ -132,64 +131,6 @@ const formatCurrencyBRL = (valueInCents: number) =>
 		currency: 'BRL',
 	}).format(valueInCents / 100);
 
-function AddFinanceFormSkeleton({
-	bodyText,
-	tintedCardClassName,
-	fieldContainerClassName,
-	compactCardClassName,
-	skeletonBaseColor,
-	skeletonHighlightColor,
-	skeletonMutedBaseColor,
-	skeletonMutedHighlightColor,
-}: {
-	bodyText: string;
-	tintedCardClassName: string;
-	fieldContainerClassName: string;
-	compactCardClassName: string;
-	skeletonBaseColor: string;
-	skeletonHighlightColor: string;
-	skeletonMutedBaseColor: string;
-	skeletonMutedHighlightColor: string;
-}) {
-	return (
-		<VStack className="mt-4 gap-4">
-			<Box className={`${tintedCardClassName} px-5 py-5`}>
-				<VStack className="gap-3">
-					<Skeleton className="h-3 w-24" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<Skeleton className="h-8 w-52" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<SkeletonText
-						_lines={2}
-						className="h-3"
-						baseColor={skeletonMutedBaseColor}
-						highlightColor={skeletonMutedHighlightColor}
-					/>
-				</VStack>
-			</Box>
-
-			{Array.from({ length: 5 }).map((_, index) => (
-				<VStack key={`add-finance-skeleton-${index}`} className="gap-2">
-					<Text className={`${bodyText} ml-1 text-sm`}>{index === 4 ? 'Banco' : 'Campo'}</Text>
-					<Skeleton className={fieldContainerClassName} baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-				</VStack>
-			))}
-
-			<Box className={`${compactCardClassName} px-4 py-4`}>
-				<VStack className="gap-3">
-					<Skeleton className="h-4 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<SkeletonText
-						_lines={2}
-						className="h-3"
-						baseColor={skeletonMutedBaseColor}
-						highlightColor={skeletonMutedHighlightColor}
-					/>
-				</VStack>
-			</Box>
-
-			<Skeleton className="h-11 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-		</VStack>
-	);
-}
-
 export default function AddFinanceScreen() {
 	const {
 		isDarkMode,
@@ -203,12 +144,8 @@ export default function AddFinanceScreen() {
 		heroHeight,
 		insets,
 		compactCardClassName,
-		tintedCardClassName,
+		notTintedCardClassName,
 		topSummaryCardClassName,
-		skeletonBaseColor,
-		skeletonHighlightColor,
-		skeletonMutedBaseColor,
-		skeletonMutedHighlightColor,
 	} = useScreenStyles();
 	// Estado para guardar o nome do investimento que o usuário está digitando.
 	const [investmentName, setInvestmentName] = React.useState('');
@@ -239,6 +176,18 @@ export default function AddFinanceScreen() {
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'cdi' ? 140 : 120),
 		[],
+	);
+
+	// Feedback in-app unificado conforme [[Notificações]].
+	const showScreenAlert = React.useCallback(
+		(description: string, type: NotifierAlertType = 'error') => {
+			showNotifierAlert({
+				description,
+				type,
+				isDarkMode,
+			});
+		},
+		[isDarkMode],
 	);
 
 	const handleInitialValueChange = React.useCallback((value: string) => {
@@ -299,7 +248,7 @@ export default function AddFinanceScreen() {
 							y: Math.max(0, y - keyboardScrollOffset(key)),
 							animated: true,
 						}),
-					() => {},
+					() => { },
 				);
 			}
 		},
@@ -336,24 +285,164 @@ export default function AddFinanceScreen() {
 	}, [scrollToInput]);
 
 	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
-
-	// Verificamos se todos os campos obrigatórios foram preenchidos.
-	const isFormValid = React.useMemo(() => {
-		const parsedCdi = parseStringToNumber(cdiInput);
+	const parsedInvestmentDate = React.useMemo(() => parseDateFromBR(investmentDate), [investmentDate]);
+	const parsedCdi = React.useMemo(() => parseStringToNumber(cdiInput), [cdiInput]);
+	const hasInvestmentName = investmentName.trim().length > 0;
+	const hasInitialValue = typeof initialValueInCents === 'number' && initialValueInCents > 0;
+	const hasValidInvestmentDate = Boolean(parsedInvestmentDate);
+	const hasValidCdi = Number.isFinite(parsedCdi) && parsedCdi > 0;
+	const isFormBusy = isSaving;
+	const isInitialValueDisabled = !hasInvestmentName || isFormBusy;
+	const isInvestmentDateDisabled = !hasInvestmentName || !hasInitialValue || isFormBusy;
+	const isCdiDisabled = !hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || isFormBusy;
+	const isRedemptionTermDisabled =
+		!hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || !hasValidCdi || isFormBusy;
+	const isBankSelectionDisabled =
+		isLoadingBanks ||
+		bankOptions.length === 0 ||
+		!hasInvestmentName ||
+		!hasInitialValue ||
+		!hasValidInvestmentDate ||
+		!hasValidCdi ||
+		isFormBusy;
+	const isBankBalanceNegative = typeof currentBankBalanceInCents === 'number' && currentBankBalanceInCents < 0;
+	const isInitialValueAboveCurrentBalance =
+		typeof currentBankBalanceInCents === 'number' &&
+		typeof initialValueInCents === 'number' &&
+		initialValueInCents > currentBankBalanceInCents;
+	const hasValidBalance = React.useMemo(() => {
 		const initialCents = typeof initialValueInCents === 'number' ? initialValueInCents : 0;
-		const hasValidBalance =
-			typeof currentBankBalanceInCents === 'number'
-				? currentBankBalanceInCents >= 0 && initialCents > 0 && initialCents <= currentBankBalanceInCents
-				: initialCents > 0;
+		if (initialCents <= 0) {
+			return false;
+		}
+
+		if (selectedBankId && isLoadingBankBalance) {
+			return false;
+		}
+
+		if (typeof currentBankBalanceInCents === 'number') {
+			return currentBankBalanceInCents >= 0 && initialCents <= currentBankBalanceInCents;
+		}
+
+		return true;
+	}, [currentBankBalanceInCents, initialValueInCents, isLoadingBankBalance, selectedBankId]);
+
+	// Segue [[Investimentos]]: a tela libera cada etapa do cadastro apenas quando a anterior estiver válida.
+	const progressHelperMessage = React.useMemo(() => {
+		if (isFormBusy) {
+			return 'Salvando investimento. Aguarde a conclusao da operacao atual.';
+		}
+
+		if (!hasInvestmentName) {
+			return 'Comece informando o nome do investimento.';
+		}
+
+		if (!hasInitialValue) {
+			return 'Agora informe o valor inicial que sera aplicado.';
+		}
+
+		if (!hasValidInvestmentDate) {
+			return 'Defina a data do investimento para liberar as configuracoes financeiras.';
+		}
+
+		if (!hasValidCdi) {
+			return 'Informe um percentual de CDI valido para continuar.';
+		}
+
+		if (!selectedBankId) {
+			return bankOptions.length === 0
+				? 'Cadastre um banco antes de concluir este investimento.'
+				: 'Selecione o banco de origem para validar o saldo disponivel.';
+		}
+
+		if (isLoadingBankBalance) {
+			return 'Consultando o saldo atual do banco selecionado.';
+		}
+
+		if (isBankBalanceNegative) {
+			return 'O banco selecionado esta com saldo negativo. Regularize antes de salvar.';
+		}
+
+		if (isInitialValueAboveCurrentBalance) {
+			return 'Ajuste o valor investido ou escolha outro banco com saldo suficiente.';
+		}
+
+		return 'Tudo pronto. Revise os dados e salve o investimento.';
+	}, [
+		bankOptions.length,
+		hasInitialValue,
+		hasInvestmentName,
+		hasValidCdi,
+		hasValidInvestmentDate,
+		isBankBalanceNegative,
+		isFormBusy,
+		isInitialValueAboveCurrentBalance,
+		isLoadingBankBalance,
+		selectedBankId,
+	]);
+
+	const bankSelectionHelperMessage = React.useMemo(() => {
+		if (isFormBusy) {
+			return 'Aguarde a conclusao da operacao atual.';
+		}
+
+		if (isLoadingBanks) {
+			return 'Carregando bancos disponiveis...';
+		}
+
+		if (bankOptions.length === 0) {
+			return 'Cadastre um banco para vincular o investimento.';
+		}
+
+		if (isBankSelectionDisabled) {
+			return 'Preencha nome, valor, data e CDI para liberar a escolha do banco.';
+		}
+
+		return 'Escolha o banco de onde saira o aporte inicial.';
+	}, [bankOptions.length, isBankSelectionDisabled, isFormBusy, isLoadingBanks]);
+
+	const bankBalanceHelperMessage = React.useMemo(() => {
+		if (!selectedBankId) {
+			return 'O saldo disponivel aparece depois que um banco e selecionado.';
+		}
+
+		if (isLoadingBankBalance) {
+			return 'Buscando saldo atualizado do banco.';
+		}
+
+		if (isBankBalanceNegative) {
+			return 'Este banco esta negativo e nao pode receber um novo aporte agora.';
+		}
+
+		if (isInitialValueAboveCurrentBalance) {
+			return 'O valor inicial nao pode ultrapassar o saldo disponivel deste banco.';
+		}
+
+		if (typeof currentBankBalanceInCents === 'number') {
+			return 'Saldo carregado. O investimento sera validado com base nesse valor.';
+		}
+
+		return 'Saldo indisponivel no momento. Confira o extrato do banco antes de concluir, se necessario.';
+	}, [
+		currentBankBalanceInCents,
+		isBankBalanceNegative,
+		isInitialValueAboveCurrentBalance,
+		isLoadingBankBalance,
+		selectedBankId,
+	]);
+
+	// Verificamos se todos os campos obrigatorios foram preenchidos e se o saldo do banco ja foi validado.
+	const isFormValid = React.useMemo(() => {
+		const initialCents = typeof initialValueInCents === 'number' ? initialValueInCents : 0;
 		return (
-			investmentName.trim().length > 0 &&
+			hasInvestmentName &&
 			initialCents > 0 &&
-			parsedCdi > 0 &&
+			hasValidCdi &&
 			Boolean(selectedBankId) &&
-			Boolean(parseDateFromBR(investmentDate)) &&
+			hasValidInvestmentDate &&
 			hasValidBalance
 		);
-	}, [investmentName, initialValueInCents, cdiInput, selectedBankId, investmentDate, currentBankBalanceInCents]);
+	}, [hasInvestmentName, initialValueInCents, hasValidCdi, selectedBankId, hasValidInvestmentDate, hasValidBalance]);
 
 	// Função utilitária para limpar o formulário após o salvamento.
 	const resetForm = React.useCallback(() => {
@@ -371,11 +460,7 @@ export default function AddFinanceScreen() {
 	const loadBanks = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 			return;
 		}
 
@@ -397,23 +482,15 @@ export default function AddFinanceScreen() {
 			setSelectedBankId(current => (current && formatted.some(bank => bank.id === current) ? current : null));
 
 			if (formatted.length === 0) {
-				showFloatingAlert({
-					message: 'Cadastre um banco antes de registrar investimentos.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Cadastre um banco antes de registrar investimentos.', 'warn');
 			}
 		} catch (error) {
 			console.error('Erro ao carregar bancos:', error);
-			showFloatingAlert({
-				message: 'Não foi possível carregar os bancos.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível carregar os bancos.', 'error');
 		} finally {
 			setIsLoadingBanks(false);
 		}
-	}, []);
+	}, [showScreenAlert]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -441,11 +518,7 @@ export default function AddFinanceScreen() {
 			try {
 				const currentUser = auth.currentUser;
 				if (!currentUser) {
-					showFloatingAlert({
-						message: 'Usuário não autenticado. Faça login novamente.',
-						action: 'error',
-						position: 'bottom',
-					});
+					showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 					return;
 				}
 
@@ -537,11 +610,7 @@ export default function AddFinanceScreen() {
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {
-					showFloatingAlert({
-						message: 'Não foi possível carregar o saldo atual do banco.',
-						action: 'error',
-						position: 'bottom',
-					});
+					showScreenAlert('Não foi possível carregar o saldo atual do banco.', 'error');
 					setCurrentBankBalanceInCents(null);
 				}
 			} finally {
@@ -556,17 +625,13 @@ export default function AddFinanceScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [selectedBankId]);
+	}, [selectedBankId, showScreenAlert]);
 
 	// Função responsável por salvar o investimento simples no Firebase.
 	const handleSaveInvestment = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 			return;
 		}
 
@@ -574,55 +639,39 @@ export default function AddFinanceScreen() {
 			return;
 		}
 
+		if (isLoadingBankBalance) {
+			showScreenAlert('Aguarde o saldo do banco terminar de carregar.', 'warn');
+			return;
+		}
+
 		const parsedInitial = typeof initialValueInCents === 'number' ? initialValueInCents / 100 : NaN;
-		const parsedCdi = parseStringToNumber(cdiInput);
 		const initialInCents = typeof initialValueInCents === 'number' ? initialValueInCents : Math.round(parsedInitial * 100);
 
 		if (!Number.isFinite(parsedInitial) || parsedInitial <= 0 || !Number.isFinite(initialInCents) || initialInCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor inicial válido.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor inicial válido.', 'warn');
 			return;
 		}
 
 		if (typeof currentBankBalanceInCents === 'number') {
 			if (currentBankBalanceInCents < 0) {
-				showFloatingAlert({
-					message: 'O saldo do banco está negativo. Regularize antes de investir.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('O saldo do banco está negativo. Regularize antes de investir.', 'warn');
 				return;
 			}
 
 			if (initialInCents > currentBankBalanceInCents) {
-				showFloatingAlert({
-					message: 'Saldo insuficiente para registrar este investimento.',
-					action: 'warning',
-					position: 'bottom',
-				});
+				showScreenAlert('Saldo insuficiente para registrar este investimento.', 'warn');
 				return;
 			}
 		}
 
 		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
-			showFloatingAlert({
-				message: 'Informe um CDI válido.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um CDI válido.', 'warn');
 			return;
 		}
 
-		const parsedDate = parseDateFromBR(investmentDate);
+		const parsedDate = parsedInvestmentDate;
 		if (!parsedDate) {
-			showFloatingAlert({
-				message: 'Informe uma data válida (DD/MM/AAAA).',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe uma data válida (DD/MM/AAAA).', 'warn');
 			return;
 		}
 
@@ -650,45 +699,45 @@ export default function AddFinanceScreen() {
 			}
 
 			setHasSavedOnce(true);
-			showFloatingAlert({
-				message: 'Investimento salvo com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Investimento salvo com sucesso!', 'success');
 			resetForm();
 
 			// Após salvar conduzimos o usuário para a lista, deixando claro que tudo está separado do restante do app.
 			router.push('/financial-list');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível salvar o investimento agora. Tente novamente.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível salvar o investimento agora. Tente novamente.', 'error');
 		} finally {
 			setIsSaving(false);
 		}
 	}, [
 		isFormValid,
 		isSaving,
-		initialValueInput,
-		cdiInput,
 		investmentName,
 		selectedRedemptionTerm,
 		resetForm,
-		investmentDate,
 		bankOptions,
 		selectedBankId,
+		initialValueInCents,
+		currentBankBalanceInCents,
+		isLoadingBankBalance,
+		parsedCdi,
+		parsedInvestmentDate,
+		showScreenAlert,
 	]);
 	const selectedBankLabel = selectedBankId ? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? '' : '';
-	const isInitialLoading = isLoadingBanks && bankOptions.length === 0;
+	const bankBalanceDisplayValue = !selectedBankId
+		? 'Selecione um banco para visualizar o saldo'
+		: isLoadingBankBalance
+			? 'Carregando saldo atual do banco...'
+			: typeof currentBankBalanceInCents === 'number'
+				? formatCurrencyBRL(currentBankBalanceInCents)
+				: 'Saldo indisponível';
 
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<FloatingAlertViewport />
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 					className="flex-1 w-full"
@@ -721,66 +770,45 @@ export default function AddFinanceScreen() {
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
 						>
-							<VStack className="justify-between mt-4">
-								<Box className={`${topSummaryCardClassName} px-5 py-5`}>
-									<VStack className="gap-3">
-										<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
-											Investimento separado da conta
-										</Text>
-										<Heading size="md">Registre um ativo e acompanhe depois na lista dedicada</Heading>
-										<Text className={`${bodyText} text-sm`}>
-											Defina o valor inicial, CDI, prazo e banco vinculado. O registro continua isolado da lista comum, mas segue o mesmo padrão visual do sistema.
-										</Text>
+							<VStack className="justify-between">
+								<VStack className="mt-4 gap-4">
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Nome do investimento</Text>
+										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
+											<InputField
+												ref={investmentNameInputRef}
+												value={investmentName}
+												onChangeText={text => {
+													setInvestmentName(text);
+													setHasSavedOnce(false);
+												}}
+												placeholder="Ex: CDB Banco X"
+												autoCapitalize="sentences"
+												returnKeyType="next"
+												className={inputField}
+												onFocus={() => handleInputFocus('investment-name')}
+												onSubmitEditing={() => initialValueInputRef.current?.focus?.()}
+											/>
+										</Input>
 									</VStack>
-								</Box>
 
-								{isInitialLoading ? (
-									<AddFinanceFormSkeleton
-										bodyText={bodyText}
-										tintedCardClassName={tintedCardClassName}
-										fieldContainerClassName={fieldContainerClassName}
-										compactCardClassName={compactCardClassName}
-										skeletonBaseColor={skeletonBaseColor}
-										skeletonHighlightColor={skeletonHighlightColor}
-										skeletonMutedBaseColor={skeletonMutedBaseColor}
-										skeletonMutedHighlightColor={skeletonMutedHighlightColor}
-									/>
-								) : (
-									<VStack className="mt-4 gap-4">
-										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Nome do investimento</Text>
-											<Input className={fieldContainerClassName}>
-												<InputField
-													ref={investmentNameInputRef}
-													value={investmentName}
-													onChangeText={text => {
-														setInvestmentName(text);
-														setHasSavedOnce(false);
-													}}
-													placeholder="Ex: CDB Banco X"
-													autoCapitalize="sentences"
-													returnKeyType="next"
-													className={inputField}
-													onFocus={() => handleInputFocus('investment-name')}
-												/>
-											</Input>
-										</VStack>
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial investido</Text>
+										<Input className={fieldContainerClassName} isDisabled={isInitialValueDisabled}>
+											<InputField
+												ref={initialValueInputRef}
+												value={initialValueInput}
+												onChangeText={handleInitialValueChange}
+												placeholder="Ex: R$ 1.500,00"
+												keyboardType="numeric"
+												className={inputField}
+												onFocus={() => handleInputFocus('initial-value')}
+												returnKeyType="done"
+											/>
+										</Input>
+									</VStack>
 
-										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial investido</Text>
-											<Input className={fieldContainerClassName}>
-												<InputField
-													ref={initialValueInputRef}
-													value={initialValueInput}
-													onChangeText={handleInitialValueChange}
-													placeholder="Ex: R$ 1.500,00"
-													keyboardType="numeric"
-													className={inputField}
-													onFocus={() => handleInputFocus('initial-value')}
-												/>
-											</Input>
-										</VStack>
-
+									<VStack className="gap-2">
 										<DatePickerField
 											label="Dia do investimento"
 											labelClassName={`${bodyText} ml-1 text-sm`}
@@ -788,154 +816,136 @@ export default function AddFinanceScreen() {
 											onChange={formatted => handleDateSelect(formatted)}
 											triggerClassName={fieldContainerClassName}
 											inputClassName={inputField}
+											isDisabled={isInvestmentDateDisabled}
 										/>
+									</VStack>
 
-										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
-											<Input className={fieldContainerClassName}>
-												<InputField
-													ref={cdiInputRef}
-													value={cdiInput}
-													onChangeText={text => {
-														setCdiInput(sanitizeNumberInput(text));
-														setHasSavedOnce(false);
-													}}
-													placeholder="Ex: 110"
-													keyboardType="decimal-pad"
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
+										<Input className={fieldContainerClassName} isDisabled={isCdiDisabled}>
+											<InputField
+												ref={cdiInputRef}
+												value={cdiInput}
+												onChangeText={text => {
+													setCdiInput(sanitizeNumberInput(text));
+													setHasSavedOnce(false);
+												}}
+												placeholder="Ex: 110"
+												keyboardType="decimal-pad"
+												className={inputField}
+												onFocus={() => handleInputFocus('cdi')}
+												returnKeyType="done"
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Prazo para resgate</Text>
+										<Select
+											selectedValue={selectedRedemptionTerm}
+											onValueChange={value => {
+												setSelectedRedemptionTerm(value as RedemptionTerm);
+												setHasSavedOnce(false);
+											}}
+											isDisabled={isRedemptionTermDisabled}
+										>
+											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+												<SelectInput
+													placeholder="Escolha uma opção"
+													value={redemptionTermLabels[selectedRedemptionTerm]}
 													className={inputField}
-													onFocus={() => handleInputFocus('cdi')}
 												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{redemptionOptions.map(option => (
+														<SelectItem key={option.value} label={option.label} value={option.value} />
+													))}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="gap-2">
+										<Text className={`${bodyText} ml-1 text-sm`}>Banco vinculado</Text>
+										<Select
+											selectedValue={selectedBankId ?? undefined}
+											onValueChange={value => {
+												setSelectedBankId(value);
+												setHasSavedOnce(false);
+											}}
+											isDisabled={isBankSelectionDisabled}
+										>
+											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+												<SelectInput
+													placeholder={isLoadingBanks ? 'Carregando bancos disponíveis...' : 'Selecione o banco do investimento'}
+													value={selectedBankLabel}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{bankOptions.length > 0 ? (
+														bankOptions.map(bank => <SelectItem key={bank.id} label={bank.name} value={bank.id} />)
+													) : (
+														<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<Box className={`${notTintedCardClassName} px-4 py-4`}>
+										<VStack className="gap-2">
+											<Text className={`${bodyText} ml-1 text-sm`}>Saldo disponível do banco</Text>
+											<Input className={fieldContainerClassName} isDisabled>
+												<InputField value={bankBalanceDisplayValue} className={inputField} />
 											</Input>
 										</VStack>
+									</Box>
 
-										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Prazo para resgate</Text>
-											<Select
-												selectedValue={selectedRedemptionTerm}
-												onValueChange={value => {
-													setSelectedRedemptionTerm(value as RedemptionTerm);
-													setHasSavedOnce(false);
-												}}
-											>
-												<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-													<SelectInput
-														placeholder="Escolha uma opção"
-														value={redemptionTermLabels[selectedRedemptionTerm]}
-														className={inputField}
-													/>
-													<SelectIcon />
-												</SelectTrigger>
-												<SelectPortal>
-													<SelectBackdrop />
-													<SelectContent>
-														<SelectDragIndicatorWrapper>
-															<SelectDragIndicator />
-														</SelectDragIndicatorWrapper>
-														{redemptionOptions.map(option => (
-															<SelectItem key={option.value} label={option.label} value={option.value} />
-														))}
-													</SelectContent>
-												</SelectPortal>
-											</Select>
-										</VStack>
+									<Button className={submitButtonClassName} onPress={handleSaveInvestment} isDisabled={!isFormValid || isSaving}>
+										{isSaving ? (
+											<>
+												<ButtonSpinner />
+												<ButtonText>Salvando</ButtonText>
+											</>
+										) : (
+											<ButtonText>Salvar investimento</ButtonText>
+										)}
+									</Button>
 
-										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Banco vinculado</Text>
-											<Select
-												selectedValue={selectedBankId ?? undefined}
-												onValueChange={value => {
-													setSelectedBankId(value);
-													setHasSavedOnce(false);
-												}}
-												isDisabled={isLoadingBanks || bankOptions.length === 0}
-											>
-												<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-													<SelectInput
-														placeholder="Selecione o banco do investimento"
-														value={selectedBankLabel}
-														className={inputField}
-													/>
-													<SelectIcon />
-												</SelectTrigger>
-												<SelectPortal>
-													<SelectBackdrop />
-													<SelectContent>
-														<SelectDragIndicatorWrapper>
-															<SelectDragIndicator />
-														</SelectDragIndicatorWrapper>
-														{bankOptions.length > 0 ? (
-															bankOptions.map(bank => <SelectItem key={bank.id} label={bank.name} value={bank.id} />)
-														) : (
-															<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
-														)}
-													</SelectContent>
-												</SelectPortal>
-											</Select>
-										</VStack>
-
-										<Box className={`${tintedCardClassName} px-4 py-4`}>
-											<VStack className="gap-3">
-												<VStack className="gap-1">
-													<Text className="font-semibold">Saldo disponível do banco</Text>
-													<Text className={`${helperText} text-sm`}>
-														Validamos esse valor antes do cadastro para evitar lançar um investimento acima do saldo atual.
-													</Text>
-												</VStack>
-
-												{selectedBankId && isLoadingBankBalance ? (
-													<Skeleton
-														className="h-10 rounded-2xl"
-														baseColor={skeletonBaseColor}
-														highlightColor={skeletonHighlightColor}
-													/>
-												) : (
-													<Input className={fieldContainerClassName} isDisabled>
-														<InputField
-															value={
-																!selectedBankId
-																	? 'Selecione um banco para visualizar o saldo'
-																	: typeof currentBankBalanceInCents === 'number'
-																		? formatCurrencyBRL(currentBankBalanceInCents)
-																		: 'Saldo indisponível'
-															}
-															className={inputField}
-														/>
-													</Input>
-												)}
-											</VStack>
+									{hasSavedOnce ? (
+										<Box className={`${compactCardClassName} px-4 py-4`}>
+											<HStack className="items-center justify-between gap-3">
+												<Text className="flex-1 text-sm text-emerald-600 dark:text-emerald-400">
+													Pronto. O investimento já está disponível na lista dedicada.
+												</Text>
+												<Button variant="link" action="primary" onPress={() => router.push('/financial-list')}>
+													<ButtonText>Ver lista</ButtonText>
+												</Button>
+											</HStack>
 										</Box>
-
-										<Button className={submitButtonClassName} onPress={handleSaveInvestment} isDisabled={!isFormValid || isSaving}>
-											{isSaving ? (
-												<>
-													<ButtonSpinner />
-													<ButtonText>Salvando</ButtonText>
-												</>
-											) : (
-												<ButtonText>Salvar investimento</ButtonText>
-											)}
-										</Button>
-
-										{hasSavedOnce ? (
-											<Box className={`${compactCardClassName} px-4 py-4`}>
-												<HStack className="items-center justify-between gap-3">
-													<Text className="flex-1 text-sm text-emerald-600 dark:text-emerald-400">
-														Pronto. O investimento já está disponível na lista dedicada.
-													</Text>
-													<Button variant="link" action="primary" onPress={() => router.push('/financial-list')}>
-														<ButtonText>Ver lista</ButtonText>
-													</Button>
-												</HStack>
-											</Box>
-										) : null}
-									</VStack>
-								)}
+									) : null}
+								</VStack>
 							</VStack>
 						</ScrollView>
 					</View>
 				</KeyboardAvoidingView>
 
-				<Menu defaultValue={1} />
+				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+					<Navigator defaultValue={1} />
+				</View>
 			</View>
 		</SafeAreaView>
 	);
