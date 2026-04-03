@@ -28,14 +28,12 @@ import {
 	PopoverContent,
 } from '@/components/ui/popover';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
 
@@ -79,6 +77,17 @@ export default function AddUserRelationScreen() {
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
+	const showScreenAlert = React.useCallback(
+		(description: string, type: NotifierAlertType = 'error') => {
+			showNotifierAlert({
+				description,
+				type,
+				isDarkMode,
+			});
+		},
+		[isDarkMode],
+	);
+
 	const handleLinkUsers = React.useCallback(async () => {
 
 		Keyboard.dismiss();
@@ -86,12 +95,7 @@ export default function AddUserRelationScreen() {
 		const trimmedId = relatedUserId.trim();
 
 		if (!trimmedId) {
-			showFloatingAlert({
-				message: 'Informe o ID do usuário que deseja relacionar.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Informe o ID do usuário que deseja relacionar.', 'error');
 			return;
 		}
 
@@ -99,24 +103,14 @@ export default function AddUserRelationScreen() {
 		const currentUser = auth.currentUser;
 
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Nenhum usuário autenticado foi identificado.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 			return;
 		}
 
 		const currentUserId = currentUser.uid;
 
 		if (trimmedId === currentUserId) {
-			showFloatingAlert({
-				message: 'Você não pode vincular sua própria conta.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Você não pode vincular sua própria conta.', 'error');
 			return;
 		}
 
@@ -126,12 +120,7 @@ export default function AddUserRelationScreen() {
 
 		if (!userExists) {
 
-			showFloatingAlert({
-				message: 'Usuário não encontrado.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Usuário não encontrado.', 'error');
 
 			return;
 		}
@@ -141,12 +130,7 @@ export default function AddUserRelationScreen() {
 			Array.isArray(relatedUserData?.relatedIdUsers) && relatedUserData.relatedIdUsers.includes(currentUserId);
 
 		if (alreadyLinked) {
-			showFloatingAlert({
-				message: 'Esse usuário já está vinculado à sua conta.',
-				action: 'info',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Esse usuário já está vinculado à sua conta.', 'info');
 			return;
 		}
 
@@ -173,12 +157,7 @@ export default function AddUserRelationScreen() {
 
 			} else {
 
-				showFloatingAlert({
-					message: 'Erro ao atualizar relação. Tente novamente mais tarde.',
-					action: 'error',
-					position: 'bottom',
-					offset: 40,
-				});
+				showScreenAlert('Erro ao atualizar relação. Tente novamente mais tarde.', 'error');
 
 			}
 
@@ -186,18 +165,13 @@ export default function AddUserRelationScreen() {
 
 			console.error('Erro ao atualizar relação de usuário:', error);
 
-			showFloatingAlert({
-				message: 'Erro inesperado ao atualizar relação.',
-				action: 'error',
-				position: 'bottom',
-				offset: 40,
-			});
+			showScreenAlert('Erro inesperado ao atualizar relação.', 'error');
 
 		} finally {
 
 			setIsSubmitting(false);
 		}
-	}, [relatedUserId, isDarkMode]);
+	}, [relatedUserId, isDarkMode, showScreenAlert]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -287,8 +261,6 @@ export default function AddUserRelationScreen() {
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 		<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-			<FloatingAlertViewport />
-
 			<KeyboardAvoidingView
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

@@ -1081,9 +1081,6 @@ export default function AddMandatoryExpensesScreen() {
 												onFocus={() => handleInputFocus('due-day')}
 											/>
 										</Input>
-										<Text className={`${helperText} ml-1 text-sm`}>
-											{dueDayHelperMessage}
-										</Text>
 										{dueDay.length > 0 && !isDueDayValid ? (
 											<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
 												{dueDayErrorMessage}
@@ -1171,14 +1168,11 @@ export default function AddMandatoryExpensesScreen() {
 										</Select>
 									</VStack>
 
-									<Box className={`${compactCardClassName} px-4 py-4 rounded-2xl border ${notTintedCardClassName}`}>
+									<Box className={`${compactCardClassName} px-4 rounded-2xl border ${notTintedCardClassName}`}>
 										<VStack className="gap-3">
 											<HStack className="items-center justify-between gap-4">
 												<VStack className="flex-1 gap-1">
 													<Text className="font-semibold">Lembrete do vencimento</Text>
-													<Text className={`${helperText} text-sm`}>
-														{reminderHelperMessage}
-													</Text>
 												</VStack>
 												<Switch
 													value={reminderEnabled}

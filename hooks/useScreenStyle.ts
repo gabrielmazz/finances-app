@@ -65,14 +65,15 @@ export function useScreenStyles() {
 		: 'rounded-[28px] border border-slate-200 bg-white';
 
 	const submitButtonClassName = isDarkMode
-		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl'
-		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
-
-	const accordionSectionButtonClassName = `${submitButtonClassName} w-full justify-center`;
+		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl border border-transparent'
+		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl border border-transparent';
 
 	const submitButtonCancelClassName = isDarkMode
 		? 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-2xl border border-slate-700'
 		: 'bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-2xl border border-slate-300';
+		
+	const accordionSectionButtonClassName = `${submitButtonClassName} w-full justify-center`;
+
 
 	const submitButtonTextClassName = isDarkMode ? 'text-slate-900' : 'text-white';
 

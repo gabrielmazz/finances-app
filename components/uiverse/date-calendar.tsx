@@ -455,7 +455,7 @@ function DateCalendar({
 
 	return (
 		<>
-			<Box className={`${compactCardClassName} overflow-hidden px-2 py-2`}>
+			<Box className={`${compactCardClassName} overflow-hidden px-2`}>
 				<HStack className="justify-between items-start gap-3 mb-4">
 					<VStack className="flex-1">
 						<Heading

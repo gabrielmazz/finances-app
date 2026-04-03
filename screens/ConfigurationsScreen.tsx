@@ -19,7 +19,7 @@ import { Button, ButtonText, ButtonSpinner, ButtonIcon } from '@/components/ui/b
 import { AddIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EditIcon, TrashIcon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
 	Modal,
 	ModalBackdrop,
@@ -242,6 +242,9 @@ function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTabl
 function ConfigurationsSkeleton({
 	topSummaryCardClassName,
 	compactCardClassName,
+	notTintedCardClassName,
+	fieldContainerClassName,
+	addTagButtonClassName,
 	skeletonBaseColor,
 	skeletonHighlightColor,
 	skeletonMutedBaseColor,
@@ -249,40 +252,365 @@ function ConfigurationsSkeleton({
 }: {
 	topSummaryCardClassName: string;
 	compactCardClassName: string;
+	notTintedCardClassName: string;
+	fieldContainerClassName: string;
+	addTagButtonClassName: string;
 	skeletonBaseColor: string;
 	skeletonHighlightColor: string;
 	skeletonMutedBaseColor: string;
 	skeletonMutedHighlightColor: string;
 }) {
-	return (
-		<VStack className="mt-4 gap-4">
-			<Box className={`${topSummaryCardClassName} px-5 py-5`}>
-				<VStack className="gap-4">
-					<Skeleton className="h-3 w-28" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<Skeleton className="h-8 w-56" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<SkeletonText _lines={2} className="h-3" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-					<HStack className="gap-3">
-						<Skeleton className="h-20 flex-1 rounded-2xl" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
-						<Skeleton className="h-20 flex-1 rounded-2xl" baseColor={skeletonMutedBaseColor} highlightColor={skeletonMutedHighlightColor} />
+	const renderTableRow = ({
+		key,
+		actionCount,
+		showColorIndicator = false,
+		showTagIcon = false,
+		showMetaLine = false,
+	}: {
+		key: string;
+		actionCount: number;
+		showColorIndicator?: boolean;
+		showTagIcon?: boolean;
+		showMetaLine?: boolean;
+	}) => (
+		<HStack key={key} className="items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+			<HStack className="min-w-0 flex-1 items-center gap-3">
+				{showColorIndicator ? (
+					<Skeleton
+						className="h-3 w-3 rounded-full"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				) : null}
+				{showTagIcon ? (
+					<Skeleton
+						className="h-11 w-11 rounded-2xl"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				) : null}
+				<VStack className="min-w-0 flex-1 gap-2">
+					<Skeleton
+						className="h-4 w-40 max-w-full"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+					{showMetaLine ? (
+						<Skeleton
+							className="h-3 w-32 max-w-full"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+					) : null}
+					<Skeleton
+						className="h-3 w-28 max-w-full"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				</VStack>
+			</HStack>
+			<HStack className="items-center gap-2">
+				{Array.from({ length: actionCount }).map((_, index) => (
+					<Skeleton
+						key={`${key}-action-${index}`}
+						className="h-10 w-10 rounded-2xl"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				))}
+			</HStack>
+		</HStack>
+	);
+
+	const renderTableSection = ({
+		titleWidthClassName,
+		actionHeaderWidthClassName,
+		actionCount,
+		showColorIndicator = false,
+		showTagIcon = false,
+		showMetaLine = false,
+		showFilter = false,
+	}: {
+		titleWidthClassName: string;
+		actionHeaderWidthClassName: string;
+		actionCount: number;
+		showColorIndicator?: boolean;
+		showTagIcon?: boolean;
+		showMetaLine?: boolean;
+		showFilter?: boolean;
+	}) => (
+		<VStack className="gap-3">
+			<Skeleton
+				className="h-10 rounded-2xl"
+				baseColor={skeletonBaseColor}
+				highlightColor={skeletonHighlightColor}
+			/>
+
+			{showFilter ? (
+				<Box className={`${notTintedCardClassName} px-4 py-4`}>
+					<VStack className="gap-2">
+						<Skeleton
+							className="h-4 w-36"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						<Skeleton
+							className={`${fieldContainerClassName} w-full`}
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+					</VStack>
+				</Box>
+			) : null}
+
+			<Box className={`${notTintedCardClassName} overflow-hidden`}>
+				<HStack className="items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+					<Skeleton
+						className={`h-4 ${titleWidthClassName}`}
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+					<Skeleton
+						className={`h-4 ${actionHeaderWidthClassName}`}
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+				</HStack>
+				{renderTableRow({
+					key: `${titleWidthClassName}-row-1`,
+					actionCount,
+					showColorIndicator,
+					showTagIcon,
+					showMetaLine,
+				})}
+				{renderTableRow({
+					key: `${titleWidthClassName}-row-2`,
+					actionCount,
+					showColorIndicator,
+					showTagIcon,
+					showMetaLine,
+				})}
+				<VStack className="gap-3 px-4 py-4">
+					<Skeleton
+						className="h-3 w-44"
+						baseColor={skeletonBaseColor}
+						highlightColor={skeletonHighlightColor}
+					/>
+					<HStack className="justify-center gap-2">
+						<Skeleton
+							className="h-8 w-8 rounded-2xl"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						<Skeleton
+							className="h-8 w-8 rounded-2xl"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						<Skeleton
+							className="h-8 w-8 rounded-2xl"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
 					</HStack>
 				</VStack>
 			</Box>
+		</VStack>
+	);
 
-			{Array.from({ length: 4 }).map((_, index) => (
-				<Box key={`configurations-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
-					<VStack className="gap-3">
-						<HStack className="items-center justify-between gap-3">
-							<VStack className="flex-1 gap-2">
-								<Skeleton className="h-5 w-52" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-								<Skeleton className="h-3 w-32" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+	const renderAccordionHeader = (titleWidthClassName: string) => (
+		<HStack className="items-center justify-between gap-3 py-2">
+			<Skeleton
+				className={`h-5 ${titleWidthClassName} max-w-[85%]`}
+				baseColor={skeletonBaseColor}
+				highlightColor={skeletonHighlightColor}
+			/>
+			<Skeleton
+				className="h-5 w-5 rounded-full"
+				baseColor={skeletonBaseColor}
+				highlightColor={skeletonHighlightColor}
+			/>
+		</HStack>
+	);
+
+	return (
+		<VStack className="mt-4 gap-5">
+			<VStack className="gap-4">
+				<Skeleton
+					className="h-5 w-44"
+					baseColor={skeletonMutedBaseColor}
+					highlightColor={skeletonMutedHighlightColor}
+				/>
+
+				<HStack className="gap-3">
+					{Array.from({ length: 2 }).map((_, index) => (
+						<Box
+							key={`configurations-summary-skeleton-${index}`}
+							className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+						>
+							<VStack className="gap-3">
+								<Skeleton
+									className="h-3 w-20"
+									baseColor={skeletonMutedBaseColor}
+									highlightColor={skeletonMutedHighlightColor}
+								/>
+								<Skeleton
+									className="h-6 w-24"
+									baseColor={skeletonMutedBaseColor}
+									highlightColor={skeletonMutedHighlightColor}
+								/>
 							</VStack>
-							<Skeleton className="h-5 w-5 rounded-full" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						</HStack>
-						<SkeletonText _lines={2} className="h-3" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						<Skeleton className="h-10 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
+						</Box>
+					))}
+				</HStack>
+
+				<VStack className="gap-3">
+					<VStack className="gap-2">
+						<Skeleton
+							className="h-3 w-24"
+							baseColor={skeletonMutedBaseColor}
+							highlightColor={skeletonMutedHighlightColor}
+						/>
+						<Skeleton
+							className={`${fieldContainerClassName} w-full`}
+							baseColor={skeletonMutedBaseColor}
+							highlightColor={skeletonMutedHighlightColor}
+						/>
 					</VStack>
-				</Box>
-			))}
+
+					<HStack className="items-end gap-3">
+						<VStack className="flex-1 gap-2">
+							<Skeleton
+								className="h-3 w-24"
+								baseColor={skeletonMutedBaseColor}
+								highlightColor={skeletonMutedHighlightColor}
+							/>
+							<Skeleton
+								className={`${fieldContainerClassName} w-full`}
+								baseColor={skeletonMutedBaseColor}
+								highlightColor={skeletonMutedHighlightColor}
+							/>
+						</VStack>
+						<Skeleton
+							className={addTagButtonClassName}
+							baseColor={skeletonMutedBaseColor}
+							highlightColor={skeletonMutedHighlightColor}
+						/>
+					</HStack>
+				</VStack>
+			</VStack>
+
+			<VStack className="gap-4">
+				<Skeleton
+					className="h-5 w-56"
+					baseColor={skeletonMutedBaseColor}
+					highlightColor={skeletonMutedHighlightColor}
+				/>
+
+				<VStack className="gap-4">
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[78%]')}
+							{renderTableSection({
+								titleWidthClassName: 'w-20',
+								actionHeaderWidthClassName: 'w-12',
+								actionCount: 1,
+							})}
+						</VStack>
+					</Box>
+
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[74%]')}
+							{renderTableSection({
+								titleWidthClassName: 'w-16',
+								actionHeaderWidthClassName: 'w-16',
+								actionCount: 2,
+								showColorIndicator: true,
+							})}
+						</VStack>
+					</Box>
+
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[70%]')}
+							{renderTableSection({
+								titleWidthClassName: 'w-12',
+								actionHeaderWidthClassName: 'w-16',
+								actionCount: 2,
+								showTagIcon: true,
+								showMetaLine: true,
+								showFilter: true,
+							})}
+						</VStack>
+					</Box>
+
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[76%]')}
+							{renderTableSection({
+								titleWidthClassName: 'w-28',
+								actionHeaderWidthClassName: 'w-12',
+								actionCount: 1,
+							})}
+						</VStack>
+					</Box>
+
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[58%]')}
+							<Box className={`${notTintedCardClassName} px-4 py-4`}>
+								<HStack className="items-center justify-between gap-4">
+									<HStack className="min-w-0 flex-1 items-center gap-2">
+										<Skeleton
+											className="h-4 w-28"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+										<Skeleton
+											className="h-4 w-4 rounded-full"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+									</HStack>
+									<Skeleton
+										className="h-7 w-12 rounded-full"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								</HStack>
+							</Box>
+						</VStack>
+					</Box>
+
+					<Box className={`${compactCardClassName} px-0 py-1`}>
+						<VStack className="gap-3">
+							{renderAccordionHeader('w-[48%]')}
+							<Box className={`${notTintedCardClassName} px-4 py-4`}>
+								<HStack className="items-center justify-between gap-4">
+									<HStack className="min-w-0 flex-1 items-center gap-2">
+										<Skeleton
+											className="h-4 w-24"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+										<Skeleton
+											className="h-4 w-4 rounded-full"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+									</HStack>
+									<Skeleton
+										className="h-7 w-12 rounded-full"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								</HStack>
+							</Box>
+						</VStack>
+					</Box>
+				</VStack>
+			</VStack>
 		</VStack>
 	);
 }
@@ -1423,6 +1751,9 @@ export default function ConfigurationsScreen() {
 							<ConfigurationsSkeleton
 								topSummaryCardClassName={topSummaryCardClassName}
 								compactCardClassName={compactCardClassName}
+								notTintedCardClassName={notTintedCardClassName}
+								fieldContainerClassName={fieldContainerClassName}
+								addTagButtonClassName={addTagButtonClassName}
 								skeletonBaseColor={skeletonBaseColor}
 								skeletonHighlightColor={skeletonHighlightColor}
 								skeletonMutedBaseColor={skeletonMutedBaseColor}

@@ -35,7 +35,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import Navigator from '@/components/uiverse/navigator';
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 
 import {
 	addCashRescueFirebase,
@@ -47,9 +47,7 @@ import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
-import { useAppTheme } from '@/contexts/ThemeContext';
 import DatePickerField from '@/components/uiverse/date-picker';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
@@ -152,15 +150,14 @@ export default function AddRescueScreen() {
 	);
 
 	const showScreenAlert = React.useCallback(
-		(message: string, action: 'success' | 'error' | 'warning' | 'info' | 'muted' = 'error') => {
-			showFloatingAlert({
-				message,
-				action,
-				position: 'bottom',
-				offset: 40,
+		(description: string, type: NotifierAlertType = 'error') => {
+			showNotifierAlert({
+				description,
+				type,
+				isDarkMode,
 			});
 		},
-		[],
+		[isDarkMode],
 	);
 
 	const showUnavailableBalanceNotification = React.useCallback(() => {
@@ -539,7 +536,7 @@ export default function AddRescueScreen() {
 		} else {
 			showScreenAlert(
 				'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
-				'warning',
+				'warn',
 			);
 			return;
 		}
@@ -615,8 +612,6 @@ export default function AddRescueScreen() {
 			/>
 
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<FloatingAlertViewport />
-
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

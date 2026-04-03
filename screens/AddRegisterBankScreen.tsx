@@ -32,10 +32,8 @@ import {
     SelectTrigger,
 } from '@/components/ui/select';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
-import { useAppTheme } from '@/contexts/ThemeContext';
 
 import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -384,8 +382,6 @@ export default function AddRegisterBankScreen() {
                 barStyle={isDarkMode ? 'light-content' : 'dark-content'}
             />
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<FloatingAlertViewport />
-
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}

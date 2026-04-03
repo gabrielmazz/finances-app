@@ -1,5 +1,6 @@
 import React from 'react';
-import { ScrollView, View, StatusBar } from 'react-native';
+import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -10,8 +11,23 @@ import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { AddIcon, EditIcon, TrashIcon, ArrowDownIcon } from '@/components/ui/icon';
+import {
+	Button,
+	ButtonIcon,
+	ButtonSpinner,
+	ButtonText,
+} from '@/components/ui/button';
+import {
+	AddIcon,
+	ArrowDownIcon,
+	CalendarDaysIcon,
+	ChevronDownIcon,
+	ChevronUpIcon,
+	EditIcon,
+	Icon,
+	RepeatIcon,
+	TrashIcon,
+} from '@/components/ui/icon';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import {
 	Select,
@@ -36,9 +52,12 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
-import { Menu } from '@/components/uiverse/menu';
-import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
+import Navigator from '@/components/uiverse/navigator';
+import {
+	useValueVisibility,
+	HIDDEN_VALUE_PLACEHOLDER,
+} from '@/contexts/ValueVisibilityContext';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialListIllustration from '../assets/UnDraw/financialListScreen.svg';
@@ -78,7 +97,27 @@ type BankMetadata = {
 	colorHex?: string | null;
 };
 
+type StandardizedFinancialInputProps = {
+	label: string;
+	isDisabled?: boolean;
+} & Omit<React.ComponentProps<typeof InputField>, 'className'>;
+
+type InvestmentTimelineTone = {
+	accentColor: string;
+	amountColor: string;
+	lineColor: string;
+	iconGradient: [string, string];
+	cardGradient: [string, string];
+};
+
 const INVESTMENT_TAG_LABEL = 'Investimento';
+const INVESTMENT_TIMELINE_TONE: InvestmentTimelineTone = {
+	accentColor: '#EC4899',
+	amountColor: '#60A5FA',
+	lineColor: 'rgba(96, 165, 250, 0.32)',
+	iconGradient: ['#DB2777', '#60A5FA'],
+	cardGradient: ['#BE185D', '#3B82F6'],
+};
 
 const formatCurrencyBRLRaw = (value: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -153,7 +192,10 @@ const normalizeDate = (value: unknown) => {
 		'toDate' in value &&
 		typeof (value as { toDate?: () => Date }).toDate === 'function'
 	) {
-		return (value as { toDate?: () => Date }).toDate?.()?.toISOString() ?? new Date().toISOString();
+		return (
+			(value as { toDate?: () => Date }).toDate?.()?.toISOString() ??
+			new Date().toISOString()
+		);
 	}
 	if (typeof value === 'string') {
 		return value;
@@ -207,6 +249,47 @@ const simulateDailyYield = (investment: FinanceInvestment) => {
 	return dailyRate > 0 ? baseValue * dailyRate : 0;
 };
 
+const getInvestmentBadgeLabel = (value: string) => {
+	const normalizedValue = value.trim();
+	if (!normalizedValue) {
+		return 'R$';
+	}
+
+	const firstMatch = normalizedValue.match(/[A-Za-zÀ-ÿ0-9]/u)?.[0];
+	return (firstMatch ?? 'R').toUpperCase();
+};
+
+const getInvestmentManualSyncLabel = (
+	investment: FinanceInvestment,
+	formatCurrencyBRL: (value: number) => string,
+) => {
+	if (
+		typeof investment.lastManualSyncValueInCents !== 'number' ||
+		!investment.lastManualSyncAtISO
+	) {
+		return 'Nunca sincronizado';
+	}
+
+	return `${formatCurrencyBRL(convertCentsToBRL(investment.lastManualSyncValueInCents))} em ${formatDateToBR(investment.lastManualSyncAtISO)}`;
+};
+
+// A timeline mantém o acompanhamento por saldo base, projeção e sincronização manual conforme o fluxo descrito em [[Investimentos]].
+const getInvestmentSummaryText = (
+	investment: FinanceInvestment,
+	formatCurrencyBRL: (value: number) => string,
+) => {
+	const simulatedValue = formatCurrencyBRL(simulateCurrentValue(investment));
+
+	if (
+		typeof investment.lastManualSyncValueInCents === 'number' &&
+		investment.lastManualSyncAtISO
+	) {
+		return `Última sincronização manual em ${formatDateToBR(investment.lastManualSyncAtISO)}. O acompanhamento segue com projeção de ${simulatedValue} até a próxima conferência real.`;
+	}
+
+	return `Sem sincronização manual até agora. A carteira usa a projeção de ${simulatedValue} a partir do valor salvo neste investimento.`;
+};
+
 function FinancialListSkeleton({
 	compactCardClassName,
 	skeletonBaseColor,
@@ -217,24 +300,104 @@ function FinancialListSkeleton({
 	skeletonHighlightColor: string;
 }) {
 	return (
-		<VStack className="mt-4 gap-4">
+		<VStack className="mt-4 gap-2">
 			{Array.from({ length: 3 }).map((_, index) => (
-				<Box key={`financial-list-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
-					<VStack className="gap-3">
-						<HStack className="items-start justify-between gap-3">
-							<VStack className="flex-1 gap-2">
-								<Skeleton className="h-5 w-40" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-								<Skeleton className="h-3 w-28" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-							</VStack>
-							<Skeleton className="h-5 w-20" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						</HStack>
-						<SkeletonText _lines={2} className="h-3" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						<HStack className="gap-3">
-							<Skeleton className="h-9 flex-1 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-							<Skeleton className="h-9 flex-1 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						</HStack>
+				<HStack
+					key={`financial-list-skeleton-${index}`}
+					className="items-start gap-3"
+				>
+					<VStack className="items-center pt-2" style={{ width: '7%' }}>
+						<Skeleton
+							variant="circular"
+							style={{ width: 14, height: 14 }}
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						{index < 2 ? (
+							<Skeleton
+								style={{
+									width: 3,
+									height: index === 0 ? 228 : 140,
+									marginTop: 6,
+									borderRadius: 999,
+								}}
+								baseColor={skeletonBaseColor}
+								highlightColor={skeletonHighlightColor}
+							/>
+						) : (
+							<View style={{ marginTop: 6 }} />
+						)}
 					</VStack>
-				</Box>
+
+					<View style={{ width: '93%', paddingBottom: 14 }}>
+						<Box className={`${compactCardClassName} px-4 py-4`}>
+							<VStack className="gap-3">
+								<HStack className="items-start justify-between gap-3">
+									<HStack className="items-center gap-3" style={{ flex: 1 }}>
+										<Skeleton
+											className="h-11 w-11 rounded-2xl"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+										<VStack className="flex-1 gap-2">
+											<Skeleton
+												className="h-5 w-40"
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+											<Skeleton
+												className="h-3 w-28"
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+										</VStack>
+									</HStack>
+									<VStack className="items-end gap-2">
+										<Skeleton
+											className="h-5 w-20"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+										<Skeleton
+											className="h-3 w-20"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+									</VStack>
+								</HStack>
+
+								{index === 0 ? (
+									<Skeleton
+										className="h-[184px] rounded-[20px]"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								) : (
+									<>
+										<SkeletonText
+											_lines={2}
+											className="h-3"
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+										<HStack className="gap-3">
+											<Skeleton
+												className="h-9 flex-1 rounded-2xl"
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+											<Skeleton
+												className="h-9 flex-1 rounded-2xl"
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+										</HStack>
+									</>
+								)}
+							</VStack>
+						</Box>
+					</View>
+				</HStack>
 			))}
 		</VStack>
 	);
@@ -254,45 +417,74 @@ export default function FinancialListScreen() {
 		insets,
 		compactCardClassName,
 		tintedCardClassName,
+		notTintedCardClassName,
 		topSummaryCardClassName,
 		modalContentClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
 		skeletonMutedBaseColor,
 		skeletonMutedHighlightColor,
+		submitButtonCancelClassName,
 	} = useScreenStyles();
 	const [investments, setInvestments] = React.useState<FinanceInvestment[]>([]);
-	const [banksMap, setBanksMap] = React.useState<Record<string, BankMetadata>>({});
+	const [banksMap, setBanksMap] = React.useState<Record<string, BankMetadata>>(
+		{},
+	);
 	const bankOptions = React.useMemo(() => Object.values(banksMap), [banksMap]);
 
 	const [isLoading, setIsLoading] = React.useState(false);
-	const [editingInvestment, setEditingInvestment] = React.useState<FinanceInvestment | null>(null);
+	const [editingInvestment, setEditingInvestment] =
+		React.useState<FinanceInvestment | null>(null);
 	const [editName, setEditName] = React.useState('');
 	const [editInitialInput, setEditInitialInput] = React.useState('');
 	const [editCdiInput, setEditCdiInput] = React.useState('');
 	const [editTerm, setEditTerm] = React.useState<RedemptionTerm>('anytime');
 	const [editBankId, setEditBankId] = React.useState<string | null>(null);
 	const [isSavingEdit, setIsSavingEdit] = React.useState(false);
-	const [investmentPendingDeletion, setInvestmentPendingDeletion] = React.useState<FinanceInvestment | null>(null);
+	const [investmentPendingDeletion, setInvestmentPendingDeletion] =
+		React.useState<FinanceInvestment | null>(null);
 	const [isDeleting, setIsDeleting] = React.useState(false);
-	const [investmentForWithdrawal, setInvestmentForWithdrawal] = React.useState<FinanceInvestment | null>(null);
-	const [investmentForWithdrawalSync, setInvestmentForWithdrawalSync] = React.useState<FinanceInvestment | null>(null);
+	const [investmentForWithdrawal, setInvestmentForWithdrawal] =
+		React.useState<FinanceInvestment | null>(null);
+	const [investmentForWithdrawalSync, setInvestmentForWithdrawalSync] =
+		React.useState<FinanceInvestment | null>(null);
 	const [withdrawSyncInput, setWithdrawSyncInput] = React.useState('');
-	const [isSavingWithdrawalSync, setIsSavingWithdrawalSync] = React.useState(false);
-	const [syncedWithdrawalValueInCents, setSyncedWithdrawalValueInCents] = React.useState<number | null>(null);
+	const [isSavingWithdrawalSync, setIsSavingWithdrawalSync] =
+		React.useState(false);
+	const [syncedWithdrawalValueInCents, setSyncedWithdrawalValueInCents] =
+		React.useState<number | null>(null);
 	const [withdrawInput, setWithdrawInput] = React.useState('');
 	const [isSavingWithdrawal, setIsSavingWithdrawal] = React.useState(false);
-	const [investmentForDeposit, setInvestmentForDeposit] = React.useState<FinanceInvestment | null>(null);
-	const [investmentForDepositSync, setInvestmentForDepositSync] = React.useState<FinanceInvestment | null>(null);
+	const [investmentForDeposit, setInvestmentForDeposit] =
+		React.useState<FinanceInvestment | null>(null);
+	const [investmentForDepositSync, setInvestmentForDepositSync] =
+		React.useState<FinanceInvestment | null>(null);
 	const [depositSyncInput, setDepositSyncInput] = React.useState('');
 	const [isSavingDepositSync, setIsSavingDepositSync] = React.useState(false);
-	const [syncedDepositValueInCents, setSyncedDepositValueInCents] = React.useState<number | null>(null);
+	const [syncedDepositValueInCents, setSyncedDepositValueInCents] =
+		React.useState<number | null>(null);
 	const [depositInput, setDepositInput] = React.useState('');
 	const [isSavingDeposit, setIsSavingDeposit] = React.useState(false);
-	const [investmentForSync, setInvestmentForSync] = React.useState<FinanceInvestment | null>(null);
+	const [investmentForSync, setInvestmentForSync] =
+		React.useState<FinanceInvestment | null>(null);
 	const [syncInput, setSyncInput] = React.useState('');
 	const [isSavingSync, setIsSavingSync] = React.useState(false);
+	const [expandedInvestmentIds, setExpandedInvestmentIds] = React.useState<
+		string[]
+	>([]);
 	const { shouldHideValues } = useValueVisibility();
+
+	// Feedback in-app unificado conforme [[Notificações]].
+	const showScreenAlert = React.useCallback(
+		(description: string, type: NotifierAlertType = 'error') => {
+			showNotifierAlert({
+				description,
+				type,
+				isDarkMode,
+			});
+		},
+		[isDarkMode],
+	);
 
 	const formatCurrencyBRL = React.useCallback(
 		(value: number) => {
@@ -303,6 +495,20 @@ export default function FinancialListScreen() {
 		},
 		[shouldHideValues],
 	);
+	const timelinePalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+		}),
+		[isDarkMode],
+	);
+
+	React.useEffect(() => {
+		const visibleIds = new Set(investments.map((investment) => investment.id));
+		setExpandedInvestmentIds((previousState) =>
+			previousState.filter((id) => visibleIds.has(id)),
+		);
+	}, [investments]);
 
 	const handleEditInitialInputChange = React.useCallback((value: string) => {
 		setEditInitialInput(formatCurrencyInputValue(value).display);
@@ -328,14 +534,35 @@ export default function FinancialListScreen() {
 		setSyncInput(formatCurrencyInputValue(value).display);
 	}, []);
 
+	const renderStandardizedInput = React.useCallback(
+		({
+			label,
+			isDisabled = false,
+			autoCapitalize = 'none',
+			autoCorrect = false,
+			returnKeyType = 'done',
+			...inputProps
+		}: StandardizedFinancialInputProps) => (
+			<VStack className="mb-4">
+				<Text className={`${bodyText} mb-1 ml-1 text-sm`}>{label}</Text>
+				<Input className={fieldContainerClassName} isDisabled={isDisabled}>
+					<InputField
+						{...inputProps}
+						autoCapitalize={autoCapitalize}
+						autoCorrect={autoCorrect}
+						returnKeyType={returnKeyType}
+						className={inputField}
+					/>
+				</Input>
+			</VStack>
+		),
+		[bodyText, fieldContainerClassName, inputField],
+	);
+
 	const loadData = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado. Faça login novamente.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 			return;
 		}
 
@@ -346,14 +573,19 @@ export default function FinancialListScreen() {
 				getBanksWithUsersByPersonFirebase(currentUser.uid),
 			]);
 
-			if (!investmentsResponse.success || !Array.isArray(investmentsResponse.data)) {
+			if (
+				!investmentsResponse.success ||
+				!Array.isArray(investmentsResponse.data)
+			) {
 				throw new Error('Erro ao carregar investimentos.');
 			}
 			if (!banksResponse.success || !Array.isArray(banksResponse.data)) {
 				throw new Error('Erro ao carregar bancos.');
 			}
 
-			const normalizedBanks: BankMetadata[] = (banksResponse.data as Array<Record<string, any>>).map(bank => ({
+			const normalizedBanks: BankMetadata[] = (
+				banksResponse.data as Array<Record<string, any>>
+			).map((bank) => ({
 				id: String(bank.id),
 				name:
 					typeof bank.name === 'string' && bank.name.trim().length > 0
@@ -362,42 +594,50 @@ export default function FinancialListScreen() {
 				colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
 			}));
 
-			const normalizedInvestments: FinanceInvestment[] = (investmentsResponse.data as Array<Record<string, any>>).map(
-				investment => ({
-					id: String(investment.id),
-					name:
-						typeof investment.name === 'string' && investment.name.trim().length > 0
-							? investment.name.trim()
-							: 'Investimento sem nome',
-					initialValueInCents:
-						typeof investment.initialValueInCents === 'number'
-							? investment.initialValueInCents
-							: typeof investment.initialInvestedInCents === 'number'
-								? investment.initialInvestedInCents
-								: 0,
-					currentValueInCents:
-						typeof investment.currentValueInCents === 'number'
-							? investment.currentValueInCents
-							: typeof investment.lastManualSyncValueInCents === 'number'
-								? investment.lastManualSyncValueInCents
-								: typeof investment.initialValueInCents === 'number'
-									? investment.initialValueInCents
-									: 0,
-					cdiPercentage: typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0,
-					redemptionTerm: (investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
-					bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
-					description:
-						typeof investment.description === 'string' && investment.description.trim().length > 0
-							? investment.description.trim()
-							: null,
-					createdAtISO: normalizeDate(investment.createdAt),
-					lastManualSyncValueInCents:
-						typeof investment.lastManualSyncValueInCents === 'number'
+			const normalizedInvestments: FinanceInvestment[] = (
+				investmentsResponse.data as Array<Record<string, any>>
+			).map((investment) => ({
+				id: String(investment.id),
+				name:
+					typeof investment.name === 'string' &&
+						investment.name.trim().length > 0
+						? investment.name.trim()
+						: 'Investimento sem nome',
+				initialValueInCents:
+					typeof investment.initialValueInCents === 'number'
+						? investment.initialValueInCents
+						: typeof investment.initialInvestedInCents === 'number'
+							? investment.initialInvestedInCents
+							: 0,
+				currentValueInCents:
+					typeof investment.currentValueInCents === 'number'
+						? investment.currentValueInCents
+						: typeof investment.lastManualSyncValueInCents === 'number'
 							? investment.lastManualSyncValueInCents
-							: null,
-					lastManualSyncAtISO: investment.lastManualSyncAt ? normalizeDate(investment.lastManualSyncAt) : null,
-				}),
-			);
+							: typeof investment.initialValueInCents === 'number'
+								? investment.initialValueInCents
+								: 0,
+				cdiPercentage:
+					typeof investment.cdiPercentage === 'number'
+						? investment.cdiPercentage
+						: 0,
+				redemptionTerm:
+					(investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
+				bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
+				description:
+					typeof investment.description === 'string' &&
+						investment.description.trim().length > 0
+						? investment.description.trim()
+						: null,
+				createdAtISO: normalizeDate(investment.createdAt),
+				lastManualSyncValueInCents:
+					typeof investment.lastManualSyncValueInCents === 'number'
+						? investment.lastManualSyncValueInCents
+						: null,
+				lastManualSyncAtISO: investment.lastManualSyncAt
+					? normalizeDate(investment.lastManualSyncAt)
+					: null,
+			}));
 
 			setBanksMap(
 				normalizedBanks.reduce<Record<string, BankMetadata>>((acc, bank) => {
@@ -408,15 +648,11 @@ export default function FinancialListScreen() {
 			setInvestments(normalizedInvestments);
 		} catch (error) {
 			console.error('Erro ao carregar dados de investimentos:', error);
-			showFloatingAlert({
-				message: 'Não foi possível carregar os investimentos.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível carregar os investimentos.', 'error');
 		} finally {
 			setIsLoading(false);
 		}
-	}, []);
+	}, [showScreenAlert]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -424,65 +660,86 @@ export default function FinancialListScreen() {
 		}, [loadData]),
 	);
 
-	const ensureInvestmentTag = React.useCallback(async (usageType: 'expense' | 'gain') => {
-		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			throw new Error('Usuário não autenticado.');
-		}
+	const ensureInvestmentTag = React.useCallback(
+		async (usageType: 'expense' | 'gain') => {
+			const currentUser = auth.currentUser;
+			if (!currentUser) {
+				throw new Error('Usuário não autenticado.');
+			}
 
-		try {
-			const tagsResult = await getAllTagsFirebase();
-			if (tagsResult.success && Array.isArray(tagsResult.data)) {
-				const existing = (tagsResult.data as Array<Record<string, any>>).find(tag => {
-					const rawName = typeof tag?.name === 'string' ? tag.name.trim() : '';
-					const normalizedName = rawName.toLowerCase();
-					const tagUsage = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-					const resolvedUsage = tagUsage ?? usageType;
-					return (
-						normalizedName === INVESTMENT_TAG_LABEL.toLowerCase() &&
-						resolvedUsage === usageType &&
-						String(tag?.personId) === currentUser.uid
+			try {
+				const tagsResult = await getAllTagsFirebase();
+				if (tagsResult.success && Array.isArray(tagsResult.data)) {
+					const existing = (tagsResult.data as Array<Record<string, any>>).find(
+						(tag) => {
+							const rawName =
+								typeof tag?.name === 'string' ? tag.name.trim() : '';
+							const normalizedName = rawName.toLowerCase();
+							const tagUsage =
+								typeof tag?.usageType === 'string' ? tag.usageType : undefined;
+							const resolvedUsage = tagUsage ?? usageType;
+							return (
+								normalizedName === INVESTMENT_TAG_LABEL.toLowerCase() &&
+								resolvedUsage === usageType &&
+								String(tag?.personId) === currentUser.uid
+							);
+						},
 					);
+
+					if (existing && typeof existing.id === 'string') {
+						return { id: existing.id, name: INVESTMENT_TAG_LABEL };
+					}
+				}
+
+				const tagResult = await addTagFirebase({
+					tagName: INVESTMENT_TAG_LABEL,
+					personId: currentUser.uid,
+					usageType,
+					...serializeTagIconSelection({
+						iconFamily: 'material-community',
+						iconName: 'cash-multiple',
+					}),
 				});
 
-				if (existing && typeof existing.id === 'string') {
-					return { id: existing.id, name: INVESTMENT_TAG_LABEL };
+				if (tagResult.success && typeof tagResult.tagId === 'string') {
+					return { id: tagResult.tagId, name: INVESTMENT_TAG_LABEL };
 				}
+
+				throw new Error('Não foi possível criar a tag Investimento.');
+			} catch (error) {
+				console.error('Erro ao garantir a tag Investimento:', error);
+				throw error;
 			}
-
-			const tagResult = await addTagFirebase({
-				tagName: INVESTMENT_TAG_LABEL,
-				personId: currentUser.uid,
-				usageType,
-				...serializeTagIconSelection({
-					iconFamily: 'material-community',
-					iconName: 'cash-multiple',
-				}),
-			});
-
-			if (tagResult.success && typeof tagResult.tagId === 'string') {
-				return { id: tagResult.tagId, name: INVESTMENT_TAG_LABEL };
-			}
-
-			throw new Error('Não foi possível criar a tag Investimento.');
-		} catch (error) {
-			console.error('Erro ao garantir a tag Investimento:', error);
-			throw error;
-		}
-	}, []);
+		},
+		[],
+	);
 
 	const totalInvested = React.useMemo(
-		() => convertCentsToBRL(investments.reduce((total, current) => total + resolveBaseValueInCents(current), 0)),
+		() =>
+			convertCentsToBRL(
+				investments.reduce(
+					(total, current) => total + resolveBaseValueInCents(current),
+					0,
+				),
+			),
 		[investments],
 	);
 
 	const totalSimulatedAmount = React.useMemo(
-		() => investments.reduce((total, investment) => total + simulateCurrentValue(investment), 0),
+		() =>
+			investments.reduce(
+				(total, investment) => total + simulateCurrentValue(investment),
+				0,
+			),
 		[investments],
 	);
 
 	const totalDailyYield = React.useMemo(
-		() => investments.reduce((total, investment) => total + simulateDailyYield(investment), 0),
+		() =>
+			investments.reduce(
+				(total, investment) => total + simulateDailyYield(investment),
+				0,
+			),
 		[investments],
 	);
 
@@ -500,7 +757,7 @@ export default function FinancialListScreen() {
 			}
 		> = {};
 
-		investments.forEach(investment => {
+		investments.forEach((investment) => {
 			const meta = banksMap[investment.bankId];
 			const bankKey = investment.bankId || 'unknown';
 			if (!summaries[bankKey]) {
@@ -515,13 +772,17 @@ export default function FinancialListScreen() {
 				};
 			}
 
-			summaries[bankKey].totalInvested += convertCentsToBRL(resolveBaseValueInCents(investment));
+			summaries[bankKey].totalInvested += convertCentsToBRL(
+				resolveBaseValueInCents(investment),
+			);
 			summaries[bankKey].totalSimulated += simulateCurrentValue(investment);
 			summaries[bankKey].totalDailyYield += simulateDailyYield(investment);
 			summaries[bankKey].investmentCount += 1;
 		});
 
-		return Object.values(summaries).sort((a, b) => b.totalInvested - a.totalInvested);
+		return Object.values(summaries).sort(
+			(a, b) => b.totalInvested - a.totalInvested,
+		);
 	}, [banksMap, investments]);
 
 	const syncedWithdrawalDisplayValue = React.useMemo(() => {
@@ -546,6 +807,16 @@ export default function FinancialListScreen() {
 		router.replace('/home?tab=0');
 		return true;
 	}, []);
+	const handleToggleInvestmentCard = React.useCallback(
+		(investmentId: string) => {
+			setExpandedInvestmentIds((previousState) =>
+				previousState.includes(investmentId)
+					? previousState.filter((id) => id !== investmentId)
+					: [...previousState, investmentId],
+			);
+		},
+		[],
+	);
 
 	const closeEditModal = React.useCallback(() => {
 		if (isSavingEdit) {
@@ -559,14 +830,19 @@ export default function FinancialListScreen() {
 		setEditBankId(null);
 	}, [isSavingEdit]);
 
-	const handleOpenEditModal = React.useCallback((investment: FinanceInvestment) => {
-		setEditingInvestment(investment);
-		setEditName(investment.name);
-		setEditInitialInput(formatCurrencyBRLRaw(convertCentsToBRL(investment.initialValueInCents)));
-		setEditCdiInput(investment.cdiPercentage.toString());
-		setEditTerm(investment.redemptionTerm);
-		setEditBankId(investment.bankId);
-	}, []);
+	const handleOpenEditModal = React.useCallback(
+		(investment: FinanceInvestment) => {
+			setEditingInvestment(investment);
+			setEditName(investment.name);
+			setEditInitialInput(
+				formatCurrencyBRLRaw(convertCentsToBRL(investment.initialValueInCents)),
+			);
+			setEditCdiInput(investment.cdiPercentage.toString());
+			setEditTerm(investment.redemptionTerm);
+			setEditBankId(investment.bankId);
+		},
+		[],
+	);
 
 	const handleSubmitEdit = React.useCallback(async () => {
 		if (!editingInvestment || !editBankId) {
@@ -576,21 +852,17 @@ export default function FinancialListScreen() {
 		const parsedInitialCents = parseCurrencyInputToCents(editInitialInput);
 		const parsedCdi = parseStringToNumber(editCdiInput);
 
-		if (editName.trim().length === 0 || parsedInitialCents === null || parsedInitialCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um nome e um valor inicial válidos.',
-				action: 'warning',
-				position: 'bottom',
-			});
+		if (
+			editName.trim().length === 0 ||
+			parsedInitialCents === null ||
+			parsedInitialCents <= 0
+		) {
+			showScreenAlert('Informe um nome e um valor inicial válidos.', 'warn');
 			return;
 		}
 
 		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
-			showFloatingAlert({
-				message: 'Informe um CDI válido para editar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um CDI válido para editar.', 'warn');
 			return;
 		}
 
@@ -610,27 +882,32 @@ export default function FinancialListScreen() {
 			}
 
 			await loadData();
-			showFloatingAlert({
-				message: 'Investimento atualizado com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Investimento atualizado com sucesso!', 'success');
 			closeEditModal();
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível salvar a edição agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível salvar a edição agora.', 'error');
 		} finally {
 			setIsSavingEdit(false);
 		}
-	}, [closeEditModal, editBankId, editCdiInput, editInitialInput, editName, editTerm, editingInvestment, loadData]);
+	}, [
+		closeEditModal,
+		editBankId,
+		editCdiInput,
+		editInitialInput,
+		editName,
+		editTerm,
+		editingInvestment,
+		loadData,
+		showScreenAlert,
+	]);
 
-	const handleRequestDelete = React.useCallback((investment: FinanceInvestment) => {
-		setInvestmentPendingDeletion(investment);
-	}, []);
+	const handleRequestDelete = React.useCallback(
+		(investment: FinanceInvestment) => {
+			setInvestmentPendingDeletion(investment);
+		},
+		[],
+	);
 
 	const handleCloseDeleteModal = React.useCallback(() => {
 		if (isDeleting) {
@@ -645,37 +922,34 @@ export default function FinancialListScreen() {
 		}
 		setIsDeleting(true);
 		try {
-			const result = await deleteFinanceInvestmentFirebase(investmentPendingDeletion.id);
+			const result = await deleteFinanceInvestmentFirebase(
+				investmentPendingDeletion.id,
+			);
 			if (!result.success) {
 				throw new Error('Erro ao excluir investimento.');
 			}
 			await loadData();
-			showFloatingAlert({
-				message: 'Investimento removido.',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Investimento removido.', 'success');
 			setInvestmentPendingDeletion(null);
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível remover agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível remover agora.', 'error');
 		} finally {
 			setIsDeleting(false);
 		}
-	}, [investmentPendingDeletion, loadData]);
+	}, [investmentPendingDeletion, loadData, showScreenAlert]);
 
-	const handleOpenDepositModal = React.useCallback((investment: FinanceInvestment) => {
-		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
-		setInvestmentForDeposit(null);
-		setSyncedDepositValueInCents(null);
-		setDepositInput('');
-		setInvestmentForDepositSync(investment);
-		setDepositSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
-	}, []);
+	const handleOpenDepositModal = React.useCallback(
+		(investment: FinanceInvestment) => {
+			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+			setInvestmentForDeposit(null);
+			setSyncedDepositValueInCents(null);
+			setDepositInput('');
+			setInvestmentForDepositSync(investment);
+			setDepositSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
+		},
+		[],
+	);
 
 	const handleCloseDepositModal = React.useCallback(() => {
 		if (isSavingDeposit) {
@@ -700,32 +974,20 @@ export default function FinancialListScreen() {
 			return;
 		}
 		if (syncedDepositValueInCents === null) {
-			showFloatingAlert({
-				message: 'Sincronize o valor de hoje antes de adicionar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Sincronize o valor de hoje antes de adicionar.', 'warn');
 			return;
 		}
 
 		const parsedCents = parseCurrencyInputToCents(depositInput);
 		if (parsedCents === null || parsedCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido para adicionar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor válido para adicionar.', 'warn');
 			return;
 		}
 
 		const targetInvestment = investmentForDeposit;
 		const personId = auth.currentUser?.uid;
 		if (!personId) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Usuário não autenticado.', 'error');
 			return;
 		}
 
@@ -768,22 +1030,21 @@ export default function FinancialListScreen() {
 			setInvestmentForDeposit(null);
 			setDepositInput('');
 			setSyncedDepositValueInCents(null);
-			showFloatingAlert({
-				message: 'Aporte registrado e investimento atualizado.',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Aporte registrado e investimento atualizado.', 'success');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível registrar o aporte agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível registrar o aporte agora.', 'error');
 		} finally {
 			setIsSavingDeposit(false);
 		}
-	}, [depositInput, ensureInvestmentTag, investmentForDeposit, loadData, syncedDepositValueInCents]);
+	}, [
+		depositInput,
+		ensureInvestmentTag,
+		investmentForDeposit,
+		loadData,
+		showScreenAlert,
+		syncedDepositValueInCents,
+	]);
 
 	const handleConfirmDepositSync = React.useCallback(async () => {
 		if (!investmentForDepositSync) {
@@ -792,11 +1053,7 @@ export default function FinancialListScreen() {
 
 		const parsedCents = parseCurrencyInputToCents(depositSyncInput);
 		if (parsedCents === null || parsedCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido para sincronizar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
 
@@ -816,31 +1073,28 @@ export default function FinancialListScreen() {
 			setInvestmentForDeposit(investmentForDepositSync);
 			setInvestmentForDepositSync(null);
 			setDepositInput('');
-			showFloatingAlert({
-				message: 'Valor sincronizado! Agora informe o aporte.',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Valor sincronizado! Agora informe o aporte.', 'success');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível sincronizar agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível sincronizar agora.', 'error');
 		} finally {
 			setIsSavingDepositSync(false);
 		}
-	}, [depositSyncInput, investmentForDepositSync, loadData]);
+	}, [depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
 
-	const handleOpenWithdrawalModal = React.useCallback((investment: FinanceInvestment) => {
-		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
-		setInvestmentForWithdrawal(null);
-		setSyncedWithdrawalValueInCents(null);
-		setWithdrawInput('');
-		setInvestmentForWithdrawalSync(investment);
-		setWithdrawSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
-	}, []);
+	const handleOpenWithdrawalModal = React.useCallback(
+		(investment: FinanceInvestment) => {
+			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+			setInvestmentForWithdrawal(null);
+			setSyncedWithdrawalValueInCents(null);
+			setWithdrawInput('');
+			setInvestmentForWithdrawalSync(investment);
+			setWithdrawSyncInput(
+				baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '',
+			);
+		},
+		[],
+	);
 
 	const handleCloseWithdrawalModal = React.useCallback(() => {
 		if (isSavingWithdrawal) {
@@ -869,11 +1123,7 @@ export default function FinancialListScreen() {
 
 		const parsedCents = parseCurrencyInputToCents(withdrawSyncInput);
 		if (parsedCents === null || parsedCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido para sincronizar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
 
@@ -894,22 +1144,14 @@ export default function FinancialListScreen() {
 			setInvestmentForWithdrawal(investmentForWithdrawalSync);
 			setInvestmentForWithdrawalSync(null);
 			setWithdrawInput('');
-			showFloatingAlert({
-				message: 'Valor sincronizado! Agora informe quanto deseja resgatar.',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Valor sincronizado! Agora informe quanto deseja resgatar.', 'success');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível sincronizar agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível sincronizar agora.', 'error');
 		} finally {
 			setIsSavingWithdrawalSync(false);
 		}
-	}, [investmentForWithdrawalSync, loadData, withdrawSyncInput]);
+	}, [investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncInput]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
@@ -918,31 +1160,21 @@ export default function FinancialListScreen() {
 
 		const parsedCents = parseCurrencyInputToCents(withdrawInput);
 		if (parsedCents === null || parsedCents <= 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido para resgatar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor válido para resgatar.', 'warn');
 			return;
 		}
 
 		if (syncedWithdrawalValueInCents === null) {
-			showFloatingAlert({
-				message: 'Sincronize o valor de hoje antes de continuar o resgate.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Sincronize o valor de hoje antes de continuar o resgate.', 'warn');
 			return;
 		}
 
 		const withdrawCents = parsedCents;
-		const availableCents = syncedWithdrawalValueInCents ?? resolveBaseValueInCents(investmentForWithdrawal);
+		const availableCents =
+			syncedWithdrawalValueInCents ??
+			resolveBaseValueInCents(investmentForWithdrawal);
 		if (withdrawCents > availableCents) {
-			showFloatingAlert({
-				message: 'O valor de resgate não pode ser maior que o valor sincronizado.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('O valor de resgate não pode ser maior que o valor sincronizado.', 'warn');
 			return;
 		}
 
@@ -950,11 +1182,7 @@ export default function FinancialListScreen() {
 		const originalSyncedValue = availableCents;
 		const personId = auth.currentUser?.uid;
 		if (!personId) {
-			showFloatingAlert({
-				message: 'Usuário não autenticado.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Usuário não autenticado.', 'error');
 			return;
 		}
 
@@ -995,28 +1223,30 @@ export default function FinancialListScreen() {
 			setInvestmentForWithdrawal(null);
 			setWithdrawInput('');
 			setSyncedWithdrawalValueInCents(null);
-			showFloatingAlert({
-				message: 'Resgate registrado e investimento atualizado.',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível preparar o resgate agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível preparar o resgate agora.', 'error');
 		} finally {
 			setIsSavingWithdrawal(false);
 		}
-	}, [ensureInvestmentTag, investmentForWithdrawal, loadData, syncedWithdrawalValueInCents, withdrawInput]);
+	}, [
+		ensureInvestmentTag,
+		investmentForWithdrawal,
+		loadData,
+		showScreenAlert,
+		syncedWithdrawalValueInCents,
+		withdrawInput,
+	]);
 
-	const handleOpenManualSyncModal = React.useCallback((investment: FinanceInvestment) => {
-		const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
-		setInvestmentForSync(investment);
-		setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
-	}, []);
+	const handleOpenManualSyncModal = React.useCallback(
+		(investment: FinanceInvestment) => {
+			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
+			setInvestmentForSync(investment);
+			setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
+		},
+		[],
+	);
 
 	const handleCloseManualSyncModal = React.useCallback(() => {
 		if (isSavingSync) {
@@ -1033,11 +1263,7 @@ export default function FinancialListScreen() {
 
 		const parsedCents = parseCurrencyInputToCents(syncInput);
 		if (parsedCents === null || parsedCents < 0) {
-			showFloatingAlert({
-				message: 'Informe um valor válido para sincronizar.',
-				action: 'warning',
-				position: 'bottom',
-			});
+			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
 
@@ -1053,35 +1279,36 @@ export default function FinancialListScreen() {
 			}
 
 			await loadData();
-			showFloatingAlert({
-				message: 'Valor sincronizado com sucesso!',
-				action: 'success',
-				position: 'bottom',
-			});
+			showScreenAlert('Valor sincronizado com sucesso!', 'success');
 			setInvestmentForSync(null);
 			setSyncInput('');
 		} catch (error) {
 			console.error(error);
-			showFloatingAlert({
-				message: 'Não foi possível sincronizar agora.',
-				action: 'error',
-				position: 'bottom',
-			});
+			showScreenAlert('Não foi possível sincronizar agora.', 'error');
 		} finally {
 			setIsSavingSync(false);
 		}
-	}, [investmentForSync, loadData, syncInput]);
+	}, [investmentForSync, loadData, showScreenAlert, syncInput]);
 
 	const isInitialLoading = isLoading && investments.length === 0;
 
 	return (
-		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<FloatingAlertViewport />
-
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+					<View
+						className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+						style={{ height: heroHeight }}
+					>
 						<Image
 							source={LoginWallpaper}
 							alt="Background da lista de investimentos"
@@ -1096,7 +1323,11 @@ export default function FinancialListScreen() {
 							<Heading size="xl" className="text-center text-white">
 								Meus investimentos
 							</Heading>
-							<FinancialListIllustration width="38%" height="38%" className="opacity-90" />
+							<FinancialListIllustration
+								width="38%"
+								height="38%"
+								className="opacity-90"
+							/>
 						</VStack>
 					</View>
 
@@ -1107,121 +1338,99 @@ export default function FinancialListScreen() {
 						contentContainerStyle={{ paddingBottom: 48 }}
 					>
 						<VStack className="mt-4 gap-4">
-							<Box className={`${topSummaryCardClassName} px-5 py-5`}>
-								{isInitialLoading ? (
-									<VStack className="gap-4">
-										<Skeleton
-											className="h-3 w-28"
-											baseColor={skeletonMutedBaseColor}
-											highlightColor={skeletonMutedHighlightColor}
-										/>
-										<Skeleton
-											className="h-8 w-56"
-											baseColor={skeletonMutedBaseColor}
-											highlightColor={skeletonMutedHighlightColor}
-										/>
-										<SkeletonText
-											_lines={2}
-											className="h-3"
-											baseColor={skeletonMutedBaseColor}
-											highlightColor={skeletonMutedHighlightColor}
-										/>
-										<View className="flex-row flex-wrap gap-3">
-											{Array.from({ length: 3 }).map((_, index) => (
-												<Skeleton
-													key={`financial-list-summary-${index}`}
-													className="h-24 min-w-[145px] flex-1 rounded-2xl"
-													baseColor={skeletonMutedBaseColor}
-													highlightColor={skeletonMutedHighlightColor}
-												/>
-											))}
-										</View>
-										<Skeleton
-											className="h-16 rounded-[24px]"
-											baseColor={skeletonMutedBaseColor}
-											highlightColor={skeletonMutedHighlightColor}
-										/>
-									</VStack>
-								) : (
-									<VStack className="gap-4">
-										<VStack className="gap-2">
-											<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
-												Resumo consolidado
+							<Heading
+								className="text-lg uppercase tracking-widest "
+								size="lg"
+							>
+								Plataforma de simulação financeira
+							</Heading>
+							{isInitialLoading ? (
+								<VStack className="gap-4">
+									<Skeleton
+										className="h-3 w-28"
+										baseColor={skeletonMutedBaseColor}
+										highlightColor={skeletonMutedHighlightColor}
+									/>
+									<Skeleton
+										className="h-8 w-56"
+										baseColor={skeletonMutedBaseColor}
+										highlightColor={skeletonMutedHighlightColor}
+									/>
+									<SkeletonText
+										_lines={2}
+										className="h-3"
+										baseColor={skeletonMutedBaseColor}
+										highlightColor={skeletonMutedHighlightColor}
+									/>
+									<View className="flex-row flex-wrap gap-3">
+										{Array.from({ length: 3 }).map((_, index) => (
+											<Skeleton
+												key={`financial-list-summary-${index}`}
+												className="h-24 min-w-[145px] flex-1 rounded-2xl"
+												baseColor={skeletonMutedBaseColor}
+												highlightColor={skeletonMutedHighlightColor}
+											/>
+										))}
+									</View>
+									<Skeleton
+										className="h-16 rounded-[24px]"
+										baseColor={skeletonMutedBaseColor}
+										highlightColor={skeletonMutedHighlightColor}
+									/>
+								</VStack>
+							) : (
+								<VStack className="gap-4">
+
+									<View className="flex-row flex-wrap gap-3">
+										<Box
+											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+										>
+											<Text
+												className={`${helperText} text-xs uppercase tracking-wide`}
+											>
+												Total investido
 											</Text>
-											<Heading size="md">Acompanhe crescimento, liquidez e sincronização manual da sua carteira</Heading>
-											<Text className={`${bodyText} text-sm`}>
-												A simulação usa o CDI salvo em cada item e serve como referência visual até a próxima atualização real.
+											<Text className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+												{formatCurrencyBRL(totalInvested)}
 											</Text>
-										</VStack>
-
-										<View className="flex-row flex-wrap gap-3">
-											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Total investido</Text>
-												<Text className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-													{formatCurrencyBRL(totalInvested)}
-												</Text>
-											</Box>
-											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Simulado hoje</Text>
-												<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-400">
-													{formatCurrencyBRL(totalSimulatedAmount)}
-												</Text>
-											</Box>
-											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Rendimento diário</Text>
-												<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-400">
-													{formatCurrencyBRL(totalDailyYield)}
-												</Text>
-											</Box>
-										</View>
-
-										<Box className={`${compactCardClassName} px-4 py-4`}>
-											<VStack className="gap-3">
-												<HStack className="items-center justify-between gap-3">
-													<VStack className="flex-1 gap-1">
-														<Text className="font-semibold">Carteira ativa</Text>
-														<Text className={`${helperText} text-sm`}>
-															{investments.length} investimento(s) distribuídos em {bankSummaries.length} banco(s).
-														</Text>
-													</VStack>
-													<Button className={submitButtonClassName} onPress={handleNavigateToAdd}>
-														<ButtonIcon as={AddIcon} />
-														<ButtonText>Novo investimento</ButtonText>
-													</Button>
-												</HStack>
-
-												{bankSummaries.length > 0 ? (
-													<View className="flex-row flex-wrap gap-2">
-														{bankSummaries.slice(0, 3).map(summary => (
-															<Box key={summary.bankId} className={`${tintedCardClassName} min-w-[120px] px-3 py-3`}>
-																<VStack className="gap-1">
-																	<HStack className="items-center gap-2">
-																		<View
-																			className="h-2.5 w-2.5 rounded-full"
-																			style={{
-																				backgroundColor: summary.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B'),
-																			}}
-																		/>
-																		<Text className="font-medium" numberOfLines={1}>
-																			{summary.bankName}
-																		</Text>
-																	</HStack>
-																	<Text className={`${helperText} text-xs`}>
-																		{summary.investmentCount} item(s)
-																	</Text>
-																	<Text className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-																		{formatCurrencyBRL(summary.totalInvested)}
-																	</Text>
-																</VStack>
-															</Box>
-														))}
-													</View>
-												) : null}
-											</VStack>
 										</Box>
-									</VStack>
-								)}
-							</Box>
+										<Box
+											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+										>
+											<Text
+												className={`${helperText} text-xs uppercase tracking-wide`}
+											>
+												Simulado hoje
+											</Text>
+											<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-400">
+												{formatCurrencyBRL(totalSimulatedAmount)}
+											</Text>
+										</Box>
+										<Box
+											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+										>
+											<Text
+												className={`${helperText} text-xs uppercase tracking-wide`}
+											>
+												Rendimento diário
+											</Text>
+											<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-400">
+												{formatCurrencyBRL(totalDailyYield)}
+											</Text>
+										</Box>
+									</View>
+								</VStack>
+							)}
+
+							<Button
+								className={`${submitButtonClassName}`}
+								onPress={handleNavigateToAdd}
+							>
+								<ButtonIcon as={AddIcon} size="sm" />
+								<ButtonText>Adicionar um novo investimento</ButtonText>
+								{isLoading && <ButtonSpinner />}
+							</Button>
+
 
 							{isInitialLoading ? (
 								<FinancialListSkeleton
@@ -1230,112 +1439,526 @@ export default function FinancialListScreen() {
 									skeletonHighlightColor={skeletonHighlightColor}
 								/>
 							) : investments.length === 0 ? (
-								<Box className={`${compactCardClassName} items-center px-5 py-6`}>
+								<Box
+									className={`${compactCardClassName} items-center px-5 py-6`}
+								>
 									<Text className={`text-center ${helperText}`}>
 										Você ainda não salvou nenhum investimento.
 									</Text>
-									<Button variant="link" action="primary" onPress={handleNavigateToAdd} className="mt-2">
+									<Button
+										variant="link"
+										action="primary"
+										onPress={handleNavigateToAdd}
+										className="mt-2"
+									>
 										<ButtonText>Registrar agora</ButtonText>
 									</Button>
 								</Box>
 							) : (
-								<VStack className="gap-4">
-									{investments.map(investment => {
-										const simulatedValue = simulateCurrentValue(investment);
-										const dailyYield = simulateDailyYield(investment);
-										const bankInfo = banksMap[investment.bankId];
-										const lastSyncLabel =
-											typeof investment.lastManualSyncValueInCents === 'number' && investment.lastManualSyncAtISO
-												? `${formatCurrencyBRL(convertCentsToBRL(investment.lastManualSyncValueInCents))} em ${formatDateToBR(investment.lastManualSyncAtISO)}`
-												: 'Nunca sincronizado';
+								<VStack className="gap-2">
+									<View style={{ marginTop: 10 }}>
+										{investments.map((investment, index) => {
+											const simulatedValue = simulateCurrentValue(investment);
+											const dailyYield = simulateDailyYield(investment);
+											const bankInfo = banksMap[investment.bankId];
+											const lastSyncLabel = getInvestmentManualSyncLabel(
+												investment,
+												formatCurrencyBRL,
+											);
+											const summaryText = getInvestmentSummaryText(
+												investment,
+												formatCurrencyBRL,
+											);
+											const isExpanded = expandedInvestmentIds.includes(
+												investment.id,
+											);
+											const badgeLabel = getInvestmentBadgeLabel(
+												investment.name,
+											);
+											const primaryInvestmentActions = [
+												{
+													key: 'deposit',
+													label: 'Aportar',
+													icon: AddIcon,
+													onPress: () => handleOpenDepositModal(investment),
+												},
+												{
+													key: 'withdrawal',
+													label: 'Resgatar',
+													icon: ArrowDownIcon,
+													onPress: () => handleOpenWithdrawalModal(investment),
+												},
+												{
+													key: 'sync',
+													label: 'Sincronizar',
+													icon: RepeatIcon,
+													onPress: () => handleOpenManualSyncModal(investment),
+												},
+											];
+											const secondaryInvestmentActions = [
+												{
+													key: 'edit',
+													label: 'Editar',
+													icon: EditIcon,
+													onPress: () => handleOpenEditModal(investment),
+												},
+												{
+													key: 'delete',
+													label: 'Excluir',
+													icon: TrashIcon,
+													onPress: () => handleRequestDelete(investment),
+												},
+											];
+											const bankAccentColor =
+												typeof bankInfo?.colorHex === 'string' &&
+													bankInfo.colorHex.trim().length > 0
+													? bankInfo.colorHex
+													: INVESTMENT_TIMELINE_TONE.accentColor;
 
-										return (
-											<Box key={investment.id} className={`${compactCardClassName} px-4 py-4`}>
-												<VStack className="gap-4">
-													<HStack className="items-start justify-between gap-3">
-														<VStack className="flex-1 gap-1">
-															<Text className="text-base font-semibold">{investment.name}</Text>
-															<Text className={`${helperText} text-sm`}>
-																{bankInfo?.name ?? 'Banco não informado'} • {redemptionTermLabels[investment.redemptionTerm]}
-															</Text>
-														</VStack>
-														<Text className="text-base font-semibold text-emerald-600 dark:text-emerald-400">
-															{formatCurrencyBRL(convertCentsToBRL(resolveBaseValueInCents(investment)))}
-														</Text>
-													</HStack>
-
-													<View className="flex-row flex-wrap gap-2">
-														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
-															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor inicial</Text>
-															<Text className={`${bodyText} mt-1 text-sm`}>
-																{formatCurrencyBRL(convertCentsToBRL(investment.initialValueInCents))}
-															</Text>
-														</Box>
-														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
-															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Simulado hoje</Text>
-															<Text className="mt-1 text-sm text-emerald-600 dark:text-emerald-400">
-																{formatCurrencyBRL(simulatedValue)}
-															</Text>
-														</Box>
-														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
-															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Rendimento diário</Text>
-															<Text className="mt-1 text-sm text-sky-600 dark:text-sky-400">
-																{formatCurrencyBRL(dailyYield)}
-															</Text>
-														</Box>
-														<Box className={`${tintedCardClassName} min-w-[132px] px-3 py-2`}>
-															<Text className={`${helperText} text-xs uppercase tracking-wide`}>CDI</Text>
-															<Text className={`${bodyText} mt-1 text-sm`}>{investment.cdiPercentage}%</Text>
-														</Box>
+											return (
+												<View
+													key={investment.id}
+													style={{ flexDirection: 'row' }}
+												>
+													<View
+														style={{
+															alignItems: 'center',
+															width: '7%'
+														}}
+													>
+														<View
+															style={{
+																width: 14,
+																height: 14,
+																borderRadius: 999,
+																backgroundColor:
+																	INVESTMENT_TIMELINE_TONE.accentColor,
+																borderWidth: 2,
+																borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+																shadowColor:
+																	INVESTMENT_TIMELINE_TONE.accentColor,
+																shadowOpacity: isDarkMode ? 0.26 : 0.14,
+																shadowRadius: 8,
+																shadowOffset: { width: 0, height: 4 },
+																elevation: 2,
+															}}
+														/>
+														{index < investments.length - 1 ? (
+															<View
+																style={{
+																	flex: 1,
+																	width: 3,
+																	borderRadius: 999,
+																	marginVertical: 2,
+																	backgroundColor:
+																		INVESTMENT_TIMELINE_TONE.lineColor,
+																}}
+															/>
+														) : (
+															<View />
+														)}
 													</View>
 
-													<Box className={`${tintedCardClassName} px-3 py-3`}>
-														<VStack className="gap-1">
-															<Text className={`${helperText} text-xs uppercase tracking-wide`}>Sincronização manual</Text>
-															<Text className={`${bodyText} text-sm`}>{lastSyncLabel}</Text>
-															<Text className={`${helperText} text-xs`}>
-																Cadastrado em {formatDateToBR(investment.createdAtISO)}
-															</Text>
-														</VStack>
-													</Box>
+													<View style={{ width: '93%', paddingBottom: 14 }}>
+														<TouchableOpacity
+															activeOpacity={0.85}
+															onPress={() =>
+																handleToggleInvestmentCard(investment.id)
+															}
+															style={{ width: '100%' }}
+														>
+															<HStack className="items-center justify-between gap-3">
+																<HStack
+																	className="items-center gap-3"
+																	style={{ flex: 1 }}
+																>
+																	<LinearGradient
+																		colors={
+																			INVESTMENT_TIMELINE_TONE.iconGradient
+																		}
+																		start={{ x: 0, y: 0 }}
+																		end={{ x: 1, y: 1 }}
+																		style={{
+																			width: 44,
+																			height: 44,
+																			borderRadius: 16,
+																			alignItems: 'center',
+																			justifyContent: 'center',
+																			flexShrink: 0,
+																			position: 'relative',
+																		}}
+																	>
+																		<Text
+																			style={{
+																				color: '#FFFFFF',
+																				fontSize: 18,
+																				fontWeight: '700',
+																			}}
+																		>
+																			{badgeLabel}
+																		</Text>
+																		<View
+																			style={{
+																				position: 'absolute',
+																				right: 6,
+																				bottom: 6,
+																				width: 8,
+																				height: 8,
+																				borderRadius: 999,
+																				backgroundColor: bankAccentColor,
+																				borderWidth: 1,
+																				borderColor: 'rgba(255,255,255,0.9)',
+																			}}
+																		/>
+																	</LinearGradient>
 
-													{investment.description ? (
-														<Text className={`${helperText} text-sm`}>{investment.description}</Text>
-													) : null}
+																	<View style={{ flex: 1 }}>
+																		<Text
+																			numberOfLines={1}
+																			style={{
+																				color: timelinePalette.title,
+																				fontSize: 15,
+																				fontWeight: '700',
+																			}}
+																		>
+																			{investment.name}
+																		</Text>
+																		<Text
+																			numberOfLines={1}
+																			style={{
+																				marginTop: 2,
+																				color: timelinePalette.subtitle,
+																				fontSize: 12,
+																				lineHeight: 18,
+																			}}
+																		>
+																			{bankInfo?.name ?? 'Banco não informado'}
+																		</Text>
+																	</View>
+																</HStack>
 
-													<HStack className="flex-wrap gap-3">
-														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenDepositModal(investment)}>
-															<ButtonIcon as={AddIcon} />
-															<ButtonText>Aportar</ButtonText>
-														</Button>
-														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenWithdrawalModal(investment)}>
-															<ButtonIcon as={ArrowDownIcon} />
-															<ButtonText>Resgatar</ButtonText>
-														</Button>
-														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenManualSyncModal(investment)}>
-															<ButtonText>Sincronizar</ButtonText>
-														</Button>
-														<Button size="sm" variant="outline" action="primary" onPress={() => handleOpenEditModal(investment)}>
-															<ButtonIcon as={EditIcon} />
-															<ButtonText>Editar</ButtonText>
-														</Button>
-														<Button size="sm" variant="outline" action="negative" onPress={() => handleRequestDelete(investment)}>
-															<ButtonIcon as={TrashIcon} />
-															<ButtonText>Excluir</ButtonText>
-														</Button>
-													</HStack>
-												</VStack>
-											</Box>
-										);
-									})}
+																<HStack className="items-center gap-2">
+																	<VStack className="items-end">
+																		<Text
+																			style={{
+																				color:
+																					INVESTMENT_TIMELINE_TONE.amountColor,
+																				fontSize: 15,
+																				fontWeight: '700',
+																			}}
+																		>
+																			{formatCurrencyBRL(
+																				convertCentsToBRL(
+																					resolveBaseValueInCents(investment),
+																				),
+																			)}
+																		</Text>
+																		<HStack className="mt-1 items-center gap-1">
+																			<Icon
+																				as={CalendarDaysIcon}
+																				size="xs"
+																				className={
+																					isDarkMode
+																						? 'text-slate-500'
+																						: 'text-slate-400'
+																				}
+																			/>
+																			<Text
+																				style={{
+																					color: timelinePalette.subtitle,
+																					fontSize: 11,
+																				}}
+																			>
+																				{
+																					redemptionTermLabels[
+																					investment.redemptionTerm
+																					]
+																				}
+																			</Text>
+																		</HStack>
+																	</VStack>
+
+																	<Icon
+																		as={
+																			isExpanded
+																				? ChevronUpIcon
+																				: ChevronDownIcon
+																		}
+																		size="sm"
+																		className={
+																			isDarkMode
+																				? 'text-slate-400'
+																				: 'text-slate-500'
+																		}
+																	/>
+																</HStack>
+															</HStack>
+														</TouchableOpacity>
+
+														{isExpanded ? (
+															<LinearGradient
+																colors={INVESTMENT_TIMELINE_TONE.cardGradient}
+																start={{ x: 0, y: 0 }}
+																end={{ x: 1, y: 1 }}
+																style={{
+																	marginTop: 10,
+																	marginRight: 16,
+																	borderRadius: 20,
+																	paddingHorizontal: 16,
+																	paddingVertical: 14,
+																}}
+															>
+																<VStack className="gap-3">
+																	<HStack className="items-start justify-between gap-4">
+																		<VStack className="flex-1">
+																			<Text
+																				style={{
+																					fontSize: 10,
+																					fontWeight: '700',
+																					letterSpacing: 0.4,
+																					color: 'rgba(255,255,255,0.74)',
+																					textTransform: 'uppercase',
+																				}}
+																			>
+																				Resumo
+																			</Text>
+																			<Text
+																				style={{
+																					fontSize: 13,
+																					lineHeight: 19,
+																					color: '#FFFFFF',
+																					textAlign: 'justify',
+																				}}
+																			>
+																				{summaryText}
+																			</Text>
+																		</VStack>
+
+
+																	</HStack>
+
+																	<View
+																		style={{
+																			flexDirection: 'row',
+																			flexWrap: 'wrap',
+																			columnGap: 14,
+																			rowGap: 10,
+																		}}
+																	>
+																		{[
+																			{
+																				label: 'Valor inicial',
+																				value: formatCurrencyBRL(
+																					convertCentsToBRL(
+																						investment.initialValueInCents,
+																					),
+																				),
+																			},
+																			{
+																				label: 'Simulado hoje',
+																				value:
+																					formatCurrencyBRL(simulatedValue),
+																			},
+																			{
+																				label: 'Rendimento diário',
+																				value: formatCurrencyBRL(dailyYield),
+																			},
+																			{
+																				label: 'CDI',
+																				value: `${investment.cdiPercentage}%`,
+																			},
+																			{
+																				label: 'Banco',
+																				value:
+																					bankInfo?.name ??
+																					'Banco não informado',
+																			},
+																			{
+																				label: 'Liquidez',
+																				value:
+																					redemptionTermLabels[
+																					investment.redemptionTerm
+																					],
+																			},
+																		].map((item) => (
+																			<View
+																				key={`${investment.id}-${item.label}`}
+																				style={{ width: '46%', minWidth: 128 }}
+																			>
+																				<Text
+																					style={{
+																						fontSize: 10,
+																						fontWeight: '700',
+																						letterSpacing: 0.4,
+																						color: 'rgba(255,255,255,0.72)',
+																						textTransform: 'uppercase',
+																					}}
+																				>
+																					{item.label}
+																				</Text>
+																				<Text
+																					style={{
+																						marginTop: 3,
+																						fontSize: 13,
+																						lineHeight: 18,
+																						color: '#FFFFFF',
+																					}}
+																				>
+																					{item.value}
+																				</Text>
+																			</View>
+																		))}
+																	</View>
+
+																	<View style={{ paddingTop: 2 }}>
+																		<Text
+																			style={{
+																				fontSize: 10,
+																				fontWeight: '700',
+																				letterSpacing: 0.4,
+																				color: 'rgba(255,255,255,0.72)',
+																				textTransform: 'uppercase',
+																			}}
+																		>
+																			Sincronização manual
+																		</Text>
+																		<Text
+																			style={{
+																				marginTop: 6,
+																				fontSize: 13,
+																				lineHeight: 18,
+																				color: '#FFFFFF',
+																			}}
+																		>
+																			{lastSyncLabel}
+																		</Text>
+																		<Text
+																			style={{
+																				marginTop: 4,
+																				fontSize: 11,
+																				lineHeight: 16,
+																				color: 'rgba(255,255,255,0.72)',
+																			}}
+																		>
+																			Cadastrado em{' '}
+																			{formatDateToBR(investment.createdAtISO)}
+																		</Text>
+																	</View>
+
+																	{investment.description ? (
+																		<View style={{ paddingTop: 2 }}>
+																			<Text
+																				style={{
+																					fontSize: 10,
+																					fontWeight: '700',
+																					letterSpacing: 0.4,
+																					color: 'rgba(255,255,255,0.72)',
+																					textTransform: 'uppercase',
+																				}}
+																			>
+																				Descrição
+																			</Text>
+																			<Text
+																				style={{
+																					marginTop: 6,
+																					fontSize: 13,
+																					lineHeight: 18,
+																					color: '#FFFFFF',
+																				}}
+																			>
+																				{investment.description}
+																			</Text>
+																		</View>
+																	) : null}
+
+																	<View style={{ paddingTop: 2, gap: 2 }}>
+																		<View
+																			style={{
+																				flexDirection: 'row',
+																				columnGap: 12,
+																			}}
+																		>
+																			{primaryInvestmentActions.map((action) => (
+																				<TouchableOpacity
+																					key={`${investment.id}-${action.key}`}
+																					activeOpacity={0.85}
+																					onPress={action.onPress}
+																					style={{
+																						width: '31%',
+																						minHeight: 30,
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 4,
+																					}}
+																				>
+																					<Icon
+																						as={action.icon}
+																						size="sm"
+																						className="text-white"
+																					/>
+																					<Text
+																						className="text-xs font-semibold text-white"
+																						style={{ flexShrink: 1 }}
+																					>
+																						{action.label}
+																					</Text>
+																				</TouchableOpacity>
+																			))}
+																		</View>
+
+																		<View
+																			style={{
+																				flexDirection: 'row',
+																				columnGap: 12,
+																			}}
+																		>
+																			{secondaryInvestmentActions.map((action) => (
+																				<TouchableOpacity
+																					key={`${investment.id}-${action.key}`}
+																					activeOpacity={0.85}
+																					onPress={action.onPress}
+																					style={{
+																						width: '31%',
+																						minHeight: 30,
+																						flexDirection: 'row',
+																						alignItems: 'center',
+																						gap: 8,
+																						paddingVertical: 4,
+																					}}
+																				>
+																					<Icon
+																						as={action.icon}
+																						size="sm"
+																						className="text-white"
+																					/>
+																					<Text
+																						className="text-xs font-semibold text-white"
+																						style={{ flexShrink: 1 }}
+																					>
+																						{action.label}
+																					</Text>
+																				</TouchableOpacity>
+																			))}
+																		</View>
+																	</View>
+																</VStack>
+															</LinearGradient>
+														) : null}
+													</View>
+												</View>
+											);
+										})}
+									</View>
 								</VStack>
 							)}
 						</VStack>
 					</ScrollView>
 				</View>
 
-				<Menu defaultValue={1} onHardwareBack={handleBackToHome} />
-
+				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
+				</View>
 				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
@@ -1347,45 +1970,55 @@ export default function FinancialListScreen() {
 							<Text className={`${bodyText} mb-4 text-sm`}>
 								Ajuste nome, valor base, CDI e banco do investimento.
 							</Text>
-							<VStack className="gap-4">
-								<VStack className="gap-2">
-									<Text className={`${bodyText} ml-1 text-sm`}>Nome</Text>
-									<Input className={fieldContainerClassName}>
-										<InputField
-											value={editName}
-											onChangeText={text => setEditName(text)}
-											autoCapitalize="sentences"
-											className={inputField}
-										/>
-									</Input>
-								</VStack>
-								<VStack className="gap-2">
-									<Text className={`${bodyText} ml-1 text-sm`}>Valor inicial</Text>
-									<Input className={fieldContainerClassName}>
-										<InputField
-											value={editInitialInput}
-											onChangeText={handleEditInitialInputChange}
-											keyboardType="numeric"
-											className={inputField}
-										/>
-									</Input>
-								</VStack>
-								<VStack className="gap-2">
-									<Text className={`${bodyText} ml-1 text-sm`}>CDI (%)</Text>
-									<Input className={fieldContainerClassName}>
-										<InputField
-											value={editCdiInput}
-											onChangeText={text => setEditCdiInput(sanitizeNumberInput(text))}
-											keyboardType="decimal-pad"
-											className={inputField}
-										/>
-									</Input>
-								</VStack>
-								<VStack className="gap-2">
-									<Text className={`${bodyText} ml-1 text-sm`}>Prazo de resgate</Text>
-									<Select selectedValue={editTerm} onValueChange={value => setEditTerm(value as RedemptionTerm)}>
-										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-											<SelectInput value={redemptionTermLabels[editTerm]} className={inputField} />
+							<VStack>
+								{renderStandardizedInput({
+									label: 'Nome do investimento',
+									value: editName,
+									onChangeText: setEditName,
+									placeholder: 'Digite o nome do investimento',
+									keyboardType: 'default',
+									autoCapitalize: 'sentences',
+									returnKeyType: 'next',
+									isDisabled: isSavingEdit,
+								})}
+								{renderStandardizedInput({
+									label: 'Valor inicial',
+									value: editInitialInput,
+									onChangeText: handleEditInitialInputChange,
+									placeholder: 'Digite o valor inicial',
+									keyboardType: 'numeric',
+									returnKeyType: 'next',
+									isDisabled: isSavingEdit,
+								})}
+								{renderStandardizedInput({
+									label: 'CDI (%)',
+									value: editCdiInput,
+									onChangeText: (text) =>
+										setEditCdiInput(sanitizeNumberInput(text)),
+									placeholder: 'Digite o percentual do CDI',
+									keyboardType: 'decimal-pad',
+									isDisabled: isSavingEdit,
+								})}
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+										Prazo de resgate
+									</Text>
+									<Select
+										selectedValue={editTerm}
+										onValueChange={(value) =>
+											setEditTerm(value as RedemptionTerm)
+										}
+										isDisabled={isSavingEdit}
+									>
+										<SelectTrigger
+											variant="outline"
+											size="md"
+											className={fieldContainerClassName}
+										>
+											<SelectInput
+												value={redemptionTermLabels[editTerm]}
+												className={inputField}
+											/>
 											<SelectIcon />
 										</SelectTrigger>
 										<SelectPortal>
@@ -1394,24 +2027,40 @@ export default function FinancialListScreen() {
 												<SelectDragIndicatorWrapper>
 													<SelectDragIndicator />
 												</SelectDragIndicatorWrapper>
-												{redemptionOptions.map(option => (
-													<SelectItem key={option.value} label={option.label} value={option.value} />
+												{redemptionOptions.map((option) => (
+													<SelectItem
+														key={option.value}
+														label={option.label}
+														value={option.value}
+													/>
 												))}
 											</SelectContent>
 										</SelectPortal>
 									</Select>
 								</VStack>
-								<VStack className="gap-2">
-									<Text className={`${bodyText} ml-1 text-sm`}>Banco</Text>
+								<VStack className="mb-4">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+										Banco
+									</Text>
 									<Select
 										selectedValue={editBankId ?? undefined}
-										onValueChange={value => setEditBankId(value)}
-										isDisabled={bankOptions.length === 0}
+										onValueChange={(value) => setEditBankId(value)}
+										isDisabled={isSavingEdit || bankOptions.length === 0}
 									>
-										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+										<SelectTrigger
+											variant="outline"
+											size="md"
+											className={fieldContainerClassName}
+										>
 											<SelectInput
 												placeholder="Selecione o banco"
-												value={editBankId ? bankOptions.find(bank => bank.id === editBankId)?.name ?? '' : ''}
+												value={
+													editBankId
+														? (bankOptions.find(
+															(bank) => bank.id === editBankId,
+														)?.name ?? '')
+														: ''
+												}
 												className={inputField}
 											/>
 											<SelectIcon />
@@ -1423,11 +2072,19 @@ export default function FinancialListScreen() {
 													<SelectDragIndicator />
 												</SelectDragIndicatorWrapper>
 												{bankOptions.length > 0 ? (
-													bankOptions.map(bank => (
-														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
+													bankOptions.map((bank) => (
+														<SelectItem
+															key={bank.id}
+															label={bank.name}
+															value={bank.id}
+														/>
 													))
 												) : (
-													<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
+													<SelectItem
+														label="Nenhum banco disponível"
+														value="no-bank"
+														isDisabled
+													/>
 												)}
 											</SelectContent>
 										</SelectPortal>
@@ -1436,10 +2093,19 @@ export default function FinancialListScreen() {
 							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={closeEditModal} isDisabled={isSavingEdit}>
+							<Button
+								variant="outline"
+								onPress={closeEditModal}
+								isDisabled={isSavingEdit}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleSubmitEdit} isDisabled={isSavingEdit} className={submitButtonClassName}>
+							<Button
+								onPress={handleSubmitEdit}
+								isDisabled={isSavingEdit}
+								className={submitButtonClassName}
+							>
 								{isSavingEdit ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1453,33 +2119,47 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentForDepositSync)} onClose={handleCloseDepositSyncModal}>
+				<Modal
+					isOpen={Boolean(investmentForDepositSync)}
+					onClose={handleCloseDepositSyncModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<ModalTitle>Sincronizar antes de aportar</ModalTitle>
+							<ModalTitle>Sincronização</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDepositSyncModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className={`${bodyText} mb-3 text-sm`}>
+							<Text className={`${bodyText} mb-4 text-sm`}>
 								Confirme o valor disponível hoje em{' '}
-								<Text className="font-semibold">{investmentForDepositSync?.name ?? 'seu investimento'}</Text>.
+								<Text className="font-semibold">
+									{investmentForDepositSync?.name ?? 'seu investimento'}
+								</Text>
+								.
 							</Text>
-							<Input className={fieldContainerClassName}>
-								<InputField
-									value={depositSyncInput}
-									onChangeText={handleDepositSyncInputChange}
-									keyboardType="numeric"
-									placeholder="Ex: 1.000,00"
-									className={inputField}
-								/>
-							</Input>
+							{renderStandardizedInput({
+								label: 'Valor disponível hoje',
+								value: depositSyncInput,
+								onChangeText: handleDepositSyncInputChange,
+								keyboardType: 'numeric',
+								placeholder: 'Ex: 1.000,00',
+								isDisabled: isSavingDepositSync,
+							})}
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseDepositSyncModal} isDisabled={isSavingDepositSync}>
+							<Button
+								variant="outline"
+								onPress={handleCloseDepositSyncModal}
+								isDisabled={isSavingDepositSync}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmDepositSync} isDisabled={isSavingDepositSync} className={submitButtonClassName}>
+							<Button
+								onPress={handleConfirmDepositSync}
+								isDisabled={isSavingDepositSync}
+								className={submitButtonClassName}
+							>
 								{isSavingDepositSync ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1493,7 +2173,10 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentForDeposit)} onClose={handleCloseDepositModal}>
+				<Modal
+					isOpen={Boolean(investmentForDeposit)}
+					onClose={handleCloseDepositModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
@@ -1503,29 +2186,46 @@ export default function FinancialListScreen() {
 						<ModalBody>
 							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
 								<VStack className="gap-1">
-									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor base</Text>
-									<Text className="text-lg font-semibold">{syncedDepositDisplayValue}</Text>
+									<Text
+										className={`${helperText} text-xs uppercase tracking-wide`}
+									>
+										Valor base
+									</Text>
+									<Text className="text-lg font-semibold">
+										{syncedDepositDisplayValue}
+									</Text>
 								</VStack>
 							</Box>
-							<Text className={`${bodyText} mb-3 text-sm`}>
+							<Text className={`${bodyText} mb-4 text-sm`}>
 								Informe o valor que deseja acrescentar em{' '}
-								<Text className="font-semibold">{investmentForDeposit?.name ?? 'seu investimento'}</Text>.
+								<Text className="font-semibold">
+									{investmentForDeposit?.name ?? 'seu investimento'}
+								</Text>
+								.
 							</Text>
-							<Input className={fieldContainerClassName}>
-								<InputField
-									value={depositInput}
-									onChangeText={handleDepositInputChange}
-									keyboardType="numeric"
-									placeholder="Ex: 500,00"
-									className={inputField}
-								/>
-							</Input>
+							{renderStandardizedInput({
+								label: 'Valor do aporte',
+								value: depositInput,
+								onChangeText: handleDepositInputChange,
+								keyboardType: 'numeric',
+								placeholder: 'Ex: 500,00',
+								isDisabled: isSavingDeposit,
+							})}
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseDepositModal} isDisabled={isSavingDeposit}>
+							<Button
+								variant="outline"
+								onPress={handleCloseDepositModal}
+								isDisabled={isSavingDeposit}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmDeposit} isDisabled={isSavingDeposit} className={submitButtonClassName}>
+							<Button
+								onPress={handleConfirmDeposit}
+								isDisabled={isSavingDeposit}
+								className={submitButtonClassName}
+							>
 								{isSavingDeposit ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1539,7 +2239,10 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentForWithdrawalSync)} onClose={handleCloseWithdrawalSyncModal}>
+				<Modal
+					isOpen={Boolean(investmentForWithdrawalSync)}
+					onClose={handleCloseWithdrawalSyncModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
@@ -1547,25 +2250,36 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className={`${bodyText} mb-3 text-sm`}>
+							<Text className={`${bodyText} mb-4 text-sm`}>
 								Confirme o valor disponível hoje em{' '}
-								<Text className="font-semibold">{investmentForWithdrawalSync?.name ?? 'seu investimento'}</Text>.
+								<Text className="font-semibold">
+									{investmentForWithdrawalSync?.name ?? 'seu investimento'}
+								</Text>
+								.
 							</Text>
-							<Input className={fieldContainerClassName}>
-								<InputField
-									value={withdrawSyncInput}
-									onChangeText={handleWithdrawSyncInputChange}
-									keyboardType="numeric"
-									placeholder="Ex: 1.000,00"
-									className={inputField}
-								/>
-							</Input>
+							{renderStandardizedInput({
+								label: 'Valor disponível hoje',
+								value: withdrawSyncInput,
+								onChangeText: handleWithdrawSyncInputChange,
+								keyboardType: 'numeric',
+								placeholder: 'Ex: 1.000,00',
+								isDisabled: isSavingWithdrawalSync,
+							})}
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseWithdrawalSyncModal} isDisabled={isSavingWithdrawalSync}>
+							<Button
+								variant="outline"
+								onPress={handleCloseWithdrawalSyncModal}
+								isDisabled={isSavingWithdrawalSync}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmWithdrawalSync} isDisabled={isSavingWithdrawalSync} className={submitButtonClassName}>
+							<Button
+								onPress={handleConfirmWithdrawalSync}
+								isDisabled={isSavingWithdrawalSync}
+								className={submitButtonClassName}
+							>
 								{isSavingWithdrawalSync ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1579,7 +2293,10 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentForWithdrawal)} onClose={handleCloseWithdrawalModal}>
+				<Modal
+					isOpen={Boolean(investmentForWithdrawal)}
+					onClose={handleCloseWithdrawalModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
@@ -1589,29 +2306,46 @@ export default function FinancialListScreen() {
 						<ModalBody>
 							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
 								<VStack className="gap-1">
-									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Valor base</Text>
-									<Text className="text-lg font-semibold">{syncedWithdrawalDisplayValue}</Text>
+									<Text
+										className={`${helperText} text-xs uppercase tracking-wide`}
+									>
+										Valor base
+									</Text>
+									<Text className="text-lg font-semibold">
+										{syncedWithdrawalDisplayValue}
+									</Text>
 								</VStack>
 							</Box>
-							<Text className={`${bodyText} mb-3 text-sm`}>
+							<Text className={`${bodyText} mb-4 text-sm`}>
 								Quanto você deseja resgatar de{' '}
-								<Text className="font-semibold">{investmentForWithdrawal?.name ?? 'seu investimento'}</Text>?
+								<Text className="font-semibold">
+									{investmentForWithdrawal?.name ?? 'seu investimento'}
+								</Text>
+								?
 							</Text>
-							<Input className={fieldContainerClassName}>
-								<InputField
-									value={withdrawInput}
-									onChangeText={handleWithdrawInputChange}
-									keyboardType="numeric"
-									placeholder="Ex: 250,00"
-									className={inputField}
-								/>
-							</Input>
+							{renderStandardizedInput({
+								label: 'Valor do resgate',
+								value: withdrawInput,
+								onChangeText: handleWithdrawInputChange,
+								keyboardType: 'numeric',
+								placeholder: 'Ex: 250,00',
+								isDisabled: isSavingWithdrawal,
+							})}
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseWithdrawalModal} isDisabled={isSavingWithdrawal}>
+							<Button
+								variant="outline"
+								onPress={handleCloseWithdrawalModal}
+								isDisabled={isSavingWithdrawal}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmWithdrawal} isDisabled={isSavingWithdrawal} className={submitButtonClassName}>
+							<Button
+								onPress={handleConfirmWithdrawal}
+								isDisabled={isSavingWithdrawal}
+								className={submitButtonClassName}
+							>
 								{isSavingWithdrawal ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1625,7 +2359,10 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentForSync)} onClose={handleCloseManualSyncModal}>
+				<Modal
+					isOpen={Boolean(investmentForSync)}
+					onClose={handleCloseManualSyncModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
@@ -1633,25 +2370,36 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseManualSyncModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className={`${bodyText} mb-3 text-sm`}>
+							<Text className={`${bodyText} mb-4 text-sm`}>
 								Informe o valor atual disponível em{' '}
-								<Text className="font-semibold">{investmentForSync?.name ?? 'seu investimento'}</Text>.
+								<Text className="font-semibold">
+									{investmentForSync?.name ?? 'seu investimento'}
+								</Text>
+								.
 							</Text>
-							<Input className={fieldContainerClassName}>
-								<InputField
-									value={syncInput}
-									onChangeText={handleManualSyncInputChange}
-									keyboardType="numeric"
-									placeholder="Ex: 1.250,45"
-									className={inputField}
-								/>
-							</Input>
+							{renderStandardizedInput({
+								label: 'Valor atual disponível',
+								value: syncInput,
+								onChangeText: handleManualSyncInputChange,
+								keyboardType: 'numeric',
+								placeholder: 'Ex: 1.250,45',
+								isDisabled: isSavingSync,
+							})}
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseManualSyncModal} isDisabled={isSavingSync}>
+							<Button
+								variant="outline"
+								onPress={handleCloseManualSyncModal}
+								isDisabled={isSavingSync}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button onPress={handleConfirmManualSync} isDisabled={isSavingSync} className={submitButtonClassName}>
+							<Button
+								onPress={handleConfirmManualSync}
+								isDisabled={isSavingSync}
+								className={submitButtonClassName}
+							>
 								{isSavingSync ? (
 									<>
 										<ButtonSpinner color="white" />
@@ -1665,7 +2413,10 @@ export default function FinancialListScreen() {
 					</ModalContent>
 				</Modal>
 
-				<Modal isOpen={Boolean(investmentPendingDeletion)} onClose={handleCloseDeleteModal}>
+				<Modal
+					isOpen={Boolean(investmentPendingDeletion)}
+					onClose={handleCloseDeleteModal}
+				>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
@@ -1675,15 +2426,28 @@ export default function FinancialListScreen() {
 						<ModalBody>
 							<Text className={`${bodyText} text-sm`}>
 								Tem certeza de que deseja remover{' '}
-								<Text className="font-semibold">{investmentPendingDeletion?.name ?? 'este investimento'}</Text>
+								<Text className="font-semibold">
+									{investmentPendingDeletion?.name ?? 'este investimento'}
+								</Text>
 								? Essa ação não pode ser desfeita.
 							</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseDeleteModal} isDisabled={isDeleting}>
+							<Button
+								variant="outline"
+								onPress={handleCloseDeleteModal}
+								isDisabled={isDeleting}
+								className={submitButtonCancelClassName}
+							>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
-							<Button variant="solid" action="negative" onPress={handleConfirmDelete} isDisabled={isDeleting}>
+							<Button
+								variant="solid"
+								action="negative"
+								onPress={handleConfirmDelete}
+								isDisabled={isDeleting}
+								className={submitButtonClassName}
+							>
 								{isDeleting ? (
 									<>
 										<ButtonSpinner color="white" />
