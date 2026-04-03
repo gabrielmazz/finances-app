@@ -47,16 +47,33 @@ import {
 	normalizeEmailForAuth,
 	registerFailedLoginAttempt,
 } from '@/utils/loginSecurity';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
+// Canal padronizado de alertas in-app conforme [[Notificações]]
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
 type FocusableInputKey = 'email' | 'password';
-type LoginStatusTone = 'error' | 'helper';
-type LoginStatus = {
-	tone: LoginStatusTone;
-	message: string;
-} | null;
+
 
 export default function LoginScreen() {
-	const { isDarkMode } = useAppTheme();
+
+	const {
+			isDarkMode,
+			surfaceBackground,
+			cardBackground,
+			bodyText,
+			helperText,
+			inputField,
+			fieldContainerClassName,
+			submitButtonClassName,
+			heroHeight,
+			infoCardStyle,
+			insets,
+			compactCardClassName,
+			notTintedCardClassName,
+			topSummaryCardClassName,
+		} = useScreenStyles();
+
 	const theme = useMemo(
 		() => ({
 			surfaceBackground: isDarkMode ? '#020617' : '#ffffff',
@@ -74,13 +91,8 @@ export default function LoginScreen() {
 	);
 
 	const {
-		surfaceBackground,
-		cardBackground,
 		headingText,
-		bodyText,
 		mutedText,
-		helperText,
-		inputField,
 		buttonText,
 	} = theme;
 
@@ -89,7 +101,6 @@ export default function LoginScreen() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
-	const [statusMessage, setStatusMessage] = useState<LoginStatus>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
@@ -187,13 +198,13 @@ export default function LoginScreen() {
 	const handleEmailChange = useCallback((value: string) => {
 		setEmail(clampEmailInput(value));
 		setEmailError(null);
-		setStatusMessage(null);
+
 	}, []);
 
 	const handlePasswordChange = useCallback((value: string) => {
 		setPassword(clampPasswordInput(value));
 		setPasswordError(null);
-		setStatusMessage(null);
+
 	}, []);
 
 	const handleTogglePasswordVisibility = useCallback(() => {
@@ -237,17 +248,18 @@ export default function LoginScreen() {
 		const throttleStatus = await getLoginThrottleStatus(nextEmail);
 		if (throttleStatus.isBlocked) {
 			setLoginCooldownUntil(throttleStatus.blockedUntil);
-			setStatusMessage({
-				tone: 'helper',
-				message: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
+			showNotifierAlert({
+				description: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
 					throttleStatus.remainingMs
 				)}.`,
+				type: 'warn',
+				isDarkMode,
 			});
 			return;
 		}
 
 		Keyboard.dismiss();
-		setStatusMessage(null);
+
 		setIsSubmitting(true);
 
 		try {
@@ -256,9 +268,26 @@ export default function LoginScreen() {
 			setLoginCooldownUntil(null);
 			await userCredential.user.reload();
 
-			setStatusMessage({
-				tone: 'helper',
-				message: 'Login realizado. Redirecionando...',
+			// Busca o nome do usuário no Firestore (fonte primária) com fallback para displayName do Auth
+			let userName = userCredential.user.displayName?.trim() || null;
+			try {
+				const userData = await getUserDataFirebase(userCredential.user.uid);
+				if (userData.success) {
+					const storedName = (userData.data as { name?: unknown })?.name;
+					if (typeof storedName === 'string' && storedName.trim()) {
+						userName = storedName.trim().split(/\s+/)[0] ?? userName;
+					}
+				}
+			} catch {
+				// Fallback silencioso para displayName do Auth
+			}
+
+			showNotifierAlert({
+				description: userName
+					? `Login realizado. Bem-vindo, ${userName}!`
+					: 'Login realizado. Redirecionando...',
+				type: 'success',
+				isDarkMode,
 			});
 		} catch (error) {
 			const mappedError = mapLoginError(error);
@@ -268,28 +297,31 @@ export default function LoginScreen() {
 				setLoginCooldownUntil(nextThrottleStatus.blockedUntil);
 
 				if (nextThrottleStatus.isBlocked) {
-					setStatusMessage({
-						tone: 'error',
-						message: `Email ou senha inválidos. Tente novamente em ${formatRemainingTime(
+					showNotifierAlert({
+						description: `Email ou senha inválidos. Tente novamente em ${formatRemainingTime(
 							nextThrottleStatus.remainingMs
 						)}.`,
+						type: 'error',
+						isDarkMode,
 					});
 				} else {
-					setStatusMessage({
-						tone: 'error',
-						message: mappedError.message,
+					showNotifierAlert({
+						description: mappedError.message,
+						type: 'error',
+						isDarkMode,
 					});
 				}
 			} else {
-				setStatusMessage({
-					tone: mappedError.category === 'verification' ? 'helper' : 'error',
-					message: mappedError.message,
+				showNotifierAlert({
+					description: mappedError.message,
+					type: mappedError.category === 'verification' ? 'warn' : 'error',
+					isDarkMode,
 				});
 			}
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [isSubmitting, validateCredentials]);
+	}, [isSubmitting, isDarkMode, validateCredentials]);
 
 	useEffect(() => {
 		void syncCooldownForEmail(normalizedEmail);
@@ -341,13 +373,6 @@ export default function LoginScreen() {
 				loginCooldownRemainingMs
 		  )}.`
 		: null;
-
-	const visibleStatusMessage = statusMessage ?? (derivedCooldownMessage
-		? {
-				tone: 'helper' as const,
-				message: derivedCooldownMessage,
-		  }
-		: null);
 
 	return (
 		<SafeAreaView
@@ -408,11 +433,11 @@ export default function LoginScreen() {
 
 								<FormControl className="mb-4">
 									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} text-sm`}>
+										<FormControlLabelText className={`${bodyText} mb-1 ml-1 text-sm`}>
 											Email
 										</FormControlLabelText>
 									</FormControlLabel>
-									<Input className="bg-transparent border border-slate-300 rounded-md">
+									<Input className={fieldContainerClassName}>
 										<InputField
 											ref={emailInputRef}
 											placeholder="Digite seu email"
@@ -439,11 +464,11 @@ export default function LoginScreen() {
 
 								<FormControl className="mb-6">
 									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} text-sm`}>
+										<FormControlLabelText className={`${bodyText} mb-1 ml-1 text-sm`}>
 											Senha
 										</FormControlLabelText>
 									</FormControlLabel>
-									<Input className="bg-transparent border border-slate-300 rounded-md">
+									<Input className={fieldContainerClassName}>
 										<InputField
 											ref={passwordInputRef}
 											placeholder="Digite sua senha"
@@ -472,11 +497,10 @@ export default function LoginScreen() {
 								</FormControl>
 
 								<Button
-									className={`w-full rounded-md py-3 ${
-										isLoginDisabled ? 'bg-yellow-400' : 'bg-yellow-600'
-									} ${buttonText}`}
+									className={submitButtonClassName}
 									onPress={() => void signIn()}
 									disabled={isLoginDisabled}
+									
 								>
 									{isSubmitting ? (
 										<ButtonSpinner color={isDarkMode ? '#ffffff' : '#0f172a'} />
@@ -489,20 +513,13 @@ export default function LoginScreen() {
 									)}
 								</Button>
 
-								{visibleStatusMessage ? (
+								{derivedCooldownMessage ? (
 									<FormControl className="mt-4">
-										{visibleStatusMessage.tone === 'error' ? (
-											<FormControlError className="mt-0">
-												<FormControlErrorIcon as={AlertCircleIcon} />
-												<FormControlErrorText>{visibleStatusMessage.message}</FormControlErrorText>
-											</FormControlError>
-										) : (
-											<FormControlHelper className="mt-0">
-												<FormControlHelperText className={`${helperText} text-sm`}>
-													{visibleStatusMessage.message}
-												</FormControlHelperText>
-											</FormControlHelper>
-										)}
+										<FormControlHelper className="mt-0">
+											<FormControlHelperText className={`${helperText} text-sm`}>
+												{derivedCooldownMessage}
+											</FormControlHelperText>
+										</FormControlHelper>
 									</FormControl>
 								) : null}
 
