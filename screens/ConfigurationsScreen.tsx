@@ -1,6 +1,7 @@
 import React from 'react';
-import { ScrollView, View, StatusBar } from 'react-native';
+import { ScrollView, View, StatusBar, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -14,8 +15,8 @@ import {
 	AccordionContentText,
 	AccordionIcon,
 } from '@/components/ui/accordion';
-import { Button, ButtonText, ButtonIcon, ButtonSpinner } from '@/components/ui/button';
-import { ChevronDownIcon, ChevronUpIcon, TrashIcon, EditIcon } from '@/components/ui/icon';
+import { Button, ButtonText, ButtonSpinner, ButtonIcon } from '@/components/ui/button';
+import { AddIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EditIcon, TrashIcon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
@@ -29,15 +30,7 @@ import {
 	ModalHeader,
 	ModalTitle,
 } from '@/components/ui/modal';
-import {
-	Drawer,
-	DrawerBackdrop,
-	DrawerBody,
-	DrawerCloseButton,
-	DrawerContent,
-	DrawerFooter,
-	DrawerHeader,
-} from '@/components/ui/drawer';
+import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import {
 	Select,
 	SelectBackdrop,
@@ -50,13 +43,23 @@ import {
 	SelectPortal,
 	SelectTrigger,
 } from '@/components/ui/select';
+import {
+	Table,
+	TableBody,
+	TableCaption,
+	TableData,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
 
 // Importações relacionadas à navegação e autenticação
 import { router, useFocusEffect } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 
 // Componentes do Uiverse
-import FloatingAlertViewport, { showFloatingAlert } from '@/components/uiverse/floating-alert';
+import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import Navigator from '@/components/uiverse/navigator';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import {
@@ -83,6 +86,8 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
+
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 type AccordionItem = {
 	id: string;
@@ -201,7 +206,38 @@ type PendingAction =
 		};
 	};
 
-type DrawerType = 'users' | 'banks' | 'tags' | 'related-users';
+type TablePaginationKey = 'users' | 'banks' | 'tags' | 'relatedUsers';
+
+type PaginatedTableResult<T> = {
+	items: T[];
+	currentPage: number;
+	totalPages: number;
+	totalItems: number;
+	startIndex: number;
+	endIndex: number;
+	hasPagination: boolean;
+};
+
+// Limite por página segue a convenção documentada em [[Configurações]].
+const CONFIGURATIONS_TABLE_PAGE_SIZE = 5;
+
+function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTableResult<T> {
+	const totalItems = items.length;
+	const totalPages = Math.max(1, Math.ceil(totalItems / CONFIGURATIONS_TABLE_PAGE_SIZE));
+	const currentPage = Math.min(Math.max(requestedPage, 1), totalPages);
+	const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * CONFIGURATIONS_TABLE_PAGE_SIZE;
+	const endIndex = totalItems === 0 ? 0 : Math.min(startIndex + CONFIGURATIONS_TABLE_PAGE_SIZE, totalItems);
+
+	return {
+		items: items.slice(startIndex, endIndex),
+		currentPage,
+		totalPages,
+		totalItems,
+		startIndex,
+		endIndex,
+		hasPagination: totalItems > CONFIGURATIONS_TABLE_PAGE_SIZE,
+	};
+}
 
 function ConfigurationsSkeleton({
 	topSummaryCardClassName,
@@ -251,6 +287,160 @@ function ConfigurationsSkeleton({
 	);
 }
 
+type ConfigurationActionButtonProps = {
+	label?: string;
+	icon: React.ElementType;
+	iconClassName?: string;
+	onPress: () => void;
+	disabled?: boolean;
+	variant?: 'solid' | 'outline' | 'link';
+	action?: 'primary' | 'secondary' | 'positive' | 'negative' | 'default';
+	size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+	className?: string;
+	isLoading?: boolean;
+	spinnerColor?: string;
+	accessibilityLabel?: string;
+	accessibilityHint?: string;
+};
+
+// Segue o padrão visual documentado em [[Configurações]] e [[Sistema de Temas]].
+function ConfigurationActionButton({
+	label,
+	icon,
+	iconClassName,
+	onPress,
+	disabled = false,
+	variant = 'outline',
+	action = 'primary',
+	size = 'sm',
+	className,
+	isLoading = false,
+	spinnerColor,
+	accessibilityLabel,
+	accessibilityHint,
+}: ConfigurationActionButtonProps) {
+	return (
+		<Button
+			size={size}
+			variant={variant}
+			action={action}
+			onPress={onPress}
+			isDisabled={disabled}
+			className={className}
+			accessibilityLabel={accessibilityLabel ?? label}
+			accessibilityHint={accessibilityHint}
+		>
+			{isLoading ? (
+				<ButtonSpinner color={spinnerColor} />
+			) : (
+				<>
+					<ButtonIcon as={icon} size={size} className={iconClassName} />
+					{label ? <ButtonText>{label}</ButtonText> : null}
+				</>
+			)}
+		</Button>
+	);
+}
+
+function ActionButtonsRow({
+	children,
+	align = 'flex-end',
+}: {
+	children: React.ReactNode;
+	align?: 'flex-start' | 'center' | 'flex-end';
+}) {
+	const justifyClassName =
+		align === 'flex-start' ? 'justify-start' : align === 'center' ? 'justify-center' : 'justify-end';
+
+	return (
+		<HStack className={`flex-wrap items-center gap-2 ${justifyClassName}`}>
+			{children}
+		</HStack>
+	);
+}
+
+function TableActionsHeader({
+	widthClassName,
+	headerClassName,
+	textClassName,
+}: {
+	widthClassName: string;
+	headerClassName: string;
+	textClassName: string;
+}) {
+	return (
+		<TableHead useRNView className={`${widthClassName} ${headerClassName}`}>
+			<Text className={textClassName}>Ações</Text>
+		</TableHead>
+	);
+}
+
+function TableActionsCell({
+	widthClassName,
+	cellClassName,
+	children,
+}: {
+	widthClassName: string;
+	cellClassName: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<TableData useRNView className={`${widthClassName} ${cellClassName}`}>
+			<ActionButtonsRow align="center">{children}</ActionButtonsRow>
+		</TableData>
+	);
+}
+
+function TablePaginationControls({
+	pagination,
+	onPageChange,
+	containerClassName,
+	listClassName,
+	buttonClassName,
+	activeButtonClassName,
+	infoTextClassName,
+}: {
+	pagination: PaginatedTableResult<unknown>;
+	onPageChange: (page: number) => void;
+	containerClassName: string;
+	listClassName: string;
+	buttonClassName: string;
+	activeButtonClassName: string;
+	infoTextClassName: string;
+}) {
+	if (!pagination.hasPagination) {
+		return null;
+	}
+
+	const pages = Array.from({ length: pagination.totalPages }, (_, index) => index + 1);
+
+	return (
+		<VStack className={containerClassName}>
+			<HStack className={listClassName}>
+				{pages.map(page => {
+					const isActive = page === pagination.currentPage;
+
+					return (
+						<Button
+							key={`table-pagination-page-${page}`}
+							size="sm"
+							variant={isActive ? 'solid' : 'outline'}
+							action={isActive ? 'primary' : 'secondary'}
+							className={isActive ? activeButtonClassName : buttonClassName}
+							onPress={() => onPageChange(page)}
+						>
+							<ButtonText>{page}</ButtonText>
+						</Button>
+					);
+				})}
+			</HStack>
+			<Text className={infoTextClassName}>
+				Mostrando {pagination.startIndex + 1}-{pagination.endIndex} de {pagination.totalItems}
+			</Text>
+		</VStack>
+	);
+}
+
 // ================================= Relacionamento de Admin (Usuários) ============================================= //
 
 export async function fetchUserData(userId: string) {
@@ -272,17 +462,6 @@ export async function fetchUserData(userId: string) {
 export async function handleDeleteUser(userId: string) {
 
 	const result = await deleteUserFirebase(userId);
-
-	if (result.success) {
-
-	} else {
-
-		showFloatingAlert({
-			message: 'Erro ao deletar usuário. Tente novamente.',
-			action: 'error',
-			position: 'bottom',
-		});
-	}
 
 	return result;
 }
@@ -331,39 +510,13 @@ export async function handleAddBank(bankName: string) {
 
 	const result = await addBankFirebase({ bankName, personId, colorHex: null });
 
-	if (result.success) {
-
-		showFloatingAlert({
-			message: `Banco ${bankName} adicionado com sucesso.`,
-			action: 'success',
-			position: 'bottom',
-		});
-
-	} else {
-
-		showFloatingAlert({
-			message: 'Erro ao adicionar banco. Tente novamente.',
-			action: 'error',
-			position: 'bottom',
-		});
-	}
+	return result;
 
 }
 
 export async function handleDeleteBank(bankId: string) {
 
 	const result = await deleteBankFirebase(bankId);
-
-	if (result.success) {
-
-	} else {
-
-		showFloatingAlert({
-			message: 'Erro ao deletar banco. Tente novamente.',
-			action: 'error',
-			position: 'bottom',
-		});
-	}
 
 	return result;
 }
@@ -388,17 +541,6 @@ export async function fetchAllBanks() {
 export async function handleDeleteTag(tagId: string) {
 
 	const result = await deleteTagFirebase(tagId);
-
-	if (result.success) {
-
-	} else {
-
-		showFloatingAlert({
-			message: 'Erro ao deletar tag. Tente novamente.',
-			action: 'error',
-			position: 'bottom',
-		});
-	}
 
 	return result;
 }
@@ -428,19 +570,47 @@ export default function ConfigurationsScreen() {
 		helperText,
 		inputField,
 		fieldContainerClassName,
+		addTagButtonClassName,
 		compactCardClassName,
 		tintedCardClassName,
+		notTintedCardClassName,
 		topSummaryCardClassName,
 		submitButtonClassName,
+		accordionSectionButtonClassName,
+		submitButtonCancelClassName,
 		modalContentClassName,
-		drawerContentClassName,
-		drawerHeaderCardClassName,
+		tableBaseClassName,
+		tableHeaderRowClassName,
+		tableRowClassName,
+		tableHeadTextClassName,
+		tableActionsHeaderTextClassName,
+		tableContentCellClassName,
+		tableCaptionClassName,
+		tableActionsHeaderClassName,
+		tableActionsCellClassName,
+		tableSingleActionColumnClassName,
+		tableDoubleActionColumnClassName,
+		tableUsersMinWidthClassName,
+		tableBanksMinWidthClassName,
+		tableTagsMinWidthClassName,
+		tableRelatedUsersMinWidthClassName,
+		tableIconButtonClassName,
+		tablePrimaryIconClassName,
+		tablePaginationContainerClassName,
+		tablePaginationListClassName,
+		tablePaginationButtonClassName,
+		tablePaginationActiveButtonClassName,
+		tablePaginationInfoTextClassName,
 		heroHeight,
 		insets,
 		skeletonBaseColor,
 		skeletonHighlightColor,
 		skeletonMutedBaseColor,
 		skeletonMutedHighlightColor,
+		infoCardStyle,
+		switchTrackColor,
+		switchThumbColor,
+		switchIosBackgroundColor,
 	} = useScreenStyles();
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
@@ -475,7 +645,13 @@ export default function ConfigurationsScreen() {
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
-	const [openDrawer, setOpenDrawer] = React.useState<DrawerType | null>(null);
+	const [isCopyingUserId, setIsCopyingUserId] = React.useState(false);
+	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
+		users: 1,
+		banks: 1,
+		tags: 1,
+		relatedUsers: 1,
+	});
 	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
 	const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
 
@@ -495,6 +671,23 @@ export default function ConfigurationsScreen() {
 		},
 		[isDarkMode, isLoadingTheme, setThemeMode],
 	);
+
+	const themePopoverText =
+		'Aplica o modo claro ou escuro em toda a interface do app e mantém a preferência salva para as próximas sessões.';
+	const themeStatusText = isLoadingTheme
+		? 'Carregando sua preferência de tema...'
+		: isDarkMode
+			? 'Modo escuro ativado.'
+			: 'Modo claro ativado.';
+
+	// O toggle segue a padronização visual descrita em [[Configurações]] e o fluxo de [[Privacidade de Valores]].
+	const valueVisibilityPopoverText =
+		'Oculta saldos, totais e outros valores monetários nas telas do app. A preferência fica salva para as próximas sessões, mas a ocultação é apenas visual.';
+	const valueVisibilityStatusText = isLoadingPreference
+		? 'Verificando a preferência salva...'
+		: shouldHideValues
+			? 'Os valores financeiros estão ocultos.'
+			: 'Os valores financeiros estão visíveis.';
 
 	const filteredTags = React.useMemo(() => {
 		return tagData.filter(tag => {
@@ -517,8 +710,132 @@ export default function ConfigurationsScreen() {
 		});
 	}, [tagData, tagFilter]);
 
+	const usersTable = React.useMemo(
+		() => paginateTableItems(userData, tablePages.users),
+		[userData, tablePages.users],
+	);
+
+	const banksTable = React.useMemo(
+		() => paginateTableItems(bankData, tablePages.banks),
+		[bankData, tablePages.banks],
+	);
+
+	const tagsTable = React.useMemo(
+		() => paginateTableItems(filteredTags, tablePages.tags),
+		[filteredTags, tablePages.tags],
+	);
+
+	const relatedUsersTable = React.useMemo(
+		() => paginateTableItems(relatedUserData, tablePages.relatedUsers),
+		[relatedUserData, tablePages.relatedUsers],
+	);
+
+	// Esta tela usa notifier-alert para feedback in-app, conforme [[Notificações]].
+	const showConfigurationAlert = React.useCallback(
+		({
+			title,
+			description,
+			type,
+			duration = 4000,
+		}: {
+			title: string;
+			description: string;
+			type: 'error' | 'warn' | 'info' | 'success';
+			duration?: number;
+		}) => {
+			showNotifierAlert({
+				title,
+				description,
+				type,
+				isDarkMode,
+				duration,
+			});
+		},
+		[isDarkMode],
+	);
+
+	const handleTablePageChange = React.useCallback((tableKey: TablePaginationKey, page: number) => {
+		setTablePages(previousPages =>
+			previousPages[tableKey] === page
+				? previousPages
+				: {
+					...previousPages,
+					[tableKey]: page,
+				},
+		);
+	}, []);
+
+	React.useEffect(() => {
+		setTablePages(previousPages => {
+			const normalizedPages = {
+				users: usersTable.currentPage,
+				banks: banksTable.currentPage,
+				tags: tagsTable.currentPage,
+				relatedUsers: relatedUsersTable.currentPage,
+			};
+
+			if (
+				previousPages.users === normalizedPages.users &&
+				previousPages.banks === normalizedPages.banks &&
+				previousPages.tags === normalizedPages.tags &&
+				previousPages.relatedUsers === normalizedPages.relatedUsers
+			) {
+				return previousPages;
+			}
+
+			return normalizedPages;
+		});
+	}, [
+		usersTable.currentPage,
+		banksTable.currentPage,
+		tagsTable.currentPage,
+		relatedUsersTable.currentPage,
+	]);
+
+	React.useEffect(() => {
+		setTablePages(previousPages =>
+			previousPages.tags === 1
+				? previousPages
+				: {
+					...previousPages,
+					tags: 1,
+				},
+		);
+	}, [tagFilter]);
+
 	// Constante para armazenar o email do usuário logado atualmente
 	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
+
+	const handleCopyUserId = React.useCallback(async () => {
+		if (!userId) {
+			showConfigurationAlert({
+				title: 'ID indisponível',
+				description: 'Nenhum ID de usuário foi encontrado para copiar.',
+				type: 'warn',
+			});
+			return;
+		}
+
+		setIsCopyingUserId(true);
+
+		try {
+			await Clipboard.setStringAsync(userId);
+			showConfigurationAlert({
+				title: 'ID copiado',
+				description: 'ID do usuário copiado com sucesso.',
+				type: 'success',
+			});
+		} catch (error) {
+			console.error('Erro ao copiar ID do usuário:', error);
+			showConfigurationAlert({
+				title: 'Erro ao copiar ID',
+				description: 'Não foi possível copiar o ID do usuário.',
+				type: 'error',
+			});
+		} finally {
+			setIsCopyingUserId(false);
+		}
+	}, [showConfigurationAlert, userId]);
 
 	const handleUserRemoval = React.useCallback(
 		async (userId: string, identifier: string) => {
@@ -527,20 +844,20 @@ export default function ConfigurationsScreen() {
 
 			if (result.success) {
 				setUserData(prev => prev.filter(user => user.id !== userId));
-				showFloatingAlert({
-					message: `Usuário ${identifier} foi excluído.`,
-					action: 'success',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Usuário removido',
+					description: `Usuário ${identifier} foi excluído.`,
+					type: 'success',
 				});
 			} else {
-				showFloatingAlert({
-					message: 'Não foi possível remover o usuário. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Erro ao remover usuário',
+					description: 'Não foi possível remover o usuário. Tente novamente.',
+					type: 'error',
 				});
 			}
 		},
-		[],
+		[showConfigurationAlert],
 	);
 
 	const handleBankRemoval = React.useCallback(
@@ -549,20 +866,20 @@ export default function ConfigurationsScreen() {
 
 			if (result.success) {
 				setBankData(prev => prev.filter(bank => bank.id !== bankId));
-				showFloatingAlert({
-					message: `Banco ${bankName || bankId} foi excluído.`,
-					action: 'success',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Banco removido',
+					description: `Banco ${bankName || bankId} foi excluído.`,
+					type: 'success',
 				});
 			} else {
-				showFloatingAlert({
-					message: 'Não foi possível remover o banco. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Erro ao remover banco',
+					description: 'Não foi possível remover o banco. Tente novamente.',
+					type: 'error',
 				});
 			}
 		},
-		[],
+		[showConfigurationAlert],
 	);
 
 	const handleBankEdit = React.useCallback(
@@ -592,20 +909,20 @@ export default function ConfigurationsScreen() {
 
 			if (result.success) {
 				setTagData(prev => prev.filter(tag => tag.id !== tagId));
-				showFloatingAlert({
-					message: `Tag ${tagName || tagId} foi excluída.`,
-					action: 'success',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Tag removida',
+					description: `Tag ${tagName || tagId} foi excluída.`,
+					type: 'success',
 				});
 			} else {
-				showFloatingAlert({
-					message: 'Não foi possível remover a tag. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Erro ao remover tag',
+					description: 'Não foi possível remover a tag. Tente novamente.',
+					type: 'error',
 				});
 			}
 		},
-		[setTagData],
+		[setTagData, showConfigurationAlert],
 	);
 
 	const handleRelatedUserRemoval = React.useCallback(
@@ -614,29 +931,21 @@ export default function ConfigurationsScreen() {
 
 			if (result.success) {
 				setRelatedUserData(prev => prev.filter(user => user.id !== relatedUserId));
-				showFloatingAlert({
-					message: `Usuário ${identifier} foi desvinculado.`,
-					action: 'success',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Vínculo removido',
+					description: `Usuário ${identifier} foi desvinculado.`,
+					type: 'success',
 				});
 			} else {
-				showFloatingAlert({
-					message: 'Não foi possível remover o vínculo. Tente novamente.',
-					action: 'error',
-					position: 'bottom',
+				showConfigurationAlert({
+					title: 'Erro ao remover vínculo',
+					description: 'Não foi possível remover o vínculo. Tente novamente.',
+					type: 'error',
 				});
 			}
 		},
-		[setRelatedUserData],
+		[setRelatedUserData, showConfigurationAlert],
 	);
-
-	const handleOpenDrawer = React.useCallback((drawerType: DrawerType) => {
-		setOpenDrawer(drawerType);
-	}, []);
-
-	const handleCloseDrawer = React.useCallback(() => {
-		setOpenDrawer(null);
-	}, []);
 
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
@@ -779,383 +1088,91 @@ export default function ConfigurationsScreen() {
 
 	const isModalOpen = Boolean(pendingAction);
 	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
-	const isDrawerOpen = Boolean(openDrawer);
 
-	const drawerCopy = React.useMemo(() => {
-		switch (openDrawer) {
-			case 'users':
-				return {
-					title: 'Usuários cadastrados',
-					subtitle: `${userData.length} registro(s) encontrados.`,
-				};
-			case 'banks':
-				return {
-					title: 'Bancos cadastrados',
-					subtitle: `${bankData.length} registro(s) encontrados.`,
-				};
-			case 'tags':
-				return {
-					title: 'Tags cadastradas',
-					subtitle: `${filteredTags.length} registro(s) encontrados.`,
-				};
-			case 'related-users':
-				return {
-					title: 'Usuários vinculados',
-					subtitle: `${relatedUserData.length} registro(s) encontrados.`,
-				};
-			default:
-				return {
-					title: '',
-					subtitle: '',
-				};
+	const getTagTypeLabel = React.useCallback((tag: (typeof tagData)[number]) => {
+		if (tag.usageType === 'gain') {
+			return 'Ganhos';
 		}
-	}, [openDrawer, userData.length, bankData.length, filteredTags.length, relatedUserData.length]);
+		if (tag.usageType === 'expense') {
+			return 'Despesas';
+		}
+		return 'Não definido';
+	}, []);
 
-	const drawerContent = React.useMemo(() => {
-		const renderEmptyState = (message: string) => (
-			<Box className={`${compactCardClassName} px-4 py-10`}>
-				<Text className={`text-center ${helperText}`}>{message}</Text>
+	const getTagBadgeLabels = React.useCallback(
+		(tag: (typeof tagData)[number]) => {
+			const badges = [getTagTypeLabel(tag)];
+
+			if (tag.isMandatoryExpense) {
+				badges.push('Despesa obrigatória');
+			}
+
+			if (tag.isMandatoryGain) {
+				badges.push('Ganho obrigatório');
+			}
+
+			if (tag.showInBothLists) {
+				badges.push('Listas normal e obrigatória');
+			}
+
+			return badges;
+		},
+		[getTagTypeLabel],
+	);
+
+	const renderEmptyTableState = React.useCallback(
+		(message: string) => (
+			<Box className={`${tintedCardClassName} mt-4 px-4 py-5`}>
+				<Text className={`${helperText} text-sm`}>{message}</Text>
 			</Box>
-		);
+		),
+		[helperText, tintedCardClassName],
+	);
 
-		const renderCardContainer = (children: React.ReactNode, key?: string) => (
-			<Box key={key} className={`${compactCardClassName} px-4 py-4`}>
-				{children}
-			</Box>
-		);
-
-		const renderLoadingState = () => (
-			<VStack className="gap-3">
-				{Array.from({ length: 3 }).map((_, index) => (
-					<Box key={`drawer-skeleton-${index}`} className={`${compactCardClassName} px-4 py-4`}>
-						<VStack className="gap-3">
-							<Skeleton className="h-4 w-28" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-							<Skeleton className="h-5 w-48" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-							<Skeleton className="h-9 w-28 rounded-2xl" baseColor={skeletonBaseColor} highlightColor={skeletonHighlightColor} />
-						</VStack>
-					</Box>
-				))}
-			</VStack>
-		);
-
-		const getTagTypeLabel = (tag: (typeof tagData)[number]) => {
-			if (tag.usageType === 'gain') {
-				return 'Ganhos';
-			}
-			if (tag.usageType === 'expense') {
-				return 'Despesas';
-			}
-			return 'Não definido';
-		};
-
-		if (!openDrawer) {
-			return renderEmptyState('Selecione uma lista para visualizar.');
-		}
-
-		if (openDrawer === 'users') {
-			if (!isAdmin) {
-				return renderEmptyState('Você precisa ser administrador para visualizar os usuários.');
-			}
-
-			if (!userData.length) {
-				return renderEmptyState('Nenhum usuário cadastrado até o momento.');
+	const renderSectionAction = React.useCallback(
+		(action: AccordionItem['action'] | undefined, disabled = false) => {
+			if (!action) {
+				return null;
 			}
 
 			return (
-				<VStack className="gap-3">
-					{userData.map(user =>
-						renderCardContainer(
-							<VStack className="gap-3">
-								<VStack className="gap-1">
-									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Usuário cadastrado</Text>
-									<Text className="text-base font-semibold">{user.email ?? user.id}</Text>
-								</VStack>
-								<HStack className="justify-end">
-									<Button
-										size="sm"
-										variant="outline"
-										action="negative"
-										onPress={() =>
-											setPendingAction({
-												type: 'delete-user',
-												payload: {
-													userId: user.id,
-													identifier: user.email ?? user.id,
-												},
-											})
-										}
-									>
-										<ButtonIcon as={TrashIcon} />
-										<ButtonText>Excluir</ButtonText>
-									</Button>
-								</HStack>
-							</VStack>,
-							user.id,
-						),
-					)}
-				</VStack>
+				<Box className="w-full">
+					<ConfigurationActionButton
+						label={action.label}
+						icon={AddIcon}
+						onPress={() => router.push(action.router)}
+						disabled={disabled}
+						size="md"
+						variant="solid"
+						className={accordionSectionButtonClassName}
+					/>
+				</Box>
 			);
-		}
+		},
+		[accordionSectionButtonClassName],
+	);
 
-		if (openDrawer === 'banks') {
-			if (!isAdmin) {
-				return renderEmptyState('Você precisa ser administrador para visualizar os bancos.');
-			}
-
-			if (!bankData.length) {
-				return renderEmptyState('Nenhum banco cadastrado até o momento.');
-			}
-
-			return (
-				<VStack className="gap-3">
-					{bankData.map(bank =>
-						renderCardContainer(
-							<VStack className="gap-3">
-								<HStack className="items-center gap-3">
-									<View
-										className="h-3 w-3 rounded-full"
-										style={{ backgroundColor: bank.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B') }}
-									/>
-									<VStack className="flex-1 gap-1">
-										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Banco cadastrado</Text>
-										<Text className="text-base font-semibold">{bank.name}</Text>
-									</VStack>
-								</HStack>
-								<HStack className="justify-end gap-2">
-									<Button
-										size="sm"
-										variant="outline"
-										action="primary"
-										onPress={() =>
-											setPendingAction({
-												type: 'edit-bank',
-												payload: { bank },
-											})
-										}
-									>
-										<ButtonIcon as={EditIcon} />
-										<ButtonText>Editar</ButtonText>
-									</Button>
-									<Button
-										size="sm"
-										variant="outline"
-										action="negative"
-										onPress={() =>
-											setPendingAction({
-												type: 'delete-bank',
-												payload: {
-													bankId: bank.id,
-													bankName: bank.name,
-												},
-											})
-										}
-									>
-										<ButtonIcon as={TrashIcon} />
-										<ButtonText>Excluir</ButtonText>
-									</Button>
-								</HStack>
-							</VStack>,
-							bank.id,
-						),
-					)}
-				</VStack>
-			);
-		}
-
-		if (openDrawer === 'tags') {
-			if (!isAdmin) {
-				return renderEmptyState('Você precisa ser administrador para visualizar as tags.');
-			}
-
-			return (
-				<VStack className="gap-3">
-					<Box className={`${compactCardClassName} px-4 py-4`}>
-						<Text className="mb-2 text-sm font-semibold">Filtrar tags por tipo</Text>
-						<Select selectedValue={tagFilter} onValueChange={value => setTagFilter(value as any)}>
-							<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-								<SelectInput
-									placeholder="Selecione um filtro"
-									value={tagFilterLabels[tagFilter]}
-									className={inputField}
-								/>
-								<SelectIcon />
-							</SelectTrigger>
-							<SelectPortal>
-								<SelectBackdrop />
-								<SelectContent>
-									<SelectDragIndicatorWrapper>
-										<SelectDragIndicator />
-									</SelectDragIndicatorWrapper>
-									<SelectItem label="Todas" value="all" />
-									<SelectItem label="Despesas" value="expense" />
-									<SelectItem label="Despesas obrigatórias" value="mandatory-expense" />
-									<SelectItem label="Ganhos" value="gain" />
-									<SelectItem label="Ganhos obrigatórios" value="mandatory-gain" />
-								</SelectContent>
-							</SelectPortal>
-						</Select>
-					</Box>
-
-					{!filteredTags.length
-						? renderEmptyState('Nenhuma tag encontrada para o filtro selecionado.')
-						: filteredTags.map(tag =>
-								renderCardContainer(
-									<VStack className="gap-3">
-										<HStack className="items-start gap-3">
-											<View className={`${tintedCardClassName} h-11 w-11 items-center justify-center`}>
-												<TagIcon
-													iconFamily={tag.iconFamily}
-													iconName={tag.iconName}
-													iconStyle={tag.iconStyle}
-													size={20}
-													color={isDarkMode ? '#FCD34D' : '#D97706'}
-												/>
-											</View>
-											<VStack className="flex-1 gap-1">
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Tag cadastrada</Text>
-												<Text className="text-base font-semibold">{tag.name}</Text>
-												<Text className={`${helperText} text-sm`}>Tipo: {getTagTypeLabel(tag)}</Text>
-											</VStack>
-										</HStack>
-										<View className="flex-row flex-wrap gap-2">
-											{tag.isMandatoryExpense ? (
-												<Box className={`${tintedCardClassName} px-3 py-2`}>
-													<Text className="text-xs text-orange-600 dark:text-orange-400">Despesa obrigatória</Text>
-												</Box>
-											) : null}
-											{tag.isMandatoryGain ? (
-												<Box className={`${tintedCardClassName} px-3 py-2`}>
-													<Text className="text-xs text-emerald-600 dark:text-emerald-400">Ganho obrigatório</Text>
-												</Box>
-											) : null}
-											{tag.showInBothLists ? (
-												<Box className={`${tintedCardClassName} px-3 py-2`}>
-													<Text className="text-xs text-sky-600 dark:text-sky-400">Listas normal e obrigatória</Text>
-												</Box>
-											) : null}
-										</View>
-										<HStack className="justify-end gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												action="primary"
-												onPress={() =>
-													setPendingAction({
-														type: 'edit-tag',
-														payload: {
-															tag: {
-																id: tag.id,
-																name: tag.name,
-																usageType:
-																	tag.usageType === 'gain' || tag.usageType === 'expense'
-																		? tag.usageType
-																		: undefined,
-																isMandatoryExpense: Boolean(tag.isMandatoryExpense),
-																isMandatoryGain: Boolean(tag.isMandatoryGain),
-																showInBothLists: Boolean(tag.showInBothLists),
-																iconFamily: tag.iconFamily ?? null,
-																iconName: tag.iconName ?? null,
-																iconStyle: tag.iconStyle ?? null,
-															},
-														},
-													})
-												}
-											>
-												<ButtonIcon as={EditIcon} />
-												<ButtonText>Editar</ButtonText>
-											</Button>
-											<Button
-												size="sm"
-												variant="outline"
-												action="negative"
-												onPress={() =>
-													setPendingAction({
-														type: 'delete-tag',
-														payload: {
-															tagId: tag.id,
-															tagName: tag.name,
-														},
-													})
-												}
-											>
-												<ButtonIcon as={TrashIcon} />
-												<ButtonText>Excluir</ButtonText>
-											</Button>
-										</HStack>
-									</VStack>,
-									tag.id,
-								),
-						  )}
-				</VStack>
-			);
-		}
-
-		if (openDrawer === 'related-users') {
-			if (isLoadingRelatedUsers) {
-				return renderLoadingState();
-			}
-
-			if (!relatedUserData.length) {
-				return renderEmptyState('Você ainda não vinculou nenhum usuário.');
-			}
-
-			return (
-				<VStack className="gap-3">
-					{relatedUserData.map(relatedUser =>
-						renderCardContainer(
-							<VStack className="gap-3">
-								<VStack className="gap-1">
-									<Text className={`${helperText} text-xs uppercase tracking-wide`}>Usuário vinculado</Text>
-									<Text className="text-base font-semibold">{relatedUser.email || relatedUser.id}</Text>
-								</VStack>
-								<HStack className="justify-end">
-									<Button
-										size="sm"
-										variant="outline"
-										action="negative"
-										onPress={() =>
-											setPendingAction({
-												type: 'delete-related-user',
-												payload: {
-													userId: relatedUser.id,
-													identifier: relatedUser.email || relatedUser.id,
-												},
-											})
-										}
-									>
-										<ButtonIcon as={TrashIcon} />
-										<ButtonText>Desvincular</ButtonText>
-									</Button>
-								</HStack>
-							</VStack>,
-							relatedUser.id,
-						),
-					)}
-				</VStack>
-			);
-		}
-
-		return null;
-	}, [
-		openDrawer,
-		isAdmin,
-		userData,
-		bankData,
-		tagData,
-		tagFilter,
-		filteredTags,
-		relatedUserData,
-		isLoadingRelatedUsers,
-		isDarkMode,
-		compactCardClassName,
-		helperText,
-		fieldContainerClassName,
-		inputField,
-		tintedCardClassName,
-		skeletonBaseColor,
-		skeletonHighlightColor,
-		setPendingAction,
-	]);
+	const renderTablePagination = React.useCallback(
+		(tableKey: TablePaginationKey, pagination: PaginatedTableResult<unknown>) => (
+			<TablePaginationControls
+				pagination={pagination}
+				onPageChange={page => handleTablePageChange(tableKey, page)}
+				containerClassName={tablePaginationContainerClassName}
+				listClassName={tablePaginationListClassName}
+				buttonClassName={tablePaginationButtonClassName}
+				activeButtonClassName={tablePaginationActiveButtonClassName}
+				infoTextClassName={tablePaginationInfoTextClassName}
+			/>
+		),
+		[
+			handleTablePageChange,
+			tablePaginationActiveButtonClassName,
+			tablePaginationButtonClassName,
+			tablePaginationContainerClassName,
+			tablePaginationInfoTextClassName,
+			tablePaginationListClassName,
+		],
+	);
 
 	// Verifica se o usuário atual possui flag de administrador no Firestore
 	React.useEffect(() => {
@@ -1363,21 +1380,16 @@ export default function ConfigurationsScreen() {
 			}
 		};
 
-			void fetchUserName();
-		}, [userId]);
+		void fetchUserName();
+	}, [userId]);
 
 	const isInitialLoading = isAdminLoading;
 	const managedRecordsCount = userData.length + bankData.length + tagData.length;
-	const relatedUsersLabel = isLoadingRelatedUsers
-		? 'Carregando vínculos...'
-		: `${relatedUserData.length} usuário(s) vinculados`;
 
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<FloatingAlertViewport />
-
 				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
 						<Image
@@ -1417,69 +1429,99 @@ export default function ConfigurationsScreen() {
 								skeletonMutedHighlightColor={skeletonMutedHighlightColor}
 							/>
 						) : (
+
 							<VStack className="mt-4 gap-4">
-								<Box className={`${topSummaryCardClassName} px-5 py-5`}>
-									<VStack className="gap-4">
+
+								<Heading
+									className="text-lg uppercase tracking-widest "
+									size="lg"
+								>
+									Informações do usuário
+								</Heading>
+
+								<View className="flex-row flex-wrap gap-3">
+									<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Acesso</Text>
+										<Text className="mt-2 text-lg font-semibold">
+											{isAdmin ? 'Administrador' : 'Padrão'}
+										</Text>
+									</Box>
+									<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Cadastros monitorados</Text>
+										<Text className="mt-2 text-lg font-semibold">
+											{isAdmin ? managedRecordsCount : relatedUserData.length}
+										</Text>
+									</Box>
+								</View>
+
+								<VStack className="gap-4">
+
+									<VStack className="gap-3">
+
 										<VStack className="gap-2">
-											<Text className={`${helperText} text-xs uppercase tracking-[0.18em]`}>
-												Painel central
-											</Text>
-											<Heading size="md">Gerencie acessos, cadastros e preferências visuais do aplicativo</Heading>
-											<Text className={`${bodyText} text-sm`}>
-												O conteúdo abaixo mantém toda a lógica atual do sistema, mas reorganiza a leitura para deixar ações, listas e preferências mais diretas.
-											</Text>
+											<Text className={`${bodyText} ml-1 text-sm`}>Email logado</Text>
+											<Input className={fieldContainerClassName} isDisabled>
+												<InputField
+													placeholder="Email do usuário"
+													value={currentUserEmail}
+													keyboardType="numeric"
+													returnKeyType="next"
+													className={inputField}
+												/>
+											</Input>
 										</VStack>
 
-										<View className="flex-row flex-wrap gap-3">
-											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Acesso</Text>
-												<Text className="mt-2 text-lg font-semibold">
-													{isAdmin ? 'Administrador' : 'Padrão'}
-												</Text>
-											</Box>
-											<Box className={`${tintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs uppercase tracking-wide`}>Cadastros monitorados</Text>
-												<Text className="mt-2 text-lg font-semibold">
-													{isAdmin ? managedRecordsCount : relatedUserData.length}
-												</Text>
-											</Box>
-										</View>
-
-										<Box className={`${compactCardClassName} px-4 py-4`}>
-											<VStack className="gap-3">
-												<VStack className="gap-1">
-													<Text className="font-semibold">Sessão atual</Text>
-													<Text className={`${helperText} text-sm`}>
-														Use este identificador para relacionar contas e validar permissões.
-													</Text>
-												</VStack>
-												<Input isDisabled className={fieldContainerClassName}>
-													<InputField
-														value={
-															currentUserEmail
-																? `${currentUserEmail} (ID: ${userId})`
-																: `Desconhecido (ID: ${userId})`
-														}
-														className={`${inputField} text-xs`}
-													/>
-												</Input>
-												<Text className={`${helperText} text-xs`}>{relatedUsersLabel}</Text>
+										<HStack className="items-end gap-3">
+											<VStack className="flex-1 gap-2">
+												<Text className={`${bodyText} ml-1 text-sm`}>ID do usuário</Text>
+												<View className="flex-1">
+													<Input className={fieldContainerClassName} isDisabled>
+														<InputField
+															placeholder="ID do usuário"
+															value={userId || 'ID indisponível'}
+															keyboardType="numeric"
+															returnKeyType="next"
+															className={inputField}
+														/>
+													</Input>
+												</View>
 											</VStack>
-										</Box>
+											<ConfigurationActionButton
+												icon={CopyIcon}
+												iconClassName={tablePrimaryIconClassName}
+												onPress={() => {
+													void handleCopyUserId();
+												}}
+												disabled={!userId || isCopyingUserId}
+												accessibilityLabel="Copiar ID do usuário"
+												accessibilityHint="Copia o ID do usuário logado para a área de transferência"
+												className={addTagButtonClassName}
+												isLoading={isCopyingUserId}
+												spinnerColor={isDarkMode ? '#FCD34D' : '#F59E0B'}
+											/>
+										</HStack>
 									</VStack>
-								</Box>
+								</VStack>
 
-								<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full gap-3">
+								<Heading
+									className="text-lg uppercase tracking-widest "
+									size="lg"
+								>
+									Configurações avançadas
+								</Heading>
+
+								<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
 									{accordionItems.map(item => {
 										const requiresAdmin = item.actionRequiresAdmin !== false;
+										const canAccessSection = !requiresAdmin || isAdmin;
 
 										return (
-											<AccordionItem key={item.id} value={item.id} className={`${compactCardClassName} mb-3 overflow-hidden`}>
+											<AccordionItem key={item.id} value={item.id} className={``}>
 												<AccordionHeader>
-													<AccordionTrigger className="px-4 py-4">
+													<AccordionTrigger className="px-0">
 														{({ isExpanded }: { isExpanded: boolean }) => (
 															<View className="flex-row items-center justify-between w-full">
-																<AccordionTitleText className="pr-4 font-semibold leading-5">
+																<AccordionTitleText className="font-semibold leading-5">
 																	{item.title}
 																</AccordionTitleText>
 																<AccordionIcon
@@ -1491,164 +1533,495 @@ export default function ConfigurationsScreen() {
 													</AccordionTrigger>
 												</AccordionHeader>
 
-												<AccordionContent className="px-4 pb-4 pt-0">
-													<AccordionContentText className={`${helperText} text-sm`}>
-														{item.content}
-													</AccordionContentText>
+												<AccordionContent className="px-0">
 
-													{requiresAdmin && !isAdmin ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+													{!canAccessSection ? (
+														<Box className={`${notTintedCardClassName} mt-4 px-4 py-4`}>
 															<Text className={`${helperText} text-sm`}>
 																Esta seção exibe informações administrativas apenas para usuários com essa permissão.
 															</Text>
 														</Box>
 													) : null}
 
-													{item.showUsersTable && isAdmin ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
-															<VStack className="gap-3">
-																<Text className={`${helperText} text-sm`}>
-																	{userData.length > 0
-																		? `${userData.length} usuário(s) cadastrados.`
-																		: 'Nenhum usuário cadastrado até o momento.'}
-																</Text>
-																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('users')}>
-																	<ButtonText>Visualizar usuários</ButtonText>
-																</Button>
-															</VStack>
-														</Box>
+													{item.showUsersTable && canAccessSection ? (
+														<VStack className="gap-3">
+															{renderSectionAction(item.action)}
+															{usersTable.totalItems > 0 ? (
+																<Box className={`${notTintedCardClassName} overflow-hidden`}>
+																	<Table className={`${tableBaseClassName} ${tableUsersMinWidthClassName}`}>
+																		<TableHeader>
+																			<TableRow className={tableHeaderRowClassName}>
+																				<TableHead className={tableHeadTextClassName}>Usuário</TableHead>
+																				<TableActionsHeader
+																					widthClassName={tableSingleActionColumnClassName}
+																					headerClassName={tableActionsHeaderClassName}
+																					textClassName={tableActionsHeaderTextClassName}
+																				/>
+																			</TableRow>
+																		</TableHeader>
+																		<TableBody>
+																			{usersTable.items.map(user => (
+																				<TableRow
+																					key={user.id}
+																					className={tableRowClassName}
+																				>
+																					<TableData useRNView className={tableContentCellClassName}>
+																						<VStack className="min-w-0 flex-1 gap-1">
+																							<Text className="text-sm font-semibold" numberOfLines={1}>
+																								{user.email || 'Usuário sem e-mail'}
+																							</Text>
+																							<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																								ID: {user.id}
+																							</Text>
+																						</VStack>
+																					</TableData>
+																					<TableActionsCell
+																						widthClassName={tableSingleActionColumnClassName}
+																						cellClassName={tableActionsCellClassName}
+																					>
+																						<ConfigurationActionButton
+																							icon={TrashIcon}
+																							variant="link"
+																							className={tableIconButtonClassName}
+																							action="negative"
+																							accessibilityLabel={`Excluir usuário ${user.email ?? user.id}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'delete-user',
+																									payload: {
+																										userId: user.id,
+																										identifier: user.email ?? user.id,
+																									},
+																								})
+																							}
+																						/>
+																					</TableActionsCell>
+																				</TableRow>
+																			))}
+																		</TableBody>
+																		<TableCaption className={tableCaptionClassName}>
+																			{usersTable.totalItems} usuário(s) cadastrados.
+																		</TableCaption>
+																	</Table>
+																	{renderTablePagination('users', usersTable)}
+																</Box>
+															) : (
+																renderEmptyTableState('Nenhum usuário cadastrado até o momento.')
+															)}
+														</VStack>
 													) : null}
 
-													{item.showBanksTable && isAdmin ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
-															<VStack className="gap-3">
-																<Text className={`${helperText} text-sm`}>
-																	{bankData.length > 0
-																		? `${bankData.length} banco(s) cadastrados.`
-																		: 'Nenhum banco cadastrado até o momento.'}
-																</Text>
-																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('banks')}>
-																	<ButtonText>Visualizar bancos</ButtonText>
-																</Button>
-															</VStack>
-														</Box>
+													{item.showBanksTable && canAccessSection ? (
+														<VStack className="gap-3">
+															{renderSectionAction(item.action)}
+															{banksTable.totalItems > 0 ? (
+																<Box className={`${notTintedCardClassName} overflow-hidden`}>
+																	<Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
+																		<TableHeader>
+																			<TableRow className={tableHeaderRowClassName}>
+																				<TableHead className={tableHeadTextClassName}>Banco</TableHead>
+																				<TableActionsHeader
+																					widthClassName={tableDoubleActionColumnClassName}
+																					headerClassName={tableActionsHeaderClassName}
+																					textClassName={tableActionsHeaderTextClassName}
+																				/>
+																			</TableRow>
+																		</TableHeader>
+																		<TableBody>
+																			{banksTable.items.map(bank => (
+																				<TableRow
+																					key={bank.id}
+																					className={tableRowClassName}
+																				>
+																					<TableData useRNView className={tableContentCellClassName}>
+																						<HStack className="min-w-0 items-center gap-3">
+																							<View
+																								className="h-3 w-3 rounded-full"
+																								style={{
+																									backgroundColor:
+																										bank.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B'),
+																								}}
+																							/>
+																							<VStack className="min-w-0 flex-1 gap-1">
+																								<Text className="text-sm font-semibold" numberOfLines={1}>
+																									{bank.name}
+																								</Text>
+																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																									ID: {bank.id}
+																								</Text>
+																							</VStack>
+																						</HStack>
+																					</TableData>
+																					<TableActionsCell
+																						widthClassName={tableDoubleActionColumnClassName}
+																						cellClassName={tableActionsCellClassName}
+																					>
+																						<ConfigurationActionButton
+																							icon={EditIcon}
+																							variant="link"
+																							action="default"
+																							className={tableIconButtonClassName}
+																							iconClassName={tablePrimaryIconClassName}
+																							accessibilityLabel={`Editar banco ${bank.name}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'edit-bank',
+																									payload: { bank },
+																								})
+																							}
+																						/>
+																						<ConfigurationActionButton
+																							icon={TrashIcon}
+																							variant="link"
+																							className={tableIconButtonClassName}
+																							action="negative"
+																							accessibilityLabel={`Excluir banco ${bank.name}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'delete-bank',
+																									payload: {
+																										bankId: bank.id,
+																										bankName: bank.name,
+																									},
+																								})
+																							}
+																						/>
+																					</TableActionsCell>
+																				</TableRow>
+																			))}
+																		</TableBody>
+																		<TableCaption className={tableCaptionClassName}>
+																			{banksTable.totalItems} banco(s) cadastrados.
+																		</TableCaption>
+																	</Table>
+																	{renderTablePagination('banks', banksTable)}
+																</Box>
+															) : (
+																renderEmptyTableState('Nenhum banco cadastrado até o momento.')
+															)}
+														</VStack>
 													) : null}
 
-													{item.showTagsTable && isAdmin ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
-															<VStack className="gap-3">
-																<Text className={`${helperText} text-sm`}>
-																	{tagData.length > 0
-																		? `${tagData.length} tag(s) cadastradas.`
-																		: 'Nenhuma tag cadastrada até o momento.'}
-																</Text>
-																<Button size="sm" variant="outline" onPress={() => handleOpenDrawer('tags')}>
-																	<ButtonText>Visualizar tags</ButtonText>
-																</Button>
-															</VStack>
-														</Box>
+													{item.showTagsTable && canAccessSection ? (
+														<VStack className="gap-3">
+															{renderSectionAction(item.action)}
+															<Box className={`${notTintedCardClassName} px-4 py-4`}>
+																<VStack className="gap-2">
+																	<Text className="text-sm font-semibold">Filtrar tags por tipo</Text>
+																	<Select selectedValue={tagFilter} onValueChange={value => setTagFilter(value as typeof tagFilter)}>
+																		<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+																			<SelectInput
+																				placeholder="Selecione um filtro"
+																				value={tagFilterLabels[tagFilter]}
+																				className={inputField}
+																			/>
+																			<SelectIcon />
+																		</SelectTrigger>
+																		<SelectPortal>
+																			<SelectBackdrop />
+																			<SelectContent>
+																				<SelectDragIndicatorWrapper>
+																					<SelectDragIndicator />
+																				</SelectDragIndicatorWrapper>
+																				<SelectItem label="Todas" value="all" />
+																				<SelectItem label="Despesas" value="expense" />
+																				<SelectItem label="Despesas obrigatórias" value="mandatory-expense" />
+																				<SelectItem label="Ganhos" value="gain" />
+																				<SelectItem label="Ganhos obrigatórios" value="mandatory-gain" />
+																			</SelectContent>
+																		</SelectPortal>
+																	</Select>
+																</VStack>
+															</Box>
+															{tagsTable.totalItems > 0 ? (
+																<Box className={`${notTintedCardClassName} overflow-hidden`}>
+																	<Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
+																		<TableHeader>
+																			<TableRow className={tableHeaderRowClassName}>
+																				<TableHead className={tableHeadTextClassName}>Tag</TableHead>
+																				<TableActionsHeader
+																					widthClassName={tableDoubleActionColumnClassName}
+																					headerClassName={tableActionsHeaderClassName}
+																					textClassName={tableActionsHeaderTextClassName}
+																				/>
+																			</TableRow>
+																		</TableHeader>
+																		<TableBody>
+																			{tagsTable.items.map(tag => (
+																				<TableRow
+																					key={tag.id}
+																					className={tableRowClassName}
+																				>
+																					<TableData useRNView className={tableContentCellClassName}>
+																						<HStack className="min-w-0 items-start gap-3">
+																							<View className={`${notTintedCardClassName} h-11 w-11 items-center justify-center`}>
+																								<TagIcon
+																									iconFamily={tag.iconFamily}
+																									iconName={tag.iconName}
+																									iconStyle={tag.iconStyle}
+																									size={20}
+																									color={isDarkMode ? '#FCD34D' : '#D97706'}
+																								/>
+																							</View>
+																							<VStack className="min-w-0 flex-1 gap-1">
+																								<Text className="text-sm font-semibold" numberOfLines={1}>
+																									{tag.name}
+																								</Text>
+																								<Text className={`${helperText} text-xs`} numberOfLines={2}>
+																									{getTagBadgeLabels(tag).join(' • ')}
+																								</Text>
+																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																									ID: {tag.id}
+																								</Text>
+																							</VStack>
+																						</HStack>
+																					</TableData>
+																					<TableActionsCell
+																						widthClassName={tableDoubleActionColumnClassName}
+																						cellClassName={tableActionsCellClassName}
+																					>
+																						<ConfigurationActionButton
+																							icon={EditIcon}
+																							variant="link"
+																							action="default"
+																							className={tableIconButtonClassName}
+																							iconClassName={tablePrimaryIconClassName}
+																							accessibilityLabel={`Editar tag ${tag.name}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'edit-tag',
+																									payload: {
+																										tag: {
+																											id: tag.id,
+																											name: tag.name,
+																											usageType:
+																												tag.usageType === 'gain' || tag.usageType === 'expense'
+																													? tag.usageType
+																													: undefined,
+																											isMandatoryExpense: Boolean(tag.isMandatoryExpense),
+																											isMandatoryGain: Boolean(tag.isMandatoryGain),
+																											showInBothLists: Boolean(tag.showInBothLists),
+																											iconFamily: tag.iconFamily ?? null,
+																											iconName: tag.iconName ?? null,
+																											iconStyle: tag.iconStyle ?? null,
+																										},
+																									},
+																								})
+																							}
+																						/>
+																						<ConfigurationActionButton
+																							icon={TrashIcon}
+																							variant="link"
+																							className={tableIconButtonClassName}
+																							action="negative"
+																							accessibilityLabel={`Excluir tag ${tag.name}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'delete-tag',
+																									payload: {
+																										tagId: tag.id,
+																										tagName: tag.name,
+																									},
+																								})
+																							}
+																						/>
+																					</TableActionsCell>
+																				</TableRow>
+																			))}
+																		</TableBody>
+																		<TableCaption className={tableCaptionClassName}>
+																			{tagsTable.totalItems} tag(s) encontradas para o filtro atual.
+																		</TableCaption>
+																	</Table>
+																	{renderTablePagination('tags', tagsTable)}
+																</Box>
+															) : (
+																renderEmptyTableState('Nenhuma tag encontrada para o filtro selecionado.')
+															)}
+														</VStack>
 													) : null}
 
-													{item.showRelatedUsersTable ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+													{item.showRelatedUsersTable && canAccessSection ? (
+														<VStack className="gap-3">
+															{renderSectionAction(item.action)}
+															{isLoadingRelatedUsers ? (
+																<Box className={`${notTintedCardClassName} px-4 py-4`}>
+																	<HStack className="items-center gap-3">
+																		<ButtonSpinner />
+																		<Text className={`${helperText} text-sm`}>Carregando usuários vinculados...</Text>
+																	</HStack>
+																</Box>
+															) : relatedUsersTable.totalItems > 0 ? (
+																<Box className={`${notTintedCardClassName} overflow-hidden`}>
+																	<Table className={`${tableBaseClassName} ${tableRelatedUsersMinWidthClassName}`}>
+																		<TableHeader>
+																			<TableRow className={tableHeaderRowClassName}>
+																				<TableHead className={tableHeadTextClassName}>Usuário vinculado</TableHead>
+																				<TableActionsHeader
+																					widthClassName={tableSingleActionColumnClassName}
+																					headerClassName={tableActionsHeaderClassName}
+																					textClassName={tableActionsHeaderTextClassName}
+																				/>
+																			</TableRow>
+																		</TableHeader>
+																		<TableBody>
+																			{relatedUsersTable.items.map(relatedUser => (
+																				<TableRow
+																					key={relatedUser.id}
+																					className={tableRowClassName}
+																				>
+																					<TableData useRNView className={tableContentCellClassName}>
+																						<VStack className="min-w-0 flex-1 gap-1">
+																							<Text className="text-sm font-semibold" numberOfLines={1}>
+																								{relatedUser.email || relatedUser.id}
+																							</Text>
+																							<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																								ID: {relatedUser.id}
+																							</Text>
+																						</VStack>
+																					</TableData>
+																					<TableActionsCell
+																						widthClassName={tableSingleActionColumnClassName}
+																						cellClassName={tableActionsCellClassName}
+																					>
+																						<ConfigurationActionButton
+																							icon={TrashIcon}
+																							variant="link"
+																							className={tableIconButtonClassName}
+																							action="negative"
+																							accessibilityLabel={`Desvincular usuário ${relatedUser.email || relatedUser.id}`}
+																							onPress={() =>
+																								setPendingAction({
+																									type: 'delete-related-user',
+																									payload: {
+																										userId: relatedUser.id,
+																										identifier: relatedUser.email || relatedUser.id,
+																									},
+																								})
+																							}
+																						/>
+																					</TableActionsCell>
+																				</TableRow>
+																			))}
+																		</TableBody>
+																		<TableCaption className={tableCaptionClassName}>
+																			{relatedUsersTable.totalItems} vínculo(s) encontrado(s).
+																		</TableCaption>
+																	</Table>
+																	{renderTablePagination('relatedUsers', relatedUsersTable)}
+																</Box>
+															) : (
+																renderEmptyTableState('Você ainda não vinculou nenhum usuário.')
+															)}
+														</VStack>
+													) : null}
+
+													{item.showValueVisibilitySwitch ? (
+														<Box className={`${notTintedCardClassName} px-4`}>
 															<VStack className="gap-3">
-																<Text className={`${helperText} text-sm`}>
-																	{isLoadingRelatedUsers
-																		? 'Carregando usuários vinculados...'
-																		: relatedUserData.length > 0
-																			? `${relatedUserData.length} usuário(s) vinculados.`
-																			: 'Você ainda não vinculou nenhum usuário.'}
-																</Text>
-																<Button
-																	size="sm"
-																	variant="outline"
-																	onPress={() => handleOpenDrawer('related-users')}
-																	isDisabled={isLoadingRelatedUsers}
-																>
-																	{isLoadingRelatedUsers ? (
-																		<>
-																			<ButtonSpinner />
-																			<ButtonText>Carregando</ButtonText>
-																		</>
-																	) : (
-																		<ButtonText>Visualizar vínculos</ButtonText>
-																	)}
-																</Button>
+																<HStack className="items-center justify-between gap-4">
+																	<VStack className="min-w-0 flex-1 gap-1">
+																		<HStack className="min-w-0 items-center gap-1">
+																			<Text className="text-base font-semibold">Ocultar valores</Text>
+																			<Popover
+																				placement="bottom"
+																				size="md"
+																				offset={0}
+																				shouldFlip
+																				focusScope={false}
+																				trapFocus={false}
+																				trigger={triggerProps => (
+																					<Pressable
+																						{...triggerProps}
+																						hitSlop={8}
+																						accessibilityRole="button"
+																						accessibilityLabel="Informações sobre a ocultação de valores"
+																					>
+																						<Info
+																							size={14}
+																							color={isDarkMode ? '#94A3B8' : '#64748B'}
+																							style={{ marginLeft: 4 }}
+																						/>
+																					</Pressable>
+																				)}
+																			>
+																				<PopoverBackdrop className="bg-transparent" />
+																				<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																					<PopoverBody className="px-3 py-3">
+																						<Text className={`${bodyText} text-xs leading-5`}>
+																							{valueVisibilityPopoverText}
+																						</Text>
+																					</PopoverBody>
+																				</PopoverContent>
+																			</Popover>
+																		</HStack>
+																	</VStack>
+																	<Switch
+																		value={shouldHideValues}
+																		onValueChange={handleToggleValueVisibility}
+																		isDisabled={isLoadingPreference}
+																		trackColor={switchTrackColor}
+																		thumbColor={switchThumbColor}
+																		ios_backgroundColor={switchIosBackgroundColor}
+																	/>
+																</HStack>
 															</VStack>
 														</Box>
 													) : null}
 
 													{item.showThemeSwitch ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
+														<Box className={`${notTintedCardClassName} px-4`}>
 															<VStack className="gap-3">
 																<HStack className="items-center justify-between gap-4">
-																	<VStack className="flex-1 gap-1">
-																		<Text className="text-base font-semibold">Modo escuro</Text>
-																		<Text className={`${helperText} text-sm`}>
-																			Alterne a aparência global do aplicativo.
-																		</Text>
+																	<VStack className="min-w-0 flex-1 gap-1">
+																		<HStack className="min-w-0 items-center gap-1">
+																			<Text className="text-base font-semibold">Modo escuro</Text>
+																			<Popover
+																				placement="bottom"
+																				size="md"
+																				offset={0}
+																				shouldFlip
+																				focusScope={false}
+																				trapFocus={false}
+																				trigger={triggerProps => (
+																					<Pressable
+																						{...triggerProps}
+																						hitSlop={8}
+																						accessibilityRole="button"
+																						accessibilityLabel="Informações sobre o tema do aplicativo"
+																					>
+																						<Info
+																							size={14}
+																							color={isDarkMode ? '#94A3B8' : '#64748B'}
+																							style={{ marginLeft: 4 }}
+																						/>
+																					</Pressable>
+																				)}
+																			>
+																				<PopoverBackdrop className="bg-transparent" />
+																				<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																					<PopoverBody className="px-3 py-3">
+																						<Text className={`${bodyText} text-xs leading-5`}>
+																							{themePopoverText}
+																						</Text>
+																					</PopoverBody>
+																				</PopoverContent>
+																			</Popover>
+																		</HStack>
 																	</VStack>
 																	<Switch
 																		value={isDarkMode}
 																		onValueChange={handleToggleDarkMode}
-																		disabled={isLoadingTheme}
-																		trackColor={{ false: '#d4d4d4', true: '#525252' }}
-																		thumbColor="#fafafa"
-																		ios_backgroundColor="#d4d4d4"
+																		isDisabled={isLoadingTheme}
+																		trackColor={switchTrackColor}
+																		thumbColor={switchThumbColor}
+																		ios_backgroundColor={switchIosBackgroundColor}
 																	/>
 																</HStack>
-																<Text className={`${helperText} text-xs`}>
-																	{isLoadingTheme
-																		? 'Carregando sua preferência de tema...'
-																		: isDarkMode
-																			? 'Modo escuro ativado.'
-																			: 'Modo claro ativado.'}
-																</Text>
 															</VStack>
 														</Box>
 													) : null}
 
-													{item.showValueVisibilitySwitch ? (
-														<Box className={`${tintedCardClassName} mt-4 px-4 py-4`}>
-															<VStack className="gap-3">
-																<HStack className="items-center justify-between gap-4">
-																	<VStack className="flex-1 gap-1">
-																		<Text className="text-base font-semibold">Ocultar valores</Text>
-																		<Text className={`${helperText} text-sm`}>
-																			Esconda totais e saldos nas demais telas.
-																		</Text>
-																	</VStack>
-																	<Switch
-																		value={shouldHideValues}
-																		onValueChange={handleToggleValueVisibility}
-																		disabled={isLoadingPreference}
-																		trackColor={{ false: '#d4d4d4', true: '#525252' }}
-																		thumbColor="#fafafa"
-																		ios_backgroundColor="#d4d4d4"
-																	/>
-																</HStack>
-																<Text className={`${helperText} text-xs`}>
-																	{isLoadingPreference
-																		? 'Verificando a preferência salva...'
-																		: shouldHideValues
-																			? 'Os valores financeiros estão ocultos.'
-																			: 'Os valores financeiros estão visíveis.'}
-																</Text>
-															</VStack>
-														</Box>
-													) : null}
-
-													{item.action ? (
-														<Button
-															size="sm"
-															className={`mt-4 ${submitButtonClassName}`}
-															onPress={() => {
-																router.push(item.action!.router);
-															}}
-														>
-															<ButtonText>{item.action.label}</ButtonText>
-														</Button>
-													) : null}
 												</AccordionContent>
 											</AccordionItem>
 										);
@@ -1657,6 +2030,16 @@ export default function ConfigurationsScreen() {
 							</VStack>
 						)}
 					</ScrollView>
+				</View>
+
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={2} />
 				</View>
 
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
@@ -1670,7 +2053,11 @@ export default function ConfigurationsScreen() {
 							<Text className={`${bodyText} text-sm`}>{actionModalCopy.message}</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button variant="outline" onPress={handleCloseActionModal} isDisabled={isProcessingAction}>
+							<Button
+								variant="outline"
+								onPress={handleCloseActionModal}
+								isDisabled={isProcessingAction}
+								className={submitButtonCancelClassName}>
 								<ButtonText>Cancelar</ButtonText>
 							</Button>
 							<Button
@@ -1678,7 +2065,7 @@ export default function ConfigurationsScreen() {
 								action={confirmButtonAction}
 								onPress={handleConfirmAction}
 								isDisabled={isProcessingAction}
-								className={actionModalCopy.isEdit ? submitButtonClassName : undefined}
+								className={submitButtonClassName}
 							>
 								{isProcessingAction ? (
 									<>
@@ -1692,27 +2079,6 @@ export default function ConfigurationsScreen() {
 						</ModalFooter>
 					</ModalContent>
 				</Modal>
-
-				<Drawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} size="lg" anchor="right">
-					<DrawerBackdrop onPress={handleCloseDrawer} />
-					<DrawerContent className={drawerContentClassName}>
-						<DrawerHeader className="flex-row items-start justify-between gap-3 px-6 pt-8">
-							<Box className={`${drawerHeaderCardClassName} flex-1 px-4 py-4`}>
-								<VStack className="gap-1">
-									<Heading size="lg">{drawerCopy.title || 'Itens cadastrados'}</Heading>
-									{drawerCopy.subtitle ? (
-										<Text className={`${helperText} text-sm`}>{drawerCopy.subtitle}</Text>
-									) : null}
-								</VStack>
-							</Box>
-							<DrawerCloseButton onPress={handleCloseDrawer} />
-						</DrawerHeader>
-						<DrawerBody className="px-6">
-							{drawerContent}
-						</DrawerBody>
-						<DrawerFooter />
-					</DrawerContent>
-				</Drawer>
 			</View>
 		</SafeAreaView>
 	);

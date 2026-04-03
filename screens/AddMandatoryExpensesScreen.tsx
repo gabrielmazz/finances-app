@@ -55,6 +55,7 @@ import {
 	ensureNotificationPermissionForMandatoryExpenses,
 	scheduleMandatoryExpenseNotification,
 } from '@/utils/mandatoryExpenseNotifications';
+import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
@@ -66,10 +67,9 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
 import AddMandatoryExpensesListIllustration from '../assets/UnDraw/addMandatoryExpensesScreen.svg';
-import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { Info } from 'lucide-react-native';
+import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
 	DEFAULT_MANDATORY_REMINDER_MINUTE,
@@ -153,9 +153,13 @@ export default function AddMandatoryExpensesScreen() {
 		heroHeight,
 		insets,
 		compactCardClassName,
-		tintedCardClassName,
+		notTintedCardClassName,
 		topSummaryCardClassName,
-		infoCardStyle
+		infoCardStyle,
+		addTagButtonClassName,
+		switchTrackColor,
+		switchThumbColor,
+		switchIosBackgroundColor,
 	} = useScreenStyles();
 	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
 	const editingExpenseId = React.useMemo(() => {
@@ -188,13 +192,6 @@ export default function AddMandatoryExpensesScreen() {
 		}
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? null;
 	}, [selectedTagId, tagOptions]);
-	const selectedTagOption = React.useMemo(() => {
-		return tagOptions.find(tag => tag.id === selectedTagId) ?? null;
-	}, [selectedTagId, tagOptions]);
-	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
-	const selectedTagIconContainerClassName = isDarkMode
-		? 'border border-slate-800 bg-slate-900'
-		: 'border border-slate-200';
 
 	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const expenseNameInputRef = React.useRef<TextInput | null>(null);
@@ -405,6 +402,7 @@ export default function AddMandatoryExpensesScreen() {
 	const isValueFieldDisabled = !hasExpenseName || isFormBusy;
 	const isDueDayFieldDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || tagOptions.length === 0 || !isCoreTemplateReady || isFormBusy;
+	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
 	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
 	const hasPendingTemplateChanges = React.useMemo(() => {
@@ -475,6 +473,25 @@ export default function AddMandatoryExpensesScreen() {
 		setPersistedFormSnapshot(null);
 	}, []);
 
+	// Segue [[Despesas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
+	const handleOpenAddTagScreen = React.useCallback(() => {
+		if (isAddTagButtonDisabled) {
+			return;
+		}
+
+		Keyboard.dismiss();
+		router.push({
+			pathname: '/add-register-tag',
+			params: {
+				usageType: 'expense',
+				lockUsageType: '1',
+				returnAfterCreate: '1',
+				isMandatoryExpense: '1',
+				lockMandatorySelection: '1',
+			},
+		});
+	}, [isAddTagButtonDisabled]);
+
 	const loadTags = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
@@ -517,11 +534,21 @@ export default function AddMandatoryExpensesScreen() {
 					iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 				}))
 				.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+			const pendingCreatedTag = peekPendingCreatedTag();
+			const matchingPendingTag =
+				pendingCreatedTag?.usageType === 'expense'
+					? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
+					: null;
 
 			setTagOptions(formattedTags);
-			setSelectedTagId(current =>
-				current && formattedTags.some(tag => tag.id === current) ? current : null,
-			);
+			if (matchingPendingTag) {
+				setSelectedTagId(matchingPendingTag.id);
+				clearPendingCreatedTag(matchingPendingTag.id);
+			} else {
+				setSelectedTagId(current =>
+					current && formattedTags.some(tag => tag.id === current) ? current : null,
+				);
+			}
 
 			if (formattedTags.length === 0) {
 				showNotifierAlert({
@@ -540,7 +567,7 @@ export default function AddMandatoryExpensesScreen() {
 		} finally {
 			setIsLoadingTags(false);
 		}
-	}, []);
+	}, [isDarkMode]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -1064,7 +1091,7 @@ export default function AddMandatoryExpensesScreen() {
 										) : null}
 									</VStack>
 
-									<Box className={`px-4 rounded-2xl border ${tintedCardClassName}`}>
+									<Box className={`px-4 rounded-2xl border ${notTintedCardClassName}`}>
 										<VStack className="gap-3">
 											<HStack className="items-center justify-between gap-4">
 												<VStack className="flex-1 gap-1">
@@ -1074,9 +1101,9 @@ export default function AddMandatoryExpensesScreen() {
 													value={usesBusinessDays}
 													onValueChange={setUsesBusinessDays}
 													disabled={isFormBusy}
-													trackColor={{ false: '#CBD5E1', true: '#7C3AED' }}
-													thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
-													ios_backgroundColor="#CBD5E1"
+													trackColor={switchTrackColor}
+													thumbColor={switchThumbColor}
+													ios_backgroundColor={switchIosBackgroundColor}
 												/>
 											</HStack>
 										</VStack>
@@ -1106,27 +1133,27 @@ export default function AddMandatoryExpensesScreen() {
 											isDisabled={isTagSelectDisabled}
 										>
 											<HStack className="items-end gap-3">
-												<View
-													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
-												>
-													<TagIcon
-														iconFamily={selectedTagOption?.iconFamily}
-														iconName={selectedTagOption?.iconName}
-														iconStyle={selectedTagOption?.iconStyle}
-														size={18}
-														color={selectedTagIconColor}
-													/>
-												</View>
 												<View className="flex-1">
 													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 														<SelectInput
 															placeholder="Selecione a categoria da despesa"
-															value={selectedTagLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />
 													</SelectTrigger>
 												</View>
+												<Pressable
+													onPress={handleOpenAddTagScreen}
+													hitSlop={8}
+													accessibilityRole="button"
+													accessibilityLabel="Adicionar nova categoria obrigatória de despesa"
+													className={addTagButtonClassName}
+												>
+													<TagsIcon
+														size={18}
+														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
+													/>
+												</Pressable>
 											</HStack>
 											<SelectPortal>
 												<SelectBackdrop />
@@ -1144,7 +1171,7 @@ export default function AddMandatoryExpensesScreen() {
 										</Select>
 									</VStack>
 
-									<Box className={`${compactCardClassName} px-4 py-4 rounded-2xl border ${tintedCardClassName}`}>
+									<Box className={`${compactCardClassName} px-4 py-4 rounded-2xl border ${notTintedCardClassName}`}>
 										<VStack className="gap-3">
 											<HStack className="items-center justify-between gap-4">
 												<VStack className="flex-1 gap-1">
@@ -1157,9 +1184,9 @@ export default function AddMandatoryExpensesScreen() {
 													value={reminderEnabled}
 													onValueChange={handleReminderToggle}
 													disabled={!isTemplateReady || isFormBusy}
-													trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-													thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
-													ios_backgroundColor="#CBD5E1"
+													trackColor={switchTrackColor}
+													thumbColor={switchThumbColor}
+													ios_backgroundColor={switchIosBackgroundColor}
 												/>
 											</HStack>
 

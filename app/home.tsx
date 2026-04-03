@@ -1,14 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
-
-import { Menu } from '@/components/uiverse/menu';
+import { useMemo } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 
 import HomeScreen from '@/screens/HomeScreen';
 import AddRegisterExpensesScreen from '@/screens/AddRegisterExpensesScreen';
 import ConfigurationsScreen from '@/screens/ConfigurationsScreen';
-import { useAppTheme } from '@/contexts/ThemeContext';
 
 const TAB_ITEMS = [
 	{
@@ -26,10 +21,8 @@ const TAB_ITEMS = [
 ] as const;
 
 export default function HomeRoute() {
-	const { isDarkMode } = useAppTheme();
 	const { tab } = useLocalSearchParams<{ tab?: string }>();
 	const tabCount = TAB_ITEMS.length;
-	const pageBackground = useMemo(() => (isDarkMode ? '#0b1220' : '#f4f5f7'), [isDarkMode]);
 
 	const parsedTabFromParams = useMemo(() => {
 		const parsed = Number(tab);
@@ -39,52 +32,9 @@ export default function HomeRoute() {
 		return 0;
 	}, [tab, tabCount]);
 
-	const [activeTab, setActiveTab] = useState(parsedTabFromParams);
-	const normalizedIndex = Math.min(Math.max(activeTab, 0), tabCount - 1);
+	const normalizedIndex = Math.min(Math.max(parsedTabFromParams, 0), tabCount - 1);
 	const ActiveComponent =
 		TAB_ITEMS[normalizedIndex]?.component ?? TAB_ITEMS[0].component;
-	const shouldRenderLegacyMenu = normalizedIndex !== 0;
-	const safeAreaEdges: Edge[] = shouldRenderLegacyMenu
-		? ['top', 'bottom', 'left', 'right']
-		: [];
 
-	useEffect(() => {
-		setActiveTab(parsedTabFromParams);
-	}, [parsedTabFromParams]);
-
-	return (
-		<SafeAreaView
-			className="flex-1"
-			edges={safeAreaEdges}
-			style={{ backgroundColor: pageBackground }}
-		>
-			<View
-				className="
-					flex-1 w-full h-full
-					justify-between
-					relative
-				"
-				style={{
-					backgroundColor: pageBackground,
-					paddingBottom: shouldRenderLegacyMenu ? 8 : 0,
-				}}
-			>
-				<View className="flex-1">
-					<ActiveComponent />
-				</View>
-
-				{shouldRenderLegacyMenu ? (
-					<View className="items-center">
-						<Menu
-							defaultValue={normalizedIndex}
-							onChange={value => {
-								setActiveTab(value);
-								router.replace({ pathname: '/home', params: { tab: String(value) } });
-							}}
-						/>
-					</View>
-				) : null}
-			</View>
-		</SafeAreaView>
-	);
+	return <ActiveComponent />;
 }

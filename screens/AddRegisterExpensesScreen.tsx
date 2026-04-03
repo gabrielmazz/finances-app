@@ -1463,11 +1463,10 @@ export default function AddRegisterExpensesScreen() {
 												</View>
 												<Pressable
 													onPress={handleOpenAddTagScreen}
-													disabled={isAddTagButtonDisabled}
 													hitSlop={8}
 													accessibilityRole="button"
 													accessibilityLabel="Adicionar nova categoria de despesa"
-													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+													className={`${addTagButtonClassName}`}
 												>
 													<TagsIcon
 														size={18}
