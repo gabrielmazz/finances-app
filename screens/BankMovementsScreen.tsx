@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, TouchableOpacity, StatusBar , Pressable} from 'react-native';
+import { ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -32,7 +32,6 @@ import {
 	ChevronsUpDownIcon,
 	EditIcon,
 	Icon,
-	InfoIcon,
 	RepeatIcon,
 	TrashIcon,
 } from '@/components/ui/icon';
@@ -42,9 +41,6 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { auth } from '@/FirebaseConfig';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-
-// Gráfico de pizza
-import { PieChart } from 'react-native-gifted-charts';
 
 // Funções para buscar gastos/ganhos obrigatórios no firebase
 import { getMandatoryExpensesWithRelationsFirebase } from '@/functions/MandatoryExpenseFirebase';
@@ -143,15 +139,22 @@ type MovementTagMetadata = {
 	icon: TagIconSelection | null;
 };
 
+type AvailableTagFilterOption = {
+	id: string;
+	label: string;
+	icon: TagIconSelection | null;
+	movementCount: number;
+};
+
 const movementFilterOptions: Array<{
 	value: MovementFilter;
 	label: string;
 	icon: typeof ChevronsUpDownIcon;
 }> = [
-		{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
-		{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
-		{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
-	];
+	{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
+	{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
+	{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
+];
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -259,9 +262,23 @@ const getCurrentMonthBounds = () => {
 	};
 };
 
-const PIE_TOTAL_COLORS = {
-	expenses: '#F43F5E',
-	gains: '#10B981',
+const computeMovementTotals = (movementList: MovementRecord[]) => {
+	return movementList.reduce(
+		(acc, movement) => {
+			if (!shouldIncludeMovementInGainExpenseTotals(movement)) {
+				return acc;
+			}
+
+			if (movement.type === 'gain') {
+				acc.totalGains += movement.valueInCents;
+			} else {
+				acc.totalExpenses += movement.valueInCents;
+			}
+
+			return acc;
+		},
+		{ totalExpenses: 0, totalGains: 0 },
+	);
 };
 
 const MANDATORY_SETTLED_TONE: TimelineMovementTone = {
@@ -415,11 +432,11 @@ export default function BankMovementsScreen() {
 	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-	const [isTotalsExpanded, setIsTotalsExpanded] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [movementFilter, setMovementFilter] = React.useState<MovementFilter>('all');
+	const [selectedTagFilterId, setSelectedTagFilterId] = React.useState<string | null>(null);
 	const [monthlyInitialBalanceInCents, setMonthlyInitialBalanceInCents] = React.useState<number | null>(null);
 	const [bankAccentColorHex, setBankAccentColorHex] = React.useState<string | null>(
 		isCashView ? CASH_CARD_COLOR : null,
@@ -526,6 +543,22 @@ export default function BankMovementsScreen() {
 			unselectedBorder: isDarkMode ? '#1E293B' : '#E2E8F0',
 			unselectedIconClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
 			unselectedTextClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
+		}),
+		[isDarkMode],
+	);
+
+	const periodSummaryPalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			neutralSurface: isDarkMode ? 'rgba(15, 23, 42, 0.92)' : '#F8FAFC',
+			neutralBorder: isDarkMode ? 'rgba(148, 163, 184, 0.16)' : 'rgba(226, 232, 240, 1)',
+			gainSurface: isDarkMode ? 'rgba(16, 185, 129, 0.12)' : '#ECFDF5',
+			gainBorder: isDarkMode ? 'rgba(16, 185, 129, 0.28)' : '#A7F3D0',
+			gainText: '#10B981',
+			expenseSurface: isDarkMode ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+			expenseBorder: isDarkMode ? 'rgba(248, 113, 113, 0.26)' : '#FECACA',
+			expenseText: '#EF4444',
 		}),
 		[isDarkMode],
 	);
@@ -1069,37 +1102,69 @@ export default function BankMovementsScreen() {
 		};
 	}, [movements, tagMetadataById]);
 
-	const visibleMovements = React.useMemo(() => {
+	const movementsMatchingMovementFilter = React.useMemo(() => {
 		if (movementFilter === 'all') {
 			return movements;
 		}
 		return movements.filter(movement => movement.type === movementFilter);
 	}, [movementFilter, movements]);
 
+	// Mantém o filtro de tags alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
+	const availableTagFilters = React.useMemo<AvailableTagFilterOption[]>(() => {
+		const tagCounts = new Map<string, number>();
+
+		movementsMatchingMovementFilter.forEach(movement => {
+			if (typeof movement.tagId !== 'string' || movement.tagId.trim().length === 0) {
+				return;
+			}
+
+			tagCounts.set(movement.tagId, (tagCounts.get(movement.tagId) ?? 0) + 1);
+		});
+
+		return Array.from(tagCounts.entries())
+			.map(([tagId, movementCount]) => ({
+				id: tagId,
+				label: tagMetadataById[tagId]?.name?.trim() || tagId,
+				icon: tagMetadataById[tagId]?.icon ?? null,
+				movementCount,
+			}))
+			.sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
+	}, [movementsMatchingMovementFilter, tagMetadataById]);
+
+	React.useEffect(() => {
+		if (!selectedTagFilterId) {
+			return;
+		}
+
+		const tagStillAvailable = availableTagFilters.some(option => option.id === selectedTagFilterId);
+		if (!tagStillAvailable) {
+			setSelectedTagFilterId(null);
+		}
+	}, [availableTagFilters, selectedTagFilterId]);
+
+	const selectedTagFilterOption = React.useMemo(
+		() => availableTagFilters.find(option => option.id === selectedTagFilterId) ?? null,
+		[availableTagFilters, selectedTagFilterId],
+	);
+
+	const visibleMovements = React.useMemo(() => {
+		if (!selectedTagFilterId) {
+			return movementsMatchingMovementFilter;
+		}
+
+		return movementsMatchingMovementFilter.filter(movement => movement.tagId === selectedTagFilterId);
+	}, [movementsMatchingMovementFilter, selectedTagFilterId]);
+
 	React.useEffect(() => {
 		const visibleIds = new Set(visibleMovements.map(movement => movement.id));
 		setExpandedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [visibleMovements]);
 
-	const totals = React.useMemo(() => {
-		return visibleMovements.reduce(
-			(acc, movement) => {
-				if (!shouldIncludeMovementInGainExpenseTotals(movement)) {
-					return acc;
-				}
-
-				if (movement.type === 'gain') {
-					acc.totalGains += movement.valueInCents;
-				} else {
-					acc.totalExpenses += movement.valueInCents;
-				}
-				return acc;
-			},
-			{ totalExpenses: 0, totalGains: 0 },
-		);
-	}, [visibleMovements]);
-
-	const balanceInCents = totals.totalGains - totals.totalExpenses;
+	// Separa os totais fixos do banco dos totais filtrados do período, seguindo [[Gerenciamento de Bancos]].
+	const allMovementsTotals = React.useMemo(() => computeMovementTotals(movements), [movements]);
+	const filteredTotals = React.useMemo(() => computeMovementTotals(visibleMovements), [visibleMovements]);
+	const allMovementsBalanceInCents = allMovementsTotals.totalGains - allMovementsTotals.totalExpenses;
+	const filteredBalanceInCents = filteredTotals.totalGains - filteredTotals.totalExpenses;
 
 	const totalDeltaAllMovementsInCents = React.useMemo(() => {
 		return movements.reduce((acc, movement) => {
@@ -1123,7 +1188,7 @@ export default function BankMovementsScreen() {
 
 	const summaryPrimaryBalanceValue = React.useMemo(() => {
 		if (isCashView) {
-			return formatCurrencyBRL(balanceInCents);
+			return formatCurrencyBRL(allMovementsBalanceInCents);
 		}
 
 		if (typeof bankCurrentBalanceInCents === 'number') {
@@ -1131,11 +1196,11 @@ export default function BankMovementsScreen() {
 		}
 
 		return 'Saldo não registrado';
-	}, [balanceInCents, bankCurrentBalanceInCents, formatCurrencyBRL, isCashView]);
+	}, [allMovementsBalanceInCents, bankCurrentBalanceInCents, formatCurrencyBRL, isCashView]);
 
 	const summaryPrimaryBalanceHelper = React.useMemo(() => {
 		if (isCashView) {
-			return 'Ganhos menos despesas dentro do período filtrado.';
+			return 'Ganhos menos despesas de todas as movimentações do período selecionado.';
 		}
 
 		if (typeof monthlyInitialBalanceInCents === 'number') {
@@ -1145,49 +1210,44 @@ export default function BankMovementsScreen() {
 		return 'Sem saldo registrado para este mês.';
 	}, [formatCurrencyBRL, isCashView, monthlyInitialBalanceInCents]);
 
-	const totalsPieSlices = React.useMemo(() => {
-		const slices: Array<{
-			key: string;
-			label: string;
-			color: string;
-			value: number;
-			rawInCents: number;
-		}> = [];
-
-		if (totals.totalGains > 0) {
-			slices.push({
-				key: 'gains',
-				label: 'Ganhos',
-				color: PIE_TOTAL_COLORS.gains,
-				value: Number((totals.totalGains / 100).toFixed(2)),
-				rawInCents: totals.totalGains,
-			});
+	const filteredSummaryTitle = React.useMemo(() => {
+		if (selectedTagFilterOption) {
+			return `Resumo de ${selectedTagFilterOption.label}`;
 		}
 
-		if (totals.totalExpenses > 0) {
-			slices.push({
-				key: 'expenses',
-				label: 'Despesas',
-				color: PIE_TOTAL_COLORS.expenses,
-				value: Number((totals.totalExpenses / 100).toFixed(2)),
-				rawInCents: totals.totalExpenses,
-			});
+		if (movementFilter === 'gain') {
+			return 'Resumo de ganhos';
 		}
 
-		return slices;
-	}, [totals.totalExpenses, totals.totalGains]);
+		if (movementFilter === 'expense') {
+			return 'Resumo de despesas';
+		}
 
-	const totalsPieChartData = React.useMemo(
-		() =>
-			totalsPieSlices.map(slice => ({
-				value: slice.value,
-				color: slice.color,
-				text: slice.label,
-			})),
-		[totalsPieSlices],
-	);
+		return 'Resumo do período';
+	}, [movementFilter, selectedTagFilterOption]);
 
-	const hasTotalsPieData = totalsPieChartData.length > 0;
+	const filteredSummaryDescription = React.useMemo(() => {
+		const movementCountLabel =
+			visibleMovements.length === 1 ? '1 movimentação encontrada.' : `${visibleMovements.length} movimentações encontradas.`;
+
+		if (selectedTagFilterOption && movementFilter !== 'all') {
+			return `${movementCountLabel} Filtro ativo: ${movementFilter === 'gain' ? 'ganhos' : 'gastos'} com a tag ${selectedTagFilterOption.label}.`;
+		}
+
+		if (selectedTagFilterOption) {
+			return `${movementCountLabel} Filtro ativo: tag ${selectedTagFilterOption.label}.`;
+		}
+
+		if (movementFilter === 'gain') {
+			return `${movementCountLabel} Exibindo apenas ganhos no período selecionado.`;
+		}
+
+		if (movementFilter === 'expense') {
+			return `${movementCountLabel} Exibindo apenas gastos no período selecionado.`;
+		}
+
+		return `${movementCountLabel} Exibindo todas as movimentações do período selecionado.`;
+	}, [movementFilter, selectedTagFilterOption, visibleMovements.length]);
 
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
@@ -1557,44 +1617,35 @@ export default function BankMovementsScreen() {
 												</Text>
 											</VStack>
 
-											<View
-												style={{
-													borderRadius: 18,
-													paddingHorizontal: 14,
-													paddingVertical: 14,
-													backgroundColor: 'rgba(255,255,255,0.08)',
-													borderWidth: 1,
-													borderColor: 'rgba(255,255,255,0.08)',
-												}}
-											>
+											<View>
 												<VStack className="gap-1">
 													<HStack className="justify-between">
-														<Text style={{ color: summaryCardPalette.textSecondary }}>Ganhos</Text>
+														<Text style={{ color: summaryCardPalette.textSecondary }}>Ganhos totais</Text>
 														<Text
 															className="font-semibold"
 															style={{ color: summaryCardPalette.gainColor }}
 														>
-															{formatCurrencyBRL(totals.totalGains)}
+															{formatCurrencyBRL(allMovementsTotals.totalGains)}
 														</Text>
 													</HStack>
 													<HStack className="justify-between">
-														<Text style={{ color: summaryCardPalette.textSecondary }}>Despesas</Text>
+														<Text style={{ color: summaryCardPalette.textSecondary }}>Despesas totais</Text>
 														<Text
 															className="font-semibold"
 															style={{ color: summaryCardPalette.expenseColor }}
 														>
-															{formatCurrencyBRL(totals.totalExpenses)}
+															{formatCurrencyBRL(allMovementsTotals.totalExpenses)}
 														</Text>
 													</HStack>
 													<HStack className="justify-between">
 														<Text style={{ color: summaryCardPalette.textSecondary }}>
-															Saldo do período
+															Saldo geral do período
 														</Text>
 														<Text
 															className="font-semibold"
 															style={{ color: summaryCardPalette.textPrimary }}
 														>
-															{formatCurrencyBRL(balanceInCents)}
+															{formatCurrencyBRL(allMovementsBalanceInCents)}
 														</Text>
 													</HStack>
 												</VStack>
@@ -1681,6 +1732,145 @@ export default function BankMovementsScreen() {
 												</HStack>
 											</VStack>
 
+											<VStack>
+												<HStack className="items-center justify-between gap-3">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Tags</Text>
+													<Text className={`${helperText} text-xs`}>
+														{selectedTagFilterOption
+															? `${selectedTagFilterOption.movementCount} item(ns)`
+															: availableTagFilters.length === 0
+																? 'Sem tags neste filtro'
+																: `${availableTagFilters.length} tag(ns)`}
+													</Text>
+												</HStack>
+
+												{availableTagFilters.length > 0 ? (
+													<ScrollView
+														horizontal
+														showsHorizontalScrollIndicator={false}
+														contentContainerStyle={{ paddingRight: 4 }}
+													>
+														<HStack className="gap-2">
+															{[
+																{
+																	id: null,
+																	label: 'Todas as tags',
+																	icon: null,
+																	movementCount: movementsMatchingMovementFilter.length,
+																},
+																...availableTagFilters,
+															].map(option => {
+																const isSelected = selectedTagFilterId === option.id;
+																const iconColor = isSelected
+																	? isDarkMode
+																		? '#0F172A'
+																		: '#FFFFFF'
+																	: isDarkMode
+																		? '#CBD5E1'
+																		: '#475569';
+																const labelColor = isSelected
+																	? isDarkMode
+																		? '#0F172A'
+																		: '#FFFFFF'
+																	: periodSummaryPalette.title;
+
+																return (
+																	<TouchableOpacity
+																		key={option.id ?? 'all-tags'}
+																		activeOpacity={0.85}
+																		onPress={() => setSelectedTagFilterId(option.id)}
+																		disabled={isLoading}
+																		style={{
+																			flexDirection: 'row',
+																			alignItems: 'center',
+																			gap: 8,
+																			borderRadius: 999,
+																			borderWidth: 1,
+																			paddingHorizontal: 14,
+																			paddingVertical: 10,
+																			borderColor: isSelected
+																				? movementFilterPalette.selectedBorder
+																				: movementFilterPalette.unselectedBorder,
+																			backgroundColor: isSelected
+																				? movementFilterPalette.selectedBackground
+																				: movementFilterPalette.unselectedBackground,
+																			opacity: isLoading ? 0.45 : 1,
+																		}}
+																	>
+																		{option.icon?.iconName ? (
+																			<TagIcon
+																				iconFamily={option.icon.iconFamily}
+																				iconName={option.icon.iconName}
+																				iconStyle={option.icon.iconStyle}
+																				size={14}
+																				color={iconColor}
+																			/>
+																		) : (
+																			<TagsIcon size={14} color={iconColor} />
+																		)}
+
+																		<Text
+																			numberOfLines={1}
+																			style={{
+																				maxWidth: 132,
+																				color: labelColor,
+																				fontSize: 12,
+																				fontWeight: '600',
+																			}}
+																		>
+																			{option.label}
+																		</Text>
+
+																		<View
+																			style={{
+																				minWidth: 24,
+																				paddingHorizontal: 7,
+																				paddingVertical: 2,
+																				borderRadius: 999,
+																				backgroundColor: isSelected
+																					? 'rgba(15, 23, 42, 0.12)'
+																					: isDarkMode
+																						? 'rgba(148, 163, 184, 0.12)'
+																						: '#E2E8F0',
+																			}}
+																		>
+																			<Text
+																				className="text-center text-[11px] font-semibold"
+																				style={{
+																					color: isSelected
+																						? isDarkMode
+																							? '#0F172A'
+																							: '#FFFFFF'
+																						: isDarkMode
+																							? '#CBD5E1'
+																							: '#475569',
+																				}}
+																			>
+																				{option.movementCount}
+																			</Text>
+																		</View>
+																	</TouchableOpacity>
+																);
+															})}
+														</HStack>
+													</ScrollView>
+												) : (
+													<View
+														style={{
+															borderRadius: 18,
+															borderWidth: 1,
+															borderColor: periodSummaryPalette.neutralBorder,
+															paddingHorizontal: 14,
+															paddingVertical: 12,
+														}}
+													>
+														<Text className={`${helperText} text-xs`}>
+															As tags disponíveis aparecem aqui conforme o tipo e o período carregados.
+														</Text>
+													</View>
+												)}
+											</VStack>
+
 											<Button
 												className={submitButtonClassName}
 												onPress={() => {
@@ -1713,8 +1903,125 @@ export default function BankMovementsScreen() {
 									</View>
 								)}
 
+								<VStack className="mb-5">
+									<VStack className="px-2 pb-3 gap-1">
+										<Heading className="text-lg uppercase tracking-widest" size="lg">
+											{filteredSummaryTitle}
+										</Heading>
+									</VStack>
 
-								<VStack className="mb-4">
+									<HStack className="gap-3">
+										<View
+											style={{
+												flex: 1,
+												minHeight: 100,
+												borderRadius: 24,
+												borderWidth: 1,
+												borderColor: periodSummaryPalette.neutralBorder,
+												paddingHorizontal: 16,
+												paddingVertical: 12,
+											}}
+										>
+											<VStack className="flex-1 justify-between">
+												<HStack className="items-center justify-between gap-2">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: periodSummaryPalette.subtitle }}
+													>
+														Ganhos
+													</Text>
+													<Icon as={ArrowUpIcon} size="sm" className="text-emerald-500" />
+												</HStack>
+												<Heading size="md" style={{ color: periodSummaryPalette.gainText }}>
+													{formatCurrencyBRL(filteredTotals.totalGains)}
+												</Heading>
+											</VStack>
+										</View>
+
+										<View
+											style={{
+												flex: 1,
+												minHeight: 100,
+												borderRadius: 24,
+												borderWidth: 1,
+												borderColor: periodSummaryPalette.neutralBorder,
+												paddingHorizontal: 16,
+												paddingVertical: 12,
+											}}
+										>
+											<VStack className="flex-1 justify-between">
+												<HStack className="items-center justify-between gap-2">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: periodSummaryPalette.subtitle }}
+													>
+														Despesas
+													</Text>
+													<Icon as={ArrowDownIcon} size="sm" className="text-rose-500" />
+												</HStack>
+												<Heading size="md" style={{ color: periodSummaryPalette.expenseText }}>
+													{formatCurrencyBRL(filteredTotals.totalExpenses)}
+												</Heading>
+											</VStack>
+										</View>
+									</HStack>
+
+									<View
+										style={{
+											marginTop: 12,
+											borderRadius: 24,
+											borderWidth: 1,
+											borderColor: periodSummaryPalette.neutralBorder,
+											paddingHorizontal: 16,
+											paddingVertical: 14,
+										}}
+									>
+										<VStack className="gap-3">
+											<HStack className="items-center justify-between gap-3">
+												<VStack className="flex-1 gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: periodSummaryPalette.subtitle }}
+													>
+														Saldo do filtro
+													</Text>
+													<Heading
+														size="sm"
+														style={{
+															color:
+																filteredBalanceInCents >= 0
+																	? periodSummaryPalette.gainText
+																	: periodSummaryPalette.expenseText,
+														}}
+													>
+														{formatCurrencyBRL(filteredBalanceInCents)}
+													</Heading>
+												</VStack>
+
+												<VStack className="items-end gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: periodSummaryPalette.subtitle }}
+													>
+														Movimentações
+													</Text>
+													<Text
+														style={{
+															color: periodSummaryPalette.title,
+															fontSize: 20,
+															fontWeight: '700',
+														}}
+													>
+														{visibleMovements.length}
+													</Text>
+												</VStack>
+											</HStack>
+										</VStack>
+									</View>
+								</VStack>
+
+
+								<VStack className="mb-4 mt-6">
 									<HStack className="items-start justify-between gap-3">
 										<TouchableOpacity
 											activeOpacity={0.85}
