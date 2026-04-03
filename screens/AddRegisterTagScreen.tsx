@@ -92,6 +92,9 @@ export default function AddRegisterTagScreen() {
 		switchRadioIconClassName,
 		switchRadioLabelClassName,
 		infoCardStyle,
+		switchTrackColor,
+		switchThumbColor,
+		switchIosBackgroundColor,
 	} = useScreenStyles();
 	const { iconOptions, defaultTagIcon, resolveTagIcon, serializeTagIcon } = useTagIcons();
 
@@ -121,6 +124,7 @@ export default function AddRegisterTagScreen() {
 		showInBothLists?: string | string[];
 		returnAfterCreate?: string | string[];
 		lockUsageType?: string | string[];
+		lockMandatorySelection?: string | string[];
 		tagIconFamily?: string | string[];
 		tagIconName?: string | string[];
 		tagIconStyle?: string | string[];
@@ -257,13 +261,28 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1' || value === 'true';
 	}, [params.lockUsageType]);
+	const shouldLockMandatorySelection = React.useMemo(() => {
+		const value = Array.isArray(params.lockMandatorySelection)
+			? params.lockMandatorySelection[0]
+			: params.lockMandatorySelection;
+
+		return value === '1' || value === 'true';
+	}, [params.lockMandatorySelection]);
 
 	const isEditing = Boolean(editingTagId);
 	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
+	// Segue [[Gerenciamento de Tags]]: fluxos inline podem travar a obrigatoriedade para evitar retorno com uma categoria fora do filtro de origem.
+	const isMandatorySelectionLocked = shouldLockMandatorySelection && !isEditing && Boolean(initialUsageType);
 	const selectedUsageType: UsageTypeRadioValue | null = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
 	const isMandatorySwitchEnabled = selectedUsageType !== null;
-	const resolvedIsMandatoryExpense = selectedUsageType === 'expense' ? showInBothLists || isMandatoryExpense : false;
-	const resolvedIsMandatoryGain = selectedUsageType === 'gain' ? showInBothLists || isMandatoryGain : false;
+	const resolvedIsMandatoryExpense =
+		selectedUsageType === 'expense'
+			? showInBothLists || isMandatoryExpense || (isMandatorySelectionLocked && initialUsageType === 'expense')
+			: false;
+	const resolvedIsMandatoryGain =
+		selectedUsageType === 'gain'
+			? showInBothLists || isMandatoryGain || (isMandatorySelectionLocked && initialUsageType === 'gain')
+			: false;
 	const isMandatorySelected =
 		selectedUsageType === 'expense'
 			? resolvedIsMandatoryExpense
@@ -356,6 +375,10 @@ export default function AddRegisterTagScreen() {
 
 	const handleMandatorySelection = React.useCallback(
 		(nextValue: boolean) => {
+			if (isMandatorySelectionLocked) {
+				return;
+			}
+
 			if (selectedUsageType === 'expense') {
 				setIsMandatoryExpense(nextValue);
 				return;
@@ -365,7 +388,7 @@ export default function AddRegisterTagScreen() {
 				setIsMandatoryGain(nextValue);
 			}
 		},
-		[selectedUsageType],
+		[isMandatorySelectionLocked, selectedUsageType],
 	);
 	const handleShowInBothListsSelection = React.useCallback(
 		(nextValue: boolean) => {
@@ -637,10 +660,10 @@ export default function AddRegisterTagScreen() {
 			: 'Adição de nova categoria';
 	const showInBothListsLabel =
 		selectedUsageType === 'expense'
-			? 'Mostrar categoria nas despesas e nas obrigatórias'
+			? 'Categoria nas despesas e nas obrigatórias'
 			: selectedUsageType === 'gain'
-				? 'Mostrar categoria nos ganhos e nos obrigatórios'
-				: 'Mostrar categoria nas duas listas';
+				? 'Categoria nos ganhos e nos obrigatórios'
+				: 'Categoria nas duas listas';
 	const showInBothListsHelperText =
 		selectedUsageType === 'expense'
 			? 'Ative esta opção para que a categoria fique disponível tanto na lista de despesas quanto na lista de gastos obrigatórios.'
@@ -649,9 +672,9 @@ export default function AddRegisterTagScreen() {
 				: 'Selecione o tipo de utilização acima para definir se a categoria ficará disponível nas duas listas.';
 	const mandatoryUsageLabel =
 		selectedUsageType === 'expense'
-			? 'Marcar categoria de despesa como obrigatória'
+			? 'Despesa apenas obrigatória'
 			: selectedUsageType === 'gain'
-				? 'Marcar categoria de ganho como obrigatório'
+				? 'Ganho apenas obrigatório'
 				: 'Marcar como obrigatório';
 	const mandatoryHelperText =
 		selectedUsageType === 'expense'
@@ -892,10 +915,10 @@ export default function AddRegisterTagScreen() {
 
 											{selectedUsageType && (
 												<>
-													<View className="mt-2">
+													<View className="mt-4">
 														<HStack className="items-center justify-between gap-6">
 															<HStack className="ml-1 gap-1 flex-1">
-																<Text className={`${bodyText} text-sm flex-1`}>
+																<Text className={`text-base font-semibold`}>
 																	{showInBothListsLabel}
 																</Text>
 																<Popover
@@ -934,9 +957,9 @@ export default function AddRegisterTagScreen() {
 																value={showInBothLists}
 																onValueChange={handleShowInBothListsSelection}
 																isDisabled={!selectedUsageType}
-																trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-																thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
-																ios_backgroundColor="#CBD5E1"
+																trackColor={switchTrackColor}
+																thumbColor={switchThumbColor}
+																ios_backgroundColor={switchIosBackgroundColor}
 															/>
 														</HStack>
 													</View>
@@ -945,7 +968,9 @@ export default function AddRegisterTagScreen() {
 														<View className="">
 															<HStack className="items-center justify-between gap-6">
 																<HStack className="ml-1 gap-1">
-																	<Text className={`${bodyText} text-sm`}>{mandatoryUsageLabel}</Text>
+																	<Text className={`text-base font-semibold`}>
+																		{mandatoryUsageLabel}
+																	</Text>
 																	<Popover
 																		placement="bottom"
 																		size="md"
@@ -981,10 +1006,10 @@ export default function AddRegisterTagScreen() {
 																<Switch
 																	value={isMandatorySelected}
 																	onValueChange={handleMandatorySelection}
-																	isDisabled={!isMandatorySwitchEnabled}
-																	trackColor={{ false: '#CBD5E1', true: '#FACC15' }}
-																	thumbColor={isDarkMode ? '#ffffff' : '#FFFFFF'}
-																	ios_backgroundColor="#CBD5E1"
+																	isDisabled={!isMandatorySwitchEnabled || isMandatorySelectionLocked}
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	ios_backgroundColor={switchIosBackgroundColor}
 																/>
 															</HStack>
 														</View>

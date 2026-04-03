@@ -14,10 +14,10 @@ type UseScreenStylesProps = {
 };
 
 export function useScreenStyles() {
-    
-    const { isDarkMode } = useAppTheme();
-    const insets = useSafeAreaInsets();
-    const { height: windowHeight } = useWindowDimensions();
+
+	const { isDarkMode } = useAppTheme();
+	const insets = useSafeAreaInsets();
+	const { height: windowHeight } = useWindowDimensions();
 
 	const headingText = isDarkMode ? 'text-slate-100' : 'text-slate-900';
 
@@ -45,6 +45,9 @@ export function useScreenStyles() {
 	const tintedCardClassName = isDarkMode
 		? 'rounded-2xl border border-slate-800 bg-slate-900/80'
 		: 'rounded-2xl border border-slate-200 bg-slate-50';
+	const notTintedCardClassName = isDarkMode
+		? 'rounded-2xl border border-slate-800'
+		: 'rounded-2xl border border-slate-200';
 	const subtleCardClassName = isDarkMode
 		? ''
 		: '';
@@ -64,6 +67,8 @@ export function useScreenStyles() {
 	const submitButtonClassName = isDarkMode
 		? 'bg-yellow-400 text-white hover:bg-yellow-300 rounded-2xl'
 		: 'bg-yellow-400 text-white hover:bg-yellow-500 rounded-2xl';
+
+	const accordionSectionButtonClassName = `${submitButtonClassName} w-full justify-center`;
 
 	const submitButtonCancelClassName = isDarkMode
 		? 'bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-2xl border border-slate-700'
@@ -102,24 +107,78 @@ export function useScreenStyles() {
 		: '';
 
 	const addTagButtonClassName = isDarkMode
-		? 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
-		: 'h-10 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white';
+		? 'h-10 w-10 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950'
+		: 'h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white';
+
+	// Classes compartilhadas das tabelas seguem o padrão documentado em [[Configurações]] e [[Hooks Customizados]].
+	const tableBaseClassName = 'w-full';
+	const tableHeaderRowClassName = 'border-b border-slate-200 bg-transparent dark:border-slate-800';
+	const tableRowClassName = 'border-b border-slate-200 bg-transparent dark:border-slate-800';
+	const tableHeadTextClassName = 'px-5 py-3 text-sm font-semibold';
+	const tableActionsHeaderTextClassName = 'text-center text-sm font-semibold';
+	const tableContentCellClassName = 'min-w-0 px-4 py-3';
+	const tableCaptionClassName = `${helperText} px-4 py-3 text-xs bg-transparent`;
+	const tableActionsHeaderClassName = 'flex-none items-center justify-center px-2 py-3';
+	const tableActionsCellClassName = 'flex-none items-center justify-center px-2 py-3';
+	const tableSingleActionColumnClassName = 'w-[76px]';
+	const tableDoubleActionColumnClassName = 'w-[112px]';
+	const tableUsersMinWidthClassName = 'w-full';
+	const tableBanksMinWidthClassName = 'w-full';
+	const tableTagsMinWidthClassName = 'w-full';
+	const tableRelatedUsersMinWidthClassName = 'w-full';
+	const tableIconButtonClassName = 'h-10 w-10 rounded-2xl bg-transparent px-0 data-[hover=true]:bg-transparent data-[active=true]:bg-transparent';
+	const tablePrimaryIconClassName = isDarkMode ? 'text-yellow-300' : 'text-yellow-500';
+	const tablePaginationContainerClassName = isDarkMode
+		? 'border-t border-slate-800 px-4 py-4'
+		: 'border-t border-slate-200 px-4 py-4';
+	const tablePaginationListClassName = 'flex-wrap items-center justify-center gap-2';
+	const tablePaginationButtonClassName = isDarkMode
+		? 'min-w-[32px] rounded-2xl border border-slate-800 bg-slate-950 px-0'
+		: 'min-w-[32px] rounded-2xl border border-slate-200 bg-white px-0';
+	const tablePaginationActiveButtonClassName = `${submitButtonClassName} min-w-[32px] px-0`;
+	const tablePaginationInfoTextClassName = `${helperText} text-center text-xs mt-4`;
 
 	const checkboxClassName = 'items-center gap-3';
 
 	const checkboxIndicatorClassName = isDarkMode
-		? 'rounded-md border-slate-500 data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300'
-		: 'rounded-md border-slate-300 data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-400';
+		? 'rounded-md border-slate-500'
+		: 'rounded-md border-slate-300';
 
-	const checkboxIconClassName = isDarkMode ? 'text-slate-950' : 'text-white';
+	const checkboxIndicatorCheckedClassName = isDarkMode
+		? 'data-[checked=true]:border-yellow-300 data-[checked=true]:bg-yellow-300'
+		: 'data-[checked=true]:border-yellow-400 data-[checked=true]:bg-yellow-400';
+
+	const checkboxIndicatorCheckedStyle = React.useMemo(
+		() => ({
+			borderColor: isDarkMode ? '#FDE047' : '#FACC15',
+			backgroundColor: isDarkMode ? '#FDE047' : '#FACC15',
+		}),
+		[isDarkMode],
+	);
+
+	const checkboxIconClassName = 'text-slate-950';
 
 	const checkboxLabelClassName = isDarkMode
-		? 'text-slate-300 data-[checked=true]:text-slate-100'
-		: 'text-slate-700 data-[checked=true]:text-slate-900';
+		? 'text-slate-300'
+		: 'text-slate-700';
+
+	const checkboxLabelCheckedClassName = isDarkMode
+		? 'text-slate-100'
+		: 'text-slate-900';
 	const skeletonBaseColor = isDarkMode ? 'rgba(30, 41, 59, 0.96)' : '#E2E8F0';
 	const skeletonHighlightColor = isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.55)';
 	const skeletonMutedBaseColor = isDarkMode ? 'rgba(15, 23, 42, 0.88)' : '#F1F5F9';
 	const skeletonMutedHighlightColor = isDarkMode ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.7)';
+
+	const switchTrack = isDarkMode
+		? 'bg-slate-700 data-[checked=true]:bg-yellow-300/20'
+		: 'bg-slate-300 data-[checked=true]:bg-yellow-400/20';
+	const switchTrackColor = React.useMemo(
+		() => ({ false: '#CBD5E1', true: '#FACC15' }),
+		[],
+	);
+	const switchThumbColor = '#FFFFFF';
+	const switchIosBackgroundColor = '#CBD5E1';
 
 	return {
 		isDarkMode,
@@ -137,30 +196,61 @@ export function useScreenStyles() {
 		sectionCardClassName,
 		compactCardClassName,
 		tintedCardClassName,
+		notTintedCardClassName,
 		subtleCardClassName,
 		modalContentClassName,
 		drawerContentClassName,
 		drawerHeaderCardClassName,
 		topSummaryCardClassName,
 		submitButtonClassName,
+		accordionSectionButtonClassName,
 		submitButtonCancelClassName,
 		submitButtonTextClassName,
 		heroHeight,
 		infoCardStyle,
-        insets,
+		insets,
 		labelText,
 		switchRadioClassName,
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
 		switchRadioLabelClassName,
 		addTagButtonClassName,
+		tableBaseClassName,
+		tableHeaderRowClassName,
+		tableRowClassName,
+		tableHeadTextClassName,
+		tableActionsHeaderTextClassName,
+		tableContentCellClassName,
+		tableCaptionClassName,
+		tableActionsHeaderClassName,
+		tableActionsCellClassName,
+		tableSingleActionColumnClassName,
+		tableDoubleActionColumnClassName,
+		tableUsersMinWidthClassName,
+		tableBanksMinWidthClassName,
+		tableTagsMinWidthClassName,
+		tableRelatedUsersMinWidthClassName,
+		tableIconButtonClassName,
+		tablePrimaryIconClassName,
+		tablePaginationContainerClassName,
+		tablePaginationListClassName,
+		tablePaginationButtonClassName,
+		tablePaginationActiveButtonClassName,
+		tablePaginationInfoTextClassName,
 		checkboxClassName,
 		checkboxIndicatorClassName,
+		checkboxIndicatorCheckedClassName,
+		checkboxIndicatorCheckedStyle,
 		checkboxIconClassName,
 		checkboxLabelClassName,
+		checkboxLabelCheckedClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
 		skeletonMutedBaseColor,
 		skeletonMutedHighlightColor,
+		switchTrack,
+		switchTrackColor,
+		switchThumbColor,
+		switchIosBackgroundColor,
 	};
 }

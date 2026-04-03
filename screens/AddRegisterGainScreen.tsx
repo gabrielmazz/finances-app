@@ -209,8 +209,11 @@ export default function AddRegisterGainScreen() {
 		addTagButtonClassName,
 		checkboxClassName,
 		checkboxIndicatorClassName,
+		checkboxIndicatorCheckedClassName,
+		checkboxIndicatorCheckedStyle,
 		checkboxIconClassName,
 		checkboxLabelClassName,
+		checkboxLabelCheckedClassName,
 	} = useScreenStyles();
 
 	const [gainName, setGainName] = React.useState('');
@@ -516,6 +519,8 @@ export default function AddRegisterGainScreen() {
 		isFormBusy || isBankSelectionLocked || isGainFormatPendingSelection;
 	const isBankSelectDisabled =
 		isLoadingBanks || banks.length === 0 || isFormBusy || isBankFieldPrerequisitesIncomplete;
+	const isVariablePaymentFormatSelected = paymentFormat.includes('Variable');
+	const isExternalPaymentFormatSelected = paymentFormat.includes('External');
 	const valuesRadioMoneyFormat: GainMoneyFormatRadioValue =
 		isBankSelectionLocked || !moneyFormat ? 'Recebimento em Banco' : 'Recebimento em Dinheiro';
 	const isTagFieldPrerequisitesIncomplete =
@@ -1445,13 +1450,26 @@ export default function AddRegisterGainScreen() {
 														value="Variable"
 														className={checkboxClassName}
 														isDisabled={
-															gainName.trim().length === 0 || gainValueCents === null || gainValueCents === 0 || isFormBusy || paymentFormat.includes('External')
+															gainName.trim().length === 0 ||
+															gainValueCents === null ||
+															gainValueCents === 0 ||
+															isFormBusy ||
+															isExternalPaymentFormatSelected
 														}
 													>
-														<CheckboxIndicator className={checkboxIndicatorClassName}>
+														<CheckboxIndicator
+															className={`${checkboxIndicatorClassName} ${
+																isVariablePaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
+															}`.trim()}
+															style={isVariablePaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
+														>
 															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
 														</CheckboxIndicator>
-														<CheckboxLabel className={`${checkboxLabelClassName} text-sm`}>
+														<CheckboxLabel
+															className={`${checkboxLabelClassName} ${
+																isVariablePaymentFormatSelected ? checkboxLabelCheckedClassName : ''
+															} text-sm`.trim()}
+														>
 															Renda variável
 														</CheckboxLabel>
 													</Checkbox>
@@ -1459,13 +1477,26 @@ export default function AddRegisterGainScreen() {
 														value="External"
 														className={checkboxClassName}
 														isDisabled={
-															gainName.trim().length === 0 || gainValueCents === null || gainValueCents === 0 || isFormBusy || paymentFormat.includes('Variable')
+															gainName.trim().length === 0 ||
+															gainValueCents === null ||
+															gainValueCents === 0 ||
+															isFormBusy ||
+															isVariablePaymentFormatSelected
 														}
 													>
-														<CheckboxIndicator className={checkboxIndicatorClassName}>
+														<CheckboxIndicator
+															className={`${checkboxIndicatorClassName} ${
+																isExternalPaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
+															}`.trim()}
+															style={isExternalPaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
+														>
 															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
 														</CheckboxIndicator>
-														<CheckboxLabel className={`${checkboxLabelClassName} text-sm`}>
+														<CheckboxLabel
+															className={`${checkboxLabelClassName} ${
+																isExternalPaymentFormatSelected ? checkboxLabelCheckedClassName : ''
+															} text-sm`.trim()}
+														>
 															Pagamento externo
 														</CheckboxLabel>
 													</Checkbox>
@@ -1665,11 +1696,10 @@ export default function AddRegisterGainScreen() {
 												</View>
 												<Pressable
 													onPress={handleOpenAddTagScreen}
-													disabled={isAddTagButtonDisabled}
 													hitSlop={8}
 													accessibilityRole="button"
 													accessibilityLabel="Adicionar nova categoria de ganho"
-													className={`h-10 w-10 items-center justify-center rounded-2xl ${selectedTagIconContainerClassName}`}
+													className={`${addTagButtonClassName}`}
 												>
 													<TagsIcon
 														size={18}

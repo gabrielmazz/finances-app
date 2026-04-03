@@ -7,10 +7,11 @@
 
 ## Vault de Documentação
 
-**Localização:** `C:\Users\Gabriel Mazzuco\Documents\Programação\Documentações\Lumus Finance`
-**MCP Obsidian:** `http://localhost:22363/sse`
+**Localização da Documentação:** `/programacao/finances-app/Arquitetura`
 
 O vault é a **fonte de verdade** do projeto. Toda feature, decisão arquitetural e regra de negócio está documentada lá. Antes de implementar qualquer coisa, consulte o arquivo relevante no vault.
+
+- Lembre-se, o vault da arquitetura está interconectado um com o outro, por exemplo, dentro do Arquivo MOC - Lumus Finanças.md tem links para os arquivos de cada módulo ([[Autenticação]], sendo assim o formato de identificar um arquivo conectado), e dentro de cada módulo tem links para os arquivos relacionados. Isso é para garantir que você tenha uma visão completa do contexto antes de fazer qualquer alteração.
 
 ### Mapa do Vault por Tipo de Tarefa
 
@@ -230,67 +231,16 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ---
 
-## Lacunas de Documentação Identificadas
-
-As seguintes áreas não têm documentação detalhada no vault ainda:
-
-- [ ] **Regras de segurança do Firestore** — não estão no repositório, apenas no console Firebase
-- [ ] **Estrutura de coleções do Firestore** — schema dos documentos não documentado
-- [ ] **Processo de build e deploy EAS** — fluxo de publicação não documentado
-- [ ] **BankSummaryScreen** — tela existe mas não tem arquivo dedicado no vault
-- [ ] **Cálculo CDI detalhado** — algoritmo exato de `FinancesFirebase.ts` não documentado
-- [ ] **Relacionamento entre usuários** — como a visibilidade compartilhada funciona em detalhe
-
----
-
 ## Active Context
 
-> Atualizar manualmente a cada sessão com o que está sendo trabalhado.
+> Atualizado em 2026-04-03.
 
-**Branch atual:** `NS31-redesign-das-telas-de-gastos-ganhos-e-investimentos`
-
-**Em andamento:**
-- NS31 — refatoração dos lembretes de vencimento/recebimento para obrigatórios
-- Novo serviço compartilhado em `utils/mandatoryReminderNotifications.ts`
-- Novo utilitário de máscara e validação em `utils/mandatoryReminderTime.ts`
-- Horário customizável de lembrete nas telas de gastos e ganhos obrigatórios
-- Feedback de lembrete com próxima data real agendada e mensagens personalizadas por gasto/ganho
-- Remoção do carregamento por Skeleton nas telas de cadastro/edição de obrigatórios, mantendo o formulário visível durante prefill e carregamento de tags
-- Configuração nativa ajustada em `app.json` para `expo-notifications`
-- Correção do estado inicial dos switches de lembrete em obrigatórios: formulário novo/resetado começa com lembrete desligado e controle bloqueado até os campos mínimos serem preenchidos
-- Refino visual do modal `Resumo diário` dos obrigatórios com linha-resumo clicável + card expansível no padrão da timeline, metadados compactados em duas linhas, altura responsiva com rolagem interna e remoção da borda vermelha do botão de cancelar compartilhado
-- Padronização visual do `ModalCloseButton` nos modais compartilhados
-- Ajuste do `components/uiverse/navigator.tsx` para refletir as rotas de cadastro/edição de obrigatórios e alinhar o card do menu ao tema escuro do app
-- Padronização da timeline de últimas movimentações da `HomeScreen` com o mesmo modelo visual das telas de movimentações e obrigatórios
-- Padronização das cores do skeleton do carrossel de bancos da `HomeScreen`, removendo o fundo cinza e alinhando a paleta do card aos tokens globais de tela
-- Suporte a recorrências por dia útil em gastos/ganhos obrigatórios, com cálculo do mês baseado em fins de semana e feriados nacionais do Brasil
-- Destaque visual de feriados nacionais no `components/uiverse/date-calendar.tsx`, incluindo marcador roxo e círculo dividido quando o item cai em feriado
-- Propagação do contexto de dia útil para o prefill das telas de lançamento manual e para o agendamento dos lembretes obrigatórios
-
-**Arquivos com mudanças não commitadas:**
-- `components/uiverse/date-calendar.tsx`
-- `hooks/useScreenStyle.ts`
-- `components/uiverse/navigator.tsx`
-- `components/ui/modal/index.tsx`
-- `functions/MandatoryExpenseFirebase.ts`
-- `functions/MandatoryGainFirebase.ts`
-- `screens/AddMandatoryExpensesScreen.tsx`
-- `screens/AddMandatoryGainsScreen.tsx`
-- `screens/AddRegisterExpensesScreen.tsx`
-- `screens/AddRegisterGainScreen.tsx`
-- `screens/AddRegisterTagScreen.tsx`
-- `screens/BankMovementsScreen.tsx`
-- `screens/MandatoryExpensesListScreen.tsx`
-- `screens/MandatoryGainsListScreen.tsx`
-- `screens/HomeScreen.tsx`
-- `functions/HomeFirebase.ts`
-- `utils/businessCalendar.ts`
-- `utils/mandatoryExpenseNotifications.ts`
-- `utils/mandatoryGainNotifications.ts`
-- `utils/mandatoryReminderNotifications.ts`
-- `utils/mandatoryReminderTime.ts`
-- `Arquitetura.md`
-
-**Último commit:** `NS30 - Alteração na tela de movimento de bancos, trazendo as novas implementações de tags`
-
-**Próximos passos:** validar em build nativo o disparo dos lembretes com horário customizado e revisar a experiência de edição/exclusão após reagendamento.
+- Padronização dos botões e ações da `screens/ConfigurationsScreen.tsx` para o componente `Button` do design system, seguindo o mesmo padrão visual das telas de cadastro.
+- Coluna de ações das tabelas da `screens/ConfigurationsScreen.tsx` refinada para uma faixa fixa à direita com botões compactos por ícone.
+- Classes compartilhadas das tabelas da `screens/ConfigurationsScreen.tsx` centralizadas em `hooks/useScreenStyle.ts`.
+- Padronização do seletor de categoria obrigatória nas telas `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` para seguir o mesmo fluxo das telas de registro, com criação inline de tag e retorno automático.
+- Paginação numérica adicionada às tabelas da `screens/ConfigurationsScreen.tsx` quando a listagem visível ultrapassa 5 registros.
+- `screens/ConfigurationsScreen.tsx` migrada para `components/uiverse/notifier-alert.tsx` como canal padrão de alertas in-app.
+- Documentação revisada em `Arquitetura/Configurações.md` para refletir a presença de tabelas administrativas, ações inline e o reaproveitamento de `useScreenStyle()`.
+- Card de privacidade da `screens/ConfigurationsScreen.tsx` realinhado para manter o popover ao lado do título, o switch no extremo direito e os textos de helper/status consistentes com o fluxo documentado em `Arquitetura/Configurações.md` e `Arquitetura/Privacidade de Valores.md`.
+- Card de tema da `screens/ConfigurationsScreen.tsx` padronizado com a mesma composição visual do toggle de privacidade, incluindo popover inline, status textual e `Switch` alinhado à direita.
