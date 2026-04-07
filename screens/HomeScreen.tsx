@@ -56,7 +56,8 @@ type HomeTimelineToneKey =
 	| 'mandatoryExpense'
 	| 'bankTransfer'
 	| 'investmentRedemption'
-	| 'investmentDeposit';
+	| 'investmentDeposit'
+	| 'investmentSync';
 
 type HomeTimelineTone = {
 	accentColor: string;
@@ -153,9 +154,20 @@ const HOME_TIMELINE_TONES: Record<HomeTimelineToneKey, HomeTimelineTone> = {
 		iconGradient: ['#312E81', '#7C3AED'],
 		cardGradient: ['#312E81', '#7C3AED'],
 	},
+	investmentSync: {
+		accentColor: '#14B8A6',
+		amountColor: '#14B8A6',
+		lineColor: 'rgba(20, 184, 166, 0.28)',
+		iconGradient: ['#0F766E', '#2DD4BF'],
+		cardGradient: ['#115E59', '#14B8A6'],
+	},
 };
 
 const resolveHomeTimelineToneKey = (movement: HomeTimelineMovement): HomeTimelineToneKey => {
+	if (movement.isFinanceInvestmentSync) {
+		return 'investmentSync';
+	}
+
 	if (movement.isBankTransfer) {
 		return 'bankTransfer';
 	}
@@ -760,9 +772,45 @@ export default function HomeScreen() {
 				return formattedValue;
 			}
 
+			if (movement.type === 'sync') {
+				return formattedValue;
+			}
+
 			return `${movement.type === 'gain' ? '+' : '-'}${formattedValue}`;
 		},
 		[formatCurrencyBRL],
+	);
+
+	const formatDeltaCurrencyBRL = React.useCallback(
+		(valueInCents: number | null | undefined) => {
+			const formattedValue = formatCurrencyBRL(Math.abs(valueInCents ?? 0));
+			if (formattedValue === HIDDEN_VALUE_PLACEHOLDER) {
+				return formattedValue;
+			}
+
+			if (typeof valueInCents !== 'number') {
+				return 'Sem variação';
+			}
+
+			const prefix = valueInCents >= 0 ? '+' : '-';
+			return `${prefix}${formattedValue}`;
+		},
+		[formatCurrencyBRL],
+	);
+
+	const getInvestmentSyncReasonLabel = React.useCallback(
+		(reason: HomeTimelineMovement['investmentSyncReason']) => {
+			if (reason === 'deposit') {
+				return 'Sincronização antes do aporte';
+			}
+
+			if (reason === 'withdrawal') {
+				return 'Sincronização antes do resgate';
+			}
+
+			return 'Sincronização manual';
+		},
+		[],
 	);
 
 	const formatMovementCompactDate = React.useCallback((value: Date | null) => {
@@ -796,6 +844,10 @@ export default function HomeScreen() {
 			return 'Transferência entre bancos';
 		}
 
+		if (movement.isFinanceInvestmentSync) {
+			return 'Sincronização de investimento';
+		}
+
 		if (movement.isInvestmentDeposit) {
 			return 'Aporte de investimento';
 		}
@@ -808,6 +860,10 @@ export default function HomeScreen() {
 	}, []);
 
 	const getFallbackTimelineIcon = React.useCallback((movement: HomeTimelineMovement): TagIconSelection => {
+		if (movement.isFinanceInvestmentSync) {
+			return { iconFamily: 'ionicons', iconName: 'sync-outline' };
+		}
+
 		if (movement.isBankTransfer) {
 			return { iconFamily: 'ionicons', iconName: 'swap-horizontal-outline' };
 		}
@@ -850,6 +906,12 @@ export default function HomeScreen() {
 
 	const getTimelineSummarySubtitle = React.useCallback(
 		(movement: HomeTimelineMovement) => {
+			if (movement.isFinanceInvestmentSync) {
+				return movement.investmentNameSnapshot
+					? `${getInvestmentSyncReasonLabel(movement.investmentSyncReason)} em ${movement.investmentNameSnapshot}`
+					: getInvestmentSyncReasonLabel(movement.investmentSyncReason);
+			}
+
 			if (movement.isBankTransfer) {
 				return movement.bankTransferDirection === 'outgoing'
 					? `Transferência para ${movement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'}`
@@ -880,10 +942,14 @@ export default function HomeScreen() {
 
 			return resolveTimelineTypeLabel(movement);
 		},
-		[resolveTimelineTypeLabel],
+		[getInvestmentSyncReasonLabel, resolveTimelineTypeLabel],
 	);
 
 	const getTimelinePrimarySourceLabel = React.useCallback((movement: HomeTimelineMovement) => {
+		if (movement.isFinanceInvestmentSync) {
+			return movement.bankName?.trim() || 'Banco do investimento';
+		}
+
 		if (movement.isBankTransfer) {
 			return movement.bankTransferSourceBankNameSnapshot?.trim() || movement.bankName || 'Banco de origem';
 		}
@@ -901,6 +967,19 @@ export default function HomeScreen() {
 
 	const getTimelineDetailMessage = React.useCallback(
 		(movement: HomeTimelineMovement) => {
+			if (movement.isFinanceInvestmentSync) {
+				const investmentName = movement.investmentNameSnapshot ?? 'este investimento';
+				if (movement.investmentSyncReason === 'deposit') {
+					return `Valor real conferido antes do aporte em "${investmentName}".`;
+				}
+
+				if (movement.investmentSyncReason === 'withdrawal') {
+					return `Valor real conferido antes do resgate em "${investmentName}".`;
+				}
+
+				return `Sincronização manual registrada para "${investmentName}".`;
+			}
+
 			if (movement.isFromMandatory) {
 				return movement.type === 'gain'
 					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
@@ -1113,11 +1192,6 @@ export default function HomeScreen() {
 																				? 'Saldo indisponível'
 																				: formatCurrencyBRL(item.balanceInCents)}
 																		</Heading>
-																		{item.kind === 'bank' && item.balanceInCents === null ? (
-																			<Text className="text-xs" style={{ color: cardPalette.textSecondary }}>
-																				Sem saldo registrado para este mes.
-																			</Text>
-																		) : null}
 																	</VStack>
 
 																	<HStack className="mt-4 justify-between items-end gap-4">
@@ -1496,7 +1570,7 @@ export default function HomeScreen() {
 													<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 														<PopoverBody className="px-3 py-3">
 															<Text className={`${bodyText} text-xs leading-5`}>
-																Exibimos aqui um resumo das suas últimas movimentações financeiras, incluindo despesas, ganhos e transferências. Toque em cada movimentação para ver detalhes específicos como valor, data e descrição.
+																Exibimos aqui um resumo das suas últimas movimentações financeiras, incluindo despesas, ganhos, transferências e sincronizações de investimento. Toque em cada movimentação para ver detalhes específicos como valor, data e descrição.
 																Se você não vê uma movimentação que espera, verifique se ela está registrada corretamente na seção de movimentações. Os dados aqui refletem o que foi registrado lá.
 															</Text>
 														</PopoverBody>
@@ -1550,6 +1624,21 @@ export default function HomeScreen() {
 														value: formatMovementDate(movement.date),
 													},
 												];
+
+												if (movement.isFinanceInvestmentSync) {
+													metadataItems.push({
+														label: 'Variação',
+														value: formatDeltaCurrencyBRL(
+															typeof movement.investmentSyncPreviousValueInCents === 'number'
+																? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																: null,
+														),
+													});
+													metadataItems.push({
+														label: 'Motivo',
+														value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
+													});
+												}
 
 												if (movement.isBankTransfer) {
 													metadataItems.push({
@@ -1676,6 +1765,21 @@ export default function HomeScreen() {
 																			>
 																				{formatSignedCurrencyBRL(movement)}
 																			</Text>
+																			{movement.isFinanceInvestmentSync ? (
+																				<Text
+																					style={{
+																						marginTop: 2,
+																						color: timelinePalette.subtitle,
+																						fontSize: 11,
+																					}}
+																				>
+																					{formatDeltaCurrencyBRL(
+																						typeof movement.investmentSyncPreviousValueInCents === 'number'
+																							? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																							: null,
+																					)}
+																				</Text>
+																			) : null}
 																			<HStack className="mt-1 items-center gap-1">
 																				<Icon
 																					as={CalendarDaysIcon}

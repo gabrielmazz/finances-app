@@ -83,6 +83,13 @@ import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import {
+	getTagUsageTypeLabel,
+	isTagVisibleInMandatoryUsageList,
+	isTagVisibleInRegularUsageList,
+	normalizeTagUsageType,
+	type TagUsageType,
+} from '@/utils/tagUsage';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -195,7 +202,7 @@ type PendingAction =
 			tag: {
 				id: string;
 				name: string;
-				usageType?: 'expense' | 'gain';
+				usageType?: TagUsageType;
 				isMandatoryExpense?: boolean;
 				isMandatoryGain?: boolean;
 				showInBothLists?: boolean;
@@ -947,7 +954,7 @@ export default function ConfigurationsScreen() {
 		Array<{
 			id: string;
 			name: string;
-			usageType?: 'expense' | 'gain';
+			usageType?: TagUsageType;
 			isMandatoryExpense?: boolean;
 			isMandatoryGain?: boolean;
 			showInBothLists?: boolean;
@@ -1023,16 +1030,16 @@ export default function ConfigurationsScreen() {
 				return true;
 			}
 			if (tagFilter === 'expense') {
-				return tag.usageType === 'expense' && (!tag.isMandatoryExpense || tag.showInBothLists);
+				return isTagVisibleInRegularUsageList(tag, 'expense');
 			}
 			if (tagFilter === 'mandatory-expense') {
-				return tag.usageType === 'expense' && Boolean(tag.isMandatoryExpense);
+				return isTagVisibleInMandatoryUsageList(tag, 'expense');
 			}
 			if (tagFilter === 'gain') {
-				return tag.usageType === 'gain' && (!tag.isMandatoryGain || tag.showInBothLists);
+				return isTagVisibleInRegularUsageList(tag, 'gain');
 			}
 			if (tagFilter === 'mandatory-gain') {
-				return tag.usageType === 'gain' && Boolean(tag.isMandatoryGain);
+				return isTagVisibleInMandatoryUsageList(tag, 'gain');
 			}
 			return true;
 		});
@@ -1166,12 +1173,29 @@ export default function ConfigurationsScreen() {
 	}, [showConfigurationAlert, userId]);
 
 	const handleUserRemoval = React.useCallback(
-		async (userId: string, identifier: string) => {
+		async (targetUserId: string, identifier: string) => {
+			if (!isAdmin) {
+				showConfigurationAlert({
+					title: 'Ação não permitida',
+					description: 'Somente administradores podem excluir usuários por esta tela.',
+					type: 'error',
+				});
+				return;
+			}
 
-			const result = await handleDeleteUser(userId);
+			if (!targetUserId || targetUserId === userId) {
+				showConfigurationAlert({
+					title: 'Ação bloqueada',
+					description: 'Não é permitido excluir a própria conta por esta tela.',
+					type: 'warn',
+				});
+				return;
+			}
+
+			const result = await handleDeleteUser(targetUserId);
 
 			if (result.success) {
-				setUserData(prev => prev.filter(user => user.id !== userId));
+				setUserData(prev => prev.filter(user => user.id !== targetUserId));
 				showConfigurationAlert({
 					title: 'Usuário removido',
 					description: `Usuário ${identifier} foi excluído.`,
@@ -1185,7 +1209,7 @@ export default function ConfigurationsScreen() {
 				});
 			}
 		},
-		[showConfigurationAlert],
+		[isAdmin, showConfigurationAlert, userId],
 	);
 
 	const handleBankRemoval = React.useCallback(
@@ -1418,13 +1442,7 @@ export default function ConfigurationsScreen() {
 	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
 
 	const getTagTypeLabel = React.useCallback((tag: (typeof tagData)[number]) => {
-		if (tag.usageType === 'gain') {
-			return 'Ganhos';
-		}
-		if (tag.usageType === 'expense') {
-			return 'Despesas';
-		}
-		return 'Não definido';
+		return getTagUsageTypeLabel(tag.usageType);
 	}, []);
 
 	const getTagBadgeLabels = React.useCallback(
@@ -1440,7 +1458,7 @@ export default function ConfigurationsScreen() {
 			}
 
 			if (tag.showInBothLists) {
-				badges.push('Listas normal e obrigatória');
+				badges.push(tag.usageType === 'both' ? 'Tambem nos obrigatorios' : 'Listas normal e obrigatoria');
 			}
 
 			return badges;
@@ -1582,10 +1600,7 @@ export default function ConfigurationsScreen() {
 						const formattedTags = tags.map((tag: any) => ({
 							id: tag.id,
 							name: tag.name,
-							usageType:
-								typeof tag?.usageType === 'string' && (tag.usageType === 'gain' || tag.usageType === 'expense')
-									? tag.usageType
-									: undefined,
+							usageType: normalizeTagUsageType(tag?.usageType),
 							isMandatoryExpense: Boolean(tag?.isMandatoryExpense),
 							isMandatoryGain: Boolean(tag?.isMandatoryGain),
 							showInBothLists: Boolean(tag?.showInBothLists),
@@ -1890,45 +1905,56 @@ export default function ConfigurationsScreen() {
 																				/>
 																			</TableRow>
 																		</TableHeader>
-																		<TableBody>
-																			{usersTable.items.map(user => (
-																				<TableRow
-																					key={user.id}
-																					className={tableRowClassName}
-																				>
-																					<TableData useRNView className={tableContentCellClassName}>
-																						<VStack className="min-w-0 flex-1 gap-1">
-																							<Text className="text-sm font-semibold" numberOfLines={1}>
-																								{user.email || 'Usuário sem e-mail'}
-																							</Text>
-																							<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
-																								ID: {user.id}
-																							</Text>
-																						</VStack>
-																					</TableData>
-																					<TableActionsCell
-																						widthClassName={tableSingleActionColumnClassName}
-																						cellClassName={tableActionsCellClassName}
+																			<TableBody>
+																				{usersTable.items.map(user => (
+																					(() => {
+																						const isCurrentLoggedUser = user.id === userId;
+																						return (
+																					<TableRow
+																						key={user.id}
+																						className={tableRowClassName}
 																					>
-																						<ConfigurationActionButton
-																							icon={TrashIcon}
-																							variant="link"
-																							className={tableIconButtonClassName}
-																							action="negative"
-																							accessibilityLabel={`Excluir usuário ${user.email ?? user.id}`}
-																							onPress={() =>
-																								setPendingAction({
-																									type: 'delete-user',
+																						<TableData useRNView className={tableContentCellClassName}>
+																							<VStack className="min-w-0 flex-1 gap-1">
+																								<Text className="text-sm font-semibold" numberOfLines={1}>
+																									{user.email || 'Usuário sem e-mail'}
+																								</Text>
+																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																									ID: {user.id}
+																								</Text>
+																								{isCurrentLoggedUser ? (
+																									<Text className={`${helperText} text-[11px]`}>
+																										Conta atual
+																									</Text>
+																								) : null}
+																							</VStack>
+																						</TableData>
+																						<TableActionsCell
+																							widthClassName={tableSingleActionColumnClassName}
+																							cellClassName={tableActionsCellClassName}
+																						>
+																							<ConfigurationActionButton
+																								icon={TrashIcon}
+																								variant="link"
+																								className={tableIconButtonClassName}
+																								action="negative"
+																								accessibilityLabel={`Excluir usuário ${user.email ?? user.id}`}
+																								disabled={!isAdmin || isCurrentLoggedUser}
+																								onPress={() =>
+																									setPendingAction({
+																										type: 'delete-user',
 																									payload: {
 																										userId: user.id,
 																										identifier: user.email ?? user.id,
-																									},
-																								})
-																							}
-																						/>
-																					</TableActionsCell>
-																				</TableRow>
-																			))}
+																										},
+																									})
+																								}
+																							/>
+																						</TableActionsCell>
+																					</TableRow>
+																						);
+																					})()
+																				))}
 																		</TableBody>
 																		<TableCaption className={tableCaptionClassName}>
 																			{usersTable.totalItems} usuário(s) cadastrados.
@@ -2125,10 +2151,7 @@ export default function ConfigurationsScreen() {
 																										tag: {
 																											id: tag.id,
 																											name: tag.name,
-																											usageType:
-																												tag.usageType === 'gain' || tag.usageType === 'expense'
-																													? tag.usageType
-																													: undefined,
+																											usageType: normalizeTagUsageType(tag.usageType),
 																											isMandatoryExpense: Boolean(tag.isMandatoryExpense),
 																											isMandatoryGain: Boolean(tag.isMandatoryGain),
 																											showInBothLists: Boolean(tag.showInBothLists),

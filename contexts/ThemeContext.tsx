@@ -18,10 +18,11 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefine
 
 export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
 	const { colorScheme, setColorScheme } = useColorScheme();
-	const [themeMode, setThemeModeState] = React.useState<ThemeMode>('light');
+	const initialThemeMode: ThemeMode = colorScheme === 'dark' ? 'dark' : 'light';
+	const [themeMode, setThemeModeState] = React.useState<ThemeMode>(initialThemeMode);
 	const [isLoadingTheme, setIsLoadingTheme] = React.useState(true);
 	const hasHydratedTheme = React.useRef(false);
-	const initialColorScheme = React.useRef<ThemeMode>(colorScheme === 'dark' ? 'dark' : 'light');
+	const initialColorScheme = React.useRef<ThemeMode>(initialThemeMode);
 
 	const persistThemeMode = React.useCallback(async (mode: ThemeMode) => {
 		try {
@@ -32,10 +33,13 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
 	}, []);
 
 	const applyThemeMode = React.useCallback(
-		(mode: ThemeMode) => {
+		(mode: ThemeMode, options: { persist?: boolean } = {}) => {
+			const shouldPersist = options.persist ?? true;
 			setThemeModeState(mode);
 			setColorScheme(mode);
-			void persistThemeMode(mode);
+			if (shouldPersist) {
+				void persistThemeMode(mode);
+			}
 		},
 		[persistThemeMode, setColorScheme],
 	);
@@ -70,11 +74,11 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
 						? storedValue
 						: initialColorScheme.current;
 
-				applyThemeMode(parsedMode);
+				applyThemeMode(parsedMode, { persist: false });
 			} catch (error) {
 				console.error('Erro ao carregar preferência de tema:', error);
 				if (isMounted) {
-					applyThemeMode(initialColorScheme.current);
+					applyThemeMode(initialColorScheme.current, { persist: false });
 				}
 			} finally {
 				if (isMounted) {
@@ -95,7 +99,7 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
 			themeMode,
 			isDarkMode: themeMode === 'dark',
 			isLoadingTheme,
-			setThemeMode: applyThemeMode,
+			setThemeMode: mode => applyThemeMode(mode),
 			toggleThemeMode,
 		}),
 		[themeMode, isLoadingTheme, applyThemeMode, toggleThemeMode],

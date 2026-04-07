@@ -33,6 +33,7 @@ const AuthBootstrapScreen = () => {
 };
 
 const AuthenticatedStack = () => {
+	const { isLoadingTheme } = useAppTheme();
 	const { isAuthReady, isAuthenticated } = useAuth();
 	const pathname = usePathname();
 	const rootNavigationState = useRootNavigationState();
@@ -40,7 +41,7 @@ const AuthenticatedStack = () => {
 	const shouldRedirectToLogin = isAuthReady && !isAuthenticated && !isLoginRoute;
 	const shouldRedirectToHome = isAuthReady && isAuthenticated && isLoginRoute;
 
-	if (!rootNavigationState?.key || !isAuthReady) {
+	if (!rootNavigationState?.key || !isAuthReady || isLoadingTheme) {
 		return <AuthBootstrapScreen />;
 	}
 

@@ -23,6 +23,7 @@ type GainExpenseTotalsMovement = {
 	isInvestmentDeposit?: boolean | null;
 	isInvestmentRedemption?: boolean | null;
 	isFinanceInvestment?: boolean | null;
+	isFinanceInvestmentSync?: boolean | null;
 };
 
 export type MonthlyBankBalanceInput = {
@@ -97,7 +98,10 @@ export const shouldIncludeMovementInGainExpenseTotals = (
 	movement: GainExpenseTotalsMovement | null | undefined,
 ) => {
 	return !Boolean(
-		movement?.isFinanceInvestment || movement?.isInvestmentDeposit || movement?.isInvestmentRedemption,
+		movement?.isFinanceInvestment ||
+			movement?.isInvestmentDeposit ||
+			movement?.isInvestmentRedemption ||
+			movement?.isFinanceInvestmentSync,
 	);
 };
 
