@@ -529,7 +529,7 @@ export default function LoginScreen() {
 											Desenvolvido por Gabriel Mazzuco
 										</Text>
 
-										<Text className={`${mutedText} text-center text-xs`}>Versão 1.8.1</Text>
+										<Text className={`${mutedText} text-center text-xs`}>Versão 1.8.2</Text>
 									</VStack>
 								</VStack>
 							</View>
