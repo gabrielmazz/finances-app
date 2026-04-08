@@ -562,7 +562,34 @@ export default function AddRegisterGainScreen() {
 		});
 	}, [banks, gainName, isBankSelectionRequired, isDarkMode, selectedBankId, selectedMovementBankName, templateData?.bankName]);
 
-	const navigateAfterSubmit = React.useCallback(() => {
+	React.useEffect(() => {
+		if (!templateData) {
+			setHasAppliedTemplate(false);
+		}
+	}, [templateData]);
+
+	// Mantém o fluxo documentado em Arquitetura/Transações de Receitas.md e Arquitetura/Navegação.md:
+	// após salvar uma nova receita, o usuário continua na própria tela e o contexto do template é descartado.
+	const resetFormAfterCreate = React.useCallback(() => {
+		Keyboard.dismiss();
+		lastFocusedInputKey.current = null;
+		setGainName('');
+		setGainValueDisplay('');
+		setGainValueCents(null);
+		setGainDate(formatDateToBR(new Date()));
+		setSelectedTagId(null);
+		setSelectedBankId(null);
+		setPaymentFormat([]);
+		setExplanationGain(null);
+		setMoneyFormat(false);
+		setSelectedMovementTagName(null);
+		setSelectedMovementTagIcon(null);
+		setSelectedMovementBankName(null);
+		scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+		router.replace('/add-register-gain');
+	}, []);
+
+	const handleLeaveScreen = React.useCallback(() => {
 		Keyboard.dismiss();
 
 		if (linkedMandatoryGainId) {
@@ -584,14 +611,14 @@ export default function AddRegisterGainScreen() {
 	useFocusEffect(
 		React.useCallback(() => {
 			const handleBackPress = () => {
-				navigateAfterSubmit();
+				handleLeaveScreen();
 				return true;
 			};
 			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
 			return () => {
 				subscription.remove();
 			};
-		}, [navigateAfterSubmit]),
+		}, [handleLeaveScreen]),
 	);
 
 	const handleRadioMoneyFormatChange = React.useCallback(
@@ -957,7 +984,6 @@ export default function AddRegisterGainScreen() {
 				}
 
 				showSuccessfulGainNotification(true);
-				navigateAfterSubmit();
 				return;
 			}
 
@@ -1024,7 +1050,7 @@ export default function AddRegisterGainScreen() {
 			}
 
 			showSuccessfulGainNotification();
-			navigateAfterSubmit();
+			resetFormAfterCreate();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showNotifierAlert({
@@ -1037,27 +1063,27 @@ export default function AddRegisterGainScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [
-		editingGainId,
-		explanationGain,
-		gainDate,
-		gainName,
-		moneyFormat,
-		gainValueCents,
-		isEditing,
-		linkedMandatoryGainId,
-		paymentFormat,
-		selectedBankId,
-		selectedTagId,
-		pendingInvestmentAdjustment,
-		isDarkMode,
-		isBankSelectionLocked,
-		shouldShowPaymentFormatSelection,
-		templateData,
-		parsedGainDate,
-		showSuccessfulGainNotification,
-		navigateAfterSubmit,
-	]);
+		}, [
+			editingGainId,
+			explanationGain,
+			gainDate,
+			gainName,
+			moneyFormat,
+			gainValueCents,
+			isEditing,
+			linkedMandatoryGainId,
+			paymentFormat,
+			selectedBankId,
+			selectedTagId,
+			pendingInvestmentAdjustment,
+			isDarkMode,
+			isBankSelectionLocked,
+			shouldShowPaymentFormatSelection,
+			templateData,
+			parsedGainDate,
+			showSuccessfulGainNotification,
+			resetFormAfterCreate,
+		]);
 
 	React.useEffect(() => {
 		if (!editingGainId) {
