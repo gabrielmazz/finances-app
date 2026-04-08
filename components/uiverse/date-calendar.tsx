@@ -40,6 +40,7 @@ export type DateCalendarItem = {
 	id: string;
 	name: string;
 	valueInCents: number;
+	displayValueInCents?: number | null;
 	dueDay: number;
 	tagId: string;
 	description?: string | null;
@@ -448,6 +449,13 @@ function DateCalendar({
 		const holidaySuffix = holidayName ? ` • ${holidayName}` : '';
 		return `${formatResolvedMonthDateLabel(resolvedDate)}${holidaySuffix}`;
 	}, []);
+	const getDisplayValueInCents = React.useCallback(
+		(item: DateCalendarItem) =>
+			typeof item.displayValueInCents === 'number' && !Number.isNaN(item.displayValueInCents)
+				? item.displayValueInCents
+				: item.valueInCents,
+		[],
+	);
 	const modalMaxHeight = React.useMemo(
 		() => Math.max(windowHeight - (insets.top ?? 0) - (insets.bottom ?? 0) - 40, 320),
 		[insets.bottom, insets.top, windowHeight],
@@ -691,7 +699,7 @@ function DateCalendar({
 																fontWeight: '700',
 															}}
 														>
-															{formatCurrency(item.valueInCents)}
+															{formatCurrency(getDisplayValueInCents(item))}
 														</Text>
 														<HStack className="mt-1 items-center gap-1">
 															<Icon
@@ -768,7 +776,7 @@ function DateCalendar({
 																Valor
 															</Text>
 															<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																{formatCurrency(item.valueInCents)}
+																{formatCurrency(getDisplayValueInCents(item))}
 															</Heading>
 														</VStack>
 													</HStack>

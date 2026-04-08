@@ -47,7 +47,7 @@ import Navigator from '@/components/uiverse/navigator';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { getAllBanksFirebase } from '@/functions/BankFirebase';
+import { getAllBanksFirebase, getBankDataFirebase } from '@/functions/BankFirebase';
 import {
 	addExpenseFirebase,
 	getExpenseDataFirebase,
@@ -58,6 +58,12 @@ import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpens
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
+import {
+	isTagVisibleInRegularUsageList,
+	normalizeTagUsageType,
+	tagSupportsUsage,
+	type TagUsageType,
+} from '@/utils/tagUsage';
 
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
@@ -71,7 +77,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 type OptionItem = {
 	id: string;
 	name: string;
-	usageType?: 'expense' | 'gain';
+	usageType?: TagUsageType;
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
@@ -212,6 +218,7 @@ export default function AddRegisterExpensesScreen() {
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
+	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -236,7 +243,10 @@ export default function AddRegisterExpensesScreen() {
 
 	const showSuccessfulExpenseNotification = React.useCallback((isUpdating = false) => {
 		const normalizedExpenseName = expenseName.trim() || 'informada';
-		const resolvedBankName = banks.find(bank => bank.id === selectedBankId)?.name ?? null;
+		const resolvedBankName =
+			banks.find(bank => bank.id === selectedBankId)?.name ??
+			selectedMovementBankName ??
+			null;
 		const destinationLabel = moneyFormat
 			? 'como pagamento em dinheiro'
 			: resolvedBankName
@@ -250,7 +260,28 @@ export default function AddRegisterExpensesScreen() {
 			isDarkMode,
 			duration: 4000,
 		});
-	}, [banks, expenseName, isDarkMode, moneyFormat, selectedBankId]);
+	}, [banks, expenseName, isDarkMode, moneyFormat, selectedBankId, selectedMovementBankName]);
+
+	// Mantém o fluxo documentado em Arquitetura/Transações de Despesas.md e Arquitetura/Navegação.md:
+	// após salvar uma nova despesa, o usuário continua na própria tela e o contexto do template é descartado.
+	const resetFormAfterCreate = React.useCallback(() => {
+		Keyboard.dismiss();
+		lastFocusedInputKey.current = null;
+		setExpenseName('');
+		setExpenseValueDisplay('');
+		setExpenseValueCents(null);
+		setExpenseDate(formatDateToBR(new Date()));
+		setSelectedTagId(null);
+		setSelectedBankId(null);
+		setSelectedMovementTagName(null);
+		setSelectedMovementTagIcon(null);
+		setSelectedMovementBankName(null);
+		setExplanationExpense(null);
+		setMoneyFormat(false);
+		setValuesRadioMoneyFormat('Pagamento em Banco');
+		scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+		router.replace('/add-register-expenses');
+	}, []);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -443,6 +474,11 @@ export default function AddRegisterExpensesScreen() {
 		() => (templateData?.mandatoryExpenseId ? templateData.mandatoryExpenseId : null),
 		[templateData],
 	);
+	React.useEffect(() => {
+		if (!templateData) {
+			setHasAppliedTemplate(false);
+		}
+	}, [templateData]);
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
@@ -498,6 +534,7 @@ export default function AddRegisterExpensesScreen() {
 
 		if (nextValue) {
 			setSelectedBankId(null);
+			setSelectedMovementBankName(null);
 		}
 	}, []);
 
@@ -528,10 +565,29 @@ export default function AddRegisterExpensesScreen() {
 		setValuesRadioMoneyFormat(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
 	}, [moneyFormat]);
 
+	const handleLeaveScreen = React.useCallback(() => {
+		Keyboard.dismiss();
+
+		if (linkedMandatoryExpenseId) {
+			router.dismissTo('/mandatory-expenses');
+			return;
+		}
+
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+
+		router.replace({
+			pathname: '/home',
+			params: { tab: '0' },
+		});
+	}, [linkedMandatoryExpenseId]);
+
 	useFocusEffect(
 		React.useCallback(() => {
 			const handleBackPress = () => {
-				router.replace('/home?tab=0');
+				handleLeaveScreen();
 				return true;
 			};
 
@@ -539,7 +595,7 @@ export default function AddRegisterExpensesScreen() {
 			return () => {
 				subscription.remove();
 			};
-		}, []),
+		}, [handleLeaveScreen]),
 	);
 
 	useFocusEffect(
@@ -559,28 +615,25 @@ export default function AddRegisterExpensesScreen() {
 
 					if (tagsResult.success && Array.isArray(tagsResult.data)) {
 						const formattedTags = tagsResult.data
-							.filter((tag: any) => {
-								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-								const isMandatoryExpense = Boolean(tag?.isMandatoryExpense);
-								const showInBothLists = Boolean(tag?.showInBothLists);
-								const isExpenseTag =
-									usageType === 'expense' || usageType === undefined || usageType === null;
-								return isExpenseTag && (!isMandatoryExpense || showInBothLists);
-							})
+							.filter((tag: any) =>
+								isTagVisibleInRegularUsageList(tag, 'expense', {
+									allowUndefinedUsageType: true,
+								}),
+							)
 							.map((tag: any) => ({
 								id: tag.id,
 								name:
 									typeof tag?.name === 'string' && tag.name.trim().length > 0
 										? tag.name.trim()
 										: 'Tag sem nome',
-								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+								usageType: normalizeTagUsageType(tag?.usageType),
 								iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
 								iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
 								iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 							}));
 						const pendingCreatedTag = peekPendingCreatedTag();
 						const matchingPendingTag =
-							pendingCreatedTag?.usageType === 'expense'
+							pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'expense')
 								? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
 								: null;
 
@@ -840,7 +893,6 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				showSuccessfulExpenseNotification(true);
-				router.replace('/home?tab=0');
 				return;
 			}
 
@@ -902,7 +954,7 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			showSuccessfulExpenseNotification();
-			router.replace('/home?tab=0');
+			resetFormAfterCreate();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
 			showNotifierAlert({
@@ -915,23 +967,24 @@ export default function AddRegisterExpensesScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [
-		editingExpenseId,
-		expenseDate,
-		expenseName,
-		expenseValueCents,
-		explanationExpense,
-		isEditing,
-		isBankSelectionRequired,
-		linkedMandatoryExpenseId,
-		moneyFormat,
-		pendingInvestmentAdjustment,
-		isDarkMode,
-		selectedBankId,
-		selectedTagId,
-		parsedExpenseDate,
-		showSuccessfulExpenseNotification,
-	]);
+		}, [
+			editingExpenseId,
+			expenseDate,
+			expenseName,
+			expenseValueCents,
+			explanationExpense,
+			isEditing,
+			isBankSelectionRequired,
+			linkedMandatoryExpenseId,
+			moneyFormat,
+			pendingInvestmentAdjustment,
+			isDarkMode,
+			selectedBankId,
+			selectedTagId,
+			parsedExpenseDate,
+			showSuccessfulExpenseNotification,
+			resetFormAfterCreate,
+		]);
 
 	React.useEffect(() => {
 		if (!editingExpenseId) {
@@ -1055,6 +1108,49 @@ export default function AddRegisterExpensesScreen() {
 		};
 	}, [selectedTagId, tags]);
 
+	React.useEffect(() => {
+		const matchedBank = banks.find(bank => bank.id === selectedBankId);
+		if (matchedBank) {
+			setSelectedMovementBankName(matchedBank.name);
+			return;
+		}
+
+		if (!selectedBankId) {
+			setSelectedMovementBankName(null);
+			return;
+		}
+
+		let isMounted = true;
+
+		const fetchBankData = async () => {
+			try {
+				const bankResult = await getBankDataFirebase(selectedBankId);
+
+				if (!isMounted) {
+					return;
+				}
+
+				if (bankResult.success && bankResult.data && typeof bankResult.data.name === 'string') {
+					setSelectedMovementBankName(bankResult.data.name);
+					return;
+				}
+
+				setSelectedMovementBankName(null);
+			} catch (error) {
+				console.error('Erro ao buscar dados do banco da despesa:', error);
+				if (isMounted) {
+					setSelectedMovementBankName(null);
+				}
+			}
+		};
+
+		void fetchBankData();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [banks, selectedBankId]);
+
 	const selectedTagLabel = React.useMemo(() => {
 		const matchedTag = tags.find(tag => tag.id === selectedTagId);
 		if (matchedTag) {
@@ -1109,8 +1205,8 @@ export default function AddRegisterExpensesScreen() {
 
 	const selectedBankLabel = React.useMemo(() => {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
-		return matchedBank?.name ?? null;
-	}, [banks, selectedBankId]);
+		return matchedBank?.name ?? selectedMovementBankName ?? null;
+	}, [banks, selectedBankId, selectedMovementBankName]);
 
 	const screenTitle = 'Registro de Despesa';
 	const tagHelperMessage = isTagSelectionLocked
@@ -1368,6 +1464,7 @@ export default function AddRegisterExpensesScreen() {
 													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 														<SelectInput
 															placeholder="Selecione o banco vinculado"
+															value={selectedBankLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />
@@ -1456,6 +1553,7 @@ export default function AddRegisterExpensesScreen() {
 													>
 														<SelectInput
 															placeholder="Selecione a categoria da despesa"
+															value={selectedTagLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />

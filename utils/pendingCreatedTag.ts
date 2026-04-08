@@ -1,9 +1,10 @@
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import type { TagUsageType } from '@/utils/tagUsage';
 
 export type PendingCreatedTag = {
 	tagId: string;
 	tagName: string;
-	usageType: 'expense' | 'gain';
+	usageType: TagUsageType;
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;

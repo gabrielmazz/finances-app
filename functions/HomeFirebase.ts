@@ -69,7 +69,7 @@ export type HomeInvestmentPortfolio = {
 
 export type HomeTimelineMovement = {
 	id: string;
-	type: 'expense' | 'gain';
+	type: 'expense' | 'gain' | 'sync';
 	name: string;
 	valueInCents: number;
 	date: Date | null;
@@ -88,6 +88,9 @@ export type HomeTimelineMovement = {
 	bankTransferTargetBankNameSnapshot: string | null;
 	isInvestmentDeposit: boolean;
 	isInvestmentRedemption: boolean;
+	isFinanceInvestmentSync: boolean;
+	investmentSyncPreviousValueInCents: number | null;
+	investmentSyncReason: 'manual' | 'deposit' | 'withdrawal' | null;
 	investmentNameSnapshot: string | null;
 	isFromMandatory: boolean;
 };
@@ -515,6 +518,12 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		orderBy('date', 'desc'),
 		limitQuery(6),
 	);
+	const recentInvestmentSyncsQuery = query(
+		collection(db, 'financeInvestmentSyncs'),
+		where('personId', 'in', context.allowedPersonIds),
+		orderBy('date', 'desc'),
+		limitQuery(6),
+	);
 	const mandatoryExpensesQuery = query(
 		collection(db, 'mandatoryExpenses'),
 		where('personId', 'in', context.allowedPersonIds),
@@ -528,12 +537,14 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 	const [
 		recentExpensesSnapshot,
 		recentGainsSnapshot,
+		recentInvestmentSyncsSnapshot,
 		mandatoryExpensesSnapshot,
 		mandatoryGainsSnapshot,
 		tagsSnapshot,
 	] = await Promise.all([
 		getDocs(recentExpensesQuery),
 		getDocs(recentGainsQuery),
+		getDocs(recentInvestmentSyncsQuery),
 		getDocs(mandatoryExpensesQuery),
 		getDocs(mandatoryGainsQuery),
 		getDocs(tagsQuery),
@@ -591,7 +602,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 
 	const normalizeMovement = (
 		item: HomeMovementDocument,
-		type: 'expense' | 'gain',
+		type: 'expense' | 'gain' | 'sync',
 	): HomeTimelineMovement => {
 		const movementId =
 			typeof item?.id === 'string' && item.id.length > 0
@@ -619,7 +630,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 				? item.bankTransferTargetBankNameSnapshot.trim()
 				: null;
 		const isFromMandatory =
-			type === 'expense' ? mandatoryExpenseIds.has(movementId) : mandatoryGainIds.has(movementId);
+			type === 'expense' ? mandatoryExpenseIds.has(movementId) : type === 'gain' ? mandatoryGainIds.has(movementId) : false;
 		const tagId =
 			typeof item?.tagId === 'string' && item.tagId.trim().length > 0 ? item.tagId.trim() : null;
 		const tagMetadata = tagId ? tagMetadataById[tagId] ?? null : null;
@@ -632,17 +643,21 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 					? item.name.trim()
 					: type === 'expense'
 						? 'Despesa sem nome'
-						: 'Ganho sem nome',
+						: type === 'gain'
+							? 'Ganho sem nome'
+							: 'Sincronização de investimento',
 			valueInCents:
 				typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
 					? item.valueInCents
+					: typeof item?.syncedValueInCents === 'number' && !Number.isNaN(item.syncedValueInCents)
+						? item.syncedValueInCents
 					: 0,
 			date: parsedDate,
-			tagId,
-			tagName: tagMetadata?.name ?? null,
-			tagIconFamily: tagMetadata?.iconFamily ?? null,
-			tagIconName: tagMetadata?.iconName ?? null,
-			tagIconStyle: tagMetadata?.iconStyle ?? null,
+			tagId: type === 'sync' ? null : tagId,
+			tagName: type === 'sync' ? null : tagMetadata?.name ?? null,
+			tagIconFamily: type === 'sync' ? null : tagMetadata?.iconFamily ?? null,
+			tagIconName: type === 'sync' ? null : tagMetadata?.iconName ?? null,
+			tagIconStyle: type === 'sync' ? null : tagMetadata?.iconStyle ?? null,
 			bankId,
 			bankName: bankId ? context.bankNamesById[bankId] ?? 'Banco não identificado' : null,
 			explanation,
@@ -653,6 +668,13 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 			bankTransferTargetBankNameSnapshot: targetBankName,
 			isInvestmentDeposit: Boolean(item?.isInvestmentDeposit),
 			isInvestmentRedemption: Boolean(item?.isInvestmentRedemption),
+			isFinanceInvestmentSync: Boolean(item?.reason),
+			investmentSyncPreviousValueInCents:
+				typeof item?.previousValueInCents === 'number' ? item.previousValueInCents : null,
+			investmentSyncReason:
+				item?.reason === 'manual' || item?.reason === 'deposit' || item?.reason === 'withdrawal'
+					? item.reason
+					: null,
 			investmentNameSnapshot,
 			isFromMandatory,
 		};
@@ -664,6 +686,9 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		),
 		...recentGainsSnapshot.docs.map(docSnap =>
 			normalizeMovement({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }, 'gain'),
+		),
+		...recentInvestmentSyncsSnapshot.docs.map(docSnap =>
+			normalizeMovement({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }, 'sync'),
 		),
 	]
 		.sort((left, right) => {

@@ -1,5 +1,5 @@
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 
@@ -36,6 +36,12 @@ interface MarkMandatoryGainReceiptParams {
 }
 
 const MANDATORY_GAINS_COLLECTION = 'mandatoryGains';
+const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
+
+const chunkDocumentIds = (ids: string[]) =>
+	Array.from({ length: Math.ceil(ids.length / LINKED_MOVEMENTS_QUERY_LIMIT) }, (_, index) =>
+		ids.slice(index * LINKED_MOVEMENTS_QUERY_LIMIT, (index + 1) * LINKED_MOVEMENTS_QUERY_LIMIT),
+	);
 
 export async function addMandatoryGainFirebase({
 	name,
@@ -189,14 +195,54 @@ export async function getMandatoryGainsWithRelationsFirebase(personId: string) {
 			const value = entry['name'];
 			return typeof value === 'string' ? value.toLocaleLowerCase() : '';
 		};
-		const gains = snapshot.docs
+		const baseGains: Array<Record<string, unknown> & { id: string }> = snapshot.docs
 			.map(gainDoc => ({
 				id: gainDoc.id,
-				...gainDoc.data(),
+				...(gainDoc.data() as Record<string, unknown>),
 			}))
 			.sort((a, b) =>
 				toComparableName(a as Record<string, unknown>).localeCompare(toComparableName(b as Record<string, unknown>)),
 			);
+
+		const linkedReceiptIds = Array.from(
+			new Set(
+				baseGains
+					.map(gain => (typeof gain.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null))
+					.filter((gainId): gainId is string => Boolean(gainId)),
+			),
+		);
+		const linkedReceiptValuesById = new Map<string, number>();
+
+		if (linkedReceiptIds.length > 0) {
+			const linkedReceiptSnapshots = await Promise.all(
+				chunkDocumentIds(linkedReceiptIds).map(receiptIds =>
+					getDocs(query(collection(db, 'gains'), where(documentId(), 'in', receiptIds))),
+				),
+			);
+
+			linkedReceiptSnapshots.forEach(linkedReceiptSnapshot => {
+				linkedReceiptSnapshot.docs.forEach(receiptDoc => {
+					const receiptData = receiptDoc.data();
+					if (typeof receiptData.valueInCents === 'number' && !Number.isNaN(receiptData.valueInCents)) {
+						linkedReceiptValuesById.set(receiptDoc.id, receiptData.valueInCents);
+					}
+				});
+			});
+		}
+
+		const gains = baseGains.map(gain => {
+			const linkedReceiptGainId =
+				typeof gain.lastReceiptGainId === 'string' && gain.lastReceiptGainId.length > 0
+					? gain.lastReceiptGainId
+					: null;
+
+			return {
+				...gain,
+				lastReceiptValueInCents:
+					linkedReceiptGainId !== null ? linkedReceiptValuesById.get(linkedReceiptGainId) ?? null : null,
+			};
+		});
+
 		return { success: true, data: gains };
 	} catch (error) {
 		console.error('Erro ao obter ganhos obrigatórios:', error);

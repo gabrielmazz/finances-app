@@ -12,7 +12,21 @@ import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Input, InputField } from '@/components/ui/input';
+import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import {
+	Select,
+	SelectBackdrop,
+	SelectContent,
+	SelectDragIndicator,
+	SelectDragIndicatorWrapper,
+	SelectIcon,
+	SelectInput,
+	SelectItem,
+	SelectPortal,
+	SelectTrigger,
+} from '@/components/ui/select';
 import {
 	Modal,
 	ModalBackdrop,
@@ -51,12 +65,21 @@ import {
 	getBankDataFirebase,
 	getCashMovementsByPeriodFirebase,
 	deleteCashRescueFirebase,
+	getBanksWithUsersByPersonFirebase,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { getTagDataFirebase } from '@/functions/TagFirebase';
-import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import {
+	deleteFinanceInvestmentFirebase,
+	getFinanceInvestmentSyncEventsByPeriodFirebase,
+	getFinanceInvestmentsByPeriodFirebase,
+	revertFinanceInvestmentDepositFirebase,
+	revertFinanceInvestmentRedemptionFirebase,
+	revertFinanceInvestmentSyncFirebase,
+	updateFinanceInvestmentFirebase,
+} from '@/functions/FinancesFirebase';
 import DatePickerField from '@/components/uiverse/date-picker';
 import {
 	BankCardSurface,
@@ -67,6 +90,7 @@ import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
+import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 // Importação do SVG de ilustração
@@ -81,7 +105,7 @@ type MovementRecord = {
 	id: string;
 	name: string;
 	valueInCents: number;
-	type: 'expense' | 'gain';
+	type: 'expense' | 'gain' | 'sync';
 	date: Date | null;
 	tagId?: string | null;
 	bankId?: string | null;
@@ -108,12 +132,21 @@ type MovementRecord = {
 	isInvestmentRedemption?: boolean;
 	isInvestmentDeposit?: boolean;
 	investmentNameSnapshot?: string | null;
+	isFinanceInvestmentSync?: boolean;
+	investmentSyncPreviousValueInCents?: number | null;
+	investmentSyncReason?: 'manual' | 'deposit' | 'withdrawal' | null;
+	investmentCdiPercentage?: number | null;
+	investmentRedemptionTerm?: RedemptionTerm | null;
 };
 
 type PendingMovementAction =
-	| { type: 'edit'; movement: MovementRecord }
-	| { type: 'delete'; movement: MovementRecord }
-	| { type: 'revert-cash-rescue'; movement: MovementRecord };
+	| { type: 'edit-standard-movement'; movement: MovementRecord }
+	| { type: 'delete-standard-movement'; movement: MovementRecord }
+	| { type: 'delete-finance-investment'; movement: MovementRecord }
+	| { type: 'revert-cash-rescue'; movement: MovementRecord }
+	| { type: 'revert-investment-deposit'; movement: MovementRecord }
+	| { type: 'revert-investment-redemption'; movement: MovementRecord }
+	| { type: 'revert-investment-sync'; movement: MovementRecord };
 
 type MovementFilter = 'all' | 'expense' | 'gain';
 type TimelineMovementToneKey =
@@ -124,7 +157,8 @@ type TimelineMovementToneKey =
 	| 'bankTransfer'
 	| 'investmentRedemption'
 	| 'investmentDeposit'
-	| 'cashRescue';
+	| 'cashRescue'
+	| 'investmentSync';
 
 type TimelineMovementTone = {
 	accentColor: string;
@@ -146,6 +180,11 @@ type AvailableTagFilterOption = {
 	movementCount: number;
 };
 
+type BankOption = {
+	id: string;
+	name: string;
+};
+
 const movementFilterOptions: Array<{
 	value: MovementFilter;
 	label: string;
@@ -154,6 +193,16 @@ const movementFilterOptions: Array<{
 	{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
 	{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
 	{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
+];
+
+const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
+	{ value: 'anytime', label: redemptionTermLabels.anytime },
+	{ value: '1m', label: redemptionTermLabels['1m'] },
+	{ value: '3m', label: redemptionTermLabels['3m'] },
+	{ value: '6m', label: redemptionTermLabels['6m'] },
+	{ value: '1y', label: redemptionTermLabels['1y'] },
+	{ value: '2y', label: redemptionTermLabels['2y'] },
+	{ value: '3y', label: redemptionTermLabels['3y'] },
 ];
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
@@ -175,6 +224,42 @@ const formatMovementDate = (value: Date | null) => {
 		hour: '2-digit',
 		minute: '2-digit',
 	}).format(value);
+};
+
+const extractDigits = (value: string) => value.replace(/\D/g, '');
+
+const formatCurrencyInputValue = (value: string) => {
+	const digits = extractDigits(value);
+	if (!digits) {
+		return { display: '', cents: null as number | null };
+	}
+
+	const cents = Number(digits);
+	return {
+		display: formatCurrencyBRLBase(cents),
+		cents,
+	};
+};
+
+const parseCurrencyInputToCents = (value: string) => {
+	const digits = extractDigits(value);
+	if (!digits) {
+		return null;
+	}
+
+	return Number(digits);
+};
+
+const sanitizeNumberInput = (value: string) => value.replace(/[^\d.,]/g, '');
+
+const parseStringToNumber = (value: string) => {
+	if (!value.trim()) {
+		return NaN;
+	}
+
+	const normalized = value.replace(/\./g, '').replace(',', '.');
+	const parsed = Number(normalized);
+	return Number.isFinite(parsed) ? parsed : NaN;
 };
 
 const formatDateToBR = (date: Date) => {
@@ -334,9 +419,20 @@ const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementT
 		iconGradient: ['#0E7490', '#22D3EE'],
 		cardGradient: ['#0E7490', '#22D3EE'],
 	},
+	investmentSync: {
+		accentColor: '#14B8A6',
+		amountColor: '#14B8A6',
+		lineColor: 'rgba(20, 184, 166, 0.28)',
+		iconGradient: ['#0F766E', '#2DD4BF'],
+		cardGradient: ['#115E59', '#14B8A6'],
+	},
 };
 
 const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovementToneKey => {
+	if (movement.isFinanceInvestmentSync) {
+		return 'investmentSync';
+	}
+
 	if (movement.isCashRescue) {
 		return 'cashRescue';
 	}
@@ -371,6 +467,7 @@ export default function BankMovementsScreen() {
 		inputField,
 		fieldContainerClassName,
 		fieldContainerCardClassName,
+		textareaContainerClassName,
 		submitButtonClassName,
 		submitButtonCancelClassName,
 		heroHeight,
@@ -444,6 +541,15 @@ export default function BankMovementsScreen() {
 	const [isPeriodTimelineExpanded, setIsPeriodTimelineExpanded] = React.useState(true);
 	const [expandedMovementIds, setExpandedMovementIds] = React.useState<string[]>([]);
 	const [tagMetadataById, setTagMetadataById] = React.useState<Record<string, MovementTagMetadata>>({});
+	const [bankOptions, setBankOptions] = React.useState<BankOption[]>([]);
+	const [editingFinanceMovement, setEditingFinanceMovement] = React.useState<MovementRecord | null>(null);
+	const [editInvestmentName, setEditInvestmentName] = React.useState('');
+	const [editInvestmentInitialInput, setEditInvestmentInitialInput] = React.useState('');
+	const [editInvestmentCdiInput, setEditInvestmentCdiInput] = React.useState('');
+	const [editInvestmentTerm, setEditInvestmentTerm] = React.useState<RedemptionTerm>('anytime');
+	const [editInvestmentBankId, setEditInvestmentBankId] = React.useState<string | null>(null);
+	const [editInvestmentDescription, setEditInvestmentDescription] = React.useState('');
+	const [isSavingFinanceMovement, setIsSavingFinanceMovement] = React.useState(false);
 
 	const showScreenAlert = React.useCallback(
 		(
@@ -481,9 +587,45 @@ export default function BankMovementsScreen() {
 			if (shouldHideValues) {
 				return HIDDEN_VALUE_PLACEHOLDER;
 			}
+
+			if (movement.type === 'sync') {
+				return formatCurrencyBRLBase(movement.valueInCents);
+			}
+
 			return `${movement.type === 'gain' ? '+' : '-'}${formatCurrencyBRLBase(movement.valueInCents)}`;
 		},
 		[shouldHideValues],
+	);
+
+	const formatDeltaCurrencyBRL = React.useCallback(
+		(valueInCents: number | null | undefined) => {
+			if (shouldHideValues) {
+				return HIDDEN_VALUE_PLACEHOLDER;
+			}
+
+			if (typeof valueInCents !== 'number') {
+				return 'Sem variação';
+			}
+
+			const prefix = valueInCents >= 0 ? '+' : '-';
+			return `${prefix}${formatCurrencyBRLBase(Math.abs(valueInCents))}`;
+		},
+		[shouldHideValues],
+	);
+
+	const getInvestmentSyncReasonLabel = React.useCallback(
+		(reason: MovementRecord['investmentSyncReason']) => {
+			if (reason === 'deposit') {
+				return 'Sincronização antes do aporte';
+			}
+
+			if (reason === 'withdrawal') {
+				return 'Sincronização antes do resgate';
+			}
+
+			return 'Sincronização manual';
+		},
+		[],
 	);
 
 	const formatMovementCompactDate = React.useCallback((value: Date | null) => {
@@ -512,6 +654,9 @@ export default function BankMovementsScreen() {
 		}
 		if (movement.isFinanceInvestment) {
 			return 'Investimento';
+		}
+		if (movement.isFinanceInvestmentSync) {
+			return 'Sincronização de investimento';
 		}
 		if (movement.isInvestmentDeposit) {
 			return 'Aporte de investimento';
@@ -569,6 +714,10 @@ export default function BankMovementsScreen() {
 	);
 
 	const getFallbackMovementIcon = React.useCallback((movement: MovementRecord): TagIconSelection => {
+		if (movement.isFinanceInvestmentSync) {
+			return { iconFamily: 'ionicons', iconName: 'sync-outline' };
+		}
+
 		if (movement.isCashRescue) {
 			return { iconFamily: 'ionicons', iconName: 'cash-outline' };
 		}
@@ -618,6 +767,12 @@ export default function BankMovementsScreen() {
 					: 'Aporte de investimento';
 			}
 
+			if (movement.isFinanceInvestmentSync) {
+				return movement.investmentNameSnapshot
+					? `${getInvestmentSyncReasonLabel(movement.investmentSyncReason)} em ${movement.investmentNameSnapshot}`
+					: getInvestmentSyncReasonLabel(movement.investmentSyncReason);
+			}
+
 			if (movement.isFinanceInvestment) {
 				return movement.investmentBankNameSnapshot
 					? `Aplicado via ${movement.investmentBankNameSnapshot}`
@@ -636,7 +791,7 @@ export default function BankMovementsScreen() {
 
 			return resolveMovementTypeLabel(movement);
 		},
-		[bankName, isCashView, resolveMovementTypeLabel],
+		[bankName, getInvestmentSyncReasonLabel, isCashView, resolveMovementTypeLabel],
 	);
 
 	const getMovementDetailMessage = React.useCallback(
@@ -657,8 +812,21 @@ export default function BankMovementsScreen() {
 					: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
 			}
 
+			if (movement.isFinanceInvestmentSync) {
+				const investmentName = movement.investmentNameSnapshot ?? 'este investimento';
+				if (movement.investmentSyncReason === 'deposit') {
+					return `Valor real conferido antes do aporte em "${investmentName}".`;
+				}
+
+				if (movement.investmentSyncReason === 'withdrawal') {
+					return `Valor real conferido antes do resgate em "${investmentName}".`;
+				}
+
+				return `Sincronização manual registrada para "${investmentName}".`;
+			}
+
 			if (movement.isFinanceInvestment) {
-				return 'Este valor foi enviado para um investimento e é controlado pela tela de investimentos.';
+				return 'Este valor representa o cadastro inicial do investimento. Você pode editar os dados ou excluir o investimento por aqui.';
 			}
 
 			if (movement.isInvestmentRedemption) {
@@ -684,6 +852,10 @@ export default function BankMovementsScreen() {
 
 	const getMovementPrimarySourceLabel = React.useCallback(
 		(movement: MovementRecord) => {
+			if (movement.isFinanceInvestmentSync) {
+				return movement.investmentBankNameSnapshot?.trim() || bankName;
+			}
+
 			if (movement.isCashRescue) {
 				return movement.cashRescueSourceBankName ?? 'Banco não identificado';
 			}
@@ -771,6 +943,15 @@ export default function BankMovementsScreen() {
 					endDate: normalizedEnd,
 				});
 
+			const investmentSyncsPromise = isCashView
+				? Promise.resolve(null)
+				: getFinanceInvestmentSyncEventsByPeriodFirebase({
+					personId: currentUser.uid,
+					bankId,
+					startDate: normalizedStart,
+					endDate: normalizedEnd,
+				});
+
 			const now = new Date();
 			const balancePromise = isCashView
 				? Promise.resolve(null)
@@ -781,9 +962,10 @@ export default function BankMovementsScreen() {
 					month: now.getMonth() + 1,
 				});
 
-			const [result, investmentsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes] = await Promise.all([
+			const [result, investmentsRes, investmentSyncsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes] = await Promise.all([
 				movementsPromise,
 				investmentsPromise,
+				investmentSyncsPromise,
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 				balancePromise,
@@ -803,6 +985,10 @@ export default function BankMovementsScreen() {
 			const investmentsArray: any[] =
 				!isCashView && investmentsRes?.success && Array.isArray(investmentsRes.data)
 					? investmentsRes.data
+					: [];
+			const investmentSyncsArray: any[] =
+				!isCashView && investmentSyncsRes?.success && Array.isArray(investmentSyncsRes.data)
+					? investmentSyncsRes.data
 					: [];
 
 			// Mapeia os IDs de despesas/ganhos que estão vinculados a obrigatórios no ciclo atual
@@ -944,9 +1130,58 @@ export default function BankMovementsScreen() {
 				investmentId: typeof investment?.id === 'string' ? investment.id : null,
 				investmentBankNameSnapshot:
 					typeof investment?.bankNameSnapshot === 'string' ? investment.bankNameSnapshot : null,
+				investmentCdiPercentage:
+					typeof investment?.cdiPercentage === 'number' ? investment.cdiPercentage : null,
+				investmentRedemptionTerm:
+					typeof investment?.redemptionTerm === 'string'
+						? (investment.redemptionTerm as RedemptionTerm)
+						: null,
 			}));
 
-			const combinedMovements = [...expenseMovements, ...gainMovements, ...investmentMovements].sort((a, b) => {
+			const investmentSyncMovements: MovementRecord[] = investmentSyncsArray.map(syncEvent => ({
+				id: typeof syncEvent?.id === 'string' ? syncEvent.id : `investment-sync-${Math.random()}`,
+				name:
+					typeof syncEvent?.name === 'string' && syncEvent.name.trim().length > 0
+						? syncEvent.name.trim()
+						: 'Sincronização de investimento',
+				valueInCents:
+					typeof syncEvent?.syncedValueInCents === 'number' ? syncEvent.syncedValueInCents : 0,
+				type: 'sync',
+				date: normalizeDate(syncEvent?.date ?? syncEvent?.createdAt ?? null),
+				tagId: null,
+				bankId: typeof syncEvent?.bankId === 'string' ? syncEvent.bankId : null,
+				personId: typeof syncEvent?.personId === 'string' ? syncEvent.personId : null,
+				explanation: null,
+				moneyFormat: null,
+				isFromMandatory: false,
+				isCashRescue: false,
+				cashRescueSourceBankName: null,
+				isFinanceInvestmentSync: true,
+				investmentId: typeof syncEvent?.investmentId === 'string' ? syncEvent.investmentId : null,
+				investmentNameSnapshot:
+					typeof syncEvent?.investmentNameSnapshot === 'string'
+						? syncEvent.investmentNameSnapshot
+						: null,
+				investmentBankNameSnapshot:
+					typeof syncEvent?.bankNameSnapshot === 'string' ? syncEvent.bankNameSnapshot : null,
+				investmentSyncPreviousValueInCents:
+					typeof syncEvent?.previousValueInCents === 'number'
+						? syncEvent.previousValueInCents
+						: null,
+				investmentSyncReason:
+					syncEvent?.reason === 'manual' ||
+					syncEvent?.reason === 'deposit' ||
+					syncEvent?.reason === 'withdrawal'
+						? syncEvent.reason
+						: 'manual',
+			}));
+
+			const combinedMovements = [
+				...expenseMovements,
+				...gainMovements,
+				...investmentMovements,
+				...investmentSyncMovements,
+			].sort((a, b) => {
 				const dateA = a.date ? a.date.getTime() : 0;
 				const dateB = b.date ? b.date.getTime() : 0;
 				return dateB - dateA;
@@ -1029,6 +1264,56 @@ export default function BankMovementsScreen() {
 			isMounted = false;
 		};
 	}, [bankId, isCashView]);
+
+	React.useEffect(() => {
+		let isMounted = true;
+		const currentUser = auth.currentUser;
+
+		if (isCashView || !currentUser) {
+			setBankOptions([]);
+			return () => {
+				isMounted = false;
+			};
+		}
+
+		const loadBankOptions = async () => {
+			try {
+				const result = await getBanksWithUsersByPersonFirebase(currentUser.uid);
+				if (!isMounted) {
+					return;
+				}
+
+				if (!result.success || !Array.isArray(result.data)) {
+					setBankOptions([]);
+					return;
+				}
+
+				const nextOptions = (result.data as Array<Record<string, unknown>>)
+					.map((bankItem) => ({
+						id: typeof bankItem.id === 'string' ? bankItem.id : '',
+						name:
+							typeof bankItem.name === 'string' && bankItem.name.trim().length > 0
+								? bankItem.name.trim()
+								: 'Banco sem nome',
+					}))
+					.filter((bankItem) => bankItem.id.trim().length > 0)
+					.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+
+				setBankOptions(nextOptions);
+			} catch (error) {
+				console.error('Erro ao carregar bancos para edição do investimento:', error);
+				if (isMounted) {
+					setBankOptions([]);
+				}
+			}
+		};
+
+		void loadBankOptions();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [isCashView]);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -1168,7 +1453,15 @@ export default function BankMovementsScreen() {
 
 	const totalDeltaAllMovementsInCents = React.useMemo(() => {
 		return movements.reduce((acc, movement) => {
-			return movement.type === 'gain' ? acc + movement.valueInCents : acc - movement.valueInCents;
+			if (movement.type === 'gain') {
+				return acc + movement.valueInCents;
+			}
+
+			if (movement.type === 'expense') {
+				return acc - movement.valueInCents;
+			}
+
+			return acc;
 		}, 0);
 	}, [movements]);
 
@@ -1256,6 +1549,20 @@ export default function BankMovementsScreen() {
 		setPendingAction(null);
 	}, [isProcessingAction]);
 
+	const handleCloseFinanceEditModal = React.useCallback(() => {
+		if (isSavingFinanceMovement) {
+			return;
+		}
+
+		setEditingFinanceMovement(null);
+		setEditInvestmentName('');
+		setEditInvestmentInitialInput('');
+		setEditInvestmentCdiInput('');
+		setEditInvestmentTerm('anytime');
+		setEditInvestmentBankId(null);
+		setEditInvestmentDescription('');
+	}, [isSavingFinanceMovement]);
+
 	const handleTogglePeriodTimeline = React.useCallback(() => {
 		setIsPeriodTimelineExpanded(previousState => !previousState);
 	}, []);
@@ -1268,10 +1575,108 @@ export default function BankMovementsScreen() {
 		);
 	}, []);
 
+	const handleInvestmentInitialInputChange = React.useCallback((value: string) => {
+		setEditInvestmentInitialInput(formatCurrencyInputValue(value).display);
+	}, []);
+
+	const handleOpenFinanceEditModal = React.useCallback((movement: MovementRecord) => {
+		if (!movement.isFinanceInvestment || !movement.investmentId) {
+			showScreenAlert('Não foi possível abrir a edição deste investimento.', 'warning');
+			return;
+		}
+
+		setEditingFinanceMovement(movement);
+		setEditInvestmentName(movement.name);
+		setEditInvestmentInitialInput(formatCurrencyBRLBase(movement.valueInCents));
+		setEditInvestmentCdiInput(
+			typeof movement.investmentCdiPercentage === 'number'
+				? movement.investmentCdiPercentage.toString()
+				: '',
+		);
+		setEditInvestmentTerm(movement.investmentRedemptionTerm ?? 'anytime');
+		setEditInvestmentBankId(movement.bankId ?? null);
+		setEditInvestmentDescription(movement.explanation ?? '');
+	}, [showScreenAlert]);
+
+	const handleSubmitFinanceEdit = React.useCallback(async () => {
+		if (!editingFinanceMovement?.investmentId || !editInvestmentBankId) {
+			return;
+		}
+
+		const parsedInitialValueInCents = parseCurrencyInputToCents(editInvestmentInitialInput);
+		const parsedCdi = parseStringToNumber(editInvestmentCdiInput);
+
+		if (
+			editInvestmentName.trim().length === 0 ||
+			parsedInitialValueInCents === null ||
+			parsedInitialValueInCents <= 0
+		) {
+			showScreenAlert('Informe um nome e um valor inicial válidos.', 'warning');
+			return;
+		}
+
+		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
+			showScreenAlert('Informe um CDI válido para editar.', 'warning');
+			return;
+		}
+
+		setIsSavingFinanceMovement(true);
+		try {
+			const resolvedBankName =
+				bankOptions.find((bankItem) => bankItem.id === editInvestmentBankId)?.name ?? null;
+			const result = await updateFinanceInvestmentFirebase({
+				investmentId: editingFinanceMovement.investmentId,
+				name: editInvestmentName.trim(),
+				initialValueInCents: parsedInitialValueInCents,
+				cdiPercentage: parsedCdi,
+				redemptionTerm: editInvestmentTerm,
+				bankId: editInvestmentBankId,
+				bankNameSnapshot: resolvedBankName,
+				description: editInvestmentDescription.trim()
+					? editInvestmentDescription.trim()
+					: null,
+			});
+
+			if (!result.success) {
+				throw new Error(
+					typeof result.error === 'string'
+						? result.error
+						: 'Não foi possível salvar este investimento agora.',
+				);
+			}
+
+			await fetchMovements();
+			showScreenAlert('Investimento atualizado com sucesso!', 'success');
+			handleCloseFinanceEditModal();
+		} catch (error) {
+			console.error('Erro ao editar investimento pela tela de movimentações:', error);
+			showScreenAlert(
+				error instanceof Error && error.message
+					? error.message
+					: 'Não foi possível salvar este investimento agora.',
+				'error',
+			);
+		} finally {
+			setIsSavingFinanceMovement(false);
+		}
+	}, [
+		bankOptions,
+		editInvestmentBankId,
+		editInvestmentCdiInput,
+		editInvestmentDescription,
+		editInvestmentInitialInput,
+		editInvestmentName,
+		editInvestmentTerm,
+		editingFinanceMovement,
+		fetchMovements,
+		handleCloseFinanceEditModal,
+		showScreenAlert,
+	]);
+
 	const handleRequestMovementAction = React.useCallback(
-		(action: PendingMovementAction['type'], movement: MovementRecord) => {
+		(action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
 			if (action === 'revert-cash-rescue') {
-				setPendingAction({ type: action, movement });
+				setPendingAction({ type: 'revert-cash-rescue', movement });
 				return;
 			}
 
@@ -1310,33 +1715,51 @@ export default function BankMovementsScreen() {
 			}
 
 			if (movement.isFinanceInvestment) {
-				showScreenAlert(
-					action === 'edit'
-						? 'Edite este lançamento diretamente na lista de investimentos.'
-						: 'Remova ou ajuste este valor pela tela de investimentos.',
-					'warning',
-				);
+				if (action === 'edit') {
+					handleOpenFinanceEditModal(movement);
+					return;
+				}
+
+				setPendingAction({ type: 'delete-finance-investment', movement });
 				return;
 			}
 
-			if (movement.isInvestmentRedemption) {
-				showScreenAlert(
-					action === 'edit'
-						? 'Resgates de investimento são controlados pela tela de investimentos.'
-						: 'Resgates de investimento devem ser ajustados pela tela de investimentos.',
-					'warning',
-				);
+			if (movement.isFinanceInvestmentSync) {
+				if (action === 'edit') {
+					showScreenAlert('Sincronizações não são editadas. Use a ação de desfazer quando necessário.', 'warning');
+					return;
+				}
+
+				setPendingAction({ type: 'revert-investment-sync', movement });
 				return;
 			}
 
 			if (movement.isInvestmentDeposit) {
-				showScreenAlert('Aportes de investimento são controlados pela tela de investimentos.', 'warning');
+				if (action === 'edit') {
+					showScreenAlert('Aportes de investimento não são editados. Desfaça a ação e registre novamente se necessário.', 'warning');
+					return;
+				}
+
+				setPendingAction({ type: 'revert-investment-deposit', movement });
 				return;
 			}
 
-			setPendingAction({ type: action, movement });
+			if (movement.isInvestmentRedemption) {
+				if (action === 'edit') {
+					showScreenAlert('Resgates de investimento não são editados. Desfaça a ação e registre novamente se necessário.', 'warning');
+					return;
+				}
+
+				setPendingAction({ type: 'revert-investment-redemption', movement });
+				return;
+			}
+
+			setPendingAction({
+				type: action === 'edit' ? 'edit-standard-movement' : 'delete-standard-movement',
+				movement,
+			});
 		},
-		[showScreenAlert],
+		[handleOpenFinanceEditModal, showScreenAlert],
 	);
 
 	const handleConfirmAction = React.useCallback(async () => {
@@ -1353,38 +1776,7 @@ export default function BankMovementsScreen() {
 			return;
 		}
 
-		if (pendingAction.type === 'edit') {
-			// Impede edição de movimentações originadas de obrigatórios
-			if (pendingAction.movement.isFromMandatory) {
-				showScreenAlert(
-					pendingAction.movement.type === 'gain'
-						? 'Este ganho está vinculado a um ganho obrigatório deste mês. Edite/reivindique pela tela de Ganhos obrigatórios.'
-						: 'Esta despesa está vinculada a um gasto obrigatório deste mês. Edite/reivindique pela tela de Gastos obrigatórios.',
-					'warning',
-				);
-				setPendingAction(null);
-				return;
-			}
-			if (pendingAction.movement.isCashRescue) {
-				showScreenAlert('Saques em dinheiro não podem ser editados manualmente.', 'warning');
-				setPendingAction(null);
-				return;
-			}
-			if (pendingAction.movement.isFinanceInvestment) {
-				showScreenAlert('Edite este investimento pela tela de investimentos.', 'warning');
-				setPendingAction(null);
-				return;
-			}
-			if (pendingAction.movement.isInvestmentRedemption) {
-				showScreenAlert('Resgates de investimento são controlados pela tela de investimentos.', 'warning');
-				setPendingAction(null);
-				return;
-			}
-			if (pendingAction.movement.isInvestmentDeposit) {
-				showScreenAlert('Aportes de investimento são controlados pela tela de investimentos.', 'warning');
-				setPendingAction(null);
-				return;
-			}
+		if (pendingAction.type === 'edit-standard-movement') {
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
 				router.push({
@@ -1422,52 +1814,90 @@ export default function BankMovementsScreen() {
 			return;
 		}
 
-		setIsProcessingAction(true);
-
 		try {
-			// Evita exclusão direta de lançamentos vinculados a obrigatórios (para não quebrar o vínculo)
-			if (pendingAction.movement.isFromMandatory && pendingAction.type === 'delete') {
-				showScreenAlert(
-					pendingAction.movement.type === 'gain'
-						? 'Exclusão bloqueada: este ganho pertence a um ganho obrigatório deste mês. Use a ação "Reivindicar" na tela de Ganhos obrigatórios.'
-						: 'Exclusão bloqueada: esta despesa pertence a um gasto obrigatório deste mês. Use a ação "Reivindicar" na tela de Gastos obrigatórios.',
-					'warning',
-				);
-				return;
-			}
-			if (pendingAction.movement.isCashRescue) {
-				showScreenAlert('Saques em dinheiro não podem ser excluídos manualmente.', 'warning');
-				return;
-			}
-			if (pendingAction.movement.isFinanceInvestment) {
-				showScreenAlert('Use a tela de investimentos para remover ou ajustar este valor.', 'warning');
-				return;
-			}
-			if (pendingAction.movement.isInvestmentRedemption) {
-				showScreenAlert('Use a tela de investimentos para remover ou ajustar este resgate.', 'warning');
-				return;
-			}
-			if (pendingAction.movement.isInvestmentDeposit) {
-				showScreenAlert('Use a tela de investimentos para remover ou ajustar este aporte.', 'warning');
-				return;
-			}
-			let result: { success: boolean } | undefined;
-			if (pendingAction.movement.type === 'gain') {
-				result = await deleteGainFirebase(pendingAction.movement.id);
-			} else {
-				result = await deleteExpenseFirebase(pendingAction.movement.id);
+			setIsProcessingAction(true);
+
+			if (pendingAction.type === 'delete-standard-movement') {
+				let result: { success: boolean; error?: unknown } | undefined;
+				if (pendingAction.movement.type === 'gain') {
+					result = await deleteGainFirebase(pendingAction.movement.id);
+				} else {
+					result = await deleteExpenseFirebase(pendingAction.movement.id);
+				}
+
+				if (!result?.success) {
+					throw new Error('Não foi possível excluir a movimentação. Tente novamente.');
+				}
+
+				showScreenAlert('Movimentação excluída com sucesso!', 'success', 'Movimentação removida');
 			}
 
-			if (!result?.success) {
-				showScreenAlert('Não foi possível excluir a movimentação. Tente novamente.', 'error');
-				return;
+			if (pendingAction.type === 'delete-finance-investment') {
+				const investmentId = pendingAction.movement.investmentId ?? pendingAction.movement.id;
+				const result = await deleteFinanceInvestmentFirebase(investmentId);
+
+				if (!result.success) {
+					throw new Error(
+						typeof result.error === 'string'
+							? result.error
+							: 'Não foi possível excluir este investimento agora.',
+					);
+				}
+
+				showScreenAlert('Investimento removido com sucesso!', 'success', 'Investimento removido');
 			}
 
-			showScreenAlert('Movimentação excluída com sucesso!', 'success', 'Movimentação removida');
+			if (pendingAction.type === 'revert-investment-deposit') {
+				const result = await revertFinanceInvestmentDepositFirebase(pendingAction.movement.id);
+
+				if (!result.success) {
+					throw new Error(
+						typeof result.error === 'string'
+							? result.error
+							: 'Não foi possível desfazer este aporte agora.',
+					);
+				}
+
+				showScreenAlert('Aporte desfeito com sucesso!', 'success', 'Investimento atualizado');
+			}
+
+			if (pendingAction.type === 'revert-investment-redemption') {
+				const result = await revertFinanceInvestmentRedemptionFirebase(pendingAction.movement.id);
+
+				if (!result.success) {
+					throw new Error(
+						typeof result.error === 'string'
+							? result.error
+							: 'Não foi possível desfazer este resgate agora.',
+					);
+				}
+
+				showScreenAlert('Resgate desfeito com sucesso!', 'success', 'Investimento atualizado');
+			}
+
+			if (pendingAction.type === 'revert-investment-sync') {
+				const result = await revertFinanceInvestmentSyncFirebase(pendingAction.movement.id);
+
+				if (!result.success) {
+					throw new Error(
+						typeof result.error === 'string'
+							? result.error
+							: 'Não foi possível desfazer esta sincronização agora.',
+					);
+				}
+
+				showScreenAlert('Sincronização desfeita com sucesso!', 'success', 'Investimento atualizado');
+			}
+
 			await fetchMovements();
 		} catch (error) {
-			console.error('Erro ao remover movimentação:', error);
-			showScreenAlert('Erro inesperado ao excluir a movimentação.', 'error');
+			console.error('Erro ao processar ação da movimentação:', error);
+			showScreenAlert(
+				error instanceof Error && error.message
+					? error.message
+					: 'Erro inesperado ao processar esta movimentação.',
+				'error',
+			);
 		} finally {
 			setIsProcessingAction(false);
 			setPendingAction(null);
@@ -1487,11 +1917,13 @@ export default function BankMovementsScreen() {
 		const movementName = pendingAction.movement.name || 'movimentação selecionada';
 		const movementTypeLabel = pendingAction.movement.isBankTransfer
 			? 'transferência'
+			: pendingAction.movement.type === 'sync'
+				? 'sincronização'
 			: pendingAction.movement.type === 'gain'
 				? 'ganho'
 				: 'despesa';
 
-		if (pendingAction.type === 'edit') {
+		if (pendingAction.type === 'edit-standard-movement') {
 			return {
 				title: 'Editar movimentação',
 				message: `Deseja editar o ${movementTypeLabel} "${movementName}"?`,
@@ -1506,6 +1938,42 @@ export default function BankMovementsScreen() {
 				title: 'Reivindicar saque',
 				message: `Deseja reivindicar o saque realizado no banco ${bankName}?`,
 				confirmLabel: 'Reivindicar',
+				confirmAction: 'primary' as const,
+			};
+		}
+
+		if (pendingAction.type === 'delete-finance-investment') {
+			return {
+				title: 'Excluir investimento',
+				message: `Tem certeza de que deseja excluir o investimento "${movementName}"? Se existirem aportes ou resgates vinculados, a exclusão será bloqueada até você desfazer essas movimentações.`,
+				confirmLabel: 'Excluir investimento',
+				confirmAction: 'negative' as const,
+			};
+		}
+
+		if (pendingAction.type === 'revert-investment-deposit') {
+			return {
+				title: 'Desfazer aporte',
+				message: `Deseja desfazer o aporte "${movementName}"? O valor será removido do histórico e o saldo do investimento será ajustado automaticamente.`,
+				confirmLabel: 'Desfazer aporte',
+				confirmAction: 'primary' as const,
+			};
+		}
+
+		if (pendingAction.type === 'revert-investment-redemption') {
+			return {
+				title: 'Desfazer resgate',
+				message: `Deseja desfazer o resgate "${movementName}"? O valor será devolvido ao investimento e o lançamento será removido do histórico.`,
+				confirmLabel: 'Desfazer resgate',
+				confirmAction: 'primary' as const,
+			};
+		}
+
+		if (pendingAction.type === 'revert-investment-sync') {
+			return {
+				title: 'Desfazer sincronização',
+				message: `Deseja desfazer a sincronização "${movementName}"? O valor do investimento voltará ao estado anterior a esta conferência.`,
+				confirmLabel: 'Desfazer sincronização',
 				confirmAction: 'primary' as const,
 			};
 		}
@@ -2142,19 +2610,6 @@ export default function BankMovementsScreen() {
 															? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
 															: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
 														: null;
-													const detailHint = movement.isFromMandatory
-														? movement.type === 'gain'
-															? 'Para alterar ou reivindicar este ganho, use a tela de Ganhos obrigatórios.'
-															: 'Para alterar ou reivindicar esta despesa, use a tela de Gastos obrigatórios.'
-														: movement.isCashRescue
-															? 'Saques em dinheiro podem ser reivindicados, mas não editados ou excluídos manualmente.'
-															: movement.isBankTransfer
-																? 'Transferências entre bancos são geradas automaticamente para manter os saldos alinhados.'
-																: movement.isFinanceInvestment ||
-																	movement.isInvestmentDeposit ||
-																	movement.isInvestmentRedemption
-																	? 'Use a tela de investimentos para ajustar este lançamento.'
-																	: 'Os botões abaixo permitem editar ou excluir esta movimentação.';
 													const detailItems = [
 														{
 															label: 'Tipo',
@@ -2175,17 +2630,83 @@ export default function BankMovementsScreen() {
 															value: getMovementPrimarySourceLabel(movement),
 														},
 													];
-													const metadataItems = counterpartyLabel
-														? [...detailItems, { label: 'Contraparte', value: counterpartyLabel }]
-														: detailItems;
-													const editIsManagedElsewhere =
+													const syncMetadataItems = movement.isFinanceInvestmentSync
+														? [
+															{
+																label: 'Valor anterior',
+																value:
+																	typeof movement.investmentSyncPreviousValueInCents === 'number'
+																		? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
+																		: 'Não disponível',
+															},
+															{
+																label: 'Valor sincronizado',
+																value: formatCurrencyBRL(movement.valueInCents),
+															},
+															{
+																label: 'Variação',
+																value: formatDeltaCurrencyBRL(
+																	typeof movement.investmentSyncPreviousValueInCents === 'number'
+																		? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																		: null,
+																),
+															},
+															{
+																label: 'Motivo',
+																value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
+															},
+														]
+														: [];
+													const investmentMetadataItems = movement.isFinanceInvestment
+														? [
+															{
+																label: 'Prazo',
+																value: movement.investmentRedemptionTerm
+																	? redemptionTermLabels[movement.investmentRedemptionTerm]
+																	: 'Não informado',
+															},
+															{
+																label: 'CDI',
+																value:
+																	typeof movement.investmentCdiPercentage === 'number'
+																		? `${movement.investmentCdiPercentage}%`
+																		: 'Não informado',
+															},
+														]
+														: [];
+													const metadataItems = [
+														...detailItems,
+														...(counterpartyLabel
+															? [{ label: 'Contraparte', value: counterpartyLabel }]
+															: []),
+														...investmentMetadataItems,
+														...syncMetadataItems,
+													];
+													const canEditMovement = !(
 														movement.isFromMandatory ||
 														movement.isCashRescue ||
 														movement.isBankTransfer ||
-														movement.isFinanceInvestment ||
 														movement.isInvestmentRedemption ||
-														movement.isInvestmentDeposit;
-													const deleteIsManagedElsewhere = editIsManagedElsewhere;
+														movement.isInvestmentDeposit ||
+														movement.isFinanceInvestmentSync
+													);
+													const usesUndoAction =
+														movement.isInvestmentDeposit ||
+														movement.isInvestmentRedemption ||
+														movement.isFinanceInvestmentSync;
+													const canDeleteMovement = !(
+														movement.isFromMandatory ||
+														movement.isCashRescue ||
+														movement.isBankTransfer
+													);
+													const secondaryActionLabel = movement.isInvestmentDeposit
+														? 'Desfazer aporte'
+														: movement.isInvestmentRedemption
+															? 'Desfazer resgate'
+															: movement.isFinanceInvestmentSync
+																? 'Desfazer sync'
+																: 'Excluir';
+													const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
 
 													return (
 														<View key={movement.id} style={{ flexDirection: 'row' }}>
@@ -2292,6 +2813,21 @@ export default function BankMovementsScreen() {
 																				>
 																					{formatSignedCurrencyBRL(movement)}
 																				</Text>
+																				{movement.isFinanceInvestmentSync ? (
+																					<Text
+																						style={{
+																							marginTop: 2,
+																							color: timelinePalette.subtitle,
+																							fontSize: 11,
+																						}}
+																					>
+																						{formatDeltaCurrencyBRL(
+																							typeof movement.investmentSyncPreviousValueInCents === 'number'
+																								? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																								: null,
+																						)}
+																					</Text>
+																				) : null}
 																				<HStack className="mt-1 items-center gap-1">
 																					<Icon
 																						as={CalendarDaysIcon}
@@ -2456,20 +2992,21 @@ export default function BankMovementsScreen() {
 																					paddingTop: 2,
 																				}}
 																			>
-																				<TouchableOpacity
-																					activeOpacity={0.85}
-																					onPress={() => handleRequestMovementAction('edit', movement)}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																						opacity: editIsManagedElsewhere ? 0.72 : 1,
-																					}}
-																				>
-																					<Icon as={EditIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Editar</Text>
-																				</TouchableOpacity>
+																				{canEditMovement ? (
+																					<TouchableOpacity
+																						activeOpacity={0.85}
+																						onPress={() => handleRequestMovementAction('edit', movement)}
+																						style={{
+																							flexDirection: 'row',
+																							alignItems: 'center',
+																							gap: 8,
+																							paddingVertical: 8,
+																						}}
+																					>
+																						<Icon as={EditIcon} size="sm" className="text-white" />
+																						<Text className="text-xs font-semibold text-white">Editar</Text>
+																					</TouchableOpacity>
+																				) : null}
 
 																				{movement.isCashRescue ? (
 																					<TouchableOpacity
@@ -2502,11 +3039,14 @@ export default function BankMovementsScreen() {
 																						alignItems: 'center',
 																						gap: 8,
 																						paddingVertical: 8,
-																						opacity: deleteIsManagedElsewhere ? 0.72 : 1,
+																						opacity:
+																							usesUndoAction || canDeleteMovement ? 1 : 0.72,
 																					}}
 																				>
-																					<Icon as={TrashIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Excluir</Text>
+																					<Icon as={secondaryActionIcon} size="sm" className="text-white" />
+																					<Text className="text-xs font-semibold text-white">
+																						{secondaryActionLabel}
+																					</Text>
 																				</TouchableOpacity>
 																			</HStack>
 																		</VStack>
@@ -2534,6 +3074,216 @@ export default function BankMovementsScreen() {
 						<Navigator defaultValue={0} />
 					</View>
 
+					<Modal
+						isOpen={Boolean(editingFinanceMovement)}
+						onClose={handleCloseFinanceEditModal}
+					>
+						<ModalBackdrop />
+						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+							<ModalHeader>
+								<ModalTitle>Editar investimento</ModalTitle>
+								<ModalCloseButton onPress={handleCloseFinanceEditModal} />
+							</ModalHeader>
+							<ModalBody>
+								<Text className={`${bodyText} mb-4 text-sm`}>
+									Ajuste os dados do investimento sem sair da tela de movimentações.
+								</Text>
+								<VStack>
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Nome do investimento
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentName}
+												onChangeText={setEditInvestmentName}
+												placeholder="Digite o nome do investimento"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Valor inicial
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentInitialInput}
+												onChangeText={handleInvestmentInitialInputChange}
+												placeholder="Digite o valor inicial"
+												keyboardType="numeric"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											CDI (%)
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentCdiInput}
+												onChangeText={(text) =>
+													setEditInvestmentCdiInput(sanitizeNumberInput(text))
+												}
+												placeholder="Digite o percentual do CDI"
+												keyboardType="decimal-pad"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Prazo de resgate
+										</Text>
+										<Select
+											selectedValue={editInvestmentTerm}
+											onValueChange={(value) =>
+												setEditInvestmentTerm(value as RedemptionTerm)
+											}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={fieldContainerClassName}
+											>
+												<SelectInput
+													value={redemptionTermLabels[editInvestmentTerm]}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{redemptionOptions.map((option) => (
+														<SelectItem
+															key={option.value}
+															label={option.label}
+															value={option.value}
+														/>
+													))}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Banco
+										</Text>
+										<Select
+											selectedValue={editInvestmentBankId ?? undefined}
+											onValueChange={(value) => setEditInvestmentBankId(value)}
+											isDisabled={
+												isSavingFinanceMovement || bankOptions.length === 0
+											}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={fieldContainerClassName}
+											>
+												<SelectInput
+													placeholder="Selecione o banco"
+													value={
+														editInvestmentBankId
+															? (bankOptions.find(
+																(bankItem) => bankItem.id === editInvestmentBankId,
+															)?.name ?? '')
+															: ''
+													}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{bankOptions.length > 0 ? (
+														bankOptions.map((bankItem) => (
+															<SelectItem
+																key={bankItem.id}
+																label={bankItem.name}
+																value={bankItem.id}
+															/>
+														))
+													) : (
+														<SelectItem
+															label="Nenhum banco disponível"
+															value="no-bank"
+															isDisabled
+														/>
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="mb-1">
+										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+											Descrição
+										</Text>
+										<Textarea
+											className={textareaContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<TextareaInput
+												value={editInvestmentDescription}
+												onChangeText={setEditInvestmentDescription}
+												placeholder="Adicione um contexto para este investimento"
+												className={inputField}
+											/>
+										</Textarea>
+									</VStack>
+								</VStack>
+							</ModalBody>
+							<ModalFooter className="gap-3">
+								<Button
+									variant="outline"
+									onPress={handleCloseFinanceEditModal}
+									isDisabled={isSavingFinanceMovement}
+									className={submitButtonCancelClassName}
+								>
+									<ButtonText>Cancelar</ButtonText>
+								</Button>
+								<Button
+									onPress={handleSubmitFinanceEdit}
+									isDisabled={isSavingFinanceMovement}
+									className={submitButtonClassName}
+								>
+									{isSavingFinanceMovement ? (
+										<>
+											<ButtonSpinner />
+											<ButtonText>Salvando</ButtonText>
+										</>
+									) : (
+										<ButtonText>Salvar alterações</ButtonText>
+									)}
+								</Button>
+							</ModalFooter>
+						</ModalContent>
+					</Modal>
+
 					<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 						<ModalBackdrop />
 						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
@@ -2560,7 +3310,7 @@ export default function BankMovementsScreen() {
 									isDisabled={isProcessingAction}
 									className={submitButtonClassName}
 								>
-									{isProcessingAction && pendingAction?.type === 'delete' ? (
+									{isProcessingAction ? (
 										<>
 											<ButtonSpinner />
 											<ButtonText>Processando</ButtonText>

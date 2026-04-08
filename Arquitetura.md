@@ -233,11 +233,11 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-04-03.
+> Atualizado em 2026-04-07.
 
-- Padronização dos botões e ações da `screens/ConfigurationsScreen.tsx` para o componente `Button` do design system, seguindo o mesmo padrão visual das telas de cadastro.
-- Coluna de ações das tabelas da `screens/ConfigurationsScreen.tsx` refinada para uma faixa fixa à direita com botões compactos por ícone.
-- Classes compartilhadas das tabelas da `screens/ConfigurationsScreen.tsx` centralizadas em `hooks/useScreenStyle.ts`.
+- Timeline e calendário de `screens/MandatoryGainsListScreen.tsx` e `screens/MandatoryExpensesListScreen.tsx` agora exibem o valor previsto apenas antes da efetivação do ciclo; após registrar o mês, passam a mostrar o valor real da transação vinculada, com enriquecimento em `functions/MandatoryGainFirebase.ts` e `functions/MandatoryExpenseFirebase.ts` e renderização via `displayValueInCents` em `components/uiverse/date-calendar.tsx`.
+- Fluxo pós-submit de `screens/AddRegisterGainScreen.tsx` e `screens/AddRegisterExpensesScreen.tsx` ajustado para manter o usuário na própria tela após novos registros, limpando o formulário e removendo parâmetros de template para evitar redirecionamentos incorretos.
+- Documentação do vault atualizada em `Arquitetura/Transações de Receitas.md`, `Arquitetura/Transações de Despesas.md` e `Arquitetura/Navegação.md` para refletir o novo comportamento de navegação.
 - Padronização do seletor de categoria obrigatória nas telas `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` para seguir o mesmo fluxo das telas de registro, com criação inline de tag e retorno automático.
 - Paginação numérica adicionada às tabelas da `screens/ConfigurationsScreen.tsx` quando a listagem visível ultrapassa 5 registros.
 - `screens/ConfigurationsScreen.tsx` migrada para `components/uiverse/notifier-alert.tsx` como canal padrão de alertas in-app.

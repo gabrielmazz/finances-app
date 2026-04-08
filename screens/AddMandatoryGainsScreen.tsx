@@ -42,7 +42,7 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 
 import { auth } from '@/FirebaseConfig';
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
+import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import {
 	addMandatoryGainFirebase,
 	clearMandatoryGainReceiptFirebase,
@@ -56,6 +56,7 @@ import {
 	scheduleMandatoryGainNotification,
 } from '@/utils/mandatoryGainNotifications';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
+import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
 import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
@@ -174,6 +175,7 @@ export default function AddMandatoryGainsScreen() {
 
 	const [tagOptions, setTagOptions] = React.useState<TagOption[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
+	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 
 	const [gainName, setGainName] = React.useState('');
@@ -195,8 +197,8 @@ export default function AddMandatoryGainsScreen() {
 		if (!selectedTagId) {
 			return null;
 		}
-		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? null;
-	}, [selectedTagId, tagOptions]);
+		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? selectedTagName ?? null;
+	}, [selectedTagId, selectedTagName, tagOptions]);
 
 	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const gainNameInputRef = React.useRef<TextInput | null>(null);
@@ -527,10 +529,8 @@ export default function AddMandatoryGainsScreen() {
 
 			const formattedTags: TagOption[] = tagsResponse.data
 				.filter((tag: any) => {
-					const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-					const isMandatory = Boolean(tag?.isMandatoryGain);
 					const belongsToAllowedUser = allowedIds.has(String(tag?.personId));
-					return usageType === 'gain' && isMandatory && belongsToAllowedUser;
+					return isTagVisibleInMandatoryUsageList(tag, 'gain') && belongsToAllowedUser;
 				})
 				.map((tag: any) => ({
 					id: tag.id,
@@ -542,13 +542,14 @@ export default function AddMandatoryGainsScreen() {
 				.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 			const pendingCreatedTag = peekPendingCreatedTag();
 			const matchingPendingTag =
-				pendingCreatedTag?.usageType === 'gain'
+				pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'gain')
 					? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
 					: null;
 
 			setTagOptions(formattedTags);
 			if (matchingPendingTag) {
 				setSelectedTagId(matchingPendingTag.id);
+				setSelectedTagName(matchingPendingTag.name);
 				clearPendingCreatedTag(matchingPendingTag.id);
 			} else {
 				setSelectedTagId(current =>
@@ -581,6 +582,54 @@ export default function AddMandatoryGainsScreen() {
 			return () => { };
 		}, [loadTags]),
 	);
+
+	React.useEffect(() => {
+		const matchedTag = tagOptions.find(tag => tag.id === selectedTagId);
+		if (matchedTag) {
+			setSelectedTagName(matchedTag.name);
+			return;
+		}
+
+		if (!selectedTagId) {
+			setSelectedTagName(null);
+			return;
+		}
+
+		let isMounted = true;
+
+		const fetchTagData = async () => {
+			try {
+				const tagResult = await getTagDataFirebase(selectedTagId);
+
+				if (!isMounted) {
+					return;
+				}
+
+				if (tagResult.success && tagResult.data && typeof tagResult.data.name === 'string') {
+					setSelectedTagName(tagResult.data.name);
+					return;
+				}
+
+				setSelectedTagName(null);
+			} catch (error) {
+				console.error('Erro ao buscar dados da tag obrigatória de ganho:', error);
+				if (isMounted) {
+					setSelectedTagName(null);
+				}
+			}
+		};
+
+		void fetchTagData();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [selectedTagId, tagOptions]);
+
+	const navigateToMandatoryGainsList = React.useCallback(() => {
+		Keyboard.dismiss();
+		router.dismissTo('/mandatory-gains');
+	}, []);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -835,8 +884,7 @@ export default function AddMandatoryGainsScreen() {
 				});
 			}
 
-			resetForm({ keepTag: true });
-			router.back();
+			navigateToMandatoryGainsList();
 		} catch (error) {
 			console.error('Erro ao salvar ganho obrigatório:', error);
 			showNotifierAlert({
@@ -858,8 +906,7 @@ export default function AddMandatoryGainsScreen() {
 		usesBusinessDays,
 		reminderEnabled,
 		reminderTime,
-		resetForm,
-		router,
+		navigateToMandatoryGainsList,
 		selectedGainTemplateId,
 		selectedTagId,
 		valueInCents,
@@ -1146,6 +1193,7 @@ export default function AddMandatoryGainsScreen() {
 													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 														<SelectInput
 															placeholder="Selecione a categoria do ganho"
+															value={selectedTagLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />

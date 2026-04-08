@@ -11,6 +11,7 @@ import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
+import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import {
 	Button,
 	ButtonIcon,
@@ -72,6 +73,7 @@ import {
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import { tagSupportsUsage } from '@/utils/tagUsage';
 import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
@@ -412,6 +414,7 @@ export default function FinancialListScreen() {
 		helperText,
 		inputField,
 		fieldContainerClassName,
+		textareaContainerClassName,
 		submitButtonClassName,
 		heroHeight,
 		insets,
@@ -440,6 +443,7 @@ export default function FinancialListScreen() {
 	const [editCdiInput, setEditCdiInput] = React.useState('');
 	const [editTerm, setEditTerm] = React.useState<RedemptionTerm>('anytime');
 	const [editBankId, setEditBankId] = React.useState<string | null>(null);
+	const [editDescription, setEditDescription] = React.useState('');
 	const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 	const [investmentPendingDeletion, setInvestmentPendingDeletion] =
 		React.useState<FinanceInvestment | null>(null);
@@ -677,10 +681,9 @@ export default function FinancialListScreen() {
 							const normalizedName = rawName.toLowerCase();
 							const tagUsage =
 								typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-							const resolvedUsage = tagUsage ?? usageType;
 							return (
 								normalizedName === INVESTMENT_TAG_LABEL.toLowerCase() &&
-								resolvedUsage === usageType &&
+								tagSupportsUsage(tagUsage, usageType, { allowUndefined: true }) &&
 								String(tag?.personId) === currentUser.uid
 							);
 						},
@@ -828,6 +831,7 @@ export default function FinancialListScreen() {
 		setEditCdiInput('');
 		setEditTerm('anytime');
 		setEditBankId(null);
+		setEditDescription('');
 	}, [isSavingEdit]);
 
 	const handleOpenEditModal = React.useCallback(
@@ -840,6 +844,7 @@ export default function FinancialListScreen() {
 			setEditCdiInput(investment.cdiPercentage.toString());
 			setEditTerm(investment.redemptionTerm);
 			setEditBankId(investment.bankId);
+			setEditDescription(investment.description ?? '');
 		},
 		[],
 	);
@@ -868,6 +873,8 @@ export default function FinancialListScreen() {
 
 		setIsSavingEdit(true);
 		try {
+			const resolvedBankName =
+				bankOptions.find((bank) => bank.id === editBankId)?.name ?? null;
 			const result = await updateFinanceInvestmentFirebase({
 				investmentId: editingInvestment.id,
 				name: editName.trim(),
@@ -875,6 +882,8 @@ export default function FinancialListScreen() {
 				cdiPercentage: parsedCdi,
 				redemptionTerm: editTerm,
 				bankId: editBankId,
+				bankNameSnapshot: resolvedBankName,
+				description: editDescription.trim() ? editDescription.trim() : null,
 			});
 
 			if (!result.success) {
@@ -892,8 +901,10 @@ export default function FinancialListScreen() {
 		}
 	}, [
 		closeEditModal,
+		bankOptions,
 		editBankId,
 		editCdiInput,
+		editDescription,
 		editInitialInput,
 		editName,
 		editTerm,
@@ -926,14 +937,23 @@ export default function FinancialListScreen() {
 				investmentPendingDeletion.id,
 			);
 			if (!result.success) {
-				throw new Error('Erro ao excluir investimento.');
+				throw new Error(
+					typeof result.error === 'string'
+						? result.error
+						: 'Erro ao excluir investimento.',
+				);
 			}
 			await loadData();
 			showScreenAlert('Investimento removido.', 'success');
 			setInvestmentPendingDeletion(null);
 		} catch (error) {
 			console.error(error);
-			showScreenAlert('Não foi possível remover agora.', 'error');
+			showScreenAlert(
+				error instanceof Error && error.message
+					? error.message
+					: 'Não foi possível remover agora.',
+				'error',
+			);
 		} finally {
 			setIsDeleting(false);
 		}
@@ -1062,6 +1082,13 @@ export default function FinancialListScreen() {
 			const result = await syncFinanceInvestmentValueFirebase({
 				investmentId: investmentForDepositSync.id,
 				syncedValueInCents: parsedCents,
+				recordHistory: true,
+				personId: auth.currentUser?.uid ?? null,
+				bankId: investmentForDepositSync.bankId,
+				investmentNameSnapshot: investmentForDepositSync.name,
+				bankNameSnapshot: banksMap[investmentForDepositSync.bankId]?.name ?? null,
+				reason: 'deposit',
+				date: new Date(),
 			});
 
 			if (!result.success) {
@@ -1080,7 +1107,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingDepositSync(false);
 		}
-	}, [depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
+	}, [banksMap, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
 
 	const handleOpenWithdrawalModal = React.useCallback(
 		(investment: FinanceInvestment) => {
@@ -1133,6 +1160,13 @@ export default function FinancialListScreen() {
 			const result = await syncFinanceInvestmentValueFirebase({
 				investmentId: investmentForWithdrawalSync.id,
 				syncedValueInCents: syncedCents,
+				recordHistory: true,
+				personId: auth.currentUser?.uid ?? null,
+				bankId: investmentForWithdrawalSync.bankId,
+				investmentNameSnapshot: investmentForWithdrawalSync.name,
+				bankNameSnapshot: banksMap[investmentForWithdrawalSync.bankId]?.name ?? null,
+				reason: 'withdrawal',
+				date: new Date(),
 			});
 
 			if (!result.success) {
@@ -1151,7 +1185,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingWithdrawalSync(false);
 		}
-	}, [investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncInput]);
+	}, [banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncInput]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
@@ -1272,6 +1306,13 @@ export default function FinancialListScreen() {
 			const result = await syncFinanceInvestmentValueFirebase({
 				investmentId: investmentForSync.id,
 				syncedValueInCents: parsedCents,
+				recordHistory: true,
+				personId: auth.currentUser?.uid ?? null,
+				bankId: investmentForSync.bankId,
+				investmentNameSnapshot: investmentForSync.name,
+				bankNameSnapshot: banksMap[investmentForSync.bankId]?.name ?? null,
+				reason: 'manual',
+				date: new Date(),
 			});
 
 			if (!result.success) {
@@ -1288,7 +1329,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingSync(false);
 		}
-	}, [investmentForSync, loadData, showScreenAlert, syncInput]);
+	}, [banksMap, investmentForSync, loadData, showScreenAlert, syncInput]);
 
 	const isInitialLoading = isLoading && investments.length === 0;
 
@@ -2090,6 +2131,22 @@ export default function FinancialListScreen() {
 										</SelectPortal>
 									</Select>
 								</VStack>
+								<VStack className="mb-1">
+									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+										Descrição
+									</Text>
+									<Textarea
+										className={textareaContainerClassName}
+										isDisabled={isSavingEdit}
+									>
+										<TextareaInput
+											value={editDescription}
+											onChangeText={setEditDescription}
+											placeholder="Adicione um contexto para este investimento"
+											className={inputField}
+										/>
+									</Textarea>
+								</VStack>
 							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
@@ -2184,7 +2241,7 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseDepositModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
+							<Box className={`${notTintedCardClassName} mb-4 px-4 py-4`}>
 								<VStack className="gap-1">
 									<Text
 										className={`${helperText} text-xs uppercase tracking-wide`}

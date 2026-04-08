@@ -1,7 +1,7 @@
 // Funções responsáveis por gerenciar os gastos obrigatórios registrados no aplicativo.
 
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 
@@ -38,6 +38,12 @@ interface MarkMandatoryExpensePaymentParams {
 }
 
 const MANDATORY_EXPENSES_COLLECTION = 'mandatoryExpenses';
+const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
+
+const chunkDocumentIds = (ids: string[]) =>
+	Array.from({ length: Math.ceil(ids.length / LINKED_MOVEMENTS_QUERY_LIMIT) }, (_, index) =>
+		ids.slice(index * LINKED_MOVEMENTS_QUERY_LIMIT, (index + 1) * LINKED_MOVEMENTS_QUERY_LIMIT),
+	);
 
 export async function addMandatoryExpenseFirebase({
 	name,
@@ -191,12 +197,51 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 			const value = entry['name'];
 			return typeof value === 'string' ? value.toLocaleLowerCase() : '';
 		};
-		const expenses = snapshot.docs
+		const baseExpenses: Array<Record<string, unknown> & { id: string }> = snapshot.docs
 			.map(expenseDoc => ({
 				id: expenseDoc.id,
-				...expenseDoc.data(),
+				...(expenseDoc.data() as Record<string, unknown>),
 			}))
 			.sort((a, b) => toComparableName(a as Record<string, unknown>).localeCompare(toComparableName(b as Record<string, unknown>)));
+
+		const linkedPaymentIds = Array.from(
+			new Set(
+				baseExpenses
+					.map(expense => (typeof expense.lastPaymentExpenseId === 'string' ? expense.lastPaymentExpenseId : null))
+					.filter((expenseId): expenseId is string => Boolean(expenseId)),
+			),
+		);
+		const linkedPaymentValuesById = new Map<string, number>();
+
+		if (linkedPaymentIds.length > 0) {
+			const linkedPaymentSnapshots = await Promise.all(
+				chunkDocumentIds(linkedPaymentIds).map(paymentIds =>
+					getDocs(query(collection(db, 'expenses'), where(documentId(), 'in', paymentIds))),
+				),
+			);
+
+			linkedPaymentSnapshots.forEach(linkedPaymentSnapshot => {
+				linkedPaymentSnapshot.docs.forEach(paymentDoc => {
+					const paymentData = paymentDoc.data();
+					if (typeof paymentData.valueInCents === 'number' && !Number.isNaN(paymentData.valueInCents)) {
+						linkedPaymentValuesById.set(paymentDoc.id, paymentData.valueInCents);
+					}
+				});
+			});
+		}
+
+		const expenses = baseExpenses.map(expense => {
+			const linkedPaymentExpenseId =
+				typeof expense.lastPaymentExpenseId === 'string' && expense.lastPaymentExpenseId.length > 0
+					? expense.lastPaymentExpenseId
+					: null;
+
+			return {
+				...expense,
+				lastPaymentValueInCents:
+					linkedPaymentExpenseId !== null ? linkedPaymentValuesById.get(linkedPaymentExpenseId) ?? null : null,
+			};
+		});
 
 		return { success: true, data: expenses };
 	} catch (error) {

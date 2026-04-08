@@ -55,6 +55,7 @@ import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
+import { normalizeTagUsageType, type TagUsageType } from '@/utils/tagUsage';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
@@ -99,6 +100,7 @@ export default function AddRegisterTagScreen() {
 
 	const [tagName, setTagName] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isSharedBetweenUsageTypes, setIsSharedBetweenUsageTypes] = React.useState(false);
 	const [isExpenseTag, setIsExpenseTag] = React.useState(false);
 	const [isGainTag, setIsGainTag] = React.useState(false);
 	const [isMandatoryExpense, setIsMandatoryExpense] = React.useState(false);
@@ -147,7 +149,7 @@ export default function AddRegisterTagScreen() {
 		}
 	}, [params.tagName]);
 
-	const initialUsageType = React.useMemo(() => {
+	const initialUsageType = React.useMemo<TagUsageType | null>(() => {
 		const value = Array.isArray(params.usageType) ? params.usageType[0] : params.usageType;
 		if (!value) {
 			return null;
@@ -155,9 +157,9 @@ export default function AddRegisterTagScreen() {
 
 		try {
 			const decoded = decodeURIComponent(value);
-			return decoded ?? null;
+			return normalizeTagUsageType(decoded) ?? null;
 		} catch {
-			return value;
+			return normalizeTagUsageType(value) ?? null;
 		}
 	}, [params.usageType]);
 
@@ -272,28 +274,44 @@ export default function AddRegisterTagScreen() {
 	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
 	// Segue [[Gerenciamento de Tags]]: fluxos inline podem travar a obrigatoriedade para evitar retorno com uma categoria fora do filtro de origem.
 	const isMandatorySelectionLocked = shouldLockMandatorySelection && !isEditing && Boolean(initialUsageType);
-	const selectedUsageType: UsageTypeRadioValue | null = isExpenseTag ? 'expense' : isGainTag ? 'gain' : null;
+	const selectedUsageType: TagUsageType | null = isSharedBetweenUsageTypes
+		? 'both'
+		: isExpenseTag
+			? 'expense'
+			: isGainTag
+				? 'gain'
+				: null;
 	const isMandatorySwitchEnabled = selectedUsageType !== null;
 	const resolvedIsMandatoryExpense =
-		selectedUsageType === 'expense'
-			? showInBothLists || isMandatoryExpense || (isMandatorySelectionLocked && initialUsageType === 'expense')
+		selectedUsageType === 'expense' || selectedUsageType === 'both'
+			? showInBothLists ||
+			isMandatoryExpense ||
+			(isMandatorySelectionLocked &&
+				(initialUsageType === 'expense' || initialUsageType === 'both'))
 			: false;
 	const resolvedIsMandatoryGain =
-		selectedUsageType === 'gain'
-			? showInBothLists || isMandatoryGain || (isMandatorySelectionLocked && initialUsageType === 'gain')
+		selectedUsageType === 'gain' || selectedUsageType === 'both'
+			? showInBothLists ||
+			isMandatoryGain ||
+			(isMandatorySelectionLocked &&
+				(initialUsageType === 'gain' || initialUsageType === 'both'))
 			: false;
 	const isMandatorySelected =
 		selectedUsageType === 'expense'
 			? resolvedIsMandatoryExpense
 			: selectedUsageType === 'gain'
 				? resolvedIsMandatoryGain
-				: false;
+				: selectedUsageType === 'both'
+					? resolvedIsMandatoryExpense && resolvedIsMandatoryGain
+					: false;
 	const initialUsageLabel =
 		initialUsageType === 'expense'
 			? 'despesas'
 			: initialUsageType === 'gain'
 				? 'ganhos'
-				: null;
+				: initialUsageType === 'both'
+					? 'ganhos e despesas'
+					: null;
 	const hasHydratedInitialParamsRef = React.useRef(false);
 
 	React.useEffect(() => {
@@ -303,7 +321,6 @@ export default function AddRegisterTagScreen() {
 
 		hasHydratedInitialParamsRef.current = true;
 		setTagName(initialTagName);
-		setShowInBothLists(initialShowInBothLists);
 		setSelectedTagIcon(
 			resolveTagIcon({
 				iconFamily: initialTagIconFamily as any,
@@ -311,17 +328,33 @@ export default function AddRegisterTagScreen() {
 				iconStyle: initialTagIconStyle as any,
 			}),
 		);
-		if (initialUsageType === 'expense') {
+		if (initialUsageType === 'both') {
+			const isMandatoryForBothUsage =
+				initialShowInBothLists || initialIsMandatoryExpense || initialIsMandatoryGain;
+			setIsSharedBetweenUsageTypes(true);
+			setIsExpenseTag(true);
+			setIsGainTag(true);
+			setIsMandatoryExpense(isMandatoryForBothUsage);
+			setIsMandatoryGain(isMandatoryForBothUsage);
+			setShowInBothLists(isMandatoryForBothUsage);
+		} else if (initialUsageType === 'expense') {
+			const shouldAppearInMandatoryLists = initialShowInBothLists || initialIsMandatoryExpense;
+			setIsSharedBetweenUsageTypes(false);
 			setIsExpenseTag(true);
 			setIsGainTag(false);
-			setIsMandatoryExpense(initialShowInBothLists || initialIsMandatoryExpense);
+			setIsMandatoryExpense(shouldAppearInMandatoryLists);
 			setIsMandatoryGain(false);
+			setShowInBothLists(shouldAppearInMandatoryLists);
 		} else if (initialUsageType === 'gain') {
+			const shouldAppearInMandatoryLists = initialShowInBothLists || initialIsMandatoryGain;
+			setIsSharedBetweenUsageTypes(false);
 			setIsGainTag(true);
 			setIsExpenseTag(false);
 			setIsMandatoryExpense(false);
-			setIsMandatoryGain(initialShowInBothLists || initialIsMandatoryGain);
+			setIsMandatoryGain(shouldAppearInMandatoryLists);
+			setShowInBothLists(shouldAppearInMandatoryLists);
 		} else {
+			setIsSharedBetweenUsageTypes(false);
 			setIsExpenseTag(false);
 			setIsGainTag(false);
 			setIsMandatoryExpense(false);
@@ -340,81 +373,99 @@ export default function AddRegisterTagScreen() {
 		resolveTagIcon,
 	]);
 
+	const handleSharedBetweenUsageTypesSelection = React.useCallback(
+		(nextValue: boolean) => {
+			if (isUsageSelectionLocked) {
+				return;
+			}
+
+			setIsSharedBetweenUsageTypes(nextValue);
+
+			if (nextValue) {
+				const shouldShowInMandatoryLists = showInBothLists || isMandatoryExpense || isMandatoryGain;
+				setIsExpenseTag(true);
+				setIsGainTag(true);
+				setShowInBothLists(shouldShowInMandatoryLists);
+				setIsMandatoryExpense(shouldShowInMandatoryLists);
+				setIsMandatoryGain(shouldShowInMandatoryLists);
+				return;
+			}
+
+			setIsExpenseTag(false);
+			setIsGainTag(false);
+			setIsMandatoryExpense(false);
+			setIsMandatoryGain(false);
+			setShowInBothLists(false);
+		},
+		[isMandatoryExpense, isMandatoryGain, isUsageSelectionLocked, showInBothLists],
+	);
+
 	const handleUsageSelection = React.useCallback((nextValue: string) => {
 		if (isUsageSelectionLocked) {
 			return;
 		}
 
+		const shouldAppearInMandatoryLists = showInBothLists || isMandatoryExpense || isMandatoryGain;
+
 		if (nextValue === 'expense') {
+			setIsSharedBetweenUsageTypes(false);
 			setIsExpenseTag(true);
 			setIsGainTag(false);
+			setShowInBothLists(shouldAppearInMandatoryLists);
+			setIsMandatoryExpense(shouldAppearInMandatoryLists);
 			setIsMandatoryGain(false);
-			if (showInBothLists) {
-				setIsMandatoryExpense(true);
-			}
 			return;
 		}
 
 		if (nextValue === 'gain') {
+			setIsSharedBetweenUsageTypes(false);
 			setIsGainTag(true);
 			setIsExpenseTag(false);
+			setShowInBothLists(shouldAppearInMandatoryLists);
 			setIsMandatoryExpense(false);
-			if (showInBothLists) {
-				setIsMandatoryGain(true);
-			}
+			setIsMandatoryGain(shouldAppearInMandatoryLists);
 			return;
 		}
 
+		setIsSharedBetweenUsageTypes(false);
 		setIsExpenseTag(false);
 		setIsGainTag(false);
 		setIsMandatoryExpense(false);
 		setIsMandatoryGain(false);
 		setShowInBothLists(false);
-	}, [isUsageSelectionLocked, showInBothLists]);
+	}, [isMandatoryExpense, isMandatoryGain, isUsageSelectionLocked, showInBothLists]);
 
-	const handleMandatorySelection = React.useCallback(
+	const handleMandatoryVisibilitySelection = React.useCallback(
 		(nextValue: boolean) => {
 			if (isMandatorySelectionLocked) {
 				return;
 			}
 
+			if (selectedUsageType === 'both') {
+				setShowInBothLists(nextValue);
+				setIsMandatoryExpense(nextValue);
+				setIsMandatoryGain(nextValue);
+				return;
+			}
+
+			setShowInBothLists(nextValue);
+
 			if (selectedUsageType === 'expense') {
 				setIsMandatoryExpense(nextValue);
+				setIsMandatoryGain(false);
 				return;
 			}
 
 			if (selectedUsageType === 'gain') {
+				setIsMandatoryExpense(false);
 				setIsMandatoryGain(nextValue);
+				return;
 			}
+
+			setIsMandatoryExpense(false);
+			setIsMandatoryGain(false);
 		},
 		[isMandatorySelectionLocked, selectedUsageType],
-	);
-	const handleShowInBothListsSelection = React.useCallback(
-		(nextValue: boolean) => {
-			setShowInBothLists(nextValue);
-			
-			if (showInBothLists === false) {
-				setIsMandatoryExpense(false);
-				setIsMandatoryGain(false);
-				return
-			}
-
-			if (!nextValue) {
-				return;
-			}
-
-			if (selectedUsageType === 'expense') {
-				setIsMandatoryExpense(true);
-				return;
-			}
-
-			if (selectedUsageType === 'gain') {
-				setIsMandatoryGain(true);
-				return
-			}
-
-		},
-		[selectedUsageType],
 	);
 
 	const handleCloseTagIconSheet = React.useCallback(() => {
@@ -446,7 +497,7 @@ export default function AddRegisterTagScreen() {
 		if (!selectedUsageType) {
 			showNotifierAlert({
 				title: 'Erro ao registrar categoria',
-				description: 'Informe se a categoria será utilizada para ganhos ou despesas.',
+				description: 'Informe se a categoria será utilizada para despesas, ganhos ou ambos.',
 				type: 'error',
 				isDarkMode,
 				duration: 4000,
@@ -477,8 +528,8 @@ export default function AddRegisterTagScreen() {
 					tagId: editingTagId,
 					tagName: trimmedName,
 					usageType: selectedUsageType,
-					isMandatoryExpense: selectedUsageType === 'expense' ? resolvedIsMandatoryExpense : false,
-					isMandatoryGain: selectedUsageType === 'gain' ? resolvedIsMandatoryGain : false,
+					isMandatoryExpense: resolvedIsMandatoryExpense,
+					isMandatoryGain: resolvedIsMandatoryGain,
 					showInBothLists,
 					...persistedTagIcon,
 				});
@@ -514,8 +565,8 @@ export default function AddRegisterTagScreen() {
 				tagName: trimmedName,
 				personId,
 				usageType: selectedUsageType,
-				isMandatoryExpense: selectedUsageType === 'expense' ? resolvedIsMandatoryExpense : false,
-				isMandatoryGain: selectedUsageType === 'gain' ? resolvedIsMandatoryGain : false,
+				isMandatoryExpense: resolvedIsMandatoryExpense,
+				isMandatoryGain: resolvedIsMandatoryGain,
 				showInBothLists,
 				...persistedTagIcon,
 			});
@@ -655,32 +706,32 @@ export default function AddRegisterTagScreen() {
 	const screenTitle = isEditing
 		? 'Editar tag'
 		: shouldReturnAfterCreate && initialUsageLabel
-			? `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
+			? initialUsageType === 'both'
+				? 'Nova categoria para ganhos e despesas'
+				: `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
 			: 'Adição de nova categoria';
-	const showInBothListsLabel =
+	const sharedBetweenUsageTypesHelperText = isUsageSelectionLocked
+		? 'Este fluxo já definiu um tipo único de utilização para manter o retorno da categoria no contexto de origem.'
+		: 'Ative esta opção para usar a mesma categoria nas telas de ganhos e despesas ao mesmo tempo.';
+	const mandatoryVisibilityLabel =
 		selectedUsageType === 'expense'
-			? 'Categoria nas despesas e nas obrigatórias'
+			? 'Aparecer também nas despesas obrigatórias'
 			: selectedUsageType === 'gain'
-				? 'Categoria nos ganhos e nos obrigatórios'
-				: 'Categoria nas duas listas';
-	const showInBothListsHelperText =
+				? 'Aparecer também nos ganhos obrigatórios'
+				: selectedUsageType === 'both'
+					? 'Aparecer também nos gastos e ganhos obrigatórios'
+					: 'Aparecer também nas telas com obrigatoriedade';
+	const mandatoryVisibilityHelperText =
 		selectedUsageType === 'expense'
-			? 'Ative esta opção para que a categoria fique disponível tanto na lista de despesas quanto na lista de gastos obrigatórios.'
+			? 'Ative esta opção para que a categoria também fique disponível na tela de gastos obrigatórios.'
 			: selectedUsageType === 'gain'
-				? 'Ative esta opção para que a categoria fique disponível tanto na lista de ganhos quanto na lista de ganhos obrigatórios.'
-				: 'Selecione o tipo de utilização acima para definir se a categoria ficará disponível nas duas listas.';
-	const mandatoryUsageLabel =
-		selectedUsageType === 'expense'
-			? 'Despesa apenas obrigatória'
-			: selectedUsageType === 'gain'
-				? 'Ganho apenas obrigatório'
-				: 'Marcar como obrigatório';
-	const mandatoryHelperText =
-		selectedUsageType === 'expense'
-			? 'Ative esta opção para que a categoria seja listada na tela de gastos obrigatórios.'
-			: selectedUsageType === 'gain'
-				? 'Ative esta opção para que a categoria seja listada na tela de ganhos obrigatórios.'
-				: 'Selecione o tipo de utilização acima para liberar a opção de obrigatoriedade.';
+				? 'Ative esta opção para que a categoria também fique disponível na tela de ganhos obrigatórios.'
+				: selectedUsageType === 'both'
+					? 'Ative esta opção para que a categoria apareça também nas telas de gastos obrigatórios e ganhos obrigatórios.'
+					: 'Selecione o tipo de utilização acima para definir se a categoria também aparecerá nas telas com obrigatoriedade.';
+	const usageTypePopoverText = isSharedBetweenUsageTypes
+		? 'Com a opção acima ativa, a categoria passa a valer para ganhos e despesas ao mesmo tempo e não precisa de uma escolha exclusiva abaixo.'
+		: 'Selecione o tipo de utilização da tag para que ela seja listada corretamente nas telas de registro de ganhos ou despesas. Essa informação é importante para organizar suas tags e facilitar a categorização dos seus registros financeiros.';
 	const isTagIconSelectionEnabled = tagName.trim().length > 0;
 	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
 	const selectedTagIconSurfaceClassName = isDarkMode
@@ -843,6 +894,60 @@ export default function AddRegisterTagScreen() {
 
 									<VStack className="mb-4">
 										<HStack className="mb-1 ml-1">
+											<Text className={`${bodyText} text-sm`}>Ganhos e despesas</Text>
+										</HStack>
+										<View className={`${fieldContainerCardClassName} px-4`}>
+											<HStack className="items-center justify-between gap-6">
+												<HStack className="ml-1 gap-1 flex-1">
+													<Text className={`${bodyText} text-sm`}>
+														Categoria para ganhos e despesas
+													</Text>
+													<Popover
+														placement="bottom"
+														size="md"
+														offset={0}
+														shouldFlip
+														focusScope={false}
+														trapFocus={false}
+														trigger={triggerProps => (
+															<Pressable
+																{...triggerProps}
+																hitSlop={8}
+																accessibilityRole="button"
+																accessibilityLabel="Informações sobre a categoria aparecer também nos obrigatórios"
+															>
+																<Info
+																	size={14}
+																	color={isDarkMode ? '#94A3B8' : '#64748B'}
+																	style={{ marginLeft: 4 }}
+																/>
+															</Pressable>
+														)}
+													>
+														<PopoverBackdrop className="bg-transparent" />
+														<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+															<PopoverBody className="px-3 py-3">
+																<Text className={`${bodyText} text-xs leading-5`}>
+																	{sharedBetweenUsageTypesHelperText}
+																</Text>
+															</PopoverBody>
+														</PopoverContent>
+													</Popover>
+												</HStack>
+												<Switch
+													value={isSharedBetweenUsageTypes}
+													onValueChange={handleSharedBetweenUsageTypesSelection}
+													isDisabled={isUsageSelectionLocked}
+													trackColor={switchTrackColor}
+													thumbColor={switchThumbColor}
+													ios_backgroundColor={switchIosBackgroundColor}
+												/>
+											</HStack>
+										</View>
+									</VStack>
+
+									<VStack className="mb-4">
+										<HStack className="mb-1 ml-1">
 											<Text className={`${bodyText} text-sm`}>Tipo de utilização</Text>
 											<Popover
 												placement="bottom"
@@ -870,148 +975,97 @@ export default function AddRegisterTagScreen() {
 												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
-															Selecione o tipo de utilização da tag para que ela seja listada corretamente nas telas de registro de ganhos ou despesas. Essa informação é importante para organizar suas tags e facilitar a categorização dos seus registros financeiros.
+															{usageTypePopoverText}
 														</Text>
 													</PopoverBody>
 												</PopoverContent>
 											</Popover>
 										</HStack>
-										<View className={`${fieldContainerCardClassName} px-4 py-4`}>
-											<RadioGroup
-												value={selectedUsageType ?? ''}
-												onChange={handleUsageSelection}
-											>
-												<HStack className="justify-between gap-4">
-													<Radio
-														value="expense"
-														isDisabled={isUsageSelectionLocked}
-														className={`${switchRadioClassName} flex-1`}
-													>
-														<RadioIndicator className={switchRadioIndicatorClassName}>
-															<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-														</RadioIndicator>
-														<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
-															Tag para despesas
-														</RadioLabel>
-													</Radio>
+										<View className={`${fieldContainerCardClassName} px-4`}>
+											{!isSharedBetweenUsageTypes && (
+												<RadioGroup
+													value={selectedUsageType === 'both' ? '' : selectedUsageType ?? ''}
+													onChange={handleUsageSelection}
+												>
+													<HStack className="justify-between gap-4 py-4">
+														<Radio
+															value="expense"
+															isDisabled={isUsageSelectionLocked}
+															className={`${switchRadioClassName} flex-1`}
+														>
+															<RadioIndicator className={switchRadioIndicatorClassName}>
+																<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+															</RadioIndicator>
+															<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
+																Categoria para despesas
+															</RadioLabel>
+														</Radio>
 
-													<Radio
-														value="gain"
-														isDisabled={isUsageSelectionLocked}
-														className={`${switchRadioClassName} flex-1`}
-													>
-														<RadioIndicator className={switchRadioIndicatorClassName}>
-															<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-														</RadioIndicator>
-														<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
-															Tag para ganhos
-														</RadioLabel>
-													</Radio>
-												</HStack>
-											</RadioGroup>
+														<Radio
+															value="gain"
+															isDisabled={isUsageSelectionLocked}
+															className={`${switchRadioClassName} flex-1`}
+														>
+															<RadioIndicator className={switchRadioIndicatorClassName}>
+																<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+															</RadioIndicator>
+															<RadioLabel className={`${switchRadioLabelClassName} text-sm`}>
+																Categoria para ganhos
+															</RadioLabel>
+														</Radio>
+													</HStack>
+												</RadioGroup>
+											)}
 
 											{selectedUsageType && (
-												<>
-													<View className="mt-4">
-														<HStack className="items-center justify-between gap-6">
-															<HStack className="ml-1 gap-1 flex-1">
-																<Text className={`text-base font-semibold`}>
-																	{showInBothListsLabel}
-																</Text>
-																<Popover
-																	placement="bottom"
-																	size="md"
-																	offset={0}
-																	shouldFlip
-																	focusScope={false}
-																	trapFocus={false}
-																	trigger={triggerProps => (
-																		<Pressable
-																			{...triggerProps}
-																			hitSlop={8}
-																			accessibilityRole="button"
-																			accessibilityLabel="Informações sobre a categoria aparecer nas duas listas"
-																		>
-																			<Info
-																				size={14}
-																				color={isDarkMode ? '#94A3B8' : '#64748B'}
-																				style={{ marginLeft: 4 }}
-																			/>
-																		</Pressable>
-																	)}
-																>
-																	<PopoverBackdrop className="bg-transparent" />
-																	<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																		<PopoverBody className="px-3 py-3">
-																			<Text className={`${bodyText} text-xs leading-5`}>
-																				{showInBothListsHelperText}
-																			</Text>
-																		</PopoverBody>
-																	</PopoverContent>
-																</Popover>
-															</HStack>
-															<Switch
-																value={showInBothLists}
-																onValueChange={handleShowInBothListsSelection}
-																isDisabled={!selectedUsageType}
-																trackColor={switchTrackColor}
-																thumbColor={switchThumbColor}
-																ios_backgroundColor={switchIosBackgroundColor}
-															/>
-														</HStack>
-													</View>
-
-													{!showInBothLists && (
-														<View className="">
-															<HStack className="items-center justify-between gap-6">
-																<HStack className="ml-1 gap-1">
-																	<Text className={`text-base font-semibold`}>
-																		{mandatoryUsageLabel}
-																	</Text>
-																	<Popover
-																		placement="bottom"
-																		size="md"
-																		offset={0}
-																		shouldFlip
-																		focusScope={false}
-																		trapFocus={false}
-																		trigger={triggerProps => (
-																			<Pressable
-																				{...triggerProps}
-																				hitSlop={8}
-																				accessibilityRole="button"
-																				accessibilityLabel="Informações sobre a observação da despesa"
-																			>
-																				<Info
-																					size={14}
-																					color={isDarkMode ? '#94A3B8' : '#64748B'}
-																					style={{ marginLeft: 4 }}
-																				/>
-																			</Pressable>
-																		)}
+												<View className={isSharedBetweenUsageTypes ? '' : ''}>
+													<HStack className="items-center justify-between gap-6">
+														<HStack className="ml-1 gap-1 flex-1">
+															<Text className={`${bodyText} text-sm`}>
+																{mandatoryVisibilityLabel}
+															</Text>
+															<Popover
+																placement="bottom"
+																size="md"
+																offset={0}
+																shouldFlip
+																focusScope={false}
+																trapFocus={false}
+																trigger={triggerProps => (
+																	<Pressable
+																		{...triggerProps}
+																		hitSlop={8}
+																		accessibilityRole="button"
+																		accessibilityLabel="Informações sobre a categoria aparecer também nas telas obrigatórias"
 																	>
-																		<PopoverBackdrop className="bg-transparent" />
-																		<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																			<PopoverBody className="px-3 py-3">
-																				<Text className={`${bodyText} text-xs leading-5`}>
-																					{mandatoryHelperText}
-																				</Text>
-																			</PopoverBody>
-																		</PopoverContent>
-																	</Popover>
-																</HStack>
-																<Switch
-																	value={isMandatorySelected}
-																	onValueChange={handleMandatorySelection}
-																	isDisabled={!isMandatorySwitchEnabled || isMandatorySelectionLocked}
-																	trackColor={switchTrackColor}
-																	thumbColor={switchThumbColor}
-																	ios_backgroundColor={switchIosBackgroundColor}
-																/>
-															</HStack>
-														</View>
-													)}
-												</>
+																		<Info
+																			size={14}
+																			color={isDarkMode ? '#94A3B8' : '#64748B'}
+																			style={{ marginLeft: 4 }}
+																		/>
+																	</Pressable>
+																)}
+															>
+																<PopoverBackdrop className="bg-transparent" />
+																<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																	<PopoverBody className="px-3 py-3">
+																		<Text className={`${bodyText} text-xs leading-5`}>
+																			{mandatoryVisibilityHelperText}
+																		</Text>
+																	</PopoverBody>
+																</PopoverContent>
+															</Popover>
+														</HStack>
+														<Switch
+															value={isMandatorySelected}
+															onValueChange={handleMandatoryVisibilitySelection}
+															isDisabled={!isMandatorySwitchEnabled || isMandatorySelectionLocked}
+															trackColor={switchTrackColor}
+															thumbColor={switchThumbColor}
+															ios_backgroundColor={switchIosBackgroundColor}
+														/>
+													</HStack>
+												</View>
 											)}
 										</View>
 									</VStack>
@@ -1019,7 +1073,7 @@ export default function AddRegisterTagScreen() {
 									<Button
 										className={submitButtonClassName}
 										onPress={registerTag}
-										isDisabled={isSubmitting || !tagName.trim() || (!isExpenseTag && !isGainTag)}
+										isDisabled={isSubmitting || !tagName.trim() || !selectedUsageType}
 									>
 										{isSubmitting ? (
 											<ButtonSpinner />

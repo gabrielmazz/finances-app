@@ -69,6 +69,7 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	lastPaymentExpenseId?: string | null;
 	lastPaymentCycle?: string | null;
 	lastPaymentDate?: Date | null;
+	lastPaymentValueInCents?: number | null;
 	isPaidForCurrentCycle?: boolean;
 };
 
@@ -401,13 +402,26 @@ export default function MandatoryExpensesListScreen() {
 					lastPaymentCycle:
 						typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
 					lastPaymentDate: normalizeDateValue(expense?.lastPaymentDate ?? null),
+					lastPaymentValueInCents:
+						typeof expense?.lastPaymentValueInCents === 'number' ? expense.lastPaymentValueInCents : null,
 				};
 			});
 
-			const expensesWithStatus = formattedExpenses.map(expense => ({
-				...expense,
-				isPaidForCurrentCycle: isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined),
-			}));
+			const expensesWithStatus = formattedExpenses.map(expense => {
+				const isPaidForCurrentCycle = isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
+				const displayValueInCents =
+					isPaidForCurrentCycle &&
+					typeof expense.lastPaymentValueInCents === 'number' &&
+					!Number.isNaN(expense.lastPaymentValueInCents)
+						? expense.lastPaymentValueInCents
+						: expense.valueInCents;
+
+				return {
+					...expense,
+					isPaidForCurrentCycle,
+					displayValueInCents,
+				};
+			});
 
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
@@ -869,7 +883,7 @@ export default function MandatoryExpensesListScreen() {
 																						fontWeight: '700',
 																					}}
 																				>
-																					{formatCurrencyBRL(expense.valueInCents)}
+																					{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
 																				</Text>
 																				<HStack className="mt-1 items-center gap-1">
 																					<Icon
@@ -948,7 +962,7 @@ export default function MandatoryExpensesListScreen() {
 																						Valor
 																					</Text>
 																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																						{formatCurrencyBRL(expense.valueInCents)}
+																						{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
 																					</Heading>
 																				</VStack>
 																			</HStack>

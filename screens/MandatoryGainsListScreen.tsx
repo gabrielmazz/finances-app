@@ -63,6 +63,7 @@ type MandatoryGainItem = DateCalendarItem & {
 	lastReceiptGainId?: string | null;
 	lastReceiptCycle?: string | null;
 	lastReceiptDate?: Date | null;
+	lastReceiptValueInCents?: number | null;
 	isReceivedForCurrentCycle?: boolean;
 };
 
@@ -404,13 +405,26 @@ export default function MandatoryGainsListScreen() {
 					lastReceiptGainId: typeof gain?.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null,
 					lastReceiptCycle: typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
 					lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
+					lastReceiptValueInCents:
+						typeof gain?.lastReceiptValueInCents === 'number' ? gain.lastReceiptValueInCents : null,
 				};
 			});
 
-			const gainsWithStatus = formattedGains.map(gain => ({
-				...gain,
-				isReceivedForCurrentCycle: isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined),
-			}));
+			const gainsWithStatus = formattedGains.map(gain => {
+				const isReceivedForCurrentCycle = isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
+				const displayValueInCents =
+					isReceivedForCurrentCycle &&
+					typeof gain.lastReceiptValueInCents === 'number' &&
+					!Number.isNaN(gain.lastReceiptValueInCents)
+						? gain.lastReceiptValueInCents
+						: gain.valueInCents;
+
+				return {
+					...gain,
+					isReceivedForCurrentCycle,
+					displayValueInCents,
+				};
+			});
 
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
@@ -867,7 +881,7 @@ export default function MandatoryGainsListScreen() {
 																						fontWeight: '700',
 																					}}
 																				>
-																					{formatCurrencyBRL(gain.valueInCents)}
+																					{formatCurrencyBRL(gain.displayValueInCents ?? gain.valueInCents)}
 																				</Text>
 																				<HStack className="mt-1 items-center gap-1">
 																					<Icon
@@ -946,7 +960,7 @@ export default function MandatoryGainsListScreen() {
 																						Valor
 																					</Text>
 																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																						{formatCurrencyBRL(gain.valueInCents)}
+																						{formatCurrencyBRL(gain.displayValueInCents ?? gain.valueInCents)}
 																					</Heading>
 																				</VStack>
 																			</HStack>

@@ -66,6 +66,12 @@ import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFireb
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
+import {
+	isTagVisibleInRegularUsageList,
+	normalizeTagUsageType,
+	tagSupportsUsage,
+	type TagUsageType,
+} from '@/utils/tagUsage';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
@@ -78,7 +84,7 @@ import { Divider } from '@/components/ui/divider';
 type OptionItem = {
 	id: string;
 	name: string;
-	usageType?: 'expense' | 'gain';
+	usageType?: TagUsageType;
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
@@ -556,17 +562,63 @@ export default function AddRegisterGainScreen() {
 		});
 	}, [banks, gainName, isBankSelectionRequired, isDarkMode, selectedBankId, selectedMovementBankName, templateData?.bankName]);
 
+	React.useEffect(() => {
+		if (!templateData) {
+			setHasAppliedTemplate(false);
+		}
+	}, [templateData]);
+
+	// Mantém o fluxo documentado em Arquitetura/Transações de Receitas.md e Arquitetura/Navegação.md:
+	// após salvar uma nova receita, o usuário continua na própria tela e o contexto do template é descartado.
+	const resetFormAfterCreate = React.useCallback(() => {
+		Keyboard.dismiss();
+		lastFocusedInputKey.current = null;
+		setGainName('');
+		setGainValueDisplay('');
+		setGainValueCents(null);
+		setGainDate(formatDateToBR(new Date()));
+		setSelectedTagId(null);
+		setSelectedBankId(null);
+		setPaymentFormat([]);
+		setExplanationGain(null);
+		setMoneyFormat(false);
+		setSelectedMovementTagName(null);
+		setSelectedMovementTagIcon(null);
+		setSelectedMovementBankName(null);
+		scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+		router.replace('/add-register-gain');
+	}, []);
+
+	const handleLeaveScreen = React.useCallback(() => {
+		Keyboard.dismiss();
+
+		if (linkedMandatoryGainId) {
+			router.dismissTo('/mandatory-gains');
+			return;
+		}
+
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+
+		router.replace({
+			pathname: '/home',
+			params: { tab: '0' },
+		});
+	}, [linkedMandatoryGainId]);
+
 	useFocusEffect(
 		React.useCallback(() => {
 			const handleBackPress = () => {
-				router.replace('/home?tab=0');
+				handleLeaveScreen();
 				return true;
 			};
 			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
 			return () => {
 				subscription.remove();
 			};
-		}, []),
+		}, [handleLeaveScreen]),
 	);
 
 	const handleRadioMoneyFormatChange = React.useCallback(
@@ -667,26 +719,22 @@ export default function AddRegisterGainScreen() {
 
 					if (tagsResult.success && Array.isArray(tagsResult.data)) {
 						const formattedTags = tagsResult.data
-							.filter((tag: any) => {
-								const usageType = typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-								const isMandatoryGain = Boolean(tag?.isMandatoryGain);
-								const showInBothLists = Boolean(tag?.showInBothLists);
-								return (
-									(usageType === 'gain' || usageType === undefined || usageType === null) &&
-									(!isMandatoryGain || showInBothLists)
-								);
-							})
+							.filter((tag: any) =>
+								isTagVisibleInRegularUsageList(tag, 'gain', {
+									allowUndefinedUsageType: true,
+								}),
+							)
 							.map((tag: any) => ({
 								id: tag.id,
 								name: tag.name,
-								usageType: typeof tag?.usageType === 'string' ? tag.usageType : undefined,
+								usageType: normalizeTagUsageType(tag?.usageType),
 								iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
 								iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
 								iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
 							}));
 						const pendingCreatedTag = peekPendingCreatedTag();
 						const matchingPendingTag =
-							pendingCreatedTag?.usageType === 'gain'
+							pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'gain')
 								? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
 								: null;
 
@@ -936,7 +984,6 @@ export default function AddRegisterGainScreen() {
 				}
 
 				showSuccessfulGainNotification(true);
-				router.replace('/home?tab=0');
 				return;
 			}
 
@@ -1003,7 +1050,7 @@ export default function AddRegisterGainScreen() {
 			}
 
 			showSuccessfulGainNotification();
-			router.replace('/home?tab=0');
+			resetFormAfterCreate();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showNotifierAlert({
@@ -1016,26 +1063,27 @@ export default function AddRegisterGainScreen() {
 		} finally {
 			setIsSubmitting(false);
 		}
-	}, [
-		editingGainId,
-		explanationGain,
-		gainDate,
-		gainName,
-		moneyFormat,
-		gainValueCents,
-		isEditing,
-		linkedMandatoryGainId,
-		paymentFormat,
-		selectedBankId,
-		selectedTagId,
-		pendingInvestmentAdjustment,
-		isDarkMode,
-		isBankSelectionLocked,
-		shouldShowPaymentFormatSelection,
-		templateData,
-		parsedGainDate,
-		showSuccessfulGainNotification,
-	]);
+		}, [
+			editingGainId,
+			explanationGain,
+			gainDate,
+			gainName,
+			moneyFormat,
+			gainValueCents,
+			isEditing,
+			linkedMandatoryGainId,
+			paymentFormat,
+			selectedBankId,
+			selectedTagId,
+			pendingInvestmentAdjustment,
+			isDarkMode,
+			isBankSelectionLocked,
+			shouldShowPaymentFormatSelection,
+			templateData,
+			parsedGainDate,
+			showSuccessfulGainNotification,
+			resetFormAfterCreate,
+		]);
 
 	React.useEffect(() => {
 		if (!editingGainId) {
@@ -1352,7 +1400,7 @@ export default function AddRegisterGainScreen() {
 										triggerClassName={fieldContainerClassName}
 										inputClassName={inputField}
 										placeholder="Selecione a data do ganho"
-										isDisabled={isFormBusy}
+										isDisabled={isFormBusy || gainValueCents === null || gainValueCents === 0 || gainName.trim().length === 0}
 									/>
 								</VStack>
 
@@ -1601,6 +1649,7 @@ export default function AddRegisterGainScreen() {
 													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
 														<SelectInput
 															placeholder="Selecione o banco vinculado"
+															value={selectedBankLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />
@@ -1689,6 +1738,7 @@ export default function AddRegisterGainScreen() {
 													>
 														<SelectInput
 															placeholder="Selecione a categoria do ganho"
+															value={selectedTagLabel ?? ''}
 															className={inputField}
 														/>
 														<SelectIcon />
