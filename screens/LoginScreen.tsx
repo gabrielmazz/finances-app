@@ -8,7 +8,6 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
-	findNodeHandle,
 } from 'react-native';
 
 import {
@@ -51,6 +50,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 // Canal padronizado de alertas in-app conforme [[Notificações]]
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type FocusableInputKey = 'email' | 'password';
 
@@ -102,14 +102,11 @@ export default function LoginScreen() {
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [keyboardHeight, setKeyboardHeight] = useState(0);
 	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
 	const [clockTick, setClockTick] = useState(Date.now());
 
-	const scrollViewRef = useRef<ScrollView | null>(null);
 	const emailInputRef = useRef<any>(null);
 	const passwordInputRef = useRef<any>(null);
-	const lastFocusedInputKey = useRef<FocusableInputKey | null>(null);
 
 	const normalizedEmail = useMemo(() => normalizeEmailForAuth(email), [email]);
 	const loginCooldownRemainingMs = useMemo(
@@ -125,11 +122,6 @@ export default function LoginScreen() {
 		[]
 	);
 
-	const contentBottomPadding = useMemo(
-		() => (keyboardHeight > 0 ? keyboardHeight + 24 : 24),
-		[keyboardHeight]
-	);
-
 	const handleDismissKeyboard = useCallback(() => Keyboard.dismiss(), []);
 
 	const getInputRef = useCallback((key: FocusableInputKey) => {
@@ -143,6 +135,19 @@ export default function LoginScreen() {
 		}
 	}, []);
 
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+		minBottomPadding: 24,
+		bottomPaddingOffset: 24,
+	});
+
 	const syncCooldownForEmail = useCallback(async (emailValue: string) => {
 		if (!emailValue) {
 			setLoginCooldownUntil(null);
@@ -152,48 +157,6 @@ export default function LoginScreen() {
 		const status = await getLoginThrottleStatus(emailValue);
 		setLoginCooldownUntil(status.blockedUntil);
 	}, []);
-
-	const scrollToInput = useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x: number, y: number) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - offset),
-							animated: true,
-						}),
-					() => {}
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset]
-	);
-
-	const handleInputFocus = useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput]
-	);
 
 	const handleEmailChange = useCallback((value: string) => {
 		setEmail(clampEmailInput(value));
@@ -346,28 +309,6 @@ export default function LoginScreen() {
 		}
 	}, [clockTick, loginCooldownUntil]);
 
-	useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
 	const derivedCooldownMessage = isLocallyRateLimited
 		? `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
 				loginCooldownRemainingMs
@@ -402,6 +343,8 @@ export default function LoginScreen() {
 						keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
 						keyboardShouldPersistTaps="handled"
 						showsVerticalScrollIndicator={false}
+						onScroll={handleScroll}
+						scrollEventThrottle={scrollEventThrottle}
 					>
 						<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 							<View className={`w-full h-1/4 ${cardBackground}`}>

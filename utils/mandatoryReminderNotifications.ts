@@ -1,12 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import type { NotificationPermissionsStatus, SchedulableNotificationTriggerInput } from 'expo-notifications';
+import type {
+	NotificationContentInput,
+	NotificationPermissionsStatus,
+	SchedulableNotificationTriggerInput,
+} from 'expo-notifications';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
+import {
+	ensureMandatoryReminderNotificationChannel,
+	ensureMandatoryReminderNotificationChannels,
+	getMandatoryReminderChannelConfig,
+	getNotificationsModule,
+	warnNotificationsUnavailable,
+	type MandatoryReminderKind,
+	type NotificationsModule,
+} from '@/utils/localNotifications';
 
-type NotificationsModule = typeof import('expo-notifications');
-
-export type MandatoryReminderKind = 'expense' | 'gain';
+export type { MandatoryReminderKind } from '@/utils/localNotifications';
 
 export type MandatoryReminderPermissionResult =
 	| { granted: true }
@@ -52,10 +62,7 @@ type ReminderStorageMap = Record<string, ReminderStorageEntry>;
 
 const STORAGE_KEY = '@mandatoryReminderNotifications';
 
-let cachedNotificationsModule: NotificationsModule | null = null;
-let hasWarnedUnavailableEnvironment = false;
-
-const BUSINESS_DAY_SCHEDULE_WINDOW_MONTHS = 12;
+const DATE_SCHEDULE_WINDOW_MONTHS = 12;
 
 const normalizeDay = (value: number) => Math.min(Math.max(Math.trunc(value) || 1, 1), 31);
 const normalizeHour = (value: number) => Math.min(Math.max(Math.trunc(value) || 0, 0), 23);
@@ -69,65 +76,6 @@ const normalizeDescription = (value?: string | null) => {
 
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : null;
-};
-
-const isExpoGoEnvironment = Constants.appOwnership === 'expo' || Boolean(Constants.expoGoConfig);
-
-const isNotificationsEnvironmentSupported = () => {
-	if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
-		return false;
-	}
-
-	if (isExpoGoEnvironment) {
-		return false;
-	}
-
-	return true;
-};
-
-const warnNotificationsUnavailable = () => {
-	if (hasWarnedUnavailableEnvironment) {
-		return;
-	}
-
-	hasWarnedUnavailableEnvironment = true;
-	console.warn(
-		'Os lembretes obrigatórios não podem ser agendados no Expo Go. Use um build de desenvolvimento ou produção para testar notificações.',
-	);
-};
-
-const getNotificationsModule = (): NotificationsModule | null => {
-	if (!isNotificationsEnvironmentSupported()) {
-		return null;
-	}
-
-	if (!cachedNotificationsModule) {
-		try {
-			// eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-			cachedNotificationsModule = require('expo-notifications');
-		} catch (error) {
-			console.error('Não foi possível carregar o módulo expo-notifications:', error);
-			return null;
-		}
-	}
-
-	return cachedNotificationsModule;
-};
-
-const getChannelConfig = (kind: MandatoryReminderKind) => {
-	if (kind === 'expense') {
-		return {
-			id: 'mandatory-expenses',
-			name: 'Gastos obrigatórios',
-			description: 'Lembretes para os gastos obrigatórios cadastrados.',
-		};
-	}
-
-	return {
-		id: 'mandatory-gains',
-		name: 'Ganhos obrigatórios',
-		description: 'Lembretes para os ganhos obrigatórios cadastrados.',
-	};
 };
 
 const buildReminderContent = ({
@@ -180,6 +128,11 @@ const buildReminderFingerprint = ({
 	JSON.stringify({
 		kind,
 		templateId,
+		channelId: getMandatoryReminderChannelConfig(kind).id,
+		scheduleStrategy:
+			Platform.OS === 'android' || normalizeUsesBusinessDays(usesBusinessDays)
+				? `date-window-v2:${DATE_SCHEDULE_WINDOW_MONTHS}`
+				: 'repeating-calendar-v2',
 		name: normalizeName(name),
 		dueDay: normalizeDay(dueDay),
 		usesBusinessDays: normalizeUsesBusinessDays(usesBusinessDays),
@@ -258,6 +211,8 @@ const requestNotificationPermission = async () => {
 		return false;
 	}
 
+	await ensureMandatoryReminderNotificationChannels();
+
 	const settings = await Notifications.requestPermissionsAsync({
 		ios: {
 			allowAlert: true,
@@ -269,26 +224,7 @@ const requestNotificationPermission = async () => {
 	return isPermissionGranted(Notifications, settings);
 };
 
-const ensureNotificationChannel = async (kind: MandatoryReminderKind) => {
-	if (Platform.OS !== 'android') {
-		return;
-	}
-
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		return;
-	}
-
-	const channel = getChannelConfig(kind);
-
-	await Notifications.setNotificationChannelAsync(channel.id, {
-		name: channel.name,
-		importance: Notifications.AndroidImportance.DEFAULT,
-		description: channel.description,
-	});
-};
-
-const buildFixedDayReminderTrigger = (
+const buildRepeatingFixedDayReminderTrigger = (
 	Notifications: NotificationsModule,
 	kind: MandatoryReminderKind,
 	dueDay: number,
@@ -298,20 +234,11 @@ const buildFixedDayReminderTrigger = (
 	const normalizedDay = normalizeDay(dueDay);
 	const normalizedHour = normalizeHour(reminderHour);
 	const normalizedMinute = normalizeMinute(reminderMinute);
-	const channelId = getChannelConfig(kind).id;
-
-	if (Platform.OS === 'android') {
-		return {
-			type: Notifications.SchedulableTriggerInputTypes.MONTHLY,
-			channelId,
-			day: normalizedDay,
-			hour: normalizedHour,
-			minute: normalizedMinute,
-		};
-	}
+	const channelId = getMandatoryReminderChannelConfig(kind).id;
 
 	return {
 		type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+		channelId,
 		repeats: true,
 		day: normalizedDay,
 		hour: normalizedHour,
@@ -320,13 +247,15 @@ const buildFixedDayReminderTrigger = (
 	};
 };
 
-const buildBusinessDayReminderDates = ({
+const buildMonthlyReminderDates = ({
 	dueDay,
+	usesBusinessDays,
 	reminderHour,
 	reminderMinute,
 	fromDate = new Date(),
 }: {
 	dueDay: number;
+	usesBusinessDays?: boolean;
 	reminderHour: number;
 	reminderMinute: number;
 	fromDate?: Date;
@@ -334,11 +263,11 @@ const buildBusinessDayReminderDates = ({
 	const dates: Date[] = [];
 	const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 12, 0, 0, 0);
 
-	while (dates.length < BUSINESS_DAY_SCHEDULE_WINDOW_MONTHS) {
+	while (dates.length < DATE_SCHEDULE_WINDOW_MONTHS) {
 		const resolvedOccurrence = resolveMonthlyOccurrence({
 			referenceDate: cursor,
 			dueDay,
-			usesBusinessDays: true,
+			usesBusinessDays,
 		});
 		const triggerAt = new Date(
 			resolvedOccurrence.date.getFullYear(),
@@ -359,6 +288,33 @@ const buildBusinessDayReminderDates = ({
 
 	return dates;
 };
+
+const buildReminderContentInput = ({
+	Notifications,
+	kind,
+	templateId,
+	dueDay,
+	usesBusinessDays,
+	content,
+}: {
+	Notifications: NotificationsModule;
+	kind: MandatoryReminderKind;
+	templateId: string;
+	dueDay: number;
+	usesBusinessDays: boolean;
+	content: ReturnType<typeof buildReminderContent>;
+}): NotificationContentInput => ({
+	title: content.title,
+	body: content.body,
+	sound: true,
+	priority: Platform.OS === 'android' ? Notifications.AndroidNotificationPriority.HIGH : undefined,
+	data: {
+		templateId,
+		kind,
+		dueDay: normalizeDay(dueDay),
+		usesBusinessDays,
+	},
+});
 
 const getScheduledNotificationIdSet = async (Notifications: NotificationsModule) => {
 	const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
@@ -423,7 +379,7 @@ const scheduleReminderNotificationInternal = async ({
 	Notifications: NotificationsModule;
 	map: ReminderStorageMap;
 }): Promise<MandatoryReminderScheduleResult> => {
-	await ensureNotificationChannel(kind);
+	await ensureMandatoryReminderNotificationChannel(kind);
 
 	const content = buildReminderContent({ kind, name, description });
 	const storageKey = buildReminderStorageKey(kind, templateId);
@@ -432,9 +388,10 @@ const scheduleReminderNotificationInternal = async ({
 	const schedules: ReminderScheduledOccurrence[] = [];
 	let nextTriggerAt: Date | null = null;
 
-	if (normalizedUsesBusinessDays) {
-		const triggerDates = buildBusinessDayReminderDates({
+	if (Platform.OS === 'android' || normalizedUsesBusinessDays) {
+		const triggerDates = buildMonthlyReminderDates({
 			dueDay,
+			usesBusinessDays: normalizedUsesBusinessDays,
 			reminderHour,
 			reminderMinute,
 		});
@@ -449,19 +406,18 @@ const scheduleReminderNotificationInternal = async ({
 
 		for (const triggerDate of triggerDates) {
 			const notificationId = await Notifications.scheduleNotificationAsync({
-				content: {
-					title: content.title,
-					body: content.body,
-					data: {
-						templateId,
-						kind,
-						dueDay: normalizeDay(dueDay),
-						usesBusinessDays: true,
-					},
-				},
+				content: buildReminderContentInput({
+					Notifications,
+					kind,
+					templateId,
+					dueDay,
+					usesBusinessDays: normalizedUsesBusinessDays,
+					content,
+				}),
 				trigger: {
 					type: Notifications.SchedulableTriggerInputTypes.DATE,
 					date: triggerDate,
+					channelId: getMandatoryReminderChannelConfig(kind).id,
 				},
 			});
 
@@ -473,7 +429,7 @@ const scheduleReminderNotificationInternal = async ({
 
 		nextTriggerAt = triggerDates[0] ?? null;
 	} else {
-		const trigger = buildFixedDayReminderTrigger(Notifications, kind, dueDay, reminderHour, reminderMinute);
+		const trigger = buildRepeatingFixedDayReminderTrigger(Notifications, kind, dueDay, reminderHour, reminderMinute);
 		const nextTriggerTimestamp = await Notifications.getNextTriggerDateAsync(trigger);
 
 		if (nextTriggerTimestamp === null) {
@@ -485,16 +441,14 @@ const scheduleReminderNotificationInternal = async ({
 		}
 
 		const notificationId = await Notifications.scheduleNotificationAsync({
-			content: {
-				title: content.title,
-				body: content.body,
-				data: {
-					templateId,
-					kind,
-					dueDay: normalizeDay(dueDay),
-					usesBusinessDays: false,
-				},
-			},
+			content: buildReminderContentInput({
+				Notifications,
+				kind,
+				templateId,
+				dueDay,
+				usesBusinessDays: false,
+				content,
+			}),
 			trigger,
 		});
 

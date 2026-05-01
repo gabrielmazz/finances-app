@@ -9,8 +9,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 import Loader from '@/components/uiverse/loader';
 import '@/global.css';
+
+void bootstrapLocalNotifications();
 
 const AuthBootstrapScreen = () => {
 	const { isDarkMode } = useAppTheme();

@@ -1,7 +1,11 @@
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTransaction, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
+import {
+	normalizeMandatoryInstallmentTotal,
+	normalizeMandatoryInstallmentsCompleted,
+} from '@/utils/mandatoryInstallments';
 
 interface AddMandatoryGainParams {
 	name: string;
@@ -14,6 +18,7 @@ interface AddMandatoryGainParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	installmentTotal?: number | null;
 }
 
 interface UpdateMandatoryGainParams {
@@ -27,6 +32,8 @@ interface UpdateMandatoryGainParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	installmentTotal?: number | null;
+	installmentsCompleted?: number;
 }
 
 interface MarkMandatoryGainReceiptParams {
@@ -37,6 +44,18 @@ interface MarkMandatoryGainReceiptParams {
 
 const MANDATORY_GAINS_COLLECTION = 'mandatoryGains';
 const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
+
+const buildMandatoryInstallmentFields = (installmentTotal: number | null | undefined, installmentsCompleted = 0) => {
+	const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+
+	return {
+		installmentTotal: normalizedInstallmentTotal,
+		installmentsCompleted:
+			normalizedInstallmentTotal === null
+				? 0
+				: normalizeMandatoryInstallmentsCompleted(installmentsCompleted, normalizedInstallmentTotal),
+	};
+};
 
 const chunkDocumentIds = (ids: string[]) =>
 	Array.from({ length: Math.ceil(ids.length / LINKED_MOVEMENTS_QUERY_LIMIT) }, (_, index) =>
@@ -54,9 +73,11 @@ export async function addMandatoryGainFirebase({
 	reminderEnabled = true,
 	reminderHour = 9,
 	reminderMinute = 0,
+	installmentTotal = null,
 }: AddMandatoryGainParams) {
 	try {
 		const mandatoryGainRef = doc(collection(db, MANDATORY_GAINS_COLLECTION));
+		const installmentFields = buildMandatoryInstallmentFields(installmentTotal);
 
 		await setDoc(mandatoryGainRef, {
 			name,
@@ -69,6 +90,7 @@ export async function addMandatoryGainFirebase({
 			reminderEnabled,
 			reminderHour,
 			reminderMinute,
+			...installmentFields,
 			lastReceiptGainId: null,
 			lastReceiptCycle: null,
 			lastReceiptDate: null,
@@ -94,6 +116,8 @@ export async function updateMandatoryGainFirebase({
 	reminderEnabled,
 	reminderHour,
 	reminderMinute,
+	installmentTotal,
+	installmentsCompleted,
 }: UpdateMandatoryGainParams) {
 	try {
 		const mandatoryGainRef = doc(db, MANDATORY_GAINS_COLLECTION, gainTemplateId);
@@ -135,6 +159,21 @@ export async function updateMandatoryGainFirebase({
 
 		if (typeof reminderMinute === 'number') {
 			updates.reminderMinute = reminderMinute;
+		}
+
+		if (installmentTotal !== undefined) {
+			const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+			updates.installmentTotal = normalizedInstallmentTotal;
+			if (normalizedInstallmentTotal === null) {
+				updates.installmentsCompleted = 0;
+			} else if (typeof installmentsCompleted === 'number') {
+				updates.installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+					installmentsCompleted,
+					normalizedInstallmentTotal,
+				);
+			}
+		} else if (typeof installmentsCompleted === 'number') {
+			updates.installmentsCompleted = Math.max(0, Math.floor(installmentsCompleted));
 		}
 
 		await setDoc(mandatoryGainRef, updates, { merge: true });
@@ -257,16 +296,34 @@ export async function markMandatoryGainReceiptFirebase({
 }: MarkMandatoryGainReceiptParams) {
 	try {
 		const gainTemplateRef = doc(db, MANDATORY_GAINS_COLLECTION, gainTemplateId);
-		await setDoc(
-			gainTemplateRef,
-			{
-				lastReceiptGainId: receiptGainId,
-				lastReceiptDate: receiptDate,
-				lastReceiptCycle: getCycleKeyFromDate(receiptDate),
-				updatedAt: new Date(),
-			},
-			{ merge: true },
-		);
+		const receiptCycle = getCycleKeyFromDate(receiptDate);
+
+		await runTransaction(db, async transaction => {
+			const gainSnapshot = await transaction.get(gainTemplateRef);
+			const data = gainSnapshot.exists() ? gainSnapshot.data() : {};
+			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+				data.installmentsCompleted,
+				installmentTotal,
+			);
+			const lastReceiptCycle = typeof data.lastReceiptCycle === 'string' ? data.lastReceiptCycle : null;
+			const shouldAdvanceInstallment = installmentTotal !== null && lastReceiptCycle !== receiptCycle;
+			const nextInstallmentsCompleted = shouldAdvanceInstallment
+				? Math.min(installmentsCompleted + 1, installmentTotal)
+				: installmentsCompleted;
+
+			transaction.set(
+				gainTemplateRef,
+				{
+					lastReceiptGainId: receiptGainId,
+					lastReceiptDate: receiptDate,
+					lastReceiptCycle: receiptCycle,
+					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+					updatedAt: new Date(),
+				},
+				{ merge: true },
+			);
+		});
 
 		return { success: true };
 	} catch (error) {
@@ -278,16 +335,30 @@ export async function markMandatoryGainReceiptFirebase({
 export async function clearMandatoryGainReceiptFirebase(gainTemplateId: string) {
 	try {
 		const gainTemplateRef = doc(db, MANDATORY_GAINS_COLLECTION, gainTemplateId);
-		await setDoc(
-			gainTemplateRef,
-			{
-				lastReceiptGainId: null,
-				lastReceiptDate: null,
-				lastReceiptCycle: null,
-				updatedAt: new Date(),
-			},
-			{ merge: true },
-		);
+		await runTransaction(db, async transaction => {
+			const gainSnapshot = await transaction.get(gainTemplateRef);
+			const data = gainSnapshot.exists() ? gainSnapshot.data() : {};
+			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+				data.installmentsCompleted,
+				installmentTotal,
+			);
+			const hasLinkedReceipt = typeof data.lastReceiptGainId === 'string' && data.lastReceiptGainId.length > 0;
+			const nextInstallmentsCompleted =
+				installmentTotal !== null && hasLinkedReceipt ? Math.max(0, installmentsCompleted - 1) : installmentsCompleted;
+
+			transaction.set(
+				gainTemplateRef,
+				{
+					lastReceiptGainId: null,
+					lastReceiptDate: null,
+					lastReceiptCycle: null,
+					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+					updatedAt: new Date(),
+				},
+				{ merge: true },
+			);
+		});
 
 		return { success: true };
 	} catch (error) {

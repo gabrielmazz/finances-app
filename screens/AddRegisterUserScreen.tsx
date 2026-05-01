@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     TextInput,
-    findNodeHandle,
     Pressable
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,13 +29,14 @@ import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
-import { router } from 'expo-router';
 import Navigator from '@/components/uiverse/navigator';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
 
@@ -121,12 +121,9 @@ export default function AddRegisterUserScreen() {
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const scrollViewRef = React.useRef<ScrollView | null>(null);
     const nameInputRef = React.useRef<TextInput | null>(null);
     const emailInputRef = React.useRef<TextInput | null>(null);
     const passwordInputRef = React.useRef<TextInput | null>(null);
-    const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
-    const [keyboardHeight, setKeyboardHeight] = React.useState(0);
     const keyboardScrollOffset = React.useCallback(
         (key: FocusableInputKey) => {
             if (key === 'password') {
@@ -141,6 +138,11 @@ export default function AddRegisterUserScreen() {
         },
         [],
     );
+
+    const handleBackToHome = React.useCallback(() => {
+        navigateToHomeDashboard();
+        return true;
+    }, []);
 
     const registerUser = async () => {
 
@@ -210,7 +212,7 @@ export default function AddRegisterUserScreen() {
                 setName('');
                 setEmail('');
                 setPassword('');
-                router.replace('/home?tab=0');
+                navigateToHomeDashboard();
                 return;
             }
 
@@ -254,70 +256,16 @@ export default function AddRegisterUserScreen() {
         [],
     );
 
-    const scrollToInput = React.useCallback(
-        (key: FocusableInputKey) => {
-            const inputRef = getInputRef(key);
-            if (!inputRef?.current) {
-                return;
-            }
-
-            const nodeHandle = findNodeHandle(inputRef.current);
-            const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-            const offset = keyboardScrollOffset(key);
-
-            if (scrollResponder && nodeHandle) {
-                scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-                return;
-            }
-
-            const scrollViewNode = scrollViewRef.current;
-            const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-            if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-                inputRef.current.measureLayout(
-                    innerViewNode,
-                    (_x, y) =>
-                        scrollViewNode.scrollTo({
-                            y: Math.max(0, y - keyboardScrollOffset(key)),
-                            animated: true,
-                        }),
-                    () => { },
-                );
-            }
-        },
-        [getInputRef, keyboardScrollOffset],
-    );
-
-    const handleInputFocus = React.useCallback(
-        (key: FocusableInputKey) => {
-            lastFocusedInputKey.current = key;
-            scrollToInput(key);
-        },
-        [scrollToInput],
-    );
-
-    React.useEffect(() => {
-        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-        const showSub = Keyboard.addListener(showEvent, e => {
-            setKeyboardHeight(e.endCoordinates?.height ?? 0);
-            const focusedKey = lastFocusedInputKey.current;
-            if (focusedKey) {
-                setTimeout(() => {
-                    scrollToInput(focusedKey);
-                }, 50);
-            }
-        });
-        const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-        return () => {
-            showSub.remove();
-            hideSub.remove();
-        };
-    }, [scrollToInput]);
-
-    const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+    const {
+        scrollViewRef,
+        contentBottomPadding,
+        handleInputFocus,
+        handleScroll,
+        scrollEventThrottle,
+    } = useKeyboardAwareScroll<FocusableInputKey>({
+        getInputRef,
+        keyboardScrollOffset,
+    });
     const screenTitle = 'Adição de um novo usuário';
 
     return (
@@ -368,6 +316,8 @@ export default function AddRegisterUserScreen() {
                                 className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
                                 style={{ marginTop: heroHeight - 64 }}
                                 contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+                                onScroll={handleScroll}
+                                scrollEventThrottle={scrollEventThrottle}
                             >
                                 <VStack className="justify-between mt-4">
 
@@ -509,7 +459,7 @@ export default function AddRegisterUserScreen() {
                             flexShrink: 0,
                         }}
                     >
-                        <Navigator defaultValue={2} />
+                        <Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
                     </View>
 
                 </View>

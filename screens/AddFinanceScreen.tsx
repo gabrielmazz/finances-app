@@ -8,8 +8,6 @@ import {
 	StatusBar,
 	Keyboard,
 	TextInput,
-	findNodeHandle,
-	ScrollView as RNScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -58,6 +56,8 @@ import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalan
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 import { Info } from 'lucide-react-native';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
@@ -176,12 +176,9 @@ export default function AddFinanceScreen() {
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
-	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const investmentNameInputRef = React.useRef<TextInput | null>(null);
 	const initialValueInputRef = React.useRef<TextInput | null>(null);
 	const cdiInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'cdi' ? 140 : 120),
 		[],
@@ -230,70 +227,16 @@ export default function AddFinanceScreen() {
 		[],
 	);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => { },
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 	const parsedInvestmentDate = React.useMemo(() => parseDateFromBR(investmentDate), [investmentDate]);
 	const parsedCdi = React.useMemo(() => parseStringToNumber(cdiInput), [cdiInput]);
 	const hasInvestmentName = investmentName.trim().length > 0;
@@ -507,6 +450,11 @@ export default function AddFinanceScreen() {
 		}, [loadBanks]),
 	);
 
+	const handleBackToHome = React.useCallback(() => {
+		navigateToHomeDashboard();
+		return true;
+	}, []);
+
 	const handleDateSelect = React.useCallback((formatted: string) => {
 		setInvestmentDate(formatted);
 		setHasSavedOnce(false);
@@ -710,9 +658,7 @@ export default function AddFinanceScreen() {
 			setHasSavedOnce(true);
 			showScreenAlert('Investimento salvo com sucesso!', 'success');
 			resetForm();
-
-			// Após salvar conduzimos o usuário para a lista, deixando claro que tudo está separado do restante do app.
-			router.push('/financial-list');
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível salvar o investimento agora. Tente novamente.', 'error');
@@ -816,6 +762,8 @@ export default function AddFinanceScreen() {
 							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+							onScroll={handleScroll}
+							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
@@ -1019,7 +967,7 @@ export default function AddFinanceScreen() {
 				</KeyboardAvoidingView>
 
 				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
-					<Navigator defaultValue={1} />
+					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
 				</View>
 			</View>
 		</SafeAreaView>

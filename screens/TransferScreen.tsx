@@ -1,7 +1,6 @@
 import React from 'react';
 import {
 	BackHandler,
-	findNodeHandle,
 	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
@@ -9,11 +8,10 @@ import {
 	StatusBar,
 	TextInput,
 	View,
-	useWindowDimensions,
 	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import {
 	Select,
@@ -39,6 +37,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 import { HStack } from '@/components/ui/hstack';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
 	getBanksWithUsersByPersonFirebase,
@@ -57,6 +56,7 @@ import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
 import { Info } from 'lucide-react-native';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type BankOption = {
 	id: string;
@@ -147,12 +147,9 @@ export default function TransferScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [originBalanceInCents, setOriginBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
 	const previousUnavailableBalanceRef = React.useRef(false);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
 		[],
@@ -196,75 +193,21 @@ export default function TransferScreen() {
 		[],
 	);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => { },
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 
 	useFocusEffect(
 		React.useCallback(() => {
 			const handleBackPress = () => {
-				router.replace('/home?tab=0');
+				navigateToHomeDashboard();
 				return true;
 			};
 			const subscription = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
@@ -601,12 +544,7 @@ export default function TransferScreen() {
 			}
 
 			showSuccessfulTransferNotification();
-			router.replace({
-				pathname: '/home',
-				params: {
-					tab: '0',
-				},
-			});
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar transferência:', error);
 			showScreenAlert('Erro inesperado ao registrar a transferência.', 'error');
@@ -674,6 +612,8 @@ export default function TransferScreen() {
 							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+							onScroll={handleScroll}
+							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className="h-full mt-4">
 

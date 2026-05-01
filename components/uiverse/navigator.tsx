@@ -11,6 +11,7 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -87,7 +88,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				value: 0,
 				icon: 'home-outline',
 				matchPaths: ['/home'],
-				onSelect: () => router.replace('/home?tab=0'),
+				onSelect: () => navigateToHomeDashboard(),
 			},
 		],
 	},

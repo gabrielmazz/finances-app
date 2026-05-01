@@ -8,8 +8,6 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	TextInput,
-	findNodeHandle,
-	useWindowDimensions,
 	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,12 +30,13 @@ import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/
 import Navigator from '@/components/uiverse/navigator';
 
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import { router } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
@@ -71,10 +70,7 @@ export default function AddUserRelationScreen() {
 
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const relatedUserInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	const showScreenAlert = React.useCallback(
@@ -87,6 +83,11 @@ export default function AddUserRelationScreen() {
 		},
 		[isDarkMode],
 	);
+
+	const handleBackToHome = React.useCallback(() => {
+		navigateToHomeDashboard();
+		return true;
+	}, []);
 
 	const handleLinkUsers = React.useCallback(async () => {
 
@@ -153,7 +154,7 @@ export default function AddUserRelationScreen() {
 
 				setRelatedUserId('');
 				Keyboard.dismiss();
-				router.replace('/home?tab=0');
+				navigateToHomeDashboard();
 
 			} else {
 
@@ -182,70 +183,16 @@ export default function AddUserRelationScreen() {
 		}
 	}, []);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => {},
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 	const screenTitle = 'Vincular usuário';
 
 	return (
@@ -296,6 +243,8 @@ export default function AddUserRelationScreen() {
 						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 						style={{ marginTop: heroHeight - 64 }}
 						contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+						onScroll={handleScroll}
+						scrollEventThrottle={scrollEventThrottle}
 					>
 						<VStack className="justify-between mt-4">
 
@@ -367,7 +316,7 @@ export default function AddUserRelationScreen() {
 					flexShrink: 0,
 				}}
 			>
-				<Navigator defaultValue={2} />
+				<Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
 			</View>
 		</View>
 		</SafeAreaView>

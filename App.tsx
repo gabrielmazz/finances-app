@@ -1,36 +1,13 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { ExpoRoot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-
-Notifications.setNotificationHandler({
-	handleNotification: async () => ({
-		shouldShowAlert: true,
-		shouldPlaySound: false,
-		shouldSetBadge: false,
-		shouldShowBanner: true,
-		shouldShowList: true,
-	}),
-});
+import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 
 export default function App() {
 	
 	React.useEffect(() => {
-		if (Platform.OS === 'android') {
-			void Notifications.setNotificationChannelAsync('mandatory-expenses', {
-				name: 'Gastos obrigatórios',
-				importance: Notifications.AndroidImportance.DEFAULT,
-				description: 'Lembretes para os gastos obrigatórios cadastrados.',
-			});
-
-			void Notifications.setNotificationChannelAsync('mandatory-gains', {
-				name: 'Ganhos obrigatórios',
-				importance: Notifications.AndroidImportance.DEFAULT,
-				description: 'Lembretes para os ganhos obrigatórios cadastrados.',
-			});
-		}
+		void bootstrapLocalNotifications();
 	}, []);
 
 	

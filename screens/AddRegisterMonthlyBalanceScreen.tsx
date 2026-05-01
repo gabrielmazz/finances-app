@@ -1,7 +1,6 @@
 import React from 'react';
 import {
 	BackHandler,
-	findNodeHandle,
 	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
@@ -13,7 +12,7 @@ import {
 	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import {
 	Select,
@@ -38,6 +37,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import {
@@ -51,6 +51,7 @@ import { Info } from 'lucide-react-native';
 
 import AddRegisterMonthlyBalanceScreenIllustration from '../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -138,12 +139,9 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		[balanceDisplay, balanceValueInCents],
 	);
 
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const monthReferenceInputRef = React.useRef<TextInput | null>(null);
 	const balanceInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
 	const lastLookupNotificationKeyRef = React.useRef<string | null>(null);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'balance' ? 140 : 120),
@@ -164,78 +162,21 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		[],
 	);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => {},
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(
-		() => Math.max(140, keyboardHeight + 120),
-		[keyboardHeight],
-	);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 
 	useFocusEffect(
 		React.useCallback(() => {
 			const handleBackPress = () => {
-				router.replace('/home?tab=0');
+				navigateToHomeDashboard();
 				return true;
 			};
 
@@ -541,10 +482,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			setExistingBalanceId(response.id);
 			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
 			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
-
-			if (isUpdating) {
-				router.replace('/home?tab=0');
-			}
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showNotifierAlert({
@@ -638,6 +576,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								contentContainerStyle={{
 									paddingBottom: Math.max(32, contentBottomPadding - 108),
 								}}
+								onScroll={handleScroll}
+								scrollEventThrottle={scrollEventThrottle}
 							>
 								<VStack className="justify-between mt-4">
 									<VStack className="mb-4">
