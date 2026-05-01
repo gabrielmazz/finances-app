@@ -208,7 +208,10 @@ O projeto usa **dois apps Firebase** inicializados:
 - Ao criar um banco novo, **deve-se registrar um MonthlyBalance inicial**
 
 ### Notificações Push
-- Detectar ambiente antes de agendar: Expo Go tem limitações
+- Detectar ambiente antes de carregar/agendar `expo-notifications`: Expo Go tem limitações
+- Inicializações obrigatórias de notificações devem partir de `app/_layout.tsx`/`utils/localNotifications.ts`, porque o `main` atual usa `expo-router/entry`
+- Android usa canais versionados `mandatory-expenses-v2` e `mandatory-gains-v2` com alta prioridade; mudar canais exige invalidar fingerprint para reidratar agendas antigas
+- Em Android, preferir janelas de notificações `DATE` concretas para recorrências mensais; não depender do trigger mensal nativo para dias 29/30/31
 - Notificações são locais (sem servidor) — reinstalar app as apaga
 - Alterações em `app.json` para `expo-notifications` exigem novo build nativo
 - Em Android, não tentar validar lembretes obrigatórios no Expo Go; usar build de desenvolvimento/produção
@@ -233,11 +236,19 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-04-07.
+> Atualizado em 2026-04-30.
 
+- Formulários com inputs editáveis passaram a usar `hooks/useKeyboardAwareScroll.ts` para manter campos de texto/número acima do teclado; modais de edição em `screens/FinancialListScreen.tsx`, `screens/BankMovementsScreen.tsx` e a busca de ícones em `screens/AddRegisterTagScreen.tsx` foram protegidos com `KeyboardAvoidingView` e área rolável própria, com vault alinhado em `Arquitetura/Hooks Customizados.md` e `Arquitetura/Componentes UI.md`.
+- `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` agora reforçam a rolagem de todos os inputs textuais acima do teclado, incluindo quantidade de parcelas, observações e horário do lembrete; vault alinhado em `Arquitetura/Despesas Fixas.md` e `Arquitetura/Receitas Fixas.md`.
+- `screens/MandatoryGainsListScreen.tsx` e `screens/MandatoryExpensesListScreen.tsx` agora exibem resumo mensal do ciclo corrente e permitem baixar PDF local via `expo-print`/`expo-sharing`; `utils/mandatoryPeriodSummaryPdf.ts` centraliza o HTML do relatório e o vault foi alinhado em `Arquitetura/Receitas Fixas.md` e `Arquitetura/Despesas Fixas.md`.
+- Parcelamento opcional implementado em `screens/AddMandatoryExpensesScreen.tsx`, `screens/AddMandatoryGainsScreen.tsx`, `screens/MandatoryExpensesListScreen.tsx` e `screens/MandatoryGainsListScreen.tsx`: templates obrigatórios agora podem salvar `installmentTotal`/`installmentsCompleted`, avançam uma parcela ao registrar o ciclo em `functions/MandatoryExpenseFirebase.ts` e `functions/MandatoryGainFirebase.ts`, exibem `Parcela X de Y` na timeline/calendário via `utils/mandatoryInstallments.ts` e bloqueiam novos registros após a última parcela; vault alinhado em `Arquitetura/Despesas Fixas.md` e `Arquitetura/Receitas Fixas.md`.
+- Sistema de notificações corrigido para o entry real `expo-router/entry`: `app/_layout.tsx` chama `utils/localNotifications.ts`, os canais Android migraram para `mandatory-expenses-v2`/`mandatory-gains-v2` com alta prioridade e `utils/mandatoryReminderNotifications.ts` agenda uma janela de 12 datas concretas no Android para evitar falhas do trigger mensal nativo.
+- Categorias em `screens/AddRegisterGainScreen.tsx`, `screens/AddRegisterExpensesScreen.tsx`, `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` agora usam `components/uiverse/tag-actionsheet-selector.tsx`, substituindo o menu padrão do Android por ActionSheet estilizado com ícone, nome e estado selecionado; vault alinhado em tags, transações e recorrências.
+- `screens/BankMovementsScreen.tsx` agora permite baixar um PDF estilizado do resumo filtrado do período, usando `expo-print` e `expo-sharing`; a documentação foi alinhada em `Arquitetura/Gerenciamento de Bancos.md` e `Arquitetura/Privacidade de Valores.md`.
+- Fluxo de retorno pós-submit centralizado em `utils/navigation.ts`: telas de criação/edição de registros financeiros e administrativos agora retornam para `/home?tab=0` com `router.dismissTo`, evitando empilhamento indefinido e uso de `router.back()` após salvar.
 - Timeline e calendário de `screens/MandatoryGainsListScreen.tsx` e `screens/MandatoryExpensesListScreen.tsx` agora exibem o valor previsto apenas antes da efetivação do ciclo; após registrar o mês, passam a mostrar o valor real da transação vinculada, com enriquecimento em `functions/MandatoryGainFirebase.ts` e `functions/MandatoryExpenseFirebase.ts` e renderização via `displayValueInCents` em `components/uiverse/date-calendar.tsx`.
-- Fluxo pós-submit de `screens/AddRegisterGainScreen.tsx` e `screens/AddRegisterExpensesScreen.tsx` ajustado para manter o usuário na própria tela após novos registros, limpando o formulário e removendo parâmetros de template para evitar redirecionamentos incorretos.
-- Documentação do vault atualizada em `Arquitetura/Transações de Receitas.md`, `Arquitetura/Transações de Despesas.md` e `Arquitetura/Navegação.md` para refletir o novo comportamento de navegação.
+- Fluxo pós-submit de `screens/AddRegisterGainScreen.tsx` e `screens/AddRegisterExpensesScreen.tsx` ajustado para voltar à Home após novos registros e edições, incluindo fluxos derivados de recorrências e investimentos.
+- Documentação do vault atualizada em `Arquitetura/Navegação.md`, `Arquitetura/Transações de Receitas.md`, `Arquitetura/Transações de Despesas.md`, `Arquitetura/Balanço Mensal.md`, `Arquitetura/Gerenciamento de Bancos.md`, `Arquitetura/Investimentos.md`, `Arquitetura/Transferências.md`, `Arquitetura/Resgate de Caixa.md`, `Arquitetura/Despesas Fixas.md`, `Arquitetura/Receitas Fixas.md`, `Arquitetura/Gerenciamento de Tags.md`, `Arquitetura/Gerenciamento de Usuários.md` e `Arquitetura/Configurações.md` para refletir o retorno seguro para a Home.
 - Padronização do seletor de categoria obrigatória nas telas `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` para seguir o mesmo fluxo das telas de registro, com criação inline de tag e retorno automático.
 - Paginação numérica adicionada às tabelas da `screens/ConfigurationsScreen.tsx` quando a listagem visível ultrapassa 5 registros.
 - `screens/ConfigurationsScreen.tsx` migrada para `components/uiverse/notifier-alert.tsx` como canal padrão de alertas in-app.

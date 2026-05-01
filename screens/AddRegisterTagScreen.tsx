@@ -8,11 +8,10 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	TextInput,
-	findNodeHandle,
 	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 import {
 	Actionsheet,
@@ -56,11 +55,13 @@ import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { normalizeTagUsageType, type TagUsageType } from '@/utils/tagUsage';
+import { navigateBackOrHomeDashboard, navigateToHomeDashboard } from '@/utils/navigation';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type FocusableInputKey = 'tag-name';
 type UsageTypeRadioValue = 'expense' | 'gain';
@@ -109,11 +110,8 @@ export default function AddRegisterTagScreen() {
 	const [selectedTagIcon, setSelectedTagIcon] = React.useState(defaultTagIcon);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const [tagIconSearch, setTagIconSearch] = React.useState('');
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
 	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	const params = useLocalSearchParams<{
@@ -544,9 +542,9 @@ export default function AddRegisterTagScreen() {
 					});
 					Keyboard.dismiss();
 					if (shouldReturnAfterCreate) {
-						router.back();
+						navigateBackOrHomeDashboard();
 					} else {
-						router.replace('/home?tab=0');
+						navigateToHomeDashboard();
 					}
 				} else {
 					showNotifierAlert({
@@ -588,11 +586,11 @@ export default function AddRegisterTagScreen() {
 						usageType: selectedUsageType,
 						...persistedTagIcon,
 					});
-					router.back();
+					navigateBackOrHomeDashboard();
 					return;
 				}
 
-				router.replace('/home?tab=0');
+				navigateToHomeDashboard();
 			} else {
 				showNotifierAlert({
 					title: 'Erro ao registrar categoria',
@@ -639,70 +637,16 @@ export default function AddRegisterTagScreen() {
 		}
 	}, []);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => { },
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 	const screenTitle = isEditing
 		? 'Editar tag'
 		: shouldReturnAfterCreate && initialUsageLabel
@@ -774,6 +718,16 @@ export default function AddRegisterTagScreen() {
 		setIsTagIconSheetOpen(true);
 	}, [isTagIconSelectionEnabled]);
 
+	const handleBackNavigation = React.useCallback(() => {
+		if (shouldReturnAfterCreate) {
+			navigateBackOrHomeDashboard();
+			return true;
+		}
+
+		navigateToHomeDashboard();
+		return true;
+	}, [shouldReturnAfterCreate]);
+
 	React.useEffect(() => {
 		if (!isTagIconSelectionEnabled && isTagIconSheetOpen) {
 			setTagIconSearch('');
@@ -830,6 +784,8 @@ export default function AddRegisterTagScreen() {
 								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 								style={{ marginTop: heroHeight - 64 }}
 								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+								onScroll={handleScroll}
+								scrollEventThrottle={scrollEventThrottle}
 							>
 								<VStack className="justify-between mt-4">
 
@@ -1101,16 +1057,21 @@ export default function AddRegisterTagScreen() {
 								<ActionsheetDragIndicator />
 							</ActionsheetDragIndicatorWrapper>
 
-							<VStack className="w-full px-4 pb-3 pt-6 gap-3">
-								<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
-									Escolha um ícone para a categoria {selectedTagIcon.label}
-								</Heading>
-							</VStack>
+							<KeyboardAvoidingView
+								behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+								keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+								style={{ width: '100%', flex: 1 }}
+							>
+								<VStack className="w-full px-4 pb-3 pt-6 gap-3">
+									<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+										Escolha um ícone para a categoria {selectedTagIcon.label}
+									</Heading>
+								</VStack>
 
-							<VStack className="px-2 pb-3 w-full">
-								<HStack className="mb-1 ml-1 gap-2">
-									<Text className={`${bodyText} text-sm`}>Busca de ícones</Text>
-									<Popover
+								<VStack className="px-2 pb-3 w-full">
+									<HStack className="mb-1 ml-1 gap-2">
+										<Text className={`${bodyText} text-sm`}>Busca de ícones</Text>
+										<Popover
 										placement="bottom"
 										size="md"
 										offset={0}
@@ -1156,15 +1117,15 @@ export default function AddRegisterTagScreen() {
 										className={inputField}
 									/>
 								</Input>
-							</VStack>
+								</VStack>
 
-							<ActionsheetScrollView
-								className="w-full flex-1"
-								keyboardShouldPersistTaps="handled"
-								keyboardDismissMode="on-drag"
-								contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
-							>
-								<VStack className="px-2 pb-2">
+								<ActionsheetScrollView
+									className="w-full flex-1"
+									keyboardShouldPersistTaps="handled"
+									keyboardDismissMode="on-drag"
+									contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
+								>
+									<VStack className="px-2 pb-2">
 
 									{filteredIconOptions.length === 0 ? (
 										<VStack className="items-center px-4 py-8">
@@ -1213,8 +1174,9 @@ export default function AddRegisterTagScreen() {
 											</ActionsheetItem>
 										);
 									})}
-								</VStack>
-							</ActionsheetScrollView>
+									</VStack>
+								</ActionsheetScrollView>
+							</KeyboardAvoidingView>
 						</ActionsheetContent>
 					</Actionsheet>
 
@@ -1225,7 +1187,7 @@ export default function AddRegisterTagScreen() {
 							flexShrink: 0,
 						}}
 					>
-						<Navigator defaultValue={2} />
+						<Navigator defaultValue={2} onHardwareBack={handleBackNavigation} />
 					</View>
 				</View>
 			</SafeAreaView>

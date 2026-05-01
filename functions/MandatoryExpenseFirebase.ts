@@ -1,9 +1,13 @@
 // Funções responsáveis por gerenciar os gastos obrigatórios registrados no aplicativo.
 
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTransaction, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
+import {
+	normalizeMandatoryInstallmentTotal,
+	normalizeMandatoryInstallmentsCompleted,
+} from '@/utils/mandatoryInstallments';
 
 interface AddMandatoryExpenseParams {
 	name: string;
@@ -16,6 +20,7 @@ interface AddMandatoryExpenseParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	installmentTotal?: number | null;
 }
 
 interface UpdateMandatoryExpenseParams {
@@ -29,6 +34,8 @@ interface UpdateMandatoryExpenseParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	installmentTotal?: number | null;
+	installmentsCompleted?: number;
 }
 
 interface MarkMandatoryExpensePaymentParams {
@@ -39,6 +46,18 @@ interface MarkMandatoryExpensePaymentParams {
 
 const MANDATORY_EXPENSES_COLLECTION = 'mandatoryExpenses';
 const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
+
+const buildMandatoryInstallmentFields = (installmentTotal: number | null | undefined, installmentsCompleted = 0) => {
+	const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+
+	return {
+		installmentTotal: normalizedInstallmentTotal,
+		installmentsCompleted:
+			normalizedInstallmentTotal === null
+				? 0
+				: normalizeMandatoryInstallmentsCompleted(installmentsCompleted, normalizedInstallmentTotal),
+	};
+};
 
 const chunkDocumentIds = (ids: string[]) =>
 	Array.from({ length: Math.ceil(ids.length / LINKED_MOVEMENTS_QUERY_LIMIT) }, (_, index) =>
@@ -56,9 +75,11 @@ export async function addMandatoryExpenseFirebase({
 	reminderEnabled = true,
 	reminderHour = 9,
 	reminderMinute = 0,
+	installmentTotal = null,
 }: AddMandatoryExpenseParams) {
 	try {
 		const mandatoryExpenseRef = doc(collection(db, MANDATORY_EXPENSES_COLLECTION));
+		const installmentFields = buildMandatoryInstallmentFields(installmentTotal);
 
 		await setDoc(mandatoryExpenseRef, {
 			name,
@@ -71,6 +92,7 @@ export async function addMandatoryExpenseFirebase({
 			reminderEnabled,
 			reminderHour,
 			reminderMinute,
+			...installmentFields,
 			lastPaymentExpenseId: null,
 			lastPaymentCycle: null,
 			lastPaymentDate: null,
@@ -96,6 +118,8 @@ export async function updateMandatoryExpenseFirebase({
 	reminderEnabled,
 	reminderHour,
 	reminderMinute,
+	installmentTotal,
+	installmentsCompleted,
 }: UpdateMandatoryExpenseParams) {
 	try {
 		const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, expenseId);
@@ -137,6 +161,21 @@ export async function updateMandatoryExpenseFirebase({
 
 		if (typeof reminderMinute === 'number') {
 			updates.reminderMinute = reminderMinute;
+		}
+
+		if (installmentTotal !== undefined) {
+			const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+			updates.installmentTotal = normalizedInstallmentTotal;
+			if (normalizedInstallmentTotal === null) {
+				updates.installmentsCompleted = 0;
+			} else if (typeof installmentsCompleted === 'number') {
+				updates.installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+					installmentsCompleted,
+					normalizedInstallmentTotal,
+				);
+			}
+		} else if (typeof installmentsCompleted === 'number') {
+			updates.installmentsCompleted = Math.max(0, Math.floor(installmentsCompleted));
 		}
 
 		await setDoc(mandatoryExpenseRef, updates, { merge: true });
@@ -257,16 +296,34 @@ export async function markMandatoryExpensePaymentFirebase({
 }: MarkMandatoryExpensePaymentParams) {
 	try {
 		const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, expenseId);
-		await setDoc(
-			mandatoryExpenseRef,
-			{
-				lastPaymentExpenseId: paymentExpenseId,
-				lastPaymentDate: paymentDate,
-				lastPaymentCycle: getCycleKeyFromDate(paymentDate),
-				updatedAt: new Date(),
-			},
-			{ merge: true },
-		);
+		const paymentCycle = getCycleKeyFromDate(paymentDate);
+
+		await runTransaction(db, async transaction => {
+			const expenseSnapshot = await transaction.get(mandatoryExpenseRef);
+			const data = expenseSnapshot.exists() ? expenseSnapshot.data() : {};
+			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+				data.installmentsCompleted,
+				installmentTotal,
+			);
+			const lastPaymentCycle = typeof data.lastPaymentCycle === 'string' ? data.lastPaymentCycle : null;
+			const shouldAdvanceInstallment = installmentTotal !== null && lastPaymentCycle !== paymentCycle;
+			const nextInstallmentsCompleted = shouldAdvanceInstallment
+				? Math.min(installmentsCompleted + 1, installmentTotal)
+				: installmentsCompleted;
+
+			transaction.set(
+				mandatoryExpenseRef,
+				{
+					lastPaymentExpenseId: paymentExpenseId,
+					lastPaymentDate: paymentDate,
+					lastPaymentCycle: paymentCycle,
+					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+					updatedAt: new Date(),
+				},
+				{ merge: true },
+			);
+		});
 
 		return { success: true };
 	} catch (error) {
@@ -278,16 +335,31 @@ export async function markMandatoryExpensePaymentFirebase({
 export async function clearMandatoryExpensePaymentFirebase(expenseId: string) {
 	try {
 		const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, expenseId);
-		await setDoc(
-			mandatoryExpenseRef,
-			{
-				lastPaymentExpenseId: null,
-				lastPaymentDate: null,
-				lastPaymentCycle: null,
-				updatedAt: new Date(),
-			},
-			{ merge: true },
-		);
+		await runTransaction(db, async transaction => {
+			const expenseSnapshot = await transaction.get(mandatoryExpenseRef);
+			const data = expenseSnapshot.exists() ? expenseSnapshot.data() : {};
+			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+				data.installmentsCompleted,
+				installmentTotal,
+			);
+			const hasLinkedPayment =
+				typeof data.lastPaymentExpenseId === 'string' && data.lastPaymentExpenseId.length > 0;
+			const nextInstallmentsCompleted =
+				installmentTotal !== null && hasLinkedPayment ? Math.max(0, installmentsCompleted - 1) : installmentsCompleted;
+
+			transaction.set(
+				mandatoryExpenseRef,
+				{
+					lastPaymentExpenseId: null,
+					lastPaymentDate: null,
+					lastPaymentCycle: null,
+					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+					updatedAt: new Date(),
+				},
+				{ merge: true },
+			);
+		});
 
 		return { success: true };
 	} catch (error) {

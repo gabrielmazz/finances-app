@@ -1,6 +1,8 @@
 import React from 'react';
-import { ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -44,6 +46,7 @@ import {
 	ChevronDownIcon,
 	ChevronUpIcon,
 	ChevronsUpDownIcon,
+	DownloadIcon,
 	EditIcon,
 	Icon,
 	RepeatIcon,
@@ -87,6 +90,7 @@ import {
 	buildBankCardPalette,
 } from '@/components/uiverse/bank-card-surface';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
@@ -366,6 +370,468 @@ const computeMovementTotals = (movementList: MovementRecord[]) => {
 	);
 };
 
+type PeriodSummaryPdfMetric = {
+	label: string;
+	value: string;
+	helper?: string;
+	tone?: 'gain' | 'expense' | 'neutral';
+};
+
+type PeriodSummaryPdfMovement = {
+	id: string;
+	name: string;
+	typeLabel: string;
+	dateLabel: string;
+	tagLabel: string;
+	sourceLabel: string;
+	description: string;
+	amountLabel: string;
+	amountTone: 'gain' | 'expense' | 'neutral';
+};
+
+type PeriodSummaryPdfParams = {
+	accountKindLabel: string;
+	accountName: string;
+	periodLabel: string;
+	generatedAtLabel: string;
+	filterLabel: string;
+	filterDescription: string;
+	summaryPrimaryBalanceLabel: string;
+	summaryPrimaryBalanceValue: string;
+	summaryPrimaryBalanceHelper: string;
+	generalMetrics: PeriodSummaryPdfMetric[];
+	filteredMetrics: PeriodSummaryPdfMetric[];
+	movements: PeriodSummaryPdfMovement[];
+	cardBaseColor: string;
+	cardGlowColor: string;
+	cardHighlightColor: string;
+	privacyNotice: string | null;
+};
+
+const escapeHtml = (value: string | number | null | undefined) =>
+	String(value ?? '')
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+
+const buildPeriodSummaryPdfHtml = ({
+	accountKindLabel,
+	accountName,
+	periodLabel,
+	generatedAtLabel,
+	filterLabel,
+	filterDescription,
+	summaryPrimaryBalanceLabel,
+	summaryPrimaryBalanceValue,
+	summaryPrimaryBalanceHelper,
+	generalMetrics,
+	filteredMetrics,
+	movements,
+	cardBaseColor,
+	cardGlowColor,
+	cardHighlightColor,
+	privacyNotice,
+}: PeriodSummaryPdfParams) => {
+	const renderMetricCard = (metric: PeriodSummaryPdfMetric) => `
+		<div class="metric-card ${metric.tone ?? 'neutral'}">
+			<div class="metric-label">${escapeHtml(metric.label)}</div>
+			<div class="metric-value">${escapeHtml(metric.value)}</div>
+			${metric.helper ? `<div class="metric-helper">${escapeHtml(metric.helper)}</div>` : ''}
+		</div>
+	`;
+
+	const renderMovementRow = (movement: PeriodSummaryPdfMovement, index: number) => `
+		<tr>
+			<td class="index-cell">${String(index + 1).padStart(2, '0')}</td>
+			<td>
+				<div class="movement-title">${escapeHtml(movement.name)}</div>
+				<div class="movement-description">${escapeHtml(movement.description)}</div>
+			</td>
+			<td>
+				<div class="table-main">${escapeHtml(movement.typeLabel)}</div>
+				<div class="table-muted">${escapeHtml(movement.tagLabel)}</div>
+			</td>
+			<td>
+				<div class="table-main">${escapeHtml(movement.dateLabel)}</div>
+				<div class="table-muted">${escapeHtml(movement.sourceLabel)}</div>
+			</td>
+			<td class="amount-cell ${movement.amountTone}">${escapeHtml(movement.amountLabel)}</td>
+		</tr>
+	`;
+
+	return `
+		<!doctype html>
+		<html lang="pt-BR">
+		<head>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<style>
+				@page {
+					size: A4;
+					margin: 24px;
+				}
+
+				* {
+					box-sizing: border-box;
+				}
+
+				body {
+					margin: 0;
+					background: #f8fafc;
+					color: #0f172a;
+					font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+					font-size: 12px;
+					line-height: 1.45;
+				}
+
+				.report {
+					background: #ffffff;
+					border: 1px solid #e2e8f0;
+					border-radius: 24px;
+					overflow: hidden;
+				}
+
+				.hero {
+					position: relative;
+					padding: 28px 30px 30px;
+					color: #ffffff;
+					background:
+						radial-gradient(circle at 85% 8%, ${cardHighlightColor} 0, transparent 34%),
+						radial-gradient(circle at 18% 0%, ${cardGlowColor} 0, transparent 28%),
+						linear-gradient(135deg, ${cardBaseColor}, #0f172a);
+				}
+
+				.hero-grid {
+					display: grid;
+					grid-template-columns: 1.4fr 0.8fr;
+					gap: 22px;
+					align-items: end;
+				}
+
+				.eyebrow {
+					margin: 0 0 8px;
+					color: rgba(255,255,255,0.74);
+					font-size: 10px;
+					font-weight: 800;
+					text-transform: uppercase;
+				}
+
+				h1 {
+					margin: 0;
+					font-size: 28px;
+					line-height: 1.08;
+				}
+
+				.hero-detail {
+					margin-top: 10px;
+					color: rgba(255,255,255,0.78);
+					font-size: 12px;
+				}
+
+				.hero-panel {
+					border: 1px solid rgba(255,255,255,0.22);
+					border-radius: 18px;
+					background: rgba(255,255,255,0.12);
+					padding: 16px;
+				}
+
+				.hero-panel .label {
+					color: rgba(255,255,255,0.74);
+					font-size: 10px;
+					font-weight: 800;
+					text-transform: uppercase;
+				}
+
+				.hero-panel .value {
+					margin-top: 5px;
+					font-size: 22px;
+					font-weight: 800;
+				}
+
+				.hero-panel .helper {
+					margin-top: 6px;
+					color: rgba(255,255,255,0.78);
+					font-size: 11px;
+				}
+
+				.content {
+					padding: 24px 30px 30px;
+				}
+
+				.notice {
+					margin-bottom: 16px;
+					border: 1px solid #fde68a;
+					border-radius: 14px;
+					background: #fffbeb;
+					color: #92400e;
+					padding: 11px 13px;
+					font-size: 11px;
+					font-weight: 700;
+				}
+
+				.section {
+					margin-top: 22px;
+				}
+
+				.section:first-child {
+					margin-top: 0;
+				}
+
+				.section-header {
+					display: flex;
+					justify-content: space-between;
+					gap: 16px;
+					align-items: flex-end;
+					margin-bottom: 11px;
+				}
+
+				h2 {
+					margin: 0;
+					font-size: 15px;
+					letter-spacing: 0;
+				}
+
+				.section-caption {
+					margin: 3px 0 0;
+					color: #64748b;
+					font-size: 11px;
+				}
+
+				.badge {
+					display: inline-block;
+					border: 1px solid #e2e8f0;
+					border-radius: 999px;
+					background: #f8fafc;
+					color: #334155;
+					padding: 7px 10px;
+					font-size: 10px;
+					font-weight: 800;
+				}
+
+				.metric-grid {
+					display: grid;
+					grid-template-columns: repeat(3, 1fr);
+					gap: 10px;
+				}
+
+				.metric-card {
+					min-height: 82px;
+					border: 1px solid #e2e8f0;
+					border-radius: 16px;
+					background: #f8fafc;
+					padding: 13px;
+				}
+
+				.metric-card.gain {
+					background: #ecfdf5;
+					border-color: #bbf7d0;
+				}
+
+				.metric-card.expense {
+					background: #fef2f2;
+					border-color: #fecaca;
+				}
+
+				.metric-label {
+					color: #64748b;
+					font-size: 10px;
+					font-weight: 800;
+					text-transform: uppercase;
+				}
+
+				.metric-value {
+					margin-top: 7px;
+					color: #0f172a;
+					font-size: 17px;
+					font-weight: 850;
+				}
+
+				.metric-card.gain .metric-value,
+				.amount-cell.gain {
+					color: #047857;
+				}
+
+				.metric-card.expense .metric-value,
+				.amount-cell.expense {
+					color: #b91c1c;
+				}
+
+				.metric-helper {
+					margin-top: 4px;
+					color: #64748b;
+					font-size: 10px;
+				}
+
+				table {
+					width: 100%;
+					border-collapse: separate;
+					border-spacing: 0;
+					border: 1px solid #e2e8f0;
+					border-radius: 16px;
+					overflow: hidden;
+				}
+
+				thead th {
+					background: #f1f5f9;
+					color: #475569;
+					font-size: 10px;
+					font-weight: 850;
+					padding: 10px 11px;
+					text-align: left;
+					text-transform: uppercase;
+				}
+
+				tbody td {
+					border-top: 1px solid #e2e8f0;
+					padding: 12px 11px;
+					vertical-align: top;
+				}
+
+				tr {
+					page-break-inside: avoid;
+				}
+
+				.index-cell {
+					width: 42px;
+					color: #94a3b8;
+					font-weight: 800;
+				}
+
+				.movement-title {
+					font-size: 12px;
+					font-weight: 850;
+					color: #0f172a;
+				}
+
+				.movement-description,
+				.table-muted {
+					margin-top: 3px;
+					color: #64748b;
+					font-size: 10px;
+				}
+
+				.table-main {
+					font-weight: 750;
+					color: #0f172a;
+				}
+
+				.amount-cell {
+					width: 108px;
+					text-align: right;
+					white-space: nowrap;
+					font-size: 12px;
+					font-weight: 850;
+					color: #0f172a;
+				}
+
+				.empty-state {
+					border: 1px dashed #cbd5e1;
+					border-radius: 16px;
+					background: #f8fafc;
+					color: #64748b;
+					padding: 18px;
+					text-align: center;
+				}
+
+				.footer {
+					margin-top: 26px;
+					border-top: 1px solid #e2e8f0;
+					padding-top: 13px;
+					color: #94a3b8;
+					font-size: 10px;
+				}
+			</style>
+		</head>
+		<body>
+			<main class="report">
+				<section class="hero">
+					<div class="hero-grid">
+						<div>
+							<p class="eyebrow">Lumus Finanças · ${escapeHtml(accountKindLabel)}</p>
+							<h1>${escapeHtml(accountName)}</h1>
+							<div class="hero-detail">
+								${escapeHtml(periodLabel)} · Gerado em ${escapeHtml(generatedAtLabel)}
+							</div>
+						</div>
+
+						<div class="hero-panel">
+							<div class="label">${escapeHtml(summaryPrimaryBalanceLabel)}</div>
+							<div class="value">${escapeHtml(summaryPrimaryBalanceValue)}</div>
+							<div class="helper">${escapeHtml(summaryPrimaryBalanceHelper)}</div>
+						</div>
+					</div>
+				</section>
+
+				<section class="content">
+					${privacyNotice ? `<div class="notice">${escapeHtml(privacyNotice)}</div>` : ''}
+
+					<section class="section">
+						<div class="section-header">
+							<div>
+								<h2>Resumo geral do período</h2>
+								<p class="section-caption">Totais do banco ou dinheiro para todo o período selecionado.</p>
+							</div>
+							<span class="badge">${escapeHtml(periodLabel)}</span>
+						</div>
+						<div class="metric-grid">
+							${generalMetrics.map(renderMetricCard).join('')}
+						</div>
+					</section>
+
+					<section class="section">
+						<div class="section-header">
+							<div>
+								<h2>Resumo filtrado</h2>
+								<p class="section-caption">${escapeHtml(filterDescription)}</p>
+							</div>
+							<span class="badge">${escapeHtml(filterLabel)}</span>
+						</div>
+						<div class="metric-grid">
+							${filteredMetrics.map(renderMetricCard).join('')}
+						</div>
+					</section>
+
+					<section class="section">
+						<div class="section-header">
+							<div>
+								<h2>Movimentações incluídas</h2>
+								<p class="section-caption">Lista gerada a partir do mesmo filtro aplicado na tela.</p>
+							</div>
+							<span class="badge">${movements.length} item(ns)</span>
+						</div>
+
+						${movements.length > 0
+							? `
+								<table>
+									<thead>
+										<tr>
+											<th>#</th>
+											<th>Movimentação</th>
+											<th>Tipo / Tag</th>
+											<th>Data / Origem</th>
+											<th>Valor</th>
+										</tr>
+									</thead>
+									<tbody>
+										${movements.map(renderMovementRow).join('')}
+									</tbody>
+								</table>
+							`
+							: '<div class="empty-state">Nenhuma movimentação foi registrada para o período e filtros informados.</div>'}
+					</section>
+
+					<div class="footer">
+						Relatório gerado localmente pelo app. Movimentos internos seguem as regras de totalização documentadas no vault do Lumus Finanças.
+					</div>
+				</section>
+			</main>
+		</body>
+		</html>
+	`;
+};
+
 const MANDATORY_SETTLED_TONE: TimelineMovementTone = {
 	accentColor: '#10B981',
 	amountColor: '#10B981',
@@ -528,6 +994,7 @@ export default function BankMovementsScreen() {
 
 	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
@@ -871,6 +1338,17 @@ export default function BankMovementsScreen() {
 			return bankName;
 		},
 		[bankName, isCashView],
+	);
+
+	const getMovementTagLabel = React.useCallback(
+		(movement: MovementRecord) => {
+			if (!movement.tagId) {
+				return 'Sem tag associada';
+			}
+
+			return tagMetadataById[movement.tagId]?.name?.trim() || movement.tagId;
+		},
+		[tagMetadataById],
 	);
 
 	const handleDateSelect = React.useCallback((formatted: string, type: 'start' | 'end') => {
@@ -1542,6 +2020,206 @@ export default function BankMovementsScreen() {
 		return `${movementCountLabel} Exibindo todas as movimentações do período selecionado.`;
 	}, [movementFilter, selectedTagFilterOption, visibleMovements.length]);
 
+	const handleExportPeriodSummaryPdf = React.useCallback(async () => {
+		if (isExportingPdf || isLoading) {
+			return;
+		}
+
+		const parsedStart = parseDateFromBR(startDateInput);
+		const parsedEnd = parseDateFromBR(endDateInput);
+
+		if (!parsedStart || !parsedEnd) {
+			showScreenAlert('Informe datas válidas antes de baixar o resumo em PDF.', 'warning');
+			return;
+		}
+
+		if (parsedEnd < parsedStart) {
+			showScreenAlert('A data final deve ser maior ou igual à data inicial.', 'warning');
+			return;
+		}
+
+		const movementFilterLabel =
+			movementFilter === 'all'
+				? 'Todos os tipos'
+				: movementFilter === 'gain'
+					? 'Ganhos'
+					: 'Gastos';
+		const tagFilterLabel = selectedTagFilterOption
+			? `Tag: ${selectedTagFilterOption.label}`
+			: 'Todas as tags';
+		const periodLabel = `${startDateInput} a ${endDateInput}`;
+		const generatedAtLabel = new Intl.DateTimeFormat('pt-BR', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit',
+		}).format(new Date());
+
+		const generalMetrics: PeriodSummaryPdfMetric[] = [
+			{
+				label: 'Ganhos totais',
+				value: formatCurrencyBRL(allMovementsTotals.totalGains),
+				tone: 'gain',
+			},
+			{
+				label: 'Despesas totais',
+				value: formatCurrencyBRL(allMovementsTotals.totalExpenses),
+				tone: 'expense',
+			},
+			{
+				label: 'Saldo geral',
+				value: formatCurrencyBRL(allMovementsBalanceInCents),
+				tone: allMovementsBalanceInCents >= 0 ? 'gain' : 'expense',
+			},
+			{
+				label: 'Movimentações carregadas',
+				value: String(movements.length),
+				helper: 'Antes dos filtros de tipo e tag.',
+			},
+		];
+
+		if (!isCashView) {
+			generalMetrics.push({
+				label: 'Saldo inicial do mês',
+				value:
+					typeof monthlyInitialBalanceInCents === 'number'
+						? formatCurrencyBRL(monthlyInitialBalanceInCents)
+						: 'Não registrado',
+				helper: 'Snapshot mensal usado como base do saldo atual.',
+			});
+		}
+
+		const filteredMetrics: PeriodSummaryPdfMetric[] = [
+			{
+				label: 'Ganhos filtrados',
+				value: formatCurrencyBRL(filteredTotals.totalGains),
+				tone: 'gain',
+			},
+			{
+				label: 'Despesas filtradas',
+				value: formatCurrencyBRL(filteredTotals.totalExpenses),
+				tone: 'expense',
+			},
+			{
+				label: 'Saldo do filtro',
+				value: formatCurrencyBRL(filteredBalanceInCents),
+				tone: filteredBalanceInCents >= 0 ? 'gain' : 'expense',
+			},
+			{
+				label: 'Movimentações no filtro',
+				value: String(visibleMovements.length),
+				helper: `${movementFilterLabel} · ${tagFilterLabel}`,
+			},
+		];
+
+		const pdfMovements: PeriodSummaryPdfMovement[] = visibleMovements.map(movement => ({
+			id: movement.id,
+			name: movement.name,
+			typeLabel: resolveMovementTypeLabel(movement),
+			dateLabel: formatMovementDate(movement.date),
+			tagLabel: getMovementTagLabel(movement),
+			sourceLabel: getMovementPrimarySourceLabel(movement),
+			description: getMovementDetailMessage(movement),
+			amountLabel: formatSignedCurrencyBRL(movement),
+			amountTone:
+				movement.type === 'gain'
+					? 'gain'
+					: movement.type === 'expense'
+						? 'expense'
+						: 'neutral',
+		}));
+
+		const pdfHtml = buildPeriodSummaryPdfHtml({
+			accountKindLabel: isCashView ? 'Dinheiro em espécie' : 'Banco',
+			accountName: bankName,
+			periodLabel,
+			generatedAtLabel,
+			filterLabel: `${movementFilterLabel} · ${tagFilterLabel}`,
+			filterDescription: filteredSummaryDescription,
+			summaryPrimaryBalanceLabel,
+			summaryPrimaryBalanceValue,
+			summaryPrimaryBalanceHelper,
+			generalMetrics,
+			filteredMetrics,
+			movements: pdfMovements,
+			cardBaseColor: summaryCardPalette.baseColor,
+			cardGlowColor: summaryCardPalette.glowColor,
+			cardHighlightColor: summaryCardPalette.highlightColor,
+			privacyNotice: shouldHideValues
+				? 'Os valores foram ocultados porque a preferência de privacidade está ativa.'
+				: null,
+		});
+
+		setIsExportingPdf(true);
+		try {
+			// Exporta o resumo do período seguindo [[Gerenciamento de Bancos]] e [[Privacidade de Valores]].
+			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const canShare = await Sharing.isAvailableAsync();
+
+			if (!canShare) {
+				await Print.printAsync({ html: pdfHtml });
+				showScreenAlert(
+					'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
+					'info',
+					'Resumo pronto',
+				);
+				return;
+			}
+
+			await Sharing.shareAsync(uri, {
+				dialogTitle: `Baixar resumo de ${bankName}`,
+				mimeType: 'application/pdf',
+				UTI: 'com.adobe.pdf',
+			});
+
+			showScreenAlert('Resumo em PDF gerado com sucesso.', 'success', 'PDF pronto');
+		} catch (error) {
+			console.error('Erro ao gerar resumo em PDF:', error);
+			showScreenAlert('Não foi possível gerar o PDF do resumo agora.', 'error');
+		} finally {
+			setIsExportingPdf(false);
+		}
+	}, [
+		allMovementsBalanceInCents,
+		allMovementsTotals.totalExpenses,
+		allMovementsTotals.totalGains,
+		bankName,
+		endDateInput,
+		filteredBalanceInCents,
+		filteredSummaryDescription,
+		filteredTotals.totalExpenses,
+		filteredTotals.totalGains,
+		formatCurrencyBRL,
+		formatSignedCurrencyBRL,
+		getMovementDetailMessage,
+		getMovementPrimarySourceLabel,
+		getMovementTagLabel,
+		isCashView,
+		isExportingPdf,
+		isLoading,
+		monthlyInitialBalanceInCents,
+		movementFilter,
+		movements.length,
+		resolveMovementTypeLabel,
+		selectedTagFilterOption,
+		shouldHideValues,
+		showScreenAlert,
+		startDateInput,
+		summaryCardPalette.baseColor,
+		summaryCardPalette.glowColor,
+		summaryCardPalette.highlightColor,
+		summaryPrimaryBalanceHelper,
+		summaryPrimaryBalanceLabel,
+		summaryPrimaryBalanceValue,
+		visibleMovements,
+	]);
+
+	const handleBackToHome = React.useCallback(() => {
+		navigateToHomeDashboard();
+		return true;
+	}, []);
+
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
 			return;
@@ -1645,9 +2323,8 @@ export default function BankMovementsScreen() {
 				);
 			}
 
-			await fetchMovements();
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
-			handleCloseFinanceEditModal();
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao editar investimento pela tela de movimentações:', error);
 			showScreenAlert(
@@ -1668,8 +2345,6 @@ export default function BankMovementsScreen() {
 		editInvestmentName,
 		editInvestmentTerm,
 		editingFinanceMovement,
-		fetchMovements,
-		handleCloseFinanceEditModal,
 		showScreenAlert,
 	]);
 
@@ -2486,6 +3161,35 @@ export default function BankMovementsScreen() {
 											</HStack>
 										</VStack>
 									</View>
+
+									<Button
+										className={`${submitButtonClassName} mt-4`}
+										onPress={() => {
+											void handleExportPeriodSummaryPdf();
+										}}
+										isDisabled={
+											isLoading ||
+											isExportingPdf ||
+											!parseDateFromBR(startDateInput) ||
+											!parseDateFromBR(endDateInput)
+										}
+									>
+										{isExportingPdf ? (
+											<>
+												<ButtonSpinner />
+												<ButtonText>Gerando PDF</ButtonText>
+											</>
+										) : (
+											<>
+												<Icon
+													as={DownloadIcon}
+													size="sm"
+													className={isDarkMode ? 'text-slate-900' : 'text-white'}
+												/>
+												<ButtonText>Baixar resumo em PDF</ButtonText>
+											</>
+										)}
+									</Button>
 								</VStack>
 
 
@@ -3071,7 +3775,7 @@ export default function BankMovementsScreen() {
 							flexShrink: 0,
 						}}
 					>
-						<Navigator defaultValue={0} />
+						<Navigator defaultValue={0} onHardwareBack={handleBackToHome} />
 					</View>
 
 					<Modal
@@ -3079,16 +3783,25 @@ export default function BankMovementsScreen() {
 						onClose={handleCloseFinanceEditModal}
 					>
 						<ModalBackdrop />
-						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
-							<ModalHeader>
-								<ModalTitle>Editar investimento</ModalTitle>
-								<ModalCloseButton onPress={handleCloseFinanceEditModal} />
-							</ModalHeader>
-							<ModalBody>
-								<Text className={`${bodyText} mb-4 text-sm`}>
-									Ajuste os dados do investimento sem sair da tela de movimentações.
-								</Text>
-								<VStack>
+						<KeyboardAvoidingView
+							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+						>
+							<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+								<ModalHeader>
+									<ModalTitle>Editar investimento</ModalTitle>
+									<ModalCloseButton onPress={handleCloseFinanceEditModal} />
+								</ModalHeader>
+								<ModalBody>
+									<ScrollView
+										keyboardShouldPersistTaps="handled"
+										keyboardDismissMode="on-drag"
+										contentContainerStyle={{ paddingBottom: 24 }}
+									>
+										<Text className={`${bodyText} mb-4 text-sm`}>
+											Ajuste os dados do investimento sem sair da tela de movimentações.
+										</Text>
+										<VStack>
 									<VStack className="mb-4">
 										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
 											Nome do investimento
@@ -3255,33 +3968,35 @@ export default function BankMovementsScreen() {
 											/>
 										</Textarea>
 									</VStack>
-								</VStack>
-							</ModalBody>
-							<ModalFooter className="gap-3">
-								<Button
-									variant="outline"
-									onPress={handleCloseFinanceEditModal}
-									isDisabled={isSavingFinanceMovement}
-									className={submitButtonCancelClassName}
-								>
-									<ButtonText>Cancelar</ButtonText>
-								</Button>
-								<Button
-									onPress={handleSubmitFinanceEdit}
-									isDisabled={isSavingFinanceMovement}
-									className={submitButtonClassName}
-								>
-									{isSavingFinanceMovement ? (
-										<>
-											<ButtonSpinner />
-											<ButtonText>Salvando</ButtonText>
-										</>
-									) : (
-										<ButtonText>Salvar alterações</ButtonText>
-									)}
-								</Button>
-							</ModalFooter>
-						</ModalContent>
+										</VStack>
+									</ScrollView>
+								</ModalBody>
+								<ModalFooter className="gap-3">
+									<Button
+										variant="outline"
+										onPress={handleCloseFinanceEditModal}
+										isDisabled={isSavingFinanceMovement}
+										className={submitButtonCancelClassName}
+									>
+										<ButtonText>Cancelar</ButtonText>
+									</Button>
+									<Button
+										onPress={handleSubmitFinanceEdit}
+										isDisabled={isSavingFinanceMovement}
+										className={submitButtonClassName}
+									>
+										{isSavingFinanceMovement ? (
+											<>
+												<ButtonSpinner />
+												<ButtonText>Salvando</ButtonText>
+											</>
+										) : (
+											<ButtonText>Salvar alterações</ButtonText>
+										)}
+									</Button>
+								</ModalFooter>
+							</ModalContent>
+						</KeyboardAvoidingView>
 					</Modal>
 
 					<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>

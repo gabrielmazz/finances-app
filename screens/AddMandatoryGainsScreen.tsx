@@ -6,26 +6,12 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	Keyboard,
-	ScrollView as RNScrollView,
 	TextInput,
-	findNodeHandle,
 	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
@@ -40,6 +26,7 @@ import { Box } from '@/components/ui/box';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 
 import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
@@ -57,6 +44,7 @@ import {
 } from '@/utils/mandatoryGainNotifications';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
@@ -64,12 +52,21 @@ import {
 import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
+import {
+	MAX_MANDATORY_INSTALLMENTS,
+	formatMandatoryInstallmentLabel,
+	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentTotal,
+	normalizeMandatoryInstallmentsCompleted,
+	sanitizeMandatoryInstallmentInput,
+} from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
 import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGainsScreen.svg';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
@@ -100,11 +97,12 @@ type MandatoryGainFormSnapshot = {
 	dueDay: string;
 	usesBusinessDays: boolean;
 	tagId: string | null;
+	installmentTotal: number | null;
 	description: string;
 	reminderTime: string;
 	reminderEnabled: boolean;
 };
-type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'description' | 'reminder-time';
+type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'installments' | 'description' | 'reminder-time';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -154,6 +152,7 @@ export default function AddMandatoryGainsScreen() {
 		helperText,
 		inputField,
 		fieldContainerClassName,
+		fieldContainerCardClassName,
 		textareaContainerClassName,
 		submitButtonClassName,
 		heroHeight,
@@ -183,6 +182,9 @@ export default function AddMandatoryGainsScreen() {
 	const [valueInCents, setValueInCents] = React.useState<number | null>(null);
 	const [dueDay, setDueDay] = React.useState('');
 	const [usesBusinessDays, setUsesBusinessDays] = React.useState(false);
+	const [installmentsEnabled, setInstallmentsEnabled] = React.useState(false);
+	const [installmentTotal, setInstallmentTotal] = React.useState('');
+	const [settledInstallmentsCount, setSettledInstallmentsCount] = React.useState(0);
 	const [description, setDescription] = React.useState('');
 	// Segue [[Receitas Fixas]]: o lembrete só é liberado quando o template base estiver completo.
 	const [reminderEnabled, setReminderEnabled] = React.useState(false);
@@ -200,14 +202,12 @@ export default function AddMandatoryGainsScreen() {
 		return tagOptions.find(tag => tag.id === selectedTagId)?.name ?? selectedTagName ?? null;
 	}, [selectedTagId, selectedTagName, tagOptions]);
 
-	const scrollViewRef = React.useRef<RNScrollView | null>(null);
 	const gainNameInputRef = React.useRef<TextInput | null>(null);
 	const gainValueInputRef = React.useRef<TextInput | null>(null);
 	const dueDayInputRef = React.useRef<TextInput | null>(null);
+	const installmentsInputRef = React.useRef<TextInput | null>(null);
 	const descriptionInputRef = React.useRef<TextInput | null>(null);
 	const reminderTimeInputRef = React.useRef<TextInput | null>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
-	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => {
 			if (key === 'description') {
@@ -240,6 +240,17 @@ export default function AddMandatoryGainsScreen() {
 		setDueDay(sanitizeDueDay(input));
 	}, []);
 
+	const handleInstallmentTotalChange = React.useCallback((input: string) => {
+		setInstallmentTotal(sanitizeMandatoryInstallmentInput(input));
+	}, []);
+
+	const handleInstallmentsToggle = React.useCallback((value: boolean) => {
+		setInstallmentsEnabled(value);
+		if (value) {
+			setInstallmentTotal(currentValue => currentValue || String(Math.max(1, settledInstallmentsCount)));
+		}
+	}, [settledInstallmentsCount]);
+
 	const handleReminderTimeChange = React.useCallback((input: string) => {
 		setReminderTime(formatMandatoryReminderTimeInput(input));
 	}, []);
@@ -256,6 +267,20 @@ export default function AddMandatoryGainsScreen() {
 		const maxDueDay = usesBusinessDays ? MAX_MONTHLY_BUSINESS_DAY : 31;
 		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= maxDueDay;
 	}, [dueDay, usesBusinessDays]);
+
+	const normalizedInstallmentTotal = React.useMemo(() => {
+		if (!installmentsEnabled || installmentTotal.trim().length === 0) {
+			return null;
+		}
+
+		return normalizeMandatoryInstallmentTotal(Number(installmentTotal));
+	}, [installmentTotal, installmentsEnabled]);
+
+	const isInstallmentTotalValid = !installmentsEnabled || normalizedInstallmentTotal !== null;
+	const isInstallmentTotalBelowSettled =
+		installmentsEnabled &&
+		normalizedInstallmentTotal !== null &&
+		normalizedInstallmentTotal < settledInstallmentsCount;
 
 	const handleReminderToggle = React.useCallback(async (value: boolean) => {
 		if (!value) {
@@ -310,20 +335,34 @@ export default function AddMandatoryGainsScreen() {
 			dueDay: dueDay.trim(),
 			usesBusinessDays,
 			tagId: selectedTagId,
+			installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
 			description: description.trim(),
 			reminderTime,
 			reminderEnabled,
 		}),
-		[description, dueDay, gainName, reminderEnabled, reminderTime, selectedTagId, usesBusinessDays, valueInCents],
+		[
+			description,
+			dueDay,
+			gainName,
+			installmentsEnabled,
+			normalizedInstallmentTotal,
+			reminderEnabled,
+			reminderTime,
+			selectedTagId,
+			usesBusinessDays,
+			valueInCents,
+		],
 	);
 
 	const hasGainName = gainName.trim().length > 0;
 	const hasGainValue = valueInCents !== null && valueInCents > 0;
 	const isFormBusy = isSubmitting || isPrefilling;
 	const isCoreTemplateReady = hasGainName && hasGainValue && isDueDayValid;
-	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId);
+	const isInstallmentConfigReady = !installmentsEnabled || (isInstallmentTotalValid && !isInstallmentTotalBelowSettled);
+	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasGainName || isFormBusy;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
+	const isInstallmentFieldDisabled = !isCoreTemplateReady || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || tagOptions.length === 0 || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
@@ -340,6 +379,7 @@ export default function AddMandatoryGainsScreen() {
 			currentSnapshot.dueDay !== persistedFormSnapshot.dueDay ||
 			currentSnapshot.usesBusinessDays !== persistedFormSnapshot.usesBusinessDays ||
 			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
+			currentSnapshot.installmentTotal !== persistedFormSnapshot.installmentTotal ||
 			currentSnapshot.description !== persistedFormSnapshot.description ||
 			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
 			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled
@@ -375,6 +415,25 @@ export default function AddMandatoryGainsScreen() {
 	const businessDayToggleHelperMessage = usesBusinessDays
 		? `Este ganho será tratado como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
 		: 'Ative quando o recebimento seguir um dia útil do mês, como salário no 5º dia útil.';
+	const isReceivedForCurrentCycle = React.useMemo(
+		() => isCycleKeyCurrent(currentReceiptInfo?.cycleKey),
+		[currentReceiptInfo?.cycleKey],
+	);
+	const isInstallmentPlanCompleted = React.useMemo(
+		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, settledInstallmentsCount),
+		[normalizedInstallmentTotal, settledInstallmentsCount],
+	);
+	const installmentHelperMessage = !isCoreTemplateReady
+		? 'Preencha nome, valor e recebimento para liberar o parcelamento.'
+		: !installmentsEnabled
+			? 'Deixe desligado para uma receita fixa mensal sem limite de parcelas.'
+			: !isInstallmentTotalValid
+				? `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`
+				: isInstallmentTotalBelowSettled
+					? `Este ganho já tem ${settledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`
+					: normalizedInstallmentTotal
+						? `A listagem exibirá ${formatMandatoryInstallmentLabel(normalizedInstallmentTotal, settledInstallmentsCount, isReceivedForCurrentCycle) ?? 'o progresso das parcelas'}.`
+						: 'Informe a quantidade total de parcelas.';
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -385,6 +444,8 @@ export default function AddMandatoryGainsScreen() {
 					return gainValueInputRef;
 				case 'due-day':
 					return dueDayInputRef;
+				case 'installments':
+					return installmentsInputRef;
 				case 'description':
 					return descriptionInputRef;
 				case 'reminder-time':
@@ -396,70 +457,16 @@ export default function AddMandatoryGainsScreen() {
 		[],
 	);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x, y) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - keyboardScrollOffset(key)),
-							animated: true,
-						}),
-					() => { },
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-		const showSub = Keyboard.addListener(showEvent, e => {
-			setKeyboardHeight(e.endCoordinates?.height ?? 0);
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-		const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
-
-		return () => {
-			showSub.remove();
-			hideSub.remove();
-		};
-	}, [scrollToInput]);
-
-	const contentBottomPadding = React.useMemo(() => Math.max(140, keyboardHeight + 120), [keyboardHeight]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+	});
 
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
 		setSelectedGainTemplateId(null);
@@ -468,6 +475,9 @@ export default function AddMandatoryGainsScreen() {
 		setValueInCents(null);
 		setDueDay('');
 		setUsesBusinessDays(false);
+		setInstallmentsEnabled(false);
+		setInstallmentTotal('');
+		setSettledInstallmentsCount(0);
 		setDescription('');
 		setReminderEnabled(false);
 		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
@@ -499,6 +509,11 @@ export default function AddMandatoryGainsScreen() {
 			},
 		});
 	}, [isAddTagButtonDisabled]);
+
+	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
+		setSelectedTagId(tag.id);
+		setSelectedTagName(tag.name);
+	}, []);
 
 	const loadTags = React.useCallback(async () => {
 		const currentUser = auth.currentUser;
@@ -626,9 +641,13 @@ export default function AddMandatoryGainsScreen() {
 		};
 	}, [selectedTagId, tagOptions]);
 
-	const navigateToMandatoryGainsList = React.useCallback(() => {
-		Keyboard.dismiss();
-		router.dismissTo('/mandatory-gains');
+	const navigateAfterMandatoryGainSubmit = React.useCallback(() => {
+		navigateToHomeDashboard();
+	}, []);
+
+	const handleBackToHome = React.useCallback(() => {
+		navigateToHomeDashboard();
+		return true;
 	}, []);
 
 	React.useEffect(() => {
@@ -667,6 +686,11 @@ export default function AddMandatoryGainsScreen() {
 				const usesBusinessDaysValue = data.usesBusinessDays === true;
 				const tagId = typeof data.tagId === 'string' ? data.tagId : null;
 				const descriptionValue = typeof data.description === 'string' ? data.description : '';
+				const installmentTotalValue = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+				const installmentsCompletedValue = normalizeMandatoryInstallmentsCompleted(
+					data.installmentsCompleted,
+					installmentTotalValue,
+				);
 				const reminderFlag = data.reminderEnabled !== false;
 				const reminderHour =
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
@@ -688,6 +712,9 @@ export default function AddMandatoryGainsScreen() {
 				setValueDisplay(value ? formatCurrencyBRL(value) : '');
 				setDueDay(String(dueDayValue).padStart(2, '0'));
 				setUsesBusinessDays(usesBusinessDaysValue);
+				setInstallmentsEnabled(installmentTotalValue !== null);
+				setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
+				setSettledInstallmentsCount(installmentsCompletedValue);
 				setSelectedTagId(tagId);
 				setDescription(descriptionValue);
 				setReminderEnabled(reminderFlag);
@@ -703,6 +730,7 @@ export default function AddMandatoryGainsScreen() {
 					dueDay: String(dueDayValue).padStart(2, '0'),
 					usesBusinessDays: usesBusinessDaysValue,
 					tagId,
+					installmentTotal: installmentTotalValue,
 					description: descriptionValue.trim(),
 					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
 					reminderEnabled: reminderFlag,
@@ -780,6 +808,28 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
+		if (installmentsEnabled && normalizedInstallmentTotal === null) {
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`,
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
+		if (installmentsEnabled && isInstallmentTotalBelowSettled) {
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: `Este ganho já tem ${settledInstallmentsCount} parcela(s) registrada(s). A quantidade total precisa ser igual ou maior.`,
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
 		const parsedReminderTime = parseMandatoryReminderTime(reminderTime);
 		if (reminderEnabled && !parsedReminderTime) {
 			showNotifierAlert({
@@ -807,6 +857,13 @@ export default function AddMandatoryGainsScreen() {
 		setIsSubmitting(true);
 
 		try {
+			const payloadInstallmentsCompleted =
+				installmentsEnabled && normalizedInstallmentTotal !== null
+					? normalizeMandatoryInstallmentsCompleted(
+						Math.max(settledInstallmentsCount, isReceivedForCurrentCycle ? 1 : 0),
+						normalizedInstallmentTotal,
+					)
+					: 0;
 			const payload = {
 				name: trimmedName,
 				valueInCents,
@@ -817,6 +874,8 @@ export default function AddMandatoryGainsScreen() {
 				reminderEnabled,
 				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
 				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
+				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+				installmentsCompleted: payloadInstallmentsCompleted,
 			};
 
 			let persistedId = selectedGainTemplateId;
@@ -884,7 +943,7 @@ export default function AddMandatoryGainsScreen() {
 				});
 			}
 
-			navigateToMandatoryGainsList();
+			navigateAfterMandatoryGainSubmit();
 		} catch (error) {
 			console.error('Erro ao salvar ganho obrigatório:', error);
 			showNotifierAlert({
@@ -903,19 +962,19 @@ export default function AddMandatoryGainsScreen() {
 		gainName,
 		isDarkMode,
 		isDueDayValid,
+		installmentsEnabled,
+		isInstallmentTotalBelowSettled,
+		isReceivedForCurrentCycle,
 		usesBusinessDays,
+		normalizedInstallmentTotal,
 		reminderEnabled,
 		reminderTime,
-		navigateToMandatoryGainsList,
+		navigateAfterMandatoryGainSubmit,
 		selectedGainTemplateId,
 		selectedTagId,
+		settledInstallmentsCount,
 		valueInCents,
 	]);
-
-	const isReceivedForCurrentCycle = React.useMemo(
-		() => isCycleKeyCurrent(currentReceiptInfo?.cycleKey),
-		[currentReceiptInfo?.cycleKey],
-	);
 
 	const handleRegisterReceiptNavigation = React.useCallback(() => {
 		if (!selectedGainTemplateId) {
@@ -933,6 +992,17 @@ export default function AddMandatoryGainsScreen() {
 			showNotifierAlert({
 				title: 'Recebimento já registrado',
 				description: 'Este ganho já foi registrado como recebido neste mês.',
+				type: 'warn',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
+		if (isInstallmentPlanCompleted) {
+			showNotifierAlert({
+				title: 'Parcelamento concluído',
+				description: 'Todas as parcelas deste ganho obrigatório já foram registradas.',
 				type: 'warn',
 				isDarkMode,
 				duration: 4500,
@@ -988,6 +1058,7 @@ export default function AddMandatoryGainsScreen() {
 		gainName,
 		hasPendingTemplateChanges,
 		isDarkMode,
+		isInstallmentPlanCompleted,
 		isReceivedForCurrentCycle,
 		isTemplateReady,
 		selectedGainTemplateId,
@@ -1089,6 +1160,8 @@ export default function AddMandatoryGainsScreen() {
 							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+							onScroll={handleScroll}
+							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
@@ -1165,6 +1238,42 @@ export default function AddMandatoryGainsScreen() {
 										</VStack>
 									</Box>
 
+									<Box className={`px-4 rounded-2xl border ${notTintedCardClassName}`}>
+										<VStack className="gap-3">
+											<HStack className="items-center justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text className="font-semibold">Parcelar por quantidade</Text>
+												</VStack>
+												<Switch
+													value={installmentsEnabled}
+													onValueChange={handleInstallmentsToggle}
+													disabled={!isCoreTemplateReady || isFormBusy}
+													trackColor={switchTrackColor}
+													thumbColor={switchThumbColor}
+													ios_backgroundColor={switchIosBackgroundColor}
+												/>
+											</HStack>
+
+											{installmentsEnabled ? (
+												<VStack className="gap-2 pb-2">
+													<Text className={`${bodyText} ml-1 text-sm`}>Quantidade de parcelas</Text>
+													<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
+														<InputField
+															ref={installmentsInputRef}
+															placeholder="Ex: 12"
+															value={installmentTotal}
+															onChangeText={handleInstallmentTotalChange}
+															keyboardType="numeric"
+															returnKeyType="done"
+															className={inputField}
+															onFocus={() => handleInputFocus('installments')}
+														/>
+													</Input>
+												</VStack>
+											) : null}
+										</VStack>
+									</Box>
+
 									<VStack className="gap-2">
 										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
 										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
@@ -1182,23 +1291,24 @@ export default function AddMandatoryGainsScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Categoria obrigatória</Text>
-										<Select
-											selectedValue={selectedTagId ?? undefined}
-											onValueChange={setSelectedTagId}
+										<Text className={`${bodyText} ml-1 text-sm`}>Categoria</Text>
+										<TagActionsheetSelector
+											options={tagOptions}
+											selectedId={selectedTagId}
+											selectedLabel={selectedTagLabel}
+											onSelect={handleSelectTag}
 											isDisabled={isTagSelectDisabled}
-										>
-											<HStack className="items-end gap-3">
-												<View className="flex-1">
-													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-														<SelectInput
-															placeholder="Selecione a categoria do ganho"
-															value={selectedTagLabel ?? ''}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-												</View>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={fieldContainerCardClassName}
+											placeholder="Selecione a categoria do ganho"
+											sheetTitle="Escolha a categoria obrigatória"
+											emptyMessage="Nenhuma categoria obrigatória de ganho disponível."
+											triggerHint={tagHelperMessage}
+											disabledHint={tagHelperMessage}
+											accessibilityLabel="Escolher categoria obrigatória de ganho"
+											rightAccessory={
 												<Pressable
 													onPress={handleOpenAddTagScreen}
 													hitSlop={8}
@@ -1211,21 +1321,8 @@ export default function AddMandatoryGainsScreen() {
 														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
 													/>
 												</Pressable>
-											</HStack>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{tagOptions.length > 0 ? (
-														tagOptions.map(tag => <SelectItem key={tag.id} label={tag.name} value={tag.id} />)
-													) : (
-														<SelectItem label="Nenhuma tag disponível" value="no-tag" isDisabled />
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											}
+										/>
 									</VStack>
 
 									<Box className={`${compactCardClassName} px-4 rounded-2xl border ${notTintedCardClassName}`}>
@@ -1327,7 +1424,7 @@ export default function AddMandatoryGainsScreen() {
 				</KeyboardAvoidingView>
 
 				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
-					<Navigator defaultValue={1} />
+					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
 				</View>
 			</View>
 		</SafeAreaView>

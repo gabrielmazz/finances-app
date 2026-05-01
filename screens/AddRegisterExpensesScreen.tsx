@@ -1,14 +1,12 @@
 import React from 'react';
 import {
 	BackHandler,
-	findNodeHandle,
 	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
 	StatusBar,
 	View,
-	useWindowDimensions,
 	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +42,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';
@@ -57,6 +56,7 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
 	isTagVisibleInRegularUsageList,
@@ -73,6 +73,7 @@ import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useT
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type OptionItem = {
 	id: string;
@@ -230,11 +231,9 @@ export default function AddRegisterExpensesScreen() {
 		'Pagamento em Dinheiro' | 'Pagamento em Banco'
 	>(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
 
-	const scrollViewRef = React.useRef<ScrollView | null>(null);
 	const expenseNameInputRef = React.useRef<any>(null);
 	const expenseValueInputRef = React.useRef<any>(null);
 	const expenseExplanationInputRef = React.useRef<any>(null);
-	const lastFocusedInputKey = React.useRef<FocusableInputKey | null>(null);
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'expense-explanation' ? 220 : 170),
@@ -262,27 +261,6 @@ export default function AddRegisterExpensesScreen() {
 		});
 	}, [banks, expenseName, isDarkMode, moneyFormat, selectedBankId, selectedMovementBankName]);
 
-	// Mantém o fluxo documentado em Arquitetura/Transações de Despesas.md e Arquitetura/Navegação.md:
-	// após salvar uma nova despesa, o usuário continua na própria tela e o contexto do template é descartado.
-	const resetFormAfterCreate = React.useCallback(() => {
-		Keyboard.dismiss();
-		lastFocusedInputKey.current = null;
-		setExpenseName('');
-		setExpenseValueDisplay('');
-		setExpenseValueCents(null);
-		setExpenseDate(formatDateToBR(new Date()));
-		setSelectedTagId(null);
-		setSelectedBankId(null);
-		setSelectedMovementTagName(null);
-		setSelectedMovementTagIcon(null);
-		setSelectedMovementBankName(null);
-		setExplanationExpense(null);
-		setMoneyFormat(false);
-		setValuesRadioMoneyFormat('Pagamento em Banco');
-		scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-		router.replace('/add-register-expenses');
-	}, []);
-
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
 			case 'expense-name':
@@ -296,64 +274,17 @@ export default function AddRegisterExpensesScreen() {
 		}
 	}, []);
 
-	const scrollToInput = React.useCallback(
-		(key: FocusableInputKey) => {
-			const inputRef = getInputRef(key);
-			if (!inputRef?.current) {
-				return;
-			}
-
-			const nodeHandle = findNodeHandle(inputRef.current);
-			const scrollResponder = scrollViewRef.current?.getScrollResponder?.();
-			const offset = keyboardScrollOffset(key);
-
-			if (scrollResponder && nodeHandle) {
-				scrollResponder.scrollResponderScrollNativeHandleToKeyboard(nodeHandle, offset, true);
-				return;
-			}
-
-			const scrollViewNode = scrollViewRef.current;
-			const innerViewNode = scrollViewNode?.getInnerViewNode?.();
-
-			if (scrollViewNode && innerViewNode && typeof inputRef.current.measureLayout === 'function') {
-				inputRef.current.measureLayout(
-					innerViewNode,
-					(_x: number, y: number) =>
-						scrollViewNode.scrollTo({
-							y: Math.max(0, y - offset),
-							animated: true,
-						}),
-					() => { },
-				);
-			}
-		},
-		[getInputRef, keyboardScrollOffset],
-	);
-
-	const handleInputFocus = React.useCallback(
-		(key: FocusableInputKey) => {
-			lastFocusedInputKey.current = key;
-			scrollToInput(key);
-		},
-		[scrollToInput],
-	);
-
-	React.useEffect(() => {
-		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-
-		const showSub = Keyboard.addListener(showEvent, () => {
-			const focusedKey = lastFocusedInputKey.current;
-			if (focusedKey) {
-				setTimeout(() => {
-					scrollToInput(focusedKey);
-				}, 50);
-			}
-		});
-
-		return () => {
-			showSub.remove();
-		};
-	}, [scrollToInput]);
+	const {
+		scrollViewRef,
+		contentBottomPadding,
+		handleInputFocus,
+		handleScroll,
+		scrollEventThrottle,
+	} = useKeyboardAwareScroll<FocusableInputKey>({
+		getInputRef,
+		keyboardScrollOffset,
+		minBottomPadding: 32,
+	});
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
@@ -561,28 +492,23 @@ export default function AddRegisterExpensesScreen() {
 		});
 	}, [isAddTagButtonDisabled]);
 
+	const handleSelectTag = React.useCallback((tag: TagActionsheetOption) => {
+		setSelectedTagId(tag.id);
+		setSelectedMovementTagName(tag.name);
+		setSelectedMovementTagIcon({
+			iconFamily: tag.iconFamily ?? null,
+			iconName: tag.iconName ?? null,
+			iconStyle: tag.iconStyle ?? null,
+		});
+	}, []);
+
 	React.useEffect(() => {
 		setValuesRadioMoneyFormat(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
 	}, [moneyFormat]);
 
 	const handleLeaveScreen = React.useCallback(() => {
-		Keyboard.dismiss();
-
-		if (linkedMandatoryExpenseId) {
-			router.dismissTo('/mandatory-expenses');
-			return;
-		}
-
-		if (router.canGoBack()) {
-			router.back();
-			return;
-		}
-
-		router.replace({
-			pathname: '/home',
-			params: { tab: '0' },
-		});
-	}, [linkedMandatoryExpenseId]);
+		navigateToHomeDashboard();
+	}, []);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -893,6 +819,7 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				showSuccessfulExpenseNotification(true);
+				navigateToHomeDashboard();
 				return;
 			}
 
@@ -954,7 +881,7 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			showSuccessfulExpenseNotification();
-			resetFormAfterCreate();
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
 			showNotifierAlert({
@@ -983,7 +910,6 @@ export default function AddRegisterExpensesScreen() {
 			selectedTagId,
 			parsedExpenseDate,
 			showSuccessfulExpenseNotification,
-			resetFormAfterCreate,
 		]);
 
 	React.useEffect(() => {
@@ -1277,7 +1203,9 @@ export default function AddRegisterExpensesScreen() {
 							style={{ marginTop: heroHeight - 64 }}
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
-							contentContainerStyle={{ paddingBottom: 32 }}
+							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+							onScroll={handleScroll}
+							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className="justify-between mt-4">
 
@@ -1526,39 +1454,22 @@ export default function AddRegisterExpensesScreen() {
 											</HStack>
 										</View>
 									) : (
-										<Select
-											selectedValue={selectedTagId ?? undefined}
-											onValueChange={value => {
-												setSelectedTagId(value);
-												const matchedTag = tags.find(tag => tag.id === value);
-												setSelectedMovementTagName(matchedTag?.name ?? null);
-												setSelectedMovementTagIcon(
-													matchedTag
-														? {
-															iconFamily: matchedTag.iconFamily ?? null,
-															iconName: matchedTag.iconName ?? null,
-															iconStyle: matchedTag.iconStyle ?? null,
-														}
-														: null,
-												);
-											}}
+										<TagActionsheetSelector
+											options={tags}
+											selectedId={selectedTagId}
+											selectedLabel={selectedTagLabel}
+											selectedOption={selectedTagOption}
+											onSelect={handleSelectTag}
 											isDisabled={isTagSelectDisabled}
-										>
-											<HStack className="items-end gap-3">
-												<View className="flex-1">
-													<SelectTrigger
-														variant="outline"
-														size="md"
-														className={fieldContainerClassName}
-													>
-														<SelectInput
-															placeholder="Selecione a categoria da despesa"
-															value={selectedTagLabel ?? ''}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-												</View>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={fieldContainerCardClassName}
+											placeholder="Selecione a categoria da despesa"
+											sheetTitle="Escolha a categoria da despesa"
+											emptyMessage="Nenhuma categoria de despesa disponível."
+											accessibilityLabel="Escolher categoria de despesa"
+											rightAccessory={
 												<Pressable
 													onPress={handleOpenAddTagScreen}
 													hitSlop={8}
@@ -1571,37 +1482,8 @@ export default function AddRegisterExpensesScreen() {
 														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
 													/>
 												</Pressable>
-											</HStack>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{tags.length > 0 ? (
-														[...tags]
-															.sort((a, b) =>
-																a.name.localeCompare(b.name, 'pt-BR', {
-																	sensitivity: 'base',
-																}),
-															)
-															.map(tag => (
-																<SelectItem
-																	key={tag.id}
-																	label={tag.name}
-																	value={tag.id}
-																/>
-															))
-													) : (
-														<SelectItem
-															label="Nenhuma tag disponível"
-															value="no-tag"
-															isDisabled
-														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											}
+										/>
 									)}
 								</VStack>
 

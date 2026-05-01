@@ -49,6 +49,9 @@ export type DateCalendarItem = {
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
 	isCompletedForCurrentCycle?: boolean;
+	isInstallmentComplete?: boolean;
+	installmentLabel?: string | null;
+	canReclaimCurrentCycle?: boolean;
 	lastStatusDate?: Date | null;
 };
 
@@ -676,18 +679,32 @@ function DateCalendar({
 														>
 															{item.name}
 														</Text>
-														<Text
-															numberOfLines={1}
-															style={{
-																marginTop: 2,
-																color: timelinePalette.subtitle,
+													<Text
+														numberOfLines={1}
+														style={{
+															marginTop: 2,
+															color: timelinePalette.subtitle,
 																fontSize: 12,
 																lineHeight: 18,
 															}}
+													>
+														{itemTagLabel}
+													</Text>
+													{item.installmentLabel ? (
+														<Text
+															numberOfLines={1}
+															style={{
+																marginTop: 1,
+																color: tonePalette.accentColor,
+																fontSize: 11,
+																lineHeight: 16,
+																fontWeight: '700',
+															}}
 														>
-															{itemTagLabel}
+															{item.installmentLabel}
 														</Text>
-													</View>
+													) : null}
+												</View>
 												</HStack>
 
 												<HStack className="items-center gap-2">
@@ -793,6 +810,7 @@ function DateCalendar({
 															],
 															[
 																{ label: 'Lembrete', value: reminderLabel },
+																...(item.installmentLabel ? [{ label: 'Parcelas', value: item.installmentLabel }] : []),
 															],
 														].map((metaRow, rowIndex) => (
 															<HStack key={`${item.id}-meta-row-${rowIndex}`} className="gap-4">
@@ -880,7 +898,7 @@ function DateCalendar({
 															<Text className="text-xs font-semibold text-white">Editar</Text>
 														</Pressable>
 
-														{item.isCompletedForCurrentCycle ? (
+														{item.isCompletedForCurrentCycle && item.canReclaimCurrentCycle !== false ? (
 															<Pressable
 																onPress={() => handleDayAction('reclaim', item)}
 																style={{

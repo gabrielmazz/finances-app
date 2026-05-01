@@ -1,6 +1,8 @@
 import React from 'react';
 import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -14,7 +16,7 @@ import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/b
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { AddIcon, CalendarDaysIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
+import { AddIcon, CalendarDaysIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
 	ModalBackdrop,
@@ -38,6 +40,7 @@ import {
 	cancelMandatoryGainNotification,
 	syncMandatoryGainNotifications,
 } from '@/utils/mandatoryGainNotifications';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import {
@@ -46,6 +49,12 @@ import {
 	formatResolvedMonthDayLabel,
 	resolveMonthlyOccurrence,
 } from '@/utils/businessCalendar';
+import {
+	formatMandatoryInstallmentLabel,
+	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentTotal,
+	normalizeMandatoryInstallmentsCompleted,
+} from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
@@ -55,6 +64,11 @@ import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calend
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import {
+	buildMandatoryPeriodSummaryPdfHtml,
+	type MandatoryPeriodSummaryPdfItem,
+	type MandatoryPeriodSummaryPdfMetric,
+} from '@/utils/mandatoryPeriodSummaryPdf';
 
 type MandatoryGainItem = DateCalendarItem & {
 	usesBusinessDays?: boolean;
@@ -65,6 +79,10 @@ type MandatoryGainItem = DateCalendarItem & {
 	lastReceiptDate?: Date | null;
 	lastReceiptValueInCents?: number | null;
 	isReceivedForCurrentCycle?: boolean;
+	installmentTotal?: number | null;
+	installmentsCompleted?: number;
+	installmentLabel?: string | null;
+	isInstallmentComplete?: boolean;
 };
 
 type PendingGainAction =
@@ -164,6 +182,26 @@ const formatReceiptDate = (value: Date | null) => {
 		year: 'numeric',
 	}).format(value);
 };
+
+const formatReferenceMonthLabel = (value: Date) =>
+	new Intl.DateTimeFormat('pt-BR', {
+		month: 'long',
+		year: 'numeric',
+	}).format(value);
+
+const formatGeneratedAtLabel = (value: Date) =>
+	new Intl.DateTimeFormat('pt-BR', {
+		day: '2-digit',
+		month: '2-digit',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	}).format(value);
+
+const getMandatoryDisplayValueInCents = (item: DateCalendarItem) =>
+	typeof item.displayValueInCents === 'number' && !Number.isNaN(item.displayValueInCents)
+		? item.displayValueInCents
+		: item.valueInCents;
 
 const formatGainScheduleLabel = (gain: MandatoryGainItem) => {
 	const configuredLabel = formatConfiguredMonthlyDueLabel(gain.dueDay, gain.usesBusinessDays);
@@ -267,6 +305,7 @@ export default function MandatoryGainsListScreen() {
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedGainIds, setExpandedGainIds] = React.useState<string[]>([]);
+	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -285,7 +324,8 @@ export default function MandatoryGainsListScreen() {
 		() =>
 			gains.map(gain => ({
 				...gain,
-				isCompletedForCurrentCycle: gain.isReceivedForCurrentCycle,
+				isCompletedForCurrentCycle: gain.isReceivedForCurrentCycle || gain.isInstallmentComplete,
+				canReclaimCurrentCycle: gain.isReceivedForCurrentCycle,
 				lastStatusDate: gain.lastReceiptDate ?? null,
 			})),
 		[gains],
@@ -293,10 +333,16 @@ export default function MandatoryGainsListScreen() {
 
 	const getGainStatusText = React.useCallback(
 		(gain: DateCalendarItem & { lastStatusDate?: Date | null; isCompletedForCurrentCycle?: boolean }) => {
+			if ((gain as MandatoryGainItem).isInstallmentComplete) {
+				return 'Parcelamento concluído.';
+			}
 			if (gain.isCompletedForCurrentCycle) {
 				return `Recebido em ${formatReceiptDate(gain.lastStatusDate ?? null)}.`;
 			}
-			return 'Aguardando registro como ganho neste mês.';
+			const installmentLabel = (gain as MandatoryGainItem).installmentLabel;
+			return installmentLabel
+				? `Aguardando registro da ${installmentLabel.toLowerCase()} como ganho neste mês.`
+				: 'Aguardando registro como ganho neste mês.';
 		},
 		[],
 	);
@@ -313,6 +359,51 @@ export default function MandatoryGainsListScreen() {
 		}),
 		[isDarkMode],
 	);
+
+	const monthlySummaryPalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			border: isDarkMode ? 'rgba(148, 163, 184, 0.16)' : 'rgba(226, 232, 240, 1)',
+			surface: isDarkMode ? 'rgba(15, 23, 42, 0.92)' : '#F8FAFC',
+			gainText: '#10B981',
+			pendingText: '#0EA5E9',
+			cardBaseColor: '#047857',
+			cardGlowColor: 'rgba(16, 185, 129, 0.38)',
+			cardHighlightColor: 'rgba(103, 232, 249, 0.42)',
+		}),
+		[isDarkMode],
+	);
+
+	const referenceMonthLabel = React.useMemo(() => formatReferenceMonthLabel(new Date()), []);
+
+	const monthlySummary = React.useMemo(() => {
+		// Resumo mensal segue a chave de ciclo documentada em [[Receitas Fixas]].
+		const receivedItems = gains.filter(gain => gain.isReceivedForCurrentCycle);
+		const pendingItems = gains.filter(gain => !gain.isReceivedForCurrentCycle && !gain.isInstallmentComplete);
+		const completedPlanItems = gains.filter(gain => gain.isInstallmentComplete && !gain.isReceivedForCurrentCycle);
+		const totalReferenceInCents = [...receivedItems, ...pendingItems].reduce(
+			(total, gain) => total + getMandatoryDisplayValueInCents(gain),
+			0,
+		);
+		const receivedTotalInCents = receivedItems.reduce(
+			(total, gain) => total + getMandatoryDisplayValueInCents(gain),
+			0,
+		);
+		const pendingTotalInCents = pendingItems.reduce(
+			(total, gain) => total + getMandatoryDisplayValueInCents(gain),
+			0,
+		);
+
+		return {
+			receivedItems,
+			pendingItems,
+			completedPlanItems,
+			totalReferenceInCents,
+			receivedTotalInCents,
+			pendingTotalInCents,
+		};
+	}, [gains]);
 
 	React.useEffect(() => {
 		const visibleIds = new Set(gains.map(gain => gain.id));
@@ -385,6 +476,11 @@ export default function MandatoryGainsListScreen() {
 			const formattedGains: MandatoryGainItem[] = gainsResult.data.map((gain: any) => {
 				const dueDay = typeof gain?.dueDay === 'number' ? gain.dueDay : 1;
 				const usesBusinessDays = gain?.usesBusinessDays === true;
+				const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
+				const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+					gain?.installmentsCompleted,
+					installmentTotal,
+				);
 				const resolvedOccurrence = resolveMonthlyOccurrence({
 					referenceDate,
 					dueDay,
@@ -407,11 +503,22 @@ export default function MandatoryGainsListScreen() {
 					lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
 					lastReceiptValueInCents:
 						typeof gain?.lastReceiptValueInCents === 'number' ? gain.lastReceiptValueInCents : null,
+					installmentTotal,
+					installmentsCompleted,
 				};
 			});
 
 			const gainsWithStatus = formattedGains.map(gain => {
 				const isReceivedForCurrentCycle = isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
+				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
+					gain.installmentTotal ?? null,
+					gain.installmentsCompleted ?? 0,
+				);
+				const installmentLabel = formatMandatoryInstallmentLabel(
+					gain.installmentTotal ?? null,
+					gain.installmentsCompleted ?? 0,
+					isReceivedForCurrentCycle,
+				);
 				const displayValueInCents =
 					isReceivedForCurrentCycle &&
 					typeof gain.lastReceiptValueInCents === 'number' &&
@@ -422,6 +529,8 @@ export default function MandatoryGainsListScreen() {
 				return {
 					...gain,
 					isReceivedForCurrentCycle,
+					isInstallmentComplete,
+					installmentLabel,
 					displayValueInCents,
 				};
 			});
@@ -430,16 +539,25 @@ export default function MandatoryGainsListScreen() {
 			setTagMetadataMap(tagMetadataRecord);
 			setGains(gainsWithStatus);
 			await syncMandatoryGainNotifications(
-				gainsResult.data.map((gain: any) => ({
-					id: typeof gain?.id === 'string' ? gain.id : '',
-					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
-					dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
-					usesBusinessDays: gain?.usesBusinessDays === true,
-					reminderEnabled: gain?.reminderEnabled !== false,
-					reminderHour: typeof gain?.reminderHour === 'number' ? gain.reminderHour : 9,
-					reminderMinute: typeof gain?.reminderMinute === 'number' ? gain.reminderMinute : 0,
-					description: typeof gain?.description === 'string' ? gain.description : null,
-				})),
+				gainsResult.data.map((gain: any) => {
+					const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
+					const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+						gain?.installmentsCompleted,
+						installmentTotal,
+					);
+					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
+
+					return {
+						id: typeof gain?.id === 'string' ? gain.id : '',
+						name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
+						dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
+						usesBusinessDays: gain?.usesBusinessDays === true,
+						reminderEnabled: isInstallmentComplete ? false : gain?.reminderEnabled !== false,
+						reminderHour: typeof gain?.reminderHour === 'number' ? gain.reminderHour : 9,
+						reminderMinute: typeof gain?.reminderMinute === 'number' ? gain.reminderMinute : 0,
+						description: typeof gain?.description === 'string' ? gain.description : null,
+					};
+				}),
 			);
 		} catch (error) {
 			console.error('Erro ao carregar ganhos obrigatórios:', error);
@@ -479,6 +597,15 @@ export default function MandatoryGainsListScreen() {
 		if (gain.isReceivedForCurrentCycle) {
 			showNotifierAlert({
 				description: 'Este ganho já foi registrado como recebido neste mês.',
+				type: 'warn',
+				isDarkMode,
+			});
+			return;
+		}
+
+		if (gain.isInstallmentComplete) {
+			showNotifierAlert({
+				description: 'Todas as parcelas deste ganho obrigatório já foram registradas.',
 				type: 'warn',
 				isDarkMode,
 			});
@@ -603,8 +730,155 @@ export default function MandatoryGainsListScreen() {
 		}
 	}, [handleEdit, handleRegisterGain, loadData, pendingAction]);
 
+	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
+		if (isExportingPdf || isLoading) {
+			return;
+		}
+
+		const generatedAtLabel = formatGeneratedAtLabel(new Date());
+		const metrics: MandatoryPeriodSummaryPdfMetric[] = [
+			{
+				label: 'Total do mês',
+				value: formatCurrencyBRL(monthlySummary.totalReferenceInCents),
+				helper: 'Recebidos do ciclo atual somados aos pendentes previstos.',
+				tone: 'gain',
+			},
+			{
+				label: 'Recebido',
+				value: formatCurrencyBRL(monthlySummary.receivedTotalInCents),
+				helper: `${monthlySummary.receivedItems.length} item(ns) recebido(s).`,
+				tone: 'gain',
+			},
+			{
+				label: 'Pendente',
+				value: formatCurrencyBRL(monthlySummary.pendingTotalInCents),
+				helper: `${monthlySummary.pendingItems.length} item(ns) aguardando registro.`,
+				tone: 'neutral',
+			},
+			{
+				label: 'Itens do ciclo',
+				value: String(monthlySummary.receivedItems.length + monthlySummary.pendingItems.length),
+				helper: 'Receitas recebidas ou ainda pendentes neste mês.',
+			},
+			{
+				label: 'Parcelamentos concluídos',
+				value: String(monthlySummary.completedPlanItems.length),
+				helper: 'Itens finitos já encerrados antes deste ciclo.',
+			},
+			{
+				label: 'Cadastros totais',
+				value: String(gains.length),
+				helper: 'Todos os ganhos obrigatórios carregados na tela.',
+			},
+		];
+
+		const pdfItems: MandatoryPeriodSummaryPdfItem[] = gains.map(gain => {
+			const isCycleReceived = gain.isReceivedForCurrentCycle === true;
+			const isCompletedBeforeCycle = gain.isInstallmentComplete === true && !isCycleReceived;
+			const statusLabel = isCompletedBeforeCycle
+				? 'Parcelamento concluído'
+				: isCycleReceived
+					? 'Recebido no mês'
+					: 'Pendente no mês';
+			const description = gain.description?.trim()
+				? gain.description.trim()
+				: isCompletedBeforeCycle
+					? 'Este ganho obrigatório parcelado já foi concluído.'
+					: isCycleReceived
+						? `Recebido em ${formatReceiptDate(gain.lastReceiptDate ?? null)}.`
+						: 'Aguardando registro como ganho neste mês.';
+
+			return {
+				id: gain.id,
+				name: gain.name,
+				statusLabel,
+				dateLabel: formatGainResolvedDateLabel(gain),
+				tagLabel: tagMetadataMap[gain.tagId]?.name ?? tagsMap[gain.tagId] ?? 'Sem tag',
+				scheduleLabel: formatGainScheduleLabel(gain),
+				description,
+				amountLabel: isCompletedBeforeCycle
+					? 'Fora do ciclo'
+					: formatCurrencyBRL(getMandatoryDisplayValueInCents(gain)),
+				amountTone: isCompletedBeforeCycle ? 'neutral' : 'gain',
+			};
+		});
+
+		const pdfHtml = buildMandatoryPeriodSummaryPdfHtml({
+			reportKindLabel: 'Receitas fixas',
+			title: 'Resumo de ganhos obrigatórios',
+			monthLabel: referenceMonthLabel,
+			generatedAtLabel,
+			primaryMetricLabel: 'Total do mês',
+			primaryMetricValue: formatCurrencyBRL(monthlySummary.totalReferenceInCents),
+			primaryMetricHelper: `${monthlySummary.receivedItems.length} recebidos · ${monthlySummary.pendingItems.length} pendentes`,
+			metrics,
+			items: pdfItems,
+			cardBaseColor: monthlySummaryPalette.cardBaseColor,
+			cardGlowColor: monthlySummaryPalette.cardGlowColor,
+			cardHighlightColor: monthlySummaryPalette.cardHighlightColor,
+			emptyStateLabel: 'Nenhum ganho obrigatório foi cadastrado para o mês.',
+			privacyNotice: shouldHideValues
+				? 'Os valores foram ocultados porque a preferência de privacidade está ativa.'
+				: null,
+		});
+
+		setIsExportingPdf(true);
+		try {
+			// Exporta o resumo mensal seguindo [[Receitas Fixas]] e [[Privacidade de Valores]].
+			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const canShare = await Sharing.isAvailableAsync();
+
+			if (!canShare) {
+				await Print.printAsync({ html: pdfHtml });
+				showNotifierAlert({
+					title: 'Resumo pronto',
+					description: 'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
+					type: 'info',
+					isDarkMode,
+				});
+				return;
+			}
+
+			await Sharing.shareAsync(uri, {
+				dialogTitle: 'Baixar resumo de ganhos obrigatórios',
+				mimeType: 'application/pdf',
+				UTI: 'com.adobe.pdf',
+			});
+
+			showNotifierAlert({
+				title: 'PDF pronto',
+				description: 'Resumo em PDF gerado com sucesso.',
+				type: 'success',
+				isDarkMode,
+			});
+		} catch (error) {
+			console.error('Erro ao gerar resumo mensal de ganhos obrigatórios:', error);
+			showNotifierAlert({
+				description: 'Não foi possível gerar o PDF do resumo agora.',
+				type: 'error',
+				isDarkMode,
+			});
+		} finally {
+			setIsExportingPdf(false);
+		}
+	}, [
+		formatCurrencyBRL,
+		gains,
+		isDarkMode,
+		isExportingPdf,
+		isLoading,
+		monthlySummary,
+		monthlySummaryPalette.cardBaseColor,
+		monthlySummaryPalette.cardGlowColor,
+		monthlySummaryPalette.cardHighlightColor,
+		referenceMonthLabel,
+		shouldHideValues,
+		tagMetadataMap,
+		tagsMap,
+	]);
+
 	const handleBackToHome = React.useCallback(() => {
-		router.replace('/home?tab=0');
+		navigateToHomeDashboard();
 		return true;
 	}, []);
 
@@ -750,6 +1024,112 @@ export default function MandatoryGainsListScreen() {
 										valueTone="gain"
 									/>
 
+									<View className={`py-2`}>
+										<VStack className="gap-4">
+											<HStack className="items-start justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: monthlySummaryPalette.subtitle }}
+													>
+														Resumo do mês
+													</Text>
+													<Heading size="lg" style={{ color: monthlySummaryPalette.title }}>
+														{referenceMonthLabel}
+													</Heading>
+												</VStack>
+
+												<VStack className="items-end gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: monthlySummaryPalette.subtitle }}
+													>
+														Total do mês
+													</Text>
+													<Heading size="md" style={{ color: monthlySummaryPalette.gainText }}>
+														{formatCurrencyBRL(monthlySummary.totalReferenceInCents)}
+													</Heading>
+												</VStack>
+											</HStack>
+
+											<HStack className="gap-3">
+												<View
+													style={{
+														flex: 1,
+														minHeight: 96,
+														borderRadius: 22,
+														borderWidth: 1,
+														borderColor: monthlySummaryPalette.border,
+														paddingHorizontal: 14,
+														paddingVertical: 12,
+													}}
+												>
+													<VStack className="flex-1 justify-between">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: monthlySummaryPalette.subtitle }}
+														>
+															Recebido
+														</Text>
+														<Heading size="sm" style={{ color: monthlySummaryPalette.gainText }}>
+															{formatCurrencyBRL(monthlySummary.receivedTotalInCents)}
+														</Heading>
+														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+															{monthlySummary.receivedItems.length} item(ns)
+														</Text>
+													</VStack>
+												</View>
+
+												<View
+													style={{
+														flex: 1,
+														minHeight: 96,
+														borderRadius: 22,
+														borderWidth: 1,
+														borderColor: monthlySummaryPalette.border,
+														paddingHorizontal: 14,
+														paddingVertical: 12,
+													}}
+												>
+													<VStack className="flex-1 justify-between">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: monthlySummaryPalette.subtitle }}
+														>
+															Pendente
+														</Text>
+														<Heading size="sm" style={{ color: monthlySummaryPalette.pendingText }}>
+															{formatCurrencyBRL(monthlySummary.pendingTotalInCents)}
+														</Heading>
+														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+															{monthlySummary.pendingItems.length} item(ns)
+														</Text>
+													</VStack>
+												</View>
+											</HStack>
+
+											<Button
+												className={submitButtonClassName}
+												onPress={() => {
+													void handleExportMonthlySummaryPdf();
+												}}
+												isDisabled={isLoading || isExportingPdf}
+											>
+												{isExportingPdf ? (
+													<>
+														<ButtonSpinner />
+														<ButtonText>Gerando PDF</ButtonText>
+													</>
+												) : (
+													<>
+														<ButtonIcon as={DownloadIcon} size="sm" />
+														<ButtonText>Baixar resumo em PDF</ButtonText>
+													</>
+												)}
+											</Button>
+										</VStack>
+									</View>
+
 									<Button
 										className={`${submitButtonClassName}`}
 										onPress={handleOpenCreate}
@@ -771,12 +1151,17 @@ export default function MandatoryGainsListScreen() {
 												{gains.map((gain, index) => {
 													const isExpanded = expandedGainIds.includes(gain.id);
 													const tagMetadata = tagMetadataMap[gain.tagId];
-													const tone = gain.isReceivedForCurrentCycle
+													const isCompletedDisplay = gain.isReceivedForCurrentCycle || gain.isInstallmentComplete;
+													const tone = isCompletedDisplay
 														? MANDATORY_GAIN_COMPLETED_TONE
 														: MANDATORY_GAIN_PENDING_TONE;
-													const summaryText = gain.isReceivedForCurrentCycle
-														? `Recebido em ${formatReceiptDate(gain.lastReceiptDate ?? null)}.`
-														: 'Registre o ganho do mês para concluir este item.';
+													const summaryText = gain.isInstallmentComplete
+														? 'Parcelamento concluído.'
+														: gain.isReceivedForCurrentCycle
+															? `Recebido em ${formatReceiptDate(gain.lastReceiptDate ?? null)}.`
+															: gain.installmentLabel
+																? `Registre a ${gain.installmentLabel.toLowerCase()} para concluir este item.`
+																: 'Registre o ganho do mês para concluir este item.';
 
 													return (
 														<View key={gain.id} style={{ flexDirection: 'row' }}>
@@ -869,6 +1254,20 @@ export default function MandatoryGainsListScreen() {
 																				>
 																					{tagMetadata?.name ?? tagsMap[gain.tagId] ?? 'Tag não encontrada'}
 																				</Text>
+																				{gain.installmentLabel ? (
+																					<Text
+																						numberOfLines={1}
+																						style={{
+																							marginTop: 1,
+																							color: tone.accentColor,
+																							fontSize: 11,
+																							lineHeight: 16,
+																							fontWeight: '700',
+																						}}
+																					>
+																						{gain.installmentLabel}
+																					</Text>
+																				) : null}
 																			</View>
 																		</HStack>
 
@@ -979,6 +1378,7 @@ export default function MandatoryGainsListScreen() {
 																					{ label: 'Neste mês', value: formatGainResolvedDateLabel(gain) },
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[gain.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: gain.reminderEnabled === false ? 'Desativado' : 'Ativado' },
+																					...(gain.installmentLabel ? [{ label: 'Parcelas', value: gain.installmentLabel }] : []),
 																				].map(item => (
 																					<View
 																						key={`${gain.id}-${item.label}`}
@@ -1039,13 +1439,13 @@ export default function MandatoryGainsListScreen() {
 																				<TouchableOpacity
 																					activeOpacity={0.85}
 																					onPress={() => setPendingAction({ type: 'register', gain })}
-																					disabled={gain.isReceivedForCurrentCycle}
+																					disabled={gain.isReceivedForCurrentCycle || gain.isInstallmentComplete}
 																					style={{
 																						flexDirection: 'row',
 																						alignItems: 'center',
 																						gap: 8,
 																						paddingVertical: 8,
-																						opacity: gain.isReceivedForCurrentCycle ? 0.45 : 1,
+																						opacity: gain.isReceivedForCurrentCycle || gain.isInstallmentComplete ? 0.45 : 1,
 																					}}
 																				>
 																					<Icon as={AddIcon} size="sm" className="text-white" />

@@ -1,6 +1,8 @@
 import React from 'react';
 import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -13,7 +15,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { AddIcon, CalendarDaysIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
+import { AddIcon, CalendarDaysIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
 	ModalBackdrop,
@@ -46,6 +48,12 @@ import {
 	formatResolvedMonthDayLabel,
 	resolveMonthlyOccurrence,
 } from '@/utils/businessCalendar';
+import {
+	formatMandatoryInstallmentLabel,
+	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentTotal,
+	normalizeMandatoryInstallmentsCompleted,
+} from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
@@ -55,6 +63,11 @@ import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calend
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import {
+	buildMandatoryPeriodSummaryPdfHtml,
+	type MandatoryPeriodSummaryPdfItem,
+	type MandatoryPeriodSummaryPdfMetric,
+} from '@/utils/mandatoryPeriodSummaryPdf';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -71,6 +84,10 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	lastPaymentDate?: Date | null;
 	lastPaymentValueInCents?: number | null;
 	isPaidForCurrentCycle?: boolean;
+	installmentTotal?: number | null;
+	installmentsCompleted?: number;
+	installmentLabel?: string | null;
+	isInstallmentComplete?: boolean;
 };
 
 type TagMetadata = {
@@ -142,6 +159,26 @@ const formatPaymentDate = (value: Date | null) => {
 		year: 'numeric',
 	}).format(value);
 };
+
+const formatReferenceMonthLabel = (value: Date) =>
+	new Intl.DateTimeFormat('pt-BR', {
+		month: 'long',
+		year: 'numeric',
+	}).format(value);
+
+const formatGeneratedAtLabel = (value: Date) =>
+	new Intl.DateTimeFormat('pt-BR', {
+		day: '2-digit',
+		month: '2-digit',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	}).format(value);
+
+const getMandatoryDisplayValueInCents = (item: DateCalendarItem) =>
+	typeof item.displayValueInCents === 'number' && !Number.isNaN(item.displayValueInCents)
+		? item.displayValueInCents
+		: item.valueInCents;
 
 const formatExpenseScheduleLabel = (expense: MandatoryExpenseItem) => {
 	const configuredLabel = formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays);
@@ -252,6 +289,7 @@ export default function MandatoryExpensesListScreen() {
 		insets,
 		compactCardClassName,
 		tintedCardClassName,
+		topSummaryCardClassName,
 		modalContentClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
@@ -268,6 +306,7 @@ export default function MandatoryExpensesListScreen() {
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
+	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -283,7 +322,8 @@ export default function MandatoryExpensesListScreen() {
 		() =>
 			expenses.map(expense => ({
 				...expense,
-				isCompletedForCurrentCycle: expense.isPaidForCurrentCycle,
+				isCompletedForCurrentCycle: expense.isPaidForCurrentCycle || expense.isInstallmentComplete,
+				canReclaimCurrentCycle: expense.isPaidForCurrentCycle,
 				lastStatusDate: expense.lastPaymentDate ?? null,
 			})),
 		[expenses],
@@ -291,10 +331,16 @@ export default function MandatoryExpensesListScreen() {
 
 	const getExpenseStatusText = React.useCallback(
 		(expense: DateCalendarItem & { lastStatusDate?: Date | null; isCompletedForCurrentCycle?: boolean }) => {
+			if ((expense as MandatoryExpenseItem).isInstallmentComplete) {
+				return 'Parcelamento concluído.';
+			}
 			if (expense.isCompletedForCurrentCycle) {
 				return `Pagamento registrado em ${formatPaymentDate(expense.lastStatusDate ?? null)}.`;
 			}
-			return 'Aguardando registro como despesa neste mês.';
+			const installmentLabel = (expense as MandatoryExpenseItem).installmentLabel;
+			return installmentLabel
+				? `Aguardando registro da ${installmentLabel.toLowerCase()} como despesa neste mês.`
+				: 'Aguardando registro como despesa neste mês.';
 		},
 		[],
 	);
@@ -314,6 +360,51 @@ export default function MandatoryExpensesListScreen() {
 		}),
 		[isDarkMode],
 	);
+
+	const monthlySummaryPalette = React.useMemo(
+		() => ({
+			title: isDarkMode ? '#F8FAFC' : '#0F172A',
+			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
+			border: isDarkMode ? 'rgba(148, 163, 184, 0.16)' : 'rgba(226, 232, 240, 1)',
+			surface: isDarkMode ? 'rgba(15, 23, 42, 0.92)' : '#F8FAFC',
+			expenseText: '#EF4444',
+			pendingText: '#F97316',
+			cardBaseColor: '#991B1B',
+			cardGlowColor: 'rgba(249, 115, 22, 0.36)',
+			cardHighlightColor: 'rgba(250, 204, 21, 0.42)',
+		}),
+		[isDarkMode],
+	);
+
+	const referenceMonthLabel = React.useMemo(() => formatReferenceMonthLabel(new Date()), []);
+
+	const monthlySummary = React.useMemo(() => {
+		// Resumo mensal segue a chave de ciclo documentada em [[Despesas Fixas]].
+		const paidItems = expenses.filter(expense => expense.isPaidForCurrentCycle);
+		const pendingItems = expenses.filter(expense => !expense.isPaidForCurrentCycle && !expense.isInstallmentComplete);
+		const completedPlanItems = expenses.filter(expense => expense.isInstallmentComplete && !expense.isPaidForCurrentCycle);
+		const totalReferenceInCents = [...paidItems, ...pendingItems].reduce(
+			(total, expense) => total + getMandatoryDisplayValueInCents(expense),
+			0,
+		);
+		const paidTotalInCents = paidItems.reduce(
+			(total, expense) => total + getMandatoryDisplayValueInCents(expense),
+			0,
+		);
+		const pendingTotalInCents = pendingItems.reduce(
+			(total, expense) => total + getMandatoryDisplayValueInCents(expense),
+			0,
+		);
+
+		return {
+			paidItems,
+			pendingItems,
+			completedPlanItems,
+			totalReferenceInCents,
+			paidTotalInCents,
+			pendingTotalInCents,
+		};
+	}, [expenses]);
 
 	React.useEffect(() => {
 		const visibleIds = new Set(expenses.map(expense => expense.id));
@@ -380,6 +471,11 @@ export default function MandatoryExpensesListScreen() {
 			const formattedExpenses: MandatoryExpenseItem[] = expensesResult.data.map((expense: any) => {
 				const dueDay = typeof expense?.dueDay === 'number' ? expense.dueDay : 1;
 				const usesBusinessDays = expense?.usesBusinessDays === true;
+				const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
+				const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+					expense?.installmentsCompleted,
+					installmentTotal,
+				);
 				const resolvedOccurrence = resolveMonthlyOccurrence({
 					referenceDate,
 					dueDay,
@@ -404,11 +500,22 @@ export default function MandatoryExpensesListScreen() {
 					lastPaymentDate: normalizeDateValue(expense?.lastPaymentDate ?? null),
 					lastPaymentValueInCents:
 						typeof expense?.lastPaymentValueInCents === 'number' ? expense.lastPaymentValueInCents : null,
+					installmentTotal,
+					installmentsCompleted,
 				};
 			});
 
 			const expensesWithStatus = formattedExpenses.map(expense => {
 				const isPaidForCurrentCycle = isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
+				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
+					expense.installmentTotal ?? null,
+					expense.installmentsCompleted ?? 0,
+				);
+				const installmentLabel = formatMandatoryInstallmentLabel(
+					expense.installmentTotal ?? null,
+					expense.installmentsCompleted ?? 0,
+					isPaidForCurrentCycle,
+				);
 				const displayValueInCents =
 					isPaidForCurrentCycle &&
 					typeof expense.lastPaymentValueInCents === 'number' &&
@@ -419,6 +526,8 @@ export default function MandatoryExpensesListScreen() {
 				return {
 					...expense,
 					isPaidForCurrentCycle,
+					isInstallmentComplete,
+					installmentLabel,
 					displayValueInCents,
 				};
 			});
@@ -427,16 +536,25 @@ export default function MandatoryExpensesListScreen() {
 			setTagMetadataMap(tagMetadataRecord);
 			setExpenses(expensesWithStatus);
 			await syncMandatoryExpenseNotifications(
-				expensesResult.data.map((expense: any) => ({
-					id: typeof expense?.id === 'string' ? expense.id : '',
-					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
-					dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
-					usesBusinessDays: expense?.usesBusinessDays === true,
-					reminderEnabled: expense?.reminderEnabled !== false,
-					reminderHour: typeof expense?.reminderHour === 'number' ? expense.reminderHour : 9,
-					reminderMinute: typeof expense?.reminderMinute === 'number' ? expense.reminderMinute : 0,
-					description: typeof expense?.description === 'string' ? expense.description : null,
-				})),
+				expensesResult.data.map((expense: any) => {
+					const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
+					const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+						expense?.installmentsCompleted,
+						installmentTotal,
+					);
+					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
+
+					return {
+						id: typeof expense?.id === 'string' ? expense.id : '',
+						name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
+						dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
+						usesBusinessDays: expense?.usesBusinessDays === true,
+						reminderEnabled: isInstallmentComplete ? false : expense?.reminderEnabled !== false,
+						reminderHour: typeof expense?.reminderHour === 'number' ? expense.reminderHour : 9,
+						reminderMinute: typeof expense?.reminderMinute === 'number' ? expense.reminderMinute : 0,
+						description: typeof expense?.description === 'string' ? expense.description : null,
+					};
+				}),
 			);
 		} catch (error) {
 			console.error('Erro ao carregar gastos obrigatórios:', error);
@@ -481,6 +599,15 @@ export default function MandatoryExpensesListScreen() {
 		if (expense.isPaidForCurrentCycle) {
 			showNotifierAlert({
 				description: 'Este gasto já foi registrado como pago neste mês.',
+				type: 'warn',
+				isDarkMode,
+			});
+			return;
+		}
+
+		if (expense.isInstallmentComplete) {
+			showNotifierAlert({
+				description: 'Todas as parcelas deste gasto obrigatório já foram registradas.',
 				type: 'warn',
 				isDarkMode,
 			});
@@ -604,6 +731,153 @@ export default function MandatoryExpensesListScreen() {
 			setPendingAction(null);
 		}
 	}, [handleEdit, handleRegisterExpense, loadData, pendingAction]);
+
+	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
+		if (isExportingPdf || isLoading) {
+			return;
+		}
+
+		const generatedAtLabel = formatGeneratedAtLabel(new Date());
+		const metrics: MandatoryPeriodSummaryPdfMetric[] = [
+			{
+				label: 'Total do mês',
+				value: formatCurrencyBRL(monthlySummary.totalReferenceInCents),
+				helper: 'Pagos do ciclo atual somados aos pendentes previstos.',
+				tone: 'expense',
+			},
+			{
+				label: 'Pago',
+				value: formatCurrencyBRL(monthlySummary.paidTotalInCents),
+				helper: `${monthlySummary.paidItems.length} item(ns) pago(s).`,
+				tone: 'expense',
+			},
+			{
+				label: 'Pendente',
+				value: formatCurrencyBRL(monthlySummary.pendingTotalInCents),
+				helper: `${monthlySummary.pendingItems.length} item(ns) aguardando registro.`,
+				tone: 'neutral',
+			},
+			{
+				label: 'Itens do ciclo',
+				value: String(monthlySummary.paidItems.length + monthlySummary.pendingItems.length),
+				helper: 'Despesas pagas ou ainda pendentes neste mês.',
+			},
+			{
+				label: 'Parcelamentos concluídos',
+				value: String(monthlySummary.completedPlanItems.length),
+				helper: 'Itens finitos já encerrados antes deste ciclo.',
+			},
+			{
+				label: 'Cadastros totais',
+				value: String(expenses.length),
+				helper: 'Todos os gastos obrigatórios carregados na tela.',
+			},
+		];
+
+		const pdfItems: MandatoryPeriodSummaryPdfItem[] = expenses.map(expense => {
+			const isCyclePaid = expense.isPaidForCurrentCycle === true;
+			const isCompletedBeforeCycle = expense.isInstallmentComplete === true && !isCyclePaid;
+			const statusLabel = isCompletedBeforeCycle
+				? 'Parcelamento concluído'
+				: isCyclePaid
+					? 'Pago no mês'
+					: 'Pendente no mês';
+			const description = expense.description?.trim()
+				? expense.description.trim()
+				: isCompletedBeforeCycle
+					? 'Este gasto obrigatório parcelado já foi concluído.'
+					: isCyclePaid
+						? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
+						: 'Aguardando registro como despesa neste mês.';
+
+			return {
+				id: expense.id,
+				name: expense.name,
+				statusLabel,
+				dateLabel: formatExpenseResolvedDateLabel(expense),
+				tagLabel: tagMetadataMap[expense.tagId]?.name ?? tagsMap[expense.tagId] ?? 'Sem tag',
+				scheduleLabel: formatExpenseScheduleLabel(expense),
+				description,
+				amountLabel: isCompletedBeforeCycle
+					? 'Fora do ciclo'
+					: formatCurrencyBRL(getMandatoryDisplayValueInCents(expense)),
+				amountTone: isCompletedBeforeCycle ? 'neutral' : 'expense',
+			};
+		});
+
+		const pdfHtml = buildMandatoryPeriodSummaryPdfHtml({
+			reportKindLabel: 'Despesas fixas',
+			title: 'Resumo de gastos obrigatórios',
+			monthLabel: referenceMonthLabel,
+			generatedAtLabel,
+			primaryMetricLabel: 'Total do mês',
+			primaryMetricValue: formatCurrencyBRL(monthlySummary.totalReferenceInCents),
+			primaryMetricHelper: `${monthlySummary.paidItems.length} pagos · ${monthlySummary.pendingItems.length} pendentes`,
+			metrics,
+			items: pdfItems,
+			cardBaseColor: monthlySummaryPalette.cardBaseColor,
+			cardGlowColor: monthlySummaryPalette.cardGlowColor,
+			cardHighlightColor: monthlySummaryPalette.cardHighlightColor,
+			emptyStateLabel: 'Nenhum gasto obrigatório foi cadastrado para o mês.',
+			privacyNotice: shouldHideValues
+				? 'Os valores foram ocultados porque a preferência de privacidade está ativa.'
+				: null,
+		});
+
+		setIsExportingPdf(true);
+		try {
+			// Exporta o resumo mensal seguindo [[Despesas Fixas]] e [[Privacidade de Valores]].
+			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const canShare = await Sharing.isAvailableAsync();
+
+			if (!canShare) {
+				await Print.printAsync({ html: pdfHtml });
+				showNotifierAlert({
+					title: 'Resumo pronto',
+					description: 'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
+					type: 'info',
+					isDarkMode,
+				});
+				return;
+			}
+
+			await Sharing.shareAsync(uri, {
+				dialogTitle: 'Baixar resumo de gastos obrigatórios',
+				mimeType: 'application/pdf',
+				UTI: 'com.adobe.pdf',
+			});
+
+			showNotifierAlert({
+				title: 'PDF pronto',
+				description: 'Resumo em PDF gerado com sucesso.',
+				type: 'success',
+				isDarkMode,
+			});
+		} catch (error) {
+			console.error('Erro ao gerar resumo mensal de gastos obrigatórios:', error);
+			showNotifierAlert({
+				description: 'Não foi possível gerar o PDF do resumo agora.',
+				type: 'error',
+				isDarkMode,
+			});
+		} finally {
+			setIsExportingPdf(false);
+		}
+	}, [
+		expenses,
+		formatCurrencyBRL,
+		isDarkMode,
+		isExportingPdf,
+		isLoading,
+		monthlySummary,
+		monthlySummaryPalette.cardBaseColor,
+		monthlySummaryPalette.cardGlowColor,
+		monthlySummaryPalette.cardHighlightColor,
+		referenceMonthLabel,
+		shouldHideValues,
+		tagMetadataMap,
+		tagsMap,
+	]);
 
 	const handleCalendarAction = React.useCallback(
 		(action: PendingExpenseAction['type'], expense: MandatoryExpenseItem) => {
@@ -751,6 +1025,111 @@ export default function MandatoryExpensesListScreen() {
 										valueTone="expense"
 									/>
 
+									<View className={`py-2`}>
+										<VStack className="gap-4">
+											<HStack className="items-start justify-between gap-4">
+												<VStack className="flex-1 gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: monthlySummaryPalette.subtitle }}
+													>
+														Resumo do mês
+													</Text>
+													<Heading size="lg" style={{ color: monthlySummaryPalette.title }}>
+														{referenceMonthLabel}
+													</Heading>
+												</VStack>
+
+												<VStack className="items-end gap-1">
+													<Text
+														className="text-xs uppercase tracking-wide"
+														style={{ color: monthlySummaryPalette.subtitle }}
+													>
+														Total do mês
+													</Text>
+													<Heading size="md" style={{ color: monthlySummaryPalette.expenseText }}>
+														{formatCurrencyBRL(monthlySummary.totalReferenceInCents)}
+													</Heading>
+												</VStack>
+											</HStack>
+
+											<HStack className="gap-3">
+												<View
+													style={{
+														flex: 1,
+														minHeight: 96,
+														borderRadius: 22,
+														borderWidth: 1,
+														borderColor: monthlySummaryPalette.border,
+														paddingHorizontal: 14,
+														paddingVertical: 12,
+													}}
+												>
+													<VStack className="flex-1 justify-between">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: monthlySummaryPalette.subtitle }}
+														>
+															Pago
+														</Text>
+														<Heading size="sm" style={{ color: monthlySummaryPalette.expenseText }}>
+															{formatCurrencyBRL(monthlySummary.paidTotalInCents)}
+														</Heading>
+														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+															{monthlySummary.paidItems.length} item(ns)
+														</Text>
+													</VStack>
+												</View>
+
+												<View
+													style={{
+														flex: 1,
+														minHeight: 96,
+														borderRadius: 22,
+														borderWidth: 1,
+														borderColor: monthlySummaryPalette.border,
+														paddingHorizontal: 14,
+														paddingVertical: 12,
+													}}
+												>
+													<VStack className="flex-1 justify-between">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: monthlySummaryPalette.subtitle }}
+														>
+															Pendente
+														</Text>
+														<Heading size="sm" style={{ color: monthlySummaryPalette.pendingText }}>
+															{formatCurrencyBRL(monthlySummary.pendingTotalInCents)}
+														</Heading>
+														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+															{monthlySummary.pendingItems.length} item(ns)
+														</Text>
+													</VStack>
+												</View>
+											</HStack>
+
+											<Button
+												className={submitButtonClassName}
+												onPress={() => {
+													void handleExportMonthlySummaryPdf();
+												}}
+												isDisabled={isLoading || isExportingPdf}
+											>
+												{isExportingPdf ? (
+													<>
+														<ButtonSpinner />
+														<ButtonText>Gerando PDF</ButtonText>
+													</>
+												) : (
+													<>
+														<ButtonIcon as={DownloadIcon} size="sm" />
+														<ButtonText>Baixar resumo em PDF</ButtonText>
+													</>
+												)}
+											</Button>
+										</VStack>
+									</View>
 
 									<Button
 										className={`${submitButtonClassName}`}
@@ -773,12 +1152,17 @@ export default function MandatoryExpensesListScreen() {
 												{expenses.map((expense, index) => {
 													const isExpanded = expandedExpenseIds.includes(expense.id);
 													const tagMetadata = tagMetadataMap[expense.tagId];
-													const tone = expense.isPaidForCurrentCycle
+													const isCompletedDisplay = expense.isPaidForCurrentCycle || expense.isInstallmentComplete;
+													const tone = isCompletedDisplay
 														? MANDATORY_EXPENSE_COMPLETED_TONE
 														: MANDATORY_EXPENSE_PENDING_TONE;
-													const summaryText = expense.isPaidForCurrentCycle
-														? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
-														: 'Registre a despesa do mês para concluir este item.';
+													const summaryText = expense.isInstallmentComplete
+														? 'Parcelamento concluído.'
+														: expense.isPaidForCurrentCycle
+															? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
+															: expense.installmentLabel
+																? `Registre a ${expense.installmentLabel.toLowerCase()} para concluir este item.`
+																: 'Registre a despesa do mês para concluir este item.';
 
 													return (
 														<View key={expense.id} style={{ flexDirection: 'row' }}>
@@ -871,6 +1255,20 @@ export default function MandatoryExpensesListScreen() {
 																				>
 																					{tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Tag não encontrada'}
 																				</Text>
+																				{expense.installmentLabel ? (
+																					<Text
+																						numberOfLines={1}
+																						style={{
+																							marginTop: 1,
+																							color: tone.accentColor,
+																							fontSize: 11,
+																							lineHeight: 16,
+																							fontWeight: '700',
+																						}}
+																					>
+																						{expense.installmentLabel}
+																					</Text>
+																				) : null}
 																			</View>
 																		</HStack>
 
@@ -981,6 +1379,7 @@ export default function MandatoryExpensesListScreen() {
 																					{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: expense.reminderEnabled === false ? 'Desativado' : 'Ativado' },
+																					...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
 																				].map(item => (
 																					<View
 																						key={`${expense.id}-${item.label}`}
@@ -1041,13 +1440,13 @@ export default function MandatoryExpensesListScreen() {
 																				<TouchableOpacity
 																					activeOpacity={0.85}
 																					onPress={() => setPendingAction({ type: 'register', expense })}
-																					disabled={expense.isPaidForCurrentCycle}
+																					disabled={expense.isPaidForCurrentCycle || expense.isInstallmentComplete}
 																					style={{
 																						flexDirection: 'row',
 																						alignItems: 'center',
 																						gap: 8,
 																						paddingVertical: 8,
-																						opacity: expense.isPaidForCurrentCycle ? 0.45 : 1,
+																						opacity: expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 0.45 : 1,
 																					}}
 																				>
 																					<Icon as={AddIcon} size="sm" className="text-white" />

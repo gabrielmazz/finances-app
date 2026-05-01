@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -78,6 +78,7 @@ import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { navigateToHomeDashboard } from '@/utils/navigation';
 
 type FinanceInvestment = {
 	id: string;
@@ -807,7 +808,7 @@ export default function FinancialListScreen() {
 	}, []);
 
 	const handleBackToHome = React.useCallback(() => {
-		router.replace('/home?tab=0');
+		navigateToHomeDashboard();
 		return true;
 	}, []);
 	const handleToggleInvestmentCard = React.useCallback(
@@ -892,7 +893,7 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
-			closeEditModal();
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível salvar a edição agora.', 'error');
@@ -900,7 +901,6 @@ export default function FinancialListScreen() {
 			setIsSavingEdit(false);
 		}
 	}, [
-		closeEditModal,
 		bankOptions,
 		editBankId,
 		editCdiInput,
@@ -945,7 +945,7 @@ export default function FinancialListScreen() {
 			}
 			await loadData();
 			showScreenAlert('Investimento removido.', 'success');
-			setInvestmentPendingDeletion(null);
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert(
@@ -1047,10 +1047,8 @@ export default function FinancialListScreen() {
 			}
 
 			await loadData();
-			setInvestmentForDeposit(null);
-			setDepositInput('');
-			setSyncedDepositValueInCents(null);
 			showScreenAlert('Aporte registrado e investimento atualizado.', 'success');
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível registrar o aporte agora.', 'error');
@@ -1254,10 +1252,8 @@ export default function FinancialListScreen() {
 			}
 
 			await loadData();
-			setInvestmentForWithdrawal(null);
-			setWithdrawInput('');
-			setSyncedWithdrawalValueInCents(null);
 			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível preparar o resgate agora.', 'error');
@@ -1321,8 +1317,7 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Valor sincronizado com sucesso!', 'success');
-			setInvestmentForSync(null);
-			setSyncInput('');
+			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível sincronizar agora.', 'error');
@@ -2002,16 +1997,25 @@ export default function FinancialListScreen() {
 				</View>
 				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
-						<ModalHeader>
-							<ModalTitle>Editar investimento</ModalTitle>
-							<ModalCloseButton onPress={closeEditModal} />
-						</ModalHeader>
-						<ModalBody>
-							<Text className={`${bodyText} mb-4 text-sm`}>
-								Ajuste nome, valor base, CDI e banco do investimento.
-							</Text>
-							<VStack>
+					<KeyboardAvoidingView
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+					>
+						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+							<ModalHeader>
+								<ModalTitle>Editar investimento</ModalTitle>
+								<ModalCloseButton onPress={closeEditModal} />
+							</ModalHeader>
+							<ModalBody>
+								<ScrollView
+									keyboardShouldPersistTaps="handled"
+									keyboardDismissMode="on-drag"
+									contentContainerStyle={{ paddingBottom: 24 }}
+								>
+									<Text className={`${bodyText} mb-4 text-sm`}>
+										Ajuste nome, valor base, CDI e banco do investimento.
+									</Text>
+									<VStack>
 								{renderStandardizedInput({
 									label: 'Nome do investimento',
 									value: editName,
@@ -2147,33 +2151,35 @@ export default function FinancialListScreen() {
 										/>
 									</Textarea>
 								</VStack>
-							</VStack>
-						</ModalBody>
-						<ModalFooter className="gap-3">
-							<Button
-								variant="outline"
-								onPress={closeEditModal}
-								isDisabled={isSavingEdit}
-								className={submitButtonCancelClassName}
-							>
-								<ButtonText>Cancelar</ButtonText>
-							</Button>
-							<Button
-								onPress={handleSubmitEdit}
-								isDisabled={isSavingEdit}
-								className={submitButtonClassName}
-							>
-								{isSavingEdit ? (
-									<>
-										<ButtonSpinner color="white" />
-										<ButtonText>Salvando</ButtonText>
-									</>
-								) : (
-									<ButtonText>Salvar alterações</ButtonText>
-								)}
-							</Button>
-						</ModalFooter>
-					</ModalContent>
+									</VStack>
+								</ScrollView>
+							</ModalBody>
+							<ModalFooter className="gap-3">
+								<Button
+									variant="outline"
+									onPress={closeEditModal}
+									isDisabled={isSavingEdit}
+									className={submitButtonCancelClassName}
+								>
+									<ButtonText>Cancelar</ButtonText>
+								</Button>
+								<Button
+									onPress={handleSubmitEdit}
+									isDisabled={isSavingEdit}
+									className={submitButtonClassName}
+								>
+									{isSavingEdit ? (
+										<>
+											<ButtonSpinner color="white" />
+											<ButtonText>Salvando</ButtonText>
+										</>
+									) : (
+										<ButtonText>Salvar alterações</ButtonText>
+									)}
+								</Button>
+							</ModalFooter>
+						</ModalContent>
+					</KeyboardAvoidingView>
 				</Modal>
 
 				<Modal
