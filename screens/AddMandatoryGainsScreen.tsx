@@ -67,7 +67,7 @@ import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGains
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
 	DEFAULT_MANDATORY_REMINDER_MINUTE,
@@ -161,7 +161,6 @@ export default function AddMandatoryGainsScreen() {
 		notTintedCardClassName,
 		topSummaryCardClassName,
 		infoCardStyle,
-		addTagButtonClassName,
 		switchTrackColor,
 		switchThumbColor,
 		switchIosBackgroundColor,
@@ -363,7 +362,7 @@ export default function AddMandatoryGainsScreen() {
 	const isValueFieldDisabled = !hasGainName || isFormBusy;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
 	const isInstallmentFieldDisabled = !isCoreTemplateReady || isFormBusy;
-	const isTagSelectDisabled = isLoadingTags || tagOptions.length === 0 || !isCoreTemplateReady || isFormBusy;
+	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
 	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
@@ -1308,20 +1307,9 @@ export default function AddMandatoryGainsScreen() {
 											triggerHint={tagHelperMessage}
 											disabledHint={tagHelperMessage}
 											accessibilityLabel="Escolher categoria obrigatória de ganho"
-											rightAccessory={
-												<Pressable
-													onPress={handleOpenAddTagScreen}
-													hitSlop={8}
-													accessibilityRole="button"
-													accessibilityLabel="Adicionar nova categoria obrigatória de ganho"
-													className={addTagButtonClassName}
-												>
-													<TagsIcon
-														size={18}
-														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
-													/>
-												</Pressable>
-											}
+											onCreatePress={handleOpenAddTagScreen}
+											createActionLabel="Adicionar categoria obrigatória de ganho"
+											isCreateDisabled={isAddTagButtonDisabled}
 										/>
 									</VStack>
 

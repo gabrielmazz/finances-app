@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -95,6 +95,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
+import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 // Importação do SVG de ilustração
@@ -994,6 +995,7 @@ export default function BankMovementsScreen() {
 
 	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
@@ -1359,7 +1361,7 @@ export default function BankMovementsScreen() {
 		}
 	}, []);
 
-	const fetchMovements = React.useCallback(async () => {
+	const fetchMovements = React.useCallback(async (asRefresh = false) => {
 		if (!bankId && !isCashView) {
 			setErrorMessage('Nenhum banco foi informado.');
 			setMovements([]);
@@ -1394,7 +1396,11 @@ export default function BankMovementsScreen() {
 			return;
 		}
 
-		setIsLoading(true);
+		if (asRefresh) {
+			setIsRefreshing(true);
+		} else {
+			setIsLoading(true);
+		}
 		setErrorMessage(null);
 
 		try {
@@ -1684,6 +1690,7 @@ export default function BankMovementsScreen() {
 			setMonthlyInitialBalanceInCents(null);
 		} finally {
 			setIsLoading(false);
+			setIsRefreshing(false);
 		}
 	}, [bankId, endDateInput, isCashView, startDateInput]);
 
@@ -2155,6 +2162,13 @@ export default function BankMovementsScreen() {
 		try {
 			// Exporta o resumo do período seguindo [[Gerenciamento de Bancos]] e [[Privacidade de Valores]].
 			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const pdfFileName = buildPdfFileName([
+				isCashView ? 'Movimentos Dinheiro' : 'Movimentos Banco',
+				bankName,
+				startDateInput,
+				endDateInput,
+			]);
+			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
 			const canShare = await Sharing.isAvailableAsync();
 
 			if (!canShare) {
@@ -2167,7 +2181,7 @@ export default function BankMovementsScreen() {
 				return;
 			}
 
-			await Sharing.shareAsync(uri, {
+			await Sharing.shareAsync(namedPdfUri, {
 				dialogTitle: `Baixar resumo de ${bankName}`,
 				mimeType: 'application/pdf',
 				UTI: 'com.adobe.pdf',
@@ -2707,6 +2721,13 @@ export default function BankMovementsScreen() {
 							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: 32 }}
+							refreshControl={
+								<RefreshControl
+									refreshing={isRefreshing}
+									onRefresh={() => void fetchMovements(true)}
+									tintColor="#FACC15"
+								/>
+							}
 						>
 							<VStack className="justify-between mt-4">
 

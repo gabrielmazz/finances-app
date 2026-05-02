@@ -22,6 +22,7 @@ O vault é a **fonte de verdade** do projeto. Toda feature, decisão arquitetura
 | Trabalhar no dashboard | `Dashboard Home.md`, `Hooks Customizados.md` |
 | Trabalhar em bancos | `Gerenciamento de Bancos.md`, `Balanço Mensal.md` |
 | Trabalhar em transações | `Transações de Despesas.md`, `Transações de Receitas.md` |
+| Trabalhar em análise por categoria | `Análise por Categoria.md`, `Gerenciamento de Tags.md`, `Gerenciamento de Bancos.md` |
 | Trabalhar em transferências | `Transferências.md`, `Resgate de Caixa.md` |
 | Trabalhar em investimentos | `Investimentos.md` |
 | Trabalhar em recorrências | `Despesas Fixas.md`, `Receitas Fixas.md` |
@@ -236,8 +237,31 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-04-30.
+> Atualizado em 2026-05-02.
 
+- Ajuste visual nas listas de obrigatórios: `screens/MandatoryExpensesListScreen.tsx` e `screens/MandatoryGainsListScreen.tsx` agora posicionam os botões de baixar PDF e adicionar item lado a lado em um `HStack`; vault alinhado em [[Despesas Fixas]] e [[Receitas Fixas]].
+
+- Correção do seletor compartilhado de categorias: `components/uiverse/tag-actionsheet-selector.tsx` agora trata `isDisabled` como bloqueio total de abertura do ActionSheet, sem permitir que a ação interna de criar categoria contorne pré-requisitos das telas. Usos revisados em despesas, ganhos, despesas fixas, receitas fixas e análise por categoria; vault alinhado em [[Gerenciamento de Tags]] e [[Componentes UI]].
+
+- Implementação em andamento: seletor ActionSheet compartilhado para bancos com ícones brasileiros.
+- Código afetado: `components/uiverse/bank-actionsheet-selector.tsx`, `hooks/useBankIcons.tsx`, `functions/BankFirebase.ts`, telas de cadastro/seleção de bancos, despesas, ganhos, investimentos, saques, transferências e saldo mensal.
+- Vault atualizado: [[Gerenciamento de Bancos]], [[Componentes UI]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Transferências]].
+- Ajuste visual posterior: `hooks/useScreenStyle.ts` exporta `fieldBankContainerClassName` com altura mínima para seletores de banco com ícone, e `bank-actionsheet-selector.tsx` alinha nome/helper sem compressão vertical.
+
+- Pull-to-refresh adicionado a telas com dados: `screens/HomeScreen.tsx` recarrega o snapshot via `hooks/useHomeScreenData.ts`, `screens/BankMovementsScreen.tsx` recarrega o período ativo, `screens/FinancialListScreen.tsx` recarrega a carteira de investimentos, `screens/MandatoryExpensesListScreen.tsx` recarrega despesas fixas e revalida lembretes, e `screens/LoginScreen.tsx` reconsulta o cooldown local do email digitado. Vault alinhado em dashboard, bancos, investimentos, despesas fixas, autenticação e hooks.
+
+- `components/uiverse/tag-actionsheet-selector.tsx` agora renderiza a ação de criar nova categoria dentro do próprio ActionSheet; `screens/AddRegisterGainScreen.tsx`, `screens/AddRegisterExpensesScreen.tsx`, `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` removeram o botão externo desalinhado e passam o callback de criação ao seletor compartilhado. Vault alinhado em tags, componentes, transações e recorrências.
+
+- Exportações PDF de análise por categoria, movimentos bancários/dinheiro e resumos de despesas/receitas fixas agora copiam o arquivo gerado pelo `expo-print` para o cache com nomes contextuais antes do `expo-sharing`.
+- Arquivos alterados: `utils/pdfFileName.ts`, `screens/CategoryAnalysisScreen.tsx`, `screens/BankMovementsScreen.tsx`, `screens/MandatoryExpensesListScreen.tsx`, `screens/MandatoryGainsListScreen.tsx`, `package.json`, `package-lock.json` e docs dos módulos afetados.
+
+- Nova tela **Análise por Categoria** adicionada em `/category-analysis`: `components/uiverse/navigator.tsx` ganhou a opção no grupo Home, `screens/CategoryAnalysisScreen.tsx` renderiza relatório dinâmico por tag com `assets/UnDraw/analyzeGainExpensesTag.svg`, e `functions/CategoryAnalysisFirebase.ts` compara mês atual com a média dos 3 meses anteriores, respeitando `shouldIncludeMovementInGainExpenseTotals()` e quebrando o resultado por banco/dinheiro; vault alinhado em `Arquitetura/Análise por Categoria.md`, `Arquitetura/Navegação.md`, `Arquitetura/Dashboard Home.md`, `Arquitetura/Gerenciamento de Tags.md` e `Arquitetura/Gerenciamento de Bancos.md`.
+- `screens/CategoryAnalysisScreen.tsx` ganhou exportação **Baixar análise em PDF** usando `utils/categoryAnalysisPdf.ts`, `expo-print` e `expo-sharing`, com valores respeitando a privacidade ativa; `functions/CategoryAnalysisFirebase.ts` passou a expor flags de tag obrigatória, e `components/uiverse/tag-actionsheet-selector.tsx` aceita `description` opcional para mostrar labels de categoria no ActionSheet. Vault alinhado em `Arquitetura/Análise por Categoria.md`, `Arquitetura/Gerenciamento de Tags.md` e `Arquitetura/Componentes UI.md`.
+- `screens/CategoryAnalysisScreen.tsx` refinada para usar `components/uiverse/tag-actionsheet-selector.tsx` na seleção de categorias, manter texto/ícones dos botões Gastos/Ganhos legíveis no modo escuro e exibir o percentual correto de variação contra a média histórica, separando esse percentual da participação por banco/dinheiro; vault alinhado em `Arquitetura/Análise por Categoria.md` e `Arquitetura/Gerenciamento de Tags.md`.
+- Footer do modal de saldo mensal em `screens/HomeScreen.tsx` reorganizado para manter os botões "Agora não" e "Registrar saldo" lado a lado, com largura flexível e texto ajustável dentro do modal.
+- `screens/HomeScreen.tsx` passou a abrir um modal quando há bancos registrados sem `MonthlyBalance` no mês corrente, listando as contas pendentes e levando para `/register-monthly-balance`; vault alinhado em `Arquitetura/Dashboard Home.md` e `Arquitetura/Balanço Mensal.md`.
+- Testes automatizados adicionados para notificações obrigatórias: `npm test` roda Jest com mocks de `expo-notifications`, `react-native` e AsyncStorage; `__tests__/mandatoryReminderNotifications.test.ts` força agendamento local com data do sistema fixada e valida canais Android, janela de 12 datas, trigger iOS e bloqueio no Expo Go. Vault alinhado em `Arquitetura/Notificações.md`.
+- `screens/AddRegisterTagScreen.tsx` ajustada para separar o bloqueio da escolha exclusiva de tipo do switch "ganhos e despesas": fluxos inline comuns ainda preservam o tipo de origem no rádio, mas permitem ampliar a categoria para `both`; fluxos obrigatórios continuam travando tipo e obrigatoriedade. Vault alinhado em `Arquitetura/Gerenciamento de Tags.md`.
 - Formulários com inputs editáveis passaram a usar `hooks/useKeyboardAwareScroll.ts` para manter campos de texto/número acima do teclado; modais de edição em `screens/FinancialListScreen.tsx`, `screens/BankMovementsScreen.tsx` e a busca de ícones em `screens/AddRegisterTagScreen.tsx` foram protegidos com `KeyboardAvoidingView` e área rolável própria, com vault alinhado em `Arquitetura/Hooks Customizados.md` e `Arquitetura/Componentes UI.md`.
 - `screens/AddMandatoryExpensesScreen.tsx` e `screens/AddMandatoryGainsScreen.tsx` agora reforçam a rolagem de todos os inputs textuais acima do teclado, incluindo quantidade de parcelas, observações e horário do lembrete; vault alinhado em `Arquitetura/Despesas Fixas.md` e `Arquitetura/Receitas Fixas.md`.
 - `screens/MandatoryGainsListScreen.tsx` e `screens/MandatoryExpensesListScreen.tsx` agora exibem resumo mensal do ciclo corrente e permitem baixar PDF local via `expo-print`/`expo-sharing`; `utils/mandatoryPeriodSummaryPdf.ts` centraliza o HTML do relatório e o vault foi alinhado em `Arquitetura/Receitas Fixas.md` e `Arquitetura/Despesas Fixas.md`.

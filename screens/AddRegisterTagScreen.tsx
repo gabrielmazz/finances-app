@@ -272,6 +272,8 @@ export default function AddRegisterTagScreen() {
 	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
 	// Segue [[Gerenciamento de Tags]]: fluxos inline podem travar a obrigatoriedade para evitar retorno com uma categoria fora do filtro de origem.
 	const isMandatorySelectionLocked = shouldLockMandatorySelection && !isEditing && Boolean(initialUsageType);
+	// Segue [[Gerenciamento de Tags]]: fluxos inline comuns travam apenas a escolha exclusiva do tipo, mas ainda podem ampliar a tag para ambos os usos.
+	const isSharedUsageSelectionLocked = isMandatorySelectionLocked;
 	const selectedUsageType: TagUsageType | null = isSharedBetweenUsageTypes
 		? 'both'
 		: isExpenseTag
@@ -373,7 +375,7 @@ export default function AddRegisterTagScreen() {
 
 	const handleSharedBetweenUsageTypesSelection = React.useCallback(
 		(nextValue: boolean) => {
-			if (isUsageSelectionLocked) {
+			if (isSharedUsageSelectionLocked) {
 				return;
 			}
 
@@ -389,13 +391,34 @@ export default function AddRegisterTagScreen() {
 				return;
 			}
 
+			if (isUsageSelectionLocked && initialUsageType === 'expense') {
+				setIsExpenseTag(true);
+				setIsGainTag(false);
+				setIsMandatoryGain(false);
+				return;
+			}
+
+			if (isUsageSelectionLocked && initialUsageType === 'gain') {
+				setIsGainTag(true);
+				setIsExpenseTag(false);
+				setIsMandatoryExpense(false);
+				return;
+			}
+
 			setIsExpenseTag(false);
 			setIsGainTag(false);
 			setIsMandatoryExpense(false);
 			setIsMandatoryGain(false);
 			setShowInBothLists(false);
 		},
-		[isMandatoryExpense, isMandatoryGain, isUsageSelectionLocked, showInBothLists],
+		[
+			initialUsageType,
+			isMandatoryExpense,
+			isMandatoryGain,
+			isSharedUsageSelectionLocked,
+			isUsageSelectionLocked,
+			showInBothLists,
+		],
 	);
 
 	const handleUsageSelection = React.useCallback((nextValue: string) => {
@@ -655,7 +678,9 @@ export default function AddRegisterTagScreen() {
 				: `Nova categoria de ${initialUsageLabel.slice(0, -1)}`
 			: 'Adição de nova categoria';
 	const sharedBetweenUsageTypesHelperText = isUsageSelectionLocked
-		? 'Este fluxo já definiu um tipo único de utilização para manter o retorno da categoria no contexto de origem.'
+		? isSharedUsageSelectionLocked
+			? 'Este fluxo já definiu um tipo único de utilização para manter o retorno da categoria no contexto de origem.'
+			: 'Este fluxo já definiu o tipo de origem, mas a categoria ainda pode ser ampliada para ganhos e despesas.'
 		: 'Ative esta opção para usar a mesma categoria nas telas de ganhos e despesas ao mesmo tempo.';
 	const mandatoryVisibilityLabel =
 		selectedUsageType === 'expense'
@@ -893,7 +918,7 @@ export default function AddRegisterTagScreen() {
 												<Switch
 													value={isSharedBetweenUsageTypes}
 													onValueChange={handleSharedBetweenUsageTypesSelection}
-													isDisabled={isUsageSelectionLocked}
+													isDisabled={isSharedUsageSelectionLocked}
 													trackColor={switchTrackColor}
 													thumbColor={switchThumbColor}
 													ios_backgroundColor={switchIosBackgroundColor}

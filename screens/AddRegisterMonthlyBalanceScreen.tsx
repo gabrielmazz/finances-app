@@ -14,18 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
@@ -37,6 +25,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
@@ -96,6 +85,8 @@ const parseMonthReference = (value: string) => {
 type OptionItem = {
 	id: string;
 	name: string;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 
 type FocusableInputKey = 'month-reference' | 'balance';
@@ -108,6 +99,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		bodyText,
 		helperText,
 		inputField,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		submitButtonClassName,
 		heroHeight,
@@ -208,6 +200,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								typeof bank?.name === 'string' && bank.name.trim().length > 0
 									? bank.name.trim()
 									: 'Banco sem nome',
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 						}));
 
 						setBanks(formattedBanks);
@@ -505,6 +499,14 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	]);
 
 	const hasValidMonthReference = parseMonthReference(monthReference) !== null;
+	const selectedBankLabel = React.useMemo(
+		() => banks.find(bank => bank.id === selectedBankId)?.name ?? null,
+		[banks, selectedBankId],
+	);
+	const selectedBankOption = React.useMemo(
+		() => banks.find(bank => bank.id === selectedBankId) ?? null,
+		[banks, selectedBankId],
+	);
 	const isBalanceInputDisabled = !selectedBankId || !hasValidMonthReference;
 	const isSaveDisabled =
 		!selectedBankId ||
@@ -618,48 +620,28 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											</Popover>
 										</HStack>
 
-										<Select
-											selectedValue={selectedBankId ?? undefined}
-											onValueChange={value => setSelectedBankId(value)}
+										<BankActionsheetSelector
+											options={banks}
+											selectedId={selectedBankId}
+											selectedLabel={selectedBankLabel}
+											selectedOption={selectedBankOption}
+											onSelect={(bank: BankActionsheetOption) => setSelectedBankId(bank.id)}
 											isDisabled={isLoadingBanks || banks.length === 0}
-										>
-											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-												<SelectInput
-													placeholder="Selecione o banco vinculado"
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{banks.length > 0 ? (
-														[...banks]
-															.sort((a, b) =>
-																a.name.localeCompare(b.name, 'pt-BR', {
-																	sensitivity: 'base',
-																}),
-															)
-															.map(bank => (
-																<SelectItem
-																	key={bank.id}
-																	label={bank.name}
-																	value={bank.id}
-																/>
-															))
-													) : (
-														<SelectItem
-															label="Nenhum banco disponível"
-															value="no-bank"
-															isDisabled
-														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={fieldBankContainerClassName}
+											placeholder="Selecione o banco vinculado"
+											sheetTitle="Escolha o banco do saldo mensal"
+											emptyMessage="Nenhum banco disponível."
+											triggerHint="Selecione o banco para registrar o saldo."
+											disabledHint={
+												isLoadingBanks
+													? 'Carregando bancos disponíveis...'
+													: 'Cadastre um banco para registrar o saldo.'
+											}
+											accessibilityLabel="Selecionar banco do saldo mensal"
+										/>
 									</VStack>
 
 									<VStack className="mb-4">

@@ -11,12 +11,14 @@ interface AddBankParams {
     bankName: string;
     personId: string;
     colorHex?: string | null;
+    iconKey?: string | null;
 }
 
 interface UpdateBankParams {
     bankId: string;
     bankName?: string;
     colorHex?: string | null;
+    iconKey?: string | null;
 }
 
 interface AddCashRescueParams {
@@ -55,7 +57,7 @@ interface TransferBetweenBanksParams {
 // =========================================== Funções de Registro ================================================== //
 
 // Função para registrar um novo banco no Firestore
-export async function addBankFirebase({ bankName, personId, colorHex = null }: AddBankParams) {
+export async function addBankFirebase({ bankName, personId, colorHex = null, iconKey = null }: AddBankParams) {
     
     try {
 
@@ -66,6 +68,7 @@ export async function addBankFirebase({ bankName, personId, colorHex = null }: A
             name: bankName,
             personId,
             colorHex: colorHex ?? null,
+            iconKey: iconKey ?? null,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -81,7 +84,7 @@ export async function addBankFirebase({ bankName, personId, colorHex = null }: A
     }
 }
 
-export async function updateBankFirebase({ bankId, bankName, colorHex }: UpdateBankParams) {
+export async function updateBankFirebase({ bankId, bankName, colorHex, iconKey }: UpdateBankParams) {
     
     try {
 
@@ -96,6 +99,10 @@ export async function updateBankFirebase({ bankId, bankName, colorHex }: UpdateB
 
         if (colorHex !== undefined) {
             updates.colorHex = colorHex;
+        }
+
+        if (iconKey !== undefined) {
+            updates.iconKey = iconKey;
         }
 
         await setDoc(bankRef, updates, { merge: true });

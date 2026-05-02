@@ -13,18 +13,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
@@ -36,6 +24,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import { HStack } from '@/components/ui/hstack';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
@@ -61,6 +50,8 @@ import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 type BankOption = {
 	id: string;
 	name: string;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 type FocusableInputKey = 'transfer-value' | 'transfer-description';
 
@@ -127,6 +118,7 @@ export default function TransferScreen() {
 		bodyText,
 		helperText,
 		inputField,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace,
 		textareaContainerClassName,
@@ -360,12 +352,14 @@ export default function TransferScreen() {
 
 				if (banksResult.success && Array.isArray(banksResult.data)) {
 					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name:
-							typeof bank?.name === 'string' && bank.name.trim().length > 0
-								? bank.name.trim()
-								: 'Banco sem nome',
-					}));
+							id: bank.id,
+							name:
+								typeof bank?.name === 'string' && bank.name.trim().length > 0
+									? bank.name.trim()
+									: 'Banco sem nome',
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
+						}));
 					setBanks(formattedBanks);
 				} else {
 					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
@@ -410,6 +404,22 @@ export default function TransferScreen() {
 	const targetBankOptions = React.useMemo(
 		() => banks.filter(bank => bank.id !== selectedSourceBankId),
 		[banks, selectedSourceBankId],
+	);
+	const selectedSourceBankLabel = React.useMemo(
+		() => banks.find(bank => bank.id === selectedSourceBankId)?.name ?? null,
+		[banks, selectedSourceBankId],
+	);
+	const selectedTargetBankLabel = React.useMemo(
+		() => banks.find(bank => bank.id === selectedTargetBankId)?.name ?? null,
+		[banks, selectedTargetBankId],
+	);
+	const selectedSourceBankOption = React.useMemo(
+		() => banks.find(bank => bank.id === selectedSourceBankId) ?? null,
+		[banks, selectedSourceBankId],
+	);
+	const selectedTargetBankOption = React.useMemo(
+		() => banks.find(bank => bank.id === selectedTargetBankId) ?? null,
+		[banks, selectedTargetBankId],
 	);
 	const hasTransferValue = transferValueInCents !== null && transferValueInCents > 0;
 	const isSourceBankDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
@@ -657,86 +667,58 @@ export default function TransferScreen() {
 												</PopoverContent>
 											</Popover>
 										</HStack>
-										<Select
-											selectedValue={selectedSourceBankId ?? undefined}
-											onValueChange={value => setSelectedSourceBankId(value)}
+										<BankActionsheetSelector
+											options={banks}
+											selectedId={selectedSourceBankId}
+											selectedLabel={selectedSourceBankLabel}
+											selectedOption={selectedSourceBankOption}
+											onSelect={(bank: BankActionsheetOption) => setSelectedSourceBankId(bank.id)}
 											isDisabled={isSourceBankDisabled}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={`${fieldContainerClassNameNotSpace} w-full`}
-											>
-												<SelectInput
-													placeholder="De onde o valor sairá"
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{banks.length > 0 ? (
-														banks.map(bank => (
-															<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-														))
-													) : (
-														<SelectItem
-															label="Nenhum banco disponível"
-															value="no-bank"
-															isDisabled
-														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={`${fieldBankContainerClassName} w-full`}
+											placeholder="De onde o valor sairá"
+											sheetTitle="Escolha o banco de origem"
+											emptyMessage="Nenhum banco disponível."
+											triggerHint="Selecione de onde o valor sairá."
+											disabledHint={
+												isLoadingBanks
+													? 'Carregando bancos disponíveis...'
+													: banks.length === 0
+														? 'Cadastre um banco para transferir.'
+														: 'Banco de origem indisponível.'
+											}
+											accessibilityLabel="Selecionar banco de origem da transferência"
+										/>
 									</VStack>
 
 									<VStack className="mb-4 flex-1">
 										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de destino</Text>
-										<Select
-											selectedValue={selectedTargetBankId ?? undefined}
-											onValueChange={value => setSelectedTargetBankId(value)}
+										<BankActionsheetSelector
+											options={targetBankOptions}
+											selectedId={selectedTargetBankId}
+											selectedLabel={selectedTargetBankLabel}
+											selectedOption={selectedTargetBankOption}
+											onSelect={(bank: BankActionsheetOption) => setSelectedTargetBankId(bank.id)}
 											isDisabled={isTargetBankDisabled}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={`${fieldContainerClassNameNotSpace} w-full`}
-											>
-												<SelectInput
-													placeholder={
-														selectedSourceBankId
-															? 'Para onde o valor irá'
-															: 'Selecione a origem'
-													}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{targetBankOptions.length > 0 ? (
-														targetBankOptions.map(bank => (
-															<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-														))
-													) : (
-														<SelectItem
-															label="Nenhum banco disponível"
-															value="no-target-bank"
-															isDisabled
-														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={`${fieldBankContainerClassName} w-full`}
+											placeholder={selectedSourceBankId ? 'Para onde o valor irá' : 'Selecione a origem'}
+											sheetTitle="Escolha o banco de destino"
+											emptyMessage="Nenhum banco de destino disponível."
+											triggerHint="Selecione para onde o valor irá."
+											disabledHint={
+												!selectedSourceBankId
+													? 'Selecione o banco de origem primeiro.'
+													: targetBankOptions.length === 0
+														? 'Nenhum banco de destino disponível.'
+														: 'Banco de destino indisponível.'
+											}
+											accessibilityLabel="Selecionar banco de destino da transferência"
+										/>
 
 										{selectedSourceBankId &&
 											selectedTargetBankId &&

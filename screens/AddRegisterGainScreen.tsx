@@ -12,18 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
@@ -56,6 +44,7 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import Navigator from '@/components/uiverse/navigator';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -73,7 +62,7 @@ import {
 	tagSupportsUsage,
 	type TagUsageType,
 } from '@/utils/tagUsage';
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
@@ -90,6 +79,8 @@ type OptionItem = {
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 type FocusableInputKey = 'gain-name' | 'gain-value' | 'gain-explanation';
 type GainMoneyFormatRadioValue = 'Recebimento em Banco' | 'Recebimento em Dinheiro';
@@ -201,6 +192,7 @@ export default function AddRegisterGainScreen() {
 		helperText,
 		inputField,
 		focusFieldClassName,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
@@ -214,7 +206,6 @@ export default function AddRegisterGainScreen() {
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
 		switchRadioLabelClassName,
-		addTagButtonClassName,
 		checkboxClassName,
 		checkboxIndicatorClassName,
 		checkboxIndicatorCheckedClassName,
@@ -490,7 +481,7 @@ export default function AddRegisterGainScreen() {
 		isGainFormatPendingSelection ||
 		(isBankSelectionRequired && !selectedBankId);
 	const isTagSelectDisabled =
-		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
+		isLoadingTags || isFormBusy || isTagFieldPrerequisitesIncomplete;
 	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
 
 	const showSuccessfulGainNotification = React.useCallback((isUpdating = false) => {
@@ -578,6 +569,11 @@ export default function AddRegisterGainScreen() {
 			iconName: tag.iconName ?? null,
 			iconStyle: tag.iconStyle ?? null,
 		});
+	}, []);
+
+	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
+		setSelectedBankId(bank.id);
+		setSelectedMovementBankName(bank.name);
 	}, []);
 
 	React.useEffect(() => {
@@ -709,7 +705,12 @@ export default function AddRegisterGainScreen() {
 					if (banksResult.success && Array.isArray(banksResult.data)) {
 						const formattedBanks = banksResult.data.map((bank: any) => ({
 							id: bank.id,
-							name: bank.name,
+							name:
+								typeof bank?.name === 'string' && bank.name.trim().length > 0
+									? bank.name.trim()
+									: 'Banco sem nome',
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 						}));
 
 						setBanks(formattedBanks);
@@ -1225,6 +1226,21 @@ export default function AddRegisterGainScreen() {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
 		return matchedBank?.name ?? selectedMovementBankName ?? templateData?.bankName ?? null;
 	}, [banks, selectedBankId, selectedMovementBankName, templateData?.bankName]);
+	const selectedBankOption = React.useMemo(() => {
+		const matchedBank = banks.find(bank => bank.id === selectedBankId);
+		if (matchedBank) {
+			return matchedBank;
+		}
+
+		if (selectedBankId && selectedBankLabel) {
+			return {
+				id: selectedBankId,
+				name: selectedBankLabel,
+			};
+		}
+
+		return null;
+	}, [banks, selectedBankId, selectedBankLabel]);
 	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
 	const selectedTagIconContainerClassName = isDarkMode
 		? 'border border-slate-800'
@@ -1521,7 +1537,7 @@ export default function AddRegisterGainScreen() {
 											</PopoverContent>
 										</Popover>
 									</HStack>
-									<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+									<View className={`${fieldContainerCardClassName} px-4 py-3 pt-4 pb-4`}>
 										<RadioGroup
 											value={valuesRadioMoneyFormat}
 											onChange={handleRadioMoneyFormatChange}
@@ -1566,53 +1582,30 @@ export default function AddRegisterGainScreen() {
 										) : valuesRadioMoneyFormat === 'Recebimento em Banco' ? (
 											<VStack className="mt-4">
 												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
-												<Select
-													selectedValue={selectedBankId ?? undefined}
-													onValueChange={value => {
-														setSelectedBankId(value);
-														const matched = banks.find(bank => bank.id === value);
-														setSelectedMovementBankName(matched?.name ?? null);
-													}}
+												<BankActionsheetSelector
+													options={banks}
+													selectedId={selectedBankId}
+													selectedLabel={selectedBankLabel}
+													selectedOption={selectedBankOption}
+													onSelect={handleSelectBank}
 													isDisabled={isBankSelectDisabled}
-												>
-													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-														<SelectInput
-															placeholder="Selecione o banco vinculado"
-															value={selectedBankLabel ?? ''}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-													<SelectPortal>
-														<SelectBackdrop />
-														<SelectContent>
-															<SelectDragIndicatorWrapper>
-																<SelectDragIndicator />
-															</SelectDragIndicatorWrapper>
-															{banks.length > 0 ? (
-																[...banks]
-																	.sort((a, b) =>
-																		a.name.localeCompare(b.name, 'pt-BR', {
-																			sensitivity: 'base',
-																		}),
-																	)
-																	.map(bank => (
-																		<SelectItem
-																			key={bank.id}
-																			label={bank.name}
-																			value={bank.id}
-																		/>
-																	))
-															) : (
-																<SelectItem
-																	label="Nenhum banco disponível"
-																	value="no-bank"
-																	isDisabled
-																/>
-															)}
-														</SelectContent>
-													</SelectPortal>
-												</Select>
+													isDarkMode={isDarkMode}
+													bodyTextClassName={bodyText}
+													helperTextClassName={helperText}
+													triggerClassName={fieldBankContainerClassName}
+													placeholder="Selecione o banco vinculado"
+													sheetTitle="Escolha o banco do ganho"
+													emptyMessage="Nenhum banco disponível."
+													triggerHint="Escolha onde essa entrada foi lançada."
+													disabledHint={
+														isLoadingBanks
+															? 'Carregando bancos disponíveis...'
+															: banks.length === 0
+																? 'Cadastre um banco para vincular este ganho.'
+																: 'Preencha os campos anteriores para liberar o banco.'
+													}
+													accessibilityLabel="Selecionar banco do ganho"
+												/>
 											</VStack>
 										) : null}
 									</View>
@@ -1655,20 +1648,9 @@ export default function AddRegisterGainScreen() {
 											sheetTitle="Escolha a categoria do ganho"
 											emptyMessage="Nenhuma categoria de ganho disponível."
 											accessibilityLabel="Escolher categoria de ganho"
-											rightAccessory={
-												<Pressable
-													onPress={handleOpenAddTagScreen}
-													hitSlop={8}
-													accessibilityRole="button"
-													accessibilityLabel="Adicionar nova categoria de ganho"
-													className={`${addTagButtonClassName}`}
-												>
-													<TagsIcon
-														size={18}
-														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
-													/>
-												</Pressable>
-											}
+											onCreatePress={handleOpenAddTagScreen}
+											createActionLabel="Adicionar categoria de ganho"
+											isCreateDisabled={isAddTagButtonDisabled}
 										/>
 									)}
 								</VStack>

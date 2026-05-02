@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -437,6 +437,7 @@ export default function FinancialListScreen() {
 	const bankOptions = React.useMemo(() => Object.values(banksMap), [banksMap]);
 
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [editingInvestment, setEditingInvestment] =
 		React.useState<FinanceInvestment | null>(null);
 	const [editName, setEditName] = React.useState('');
@@ -564,14 +565,18 @@ export default function FinancialListScreen() {
 		[bodyText, fieldContainerClassName, inputField],
 	);
 
-	const loadData = React.useCallback(async () => {
+	const loadData = React.useCallback(async (asRefresh = false) => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
 			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 			return;
 		}
 
-		setIsLoading(true);
+		if (asRefresh) {
+			setIsRefreshing(true);
+		} else {
+			setIsLoading(true);
+		}
 		try {
 			const [investmentsResponse, banksResponse] = await Promise.all([
 				getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
@@ -656,8 +661,13 @@ export default function FinancialListScreen() {
 			showScreenAlert('Não foi possível carregar os investimentos.', 'error');
 		} finally {
 			setIsLoading(false);
+			setIsRefreshing(false);
 		}
 	}, [showScreenAlert]);
+
+	const handleRefresh = React.useCallback(async () => {
+		await loadData(true);
+	}, [loadData]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -1372,6 +1382,13 @@ export default function FinancialListScreen() {
 						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 						style={{ marginTop: heroHeight - 64 }}
 						contentContainerStyle={{ paddingBottom: 48 }}
+						refreshControl={
+							<RefreshControl
+								refreshing={isRefreshing}
+								onRefresh={() => void handleRefresh()}
+								tintColor="#FACC15"
+							/>
+						}
 					>
 						<VStack className="mt-4 gap-4">
 							<Heading

@@ -41,6 +41,7 @@ import {
 
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 
 import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 
@@ -147,6 +148,7 @@ export default function AddFinanceScreen() {
 		bodyText,
 		helperText,
 		inputField,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		submitButtonClassName,
 		heroHeight,
@@ -171,7 +173,7 @@ export default function AddFinanceScreen() {
 	const [isSaving, setIsSaving] = React.useState(false);
 	// Flag que exibimos depois de um salvamento bem sucedido para mostrar o texto de confirmação.
 	const [hasSavedOnce, setHasSavedOnce] = React.useState(false);
-	const [bankOptions, setBankOptions] = React.useState<{ id: string; name: string }[]>([]);
+	const [bankOptions, setBankOptions] = React.useState<BankActionsheetOption[]>([]);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
@@ -429,6 +431,8 @@ export default function AddFinanceScreen() {
 					typeof bank.name === 'string' && bank.name.trim().length > 0
 						? bank.name.trim()
 						: 'Banco sem nome',
+				iconKey: typeof bank.iconKey === 'string' ? bank.iconKey : null,
+				colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
 			}));
 			setBankOptions(formatted);
 			setSelectedBankId(current => (current && formatted.some(bank => bank.id === current) ? current : null));
@@ -681,6 +685,9 @@ export default function AddFinanceScreen() {
 		showScreenAlert,
 	]);
 	const selectedBankLabel = selectedBankId ? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? '' : '';
+	const selectedBankOption = selectedBankId
+		? bankOptions.find(bank => bank.id === selectedBankId) ?? null
+		: null;
 	const bankBalanceDisplayValue = !selectedBankId
 		? 'Selecione um banco para visualizar o saldo'
 		: isLoadingBankBalance
@@ -892,36 +899,27 @@ export default function AddFinanceScreen() {
 											'Informações sobre o banco vinculado ao investimento',
 											'Selecione o banco de origem do aporte inicial. O sistema consulta o saldo atual dessa conta antes de liberar o salvamento.',
 										)}
-										<Select
-											selectedValue={selectedBankId ?? undefined}
-											onValueChange={value => {
-												setSelectedBankId(value);
+										<BankActionsheetSelector
+											options={bankOptions}
+											selectedId={selectedBankId}
+											selectedLabel={selectedBankLabel}
+											selectedOption={selectedBankOption}
+											onSelect={bank => {
+												setSelectedBankId(bank.id);
 												setHasSavedOnce(false);
 											}}
 											isDisabled={isBankSelectionDisabled}
-										>
-											<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-												<SelectInput
-													placeholder={isLoadingBanks ? 'Carregando bancos disponíveis...' : 'Selecione o banco do investimento'}
-													value={selectedBankLabel}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{bankOptions.length > 0 ? (
-														bankOptions.map(bank => <SelectItem key={bank.id} label={bank.name} value={bank.id} />)
-													) : (
-														<SelectItem label="Nenhum banco disponível" value="no-bank" isDisabled />
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
+											isDarkMode={isDarkMode}
+											bodyTextClassName={bodyText}
+											helperTextClassName={helperText}
+											triggerClassName={fieldBankContainerClassName}
+											placeholder={isLoadingBanks ? 'Carregando bancos disponíveis...' : 'Selecione o banco do investimento'}
+											sheetTitle="Escolha o banco do investimento"
+											emptyMessage="Nenhum banco disponível."
+											triggerHint={bankSelectionHelperMessage}
+											disabledHint={bankSelectionHelperMessage}
+											accessibilityLabel="Selecionar banco do investimento"
+										/>
 									</VStack>
 
 									<Box className={`${notTintedCardClassName} px-4 py-4`}>

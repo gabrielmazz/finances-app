@@ -12,18 +12,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
@@ -34,6 +22,7 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import Navigator from '@/components/uiverse/navigator';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
@@ -56,6 +45,8 @@ import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 type BankOption = {
 	id: string;
 	name: string;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 type FocusableInputKey = 'rescue-value' | 'rescue-description';
 
@@ -121,6 +112,7 @@ export default function AddRescueScreen() {
 		bodyText,
 		helperText,
 		inputField,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		textareaContainerClassName,
 		submitButtonClassName,
@@ -409,12 +401,14 @@ export default function AddRescueScreen() {
 
 				if (banksResult.success && Array.isArray(banksResult.data)) {
 					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name:
-							typeof bank?.name === 'string' && bank.name.trim().length > 0
-								? bank.name.trim()
-								: 'Banco sem nome',
-					}));
+							id: bank.id,
+							name:
+								typeof bank?.name === 'string' && bank.name.trim().length > 0
+									? bank.name.trim()
+									: 'Banco sem nome',
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
+						}));
 					setBanks(formattedBanks);
 				} else {
 					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
@@ -439,6 +433,14 @@ export default function AddRescueScreen() {
 	}, []);
 
 	const parsedRescueDate = React.useMemo(() => parseDateFromBR(rescueDate), [rescueDate]);
+	const selectedBankLabel = React.useMemo(
+		() => banks.find(bank => bank.id === selectedBankId)?.name ?? null,
+		[banks, selectedBankId],
+	);
+	const selectedBankOption = React.useMemo(
+		() => banks.find(bank => bank.id === selectedBankId) ?? null,
+		[banks, selectedBankId],
+	);
 	const hasRescueValue = rescueValueInCents !== null && rescueValueInCents > 0;
 	const isBankSelectDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
 	const isRescueValueDisabled = isSubmitting || !selectedBankId;
@@ -591,39 +593,30 @@ export default function AddRescueScreen() {
 							<VStack className="justify-between mt-4">
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
-									<Select
-										selectedValue={selectedBankId ?? undefined}
-										onValueChange={value => setSelectedBankId(value)}
+									<BankActionsheetSelector
+										options={banks}
+										selectedId={selectedBankId}
+										selectedLabel={selectedBankLabel}
+										selectedOption={selectedBankOption}
+										onSelect={(bank: BankActionsheetOption) => setSelectedBankId(bank.id)}
 										isDisabled={isBankSelectDisabled}
-									>
-										<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-											<SelectInput
-												placeholder="Selecione o banco do qual o valor foi retirado"
-												className={inputField}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-												{banks.length > 0 ? (
-													banks.map(bank => (
-														<SelectItem key={bank.id} label={bank.name} value={bank.id} />
-													))
-												) : (
-													<SelectItem
-														key="no-bank"
-														label="Nenhum banco disponível"
-														value="no-bank"
-														isDisabled
-													/>
-												)}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
+										isDarkMode={isDarkMode}
+										bodyTextClassName={bodyText}
+										helperTextClassName={helperText}
+										triggerClassName={fieldBankContainerClassName}
+										placeholder="Selecione o banco do qual o valor foi retirado"
+										sheetTitle="Escolha o banco de origem"
+										emptyMessage="Nenhum banco disponível."
+										triggerHint="Escolha de onde o dinheiro saiu."
+										disabledHint={
+											isLoadingBanks
+												? 'Carregando bancos disponíveis...'
+												: banks.length === 0
+													? 'Cadastre um banco para registrar o saque.'
+													: 'Banco indisponível no momento.'
+										}
+										accessibilityLabel="Selecionar banco de origem do saque"
+									/>
 								</VStack>
 
 								{selectedBankId && (

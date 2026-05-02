@@ -90,6 +90,14 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				matchPaths: ['/home'],
 				onSelect: () => navigateToHomeDashboard(),
 			},
+			{
+				id: 'category-analysis',
+				label: 'Análise por Categoria',
+				value: 0,
+				icon: 'analytics-outline',
+				matchPaths: ['/category-analysis'],
+				onSelect: () => router.push('/category-analysis'),
+			},
 		],
 	},
 	{

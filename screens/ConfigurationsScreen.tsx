@@ -79,6 +79,7 @@ import { Box } from '@/components/ui/box';
 import { Switch } from '@/components/ui/switch';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
+import { BankIcon } from '@/hooks/useBankIcons';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -190,7 +191,7 @@ type PendingAction =
 	}
 	| {
 		type: 'edit-bank';
-		payload: { bank: { id: string; name: string; colorHex?: string | null } };
+		payload: { bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null } };
 	}
 	| {
 		type: 'delete-tag';
@@ -949,7 +950,7 @@ export default function ConfigurationsScreen() {
 	} = useScreenStyles();
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
-	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null }>>([]);
+	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null }>>([]);
 	const [tagData, setTagData] = React.useState<
 		Array<{
 			id: string;
@@ -1235,13 +1236,14 @@ export default function ConfigurationsScreen() {
 	);
 
 	const handleBankEdit = React.useCallback(
-		(bank: { id: string; name: string; colorHex?: string | null }) => {
+		(bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null }) => {
 			if (!bank?.id) {
 				return;
 			}
 
 			const encodedName = encodeURIComponent(bank?.name ?? '');
 			const encodedColor = bank?.colorHex ? encodeURIComponent(bank.colorHex) : undefined;
+			const encodedIconKey = bank?.iconKey ? encodeURIComponent(bank.iconKey) : undefined;
 
 			router.push({
 				pathname: '/add-register-bank',
@@ -1249,6 +1251,7 @@ export default function ConfigurationsScreen() {
 					bankId: bank.id,
 					bankName: encodedName,
 					...(encodedColor ? { colorHex: encodedColor } : {}),
+					...(encodedIconKey ? { bankIconKey: encodedIconKey } : {}),
 				},
 			});
 		},
@@ -1588,6 +1591,7 @@ export default function ConfigurationsScreen() {
 							id: bank.id,
 							name: bank.name,
 							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
 						}));
 
 						setBankData(formattedBanks);
@@ -1992,12 +1996,11 @@ export default function ConfigurationsScreen() {
 																				>
 																					<TableData useRNView className={tableContentCellClassName}>
 																						<HStack className="min-w-0 items-center gap-3">
-																							<View
-																								className="h-3 w-3 rounded-full"
-																								style={{
-																									backgroundColor:
-																										bank.colorHex || (isDarkMode ? '#FACC15' : '#F59E0B'),
-																								}}
+																							<BankIcon
+																								iconKey={bank.iconKey}
+																								name={bank.name}
+																								colorHex={bank.colorHex}
+																								size={30}
 																							/>
 																							<VStack className="min-w-0 flex-1 gap-1">
 																								<Text className="text-sm font-semibold" numberOfLines={1}>

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
 	Pressable,
+	RefreshControl,
 	ScrollView,
 	StatusBar,
 	TouchableOpacity,
@@ -28,10 +29,21 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+	ModalTitle,
+} from '@/components/ui/modal';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { Button, ButtonText } from '@/components/ui/button';
 import {
 	BankCardSurface,
 	CASH_CARD_COLOR,
@@ -45,7 +57,7 @@ import { PieChart } from 'react-native-gifted-charts';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { CalendarDays, Info, Tags as TagsIcon } from 'lucide-react-native';
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
@@ -419,23 +431,31 @@ export default function HomeScreen() {
 	const bankCarouselItemSpacing = 16;
 	const currentUserId = auth.currentUser?.uid ?? null;
 	const authDisplayFirstName = extractFirstName(auth.currentUser?.displayName);
-	const { overview, movements, investments } = useHomeScreenData(currentUserId);
+	const { overview, movements, investments, reload } = useHomeScreenData(currentUserId);
 
 	const {
 		isDarkMode,
 		surfaceBackground,
 		cardBackground,
 		bodyText,
+		helperText,
 		heroHeight,
 		infoCardStyle,
 		insets,
+		modalContentClassName,
+		submitButtonCancelClassName,
+		submitButtonClassName,
+		submitButtonTextClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
 	} = useScreenStyles();
 
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
 	const [expandedTimelineStatuses, setExpandedTimelineStatuses] = React.useState<string[]>([]);
+	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
+	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
 	const [currentUserFirstName, setCurrentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
+	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [selectedInvestmentPopoverTarget, setSelectedInvestmentPopoverTarget] = React.useState<{
 		investmentId: string;
 		anchorX: number;
@@ -527,12 +547,54 @@ export default function HomeScreen() {
 		setSelectedInvestmentPopoverTarget(null);
 	}, []);
 
+	const handleRefresh = React.useCallback(async () => {
+		setIsRefreshing(true);
+		try {
+			await reload();
+		} finally {
+			setIsRefreshing(false);
+		}
+	}, [reload]);
+
 	const bankBalances = overview.data.bankBalances;
 	const cashSummary = overview.data.cashSummary;
 	const currentMonthExpensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const currentMonthGainsByBankId = overview.data.currentMonthGainsByBankId;
 	const timelineMovements = movements.data.timelineMovements;
 	const investmentPortfolio = investments.data.portfolio;
+	// Segue [[Balanço Mensal]]: banco sem snapshot do mês corrente não tem saldo confiável.
+	const missingMonthlyBalanceBanks = React.useMemo(
+		() => bankBalances.filter(bank => bank.balanceInCents === null),
+		[bankBalances],
+	);
+	const monthlyBalancePromptKey = React.useMemo(() => {
+		if (missingMonthlyBalanceBanks.length === 0) {
+			return null;
+		}
+
+		return [...missingMonthlyBalanceBanks]
+			.map(bank => bank.id)
+			.sort((left, right) => left.localeCompare(right))
+			.join('|');
+	}, [missingMonthlyBalanceBanks]);
+	const currentMonthReferenceLabel = React.useMemo(
+		() =>
+			new Intl.DateTimeFormat('pt-BR', {
+				month: 'long',
+				year: 'numeric',
+			}).format(new Date()),
+		[],
+	);
+	const missingMonthlyBalanceBankNamesPreview = React.useMemo(() => {
+		const visibleBankNames = missingMonthlyBalanceBanks.slice(0, 3).map(bank => bank.name);
+		const remainingCount = missingMonthlyBalanceBanks.length - visibleBankNames.length;
+
+		if (remainingCount <= 0) {
+			return visibleBankNames.join(', ');
+		}
+
+		return `${visibleBankNames.join(', ')} e mais ${remainingCount}`;
+	}, [missingMonthlyBalanceBanks]);
 	const bankCarouselItems = React.useMemo<HomeBankCarouselItem[]>(() => {
 		const bankItems = bankBalances.map<HomeBankCarouselItem>(bank => ({
 			...bank,
@@ -651,6 +713,49 @@ export default function HomeScreen() {
 			) ?? null
 		);
 	}, [investmentDistributionItems, selectedInvestmentPopoverTarget]);
+
+	React.useEffect(() => {
+		if (overview.loading) {
+			setDismissedMonthlyBalancePromptKey(null);
+			setIsMonthlyBalanceModalOpen(false);
+		}
+	}, [overview.loading]);
+
+	React.useEffect(() => {
+		if (
+			overview.loading ||
+			overview.error ||
+			!monthlyBalancePromptKey ||
+			dismissedMonthlyBalancePromptKey === monthlyBalancePromptKey
+		) {
+			return;
+		}
+
+		setIsMonthlyBalanceModalOpen(true);
+	}, [
+		dismissedMonthlyBalancePromptKey,
+		monthlyBalancePromptKey,
+		overview.error,
+		overview.loading,
+	]);
+
+	const handleCloseMonthlyBalanceModal = React.useCallback(() => {
+		if (monthlyBalancePromptKey) {
+			setDismissedMonthlyBalancePromptKey(monthlyBalancePromptKey);
+		}
+
+		setIsMonthlyBalanceModalOpen(false);
+	}, [monthlyBalancePromptKey]);
+
+	const handleOpenMonthlyBalanceRegistration = React.useCallback(() => {
+		if (monthlyBalancePromptKey) {
+			setDismissedMonthlyBalancePromptKey(monthlyBalancePromptKey);
+		}
+
+		setIsMonthlyBalanceModalOpen(false);
+		router.push('/register-monthly-balance');
+	}, [monthlyBalancePromptKey]);
+
 	const selectedInvestmentPopoverColor = React.useMemo(() => {
 		if (!selectedInvestmentPopoverInvestment) {
 			return null;
@@ -676,6 +781,14 @@ export default function HomeScreen() {
 			shadowColor: hexToRgba(accentColor, isDarkMode ? 0.38 : 0.22) ?? accentColor,
 		};
 	}, [isDarkMode, selectedInvestmentPopoverColor]);
+	const monthlyBalanceModalPalette = React.useMemo(
+		() => ({
+			iconBackground: isDarkMode ? 'rgba(250, 204, 21, 0.16)' : '#FEF9C3',
+			iconColor: isDarkMode ? '#FDE047' : '#CA8A04',
+			submitIconColor: isDarkMode ? '#0F172A' : '#FFFFFF',
+		}),
+		[isDarkMode],
+	);
 
 	React.useEffect(() => {
 		if (!selectedInvestmentPopoverTarget) {
@@ -1071,6 +1184,13 @@ export default function HomeScreen() {
 							showsVerticalScrollIndicator={false}
 							onScrollBeginDrag={handleDismissInvestmentPopover}
 							onMomentumScrollBegin={handleDismissInvestmentPopover}
+							refreshControl={
+								<RefreshControl
+									refreshing={isRefreshing}
+									onRefresh={() => void handleRefresh()}
+									tintColor="#FACC15"
+								/>
+							}
 						>
 							<View className="mb-6 mt-4">
 								<VStack className="px-2 pb-3">
@@ -1975,6 +2095,77 @@ export default function HomeScreen() {
 							<Navigator defaultValue={0} />
 						</View>
 					</View>
+
+					<Modal isOpen={isMonthlyBalanceModalOpen} onClose={handleCloseMonthlyBalanceModal}>
+						<ModalBackdrop />
+						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+							<ModalHeader>
+								<ModalTitle>Saldo mensal pendente</ModalTitle>
+								<ModalCloseButton onPress={handleCloseMonthlyBalanceModal} />
+							</ModalHeader>
+
+							<ModalBody>
+								<VStack className="gap-4">
+									<HStack className="items-start gap-3">
+										<View
+											className="h-11 w-11 items-center justify-center rounded-2xl"
+											style={{
+												backgroundColor: monthlyBalanceModalPalette.iconBackground,
+											}}
+										>
+											<CalendarDays size={22} color={monthlyBalanceModalPalette.iconColor} />
+										</View>
+
+										<VStack className="flex-1 gap-1">
+											<Text className={`${bodyText} text-sm leading-5`}>
+												Registre o saldo mensal de {currentMonthReferenceLabel} para manter o
+												resumo dos bancos correto.
+											</Text>
+											<Text className={`${helperText} text-xs leading-4`}>
+												{missingMonthlyBalanceBanks.length === 1
+													? `Conta pendente: ${missingMonthlyBalanceBankNamesPreview}.`
+													: `Contas pendentes: ${missingMonthlyBalanceBankNamesPreview}.`}
+											</Text>
+										</VStack>
+									</HStack>
+								</VStack>
+							</ModalBody>
+
+							<ModalFooter className="pt-2">
+								<HStack className="w-full items-center gap-3 pt-4">
+									<Button
+										action="secondary"
+										className={`${submitButtonCancelClassName} min-w-0 flex-1 px-3`}
+										onPress={handleCloseMonthlyBalanceModal}
+									>
+										<ButtonText
+											className={`${bodyText} text-center text-sm`}
+											numberOfLines={1}
+											adjustsFontSizeToFit
+											minimumFontScale={0.86}
+										>
+											Agora não
+										</ButtonText>
+									</Button>
+
+									<Button
+										className={`${submitButtonClassName} min-w-0 flex-1 px-3`}
+										onPress={handleOpenMonthlyBalanceRegistration}
+									>
+										<CalendarDays size={16} color={monthlyBalanceModalPalette.submitIconColor} />
+										<ButtonText
+											className={`${submitButtonTextClassName} text-center text-sm`}
+											numberOfLines={1}
+											adjustsFontSizeToFit
+											minimumFontScale={0.86}
+										>
+											Registrar saldo
+										</ButtonText>
+									</Button>
+								</HStack>
+							</ModalFooter>
+						</ModalContent>
+					</Modal>
 				</View>
 			</View>
 		</SafeAreaView>

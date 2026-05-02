@@ -69,6 +69,7 @@ import {
 	type MandatoryPeriodSummaryPdfItem,
 	type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
+import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
 
 type MandatoryGainItem = DateCalendarItem & {
 	usesBusinessDays?: boolean;
@@ -826,6 +827,8 @@ export default function MandatoryGainsListScreen() {
 		try {
 			// Exporta o resumo mensal seguindo [[Receitas Fixas]] e [[Privacidade de Valores]].
 			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const pdfFileName = buildPdfFileName(['Receitas Fixas', referenceMonthLabel]);
+			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
 			const canShare = await Sharing.isAvailableAsync();
 
 			if (!canShare) {
@@ -839,7 +842,7 @@ export default function MandatoryGainsListScreen() {
 				return;
 			}
 
-			await Sharing.shareAsync(uri, {
+			await Sharing.shareAsync(namedPdfUri, {
 				dialogTitle: 'Baixar resumo de ganhos obrigatórios',
 				mimeType: 'application/pdf',
 				UTI: 'com.adobe.pdf',
@@ -1108,36 +1111,39 @@ export default function MandatoryGainsListScreen() {
 												</View>
 											</HStack>
 
-											<Button
-												className={submitButtonClassName}
-												onPress={() => {
-													void handleExportMonthlySummaryPdf();
-												}}
-												isDisabled={isLoading || isExportingPdf}
-											>
-												{isExportingPdf ? (
-													<>
-														<ButtonSpinner />
-														<ButtonText>Gerando PDF</ButtonText>
-													</>
-												) : (
-													<>
-														<ButtonIcon as={DownloadIcon} size="sm" />
-														<ButtonText>Baixar resumo em PDF</ButtonText>
-													</>
-												)}
-											</Button>
 										</VStack>
 									</View>
 
-									<Button
-										className={`${submitButtonClassName}`}
-										onPress={handleOpenCreate}
-									>
-										<ButtonIcon as={AddIcon} size="sm" />
-										<ButtonText>Adicionar ganho obrigatório</ButtonText>
-										{isLoading && <ButtonSpinner />}
-									</Button>
+									<HStack className="gap-3">
+										<Button
+											className={`${submitButtonClassName} flex-1`}
+											onPress={() => {
+												void handleExportMonthlySummaryPdf();
+											}}
+											isDisabled={isLoading || isExportingPdf}
+										>
+											{isExportingPdf ? (
+												<>
+													<ButtonSpinner />
+													<ButtonText>Gerando PDF</ButtonText>
+												</>
+											) : (
+												<>
+													<ButtonIcon as={DownloadIcon} size="sm" />
+													<ButtonText>Baixar resumo em PDF</ButtonText>
+												</>
+											)}
+										</Button>
+
+										<Button
+											className={`${submitButtonClassName} flex-1`}
+											onPress={handleOpenCreate}
+										>
+											<ButtonIcon as={AddIcon} size="sm" />
+											<ButtonText>Adicionar ganho</ButtonText>
+											{isLoading && <ButtonSpinner />}
+										</Button>
+									</HStack>
 
 									{gains.length === 0 ? (
 										<Box className={`${compactCardClassName} px-5 py-6`}>
