@@ -32,6 +32,7 @@ export function useScreenStyles() {
 	const focusFieldClassName =
 		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
 
+	const fieldBankContainerClassName = `min-h-[48px] rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerClassName = `pt-2 pb-2 h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerCardClassName = `pt-2 pb-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
@@ -190,6 +191,7 @@ export function useScreenStyles() {
 		helperText,
 		inputField,
 		focusFieldClassName,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,

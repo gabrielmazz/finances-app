@@ -7,6 +7,7 @@ import {
 	StatusBar,
 	KeyboardAvoidingView,
 	Platform,
+	RefreshControl,
 	ScrollView,
 } from 'react-native';
 
@@ -102,6 +103,7 @@ export default function LoginScreen() {
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
 	const [clockTick, setClockTick] = useState(Date.now());
 
@@ -286,6 +288,17 @@ export default function LoginScreen() {
 		}
 	}, [isSubmitting, isDarkMode, validateCredentials]);
 
+	const handleRefresh = useCallback(async () => {
+		setIsRefreshing(true);
+		try {
+			setEmailError(null);
+			setPasswordError(null);
+			await syncCooldownForEmail(normalizedEmail);
+		} finally {
+			setIsRefreshing(false);
+		}
+	}, [normalizedEmail, syncCooldownForEmail]);
+
 	useEffect(() => {
 		void syncCooldownForEmail(normalizedEmail);
 	}, [normalizedEmail, syncCooldownForEmail]);
@@ -345,6 +358,13 @@ export default function LoginScreen() {
 						showsVerticalScrollIndicator={false}
 						onScroll={handleScroll}
 						scrollEventThrottle={scrollEventThrottle}
+						refreshControl={
+							<RefreshControl
+								refreshing={isRefreshing}
+								onRefresh={() => void handleRefresh()}
+								tintColor="#FACC15"
+							/>
+						}
 					>
 						<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 							<View className={`w-full h-1/4 ${cardBackground}`}>
@@ -472,7 +492,7 @@ export default function LoginScreen() {
 											Desenvolvido por Gabriel Mazzuco
 										</Text>
 
-										<Text className={`${mutedText} text-center text-xs`}>Versão 1.8.2</Text>
+										<Text className={`${mutedText} text-center text-xs`}>Versão 1.9.0</Text>
 									</VStack>
 								</VStack>
 							</View>

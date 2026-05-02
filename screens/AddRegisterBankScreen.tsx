@@ -8,6 +8,7 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	TextInput,
+	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,6 +18,7 @@ import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
+import { HStack } from '@/components/ui/hstack';
 import {
     Select,
     SelectBackdrop,
@@ -29,9 +31,20 @@ import {
     SelectPortal,
     SelectTrigger,
 } from '@/components/ui/select';
+import {
+    Actionsheet,
+    ActionsheetBackdrop,
+    ActionsheetContent,
+    ActionsheetDragIndicator,
+    ActionsheetDragIndicatorWrapper,
+    ActionsheetItem,
+    ActionsheetItemText,
+    ActionsheetScrollView,
+} from '@/components/ui/actionsheet';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import { BankIcon, BANK_ICON_OPTIONS } from '@/hooks/useBankIcons';
 
 import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -43,6 +56,7 @@ import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankS
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { Check, ChevronDown } from 'lucide-react-native';
 
 const presetBankColors = [
     { label: 'Azul', value: '#2563EB' },
@@ -77,6 +91,7 @@ export default function AddRegisterBankScreen() {
 		helperText,
 		inputField,
 		focusFieldClassName,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
@@ -100,6 +115,8 @@ export default function AddRegisterBankScreen() {
     const [nameBank, setNameBank] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
+    const [selectedBankIconKey, setSelectedBankIconKey] = React.useState<string | null>('outro-banco');
+    const [isBankIconSheetOpen, setIsBankIconSheetOpen] = React.useState(false);
     const bankNameInputRef = React.useRef<TextInput | null>(null);
     const keyboardScrollOffset = React.useCallback(
         (_key: FocusableInputKey) => 140,
@@ -110,6 +127,7 @@ export default function AddRegisterBankScreen() {
         bankId?: string | string[];
         bankName?: string | string[];
         colorHex?: string | string[];
+        bankIconKey?: string | string[];
     }>();
 
     const editingBankId = React.useMemo(() => {
@@ -143,6 +161,19 @@ export default function AddRegisterBankScreen() {
         }
     }, [params.colorHex]);
 
+    const initialBankIconKey = React.useMemo(() => {
+        const value = Array.isArray(params.bankIconKey) ? params.bankIconKey[0] : params.bankIconKey;
+        if (!value) {
+            return 'outro-banco';
+        }
+
+        try {
+            return decodeURIComponent(value);
+        } catch {
+            return value;
+        }
+    }, [params.bankIconKey]);
+
     const colorOptions = React.useMemo(() => {
         const options = [...presetBankColors];
 
@@ -167,8 +198,17 @@ export default function AddRegisterBankScreen() {
         if (isEditing) {
             setNameBank(initialBankName);
             setSelectedColor(initialColorHex);
+            setSelectedBankIconKey(initialBankIconKey);
         }
-    }, [initialBankName, initialColorHex, isEditing]);
+    }, [initialBankIconKey, initialBankName, initialColorHex, isEditing]);
+
+    const selectedBankIcon = React.useMemo(
+        () =>
+            BANK_ICON_OPTIONS.find(option => option.key === selectedBankIconKey) ??
+            BANK_ICON_OPTIONS.find(option => option.key === 'outro-banco') ??
+            BANK_ICON_OPTIONS[0],
+        [selectedBankIconKey],
+    );
 
     const registerBank = React.useCallback(async () => {
 
@@ -199,7 +239,8 @@ export default function AddRegisterBankScreen() {
         if (
             isEditing &&
             trimmedName === initialBankName.trim() &&
-            selectedColor === initialColorHex
+            selectedColor === initialColorHex &&
+            selectedBankIconKey === initialBankIconKey
         ) {
             showNotifierAlert({
                 title: 'Nenhuma alteração identificada',
@@ -212,6 +253,7 @@ export default function AddRegisterBankScreen() {
         }
 
         const normalizedColor = selectedColor ?? null;
+        const normalizedIconKey = selectedBankIconKey ?? 'outro-banco';
 
         setIsSubmitting(true);
 
@@ -234,6 +276,7 @@ export default function AddRegisterBankScreen() {
                     bankId: editingBankId,
                     bankName: trimmedName,
                     colorHex: normalizedColor,
+                    iconKey: normalizedIconKey,
                 });
 
                 if (result.success) {
@@ -258,7 +301,12 @@ export default function AddRegisterBankScreen() {
                 return;
             }
 
-            const result = await addBankFirebase({ bankName: trimmedName, personId, colorHex: normalizedColor ?? null });
+            const result = await addBankFirebase({
+                bankName: trimmedName,
+                personId,
+                colorHex: normalizedColor ?? null,
+                iconKey: normalizedIconKey,
+            });
 
             if (result.success) {
                 showNotifierAlert({
@@ -270,6 +318,7 @@ export default function AddRegisterBankScreen() {
                 });
                 setNameBank('');
                 setSelectedColor(null);
+                setSelectedBankIconKey('outro-banco');
                 Keyboard.dismiss();
                 navigateToHomeDashboard();
             } else {
@@ -291,7 +340,7 @@ export default function AddRegisterBankScreen() {
         } finally {
             setIsSubmitting(false);
         }
-    }, [nameBank, selectedColor, isEditing, initialBankName, initialColorHex, editingBankId, isDarkMode]);
+    }, [nameBank, selectedColor, selectedBankIconKey, initialBankIconKey, isEditing, initialBankName, initialColorHex, editingBankId, isDarkMode]);
 
     const getInputRef = React.useCallback(
         (key: FocusableInputKey) => {
@@ -384,6 +433,38 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <VStack className="mb-4">
+                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Ícone do banco</Text>
+                                    <Pressable
+                                        onPress={() => setIsBankIconSheetOpen(true)}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Escolher ícone do banco"
+                                        className={`${fieldBankContainerClassName} px-4 py-3`}
+                                    >
+                                        <HStack className="items-center justify-between gap-3">
+                                            <HStack className="min-w-0 flex-1 items-center gap-3">
+                                                <View className="h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                                                    <BankIcon
+                                                        iconKey={selectedBankIcon?.key}
+                                                        name={nameBank}
+                                                        colorHex={selectedColor}
+                                                        size={32}
+                                                    />
+                                                </View>
+                                                <VStack className="min-w-0 flex-1">
+                                                    <Text className={`${bodyText} text-sm font-medium`} numberOfLines={1}>
+                                                        {selectedBankIcon?.label ?? 'Outro banco'}
+                                                    </Text>
+                                                    <Text className={`${helperText} text-xs`} numberOfLines={1}>
+                                                        Toque para escolher um ícone brasileiro.
+                                                    </Text>
+                                                </VStack>
+                                            </HStack>
+                                            <ChevronDown size={18} color={isDarkMode ? '#FCD34D' : '#D97706'} />
+                                        </HStack>
+                                    </Pressable>
+                                </VStack>
+
+                                <VStack className="mb-4">
                                     <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Cor do banco (Opcional)</Text>
                                     <Select
                                         selectedValue={selectedColor ?? undefined}
@@ -423,7 +504,8 @@ export default function AddRegisterBankScreen() {
                                         nameBank.trim().length === 0 ||
                                         (isEditing &&
                                             nameBank.trim() === initialBankName &&
-                                            selectedColor === initialColorHex)
+                                            selectedColor === initialColorHex &&
+                                            selectedBankIconKey === initialBankIconKey)
                                     }
                                 >
                                     {isSubmitting ? (
@@ -449,6 +531,65 @@ export default function AddRegisterBankScreen() {
                     <Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
                 </View>
             </View>
+
+            <Actionsheet
+                isOpen={isBankIconSheetOpen}
+                onClose={() => setIsBankIconSheetOpen(false)}
+                snapPoints={[72]}
+            >
+                <ActionsheetBackdrop />
+                <ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
+                    <ActionsheetDragIndicatorWrapper>
+                        <ActionsheetDragIndicator />
+                    </ActionsheetDragIndicatorWrapper>
+                    <VStack className="w-full px-4 pb-3 pt-6 gap-1">
+                        <Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+                            Escolha o ícone do banco
+                        </Heading>
+                        <Text className={`${helperText} text-sm`}>
+                            Selecione uma instituição ou use a opção genérica.
+                        </Text>
+                    </VStack>
+                    <ActionsheetScrollView
+                        className="w-full flex-1"
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
+                    >
+                        <VStack className="px-2 pb-2">
+                            {BANK_ICON_OPTIONS.map(option => {
+                                const isSelected = option.key === selectedBankIconKey;
+                                return (
+                                    <ActionsheetItem
+                                        key={option.key}
+                                        onPress={() => {
+                                            setSelectedBankIconKey(option.key);
+                                            setIsBankIconSheetOpen(false);
+                                        }}
+                                        className={isSelected ? (isDarkMode ? 'bg-slate-900 rounded-2xl' : 'bg-amber-50 rounded-2xl') : ''}
+                                    >
+                                        <HStack className="items-center gap-3 w-full">
+                                            <View className="h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                                                <BankIcon iconKey={option.key} size={32} />
+                                            </View>
+                                            <VStack className="min-w-0 flex-1 items-start justify-center">
+                                                <ActionsheetItemText className={isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900'}>
+                                                    {option.label}
+                                                </ActionsheetItemText>
+                                                {isSelected ? (
+                                                    <Text className="text-xs text-amber-500 dark:text-amber-300">
+                                                        Selecionado atualmente
+                                                    </Text>
+                                                ) : null}
+                                            </VStack>
+                                            {isSelected ? <Check size={18} color={isDarkMode ? '#FCD34D' : '#D97706'} /> : null}
+                                        </HStack>
+                                    </ActionsheetItem>
+                                );
+                            })}
+                        </VStack>
+                    </ActionsheetScrollView>
+                </ActionsheetContent>
+            </Actionsheet>
 		</SafeAreaView>
         </TouchableWithoutFeedback>
     );

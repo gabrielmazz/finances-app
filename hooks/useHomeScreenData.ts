@@ -42,87 +42,88 @@ export function useHomeScreenData(personId: string | null | undefined) {
 		error: null,
 	});
 
+	const resetAllSections = React.useCallback((message: string) => {
+		setOverview({
+			data: EMPTY_HOME_OVERVIEW_DATA,
+			loading: false,
+			error: message,
+		});
+		setMovements({
+			data: EMPTY_HOME_MOVEMENTS_DATA,
+			loading: false,
+			error: message,
+		});
+		setInvestments({
+			data: EMPTY_INVESTMENTS_DATA,
+			loading: false,
+			error: message,
+		});
+	}, []);
+
+	const reload = React.useCallback(async (shouldApplyResult: () => boolean = () => true) => {
+		if (!personId) {
+			resetAllSections('Nenhum usuário autenticado foi identificado.');
+			return;
+		}
+
+		setOverview(previous => ({ ...previous, loading: true, error: null }));
+		setMovements(previous => ({ ...previous, loading: true, error: null }));
+		setInvestments(previous => ({ ...previous, loading: true, error: null }));
+
+		const snapshotResult = await getHomeSnapshotFirebase(personId);
+
+		if (!shouldApplyResult()) {
+			return;
+		}
+
+		if (!snapshotResult.success) {
+			resetAllSections('Não foi possível carregar os dados da Home.');
+			return;
+		}
+
+		setOverview(previous => ({
+			data:
+				snapshotResult.data.overview.success
+					? snapshotResult.data.overview.data
+					: previous.data,
+			loading: false,
+			error: snapshotResult.data.overview.success ? null : snapshotResult.data.overview.error,
+		}));
+		setMovements(previous => ({
+			data:
+				snapshotResult.data.movements.success
+					? snapshotResult.data.movements.data
+					: previous.data,
+			loading: false,
+			error: snapshotResult.data.movements.success ? null : snapshotResult.data.movements.error,
+		}));
+		setInvestments(previous => ({
+			data:
+				snapshotResult.data.investments.success
+					? snapshotResult.data.investments.data
+					: previous.data,
+			loading: false,
+			error:
+				snapshotResult.data.investments.success ? null : snapshotResult.data.investments.error,
+		}));
+	}, [personId, resetAllSections]);
+
 	useFocusEffect(
 		React.useCallback(() => {
-			let isMounted = true;
+			let isActive = true;
 
-			const resetAllSections = (message: string) => {
-				setOverview({
-					data: EMPTY_HOME_OVERVIEW_DATA,
-					loading: false,
-					error: message,
-				});
-				setMovements({
-					data: EMPTY_HOME_MOVEMENTS_DATA,
-					loading: false,
-					error: message,
-				});
-				setInvestments({
-					data: EMPTY_INVESTMENTS_DATA,
-					loading: false,
-					error: message,
-				});
-			};
-
-			const loadSnapshot = async () => {
-				if (!personId) {
-					resetAllSections('Nenhum usuário autenticado foi identificado.');
-					return;
-				}
-
-				setOverview(previous => ({ ...previous, loading: true, error: null }));
-				setMovements(previous => ({ ...previous, loading: true, error: null }));
-				setInvestments(previous => ({ ...previous, loading: true, error: null }));
-
-				const snapshotResult = await getHomeSnapshotFirebase(personId);
-
-				if (!isMounted) {
-					return;
-				}
-
-				if (!snapshotResult.success) {
-					resetAllSections('Não foi possível carregar os dados da Home.');
-					return;
-				}
-
-				setOverview(previous => ({
-					data:
-						snapshotResult.data.overview.success
-							? snapshotResult.data.overview.data
-							: previous.data,
-					loading: false,
-					error: snapshotResult.data.overview.success ? null : snapshotResult.data.overview.error,
-				}));
-				setMovements(previous => ({
-					data:
-						snapshotResult.data.movements.success
-							? snapshotResult.data.movements.data
-							: previous.data,
-					loading: false,
-					error: snapshotResult.data.movements.success ? null : snapshotResult.data.movements.error,
-				}));
-				setInvestments(previous => ({
-					data:
-						snapshotResult.data.investments.success
-							? snapshotResult.data.investments.data
-							: previous.data,
-					loading: false,
-					error:
-						snapshotResult.data.investments.success ? null : snapshotResult.data.investments.error,
-				}));
-			};
-
-			void loadSnapshot();
+			void reload(() => isActive);
 
 			return () => {
-				isMounted = false;
+				isActive = false;
 			};
-		}, [personId]),
+		}, [reload]),
 	);
 
 	return {
 		overview,
 		movements,
 		investments,
+		reload,
 	};
 }

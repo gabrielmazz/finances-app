@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronDown, PlusCircle } from 'lucide-react-native';
+import { Check, ChevronDown } from 'lucide-react-native';
 
 import {
 	Actionsheet,
@@ -17,24 +17,22 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { BankIcon } from '@/hooks/useBankIcons';
 
-export type TagActionsheetOption = {
+export type BankActionsheetOption = {
 	id: string;
 	name: string;
 	description?: string | null;
-	iconFamily?: TagIconFamily | string | null;
-	iconName?: string | null;
-	iconStyle?: TagIconStyle | string | null;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 
-type TagActionsheetSelectorProps = {
-	options: TagActionsheetOption[];
+type BankActionsheetSelectorProps = {
+	options: BankActionsheetOption[];
 	selectedId: string | null;
 	selectedLabel?: string | null;
-	selectedOption?: TagActionsheetOption | null;
-	onSelect: (tag: TagActionsheetOption) => void;
+	selectedOption?: BankActionsheetOption | null;
+	onSelect: (bank: BankActionsheetOption) => void;
 	isDisabled?: boolean;
 	isDarkMode: boolean;
 	bodyTextClassName: string;
@@ -46,15 +44,11 @@ type TagActionsheetSelectorProps = {
 	triggerHint?: string;
 	disabledHint?: string;
 	accessibilityLabel: string;
-	rightAccessory?: React.ReactNode;
-	onCreatePress?: () => void;
-	createActionLabel?: string;
-	isCreateDisabled?: boolean;
 };
 
 const sheetSnapPoints = [72];
 
-export default function TagActionsheetSelector({
+export default function BankActionsheetSelector({
 	options,
 	selectedId,
 	selectedLabel,
@@ -67,15 +61,11 @@ export default function TagActionsheetSelector({
 	triggerClassName,
 	placeholder,
 	sheetTitle,
-	emptyMessage = 'Nenhuma categoria disponível.',
-	triggerHint = 'Toque para escolher uma categoria.',
-	disabledHint = 'Categoria indisponível no momento.',
+	emptyMessage = 'Nenhum banco disponível.',
+	triggerHint = 'Toque para escolher um banco.',
+	disabledHint = 'Banco indisponível no momento.',
 	accessibilityLabel,
-	rightAccessory,
-	onCreatePress,
-	createActionLabel = 'Adicionar categoria',
-	isCreateDisabled = false,
-}: TagActionsheetSelectorProps) {
+}: BankActionsheetSelectorProps) {
 	const [isOpen, setIsOpen] = React.useState(false);
 	const insets = useSafeAreaInsets();
 
@@ -109,7 +99,6 @@ export default function TagActionsheetSelector({
 		return null;
 	}, [options, selectedId, selectedLabel, selectedOption]);
 
-	const iconColor = isDarkMode ? '#FCD34D' : '#D97706';
 	const iconSurfaceClassName = isDarkMode
 		? 'border border-slate-800 bg-slate-900'
 		: 'border border-slate-200 bg-white';
@@ -120,89 +109,72 @@ export default function TagActionsheetSelector({
 	const selectedName = resolvedSelectedOption?.name ?? selectedLabel ?? null;
 	const selectedDescription = resolvedSelectedOption?.description ?? null;
 
-	const canOpenSheet = !isDisabled;
-
 	const handleOpen = React.useCallback(() => {
-		if (!canOpenSheet) {
+		if (isDisabled) {
 			return;
 		}
 
 		setIsOpen(true);
-	}, [canOpenSheet]);
+	}, [isDisabled]);
 
 	const handleSelect = React.useCallback(
-		(tag: TagActionsheetOption) => {
+		(bank: BankActionsheetOption) => {
 			if (isDisabled) {
 				return;
 			}
 
-			onSelect(tag);
+			onSelect(bank);
 			setIsOpen(false);
 		},
 		[isDisabled, onSelect],
 	);
 
-	const handleCreatePress = React.useCallback(() => {
-		if (!onCreatePress || isCreateDisabled) {
-			return;
-		}
-
-		setIsOpen(false);
-		onCreatePress();
-	}, [isCreateDisabled, onCreatePress]);
-
 	React.useEffect(() => {
-		if (!canOpenSheet && isOpen) {
+		if (isDisabled && isOpen) {
 			setIsOpen(false);
 		}
-	}, [canOpenSheet, isOpen]);
+	}, [isDisabled, isOpen]);
 
 	return (
 		<>
-			<HStack className="items-center gap-3">
-				<View className="flex-1">
-					<Pressable
-						onPress={handleOpen}
-						disabled={!canOpenSheet}
-						accessibilityRole="button"
-						accessibilityLabel={accessibilityLabel}
-						accessibilityState={{ disabled: !canOpenSheet, expanded: isOpen }}
-						className={`${triggerClassName} px-4 py-3 ${!canOpenSheet ? 'opacity-60' : ''}`}
-					>
-						<HStack className="items-center justify-between gap-3">
-							<HStack className="min-w-0 flex-1 items-center gap-3">
-								<View className={`h-11 w-11 items-center justify-center rounded-2xl ${iconSurfaceClassName}`}>
-									<TagIcon
-										iconFamily={resolvedSelectedOption?.iconFamily}
-										iconName={resolvedSelectedOption?.iconName}
-										iconStyle={resolvedSelectedOption?.iconStyle}
-										size={20}
-										color={iconColor}
-									/>
-								</View>
-								<VStack className="min-w-0 flex-1">
-									<Text
-										className={`${selectedName ? bodyTextClassName : helperTextClassName} text-sm font-medium`}
-										numberOfLines={1}
-									>
-										{selectedName ?? placeholder}
-									</Text>
-									<Text className={`${helperTextClassName} text-xs`} numberOfLines={1}>
-										{isDisabled
-											? disabledHint
-											: selectedDescription ?? (selectedName ? 'Toque para alterar a categoria.' : triggerHint)}
-									</Text>
-								</VStack>
-							</HStack>
-							<ChevronDown size={18} color={chevronColor} />
-						</HStack>
-					</Pressable>
-				</View>
-				{rightAccessory}
-			</HStack>
+			<Pressable
+				onPress={handleOpen}
+				disabled={isDisabled}
+				accessibilityRole="button"
+				accessibilityLabel={accessibilityLabel}
+				accessibilityState={{ disabled: isDisabled, expanded: isOpen }}
+				className={`${triggerClassName} px-4 py-3 ${isDisabled ? 'opacity-60' : ''}`}
+			>
+				<HStack className="items-center justify-between gap-3">
+					<HStack className="min-w-0 flex-1 items-center gap-3">
+						<View className={`h-11 w-11 items-center justify-center rounded-2xl ${iconSurfaceClassName}`}>
+							<BankIcon
+								iconKey={resolvedSelectedOption?.iconKey}
+								name={resolvedSelectedOption?.name ?? selectedLabel}
+								colorHex={resolvedSelectedOption?.colorHex}
+								size={32}
+							/>
+						</View>
+						<VStack className="min-w-0 flex-1 justify-center gap-0.5">
+							<Text
+								className={`${selectedName ? bodyTextClassName : helperTextClassName} text-sm font-medium leading-5`}
+								numberOfLines={1}
+							>
+								{selectedName ?? placeholder}
+							</Text>
+							<Text className={`${helperTextClassName} text-xs leading-4`} numberOfLines={1}>
+								{isDisabled
+									? disabledHint
+									: selectedDescription ?? (selectedName ? 'Toque para alterar o banco.' : triggerHint)}
+							</Text>
+						</VStack>
+					</HStack>
+					<ChevronDown size={18} color={chevronColor} />
+				</HStack>
+			</Pressable>
 
 			<Actionsheet
-				isOpen={isOpen && canOpenSheet}
+				isOpen={isOpen && !isDisabled}
 				onClose={() => setIsOpen(false)}
 				snapPoints={sheetSnapPoints}
 			>
@@ -217,7 +189,7 @@ export default function TagActionsheetSelector({
 							{sheetTitle}
 						</Heading>
 						<Text className={`${helperTextClassName} text-sm`}>
-							{selectedName ? `Selecionada: ${selectedName}` : placeholder}
+							{selectedName ? `Selecionado: ${selectedName}` : placeholder}
 						</Text>
 					</VStack>
 
@@ -235,30 +207,29 @@ export default function TagActionsheetSelector({
 								</VStack>
 							) : null}
 
-							{sortedOptions.map(tag => {
-								const isSelected = tag.id === selectedId;
+							{sortedOptions.map(bank => {
+								const isSelected = bank.id === selectedId;
 
 								return (
 									<ActionsheetItem
-										key={tag.id}
-										onPress={() => handleSelect(tag)}
+										key={bank.id}
+										onPress={() => handleSelect(bank)}
 										className={isSelected ? selectedItemClassName : ''}
 									>
 										<HStack className="items-center gap-3 w-full">
 											<View className={`h-11 w-11 items-center justify-center rounded-2xl ${iconSurfaceClassName}`}>
-												<TagIcon
-													iconFamily={tag.iconFamily}
-													iconName={tag.iconName}
-													iconStyle={tag.iconStyle}
-													size={20}
-													color={iconColor}
+												<BankIcon
+													iconKey={bank.iconKey}
+													name={bank.name}
+													colorHex={bank.colorHex}
+													size={32}
 												/>
 											</View>
 											<VStack className="min-w-0 flex-1 items-start justify-center">
 												<ActionsheetItemText className={itemTextClassName}>
-													{tag.name}
+													{bank.name}
 												</ActionsheetItemText>
-												{tag.description || isSelected ? (
+												{bank.description || isSelected ? (
 													<Text
 														className={
 															isSelected
@@ -266,40 +237,15 @@ export default function TagActionsheetSelector({
 																: `${helperTextClassName} text-xs`
 														}
 													>
-														{tag.description ?? 'Selecionada atualmente'}
+														{bank.description ?? 'Selecionado atualmente'}
 													</Text>
 												) : null}
 											</VStack>
-											{isSelected ? <Check size={18} color={iconColor} /> : null}
+											{isSelected ? <Check size={18} color={isDarkMode ? '#FCD34D' : '#D97706'} /> : null}
 										</HStack>
 									</ActionsheetItem>
 								);
 							})}
-
-							{onCreatePress ? (
-								<Pressable
-									onPress={handleCreatePress}
-									disabled={isCreateDisabled}
-									accessibilityRole="button"
-									accessibilityLabel={createActionLabel}
-									className={`mx-2 mb-3 mt-6 rounded-2xl border px-4 py-4 ${
-										isDarkMode
-											? 'border-amber-300/40'
-											: 'border-amber-200'
-									} ${isCreateDisabled ? 'opacity-60' : ''}`}
-								>
-									<HStack className="items-center gap-3">
-										<View className={`h-11 w-11 items-center justify-center rounded-2xl ${iconSurfaceClassName}`}>
-											<PlusCircle size={20} color={iconColor} />
-										</View>
-										<VStack className="min-w-0 flex-1">
-											<Text className={`${bodyTextClassName} text-sm font-semibold`} numberOfLines={1}>
-												{createActionLabel}
-											</Text>
-										</VStack>
-									</HStack>
-								</Pressable>
-							) : null}
 						</VStack>
 					</ActionsheetScrollView>
 				</ActionsheetContent>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -68,6 +68,7 @@ import {
 	type MandatoryPeriodSummaryPdfItem,
 	type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
+import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -299,6 +300,7 @@ export default function MandatoryExpensesListScreen() {
 		submitButtonCancelClassName,
 	} = useScreenStyles();
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
@@ -411,7 +413,7 @@ export default function MandatoryExpensesListScreen() {
 		setExpandedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [expenses]);
 
-	const loadData = React.useCallback(async () => {
+	const loadData = React.useCallback(async (asRefresh = false) => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
 			showNotifierAlert({
@@ -422,7 +424,11 @@ export default function MandatoryExpensesListScreen() {
 			return;
 		}
 
-		setIsLoading(true);
+		if (asRefresh) {
+			setIsRefreshing(true);
+		} else {
+			setIsLoading(true);
+		}
 
 		try {
 			const [expensesResult, tagsResult, relatedUsersResult] = await Promise.all([
@@ -565,8 +571,13 @@ export default function MandatoryExpensesListScreen() {
 			});
 		} finally {
 			setIsLoading(false);
+			setIsRefreshing(false);
 		}
 	}, []);
+
+	const handleRefresh = React.useCallback(async () => {
+		await loadData(true);
+	}, [loadData]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -828,6 +839,8 @@ export default function MandatoryExpensesListScreen() {
 		try {
 			// Exporta o resumo mensal seguindo [[Despesas Fixas]] e [[Privacidade de Valores]].
 			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
+			const pdfFileName = buildPdfFileName(['Despesas Fixas', referenceMonthLabel]);
+			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
 			const canShare = await Sharing.isAvailableAsync();
 
 			if (!canShare) {
@@ -841,7 +854,7 @@ export default function MandatoryExpensesListScreen() {
 				return;
 			}
 
-			await Sharing.shareAsync(uri, {
+			await Sharing.shareAsync(namedPdfUri, {
 				dialogTitle: 'Baixar resumo de gastos obrigatórios',
 				mimeType: 'application/pdf',
 				UTI: 'com.adobe.pdf',
@@ -991,6 +1004,13 @@ export default function MandatoryExpensesListScreen() {
 						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
 						style={{ marginTop: heroHeight - 64 }}
 						contentContainerStyle={{ paddingBottom: 48 }}
+						refreshControl={
+							<RefreshControl
+								refreshing={isRefreshing}
+								onRefresh={() => void handleRefresh()}
+								tintColor="#FACC15"
+							/>
+						}
 					>
 						<VStack className="justify-between mt-4">
 
@@ -1109,36 +1129,39 @@ export default function MandatoryExpensesListScreen() {
 												</View>
 											</HStack>
 
-											<Button
-												className={submitButtonClassName}
-												onPress={() => {
-													void handleExportMonthlySummaryPdf();
-												}}
-												isDisabled={isLoading || isExportingPdf}
-											>
-												{isExportingPdf ? (
-													<>
-														<ButtonSpinner />
-														<ButtonText>Gerando PDF</ButtonText>
-													</>
-												) : (
-													<>
-														<ButtonIcon as={DownloadIcon} size="sm" />
-														<ButtonText>Baixar resumo em PDF</ButtonText>
-													</>
-												)}
-											</Button>
 										</VStack>
 									</View>
 
-									<Button
-										className={`${submitButtonClassName}`}
-										onPress={handleOpenCreate}
-									>
-										<ButtonIcon as={AddIcon} size="sm" />
-										<ButtonText>Adicionar gasto obrigatório</ButtonText>
-										{isLoading && <ButtonSpinner />}
-									</Button>
+									<HStack className="gap-3">
+										<Button
+											className={`${submitButtonClassName} flex-1`}
+											onPress={() => {
+												void handleExportMonthlySummaryPdf();
+											}}
+											isDisabled={isLoading || isExportingPdf}
+										>
+											{isExportingPdf ? (
+												<>
+													<ButtonSpinner />
+													<ButtonText>Gerando PDF</ButtonText>
+												</>
+											) : (
+												<>
+													<ButtonIcon as={DownloadIcon} size="sm" />
+													<ButtonText>Baixar resumo em PDF</ButtonText>
+												</>
+											)}
+										</Button>
+
+										<Button
+											className={`${submitButtonClassName} flex-1`}
+											onPress={handleOpenCreate}
+										>
+											<ButtonIcon as={AddIcon} size="sm" />
+											<ButtonText>Adicionar gasto</ButtonText>
+											{isLoading && <ButtonSpinner />}
+										</Button>
+									</HStack>
 
 									{expenses.length === 0 ? (
 										<Box className={`${compactCardClassName} px-5 py-6`}>

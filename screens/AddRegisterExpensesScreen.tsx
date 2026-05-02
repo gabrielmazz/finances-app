@@ -17,18 +17,6 @@ import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
-import {
 	Radio,
 	RadioGroup,
 	RadioIndicator,
@@ -42,6 +30,7 @@ import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/compone
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -65,7 +54,7 @@ import {
 	type TagUsageType,
 } from '@/utils/tagUsage';
 
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 import { CircleIcon } from '@/components/ui/icon';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
@@ -82,6 +71,8 @@ type OptionItem = {
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
+	iconKey?: string | null;
+	colorHex?: string | null;
 };
 
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'expense-explanation';
@@ -193,6 +184,7 @@ export default function AddRegisterExpensesScreen() {
 		helperText,
 		inputField,
 		focusFieldClassName,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
@@ -206,7 +198,6 @@ export default function AddRegisterExpensesScreen() {
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
 		switchRadioLabelClassName,
-		addTagButtonClassName,
 	} = useScreenStyles();
 
 	const [expenseName, setExpenseName] = React.useState('');
@@ -457,7 +448,7 @@ export default function AddRegisterExpensesScreen() {
 		!parsedExpenseDate ||
 		(isBankSelectionRequired && !selectedBankId);
 	const isTagSelectDisabled =
-		isLoadingTags || tags.length === 0 || isFormBusy || isTagFieldPrerequisitesIncomplete;
+		isLoadingTags || isFormBusy || isTagFieldPrerequisitesIncomplete;
 	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
@@ -500,6 +491,11 @@ export default function AddRegisterExpensesScreen() {
 			iconName: tag.iconName ?? null,
 			iconStyle: tag.iconStyle ?? null,
 		});
+	}, []);
+
+	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
+		setSelectedBankId(bank.id);
+		setSelectedMovementBankName(bank.name);
 	}, []);
 
 	React.useEffect(() => {
@@ -607,7 +603,12 @@ export default function AddRegisterExpensesScreen() {
 					if (banksResult.success && Array.isArray(banksResult.data)) {
 						const formattedBanks = banksResult.data.map((bank: any) => ({
 							id: bank.id,
-							name: bank.name,
+							name:
+								typeof bank?.name === 'string' && bank.name.trim().length > 0
+									? bank.name.trim()
+									: 'Banco sem nome',
+							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 						}));
 
 						setBanks(formattedBanks);
@@ -1133,6 +1134,21 @@ export default function AddRegisterExpensesScreen() {
 		const matchedBank = banks.find(bank => bank.id === selectedBankId);
 		return matchedBank?.name ?? selectedMovementBankName ?? null;
 	}, [banks, selectedBankId, selectedMovementBankName]);
+	const selectedBankOption = React.useMemo(() => {
+		const matchedBank = banks.find(bank => bank.id === selectedBankId);
+		if (matchedBank) {
+			return matchedBank;
+		}
+
+		if (selectedBankId && selectedMovementBankName) {
+			return {
+				id: selectedBankId,
+				name: selectedMovementBankName,
+			};
+		}
+
+		return null;
+	}, [banks, selectedBankId, selectedMovementBankName]);
 
 	const screenTitle = 'Registro de Despesa';
 	const tagHelperMessage = isTagSelectionLocked
@@ -1348,7 +1364,7 @@ export default function AddRegisterExpensesScreen() {
 											</PopoverContent>
 										</Popover>
 									</HStack>
-									<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+									<View className={`${fieldContainerCardClassName} px-4 py-3 pt-4 pb-4`}>
 										<RadioGroup
 											value={valuesRadioMoneyFormat}
 											onChange={handleRadioMoneyFormatChange}
@@ -1384,49 +1400,24 @@ export default function AddRegisterExpensesScreen() {
 										{valuesRadioMoneyFormat === 'Pagamento em Banco' && (
 											<VStack className="mt-4">
 												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
-												<Select
-													selectedValue={selectedBankId ?? undefined}
-													onValueChange={value => setSelectedBankId(value)}
+												<BankActionsheetSelector
+													options={banks}
+													selectedId={selectedBankId}
+													selectedLabel={selectedBankLabel}
+													selectedOption={selectedBankOption}
+													onSelect={handleSelectBank}
 													isDisabled={isBankSelectDisabled}
-												>
-													<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-														<SelectInput
-															placeholder="Selecione o banco vinculado"
-															value={selectedBankLabel ?? ''}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-													<SelectPortal>
-														<SelectBackdrop />
-														<SelectContent>
-															<SelectDragIndicatorWrapper>
-																<SelectDragIndicator />
-															</SelectDragIndicatorWrapper>
-															{banks.length > 0 ? (
-																[...banks]
-																	.sort((a, b) =>
-																		a.name.localeCompare(b.name, 'pt-BR', {
-																			sensitivity: 'base',
-																		}),
-																	)
-																	.map(bank => (
-																		<SelectItem
-																			key={bank.id}
-																			label={bank.name}
-																			value={bank.id}
-																		/>
-																	))
-															) : (
-																<SelectItem
-																	label="Nenhum banco disponível"
-																	value="no-bank"
-																	isDisabled
-																/>
-															)}
-														</SelectContent>
-													</SelectPortal>
-												</Select>
+													isDarkMode={isDarkMode}
+													bodyTextClassName={bodyText}
+													helperTextClassName={helperText}
+													triggerClassName={fieldBankContainerClassName}
+													placeholder="Selecione o banco vinculado"
+													sheetTitle="Escolha o banco da despesa"
+													emptyMessage="Nenhum banco disponível."
+													triggerHint={bankHelperMessage}
+													disabledHint={bankHelperMessage}
+													accessibilityLabel="Selecionar banco da despesa"
+												/>
 											</VStack>
 										)}
 									</View>
@@ -1469,20 +1460,9 @@ export default function AddRegisterExpensesScreen() {
 											sheetTitle="Escolha a categoria da despesa"
 											emptyMessage="Nenhuma categoria de despesa disponível."
 											accessibilityLabel="Escolher categoria de despesa"
-											rightAccessory={
-												<Pressable
-													onPress={handleOpenAddTagScreen}
-													hitSlop={8}
-													accessibilityRole="button"
-													accessibilityLabel="Adicionar nova categoria de despesa"
-													className={`${addTagButtonClassName}`}
-												>
-													<TagsIcon
-														size={18}
-														color={isAddTagButtonDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#F59E0B'}
-													/>
-												</Pressable>
-											}
+											onCreatePress={handleOpenAddTagScreen}
+											createActionLabel="Adicionar categoria de despesa"
+											isCreateDisabled={isAddTagButtonDisabled}
 										/>
 									)}
 								</VStack>
