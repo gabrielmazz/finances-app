@@ -32,18 +32,6 @@ import {
 } from '@/components/ui/modal';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
-import {
 	Table,
 	TableBody,
 	TableCaption,
@@ -60,6 +48,8 @@ import { auth } from '@/FirebaseConfig';
 // Componentes do Uiverse
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import TagActionsheetSelector from '@/components/uiverse/tag-actionsheet-selector';
+import type { TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import {
@@ -95,7 +85,7 @@ import {
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
 
-import { Info, Tags as TagsIcon } from 'lucide-react-native';
+import { Info } from 'lucide-react-native';
 
 type AccordionItem = {
 	id: string;
@@ -138,14 +128,14 @@ const accordionItems: AccordionItem[] = [
 	},
 	{
 		id: 'item-3',
-		title: 'Adicionar uma nova tag ao aplicativo',
+		title: 'Adicionar uma nova categoria ao aplicativo',
 		content:
-			'Para adicionar uma nova tag, acesse a seção de configurações e clique em "Adicionar Tag". Insira o nome desejado e confirme para salvar.',
+			'Para adicionar uma nova categoria, acesse a seção de configurações e clique em "Adicionar Categoria". Insira o nome desejado e confirme para salvar.',
 		showTagsTable: true,
 		actionRequiresAdmin: true,
 		action: {
 			router: '/add-register-tag',
-			label: 'Adicionar Tag',
+			label: 'Adicionar Categoria',
 		},
 	},
 	{
@@ -215,6 +205,7 @@ type PendingAction =
 	};
 
 type TablePaginationKey = 'users' | 'banks' | 'tags' | 'relatedUsers';
+type CategoryFilterValue = 'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain';
 
 type PaginatedTableResult<T> = {
 	items: T[];
@@ -906,6 +897,7 @@ export default function ConfigurationsScreen() {
 		helperText,
 		inputField,
 		fieldContainerClassName,
+		fieldContainerCardClassName,
 		addTagButtonClassName,
 		compactCardClassName,
 		tintedCardClassName,
@@ -964,16 +956,33 @@ export default function ConfigurationsScreen() {
 			iconStyle?: TagIconStyle | null;
 		}>
 	>([]);
-	const [tagFilter, setTagFilter] = React.useState<
-		'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain'
-	>('all');
-	const tagFilterLabels: Record<typeof tagFilter, string> = {
+	const [tagFilter, setTagFilter] = React.useState<CategoryFilterValue>('all');
+	const tagFilterLabels: Record<CategoryFilterValue, string> = {
 		all: 'Todas',
 		expense: 'Despesas',
 		'mandatory-expense': 'Despesas obrigatórias',
 		gain: 'Ganhos',
 		'mandatory-gain': 'Ganhos obrigatórios',
 	};
+	const tagFilterOptions = React.useMemo(
+		(): TagActionsheetOption[] =>
+			[
+				{ id: 'all' satisfies CategoryFilterValue, name: 'Todas', description: 'Exibe todas as categorias cadastradas.' },
+				{ id: 'expense' satisfies CategoryFilterValue, name: 'Despesas', description: 'Categorias disponíveis em despesas comuns.' },
+				{
+					id: 'mandatory-expense' satisfies CategoryFilterValue,
+					name: 'Despesas obrigatórias',
+					description: 'Categorias marcadas para despesas fixas.',
+				},
+				{ id: 'gain' satisfies CategoryFilterValue, name: 'Ganhos', description: 'Categorias disponíveis em ganhos comuns.' },
+				{
+					id: 'mandatory-gain' satisfies CategoryFilterValue,
+					name: 'Ganhos obrigatórios',
+					description: 'Categorias marcadas para receitas fixas.',
+				},
+			],
+		[],
+	);
 	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [userId, setUserId] = React.useState<string>('');
 	const [isAdmin, setIsAdmin] = React.useState(false);
@@ -1265,14 +1274,14 @@ export default function ConfigurationsScreen() {
 			if (result.success) {
 				setTagData(prev => prev.filter(tag => tag.id !== tagId));
 				showConfigurationAlert({
-					title: 'Tag removida',
-					description: `Tag ${tagName || tagId} foi excluída.`,
+					title: 'Categoria removida',
+					description: `Categoria ${tagName || tagId} foi excluída.`,
 					type: 'success',
 				});
 			} else {
 				showConfigurationAlert({
-					title: 'Erro ao remover tag',
-					description: 'Não foi possível remover a tag. Tente novamente.',
+					title: 'Erro ao remover categoria',
+					description: 'Não foi possível remover a categoria. Tente novamente.',
 					type: 'error',
 				});
 			}
@@ -1418,15 +1427,15 @@ export default function ConfigurationsScreen() {
 				};
 			case 'edit-tag':
 				return {
-					title: 'Editar tag',
-					message: `Deseja editar a tag ${pendingAction.payload.tag.name}? Você será redirecionado para a tela de edição.`,
+					title: 'Editar categoria',
+					message: `Deseja editar a categoria ${pendingAction.payload.tag.name}? Você será redirecionado para a tela de edição.`,
 					confirmLabel: 'Editar',
 					isEdit: true,
 				};
 			case 'delete-tag':
 				return {
-					title: 'Excluir tag',
-					message: `Tem certeza de que deseja excluir a tag ${pendingAction.payload.tagName || 'selecionada'
+					title: 'Excluir categoria',
+					message: `Tem certeza de que deseja excluir a categoria ${pendingAction.payload.tagName || 'selecionada'
 						}? Esta ação não pode ser desfeita.`,
 					confirmLabel: 'Excluir',
 					isEdit: false,
@@ -2067,30 +2076,22 @@ export default function ConfigurationsScreen() {
 															{renderSectionAction(item.action)}
 															<Box className={`${notTintedCardClassName} px-4 py-4`}>
 																<VStack className="gap-2">
-																	<Text className="text-sm font-semibold">Filtrar tags por tipo</Text>
-																	<Select selectedValue={tagFilter} onValueChange={value => setTagFilter(value as typeof tagFilter)}>
-																		<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-																			<SelectInput
-																				placeholder="Selecione um filtro"
-																				value={tagFilterLabels[tagFilter]}
-																				className={inputField}
-																			/>
-																			<SelectIcon />
-																		</SelectTrigger>
-																		<SelectPortal>
-																			<SelectBackdrop />
-																			<SelectContent>
-																				<SelectDragIndicatorWrapper>
-																					<SelectDragIndicator />
-																				</SelectDragIndicatorWrapper>
-																				<SelectItem label="Todas" value="all" />
-																				<SelectItem label="Despesas" value="expense" />
-																				<SelectItem label="Despesas obrigatórias" value="mandatory-expense" />
-																				<SelectItem label="Ganhos" value="gain" />
-																				<SelectItem label="Ganhos obrigatórios" value="mandatory-gain" />
-																			</SelectContent>
-																		</SelectPortal>
-																	</Select>
+																	<Text className="text-sm font-semibold">Filtrar categorias por tipo</Text>
+																	<TagActionsheetSelector
+																		options={tagFilterOptions}
+																		selectedId={tagFilter}
+																		selectedLabel={tagFilterLabels[tagFilter]}
+																		onSelect={option => setTagFilter(option.id as CategoryFilterValue)}
+																		isDarkMode={isDarkMode}
+																		bodyTextClassName={bodyText}
+																		helperTextClassName={helperText}
+																		triggerClassName={fieldContainerCardClassName}
+																		placeholder="Selecione um filtro"
+																		sheetTitle="Filtrar categorias"
+																		emptyMessage="Nenhum filtro disponível."
+																		triggerHint="Toque para escolher um tipo de categoria."
+																		accessibilityLabel="Filtrar categorias por tipo"
+																	/>
 																</VStack>
 															</Box>
 															{tagsTable.totalItems > 0 ? (
@@ -2098,7 +2099,7 @@ export default function ConfigurationsScreen() {
 																	<Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
 																		<TableHeader>
 																			<TableRow className={tableHeaderRowClassName}>
-																				<TableHead className={tableHeadTextClassName}>Tag</TableHead>
+																				<TableHead className={tableHeadTextClassName}>Categoria</TableHead>
 																				<TableActionsHeader
 																					widthClassName={tableDoubleActionColumnClassName}
 																					headerClassName={tableActionsHeaderClassName}
@@ -2146,7 +2147,7 @@ export default function ConfigurationsScreen() {
 																							action="default"
 																							className={tableIconButtonClassName}
 																							iconClassName={tablePrimaryIconClassName}
-																							accessibilityLabel={`Editar tag ${tag.name}`}
+																							accessibilityLabel={`Editar categoria ${tag.name}`}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'edit-tag',
@@ -2171,7 +2172,7 @@ export default function ConfigurationsScreen() {
 																							variant="link"
 																							className={tableIconButtonClassName}
 																							action="negative"
-																							accessibilityLabel={`Excluir tag ${tag.name}`}
+																							accessibilityLabel={`Excluir categoria ${tag.name}`}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'delete-tag',
@@ -2187,13 +2188,13 @@ export default function ConfigurationsScreen() {
 																			))}
 																		</TableBody>
 																		<TableCaption className={tableCaptionClassName}>
-																			{tagsTable.totalItems} tag(s) encontradas para o filtro atual.
+																			{tagsTable.totalItems} categoria(s) encontradas para o filtro atual.
 																		</TableCaption>
 																	</Table>
 																	{renderTablePagination('tags', tagsTable)}
 																</Box>
 															) : (
-																renderEmptyTableState('Nenhuma tag encontrada para o filtro selecionado.')
+																renderEmptyTableState('Nenhuma categoria encontrada para o filtro selecionado.')
 															)}
 														</VStack>
 													) : null}

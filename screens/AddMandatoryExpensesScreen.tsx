@@ -492,10 +492,8 @@ export default function AddMandatoryExpensesScreen() {
 			pathname: '/add-register-tag',
 			params: {
 				usageType: 'expense',
-				lockUsageType: '1',
 				returnAfterCreate: '1',
 				isMandatoryExpense: '1',
-				lockMandatorySelection: '1',
 			},
 		});
 	}, [isAddTagButtonDisabled]);

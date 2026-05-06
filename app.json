@@ -3,7 +3,7 @@
     "name": "Lumus Finanças",
     "slug": "finances-app",
     "scheme": "financesapp",
-    "version": "1.9.0",
+    "version": "1.9.1",
     "orientation": "portrait",
     "icon": "./assets/lumusIcon.png",
     "userInterfaceStyle": "light",
