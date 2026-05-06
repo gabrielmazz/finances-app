@@ -3295,7 +3295,6 @@ export default function BankMovementsScreen() {
 													borderRadius: 18,
 													borderWidth: 1,
 													borderColor: timelinePalette.cardBorder,
-													backgroundColor: timelinePalette.emptySurface,
 													paddingHorizontal: 16,
 													paddingVertical: 18,
 												}}
@@ -3311,7 +3310,6 @@ export default function BankMovementsScreen() {
 													borderRadius: 18,
 													borderWidth: 1,
 													borderColor: timelinePalette.cardBorder,
-													backgroundColor: timelinePalette.emptySurface,
 													paddingHorizontal: 16,
 													paddingVertical: 18,
 												}}

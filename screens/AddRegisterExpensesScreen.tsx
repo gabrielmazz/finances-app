@@ -477,7 +477,6 @@ export default function AddRegisterExpensesScreen() {
 			pathname: '/add-register-tag',
 			params: {
 				usageType: 'expense',
-				lockUsageType: '1',
 				returnAfterCreate: '1',
 			},
 		});

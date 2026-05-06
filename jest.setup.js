@@ -26,6 +26,9 @@ global.__resetNotificationMockState = () => {
 
 jest.mock('react-native', () => ({
 	__esModule: true,
+	Keyboard: {
+		dismiss: jest.fn(),
+	},
 	Platform: {
 		get OS() {
 			return mockNotificationState.platformOS;

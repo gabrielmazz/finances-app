@@ -555,7 +555,6 @@ export default function AddRegisterGainScreen() {
 			pathname: '/add-register-tag',
 			params: {
 				usageType: 'gain',
-				lockUsageType: '1',
 				returnAfterCreate: '1',
 			},
 		});

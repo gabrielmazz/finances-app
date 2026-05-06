@@ -122,8 +122,6 @@ export default function AddRegisterTagScreen() {
 		isMandatoryGain?: string | string[];
 		showInBothLists?: string | string[];
 		returnAfterCreate?: string | string[];
-		lockUsageType?: string | string[];
-		lockMandatorySelection?: string | string[];
 		tagIconFamily?: string | string[];
 		tagIconName?: string | string[];
 		tagIconStyle?: string | string[];
@@ -255,25 +253,11 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1' || value === 'true';
 	}, [params.returnAfterCreate]);
-	const shouldLockUsageType = React.useMemo(() => {
-		const value = Array.isArray(params.lockUsageType) ? params.lockUsageType[0] : params.lockUsageType;
-
-		return value === '1' || value === 'true';
-	}, [params.lockUsageType]);
-	const shouldLockMandatorySelection = React.useMemo(() => {
-		const value = Array.isArray(params.lockMandatorySelection)
-			? params.lockMandatorySelection[0]
-			: params.lockMandatorySelection;
-
-		return value === '1' || value === 'true';
-	}, [params.lockMandatorySelection]);
-
 	const isEditing = Boolean(editingTagId);
-	const isUsageSelectionLocked = shouldLockUsageType && !isEditing && Boolean(initialUsageType);
-	// Segue [[Gerenciamento de Tags]]: fluxos inline podem travar a obrigatoriedade para evitar retorno com uma categoria fora do filtro de origem.
-	const isMandatorySelectionLocked = shouldLockMandatorySelection && !isEditing && Boolean(initialUsageType);
-	// Segue [[Gerenciamento de Tags]]: fluxos inline comuns travam apenas a escolha exclusiva do tipo, mas ainda podem ampliar a tag para ambos os usos.
-	const isSharedUsageSelectionLocked = isMandatorySelectionLocked;
+	// Segue [[Gerenciamento de Tags]]: parâmetros vindos de fluxos inline são pré-preenchimento, não bloqueio de edição.
+	const isUsageSelectionLocked = false;
+	const isMandatorySelectionLocked = false;
+	const isSharedUsageSelectionLocked = false;
 	const selectedUsageType: TagUsageType | null = isSharedBetweenUsageTypes
 		? 'both'
 		: isExpenseTag
@@ -284,17 +268,11 @@ export default function AddRegisterTagScreen() {
 	const isMandatorySwitchEnabled = selectedUsageType !== null;
 	const resolvedIsMandatoryExpense =
 		selectedUsageType === 'expense' || selectedUsageType === 'both'
-			? showInBothLists ||
-			isMandatoryExpense ||
-			(isMandatorySelectionLocked &&
-				(initialUsageType === 'expense' || initialUsageType === 'both'))
+			? showInBothLists || isMandatoryExpense
 			: false;
 	const resolvedIsMandatoryGain =
 		selectedUsageType === 'gain' || selectedUsageType === 'both'
-			? showInBothLists ||
-			isMandatoryGain ||
-			(isMandatorySelectionLocked &&
-				(initialUsageType === 'gain' || initialUsageType === 'both'))
+			? showInBothLists || isMandatoryGain
 			: false;
 	const isMandatorySelected =
 		selectedUsageType === 'expense'
@@ -312,14 +290,39 @@ export default function AddRegisterTagScreen() {
 				: initialUsageType === 'both'
 					? 'ganhos e despesas'
 					: null;
-	const hasHydratedInitialParamsRef = React.useRef(false);
+	const hydratedInitialParamsSignatureRef = React.useRef<string | null>(null);
+	const initialParamsSignature = React.useMemo(
+		() =>
+			JSON.stringify({
+				editingTagId,
+				initialTagName,
+				initialUsageType,
+				initialIsMandatoryExpense,
+				initialIsMandatoryGain,
+				initialShowInBothLists,
+				initialTagIconFamily,
+				initialTagIconName,
+				initialTagIconStyle,
+			}),
+		[
+			editingTagId,
+			initialTagName,
+			initialUsageType,
+			initialIsMandatoryExpense,
+			initialIsMandatoryGain,
+			initialShowInBothLists,
+			initialTagIconFamily,
+			initialTagIconName,
+			initialTagIconStyle,
+		],
+	);
 
 	React.useEffect(() => {
-		if (hasHydratedInitialParamsRef.current) {
+		if (hydratedInitialParamsSignatureRef.current === initialParamsSignature) {
 			return;
 		}
 
-		hasHydratedInitialParamsRef.current = true;
+		hydratedInitialParamsSignatureRef.current = initialParamsSignature;
 		setTagName(initialTagName);
 		setSelectedTagIcon(
 			resolveTagIcon({
@@ -370,6 +373,7 @@ export default function AddRegisterTagScreen() {
 		initialTagIconFamily,
 		initialTagIconName,
 		initialTagIconStyle,
+		initialParamsSignature,
 		resolveTagIcon,
 	]);
 

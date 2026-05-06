@@ -203,7 +203,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 			},
 			{
 				id: 'register-tag',
-				label: 'Nova tag',
+				label: 'Nova categoria',
 				value: 2,
 				icon: 'pricetag-outline',
 				matchPaths: ['/add-register-tag'],

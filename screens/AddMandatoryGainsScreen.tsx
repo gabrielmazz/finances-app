@@ -501,10 +501,8 @@ export default function AddMandatoryGainsScreen() {
 			pathname: '/add-register-tag',
 			params: {
 				usageType: 'gain',
-				lockUsageType: '1',
 				returnAfterCreate: '1',
 				isMandatoryGain: '1',
-				lockMandatorySelection: '1',
 			},
 		});
 	}, [isAddTagButtonDisabled]);

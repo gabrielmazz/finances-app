@@ -294,34 +294,32 @@ const getInvestmentSummaryText = (
 };
 
 function FinancialListSkeleton({
-	compactCardClassName,
 	skeletonBaseColor,
 	skeletonHighlightColor,
 }: {
-	compactCardClassName: string;
 	skeletonBaseColor: string;
 	skeletonHighlightColor: string;
 }) {
 	return (
-		<VStack className="mt-4 gap-2">
-			{Array.from({ length: 3 }).map((_, index) => (
+		<VStack className="mt-4 gap-1">
+			{Array.from({ length: 2 }).map((_, index) => (
 				<HStack
 					key={`financial-list-skeleton-${index}`}
 					className="items-start gap-3"
 				>
-					<VStack className="items-center pt-2" style={{ width: '7%' }}>
+					<VStack className="items-center pt-1" style={{ width: '7%' }}>
 						<Skeleton
 							variant="circular"
 							style={{ width: 14, height: 14 }}
 							baseColor={skeletonBaseColor}
 							highlightColor={skeletonHighlightColor}
 						/>
-						{index < 2 ? (
+						{index < 1 ? (
 							<Skeleton
 								style={{
 									width: 3,
-									height: index === 0 ? 228 : 140,
-									marginTop: 6,
+									height: 54,
+									marginTop: 4,
 									borderRadius: 999,
 								}}
 								baseColor={skeletonBaseColor}
@@ -333,31 +331,37 @@ function FinancialListSkeleton({
 					</VStack>
 
 					<View style={{ width: '93%', paddingBottom: 14 }}>
-						<Box className={`${compactCardClassName} px-4 py-4`}>
-							<VStack className="gap-3">
-								<HStack className="items-start justify-between gap-3">
-									<HStack className="items-center gap-3" style={{ flex: 1 }}>
+						<HStack className="items-center justify-between gap-3">
+							<HStack className="items-center gap-3" style={{ flex: 1 }}>
+								<Skeleton
+									className="h-11 w-11 rounded-2xl"
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+								<VStack className="flex-1 gap-2">
+									<Skeleton
+										className="h-5 w-36"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+									<Skeleton
+										className="h-3 w-24"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								</VStack>
+							</HStack>
+							<HStack className="items-center gap-2">
+								<VStack className="items-end gap-2">
+									<Skeleton
+										className="h-5 w-24"
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+									<HStack className="items-center gap-1">
 										<Skeleton
-											className="h-11 w-11 rounded-2xl"
-											baseColor={skeletonBaseColor}
-											highlightColor={skeletonHighlightColor}
-										/>
-										<VStack className="flex-1 gap-2">
-											<Skeleton
-												className="h-5 w-40"
-												baseColor={skeletonBaseColor}
-												highlightColor={skeletonHighlightColor}
-											/>
-											<Skeleton
-												className="h-3 w-28"
-												baseColor={skeletonBaseColor}
-												highlightColor={skeletonHighlightColor}
-											/>
-										</VStack>
-									</HStack>
-									<VStack className="items-end gap-2">
-										<Skeleton
-											className="h-5 w-20"
+											variant="circular"
+											style={{ width: 12, height: 12 }}
 											baseColor={skeletonBaseColor}
 											highlightColor={skeletonHighlightColor}
 										/>
@@ -366,39 +370,16 @@ function FinancialListSkeleton({
 											baseColor={skeletonBaseColor}
 											highlightColor={skeletonHighlightColor}
 										/>
-									</VStack>
-								</HStack>
-
-								{index === 0 ? (
-									<Skeleton
-										className="h-[184px] rounded-[20px]"
-										baseColor={skeletonBaseColor}
-										highlightColor={skeletonHighlightColor}
-									/>
-								) : (
-									<>
-										<SkeletonText
-											_lines={2}
-											className="h-3"
-											baseColor={skeletonBaseColor}
-											highlightColor={skeletonHighlightColor}
-										/>
-										<HStack className="gap-3">
-											<Skeleton
-												className="h-9 flex-1 rounded-2xl"
-												baseColor={skeletonBaseColor}
-												highlightColor={skeletonHighlightColor}
-											/>
-											<Skeleton
-												className="h-9 flex-1 rounded-2xl"
-												baseColor={skeletonBaseColor}
-												highlightColor={skeletonHighlightColor}
-											/>
-										</HStack>
-									</>
-								)}
-							</VStack>
-						</Box>
+									</HStack>
+								</VStack>
+								<Skeleton
+									variant="circular"
+									style={{ width: 14, height: 14 }}
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+							</HStack>
+						</HStack>
 					</View>
 				</HStack>
 			))}
@@ -1399,22 +1380,6 @@ export default function FinancialListScreen() {
 							</Heading>
 							{isInitialLoading ? (
 								<VStack className="gap-4">
-									<Skeleton
-										className="h-3 w-28"
-										baseColor={skeletonMutedBaseColor}
-										highlightColor={skeletonMutedHighlightColor}
-									/>
-									<Skeleton
-										className="h-8 w-56"
-										baseColor={skeletonMutedBaseColor}
-										highlightColor={skeletonMutedHighlightColor}
-									/>
-									<SkeletonText
-										_lines={2}
-										className="h-3"
-										baseColor={skeletonMutedBaseColor}
-										highlightColor={skeletonMutedHighlightColor}
-									/>
 									<View className="flex-row flex-wrap gap-3">
 										{Array.from({ length: 3 }).map((_, index) => (
 											<Skeleton
@@ -1487,7 +1452,6 @@ export default function FinancialListScreen() {
 
 							{isInitialLoading ? (
 								<FinancialListSkeleton
-									compactCardClassName={compactCardClassName}
 									skeletonBaseColor={skeletonBaseColor}
 									skeletonHighlightColor={skeletonHighlightColor}
 								/>
