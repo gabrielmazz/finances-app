@@ -1,1 +1,1 @@
-export { default } from '../screens/AddRegisterBankScreen';
+export { default } from '@/screens/AddRegisterBankScreen';

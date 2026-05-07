@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Componentes de UI
@@ -90,7 +90,7 @@ import {
 	buildBankCardPalette,
 } from '@/components/uiverse/bank-card-surface';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
@@ -2468,15 +2468,9 @@ export default function BankMovementsScreen() {
 		if (pendingAction.type === 'edit-standard-movement') {
 			const encodedId = encodeURIComponent(pendingAction.movement.id);
 			if (pendingAction.movement.type === 'gain') {
-				router.push({
-					pathname: '/add-register-gain',
-					params: { gainId: encodedId },
-				});
+				navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, { gainId: encodedId });
 			} else {
-				router.push({
-					pathname: '/add-register-expenses',
-					params: { expenseId: encodedId },
-				});
+				navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, { expenseId: encodedId });
 			}
 			setPendingAction(null);
 			return;

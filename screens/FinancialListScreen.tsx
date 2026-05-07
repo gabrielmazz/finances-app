@@ -2,7 +2,7 @@ import React from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { VStack } from '@/components/ui/vstack';
@@ -78,7 +78,7 @@ import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 
 type FinanceInvestment = {
 	id: string;
@@ -795,7 +795,7 @@ export default function FinancialListScreen() {
 	}, [formatCurrencyBRL, syncedDepositValueInCents]);
 
 	const handleNavigateToAdd = React.useCallback(() => {
-		router.push('/add-finance');
+		navigateToRoute(APP_ROUTE_PATHS.addFinance);
 	}, []);
 
 	const handleBackToHome = React.useCallback(() => {

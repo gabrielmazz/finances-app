@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/table';
 
 // Importações relacionadas à navegação e autenticação
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 
 // Componentes do Uiverse
@@ -81,6 +81,7 @@ import {
 	normalizeTagUsageType,
 	type TagUsageType,
 } from '@/utils/tagUsage';
+import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/navigation';
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
@@ -91,7 +92,7 @@ type AccordionItem = {
 	id: string;
 	title: string;
 	content: string;
-	action?: { router: string; label: string };
+	action?: { route: AppRoutePath; label: string };
 	actionRequiresAdmin?: boolean;
 	showUsersTable?: boolean;
 	showBanksTable?: boolean;
@@ -110,7 +111,7 @@ const accordionItems: AccordionItem[] = [
 		showUsersTable: true,
 		actionRequiresAdmin: true,
 		action: {
-			router: '/add-register-user',
+			route: APP_ROUTE_PATHS.addRegisterUser,
 			label: 'Registrar Usuário',
 		},
 	},
@@ -122,7 +123,7 @@ const accordionItems: AccordionItem[] = [
 		showBanksTable: true,
 		actionRequiresAdmin: true,
 		action: {
-			router: '/add-register-bank',
+			route: APP_ROUTE_PATHS.addRegisterBank,
 			label: 'Adicionar Banco',
 		},
 	},
@@ -134,7 +135,7 @@ const accordionItems: AccordionItem[] = [
 		showTagsTable: true,
 		actionRequiresAdmin: true,
 		action: {
-			router: '/add-register-tag',
+			route: APP_ROUTE_PATHS.addRegisterTag,
 			label: 'Adicionar Categoria',
 		},
 	},
@@ -146,7 +147,7 @@ const accordionItems: AccordionItem[] = [
 		showRelatedUsersTable: true,
 		actionRequiresAdmin: false,
 		action: {
-			router: '/add-user-relation',
+			route: APP_ROUTE_PATHS.addUserRelation,
 			label: 'Relacionar Usuário',
 		},
 	},
@@ -1254,17 +1255,14 @@ export default function ConfigurationsScreen() {
 			const encodedColor = bank?.colorHex ? encodeURIComponent(bank.colorHex) : undefined;
 			const encodedIconKey = bank?.iconKey ? encodeURIComponent(bank.iconKey) : undefined;
 
-			router.push({
-				pathname: '/add-register-bank',
-				params: {
-					bankId: bank.id,
-					bankName: encodedName,
-					...(encodedColor ? { colorHex: encodedColor } : {}),
-					...(encodedIconKey ? { bankIconKey: encodedIconKey } : {}),
-				},
+			navigateToRoute(APP_ROUTE_PATHS.addRegisterBank, {
+				bankId: bank.id,
+				bankName: encodedName,
+				...(encodedColor ? { colorHex: encodedColor } : {}),
+				...(encodedIconKey ? { bankIconKey: encodedIconKey } : {}),
 			});
 		},
-		[router],
+		[],
 	);
 
 	const handleTagRemoval = React.useCallback(
@@ -1347,19 +1345,16 @@ export default function ConfigurationsScreen() {
 			const mandatoryGainFlag = pendingAction.payload.tag.isMandatoryGain ? 'true' : 'false';
 			const showInBothListsFlag = pendingAction.payload.tag.showInBothLists ? 'true' : 'false';
 
-			router.push({
-				pathname: '/add-register-tag',
-				params: {
-					tagId: pendingAction.payload.tag.id,
-					tagName: encodedName,
-					...(encodedUsage ? { usageType: encodedUsage } : {}),
-					...(encodedIconFamily ? { tagIconFamily: encodedIconFamily } : {}),
-					...(encodedIconName ? { tagIconName: encodedIconName } : {}),
-					...(encodedIconStyle ? { tagIconStyle: encodedIconStyle } : {}),
-					isMandatoryExpense: mandatoryExpenseFlag,
-					isMandatoryGain: mandatoryGainFlag,
-					showInBothLists: showInBothListsFlag,
-				},
+			navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
+				tagId: pendingAction.payload.tag.id,
+				tagName: encodedName,
+				...(encodedUsage ? { usageType: encodedUsage } : {}),
+				...(encodedIconFamily ? { tagIconFamily: encodedIconFamily } : {}),
+				...(encodedIconName ? { tagIconName: encodedIconName } : {}),
+				...(encodedIconStyle ? { tagIconStyle: encodedIconStyle } : {}),
+				isMandatoryExpense: mandatoryExpenseFlag,
+				isMandatoryGain: mandatoryGainFlag,
+				showInBothLists: showInBothListsFlag,
 			});
 			setPendingAction(null);
 			return;
@@ -1498,7 +1493,7 @@ export default function ConfigurationsScreen() {
 					<ConfigurationActionButton
 						label={action.label}
 						icon={AddIcon}
-						onPress={() => router.push(action.router)}
+						onPress={() => navigateToRoute(action.route)}
 						disabled={disabled}
 						size="md"
 						variant="solid"

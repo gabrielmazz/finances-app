@@ -55,7 +55,13 @@ import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { normalizeTagUsageType, type TagUsageType } from '@/utils/tagUsage';
-import { navigateBackOrHomeDashboard, navigateToHomeDashboard } from '@/utils/navigation';
+import {
+	APP_ROUTE_PATHS,
+	type AppRoutePath,
+	isAppRoutePath,
+	navigateBackOrRoute,
+	navigateToHomeDashboard,
+} from '@/utils/navigation';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
 
@@ -122,6 +128,7 @@ export default function AddRegisterTagScreen() {
 		isMandatoryGain?: string | string[];
 		showInBothLists?: string | string[];
 		returnAfterCreate?: string | string[];
+		returnToRoute?: string | string[];
 		tagIconFamily?: string | string[];
 		tagIconName?: string | string[];
 		tagIconStyle?: string | string[];
@@ -253,6 +260,16 @@ export default function AddRegisterTagScreen() {
 
 		return value === '1' || value === 'true';
 	}, [params.returnAfterCreate]);
+	const returnToRoute = React.useMemo<AppRoutePath | null>(() => {
+		const value = Array.isArray(params.returnToRoute)
+			? params.returnToRoute[0]
+			: params.returnToRoute;
+
+		return isAppRoutePath(value) ? value : null;
+	}, [params.returnToRoute]);
+	const navigateBackToInlineSource = React.useCallback(() => {
+		navigateBackOrRoute(returnToRoute ?? APP_ROUTE_PATHS.home);
+	}, [returnToRoute]);
 	const isEditing = Boolean(editingTagId);
 	// Segue [[Gerenciamento de Tags]]: parâmetros vindos de fluxos inline são pré-preenchimento, não bloqueio de edição.
 	const isUsageSelectionLocked = false;
@@ -569,7 +586,7 @@ export default function AddRegisterTagScreen() {
 					});
 					Keyboard.dismiss();
 					if (shouldReturnAfterCreate) {
-						navigateBackOrHomeDashboard();
+						navigateBackToInlineSource();
 					} else {
 						navigateToHomeDashboard();
 					}
@@ -613,7 +630,7 @@ export default function AddRegisterTagScreen() {
 						usageType: selectedUsageType,
 						...persistedTagIcon,
 					});
-					navigateBackOrHomeDashboard();
+					navigateBackToInlineSource();
 					return;
 				}
 
@@ -650,10 +667,11 @@ export default function AddRegisterTagScreen() {
 		resolvedIsMandatoryExpense,
 		resolvedIsMandatoryGain,
 		selectedUsageType,
-		selectedTagIcon,
-		serializeTagIcon,
-		shouldReturnAfterCreate,
-	]);
+			selectedTagIcon,
+			serializeTagIcon,
+			shouldReturnAfterCreate,
+			navigateBackToInlineSource,
+		]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -749,13 +767,13 @@ export default function AddRegisterTagScreen() {
 
 	const handleBackNavigation = React.useCallback(() => {
 		if (shouldReturnAfterCreate) {
-			navigateBackOrHomeDashboard();
+			navigateBackToInlineSource();
 			return true;
 		}
 
 		navigateToHomeDashboard();
 		return true;
-	}, [shouldReturnAfterCreate]);
+	}, [navigateBackToInlineSource, shouldReturnAfterCreate]);
 
 	React.useEffect(() => {
 		if (!isTagIconSelectionEnabled && isTagIconSheetOpen) {

@@ -10,7 +10,7 @@ import {
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
@@ -54,7 +54,7 @@ import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/func
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
 	isTagVisibleInRegularUsageList,
@@ -551,12 +551,10 @@ export default function AddRegisterGainScreen() {
 		}
 
 		Keyboard.dismiss();
-		router.push({
-			pathname: '/add-register-tag',
-			params: {
-				usageType: 'gain',
-				returnAfterCreate: '1',
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
+			usageType: 'gain',
+			returnAfterCreate: '1',
+			returnToRoute: APP_ROUTE_PATHS.addRegisterGain,
 		});
 	}, [isAddTagButtonDisabled]);
 

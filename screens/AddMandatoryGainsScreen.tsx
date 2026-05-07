@@ -10,7 +10,7 @@ import {
 	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Heading } from '@/components/ui/heading';
@@ -44,7 +44,7 @@ import {
 } from '@/utils/mandatoryGainNotifications';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
@@ -497,13 +497,11 @@ export default function AddMandatoryGainsScreen() {
 		}
 
 		Keyboard.dismiss();
-		router.push({
-			pathname: '/add-register-tag',
-			params: {
-				usageType: 'gain',
-				returnAfterCreate: '1',
-				isMandatoryGain: '1',
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
+			usageType: 'gain',
+			returnAfterCreate: '1',
+			returnToRoute: APP_ROUTE_PATHS.addMandatoryGains,
+			isMandatoryGain: '1',
 		});
 	}, [isAddTagButtonDisabled]);
 
@@ -1045,10 +1043,7 @@ export default function AddMandatoryGainsScreen() {
 			params.templateUsesBusinessDays = '1';
 		}
 
-		router.push({
-			pathname: '/add-register-gain',
-			params,
-		});
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, params);
 	}, [
 		description,
 		dueDay,

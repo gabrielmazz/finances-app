@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -69,6 +69,7 @@ import {
 	type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
 import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
+import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -596,14 +597,11 @@ export default function MandatoryExpensesListScreen() {
 	);
 
 	const handleOpenCreate = React.useCallback(() => {
-		router.push('/add-mandatory-expenses');
+		navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses);
 	}, []);
 
 	const handleEdit = React.useCallback((expenseId: string) => {
-		router.push({
-			pathname: '/add-mandatory-expenses',
-			params: { expenseId },
-		});
+		navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses, { expenseId });
 	}, []);
 
 	const handleRegisterExpense = React.useCallback((expense: MandatoryExpenseItem) => {
@@ -625,29 +623,26 @@ export default function MandatoryExpensesListScreen() {
 			return;
 		}
 
-		router.push({
-			pathname: '/add-register-expenses',
-			params: {
-				templateName: encodeURIComponent(expense.name),
-				templateValueInCents: String(expense.valueInCents),
-				templateTagId: expense.tagId,
-				templateDueDay: String(expense.dueDay),
-				templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
-				templateDescription: expense.description ? encodeURIComponent(expense.description) : undefined,
-				templateMandatoryExpenseId: expense.id,
-				templateTagName: tagMetadataMap[expense.tagId]?.name
-					? encodeURIComponent(tagMetadataMap[expense.tagId].name)
-					: undefined,
-				templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
-					? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
-					: undefined,
-				templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
-					? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
-					: undefined,
-				templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
-					? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
-					: undefined,
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
+			templateName: encodeURIComponent(expense.name),
+			templateValueInCents: String(expense.valueInCents),
+			templateTagId: expense.tagId,
+			templateDueDay: String(expense.dueDay),
+			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
+			templateDescription: expense.description ? encodeURIComponent(expense.description) : undefined,
+			templateMandatoryExpenseId: expense.id,
+			templateTagName: tagMetadataMap[expense.tagId]?.name
+				? encodeURIComponent(tagMetadataMap[expense.tagId].name)
+				: undefined,
+			templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
+				: undefined,
+			templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
+				: undefined,
+			templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
+				: undefined,
 		});
 	}, [tagMetadataMap]);
 

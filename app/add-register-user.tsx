@@ -1,1 +1,1 @@
-export { default } from '../screens/AddRegisterUserScreen';
+export { default } from '@/screens/AddRegisterUserScreen';

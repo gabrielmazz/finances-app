@@ -10,7 +10,7 @@ import {
 	Pressable,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
@@ -45,7 +45,7 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
 	isTagVisibleInRegularUsageList,
@@ -473,12 +473,10 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		Keyboard.dismiss();
-		router.push({
-			pathname: '/add-register-tag',
-			params: {
-				usageType: 'expense',
-				returnAfterCreate: '1',
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
+			usageType: 'expense',
+			returnAfterCreate: '1',
+			returnToRoute: APP_ROUTE_PATHS.addRegisterExpenses,
 		});
 	}, [isAddTagButtonDisabled]);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { router, useLocalSearchParams, usePathname } from 'expo-router';
+import { useLocalSearchParams, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { BackHandler, Pressable, View } from 'react-native';
@@ -11,7 +11,16 @@ import { useAppTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import {
+	APP_ROUTE_PATHS,
+	HOME_TAB_INDEX,
+	type AppRoutePath,
+	type HomeTabIndex,
+	navigateToHomeConfigurations,
+	navigateToHomeDashboard,
+	navigateToRoute,
+	normalizeHomeTabIndex,
+} from '@/utils/navigation';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -27,7 +36,7 @@ type NavigatorOption = {
 	label: string;
 	value?: number;
 	icon: IoniconName;
-	matchPaths?: string[];
+	matchPaths?: AppRoutePath[];
 	onSelect: () => void;
 };
 
@@ -87,7 +96,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Início',
 				value: 0,
 				icon: 'home-outline',
-				matchPaths: ['/home'],
+				matchPaths: [APP_ROUTE_PATHS.home],
 				onSelect: () => navigateToHomeDashboard(),
 			},
 			{
@@ -95,8 +104,8 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Análise por Categoria',
 				value: 0,
 				icon: 'analytics-outline',
-				matchPaths: ['/category-analysis'],
-				onSelect: () => router.push('/category-analysis'),
+				matchPaths: [APP_ROUTE_PATHS.categoryAnalysis],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.categoryAnalysis),
 			},
 		],
 	},
@@ -111,64 +120,64 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Registrar despesa',
 				value: 1,
 				icon: 'remove-circle-outline',
-				matchPaths: ['/add-register-expenses'],
-				onSelect: () => router.push('/add-register-expenses'),
+				matchPaths: [APP_ROUTE_PATHS.addRegisterExpenses],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses),
 			},
 			{
 				id: 'register-gain',
 				label: 'Registrar ganho',
 				value: 1,
 				icon: 'add-circle-outline',
-				matchPaths: ['/add-register-gain'],
-				onSelect: () => router.push('/add-register-gain'),
+				matchPaths: [APP_ROUTE_PATHS.addRegisterGain],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterGain),
 			},
 			{
 				id: 'monthly-balance',
 				label: 'Saldo mensal',
 				value: 1,
 				icon: 'calendar-outline',
-				matchPaths: ['/register-monthly-balance'],
-				onSelect: () => router.push('/register-monthly-balance'),
+				matchPaths: [APP_ROUTE_PATHS.registerMonthlyBalance],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance),
 			},
 			{
 				id: 'transfer',
 				label: 'Transferência',
 				value: 1,
 				icon: 'swap-horizontal-outline',
-				matchPaths: ['/transfer-screen'],
-				onSelect: () => router.push('/transfer-screen'),
+				matchPaths: [APP_ROUTE_PATHS.transferScreen],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.transferScreen),
 			},
 			{
 				id: 'register-rescue',
 				label: 'Registrar saque',
 				value: 1,
 				icon: 'cash-outline',
-				matchPaths: ['/add-rescue'],
-				onSelect: () => router.push('/add-rescue'),
+				matchPaths: [APP_ROUTE_PATHS.addRescue],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRescue),
 			},
 			{
 				id: 'mandatory-expenses',
 				label: 'Gastos obrigatórios',
 				value: 1,
 				icon: 'document-text-outline',
-				matchPaths: ['/mandatory-expenses', '/add-mandatory-expenses'],
-				onSelect: () => router.push('/mandatory-expenses'),
+				matchPaths: [APP_ROUTE_PATHS.mandatoryExpenses, APP_ROUTE_PATHS.addMandatoryExpenses],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses),
 			},
 			{
 				id: 'mandatory-gains',
 				label: 'Ganhos obrigatórios',
 				value: 1,
 				icon: 'trending-up-outline',
-				matchPaths: ['/mandatory-gains', '/add-mandatory-gains'],
-				onSelect: () => router.push('/mandatory-gains'),
+				matchPaths: [APP_ROUTE_PATHS.mandatoryGains, APP_ROUTE_PATHS.addMandatoryGains],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.mandatoryGains),
 			},
 			{
 				id: 'financial-list',
 				label: 'Investimentos',
 				value: 1,
 				icon: 'wallet-outline',
-				matchPaths: ['/financial-list', '/add-finance'],
-				onSelect: () => router.push('/financial-list'),
+				matchPaths: [APP_ROUTE_PATHS.financialList, APP_ROUTE_PATHS.addFinance],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialList),
 			},
 		],
 	},
@@ -183,39 +192,40 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Configurações',
 				value: 2,
 				icon: 'settings-outline',
-				onSelect: () => router.replace('/home?tab=2'),
+				matchPaths: [APP_ROUTE_PATHS.home],
+				onSelect: () => navigateToHomeConfigurations(),
 			},
 			{
 				id: 'register-user',
 				label: 'Novo usuário',
 				value: 2,
 				icon: 'person-add-outline',
-				matchPaths: ['/add-register-user'],
-				onSelect: () => router.push('/add-register-user'),
+				matchPaths: [APP_ROUTE_PATHS.addRegisterUser],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterUser),
 			},
 			{
 				id: 'register-bank',
 				label: 'Novo banco',
 				value: 2,
 				icon: 'business-outline',
-				matchPaths: ['/add-register-bank'],
-				onSelect: () => router.push('/add-register-bank'),
+				matchPaths: [APP_ROUTE_PATHS.addRegisterBank],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterBank),
 			},
 			{
 				id: 'register-tag',
 				label: 'Nova categoria',
 				value: 2,
 				icon: 'pricetag-outline',
-				matchPaths: ['/add-register-tag'],
-				onSelect: () => router.push('/add-register-tag'),
+				matchPaths: [APP_ROUTE_PATHS.addRegisterTag],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag),
 			},
 			{
 				id: 'add-user-relation',
 				label: 'Relacionar usuário',
 				value: 2,
 				icon: 'people-outline',
-				matchPaths: ['/add-user-relation'],
-				onSelect: () => router.push('/add-user-relation'),
+				matchPaths: [APP_ROUTE_PATHS.addUserRelation],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation),
 			},
 			{
 				id: 'logout',
@@ -257,7 +267,24 @@ const hasRouteParamValue = (value?: string | string[]) => {
 	return typeof value === 'string' && value.trim().length > 0;
 };
 
-const getActiveRoute = (pathname: string, groups: NavigatorGroup[]) => {
+const getActiveRoute = (
+	pathname: string,
+	groups: NavigatorGroup[],
+	defaultValue: number,
+	tabParam?: string | string[],
+) => {
+	if (pathname === APP_ROUTE_PATHS.home) {
+		const groupValue = normalizeHomeTabIndex(
+			tabParam,
+			normalizeValue(defaultValue) as HomeTabIndex,
+		);
+
+		return {
+			groupValue,
+			optionId: getDefaultOption(groupValue, groups)?.id ?? null,
+		};
+	}
+
 	for (const group of groups) {
 		for (const option of group.options) {
 			if (option.matchPaths?.some(matchPath => normalizePathname(matchPath) === pathname)) {
@@ -284,7 +311,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
 	const normalizedPathname = React.useMemo(() => normalizePathname(pathname), [pathname]);
 	const mandatoryExpensesState = React.useMemo(() => {
-		if (normalizedPathname !== '/add-mandatory-expenses') {
+		if (normalizedPathname !== APP_ROUTE_PATHS.addMandatoryExpenses) {
 			return null;
 		}
 
@@ -299,7 +326,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 		};
 	}, [normalizedPathname, routeParams.expenseId]);
 	const mandatoryGainsState = React.useMemo(() => {
-		if (normalizedPathname !== '/add-mandatory-gains') {
+		if (normalizedPathname !== APP_ROUTE_PATHS.addMandatoryGains) {
 			return null;
 		}
 
@@ -314,7 +341,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 		};
 	}, [normalizedPathname, routeParams.gainTemplateId]);
 	const financialListState = React.useMemo(() => {
-		if (normalizedPathname !== '/add-finance') {
+		if (normalizedPathname !== APP_ROUTE_PATHS.addFinance) {
 			return null;
 		}
 
@@ -348,8 +375,8 @@ export const Navigator: React.FC<NavigatorProps> = ({
 		[mandatoryExpensesState, mandatoryGainsState, financialListState],
 	);
 	const activeRoute = React.useMemo(
-		() => getActiveRoute(normalizedPathname, resolvedGroups),
-		[normalizedPathname, resolvedGroups],
+		() => getActiveRoute(normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab),
+		[normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab],
 	);
 	const activeValue = activeRoute?.groupValue ?? normalizedDefault;
 	const activeOptionId = activeRoute?.optionId ?? getDefaultOption(activeValue, resolvedGroups)?.id ?? null;
@@ -404,8 +431,13 @@ export const Navigator: React.FC<NavigatorProps> = ({
 			void logoutUser(isDarkMode, user?.uid, user?.displayName);
 			return;
 		}
+
+		if (option.id === activeOptionId) {
+			return;
+		}
+
 		option.onSelect();
-	}, [isDarkMode, user?.uid, user?.displayName]);
+	}, [activeOptionId, isDarkMode, user?.uid, user?.displayName]);
 
 	const handleMenuOpen = React.useCallback((groupValue: number) => {
 		setOpenGroupValue(groupValue);
