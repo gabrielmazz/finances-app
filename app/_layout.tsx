@@ -10,6 +10,7 @@ import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
+import { APP_ROUTE_PATHS, HOME_DASHBOARD_ROUTE } from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
 import '@/global.css';
 
@@ -40,7 +41,7 @@ const AuthenticatedStack = () => {
 	const { isAuthReady, isAuthenticated } = useAuth();
 	const pathname = usePathname();
 	const rootNavigationState = useRootNavigationState();
-	const isLoginRoute = pathname === '/' || pathname === '/index';
+	const isLoginRoute = pathname === APP_ROUTE_PATHS.login || pathname === '/index';
 	const shouldRedirectToLogin = isAuthReady && !isAuthenticated && !isLoginRoute;
 	const shouldRedirectToHome = isAuthReady && isAuthenticated && isLoginRoute;
 
@@ -53,7 +54,7 @@ const AuthenticatedStack = () => {
 	}
 
 	if (shouldRedirectToHome) {
-		return <Redirect href={{ pathname: '/home', params: { tab: '0' } }} />;
+		return <Redirect href={HOME_DASHBOARD_ROUTE} />;
 	}
 
 	return <Stack screenOptions={{ headerShown: false }} />;

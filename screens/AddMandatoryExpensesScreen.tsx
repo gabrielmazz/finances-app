@@ -10,7 +10,7 @@ import {
 	Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Heading } from '@/components/ui/heading';
@@ -44,7 +44,7 @@ import {
 } from '@/utils/mandatoryExpenseNotifications';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
@@ -488,13 +488,11 @@ export default function AddMandatoryExpensesScreen() {
 		}
 
 		Keyboard.dismiss();
-		router.push({
-			pathname: '/add-register-tag',
-			params: {
-				usageType: 'expense',
-				returnAfterCreate: '1',
-				isMandatoryExpense: '1',
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
+			usageType: 'expense',
+			returnAfterCreate: '1',
+			returnToRoute: APP_ROUTE_PATHS.addMandatoryExpenses,
+			isMandatoryExpense: '1',
 		});
 	}, [isAddTagButtonDisabled]);
 
@@ -1033,10 +1031,7 @@ export default function AddMandatoryExpensesScreen() {
 			params.templateDescription = encodeURIComponent(description.trim());
 		}
 
-		router.push({
-			pathname: '/add-register-expenses',
-			params,
-		});
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, params);
 	}, [
 		description,
 		dueDay,

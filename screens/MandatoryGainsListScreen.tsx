@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -40,7 +40,7 @@ import {
 	cancelMandatoryGainNotification,
 	syncMandatoryGainNotifications,
 } from '@/utils/mandatoryGainNotifications';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
 import {
@@ -584,14 +584,11 @@ export default function MandatoryGainsListScreen() {
 	);
 
 	const handleOpenCreate = React.useCallback(() => {
-		router.push('/add-mandatory-gains');
+		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains);
 	}, []);
 
 	const handleEdit = React.useCallback((gainTemplateId: string) => {
-		router.push({
-			pathname: '/add-mandatory-gains',
-			params: { gainTemplateId },
-		});
+		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains, { gainTemplateId });
 	}, []);
 
 	const handleRegisterGain = React.useCallback((gain: MandatoryGainItem) => {
@@ -613,29 +610,26 @@ export default function MandatoryGainsListScreen() {
 			return;
 		}
 
-		router.push({
-			pathname: '/add-register-gain',
-			params: {
-				templateName: encodeURIComponent(gain.name),
-				templateValueInCents: String(gain.valueInCents),
-				templateTagId: gain.tagId,
-				templateDueDay: String(gain.dueDay),
-				templateUsesBusinessDays: gain.usesBusinessDays ? '1' : undefined,
-				templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
-				templateMandatoryGainId: gain.id,
-				templateTagName: tagMetadataMap[gain.tagId]?.name
-					? encodeURIComponent(tagMetadataMap[gain.tagId].name)
-					: undefined,
-				templateTagIconFamily: tagMetadataMap[gain.tagId]?.iconFamily
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconFamily as string)
-					: undefined,
-				templateTagIconName: tagMetadataMap[gain.tagId]?.iconName
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconName as string)
-					: undefined,
-				templateTagIconStyle: tagMetadataMap[gain.tagId]?.iconStyle
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconStyle as string)
-					: undefined,
-			},
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, {
+			templateName: encodeURIComponent(gain.name),
+			templateValueInCents: String(gain.valueInCents),
+			templateTagId: gain.tagId,
+			templateDueDay: String(gain.dueDay),
+			templateUsesBusinessDays: gain.usesBusinessDays ? '1' : undefined,
+			templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
+			templateMandatoryGainId: gain.id,
+			templateTagName: tagMetadataMap[gain.tagId]?.name
+				? encodeURIComponent(tagMetadataMap[gain.tagId].name)
+				: undefined,
+			templateTagIconFamily: tagMetadataMap[gain.tagId]?.iconFamily
+				? encodeURIComponent(tagMetadataMap[gain.tagId].iconFamily as string)
+				: undefined,
+			templateTagIconName: tagMetadataMap[gain.tagId]?.iconName
+				? encodeURIComponent(tagMetadataMap[gain.tagId].iconName as string)
+				: undefined,
+			templateTagIconStyle: tagMetadataMap[gain.tagId]?.iconStyle
+				? encodeURIComponent(tagMetadataMap[gain.tagId].iconStyle as string)
+				: undefined,
 		});
 	}, [tagMetadataMap]);
 

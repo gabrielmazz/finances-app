@@ -10,7 +10,7 @@ import {
 	TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { VStack } from '@/components/ui/vstack';
@@ -58,7 +58,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { navigateToHomeDashboard } from '@/utils/navigation';
+import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { Info } from 'lucide-react-native';
 
 // Lista fixa com todas as opções de prazo descritas na solicitação.
@@ -952,7 +952,7 @@ export default function AddFinanceScreen() {
 												<Text className="flex-1 text-sm text-emerald-600 dark:text-emerald-400">
 													Pronto. O investimento já está disponível na lista dedicada.
 												</Text>
-												<Button variant="link" action="primary" onPress={() => router.push('/financial-list')}>
+												<Button variant="link" action="primary" onPress={() => navigateToRoute(APP_ROUTE_PATHS.financialList)}>
 													<ButtonText>Ver lista</ButtonText>
 												</Button>
 											</HStack>

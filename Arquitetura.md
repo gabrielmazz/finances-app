@@ -234,8 +234,9 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-05-06.
+> Atualizado em 2026-05-07.
 
+- Refatoração de navegação/rotas: `utils/navigation.ts` centraliza `APP_ROUTE_PATHS`, `HOME_TAB_INDEX` e helpers imperativos; `navigator.tsx` usa esse registro, resolve `/home?tab=*` corretamente e fluxos pós-submit voltam para Home por ação única `dismissTo` com fallback para `replace`; telas deixam de chamar `router.push()` diretamente; vault alinhado em [[Navegação]], [[Componentes UI]], [[Configurações]] e [[Gerenciamento de Tags]].
 - Ajuste de fluxo em `screens/AddRegisterTagScreen.tsx`: categorias abertas a partir de despesas, ganhos e recorrências usam tipo/obrigatoriedade como pré-preenchimento editável, sem bloquear radios ou switches. Entradas inline removeram `lockUsageType`/`lockMandatorySelection`; vault alinhado em [[Gerenciamento de Tags]], [[Despesas Fixas]] e [[Receitas Fixas]].
 - Ajuste no navigator: o item de cadastro em `/add-register-tag` agora aparece como "Nova categoria" no grupo Config; vault alinhado em [[Navegação]].
 - Ajuste visual em `screens/ConfigurationsScreen.tsx`: o filtro de categorias passou a usar `fieldContainerCardClassName`, no mesmo padrão de categorias das telas de registro, para acomodar ícone e helper dentro do card; vault alinhado em [[Configurações]].

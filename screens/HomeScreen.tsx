@@ -10,7 +10,6 @@ import {
 	useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
@@ -60,6 +59,7 @@ import HomeScreenIllustration from '../assets/UnDraw/homeScreen.svg';
 import { CalendarDays, Info, Tags as TagsIcon } from 'lucide-react-native';
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
 
 type HomeTimelineToneKey =
 	| 'gain'
@@ -616,21 +616,15 @@ export default function HomeScreen() {
 
 	const handleOpenBankCarouselItem = React.useCallback((item: HomeBankCarouselItem) => {
 		if (item.kind === 'cash') {
-			router.push({
-				pathname: '/bank-movements',
-				params: {
-					cashView: 'true',
-				},
+			navigateToRoute(APP_ROUTE_PATHS.bankMovements, {
+				cashView: 'true',
 			});
 			return;
 		}
 
-		router.push({
-			pathname: '/bank-movements',
-			params: {
-				bankId: item.id,
-				bankName: encodeURIComponent(item.name),
-			},
+		navigateToRoute(APP_ROUTE_PATHS.bankMovements, {
+			bankId: item.id,
+			bankName: encodeURIComponent(item.name),
 		});
 	}, []);
 
@@ -753,7 +747,7 @@ export default function HomeScreen() {
 		}
 
 		setIsMonthlyBalanceModalOpen(false);
-		router.push('/register-monthly-balance');
+		navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance);
 	}, [monthlyBalancePromptKey]);
 
 	const selectedInvestmentPopoverColor = React.useMemo(() => {
