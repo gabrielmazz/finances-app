@@ -628,7 +628,7 @@ export default function AddMandatoryExpensesScreen() {
 	}, [selectedTagId, tagOptions]);
 
 	const navigateAfterMandatoryExpenseSubmit = React.useCallback(() => {
-		navigateToHomeDashboard();
+		// [[Navegação]]: submits permanecem na rota atual para evitar retorno inválido para Home em produção.
 	}, []);
 
 	const handleBackToHome = React.useCallback(() => {

@@ -637,7 +637,7 @@ export default function AddMandatoryGainsScreen() {
 	}, [selectedTagId, tagOptions]);
 
 	const navigateAfterMandatoryGainSubmit = React.useCallback(() => {
-		navigateToHomeDashboard();
+		// [[Navegação]]: submits permanecem na rota atual para evitar retorno inválido para Home em produção.
 	}, []);
 
 	const handleBackToHome = React.useCallback(() => {

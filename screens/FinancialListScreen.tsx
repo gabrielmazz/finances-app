@@ -884,7 +884,6 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível salvar a edição agora.', 'error');
@@ -936,7 +935,6 @@ export default function FinancialListScreen() {
 			}
 			await loadData();
 			showScreenAlert('Investimento removido.', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert(
@@ -1039,7 +1037,6 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Aporte registrado e investimento atualizado.', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível registrar o aporte agora.', 'error');
@@ -1244,7 +1241,6 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível preparar o resgate agora.', 'error');
@@ -1308,7 +1304,6 @@ export default function FinancialListScreen() {
 
 			await loadData();
 			showScreenAlert('Valor sincronizado com sucesso!', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível sincronizar agora.', 'error');

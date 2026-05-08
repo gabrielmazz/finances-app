@@ -554,7 +554,6 @@ export default function TransferScreen() {
 			}
 
 			showSuccessfulTransferNotification();
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar transferência:', error);
 			showScreenAlert('Erro inesperado ao registrar a transferência.', 'error');

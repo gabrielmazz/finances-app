@@ -212,7 +212,6 @@ export default function AddRegisterUserScreen() {
                 setName('');
                 setEmail('');
                 setPassword('');
-                navigateToHomeDashboard();
                 return;
             }
 

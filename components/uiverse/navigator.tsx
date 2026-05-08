@@ -351,28 +351,53 @@ export const Navigator: React.FC<NavigatorProps> = ({
 			onSelect: () => {},
 		};
 	}, [normalizedPathname]);
-	// Mantém o estado ativo do navigator alinhado com a rota corrente, conforme o fluxo documentado em Arquitetura/Navegação.md e Arquitetura/Investimentos.md.
+	const bankMovementsOption = React.useMemo<NavigatorOption | null>(() => {
+		if (normalizedPathname !== APP_ROUTE_PATHS.bankMovements) {
+			return null;
+		}
+
+		return {
+			id: 'bank-movements',
+			label: 'Movimentos do banco',
+			value: 0,
+			icon: 'list-outline',
+			matchPaths: [APP_ROUTE_PATHS.bankMovements],
+			onSelect: () => {},
+		};
+	}, [normalizedPathname]);
+	// Mantém o estado ativo do navigator alinhado com a rota corrente, conforme o fluxo documentado em Arquitetura/Navegação.md, Arquitetura/Gerenciamento de Bancos.md e Arquitetura/Investimentos.md.
 	const resolvedGroups = React.useMemo(
 		() =>
-			NAV_GROUPS.map(group => ({
-				...group,
-				options: group.options.map(option => {
-					if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
-						return { ...option, ...mandatoryExpensesState };
-					}
+			NAV_GROUPS.map(group => {
+				const groupOptions =
+					group.value === HOME_TAB_INDEX.dashboard && bankMovementsOption
+						? [
+							group.options[0],
+							bankMovementsOption,
+							...group.options.slice(1),
+						].filter((option): option is NavigatorOption => Boolean(option))
+						: group.options;
 
-					if (option.id === 'mandatory-gains' && mandatoryGainsState) {
-						return { ...option, ...mandatoryGainsState };
-					}
+				return {
+					...group,
+					options: groupOptions.map(option => {
+						if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
+							return { ...option, ...mandatoryExpensesState };
+						}
 
-					if (option.id === 'financial-list' && financialListState) {
-						return { ...option, ...financialListState };
-					}
+						if (option.id === 'mandatory-gains' && mandatoryGainsState) {
+							return { ...option, ...mandatoryGainsState };
+						}
 
-					return option;
-				}),
-			})),
-		[mandatoryExpensesState, mandatoryGainsState, financialListState],
+						if (option.id === 'financial-list' && financialListState) {
+							return { ...option, ...financialListState };
+						}
+
+						return option;
+					}),
+				};
+			}),
+		[bankMovementsOption, mandatoryExpensesState, mandatoryGainsState, financialListState],
 	);
 	const activeRoute = React.useMemo(
 		() => getActiveRoute(normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab),

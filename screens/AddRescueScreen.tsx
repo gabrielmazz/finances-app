@@ -520,7 +520,6 @@ export default function AddRescueScreen() {
 			}
 
 			showSuccessfulRescueNotification();
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar saque em dinheiro:', error);
 			showScreenAlert('Erro inesperado ao registrar o saque.', 'error');
