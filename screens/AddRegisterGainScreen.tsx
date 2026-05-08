@@ -909,7 +909,6 @@ export default function AddRegisterGainScreen() {
 				}
 
 				showSuccessfulGainNotification(true);
-				navigateToHomeDashboard();
 				return;
 			}
 
@@ -976,7 +975,6 @@ export default function AddRegisterGainScreen() {
 			}
 
 			showSuccessfulGainNotification();
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showNotifierAlert({

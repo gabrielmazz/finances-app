@@ -662,7 +662,6 @@ export default function AddFinanceScreen() {
 			setHasSavedOnce(true);
 			showScreenAlert('Investimento salvo com sucesso!', 'success');
 			resetForm();
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível salvar o investimento agora. Tente novamente.', 'error');

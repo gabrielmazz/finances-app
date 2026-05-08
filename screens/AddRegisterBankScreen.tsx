@@ -288,7 +288,6 @@ export default function AddRegisterBankScreen() {
                         duration: 4000,
                     });
                     Keyboard.dismiss();
-                    navigateToHomeDashboard();
                 } else {
                     showNotifierAlert({
                         title: 'Erro ao atualizar banco',
@@ -320,7 +319,6 @@ export default function AddRegisterBankScreen() {
                 setSelectedColor(null);
                 setSelectedBankIconKey('outro-banco');
                 Keyboard.dismiss();
-                navigateToHomeDashboard();
             } else {
                 showNotifierAlert({
                     title: 'Erro ao registrar banco',

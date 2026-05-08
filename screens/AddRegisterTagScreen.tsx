@@ -587,8 +587,6 @@ export default function AddRegisterTagScreen() {
 					Keyboard.dismiss();
 					if (shouldReturnAfterCreate) {
 						navigateBackToInlineSource();
-					} else {
-						navigateToHomeDashboard();
 					}
 				} else {
 					showNotifierAlert({
@@ -634,7 +632,6 @@ export default function AddRegisterTagScreen() {
 					return;
 				}
 
-				navigateToHomeDashboard();
 			} else {
 				showNotifierAlert({
 					title: 'Erro ao registrar categoria',

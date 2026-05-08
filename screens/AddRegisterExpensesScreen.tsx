@@ -817,7 +817,6 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				showSuccessfulExpenseNotification(true);
-				navigateToHomeDashboard();
 				return;
 			}
 
@@ -879,7 +878,6 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			showSuccessfulExpenseNotification();
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
 			showNotifierAlert({

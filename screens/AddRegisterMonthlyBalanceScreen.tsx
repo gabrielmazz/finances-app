@@ -476,7 +476,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			setExistingBalanceId(response.id);
 			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
 			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showNotifierAlert({

@@ -2338,7 +2338,6 @@ export default function BankMovementsScreen() {
 			}
 
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
-			navigateToHomeDashboard();
 		} catch (error) {
 			console.error('Erro ao editar investimento pela tela de movimentações:', error);
 			showScreenAlert(

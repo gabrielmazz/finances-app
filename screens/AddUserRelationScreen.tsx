@@ -154,7 +154,6 @@ export default function AddUserRelationScreen() {
 
 				setRelatedUserId('');
 				Keyboard.dismiss();
-				navigateToHomeDashboard();
 
 			} else {
 
