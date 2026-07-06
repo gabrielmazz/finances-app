@@ -68,6 +68,7 @@ import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useT
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 import AddGainIllustration from '../assets/UnDraw/addRegisterGainScreen.svg';
 import { Divider } from '@/components/ui/divider';
@@ -239,6 +240,8 @@ export default function AddRegisterGainScreen() {
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+	const submitLockRef = React.useRef(false);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterGain');
 	const gainNameInputRef = React.useRef<any>(null);
 	const gainValueInputRef = React.useRef<any>(null);
 	const gainExplanationInputRef = React.useRef<any>(null);
@@ -776,7 +779,26 @@ export default function AddRegisterGainScreen() {
 		setGainValueCents(centsValue);
 	}, []);
 
+	const resetNewGainForm = React.useCallback(() => {
+		setGainName('');
+		setGainValueDisplay('');
+		setGainValueCents(null);
+		setGainDate(formatDateToBR(new Date()));
+		setSelectedTagId(null);
+		setSelectedBankId(null);
+		setPaymentFormat([]);
+		setExplanationGain(null);
+		setMoneyFormat(false);
+		setSelectedMovementTagName(null);
+		setSelectedMovementTagIcon(null);
+		setSelectedMovementBankName(null);
+	}, []);
+
 	const handleSubmit = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		if (!gainName.trim()) {
 			showNotifierAlert({
 				title: 'Erro ao registrar ganho',
@@ -867,6 +889,7 @@ export default function AddRegisterGainScreen() {
 
 		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedGainDate);
 
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -909,6 +932,7 @@ export default function AddRegisterGainScreen() {
 				}
 
 				showSuccessfulGainNotification(true);
+				applyPostSubmitBehavior();
 				return;
 			}
 
@@ -975,6 +999,7 @@ export default function AddRegisterGainScreen() {
 			}
 
 			showSuccessfulGainNotification();
+			applyPostSubmitBehavior({ resetForm: resetNewGainForm });
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showNotifierAlert({
@@ -985,6 +1010,7 @@ export default function AddRegisterGainScreen() {
 				duration: 4000,
 			});
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 		}, [
@@ -995,6 +1021,7 @@ export default function AddRegisterGainScreen() {
 			moneyFormat,
 			gainValueCents,
 			isEditing,
+			isSubmitting,
 			linkedMandatoryGainId,
 			paymentFormat,
 			selectedBankId,
@@ -1005,6 +1032,8 @@ export default function AddRegisterGainScreen() {
 			shouldShowPaymentFormatSelection,
 			templateData,
 			parsedGainDate,
+			resetNewGainForm,
+			applyPostSubmitBehavior,
 			showSuccessfulGainNotification,
 		]);
 

@@ -49,10 +49,13 @@ import {
 	resolveMonthlyOccurrence,
 } from '@/utils/businessCalendar';
 import {
+	formatMandatoryInstallmentDateLabel,
 	formatMandatoryInstallmentLabel,
 	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
@@ -88,6 +91,8 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	isPaidForCurrentCycle?: boolean;
 	installmentTotal?: number | null;
 	installmentsCompleted?: number;
+	installmentStartDate?: Date | null;
+	installmentEndDate?: Date | null;
 	installmentLabel?: string | null;
 	isInstallmentComplete?: boolean;
 };
@@ -483,6 +488,8 @@ export default function MandatoryExpensesListScreen() {
 					expense?.installmentsCompleted,
 					installmentTotal,
 				);
+				const installmentStartDate = normalizeMandatoryInstallmentDate(expense?.installmentStartDate);
+				const installmentEndDate = normalizeMandatoryInstallmentDate(expense?.installmentEndDate);
 				const resolvedOccurrence = resolveMonthlyOccurrence({
 					referenceDate,
 					dueDay,
@@ -509,18 +516,27 @@ export default function MandatoryExpensesListScreen() {
 						typeof expense?.lastPaymentValueInCents === 'number' ? expense.lastPaymentValueInCents : null,
 					installmentTotal,
 					installmentsCompleted,
+					installmentStartDate,
+					installmentEndDate,
 				};
 			});
 
 			const expensesWithStatus = formattedExpenses.map(expense => {
 				const isPaidForCurrentCycle = isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
+				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
+					storedCompleted: expense.installmentsCompleted ?? 0,
+					installmentTotal: expense.installmentTotal ?? null,
+					startDate: expense.installmentStartDate ?? null,
+					isCurrentCycleCompleted: isPaidForCurrentCycle,
+					referenceDate,
+				});
 				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
 					expense.installmentTotal ?? null,
-					expense.installmentsCompleted ?? 0,
+					resolvedInstallmentsCompleted,
 				);
 				const installmentLabel = formatMandatoryInstallmentLabel(
 					expense.installmentTotal ?? null,
-					expense.installmentsCompleted ?? 0,
+					resolvedInstallmentsCompleted,
 					isPaidForCurrentCycle,
 				);
 				const displayValueInCents =
@@ -532,6 +548,7 @@ export default function MandatoryExpensesListScreen() {
 
 				return {
 					...expense,
+					installmentsCompleted: resolvedInstallmentsCompleted,
 					isPaidForCurrentCycle,
 					isInstallmentComplete,
 					installmentLabel,
@@ -545,10 +562,15 @@ export default function MandatoryExpensesListScreen() {
 			await syncMandatoryExpenseNotifications(
 				expensesResult.data.map((expense: any) => {
 					const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
-					const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-						expense?.installmentsCompleted,
+					const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
+						storedCompleted: expense?.installmentsCompleted,
 						installmentTotal,
-					);
+						startDate: normalizeMandatoryInstallmentDate(expense?.installmentStartDate),
+						isCurrentCycleCompleted: isCycleKeyCurrent(
+							typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
+						),
+						referenceDate,
+					});
 					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
 
 					return {
@@ -1398,6 +1420,8 @@ export default function MandatoryExpensesListScreen() {
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: expense.reminderEnabled === false ? 'Desativado' : 'Ativado' },
 																					...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
+																					...(expense.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }] : []),
+																					...(expense.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }] : []),
 																				].map(item => (
 																					<View
 																						key={`${expense.id}-${item.label}`}

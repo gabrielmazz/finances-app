@@ -50,10 +50,13 @@ import {
 	resolveMonthlyOccurrence,
 } from '@/utils/businessCalendar';
 import {
+	formatMandatoryInstallmentDateLabel,
 	formatMandatoryInstallmentLabel,
 	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
@@ -82,6 +85,8 @@ type MandatoryGainItem = DateCalendarItem & {
 	isReceivedForCurrentCycle?: boolean;
 	installmentTotal?: number | null;
 	installmentsCompleted?: number;
+	installmentStartDate?: Date | null;
+	installmentEndDate?: Date | null;
 	installmentLabel?: string | null;
 	isInstallmentComplete?: boolean;
 };
@@ -482,6 +487,8 @@ export default function MandatoryGainsListScreen() {
 					gain?.installmentsCompleted,
 					installmentTotal,
 				);
+				const installmentStartDate = normalizeMandatoryInstallmentDate(gain?.installmentStartDate);
+				const installmentEndDate = normalizeMandatoryInstallmentDate(gain?.installmentEndDate);
 				const resolvedOccurrence = resolveMonthlyOccurrence({
 					referenceDate,
 					dueDay,
@@ -506,18 +513,27 @@ export default function MandatoryGainsListScreen() {
 						typeof gain?.lastReceiptValueInCents === 'number' ? gain.lastReceiptValueInCents : null,
 					installmentTotal,
 					installmentsCompleted,
+					installmentStartDate,
+					installmentEndDate,
 				};
 			});
 
 			const gainsWithStatus = formattedGains.map(gain => {
 				const isReceivedForCurrentCycle = isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
+				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
+					storedCompleted: gain.installmentsCompleted ?? 0,
+					installmentTotal: gain.installmentTotal ?? null,
+					startDate: gain.installmentStartDate ?? null,
+					isCurrentCycleCompleted: isReceivedForCurrentCycle,
+					referenceDate,
+				});
 				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
 					gain.installmentTotal ?? null,
-					gain.installmentsCompleted ?? 0,
+					resolvedInstallmentsCompleted,
 				);
 				const installmentLabel = formatMandatoryInstallmentLabel(
 					gain.installmentTotal ?? null,
-					gain.installmentsCompleted ?? 0,
+					resolvedInstallmentsCompleted,
 					isReceivedForCurrentCycle,
 				);
 				const displayValueInCents =
@@ -529,6 +545,7 @@ export default function MandatoryGainsListScreen() {
 
 				return {
 					...gain,
+					installmentsCompleted: resolvedInstallmentsCompleted,
 					isReceivedForCurrentCycle,
 					isInstallmentComplete,
 					installmentLabel,
@@ -542,10 +559,15 @@ export default function MandatoryGainsListScreen() {
 			await syncMandatoryGainNotifications(
 				gainsResult.data.map((gain: any) => {
 					const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
-					const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-						gain?.installmentsCompleted,
+					const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
+						storedCompleted: gain?.installmentsCompleted,
 						installmentTotal,
-					);
+						startDate: normalizeMandatoryInstallmentDate(gain?.installmentStartDate),
+						isCurrentCycleCompleted: isCycleKeyCurrent(
+							typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
+						),
+						referenceDate,
+					});
 					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
 
 					return {
@@ -1379,6 +1401,8 @@ export default function MandatoryGainsListScreen() {
 																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[gain.tagId] ?? 'Sem tag' },
 																					{ label: 'Lembrete', value: gain.reminderEnabled === false ? 'Desativado' : 'Ativado' },
 																					...(gain.installmentLabel ? [{ label: 'Parcelas', value: gain.installmentLabel }] : []),
+																					...(gain.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(gain.installmentStartDate ?? null) }] : []),
+																					...(gain.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(gain.installmentEndDate ?? null) }] : []),
 																				].map(item => (
 																					<View
 																						key={`${gain.id}-${item.label}`}

@@ -56,6 +56,7 @@ import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankS
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { Check, ChevronDown } from 'lucide-react-native';
 
 const presetBankColors = [
@@ -117,7 +118,9 @@ export default function AddRegisterBankScreen() {
     const [selectedColor, setSelectedColor] = React.useState<string | null>(null);
     const [selectedBankIconKey, setSelectedBankIconKey] = React.useState<string | null>('outro-banco');
     const [isBankIconSheetOpen, setIsBankIconSheetOpen] = React.useState(false);
+    const submitLockRef = React.useRef(false);
     const bankNameInputRef = React.useRef<TextInput | null>(null);
+    const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterBank');
     const keyboardScrollOffset = React.useCallback(
         (_key: FocusableInputKey) => 140,
         [],
@@ -189,6 +192,12 @@ export default function AddRegisterBankScreen() {
 
     const isEditing = Boolean(editingBankId);
 
+    const resetBankForm = React.useCallback(() => {
+        setNameBank('');
+        setSelectedColor(null);
+        setSelectedBankIconKey('outro-banco');
+    }, []);
+
     const handleBackToHome = React.useCallback(() => {
         navigateToHomeDashboard();
         return true;
@@ -211,6 +220,9 @@ export default function AddRegisterBankScreen() {
     );
 
     const registerBank = React.useCallback(async () => {
+        if (submitLockRef.current || isSubmitting) {
+            return;
+        }
 
         const trimmedName = nameBank.trim();
 
@@ -255,6 +267,7 @@ export default function AddRegisterBankScreen() {
         const normalizedColor = selectedColor ?? null;
         const normalizedIconKey = selectedBankIconKey ?? 'outro-banco';
 
+        submitLockRef.current = true;
         setIsSubmitting(true);
 
         try {
@@ -288,6 +301,7 @@ export default function AddRegisterBankScreen() {
                         duration: 4000,
                     });
                     Keyboard.dismiss();
+                    applyPostSubmitBehavior();
                 } else {
                     showNotifierAlert({
                         title: 'Erro ao atualizar banco',
@@ -315,10 +329,8 @@ export default function AddRegisterBankScreen() {
                     isDarkMode,
                     duration: 4000,
                 });
-                setNameBank('');
-                setSelectedColor(null);
-                setSelectedBankIconKey('outro-banco');
                 Keyboard.dismiss();
+                applyPostSubmitBehavior({ resetForm: resetBankForm });
             } else {
                 showNotifierAlert({
                     title: 'Erro ao registrar banco',
@@ -336,9 +348,10 @@ export default function AddRegisterBankScreen() {
                 isDarkMode,
             });
         } finally {
+            submitLockRef.current = false;
             setIsSubmitting(false);
         }
-    }, [nameBank, selectedColor, selectedBankIconKey, initialBankIconKey, isEditing, initialBankName, initialColorHex, editingBankId, isDarkMode]);
+    }, [nameBank, selectedColor, selectedBankIconKey, initialBankIconKey, isEditing, initialBankName, initialColorHex, editingBankId, isDarkMode, isSubmitting, applyPostSubmitBehavior, resetBankForm]);
 
     const getInputRef = React.useCallback(
         (key: FocusableInputKey) => {

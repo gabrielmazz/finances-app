@@ -46,6 +46,7 @@ import { Info } from 'lucide-react-native';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 type BankOption = {
 	id: string;
@@ -139,9 +140,11 @@ export default function TransferScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [originBalanceInCents, setOriginBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
+	const submitLockRef = React.useRef(false);
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const previousUnavailableBalanceRef = React.useRef(false);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('transferScreen');
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
 		[],
@@ -224,6 +227,16 @@ export default function TransferScreen() {
 
 	const handleDateSelect = React.useCallback((formatted: string) => {
 		setTransferDate(formatted);
+	}, []);
+
+	const resetTransferForm = React.useCallback(() => {
+		setSelectedSourceBankId(null);
+		setSelectedTargetBankId(null);
+		setTransferValueDisplay('');
+		setTransferValueInCents(null);
+		setTransferDate(formatDateToBR(new Date()));
+		setTransferDescription(null);
+		setOriginBalanceInCents(null);
 	}, []);
 
 	const loadOriginBalance = React.useCallback(async (bankId: string) => {
@@ -480,6 +493,10 @@ export default function TransferScreen() {
 	]);
 
 	const handleSubmit = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
 			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
@@ -534,6 +551,7 @@ export default function TransferScreen() {
 		const targetBankName =
 			banks.find(bank => bank.id === selectedTargetBankId)?.name ?? 'Banco de destino não identificado';
 
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -554,18 +572,23 @@ export default function TransferScreen() {
 			}
 
 			showSuccessfulTransferNotification();
+			applyPostSubmitBehavior({ resetForm: resetTransferForm });
 		} catch (error) {
 			console.error('Erro ao registrar transferência:', error);
 			showScreenAlert('Erro inesperado ao registrar a transferência.', 'error');
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 	}, [
 		banks,
+		isSubmitting,
 		originBalanceInCents,
 		showScreenAlert,
 		showSuccessfulTransferNotification,
 		showUnavailableBalanceNotification,
+		applyPostSubmitBehavior,
+		resetTransferForm,
 		selectedSourceBankId,
 		selectedTargetBankId,
 		parsedTransferDate,

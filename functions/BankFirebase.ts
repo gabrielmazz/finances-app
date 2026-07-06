@@ -885,9 +885,33 @@ export async function getBankMovementsByPeriodFirebase({
             where('date', '<=', Timestamp.fromDate(normalizedEndDate))
         );
 
-        const [expensesSnapshot, gainsSnapshot] = await Promise.all([
+        // [[Transferências]]: além do bankId principal, garantimos que o extrato reconheça
+        // transferências pelo par origem/destino para cobrir registros antigos ou incompletos.
+        const periodExpensesQuery = query(
+            collection(db, 'expenses'),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const periodGainsQuery = query(
+            collection(db, 'gains'),
+            where('personId', 'in', relatedUserIds),
+            where('date', '>=', Timestamp.fromDate(normalizedStartDate)),
+            where('date', '<=', Timestamp.fromDate(normalizedEndDate))
+        );
+
+        const [expensesSnapshot, gainsSnapshot, periodExpensesResult, periodGainsResult] = await Promise.all([
             getDocs(expensesQuery),
             getDocs(gainsQuery),
+            getDocs(periodExpensesQuery).catch(error => {
+                console.warn('Não foi possível carregar transferências de saída pelo período:', error);
+                return null;
+            }),
+            getDocs(periodGainsQuery).catch(error => {
+                console.warn('Não foi possível carregar transferências de entrada pelo período:', error);
+                return null;
+            }),
         ]);
 
         const expenses = expensesSnapshot.docs.map(expenseDoc => ({
@@ -899,6 +923,39 @@ export async function getBankMovementsByPeriodFirebase({
             id: gainDoc.id,
             ...gainDoc.data(),
         }));
+
+        const expensesById = new Map<string, any>(expenses.map(expense => [expense.id, expense]));
+        const gainsById = new Map<string, any>(gains.map(gain => [gain.id, gain]));
+
+        periodExpensesResult?.docs.forEach(expenseDoc => {
+            const expense: Record<string, any> = {
+                id: expenseDoc.id,
+                ...expenseDoc.data(),
+            };
+
+            if (
+                Boolean(expense.isBankTransfer) &&
+                expense.bankTransferDirection === 'outgoing' &&
+                expense.bankTransferSourceBankId === bankId
+            ) {
+                expensesById.set(expense.id, expense);
+            }
+        });
+
+        periodGainsResult?.docs.forEach(gainDoc => {
+            const gain: Record<string, any> = {
+                id: gainDoc.id,
+                ...gainDoc.data(),
+            };
+
+            if (
+                Boolean(gain.isBankTransfer) &&
+                gain.bankTransferDirection === 'incoming' &&
+                gain.bankTransferTargetBankId === bankId
+            ) {
+                gainsById.set(gain.id, gain);
+            }
+        });
 
         const cashRescues = await fetchCashRescuesWithinPeriod({
             personId,
@@ -915,8 +972,8 @@ export async function getBankMovementsByPeriodFirebase({
         return {
             success: true,
             data: {
-                expenses: [...expenses, ...normalizedRescues],
-                gains,
+                expenses: [...Array.from(expensesById.values()), ...normalizedRescues],
+                gains: Array.from(gainsById.values()),
             },
         };
 

@@ -1,8 +1,27 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import type { NotificationPermissionsStatus, NotificationTriggerInput } from 'expo-notifications';
 
 export type NotificationsModule = typeof import('expo-notifications');
 export type MandatoryReminderKind = 'expense' | 'gain';
+export type LocalNotificationChannelKind = MandatoryReminderKind | 'systemTest';
+
+export type LocalNotificationPermissionResult =
+	| { granted: true }
+	| { granted: false; reason: 'permissions-denied' | 'unavailable' };
+
+export type LocalNotificationTestResult =
+	| {
+		success: true;
+		notificationId: string;
+		title: string;
+		body: string;
+	}
+	| {
+		success: false;
+		reason: 'permissions-denied' | 'unavailable' | 'schedule-error';
+		message: string;
+	};
 
 type GetNotificationsModuleOptions = {
 	warnIfUnavailable?: boolean;
@@ -12,13 +31,13 @@ type EnsureChannelOptions = {
 	warnIfUnavailable?: boolean;
 };
 
-type MandatoryReminderChannelConfig = {
+type LocalNotificationChannelConfig = {
 	id: string;
 	name: string;
 	description: string;
 };
 
-const MANDATORY_REMINDER_CHANNELS: Record<MandatoryReminderKind, MandatoryReminderChannelConfig> = {
+const LOCAL_NOTIFICATION_CHANNELS: Record<LocalNotificationChannelKind, LocalNotificationChannelConfig> = {
 	expense: {
 		id: 'mandatory-expenses-v2',
 		name: 'Gastos obrigatórios',
@@ -29,6 +48,16 @@ const MANDATORY_REMINDER_CHANNELS: Record<MandatoryReminderKind, MandatoryRemind
 		name: 'Ganhos obrigatórios',
 		description: 'Lembretes para os ganhos obrigatórios cadastrados.',
 	},
+	systemTest: {
+		id: 'system-tests-v1',
+		name: 'Testes do sistema',
+		description: 'Notificações disparadas pela tela de testes do aplicativo.',
+	},
+};
+
+const MANDATORY_REMINDER_CHANNELS: Record<MandatoryReminderKind, LocalNotificationChannelConfig> = {
+	expense: LOCAL_NOTIFICATION_CHANNELS.expense,
+	gain: LOCAL_NOTIFICATION_CHANNELS.gain,
 };
 
 let cachedNotificationsModule: NotificationsModule | null = null;
@@ -84,6 +113,7 @@ export const getNotificationsModule = ({
 };
 
 export const getMandatoryReminderChannelConfig = (kind: MandatoryReminderKind) => MANDATORY_REMINDER_CHANNELS[kind];
+export const getSystemTestNotificationChannelConfig = () => LOCAL_NOTIFICATION_CHANNELS.systemTest;
 
 export const configureLocalNotificationHandler = () => {
 	const Notifications = getNotificationsModule({ warnIfUnavailable: false });
@@ -108,8 +138,8 @@ export const configureLocalNotificationHandler = () => {
 	return true;
 };
 
-export const ensureMandatoryReminderNotificationChannel = async (
-	kind: MandatoryReminderKind,
+export const ensureLocalNotificationChannel = async (
+	kind: LocalNotificationChannelKind,
 	{ warnIfUnavailable = true }: EnsureChannelOptions = {},
 ) => {
 	if (Platform.OS !== 'android') {
@@ -121,7 +151,7 @@ export const ensureMandatoryReminderNotificationChannel = async (
 		return false;
 	}
 
-	const channel = getMandatoryReminderChannelConfig(kind);
+	const channel = LOCAL_NOTIFICATION_CHANNELS[kind];
 	await Notifications.setNotificationChannelAsync(channel.id, {
 		name: channel.name,
 		importance: Notifications.AndroidImportance.HIGH,
@@ -133,6 +163,11 @@ export const ensureMandatoryReminderNotificationChannel = async (
 	return true;
 };
 
+export const ensureMandatoryReminderNotificationChannel = async (
+	kind: MandatoryReminderKind,
+	options?: EnsureChannelOptions,
+) => ensureLocalNotificationChannel(kind, options);
+
 export const ensureMandatoryReminderNotificationChannels = async (options?: EnsureChannelOptions) => {
 	await Promise.all(
 		(Object.keys(MANDATORY_REMINDER_CHANNELS) as MandatoryReminderKind[]).map(kind =>
@@ -141,11 +176,146 @@ export const ensureMandatoryReminderNotificationChannels = async (options?: Ensu
 	);
 };
 
+export const ensureSystemTestNotificationChannel = async (options?: EnsureChannelOptions) =>
+	ensureLocalNotificationChannel('systemTest', options);
+
+export const ensureLocalNotificationChannels = async (options?: EnsureChannelOptions) => {
+	await Promise.all(
+		(Object.keys(LOCAL_NOTIFICATION_CHANNELS) as LocalNotificationChannelKind[]).map(kind =>
+			ensureLocalNotificationChannel(kind, options),
+		),
+	);
+};
+
+const isPermissionGranted = (Notifications: NotificationsModule, settings: NotificationPermissionsStatus) =>
+	settings.granted === true || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+
+export const hasLocalNotificationPermission = async () => {
+	const Notifications = getNotificationsModule();
+	if (!Notifications) {
+		warnNotificationsUnavailable();
+		return false;
+	}
+
+	const settings = await Notifications.getPermissionsAsync();
+	return isPermissionGranted(Notifications, settings);
+};
+
+export const requestLocalNotificationPermission = async () => {
+	const Notifications = getNotificationsModule();
+	if (!Notifications) {
+		warnNotificationsUnavailable();
+		return false;
+	}
+
+	configureLocalNotificationHandler();
+	await ensureLocalNotificationChannels();
+
+	const settings = await Notifications.requestPermissionsAsync({
+		ios: {
+			allowAlert: true,
+			allowBadge: false,
+			allowSound: true,
+		},
+	});
+
+	return isPermissionGranted(Notifications, settings);
+};
+
+export const ensureLocalNotificationPermission = async ({
+	requestIfNeeded = true,
+}: {
+	requestIfNeeded?: boolean;
+} = {}): Promise<LocalNotificationPermissionResult> => {
+	if (!getNotificationsModule()) {
+		warnNotificationsUnavailable();
+		return { granted: false, reason: 'unavailable' };
+	}
+
+	configureLocalNotificationHandler();
+
+	if (await hasLocalNotificationPermission()) {
+		return { granted: true };
+	}
+
+	if (!requestIfNeeded) {
+		return { granted: false, reason: 'permissions-denied' };
+	}
+
+	const granted = await requestLocalNotificationPermission();
+	if (granted) {
+		return { granted: true };
+	}
+
+	return { granted: false, reason: 'permissions-denied' };
+};
+
+export const sendLocalNotificationTest = async (): Promise<LocalNotificationTestResult> => {
+	const Notifications = getNotificationsModule();
+	if (!Notifications) {
+		warnNotificationsUnavailable();
+		return {
+			success: false,
+			reason: 'unavailable',
+			message: 'As notificações locais não estão disponíveis neste ambiente.',
+		};
+	}
+
+	configureLocalNotificationHandler();
+	const permission = await ensureLocalNotificationPermission();
+	if (!permission.granted) {
+		return {
+			success: false,
+			reason: permission.reason,
+			message:
+				permission.reason === 'unavailable'
+					? 'As notificações locais não estão disponíveis neste ambiente.'
+					: 'As notificações do aplicativo estão desativadas para este dispositivo.',
+		};
+	}
+
+	try {
+		await ensureSystemTestNotificationChannel();
+		const channel = getSystemTestNotificationChannelConfig();
+		const title = 'Teste de notificação';
+		const body = 'Se esta mensagem apareceu, as notificações locais do Lumus Finanças estão funcionando neste dispositivo.';
+		const trigger: NotificationTriggerInput = Platform.OS === 'android' ? { channelId: channel.id } : null;
+		const notificationId = await Notifications.scheduleNotificationAsync({
+			content: {
+				title,
+				body,
+				sound: true,
+				priority: Platform.OS === 'android' ? Notifications.AndroidNotificationPriority.HIGH : undefined,
+				vibrate: Platform.OS === 'android' ? [0, 250, 250, 250] : undefined,
+				data: {
+					kind: 'system-test',
+					triggeredAt: new Date().toISOString(),
+				},
+			},
+			trigger,
+		});
+
+		return {
+			success: true,
+			notificationId,
+			title,
+			body,
+		};
+	} catch (error) {
+		console.error('Erro ao disparar notificação local de teste:', error);
+		return {
+			success: false,
+			reason: 'schedule-error',
+			message: 'Não foi possível disparar a notificação de teste neste dispositivo.',
+		};
+	}
+};
+
 export const bootstrapLocalNotifications = async () => {
 	const didConfigureHandler = configureLocalNotificationHandler();
 	if (!didConfigureHandler) {
 		return;
 	}
 
-	await ensureMandatoryReminderNotificationChannels({ warnIfUnavailable: false });
+	await ensureLocalNotificationChannels({ warnIfUnavailable: false });
 };

@@ -41,6 +41,7 @@ import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 type BankOption = {
 	id: string;
@@ -130,9 +131,11 @@ export default function AddRescueScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+	const submitLockRef = React.useRef(false);
 	const rescueValueInputRef = React.useRef<TextInput | null>(null);
 	const rescueDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const previousUnavailableBalanceRef = React.useRef(false);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addRescue');
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'rescue-description' ? 180 : 120),
 		[],
@@ -211,6 +214,15 @@ export default function AddRescueScreen() {
 		const centsValue = parseInt(digitsOnly, 10);
 		setRescueValueDisplay(formatCurrencyBRL(centsValue));
 		setRescueValueInCents(centsValue);
+	}, []);
+
+	const resetRescueForm = React.useCallback(() => {
+		setSelectedBankId(null);
+		setRescueValueDisplay('');
+		setRescueValueInCents(null);
+		setRescueDate(formatDateToBR(new Date()));
+		setRescueDescription(null);
+		setCurrentBankBalanceInCents(null);
 	}, []);
 
 	React.useEffect(() => {
@@ -458,6 +470,10 @@ export default function AddRescueScreen() {
 		isBalanceValidationUnavailable;
 
 	const handleSubmit = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		if (!selectedBankId) {
 			showScreenAlert('Selecione o banco de origem do saque.', 'error');
 			return;
@@ -502,6 +518,7 @@ export default function AddRescueScreen() {
 
 		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedRescueDate);
 
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -520,10 +537,12 @@ export default function AddRescueScreen() {
 			}
 
 			showSuccessfulRescueNotification();
+			applyPostSubmitBehavior({ resetForm: resetRescueForm });
 		} catch (error) {
 			console.error('Erro ao registrar saque em dinheiro:', error);
 			showScreenAlert('Erro inesperado ao registrar o saque.', 'error');
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 	}, [
@@ -532,10 +551,13 @@ export default function AddRescueScreen() {
 		currentBankBalanceInCents,
 		parsedRescueDate,
 		rescueDescription,
+		isSubmitting,
 		banks,
 		showScreenAlert,
 		showUnavailableBalanceNotification,
 		showSuccessfulRescueNotification,
+		applyPostSubmitBehavior,
+		resetRescueForm,
 	]);
 
 	return (

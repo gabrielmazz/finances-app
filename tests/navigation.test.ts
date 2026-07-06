@@ -1,6 +1,5 @@
 type RouterMock = {
-	canDismiss: jest.Mock;
-	dismissAll: jest.Mock;
+	dismissTo: jest.Mock;
 	replace: jest.Mock;
 	canGoBack: jest.Mock;
 	back: jest.Mock;
@@ -10,8 +9,7 @@ const loadNavigationModule = (routerOverrides: Partial<RouterMock> = {}) => {
 	jest.resetModules();
 
 	const router: RouterMock = {
-		canDismiss: jest.fn(() => false),
-		dismissAll: jest.fn(),
+		dismissTo: jest.fn(),
 		replace: jest.fn(),
 		canGoBack: jest.fn(() => false),
 		back: jest.fn(),
@@ -39,50 +37,37 @@ describe('navigation helpers', () => {
 		jest.dontMock('expo-router');
 	});
 
-	it('dismisses a disposable stack and replaces with the Home dashboard route', () => {
-		const { Keyboard, navigation, router } = loadNavigationModule({
-			canDismiss: jest.fn(() => true),
-		});
+	it('dismisses to the Home dashboard route', () => {
+		const { Keyboard, navigation, router } = loadNavigationModule();
 
 		navigation.navigateToHomeDashboard();
 
 		expect(Keyboard.dismiss).toHaveBeenCalledTimes(1);
-		expect(router.canDismiss).toHaveBeenCalledTimes(1);
-		expect(router.dismissAll).toHaveBeenCalledTimes(1);
-		expect(router.replace).toHaveBeenCalledWith({
+		expect(router.dismissTo).toHaveBeenCalledWith({
 			pathname: '/home',
 			params: { tab: '0' },
-		});
+		}, { withAnchor: true });
+		expect(router.replace).not.toHaveBeenCalled();
 	});
 
-	it('replaces with Home when there is no disposable stack', () => {
+	it('replaces with Home if dismissTo fails', () => {
+		const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 		const { navigation, router } = loadNavigationModule({
-			canDismiss: jest.fn(() => false),
-		});
-
-		navigation.navigateToHomeDashboard();
-
-		expect(router.dismissAll).not.toHaveBeenCalled();
-		expect(router.replace).toHaveBeenCalledWith({
-			pathname: '/home',
-			params: { tab: '0' },
-		});
-	});
-
-	it('still replaces with Home if dismiss capability detection fails', () => {
-		const { navigation, router } = loadNavigationModule({
-			canDismiss: jest.fn(() => {
+			dismissTo: jest.fn(() => {
 				throw new Error('Navigation state unavailable');
 			}),
 		});
 
-		navigation.navigateToHomeDashboard();
+		try {
+			navigation.navigateToHomeDashboard();
 
-		expect(router.dismissAll).not.toHaveBeenCalled();
-		expect(router.replace).toHaveBeenCalledWith({
-			pathname: '/home',
-			params: { tab: '0' },
-		});
+			expect(router.replace).toHaveBeenCalledWith({
+				pathname: '/home',
+				params: { tab: '0' },
+			}, { withAnchor: true });
+		} finally {
+			consoleErrorSpy.mockRestore();
+		}
 	});
 
 	it('preserves native back behavior when history exists', () => {
@@ -93,8 +78,7 @@ describe('navigation helpers', () => {
 		navigation.navigateBackOrHomeDashboard();
 
 		expect(router.back).toHaveBeenCalledTimes(1);
-		expect(router.canDismiss).not.toHaveBeenCalled();
-		expect(router.dismissAll).not.toHaveBeenCalled();
+		expect(router.dismissTo).not.toHaveBeenCalled();
 		expect(router.replace).not.toHaveBeenCalled();
 	});
 });

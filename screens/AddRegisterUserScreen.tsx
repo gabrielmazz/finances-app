@@ -37,6 +37,7 @@ import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserS
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
 
@@ -121,9 +122,11 @@ export default function AddRegisterUserScreen() {
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const submitLockRef = React.useRef(false);
     const nameInputRef = React.useRef<TextInput | null>(null);
     const emailInputRef = React.useRef<TextInput | null>(null);
     const passwordInputRef = React.useRef<TextInput | null>(null);
+    const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterUser');
     const keyboardScrollOffset = React.useCallback(
         (key: FocusableInputKey) => {
             if (key === 'password') {
@@ -144,7 +147,17 @@ export default function AddRegisterUserScreen() {
         return true;
     }, []);
 
+    const resetUserForm = React.useCallback(() => {
+        setName('');
+        setEmail('');
+        setPassword('');
+        setShowPassword(false);
+    }, []);
+
     const registerUser = async () => {
+        if (submitLockRef.current || isSubmitting) {
+            return;
+        }
 
         Keyboard.dismiss();
 
@@ -191,6 +204,7 @@ export default function AddRegisterUserScreen() {
             return;
         }
 
+        submitLockRef.current = true;
         setIsSubmitting(true);
 
         try {
@@ -209,9 +223,7 @@ export default function AddRegisterUserScreen() {
                     duration: 4000,
                 });
 
-                setName('');
-                setEmail('');
-                setPassword('');
+                applyPostSubmitBehavior({ resetForm: resetUserForm });
                 return;
             }
 
@@ -235,6 +247,7 @@ export default function AddRegisterUserScreen() {
                 duration: 4000,
             });
         } finally {
+            submitLockRef.current = false;
             setIsSubmitting(false);
         }
     };

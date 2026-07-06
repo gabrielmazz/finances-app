@@ -37,6 +37,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
@@ -70,7 +71,9 @@ export default function AddUserRelationScreen() {
 
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const submitLockRef = React.useRef(false);
 	const relatedUserInputRef = React.useRef<TextInput | null>(null);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addUserRelation');
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	const showScreenAlert = React.useCallback(
@@ -89,7 +92,14 @@ export default function AddUserRelationScreen() {
 		return true;
 	}, []);
 
+	const resetRelationForm = React.useCallback(() => {
+		setRelatedUserId('');
+	}, []);
+
 	const handleLinkUsers = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
 
 		Keyboard.dismiss();
 
@@ -115,29 +125,29 @@ export default function AddUserRelationScreen() {
 			return;
 		}
 
-		// Verifica se o usuário que vai ser relacionado existe no banco de dados
-		const userFetchResult = await getUserDataFirebase(trimmedId);
-		const userExists = userFetchResult.success && userFetchResult.data;
-
-		if (!userExists) {
-
-			showScreenAlert('Usuário não encontrado.', 'error');
-
-			return;
-		}
-
-		const relatedUserData = userFetchResult.data as { relatedIdUsers?: string[] } | undefined;
-		const alreadyLinked =
-			Array.isArray(relatedUserData?.relatedIdUsers) && relatedUserData.relatedIdUsers.includes(currentUserId);
-
-		if (alreadyLinked) {
-			showScreenAlert('Esse usuário já está vinculado à sua conta.', 'info');
-			return;
-		}
-
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
+			// Verifica se o usuário que vai ser relacionado existe no banco de dados
+			const userFetchResult = await getUserDataFirebase(trimmedId);
+			const userExists = userFetchResult.success && userFetchResult.data;
+
+			if (!userExists) {
+
+				showScreenAlert('Usuário não encontrado.', 'error');
+
+				return;
+			}
+
+			const relatedUserData = userFetchResult.data as { relatedIdUsers?: string[] } | undefined;
+			const alreadyLinked =
+				Array.isArray(relatedUserData?.relatedIdUsers) && relatedUserData.relatedIdUsers.includes(currentUserId);
+
+			if (alreadyLinked) {
+				showScreenAlert('Esse usuário já está vinculado à sua conta.', 'info');
+				return;
+			}
 
 			const result = await updateUserRelationsFirebase(trimmedId);
 
@@ -152,8 +162,8 @@ export default function AddUserRelationScreen() {
 					duration: 4000,
 				});
 
-				setRelatedUserId('');
 				Keyboard.dismiss();
+				applyPostSubmitBehavior({ resetForm: resetRelationForm });
 
 			} else {
 
@@ -169,9 +179,10 @@ export default function AddUserRelationScreen() {
 
 		} finally {
 
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
-	}, [relatedUserId, isDarkMode, showScreenAlert]);
+	}, [relatedUserId, isDarkMode, isSubmitting, showScreenAlert, applyPostSubmitBehavior, resetRelationForm]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {

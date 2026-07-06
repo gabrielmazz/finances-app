@@ -41,6 +41,7 @@ import { Info } from 'lucide-react-native';
 import AddRegisterMonthlyBalanceScreenIllustration from '../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -120,6 +121,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const submitLockRef = React.useRef(false);
 
 	const balanceInputValue = React.useMemo(
 		() =>
@@ -134,6 +136,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	const monthReferenceInputRef = React.useRef<TextInput | null>(null);
 	const balanceInputRef = React.useRef<TextInput | null>(null);
 	const lastLookupNotificationKeyRef = React.useRef<string | null>(null);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('registerMonthlyBalance');
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'balance' ? 140 : 120),
@@ -255,6 +258,14 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		const centsValue = Number.parseInt(digitsOnly, 10);
 		setBalanceDisplay(formatCurrencyBRL(centsValue));
 		setBalanceValueInCents(centsValue);
+	}, []);
+
+	const resetMonthlyBalanceForm = React.useCallback(() => {
+		setSelectedBankId(null);
+		setMonthReference(formatMonthReference(new Date()));
+		setBalanceDisplay('');
+		setBalanceValueInCents(null);
+		setExistingBalanceId(null);
 	}, []);
 
 	const getBankDisplayName = React.useCallback(
@@ -411,6 +422,10 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, [fetchExistingBalance]);
 
 	const handleSubmit = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		if (!selectedBankId) {
 			showNotifierAlert({
 				title: 'Erro ao registrar saldo',
@@ -458,6 +473,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		}
 
 		const isUpdating = Boolean(existingBalanceId);
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -476,6 +492,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			setExistingBalanceId(response.id);
 			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
 			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
+			applyPostSubmitBehavior({ resetForm: resetMonthlyBalanceForm });
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showNotifierAlert({
@@ -486,15 +503,19 @@ export default function AddRegisterMonthlyBalanceScreen() {
 				isDarkMode,
 			});
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 	}, [
 		balanceValueInCents,
 		existingBalanceId,
 		isDarkMode,
+		isSubmitting,
 		monthReference,
 		selectedBankId,
 		showSuccessfulBalanceNotification,
+		applyPostSubmitBehavior,
+		resetMonthlyBalanceForm,
 	]);
 
 	const hasValidMonthReference = parseMonthReference(monthReference) !== null;

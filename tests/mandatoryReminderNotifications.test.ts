@@ -47,6 +47,48 @@ describe('mandatory reminder notifications', () => {
 				name: 'Ganhos obrigatórios',
 			}),
 		);
+		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+			'system-tests-v1',
+			expect.objectContaining({
+				importance: notifications.AndroidImportance.HIGH,
+				name: 'Testes do sistema',
+			}),
+		);
+	});
+
+	it('requests permission and sends an immediate Android system test notification', async () => {
+		state.permissions = { granted: false };
+		state.requestPermissions = { granted: true };
+		const { notifications, localNotifications } = loadNotificationModules();
+
+		const result = await localNotifications.sendLocalNotificationTest();
+
+		expect(result).toMatchObject({
+			success: true,
+			title: 'Teste de notificação',
+		});
+		expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+			'system-tests-v1',
+			expect.objectContaining({
+				importance: notifications.AndroidImportance.HIGH,
+				name: 'Testes do sistema',
+			}),
+		);
+		expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: expect.objectContaining({
+					title: 'Teste de notificação',
+					priority: notifications.AndroidNotificationPriority.HIGH,
+					data: expect.objectContaining({
+						kind: 'system-test',
+					}),
+				}),
+				trigger: {
+					channelId: 'system-tests-v1',
+				},
+			}),
+		);
 	});
 
 	it('forces an Android local notification schedule from the system date and persists the 12-date window', async () => {

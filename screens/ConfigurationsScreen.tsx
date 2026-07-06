@@ -85,6 +85,13 @@ import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/nav
 
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
+import ScreenConfigurationsSettingsIllustration from '../assets/UnDraw/screenConfigurationsSettings.svg';
+import TestsScreenIllustration from '../assets/UnDraw/testsScreen.svg';
+import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
+import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankScreen.svg';
+import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
+import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
+import FinancialListIllustration from '../assets/UnDraw/financialListScreen.svg';
 
 import { Info } from 'lucide-react-native';
 
@@ -92,6 +99,8 @@ type AccordionItem = {
 	id: string;
 	title: string;
 	content: string;
+	cardTitle?: string;
+	Illustration: React.ComponentType<any>;
 	action?: { route: AppRoutePath; label: string };
 	actionRequiresAdmin?: boolean;
 	showUsersTable?: boolean;
@@ -100,14 +109,31 @@ type AccordionItem = {
 	showRelatedUsersTable?: boolean;
 	showValueVisibilitySwitch?: boolean;
 	showThemeSwitch?: boolean;
+	showScreenSettingsShortcut?: boolean;
+	showAppTests?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
+	{
+		id: 'item-0',
+		title: 'Testes do aplicativo',
+		content: 'Acesse validações manuais concentradas em uma tela dedicada.',
+		cardTitle: 'Central de testes',
+		Illustration: TestsScreenIllustration,
+		showAppTests: true,
+		actionRequiresAdmin: false,
+		action: {
+			route: APP_ROUTE_PATHS.appTests,
+			label: 'Abrir testes do aplicativo',
+		},
+	},
 	{
 		id: 'item-1',
 		title: 'Adicionar um novo usuário ao aplicativo',
 		content:
 			'Para adicionar um novo usuário, vá para a seção de configurações e selecione "Adicionar Usuário". Preencha as informações necessárias e salve as alterações.',
+		cardTitle: 'Usuários do aplicativo',
+		Illustration: AddRegisterUserScreenIllustration,
 		showUsersTable: true,
 		actionRequiresAdmin: true,
 		action: {
@@ -120,6 +146,8 @@ const accordionItems: AccordionItem[] = [
 		title: 'Adicionar um novo banco ao aplicativo',
 		content:
 			'Para adicionar um novo banco, acesse a seção de configurações e clique em "Adicionar Banco". Insira os detalhes do banco e confirme para salvar.',
+		cardTitle: 'Bancos cadastrados',
+		Illustration: AddRegisterBankScreenIllustration,
 		showBanksTable: true,
 		actionRequiresAdmin: true,
 		action: {
@@ -132,6 +160,8 @@ const accordionItems: AccordionItem[] = [
 		title: 'Adicionar uma nova categoria ao aplicativo',
 		content:
 			'Para adicionar uma nova categoria, acesse a seção de configurações e clique em "Adicionar Categoria". Insira o nome desejado e confirme para salvar.',
+		cardTitle: 'Categorias do aplicativo',
+		Illustration: AddRegisterTagScreenIllustration,
 		showTagsTable: true,
 		actionRequiresAdmin: true,
 		action: {
@@ -144,6 +174,8 @@ const accordionItems: AccordionItem[] = [
 		title: 'Relacionar outro usuário à sua conta',
 		content:
 			'Para compartilhar as movimentações financeiras com outra pessoa, informe o ID dela e confirme o vínculo.',
+		cardTitle: 'Vínculos de usuário',
+		Illustration: AddUserRelationScreenIllustration,
 		showRelatedUsersTable: true,
 		actionRequiresAdmin: false,
 		action: {
@@ -155,13 +187,31 @@ const accordionItems: AccordionItem[] = [
 		id: 'item-5',
 		title: 'Preferências de valores financeiros',
 		content: 'Ative ou desative a exibição de valores financeiros em todo o aplicativo.',
+		cardTitle: 'Privacidade dos valores',
+		Illustration: FinancialListIllustration,
 		showValueVisibilitySwitch: true,
 		actionRequiresAdmin: false,
 	},
 	{
 		id: 'item-6',
+		title: 'Configurações das telas',
+		content:
+			'Configure o comportamento de retorno e limpeza dos campos depois de salvar registros nas telas do aplicativo.',
+		cardTitle: 'Configurações por tela',
+		Illustration: ScreenConfigurationsSettingsIllustration,
+		showScreenSettingsShortcut: true,
+		actionRequiresAdmin: false,
+		action: {
+			route: APP_ROUTE_PATHS.screenSettings,
+			label: 'Abrir configurações das telas',
+		},
+	},
+	{
+		id: 'item-7',
 		title: 'Tema do aplicativo',
 		content: 'Alterne entre o modo claro e escuro para personalizar a aparência do app.',
+		cardTitle: 'Aparência do aplicativo',
+		Illustration: ConfigurationIllustration,
 		showThemeSwitch: true,
 		actionRequiresAdmin: false,
 	},
@@ -220,6 +270,7 @@ type PaginatedTableResult<T> = {
 
 // Limite por página segue a convenção documentada em [[Configurações]].
 const CONFIGURATIONS_TABLE_PAGE_SIZE = 5;
+const CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE = 82;
 
 function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTableResult<T> {
 	const totalItems = items.length;
@@ -1505,6 +1556,54 @@ export default function ConfigurationsScreen() {
 		[accordionSectionButtonClassName],
 	);
 
+	const renderAccordionCard = React.useCallback(
+		(
+			item: AccordionItem,
+			{
+				children,
+				action,
+			}: {
+				children?: React.ReactNode;
+				action?: React.ReactNode;
+			} = {},
+		) => {
+			const Illustration = item.Illustration;
+
+			return (
+				<Box className={`${notTintedCardClassName} px-4 py-4`}>
+					<VStack className="gap-4">
+						<HStack className="items-center gap-4">
+							<View
+								className="shrink-0 items-center justify-center"
+								style={{
+									width: CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE,
+									height: CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE,
+								}}
+							>
+								<Illustration
+									width={CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE}
+									height={CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE}
+									className="opacity-90"
+								/>
+							</View>
+							<VStack className="min-w-0 flex-1 gap-1">
+								<Text className="text-base font-semibold">
+									{item.cardTitle ?? item.title}
+								</Text>
+								<Text className={`${helperText} text-sm leading-5`}>
+									{item.content}
+								</Text>
+							</VStack>
+						</HStack>
+						{children}
+						{action}
+					</VStack>
+				</Box>
+			);
+		},
+		[helperText, notTintedCardClassName],
+	);
+
 	const renderTablePagination = React.useCallback(
 		(tableKey: TablePaginationKey, pagination: PaginatedTableResult<unknown>) => (
 			<TablePaginationControls
@@ -1899,7 +1998,9 @@ export default function ConfigurationsScreen() {
 
 													{item.showUsersTable && canAccessSection ? (
 														<VStack className="gap-3">
-															{renderSectionAction(item.action)}
+															{renderAccordionCard(item, {
+																action: renderSectionAction(item.action),
+															})}
 															{usersTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
 																	<Table className={`${tableBaseClassName} ${tableUsersMinWidthClassName}`}>
@@ -1978,7 +2079,9 @@ export default function ConfigurationsScreen() {
 
 													{item.showBanksTable && canAccessSection ? (
 														<VStack className="gap-3">
-															{renderSectionAction(item.action)}
+															{renderAccordionCard(item, {
+																action: renderSectionAction(item.action),
+															})}
 															{banksTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
 																	<Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
@@ -2068,7 +2171,9 @@ export default function ConfigurationsScreen() {
 
 													{item.showTagsTable && canAccessSection ? (
 														<VStack className="gap-3">
-															{renderSectionAction(item.action)}
+															{renderAccordionCard(item, {
+																action: renderSectionAction(item.action),
+															})}
 															<Box className={`${notTintedCardClassName} px-4 py-4`}>
 																<VStack className="gap-2">
 																	<Text className="text-sm font-semibold">Filtrar categorias por tipo</Text>
@@ -2196,7 +2301,9 @@ export default function ConfigurationsScreen() {
 
 													{item.showRelatedUsersTable && canAccessSection ? (
 														<VStack className="gap-3">
-															{renderSectionAction(item.action)}
+															{renderAccordionCard(item, {
+																action: renderSectionAction(item.action),
+															})}
 															{isLoadingRelatedUsers ? (
 																<Box className={`${notTintedCardClassName} px-4 py-4`}>
 																	<HStack className="items-center gap-3">
@@ -2269,9 +2376,21 @@ export default function ConfigurationsScreen() {
 														</VStack>
 													) : null}
 
+													{item.showAppTests && canAccessSection ? (
+														renderAccordionCard(item, {
+															action: renderSectionAction(item.action),
+														})
+													) : null}
+
+													{item.showScreenSettingsShortcut && canAccessSection ? (
+														renderAccordionCard(item, {
+															action: renderSectionAction(item.action),
+														})
+													) : null}
+
 													{item.showValueVisibilitySwitch ? (
-														<Box className={`${notTintedCardClassName} px-4`}>
-															<VStack className="gap-3">
+														renderAccordionCard(item, {
+															children: (
 																<HStack className="items-center justify-between gap-4">
 																	<VStack className="min-w-0 flex-1 gap-1">
 																		<HStack className="min-w-0 items-center gap-1">
@@ -2318,13 +2437,13 @@ export default function ConfigurationsScreen() {
 																		ios_backgroundColor={switchIosBackgroundColor}
 																	/>
 																</HStack>
-															</VStack>
-														</Box>
+															),
+														})
 													) : null}
 
 													{item.showThemeSwitch ? (
-														<Box className={`${notTintedCardClassName} px-4`}>
-															<VStack className="gap-3">
+														renderAccordionCard(item, {
+															children: (
 																<HStack className="items-center justify-between gap-4">
 																	<VStack className="min-w-0 flex-1 gap-1">
 																		<HStack className="min-w-0 items-center gap-1">
@@ -2371,8 +2490,8 @@ export default function ConfigurationsScreen() {
 																		ios_backgroundColor={switchIosBackgroundColor}
 																	/>
 																</HStack>
-															</VStack>
-														</Box>
+															),
+														})
 													) : null}
 
 												</AccordionContent>

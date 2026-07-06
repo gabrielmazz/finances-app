@@ -26,6 +26,7 @@ import { Box } from '@/components/ui/box';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import DatePickerField from '@/components/uiverse/date-picker';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 
 import { auth } from '@/FirebaseConfig';
@@ -55,9 +56,12 @@ import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/uti
 import {
 	MAX_MANDATORY_INSTALLMENTS,
 	formatMandatoryInstallmentLabel,
+	getMandatoryInstallmentEndDateFromTotal,
+	getMandatoryInstallmentTotalFromDateRange,
 	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
-	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 	sanitizeMandatoryInstallmentInput,
 } from '@/utils/mandatoryInstallments';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -67,6 +71,7 @@ import AddMandatoryGainListIllustration from '../assets/UnDraw/addMandatoryGains
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { Info } from 'lucide-react-native';
 import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
@@ -98,6 +103,8 @@ type MandatoryGainFormSnapshot = {
 	usesBusinessDays: boolean;
 	tagId: string | null;
 	installmentTotal: number | null;
+	installmentStartDate: string;
+	installmentEndDate: string;
 	description: string;
 	reminderTime: string;
 	reminderEnabled: boolean;
@@ -115,6 +122,28 @@ const formatDateToBR = (date: Date) => {
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	const day = String(date.getDate()).padStart(2, '0');
 	return `${day}/${month}/${year}`;
+};
+
+const parseDateFromBR = (value: string) => {
+	const [dayStr, monthStr, yearStr] = value.split('/');
+	const day = Number(dayStr);
+	const month = Number(monthStr);
+	const year = Number(yearStr);
+
+	if (!day || !month || !year) {
+		return null;
+	}
+
+	const candidate = new Date(year, month - 1, day);
+	if (
+		candidate.getFullYear() !== year ||
+		candidate.getMonth() !== month - 1 ||
+		candidate.getDate() !== day
+	) {
+		return null;
+	}
+
+	return candidate;
 };
 
 const formatValueInput = (value: string) => value.replace(/\D/g, '');
@@ -183,6 +212,8 @@ export default function AddMandatoryGainsScreen() {
 	const [usesBusinessDays, setUsesBusinessDays] = React.useState(false);
 	const [installmentsEnabled, setInstallmentsEnabled] = React.useState(false);
 	const [installmentTotal, setInstallmentTotal] = React.useState('');
+	const [installmentStartDate, setInstallmentStartDate] = React.useState(() => formatDateToBR(new Date()));
+	const [installmentEndDate, setInstallmentEndDate] = React.useState('');
 	const [settledInstallmentsCount, setSettledInstallmentsCount] = React.useState(0);
 	const [description, setDescription] = React.useState('');
 	// Segue [[Receitas Fixas]]: o lembrete só é liberado quando o template base estiver completo.
@@ -194,6 +225,8 @@ export default function AddMandatoryGainsScreen() {
 	const [currentReceiptInfo, setCurrentReceiptInfo] = React.useState<ReceiptInfo | null>(null);
 	const [isReceiptActionLoading, setIsReceiptActionLoading] = React.useState(false);
 	const [persistedFormSnapshot, setPersistedFormSnapshot] = React.useState<MandatoryGainFormSnapshot | null>(null);
+	const submitLockRef = React.useRef(false);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryGains');
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
 			return null;
@@ -240,15 +273,44 @@ export default function AddMandatoryGainsScreen() {
 	}, []);
 
 	const handleInstallmentTotalChange = React.useCallback((input: string) => {
-		setInstallmentTotal(sanitizeMandatoryInstallmentInput(input));
-	}, []);
+		const sanitizedValue = sanitizeMandatoryInstallmentInput(input);
+		setInstallmentTotal(sanitizedValue);
+
+		const normalizedTotal = normalizeMandatoryInstallmentTotal(Number(sanitizedValue));
+		const parsedStartDate = parseDateFromBR(installmentStartDate);
+		const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parsedStartDate, normalizedTotal);
+		setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
+	}, [installmentStartDate]);
 
 	const handleInstallmentsToggle = React.useCallback((value: boolean) => {
 		setInstallmentsEnabled(value);
 		if (value) {
-			setInstallmentTotal(currentValue => currentValue || String(Math.max(1, settledInstallmentsCount)));
+			const todayLabel = formatDateToBR(new Date());
+			const nextStartDate = installmentStartDate || todayLabel;
+			const nextTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal)) ?? Math.max(1, settledInstallmentsCount);
+			setInstallmentStartDate(nextStartDate);
+			setInstallmentTotal(String(nextTotal));
+			const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parseDateFromBR(nextStartDate), nextTotal);
+			setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
+		} else {
+			setInstallmentEndDate('');
 		}
-	}, [settledInstallmentsCount]);
+	}, [installmentStartDate, installmentTotal, settledInstallmentsCount]);
+
+	const handleInstallmentStartDateChange = React.useCallback((formattedValue: string, date: Date) => {
+		setInstallmentStartDate(formattedValue);
+		const normalizedTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal));
+		const computedEndDate = getMandatoryInstallmentEndDateFromTotal(date, normalizedTotal);
+		setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
+	}, [installmentTotal]);
+
+	const handleInstallmentEndDateChange = React.useCallback((formattedValue: string, date: Date) => {
+		setInstallmentEndDate(formattedValue);
+		const totalFromRange = getMandatoryInstallmentTotalFromDateRange(parseDateFromBR(installmentStartDate), date);
+		if (totalFromRange !== null) {
+			setInstallmentTotal(String(totalFromRange));
+		}
+	}, [installmentStartDate]);
 
 	const handleReminderTimeChange = React.useCallback((input: string) => {
 		setReminderTime(formatMandatoryReminderTimeInput(input));
@@ -266,6 +328,10 @@ export default function AddMandatoryGainsScreen() {
 		const maxDueDay = usesBusinessDays ? MAX_MONTHLY_BUSINESS_DAY : 31;
 		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= maxDueDay;
 	}, [dueDay, usesBusinessDays]);
+	const isReceivedForCurrentCycle = React.useMemo(
+		() => isCycleKeyCurrent(currentReceiptInfo?.cycleKey),
+		[currentReceiptInfo?.cycleKey],
+	);
 
 	const normalizedInstallmentTotal = React.useMemo(() => {
 		if (!installmentsEnabled || installmentTotal.trim().length === 0) {
@@ -275,11 +341,40 @@ export default function AddMandatoryGainsScreen() {
 		return normalizeMandatoryInstallmentTotal(Number(installmentTotal));
 	}, [installmentTotal, installmentsEnabled]);
 
+	const parsedInstallmentStartDate = React.useMemo(
+		() => parseDateFromBR(installmentStartDate),
+		[installmentStartDate],
+	);
+	const parsedInstallmentEndDate = React.useMemo(
+		() => parseDateFromBR(installmentEndDate),
+		[installmentEndDate],
+	);
 	const isInstallmentTotalValid = !installmentsEnabled || normalizedInstallmentTotal !== null;
+	const isInstallmentStartDateValid = !installmentsEnabled || parsedInstallmentStartDate !== null;
+	const isInstallmentEndDateUnlocked = installmentsEnabled && normalizedInstallmentTotal !== null;
+	const isInstallmentEndDateValid = !isInstallmentEndDateUnlocked || parsedInstallmentEndDate !== null;
+	const resolvedSettledInstallmentsCount = React.useMemo(
+		() =>
+			installmentsEnabled && normalizedInstallmentTotal !== null
+				? resolveMandatoryInstallmentsCompleted({
+					storedCompleted: settledInstallmentsCount,
+					installmentTotal: normalizedInstallmentTotal,
+					startDate: parsedInstallmentStartDate,
+					isCurrentCycleCompleted: isReceivedForCurrentCycle,
+				})
+				: 0,
+		[
+			installmentsEnabled,
+			isReceivedForCurrentCycle,
+			normalizedInstallmentTotal,
+			parsedInstallmentStartDate,
+			settledInstallmentsCount,
+		],
+	);
 	const isInstallmentTotalBelowSettled =
 		installmentsEnabled &&
 		normalizedInstallmentTotal !== null &&
-		normalizedInstallmentTotal < settledInstallmentsCount;
+		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 
 	const handleReminderToggle = React.useCallback(async (value: boolean) => {
 		if (!value) {
@@ -335,6 +430,8 @@ export default function AddMandatoryGainsScreen() {
 			usesBusinessDays,
 			tagId: selectedTagId,
 			installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+			installmentStartDate: installmentsEnabled ? installmentStartDate : '',
+			installmentEndDate: installmentsEnabled ? installmentEndDate : '',
 			description: description.trim(),
 			reminderTime,
 			reminderEnabled,
@@ -343,6 +440,8 @@ export default function AddMandatoryGainsScreen() {
 			description,
 			dueDay,
 			gainName,
+			installmentEndDate,
+			installmentStartDate,
 			installmentsEnabled,
 			normalizedInstallmentTotal,
 			reminderEnabled,
@@ -357,7 +456,12 @@ export default function AddMandatoryGainsScreen() {
 	const hasGainValue = valueInCents !== null && valueInCents > 0;
 	const isFormBusy = isSubmitting || isPrefilling;
 	const isCoreTemplateReady = hasGainName && hasGainValue && isDueDayValid;
-	const isInstallmentConfigReady = !installmentsEnabled || (isInstallmentTotalValid && !isInstallmentTotalBelowSettled);
+	const isInstallmentConfigReady =
+		!installmentsEnabled ||
+		(isInstallmentTotalValid &&
+			isInstallmentStartDateValid &&
+			isInstallmentEndDateValid &&
+			!isInstallmentTotalBelowSettled);
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasGainName || isFormBusy;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
@@ -379,6 +483,8 @@ export default function AddMandatoryGainsScreen() {
 			currentSnapshot.usesBusinessDays !== persistedFormSnapshot.usesBusinessDays ||
 			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
 			currentSnapshot.installmentTotal !== persistedFormSnapshot.installmentTotal ||
+			currentSnapshot.installmentStartDate !== persistedFormSnapshot.installmentStartDate ||
+			currentSnapshot.installmentEndDate !== persistedFormSnapshot.installmentEndDate ||
 			currentSnapshot.description !== persistedFormSnapshot.description ||
 			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
 			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled
@@ -414,25 +520,44 @@ export default function AddMandatoryGainsScreen() {
 	const businessDayToggleHelperMessage = usesBusinessDays
 		? `Este ganho será tratado como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
 		: 'Ative quando o recebimento seguir um dia útil do mês, como salário no 5º dia útil.';
-	const isReceivedForCurrentCycle = React.useMemo(
-		() => isCycleKeyCurrent(currentReceiptInfo?.cycleKey),
-		[currentReceiptInfo?.cycleKey],
-	);
 	const isInstallmentPlanCompleted = React.useMemo(
-		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, settledInstallmentsCount),
-		[normalizedInstallmentTotal, settledInstallmentsCount],
+		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, resolvedSettledInstallmentsCount),
+		[normalizedInstallmentTotal, resolvedSettledInstallmentsCount],
 	);
-	const installmentHelperMessage = !isCoreTemplateReady
-		? 'Preencha nome, valor e recebimento para liberar o parcelamento.'
-		: !installmentsEnabled
-			? 'Deixe desligado para uma receita fixa mensal sem limite de parcelas.'
-			: !isInstallmentTotalValid
-				? `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`
-				: isInstallmentTotalBelowSettled
-					? `Este ganho já tem ${settledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`
-					: normalizedInstallmentTotal
-						? `A listagem exibirá ${formatMandatoryInstallmentLabel(normalizedInstallmentTotal, settledInstallmentsCount, isReceivedForCurrentCycle) ?? 'o progresso das parcelas'}.`
-						: 'Informe a quantidade total de parcelas.';
+	const installmentHelperMessage = React.useMemo(() => {
+		if (!isCoreTemplateReady) {
+			return 'Preencha nome, valor e recebimento para liberar o parcelamento.';
+		}
+		if (!installmentsEnabled) {
+			return 'Deixe desligado para uma receita fixa mensal sem limite de parcelas.';
+		}
+		if (!isInstallmentTotalValid) {
+			return `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`;
+		}
+		if (!isInstallmentStartDateValid) {
+			return 'Informe uma data inicial válida para calcular o progresso das parcelas.';
+		}
+		if (!isInstallmentEndDateValid) {
+			return 'Escolha a data final das parcelas no calendário.';
+		}
+		if (isInstallmentTotalBelowSettled) {
+			return `Este ganho já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`;
+		}
+		if (normalizedInstallmentTotal) {
+			return `A listagem exibirá ${formatMandatoryInstallmentLabel(normalizedInstallmentTotal, resolvedSettledInstallmentsCount, isReceivedForCurrentCycle) ?? 'o progresso das parcelas'}.`;
+		}
+		return 'Informe a quantidade total de parcelas.';
+	}, [
+		installmentsEnabled,
+		isCoreTemplateReady,
+		isInstallmentEndDateValid,
+		isInstallmentStartDateValid,
+		isInstallmentTotalBelowSettled,
+		isInstallmentTotalValid,
+		isReceivedForCurrentCycle,
+		normalizedInstallmentTotal,
+		resolvedSettledInstallmentsCount,
+	]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -476,6 +601,8 @@ export default function AddMandatoryGainsScreen() {
 		setUsesBusinessDays(false);
 		setInstallmentsEnabled(false);
 		setInstallmentTotal('');
+		setInstallmentStartDate(formatDateToBR(new Date()));
+		setInstallmentEndDate('');
 		setSettledInstallmentsCount(0);
 		setDescription('');
 		setReminderEnabled(false);
@@ -636,10 +763,6 @@ export default function AddMandatoryGainsScreen() {
 		};
 	}, [selectedTagId, tagOptions]);
 
-	const navigateAfterMandatoryGainSubmit = React.useCallback(() => {
-		// [[Navegação]]: submits permanecem na rota atual para evitar retorno inválido para Home em produção.
-	}, []);
-
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
 		return true;
@@ -682,10 +805,15 @@ export default function AddMandatoryGainsScreen() {
 				const tagId = typeof data.tagId === 'string' ? data.tagId : null;
 				const descriptionValue = typeof data.description === 'string' ? data.description : '';
 				const installmentTotalValue = normalizeMandatoryInstallmentTotal(data.installmentTotal);
-				const installmentsCompletedValue = normalizeMandatoryInstallmentsCompleted(
-					data.installmentsCompleted,
-					installmentTotalValue,
-				);
+				const installmentStartDateValue =
+					installmentTotalValue !== null
+						? normalizeMandatoryInstallmentDate(data.installmentStartDate) ?? new Date()
+						: null;
+				const installmentEndDateValue =
+					installmentTotalValue !== null
+						? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
+							getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
+						: null;
 				const reminderFlag = data.reminderEnabled !== false;
 				const reminderHour =
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
@@ -700,6 +828,12 @@ export default function AddMandatoryGainsScreen() {
 						? data.lastReceiptCycle
 						: null;
 				const lastReceiptDate = normalizeDateValue(data.lastReceiptDate ?? null);
+				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
+					storedCompleted: data.installmentsCompleted,
+					installmentTotal: installmentTotalValue,
+					startDate: installmentStartDateValue,
+					isCurrentCycleCompleted: isCycleKeyCurrent(lastReceiptCycle),
+				});
 
 				setSelectedGainTemplateId(editingGainTemplateId);
 				setGainName(name);
@@ -709,6 +843,8 @@ export default function AddMandatoryGainsScreen() {
 				setUsesBusinessDays(usesBusinessDaysValue);
 				setInstallmentsEnabled(installmentTotalValue !== null);
 				setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
+				setInstallmentStartDate(installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : formatDateToBR(new Date()));
+				setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
 				setSettledInstallmentsCount(installmentsCompletedValue);
 				setSelectedTagId(tagId);
 				setDescription(descriptionValue);
@@ -726,6 +862,8 @@ export default function AddMandatoryGainsScreen() {
 					usesBusinessDays: usesBusinessDaysValue,
 					tagId,
 					installmentTotal: installmentTotalValue,
+					installmentStartDate: installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : '',
+					installmentEndDate: installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '',
 					description: descriptionValue.trim(),
 					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
 					reminderEnabled: reminderFlag,
@@ -755,6 +893,10 @@ export default function AddMandatoryGainsScreen() {
 	}, [editingGainTemplateId, resetForm]);
 
 	const handleSubmit = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		const trimmedName = gainName.trim();
 
 		if (!trimmedName) {
@@ -814,10 +956,32 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
+		if (installmentsEnabled && parsedInstallmentStartDate === null) {
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe uma data inicial válida para as parcelas.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
+		if (installmentsEnabled && parsedInstallmentEndDate === null) {
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe uma data final válida para as parcelas.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
 		if (installmentsEnabled && isInstallmentTotalBelowSettled) {
 			showNotifierAlert({
 				title: 'Erro ao salvar ganho obrigatório',
-				description: `Este ganho já tem ${settledInstallmentsCount} parcela(s) registrada(s). A quantidade total precisa ser igual ou maior.`,
+				description: `Este ganho já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). A quantidade total precisa ser igual ou maior.`,
 				type: 'error',
 				isDarkMode,
 				duration: 4500,
@@ -849,15 +1013,13 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
 			const payloadInstallmentsCompleted =
 				installmentsEnabled && normalizedInstallmentTotal !== null
-					? normalizeMandatoryInstallmentsCompleted(
-						Math.max(settledInstallmentsCount, isReceivedForCurrentCycle ? 1 : 0),
-						normalizedInstallmentTotal,
-					)
+					? resolvedSettledInstallmentsCount
 					: 0;
 			const payload = {
 				name: trimmedName,
@@ -871,6 +1033,8 @@ export default function AddMandatoryGainsScreen() {
 				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
 				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
 				installmentsCompleted: payloadInstallmentsCompleted,
+				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
+				installmentEndDate: installmentsEnabled ? parsedInstallmentEndDate : null,
 			};
 
 			let persistedId = selectedGainTemplateId;
@@ -938,7 +1102,9 @@ export default function AddMandatoryGainsScreen() {
 				});
 			}
 
-			navigateAfterMandatoryGainSubmit();
+			applyPostSubmitBehavior({
+				resetForm: !editingGainTemplateId ? resetForm : undefined,
+			});
 		} catch (error) {
 			console.error('Erro ao salvar ganho obrigatório:', error);
 			showNotifierAlert({
@@ -949,6 +1115,7 @@ export default function AddMandatoryGainsScreen() {
 				duration: 4500,
 			});
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 	}, [
@@ -959,15 +1126,19 @@ export default function AddMandatoryGainsScreen() {
 		isDueDayValid,
 		installmentsEnabled,
 		isInstallmentTotalBelowSettled,
-		isReceivedForCurrentCycle,
+		isSubmitting,
 		usesBusinessDays,
 		normalizedInstallmentTotal,
+		parsedInstallmentEndDate,
+		parsedInstallmentStartDate,
 		reminderEnabled,
 		reminderTime,
-		navigateAfterMandatoryGainSubmit,
+		resolvedSettledInstallmentsCount,
+		applyPostSubmitBehavior,
+		resetForm,
+		editingGainTemplateId,
 		selectedGainTemplateId,
 		selectedTagId,
-		settledInstallmentsCount,
 		valueInCents,
 	]);
 
@@ -1247,7 +1418,7 @@ export default function AddMandatoryGainsScreen() {
 											</HStack>
 
 											{installmentsEnabled ? (
-												<VStack className="gap-2 pb-2">
+												<VStack className="gap-3 pb-2">
 													<Text className={`${bodyText} ml-1 text-sm`}>Quantidade de parcelas</Text>
 													<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
 														<InputField
@@ -1261,6 +1432,33 @@ export default function AddMandatoryGainsScreen() {
 															onFocus={() => handleInputFocus('installments')}
 														/>
 													</Input>
+													<HStack className="gap-3">
+														<VStack className="flex-1 gap-2">
+															<Text className={`${bodyText} ml-1 text-sm`}>Início das parcelas</Text>
+															<DatePickerField
+																value={installmentStartDate}
+																onChange={handleInstallmentStartDateChange}
+																triggerClassName={fieldContainerClassName}
+																inputClassName={inputField}
+																placeholder="Data inicial"
+																isDisabled={isInstallmentFieldDisabled}
+															/>
+														</VStack>
+														<VStack className="flex-1 gap-2">
+															<Text className={`${bodyText} ml-1 text-sm`}>Final das parcelas</Text>
+															<DatePickerField
+																value={installmentEndDate}
+																onChange={handleInstallmentEndDateChange}
+																triggerClassName={fieldContainerClassName}
+																inputClassName={inputField}
+																placeholder={isInstallmentEndDateUnlocked ? 'Data final' : 'Qtd. primeiro'}
+																isDisabled={!isInstallmentEndDateUnlocked || isInstallmentFieldDisabled}
+															/>
+														</VStack>
+													</HStack>
+													<Text className={`${helperText} ml-1 text-xs`}>
+														{installmentHelperMessage}
+													</Text>
 												</VStack>
 											) : null}
 										</VStack>

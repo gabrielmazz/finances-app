@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTran
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import {
+	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
@@ -19,6 +20,9 @@ interface AddMandatoryGainParams {
 	reminderHour?: number;
 	reminderMinute?: number;
 	installmentTotal?: number | null;
+	installmentsCompleted?: number;
+	installmentStartDate?: Date | null;
+	installmentEndDate?: Date | null;
 }
 
 interface UpdateMandatoryGainParams {
@@ -34,6 +38,8 @@ interface UpdateMandatoryGainParams {
 	reminderMinute?: number;
 	installmentTotal?: number | null;
 	installmentsCompleted?: number;
+	installmentStartDate?: Date | null;
+	installmentEndDate?: Date | null;
 }
 
 interface MarkMandatoryGainReceiptParams {
@@ -45,7 +51,12 @@ interface MarkMandatoryGainReceiptParams {
 const MANDATORY_GAINS_COLLECTION = 'mandatoryGains';
 const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
 
-const buildMandatoryInstallmentFields = (installmentTotal: number | null | undefined, installmentsCompleted = 0) => {
+const buildMandatoryInstallmentFields = (
+	installmentTotal: number | null | undefined,
+	installmentsCompleted = 0,
+	installmentStartDate?: Date | null,
+	installmentEndDate?: Date | null,
+) => {
 	const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
 
 	return {
@@ -54,6 +65,10 @@ const buildMandatoryInstallmentFields = (installmentTotal: number | null | undef
 			normalizedInstallmentTotal === null
 				? 0
 				: normalizeMandatoryInstallmentsCompleted(installmentsCompleted, normalizedInstallmentTotal),
+		installmentStartDate:
+			normalizedInstallmentTotal === null ? null : normalizeMandatoryInstallmentDate(installmentStartDate),
+		installmentEndDate:
+			normalizedInstallmentTotal === null ? null : normalizeMandatoryInstallmentDate(installmentEndDate),
 	};
 };
 
@@ -74,10 +89,18 @@ export async function addMandatoryGainFirebase({
 	reminderHour = 9,
 	reminderMinute = 0,
 	installmentTotal = null,
+	installmentsCompleted = 0,
+	installmentStartDate = null,
+	installmentEndDate = null,
 }: AddMandatoryGainParams) {
 	try {
 		const mandatoryGainRef = doc(collection(db, MANDATORY_GAINS_COLLECTION));
-		const installmentFields = buildMandatoryInstallmentFields(installmentTotal);
+		const installmentFields = buildMandatoryInstallmentFields(
+			installmentTotal,
+			installmentsCompleted,
+			installmentStartDate,
+			installmentEndDate,
+		);
 
 		await setDoc(mandatoryGainRef, {
 			name,
@@ -118,6 +141,8 @@ export async function updateMandatoryGainFirebase({
 	reminderMinute,
 	installmentTotal,
 	installmentsCompleted,
+	installmentStartDate,
+	installmentEndDate,
 }: UpdateMandatoryGainParams) {
 	try {
 		const mandatoryGainRef = doc(db, MANDATORY_GAINS_COLLECTION, gainTemplateId);
@@ -166,6 +191,8 @@ export async function updateMandatoryGainFirebase({
 			updates.installmentTotal = normalizedInstallmentTotal;
 			if (normalizedInstallmentTotal === null) {
 				updates.installmentsCompleted = 0;
+				updates.installmentStartDate = null;
+				updates.installmentEndDate = null;
 			} else if (typeof installmentsCompleted === 'number') {
 				updates.installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
 					installmentsCompleted,
@@ -174,6 +201,14 @@ export async function updateMandatoryGainFirebase({
 			}
 		} else if (typeof installmentsCompleted === 'number') {
 			updates.installmentsCompleted = Math.max(0, Math.floor(installmentsCompleted));
+		}
+
+		if (installmentStartDate !== undefined) {
+			updates.installmentStartDate = normalizeMandatoryInstallmentDate(installmentStartDate);
+		}
+
+		if (installmentEndDate !== undefined) {
+			updates.installmentEndDate = normalizeMandatoryInstallmentDate(installmentEndDate);
 		}
 
 		await setDoc(mandatoryGainRef, updates, { merge: true });
