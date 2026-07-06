@@ -58,6 +58,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { Info } from 'lucide-react-native';
 
@@ -173,6 +174,7 @@ export default function AddFinanceScreen() {
 	const [isSaving, setIsSaving] = React.useState(false);
 	// Flag que exibimos depois de um salvamento bem sucedido para mostrar o texto de confirmação.
 	const [hasSavedOnce, setHasSavedOnce] = React.useState(false);
+	const submitLockRef = React.useRef(false);
 	const [bankOptions, setBankOptions] = React.useState<BankActionsheetOption[]>([]);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
@@ -181,6 +183,7 @@ export default function AddFinanceScreen() {
 	const investmentNameInputRef = React.useRef<TextInput | null>(null);
 	const initialValueInputRef = React.useRef<TextInput | null>(null);
 	const cdiInputRef = React.useRef<TextInput | null>(null);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addFinance');
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'cdi' ? 140 : 120),
 		[],
@@ -590,6 +593,10 @@ export default function AddFinanceScreen() {
 
 	// Função responsável por salvar o investimento simples no Firebase.
 	const handleSaveInvestment = React.useCallback(async () => {
+		if (submitLockRef.current || isSaving) {
+			return;
+		}
+
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
 			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
@@ -641,6 +648,7 @@ export default function AddFinanceScreen() {
 			? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null
 			: null;
 
+		submitLockRef.current = true;
 		setIsSaving(true);
 		try {
 			const result = await addFinanceInvestmentFirebase({
@@ -661,11 +669,12 @@ export default function AddFinanceScreen() {
 
 			setHasSavedOnce(true);
 			showScreenAlert('Investimento salvo com sucesso!', 'success');
-			resetForm();
+			applyPostSubmitBehavior({ resetForm });
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível salvar o investimento agora. Tente novamente.', 'error');
 		} finally {
+			submitLockRef.current = false;
 			setIsSaving(false);
 		}
 	}, [
@@ -681,6 +690,7 @@ export default function AddFinanceScreen() {
 		isLoadingBankBalance,
 		parsedCdi,
 		parsedInvestmentDate,
+		applyPostSubmitBehavior,
 		showScreenAlert,
 	]);
 	const selectedBankLabel = selectedBankId ? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? '' : '';

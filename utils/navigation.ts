@@ -17,6 +17,8 @@ export const APP_ROUTE_PATHS = {
 	addFinance: '/add-finance',
 	addRescue: '/add-rescue',
 	addUserRelation: '/add-user-relation',
+	appTests: '/app-tests',
+	screenSettings: '/screen-settings',
 	registerMonthlyBalance: '/register-monthly-balance',
 	bankMovements: '/bank-movements',
 	bankSummary: '/bank-summary',

@@ -492,7 +492,7 @@ export default function LoginScreen() {
 											Desenvolvido por Gabriel Mazzuco
 										</Text>
 
-										<Text className={`${mutedText} text-center text-xs`}>Versão 1.9.3</Text>
+										<Text className={`${mutedText} text-center text-xs`}>Versão 2.0.0</Text>
 									</VStack>
 								</VStack>
 							</View>

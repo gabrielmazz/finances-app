@@ -228,6 +228,22 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation),
 			},
 			{
+				id: 'app-tests',
+				label: 'Testes do app',
+				value: 2,
+				icon: 'flask-outline',
+				matchPaths: [APP_ROUTE_PATHS.appTests],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.appTests),
+			},
+			{
+				id: 'screen-settings',
+				label: 'Config. das telas',
+				value: 2,
+				icon: 'options-outline',
+				matchPaths: [APP_ROUTE_PATHS.screenSettings],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.screenSettings),
+			},
+			{
 				id: 'logout',
 				label: 'Sair',
 				icon: 'log-out-outline',

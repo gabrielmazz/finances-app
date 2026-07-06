@@ -68,6 +68,7 @@ import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScr
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 type FocusableInputKey = 'tag-name';
 type UsageTypeRadioValue = 'expense' | 'gain';
@@ -116,8 +117,10 @@ export default function AddRegisterTagScreen() {
 	const [selectedTagIcon, setSelectedTagIcon] = React.useState(defaultTagIcon);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const [tagIconSearch, setTagIconSearch] = React.useState('');
+	const submitLockRef = React.useRef(false);
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
 	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterTag');
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 
 	const params = useLocalSearchParams<{
@@ -510,6 +513,17 @@ export default function AddRegisterTagScreen() {
 		[isMandatorySelectionLocked, selectedUsageType],
 	);
 
+	const resetTagForm = React.useCallback(() => {
+		setTagName('');
+		setSelectedTagIcon(defaultTagIcon);
+		setIsSharedBetweenUsageTypes(false);
+		setIsExpenseTag(false);
+		setIsGainTag(false);
+		setIsMandatoryExpense(false);
+		setIsMandatoryGain(false);
+		setShowInBothLists(false);
+	}, [defaultTagIcon]);
+
 	const handleCloseTagIconSheet = React.useCallback(() => {
 		setTagIconSearch('');
 		setIsTagIconSheetOpen(false);
@@ -522,6 +536,10 @@ export default function AddRegisterTagScreen() {
 	}, []);
 
 	const registerTag = React.useCallback(async () => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		const trimmedName = tagName.trim();
 		const persistedTagIcon = serializeTagIcon(selectedTagIcon);
 
@@ -547,6 +565,7 @@ export default function AddRegisterTagScreen() {
 			return;
 		}
 
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -587,6 +606,8 @@ export default function AddRegisterTagScreen() {
 					Keyboard.dismiss();
 					if (shouldReturnAfterCreate) {
 						navigateBackToInlineSource();
+					} else {
+						applyPostSubmitBehavior();
 					}
 				} else {
 					showNotifierAlert({
@@ -632,6 +653,7 @@ export default function AddRegisterTagScreen() {
 					return;
 				}
 
+				applyPostSubmitBehavior({ resetForm: resetTagForm });
 			} else {
 				showNotifierAlert({
 					title: 'Erro ao registrar categoria',
@@ -651,12 +673,14 @@ export default function AddRegisterTagScreen() {
 				duration: 4000,
 			});
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 	}, [
 		isDarkMode,
 		editingTagId,
 		isEditing,
+		isSubmitting,
 		tagName,
 		isMandatoryExpense,
 		isMandatoryGain,
@@ -668,6 +692,8 @@ export default function AddRegisterTagScreen() {
 			serializeTagIcon,
 			shouldReturnAfterCreate,
 			navigateBackToInlineSource,
+			applyPostSubmitBehavior,
+			resetTagForm,
 		]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {

@@ -1,26 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import type {
-	NotificationContentInput,
-	NotificationPermissionsStatus,
-	SchedulableNotificationTriggerInput,
-} from 'expo-notifications';
+import type { NotificationContentInput, SchedulableNotificationTriggerInput } from 'expo-notifications';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
 	ensureMandatoryReminderNotificationChannel,
-	ensureMandatoryReminderNotificationChannels,
+	ensureLocalNotificationPermission,
 	getMandatoryReminderChannelConfig,
 	getNotificationsModule,
+	hasLocalNotificationPermission,
 	warnNotificationsUnavailable,
+	type LocalNotificationPermissionResult,
 	type MandatoryReminderKind,
 	type NotificationsModule,
 } from '@/utils/localNotifications';
 
 export type { MandatoryReminderKind } from '@/utils/localNotifications';
 
-export type MandatoryReminderPermissionResult =
-	| { granted: true }
-	| { granted: false; reason: 'permissions-denied' | 'unavailable' };
+export type MandatoryReminderPermissionResult = LocalNotificationPermissionResult;
 
 export type MandatoryReminderScheduleResult =
 	| {
@@ -188,40 +184,6 @@ const getEntrySchedules = (entry?: ReminderStorageEntry | null): ReminderSchedul
 	}
 
 	return [];
-};
-
-const isPermissionGranted = (Notifications: NotificationsModule, settings: NotificationPermissionsStatus) =>
-	settings.granted === true || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
-
-const hasNotificationPermission = async () => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		warnNotificationsUnavailable();
-		return false;
-	}
-
-	const settings = await Notifications.getPermissionsAsync();
-	return isPermissionGranted(Notifications, settings);
-};
-
-const requestNotificationPermission = async () => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		warnNotificationsUnavailable();
-		return false;
-	}
-
-	await ensureMandatoryReminderNotificationChannels();
-
-	const settings = await Notifications.requestPermissionsAsync({
-		ios: {
-			allowAlert: true,
-			allowBadge: false,
-			allowSound: true,
-		},
-	});
-
-	return isPermissionGranted(Notifications, settings);
 };
 
 const buildRepeatingFixedDayReminderTrigger = (
@@ -491,21 +453,7 @@ const scheduleReminderNotificationInternal = async ({
 };
 
 export const ensureMandatoryReminderPermission = async (): Promise<MandatoryReminderPermissionResult> => {
-	if (!getNotificationsModule()) {
-		warnNotificationsUnavailable();
-		return { granted: false, reason: 'unavailable' };
-	}
-
-	if (await hasNotificationPermission()) {
-		return { granted: true };
-	}
-
-	const granted = await requestNotificationPermission();
-	if (granted) {
-		return { granted: true };
-	}
-
-	return { granted: false, reason: 'permissions-denied' };
+	return ensureLocalNotificationPermission();
 };
 
 export const scheduleMandatoryReminderNotification = async ({
@@ -539,17 +487,16 @@ export const scheduleMandatoryReminderNotification = async ({
 		};
 	}
 
-	let permissionGranted = await hasNotificationPermission();
+	const permission = await ensureLocalNotificationPermission({ requestIfNeeded: requestPermission });
 
-	if (!permissionGranted && requestPermission) {
-		permissionGranted = await requestNotificationPermission();
-	}
-
-	if (!permissionGranted) {
+	if (!permission.granted) {
 		return {
 			success: false,
-			reason: 'permissions-denied',
-			message: 'As notificações do aplicativo estão desativadas para este dispositivo.',
+			reason: permission.reason,
+			message:
+				permission.reason === 'unavailable'
+					? 'Não foi possível acessar as notificações locais neste ambiente.'
+					: 'As notificações do aplicativo estão desativadas para este dispositivo.',
 		};
 	}
 
@@ -606,7 +553,7 @@ export const syncMandatoryReminderNotifications = async (
 
 	const map = await readReminderMap();
 	const scheduledNotificationIds = await getScheduledNotificationIdSet(Notifications);
-	const permissionGranted = await hasNotificationPermission();
+	const permissionGranted = await hasLocalNotificationPermission();
 	const expectedStorageKeys = new Set(items.map(item => buildReminderStorageKey(kind, item.id)));
 	let didChangeMap = false;
 

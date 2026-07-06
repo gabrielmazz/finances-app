@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 import { APP_ROUTE_PATHS, HOME_DASHBOARD_ROUTE } from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
@@ -80,7 +81,9 @@ export default function RootLayout() {
 	return (
 		<ThemeProvider>
 			<ValueVisibilityProvider>
-				<LayoutWithTheme />
+				<PostSubmitBehaviorProvider>
+					<LayoutWithTheme />
+				</PostSubmitBehaviorProvider>
 			</ValueVisibilityProvider>
 		</ThemeProvider>
 	);

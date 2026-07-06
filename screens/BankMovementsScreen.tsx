@@ -841,6 +841,14 @@ const MANDATORY_SETTLED_TONE: TimelineMovementTone = {
 	cardGradient: ['#065F46', '#10B981'],
 };
 
+const MANDATORY_EXPENSE_TONE: TimelineMovementTone = {
+	accentColor: '#EF4444',
+	amountColor: '#EF4444',
+	lineColor: 'rgba(239, 68, 68, 0.28)',
+	iconGradient: ['#B91C1C', '#EF4444'],
+	cardGradient: ['#7F1D1D', '#EF4444'],
+};
+
 const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementTone> = {
 	gain: {
 		accentColor: '#10B981',
@@ -856,7 +864,7 @@ const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementT
 		iconGradient: ['#B91C1C', '#EF4444'],
 		cardGradient: ['#7F1D1D', '#EF4444'],
 	},
-	mandatoryExpense: MANDATORY_SETTLED_TONE,
+	mandatoryExpense: MANDATORY_EXPENSE_TONE,
 	mandatoryGain: MANDATORY_SETTLED_TONE,
 	bankTransfer: {
 		accentColor: '#F59E0B',

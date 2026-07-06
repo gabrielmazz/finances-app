@@ -27,6 +27,16 @@ import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+	ModalTitle,
+} from '@/components/ui/modal';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
@@ -42,10 +52,17 @@ import {
 	updateExpenseFirebase,
 } from '@/functions/ExpenseFirebase';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
-import { markMandatoryExpensePaymentFirebase } from '@/functions/MandatoryExpenseFirebase';
+import {
+	getMandatoryExpensesWithRelationsFirebase,
+	markMandatoryExpensePaymentFirebase,
+} from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
+import {
+	findMandatoryExpenseSuggestion,
+	type MandatoryExpenseSuggestion,
+} from '@/utils/mandatoryExpenseSuggestions';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
 	isTagVisibleInRegularUsageList,
@@ -63,6 +80,7 @@ import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.sv
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
 type OptionItem = {
 	id: string;
@@ -76,6 +94,10 @@ type OptionItem = {
 };
 
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'expense-explanation';
+
+type SubmitOptions = {
+	bypassMandatorySuggestionKey?: string | null;
+};
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -189,7 +211,10 @@ export default function AddRegisterExpensesScreen() {
 		fieldContainerClassNameNotSpace,
 		fieldContainerCardClassName,
 		textareaContainerClassName,
+		modalContentClassName,
 		submitButtonClassName,
+		submitButtonCancelClassName,
+		submitButtonTextClassName,
 		heroHeight,
 		infoCardStyle,
 		insets,
@@ -218,9 +243,14 @@ export default function AddRegisterExpensesScreen() {
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
+	const [mandatoryExpenseSuggestion, setMandatoryExpenseSuggestion] =
+		React.useState<MandatoryExpenseSuggestion | null>(null);
+	const [ignoredMandatorySuggestionKey, setIgnoredMandatorySuggestionKey] = React.useState<string | null>(null);
 	const [valuesRadioMoneyFormat, setValuesRadioMoneyFormat] = React.useState<
 		'Pagamento em Dinheiro' | 'Pagamento em Banco'
 	>(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');
+	const submitLockRef = React.useRef(false);
+	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterExpenses');
 
 	const expenseNameInputRef = React.useRef<any>(null);
 	const expenseValueInputRef = React.useRef<any>(null);
@@ -697,7 +727,27 @@ export default function AddRegisterExpensesScreen() {
 		setExpenseValueCents(centsValue);
 	}, []);
 
-	const handleSubmit = React.useCallback(async () => {
+	const resetNewExpenseForm = React.useCallback(() => {
+		setExpenseName('');
+		setExpenseValueDisplay('');
+		setExpenseValueCents(null);
+		setExpenseDate(formatDateToBR(new Date()));
+		setSelectedTagId(null);
+		setSelectedBankId(null);
+		setSelectedMovementTagName(null);
+		setSelectedMovementTagIcon(null);
+		setSelectedMovementBankName(null);
+		setExplanationExpense(null);
+		setMoneyFormat(false);
+		setValuesRadioMoneyFormat('Pagamento em Banco');
+		setIgnoredMandatorySuggestionKey(null);
+	}, []);
+
+	const handleSubmit = React.useCallback(async (options: SubmitOptions = {}) => {
+		if (submitLockRef.current || isSubmitting) {
+			return;
+		}
+
 		if (!expenseName.trim()) {
 			showNotifierAlert({
 				title: 'Erro ao registrar despesa',
@@ -776,6 +826,7 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedExpenseDate);
+		submitLockRef.current = true;
 		setIsSubmitting(true);
 
 		try {
@@ -791,6 +842,43 @@ export default function AddRegisterExpensesScreen() {
 				});
 				setIsSubmitting(false);
 				return;
+			}
+
+			// Segue [[Transações de Despesas]] e [[Despesas Fixas]]: antes de salvar uma despesa comum,
+			// validamos se ela parece pertencer a um template obrigatório já existente.
+			const shouldCheckMandatoryExpenseSuggestion =
+				!isEditing && !linkedMandatoryExpenseId && !pendingInvestmentAdjustment;
+			if (shouldCheckMandatoryExpenseSuggestion) {
+				const mandatoryExpensesResult = await getMandatoryExpensesWithRelationsFirebase(personId);
+
+				if (!mandatoryExpensesResult.success || !Array.isArray(mandatoryExpensesResult.data)) {
+					showNotifierAlert({
+						title: 'Não foi possível validar gastos obrigatórios',
+						description: 'A despesa não foi registrada para evitar um lançamento obrigatório fora do fluxo correto.',
+						type: 'error',
+						isDarkMode,
+						duration: 5000,
+					});
+					return;
+				}
+
+				const suggestion = findMandatoryExpenseSuggestion(
+					{
+						name: expenseName.trim(),
+						valueInCents: expenseValueCents,
+						tagId: selectedTagId,
+						date: dateWithCurrentTime,
+					},
+					mandatoryExpensesResult.data,
+				);
+
+				const bypassedSuggestionKey =
+					options.bypassMandatorySuggestionKey ?? ignoredMandatorySuggestionKey;
+
+				if (suggestion && suggestion.matchKey !== bypassedSuggestionKey) {
+					setMandatoryExpenseSuggestion(suggestion);
+					return;
+				}
 			}
 
 			if (isEditing && editingExpenseId) {
@@ -817,6 +905,7 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				showSuccessfulExpenseNotification(true);
+				applyPostSubmitBehavior();
 				return;
 			}
 
@@ -878,6 +967,7 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			showSuccessfulExpenseNotification();
+			applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
 			showNotifierAlert({
@@ -888,6 +978,7 @@ export default function AddRegisterExpensesScreen() {
 				duration: 4000,
 			});
 		} finally {
+			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
 		}, [
@@ -898,6 +989,8 @@ export default function AddRegisterExpensesScreen() {
 			explanationExpense,
 			isEditing,
 			isBankSelectionRequired,
+			isSubmitting,
+			ignoredMandatorySuggestionKey,
 			linkedMandatoryExpenseId,
 			moneyFormat,
 			pendingInvestmentAdjustment,
@@ -905,8 +998,30 @@ export default function AddRegisterExpensesScreen() {
 			selectedBankId,
 			selectedTagId,
 			parsedExpenseDate,
+			resetNewExpenseForm,
+			applyPostSubmitBehavior,
 			showSuccessfulExpenseNotification,
 		]);
+
+	const handleCloseMandatoryExpenseSuggestionModal = React.useCallback(() => {
+		setMandatoryExpenseSuggestion(null);
+	}, []);
+
+	const handleIgnoreMandatoryExpenseSuggestion = React.useCallback(() => {
+		if (!mandatoryExpenseSuggestion) {
+			return;
+		}
+
+		const bypassSuggestionKey = mandatoryExpenseSuggestion.matchKey;
+		setIgnoredMandatorySuggestionKey(bypassSuggestionKey);
+		setMandatoryExpenseSuggestion(null);
+		void handleSubmit({ bypassMandatorySuggestionKey: bypassSuggestionKey });
+	}, [handleSubmit, mandatoryExpenseSuggestion]);
+
+	const handleGoToMandatoryExpenses = React.useCallback(() => {
+		setMandatoryExpenseSuggestion(null);
+		navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses);
+	}, []);
 
 	React.useEffect(() => {
 		if (!editingExpenseId) {
@@ -1144,6 +1259,20 @@ export default function AddRegisterExpensesScreen() {
 
 		return null;
 	}, [banks, selectedBankId, selectedMovementBankName]);
+
+	const mandatoryExpenseSuggestionMessage = React.useMemo(() => {
+		if (!mandatoryExpenseSuggestion) {
+			return '';
+		}
+
+		const suggestionValue = formatCurrencyBRL(mandatoryExpenseSuggestion.valueInCents);
+		const statusDescription =
+			mandatoryExpenseSuggestion.status === 'paid'
+				? 'Esse gasto obrigatório já foi lançado neste ciclo. Registrar outra despesa comum pode duplicar o controle mensal.'
+				: 'Esse gasto obrigatório ainda está pendente neste ciclo. O registro correto deve partir da lista de gastos obrigatórios.';
+
+		return `Este registro parece corresponder ao gasto obrigatório "${mandatoryExpenseSuggestion.name}" (${suggestionValue}). ${statusDescription}`;
+	}, [mandatoryExpenseSuggestion]);
 
 	const screenTitle = 'Registro de Despesa';
 	const tagHelperMessage = isTagSelectionLocked
@@ -1470,7 +1599,9 @@ export default function AddRegisterExpensesScreen() {
 
 								<Button
 									className={`${submitButtonClassName}`}
-									onPress={handleSubmit}
+									onPress={() => {
+										void handleSubmit();
+									}}
 									isDisabled={isSubmitDisabled}
 								>
 									{isFormBusy ? (
@@ -1493,6 +1624,44 @@ export default function AddRegisterExpensesScreen() {
 				>
 					<Navigator defaultValue={1} />
 				</View>
+
+				<Modal
+					isOpen={Boolean(mandatoryExpenseSuggestion)}
+					onClose={handleCloseMandatoryExpenseSuggestionModal}
+				>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<ModalTitle>Possível gasto obrigatório</ModalTitle>
+							<ModalCloseButton onPress={handleCloseMandatoryExpenseSuggestionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} text-sm leading-5`}>
+								{mandatoryExpenseSuggestionMessage}
+							</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button
+								variant="outline"
+								onPress={handleIgnoreMandatoryExpenseSuggestion}
+								isDisabled={isSubmitting}
+								className={submitButtonCancelClassName}
+							>
+								<ButtonText>Ignorar e registrar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								onPress={handleGoToMandatoryExpenses}
+								isDisabled={isSubmitting}
+								className={submitButtonClassName}
+							>
+								<ButtonText className={submitButtonTextClassName}>
+									Ir para gastos obrigatórios
+								</ButtonText>
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 			</View>
 		</SafeAreaView>
 	);
