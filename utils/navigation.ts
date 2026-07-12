@@ -121,21 +121,53 @@ const logNavigationError = (action: string, href: Href, error: unknown) => {
 	});
 };
 
-const replaceWithFallback = (href: Href, options?: RouterNavigationOptions) => {
+let pendingRedirectFrame: number | null = null;
+
+const cancelPendingRedirect = () => {
+	if (pendingRedirectFrame === null) {
+		return;
+	}
+
+	cancelAnimationFrame(pendingRedirectFrame);
+	pendingRedirectFrame = null;
+};
+
+const replaceSafely = (href: Href, options?: RouterNavigationOptions) => {
 	try {
-		router.replace(href, options);
+		if (options) {
+			router.replace(href, options);
+			return;
+		}
+
+		router.replace(href);
 	} catch (error) {
 		logNavigationError('replace', href, error);
 	}
 };
 
-const dismissToOrReplace = (href: Href, options?: RouterNavigationOptions) => {
-	try {
-		router.dismissTo(href, options);
-	} catch (error) {
-		logNavigationError('dismissTo', href, error);
-		replaceWithFallback(href, options);
-	}
+const scheduleNavigation = (navigationAction: () => void) => {
+	cancelPendingRedirect();
+	pendingRedirectFrame = requestAnimationFrame(() => {
+		pendingRedirectFrame = null;
+		navigationAction();
+	});
+};
+
+const scheduleReplace = (href: Href, options?: RouterNavigationOptions) => {
+	scheduleNavigation(() => replaceSafely(href, options));
+};
+
+const createBackFallbackHref = (
+	fallbackPathname: AppRoutePath,
+	fallbackParams?: NavigationParams,
+) => {
+	const resolvedFallbackParams =
+		fallbackParams ??
+		(fallbackPathname === APP_ROUTE_PATHS.home
+			? { tab: String(HOME_TAB_INDEX.dashboard) }
+			: undefined);
+
+	return createAppHref(fallbackPathname, resolvedFallbackParams);
 };
 
 export const navigateToRoute = (
@@ -143,8 +175,20 @@ export const navigateToRoute = (
 	params?: NavigationParams,
 	options?: RouterNavigationOptions,
 ) => {
+	cancelPendingRedirect();
 	Keyboard.dismiss();
-	router.push(createAppHref(pathname, params), options);
+	const href = createAppHref(pathname, params);
+
+	try {
+		if (options) {
+			router.push(href, options);
+			return;
+		}
+
+		router.push(href);
+	} catch (error) {
+		logNavigationError('push', href, error);
+	}
 };
 
 export const replaceToRoute = (
@@ -152,25 +196,41 @@ export const replaceToRoute = (
 	params?: NavigationParams,
 	options?: RouterNavigationOptions,
 ) => {
+	cancelPendingRedirect();
 	Keyboard.dismiss();
-	replaceWithFallback(createAppHref(pathname, params), options);
+	replaceSafely(createAppHref(pathname, params), options);
 };
 
-export const dismissToRoute = (
+export const redirectToRoute = (
 	pathname: AppRoutePath,
 	params?: NavigationParams,
 	options?: RouterNavigationOptions,
 ) => {
 	Keyboard.dismiss();
-	dismissToOrReplace(createAppHref(pathname, params), options);
+	// [[Navegação]]: o redirect pós-submit espera um frame para o formulário
+	// concluir finally/setState antes da única transição REPLACE no NativeStack.
+	scheduleReplace(createAppHref(pathname, params), options);
 };
 
 export const navigateToHomeTab = (
 	tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard,
 ) => {
+	cancelPendingRedirect();
 	Keyboard.dismiss();
-	// Fluxo documentado em Arquitetura/Navegação.md: submits usam uma única ação POP_TO/REPLACE para evitar pilhas obsoletas em produção.
-	dismissToOrReplace(createHomeHref(tab), { withAnchor: true });
+	replaceSafely(createHomeHref(tab));
+};
+
+export const redirectToHomeTab = (
+	tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard,
+) => {
+	Keyboard.dismiss();
+	// POP_TO/dismissTo é deliberadamente proibido neste fluxo: a falha da ação
+	// enfileirada é silenciosa em release e pode deixar o NativeStack sem conteúdo.
+	scheduleReplace(createHomeHref(tab));
+};
+
+export const redirectToHomeDashboard = () => {
+	redirectToHomeTab(HOME_TAB_INDEX.dashboard);
 };
 
 export const navigateToHomeDashboard = () => {
@@ -185,13 +245,9 @@ export const navigateBackOrRoute = (
 	fallbackPathname: AppRoutePath = APP_ROUTE_PATHS.home,
 	fallbackParams?: NavigationParams,
 ) => {
+	cancelPendingRedirect();
 	Keyboard.dismiss();
-	const resolvedFallbackParams =
-		fallbackParams ??
-		(fallbackPathname === APP_ROUTE_PATHS.home
-			? { tab: String(HOME_TAB_INDEX.dashboard) }
-			: undefined);
-	const fallbackHref = createAppHref(fallbackPathname, resolvedFallbackParams);
+	const fallbackHref = createBackFallbackHref(fallbackPathname, fallbackParams);
 
 	try {
 		if (router.canGoBack()) {
@@ -202,7 +258,28 @@ export const navigateBackOrRoute = (
 		logNavigationError('canGoBack', fallbackHref, error);
 	}
 
-	replaceWithFallback(fallbackHref, { withAnchor: true });
+	replaceSafely(fallbackHref);
+};
+
+export const redirectBackOrRoute = (
+	fallbackPathname: AppRoutePath = APP_ROUTE_PATHS.home,
+	fallbackParams?: NavigationParams,
+) => {
+	Keyboard.dismiss();
+	const fallbackHref = createBackFallbackHref(fallbackPathname, fallbackParams);
+
+	scheduleNavigation(() => {
+		try {
+			if (router.canGoBack()) {
+				router.back();
+				return;
+			}
+		} catch (error) {
+			logNavigationError('canGoBack', fallbackHref, error);
+		}
+
+		replaceSafely(fallbackHref);
+	});
 };
 
 export const navigateBackOrHomeDashboard = () => {

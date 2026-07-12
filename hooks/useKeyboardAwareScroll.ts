@@ -39,6 +39,7 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 	const scrollYRef = React.useRef(0);
 	const keyboardHeightRef = React.useRef(0);
 	const keyboardTopRef = React.useRef<number | null>(null);
+	const pendingScrollTimersRef = React.useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 	const [keyboardHeight, setKeyboardHeight] = React.useState(0);
 
 	const scrollToInput = React.useCallback(
@@ -93,16 +94,37 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 		},
 		[getInputRef, keyboardScrollOffset, windowHeight],
 	);
+	const scheduleScrollToInput = React.useCallback(
+		(key: InputKey, delay: number) => {
+			const timer = setTimeout(() => {
+				pendingScrollTimersRef.current.delete(timer);
+				scrollToInput(key);
+			}, delay);
+
+			pendingScrollTimersRef.current.add(timer);
+		},
+		[scrollToInput],
+	);
+	const clearPendingScrollTimers = React.useCallback(() => {
+		pendingScrollTimersRef.current.forEach(timer => clearTimeout(timer));
+		pendingScrollTimersRef.current.clear();
+	}, []);
 
 	const handleInputFocus = React.useCallback(
 		(key: InputKey) => {
+			clearPendingScrollTimers();
 			lastFocusedInputKey.current = key;
 			scrollToInput(key);
 			focusRetryDelays.forEach(delay => {
-				setTimeout(() => scrollToInput(key), delay);
+				scheduleScrollToInput(key, delay);
 			});
 		},
-		[focusRetryDelays, scrollToInput],
+		[
+			clearPendingScrollTimers,
+			focusRetryDelays,
+			scheduleScrollToInput,
+			scrollToInput,
+		],
 	);
 
 	React.useEffect(() => {
@@ -118,12 +140,14 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 			const focusedKey = lastFocusedInputKey.current;
 			if (focusedKey) {
 				keyboardRetryDelays.forEach(delay => {
-					setTimeout(() => scrollToInput(focusedKey), delay);
+					scheduleScrollToInput(focusedKey, delay);
 				});
 			}
 		});
 
 		const hideSub = Keyboard.addListener(hideEvent, () => {
+			clearPendingScrollTimers();
+			lastFocusedInputKey.current = null;
 			keyboardHeightRef.current = 0;
 			keyboardTopRef.current = null;
 			setKeyboardHeight(0);
@@ -132,8 +156,15 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 		return () => {
 			showSub.remove();
 			hideSub.remove();
+			clearPendingScrollTimers();
+			lastFocusedInputKey.current = null;
 		};
-	}, [keyboardRetryDelays, scrollToInput, windowHeight]);
+	}, [
+		clearPendingScrollTimers,
+		keyboardRetryDelays,
+		scheduleScrollToInput,
+		windowHeight,
+	]);
 
 	const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
 		scrollYRef.current = event.nativeEvent.contentOffset.y;

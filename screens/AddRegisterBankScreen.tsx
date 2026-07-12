@@ -300,7 +300,6 @@ export default function AddRegisterBankScreen() {
                         isDarkMode,
                         duration: 4000,
                     });
-                    Keyboard.dismiss();
                     applyPostSubmitBehavior();
                 } else {
                     showNotifierAlert({
@@ -329,7 +328,6 @@ export default function AddRegisterBankScreen() {
                     isDarkMode,
                     duration: 4000,
                 });
-                Keyboard.dismiss();
                 applyPostSubmitBehavior({ resetForm: resetBankForm });
             } else {
                 showNotifierAlert({

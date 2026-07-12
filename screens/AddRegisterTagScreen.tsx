@@ -59,8 +59,8 @@ import {
 	APP_ROUTE_PATHS,
 	type AppRoutePath,
 	isAppRoutePath,
-	navigateBackOrRoute,
 	navigateToHomeDashboard,
+	redirectBackOrRoute,
 } from '@/utils/navigation';
 
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
@@ -271,7 +271,7 @@ export default function AddRegisterTagScreen() {
 		return isAppRoutePath(value) ? value : null;
 	}, [params.returnToRoute]);
 	const navigateBackToInlineSource = React.useCallback(() => {
-		navigateBackOrRoute(returnToRoute ?? APP_ROUTE_PATHS.home);
+		redirectBackOrRoute(returnToRoute ?? APP_ROUTE_PATHS.home);
 	}, [returnToRoute]);
 	const isEditing = Boolean(editingTagId);
 	// Segue [[Gerenciamento de Tags]]: parâmetros vindos de fluxos inline são pré-preenchimento, não bloqueio de edição.
@@ -603,7 +603,6 @@ export default function AddRegisterTagScreen() {
 						isDarkMode,
 						duration: 4000,
 					});
-					Keyboard.dismiss();
 					if (shouldReturnAfterCreate) {
 						navigateBackToInlineSource();
 					} else {
@@ -640,8 +639,6 @@ export default function AddRegisterTagScreen() {
 					isDarkMode,
 					duration: 4000,
 				});
-				Keyboard.dismiss();
-
 				if (shouldReturnAfterCreate && result.tagId) {
 					setPendingCreatedTag({
 						tagId: result.tagId,

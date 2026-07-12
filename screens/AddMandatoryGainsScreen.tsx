@@ -5,7 +5,6 @@ import {
 	StatusBar,
 	KeyboardAvoidingView,
 	Platform,
-	Keyboard,
 	TextInput,
 	Pressable,
 } from 'react-native';
@@ -623,7 +622,6 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
-		Keyboard.dismiss();
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
 			usageType: 'gain',
 			returnAfterCreate: '1',

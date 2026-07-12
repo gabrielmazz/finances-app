@@ -5,7 +5,6 @@ import {
 	StatusBar,
 	KeyboardAvoidingView,
 	Platform,
-	Keyboard,
 	TextInput,
 	Pressable,
 } from 'react-native';
@@ -614,7 +613,6 @@ export default function AddMandatoryExpensesScreen() {
 			return;
 		}
 
-		Keyboard.dismiss();
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
 			usageType: 'expense',
 			returnAfterCreate: '1',

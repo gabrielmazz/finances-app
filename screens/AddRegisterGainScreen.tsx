@@ -1,7 +1,6 @@
 import React from 'react';
 import {
 	BackHandler,
-	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	Pressable,
@@ -553,7 +552,6 @@ export default function AddRegisterGainScreen() {
 			return;
 		}
 
-		Keyboard.dismiss();
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
 			usageType: 'gain',
 			returnAfterCreate: '1',

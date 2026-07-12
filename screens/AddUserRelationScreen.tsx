@@ -162,7 +162,6 @@ export default function AddUserRelationScreen() {
 					duration: 4000,
 				});
 
-				Keyboard.dismiss();
 				applyPostSubmitBehavior({ resetForm: resetRelationForm });
 
 			} else {

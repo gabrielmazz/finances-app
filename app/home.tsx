@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo } from 'react';
+import { BackHandler } from 'react-native';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import HomeScreen from '@/screens/HomeScreen';
 import AddRegisterExpensesScreen from '@/screens/AddRegisterExpensesScreen';
@@ -23,6 +24,17 @@ const TAB_ITEMS = [
 export default function HomeRoute() {
 	const { tab } = useLocalSearchParams<{ tab?: string }>();
 	const tabCount = TAB_ITEMS.length;
+
+	useFocusEffect(
+		useCallback(() => {
+			const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+				BackHandler.exitApp();
+				return true;
+			});
+
+			return () => subscription.remove();
+		}, []),
+	);
 
 	const parsedTabFromParams = useMemo(() => {
 		const parsed = Number(tab);

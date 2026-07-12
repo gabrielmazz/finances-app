@@ -1,7 +1,6 @@
 import React from 'react';
 import {
 	BackHandler,
-	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
@@ -502,7 +501,6 @@ export default function AddRegisterExpensesScreen() {
 			return;
 		}
 
-		Keyboard.dismiss();
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
 			usageType: 'expense',
 			returnAfterCreate: '1',
