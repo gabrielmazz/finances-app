@@ -2,7 +2,7 @@ import React from 'react';
 import Constants from 'expo-constants';
 import { Linking, Platform, ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BellRing, Settings, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { BellRing, Route, Settings, TrendingDown, TrendingUp } from 'lucide-react-native';
 
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
@@ -15,7 +15,12 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { sendLocalNotificationTest } from '@/utils/localNotifications';
-import { APP_ROUTE_PATHS, navigateToHomeConfigurations, navigateToRoute } from '@/utils/navigation';
+import {
+	APP_ROUTE_PATHS,
+	navigateToHomeConfigurations,
+	navigateToRoute,
+	redirectToHomeDashboard,
+} from '@/utils/navigation';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import TestsScreenIllustration from '../assets/UnDraw/testsScreen.svg';
 
@@ -149,6 +154,10 @@ export default function AppTestsScreen() {
 		});
 	}, []);
 
+	const handleAutomaticNavigationTest = React.useCallback(() => {
+		redirectToHomeDashboard();
+	}, []);
+
 	const handleBackToConfigurations = React.useCallback(() => {
 		navigateToHomeConfigurations();
 		return true;
@@ -187,6 +196,36 @@ export default function AppTestsScreen() {
 					contentContainerStyle={{ paddingBottom: 48 }}
 				>
 					<VStack className="mt-4 gap-4">
+						<Heading className="text-lg uppercase tracking-widest" size="lg">
+							Fluxos de produção
+						</Heading>
+
+						<Box className={`${notTintedCardClassName} px-4 py-4`}>
+							<VStack className="gap-4">
+								<VStack className="min-w-0 gap-1">
+									<Text className={`${bodyText} text-base font-semibold`}>
+										Navegação automática
+									</Text>
+									<Text className={`${helperText} text-sm leading-5`}>
+										Executa o mesmo redirect seguro usado após salvar formulários. A Home deve abrir sem tela cinza.
+									</Text>
+								</VStack>
+
+								<Button
+									size="md"
+									variant="solid"
+									action="primary"
+									className={accordionSectionButtonClassName}
+									onPress={handleAutomaticNavigationTest}
+									accessibilityLabel="Testar navegação automática para a Home"
+									accessibilityHint="Executa o redirect de produção e deve abrir a Home sem tela cinza"
+								>
+									<ButtonIcon as={Route} size="md" />
+									<ButtonText>Testar redirect para Home</ButtonText>
+								</Button>
+							</VStack>
+						</Box>
+
 						<Heading className="text-lg uppercase tracking-widest" size="lg">
 							Recursos nativos
 						</Heading>

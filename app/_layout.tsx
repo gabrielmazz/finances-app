@@ -2,7 +2,7 @@ import React from 'react';
 import '@/utils/reactNativeCompat';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Redirect, Stack, usePathname, useRootNavigationState } from 'expo-router';
+import { Stack } from 'expo-router';
 import { NotifierWrapper } from 'react-native-notifier';
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,11 +11,15 @@ import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
-import { APP_ROUTE_PATHS, HOME_DASHBOARD_ROUTE } from '@/utils/navigation';
+import { APP_ROUTE_PATHS } from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
 import '@/global.css';
 
 void bootstrapLocalNotifications();
+
+const AUTHENTICATED_ROUTE_NAMES = Object.values(APP_ROUTE_PATHS)
+	.filter(pathname => pathname !== APP_ROUTE_PATHS.login)
+	.map(pathname => pathname.slice(1));
 
 const AuthBootstrapScreen = () => {
 	const { isDarkMode } = useAppTheme();
@@ -40,25 +44,24 @@ const AuthBootstrapScreen = () => {
 const AuthenticatedStack = () => {
 	const { isLoadingTheme } = useAppTheme();
 	const { isAuthReady, isAuthenticated } = useAuth();
-	const pathname = usePathname();
-	const rootNavigationState = useRootNavigationState();
-	const isLoginRoute = pathname === APP_ROUTE_PATHS.login || pathname === '/index';
-	const shouldRedirectToLogin = isAuthReady && !isAuthenticated && !isLoginRoute;
-	const shouldRedirectToHome = isAuthReady && isAuthenticated && isLoginRoute;
 
-	if (!rootNavigationState?.key || !isAuthReady || isLoadingTheme) {
+	if (!isAuthReady || isLoadingTheme) {
 		return <AuthBootstrapScreen />;
 	}
 
-	if (shouldRedirectToLogin) {
-		return <Redirect href="/" />;
-	}
+	return (
+		<Stack screenOptions={{ headerShown: false }}>
+			<Stack.Protected guard={!isAuthenticated}>
+				<Stack.Screen name="index" />
+			</Stack.Protected>
 
-	if (shouldRedirectToHome) {
-		return <Redirect href={HOME_DASHBOARD_ROUTE} />;
-	}
-
-	return <Stack screenOptions={{ headerShown: false }} />;
+			<Stack.Protected guard={isAuthenticated}>
+				{AUTHENTICATED_ROUTE_NAMES.map(routeName => (
+					<Stack.Screen key={routeName} name={routeName} />
+				))}
+			</Stack.Protected>
+		</Stack>
+	);
 };
 
 const LayoutWithTheme = () => {

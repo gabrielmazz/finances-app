@@ -1,5 +1,5 @@
 import React from 'react';
-import { Keyboard } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 import {
 	type PostSubmitDestinationKey,
@@ -9,8 +9,8 @@ import {
 import {
 	APP_ROUTE_PATHS,
 	HOME_TAB_INDEX,
-	dismissToRoute,
-	navigateToHomeTab,
+	redirectToHomeTab,
+	redirectToRoute,
 } from '@/utils/navigation';
 
 type ApplyPostSubmitBehaviorOptions = {
@@ -18,67 +18,81 @@ type ApplyPostSubmitBehaviorOptions = {
 };
 
 const navigateToPostSubmitDestination = (destination: PostSubmitDestinationKey) => {
-	Keyboard.dismiss();
-
 	switch (destination) {
 		case 'homeDashboard':
-			navigateToHomeTab(HOME_TAB_INDEX.dashboard);
+			redirectToHomeTab(HOME_TAB_INDEX.dashboard);
 			return;
 		case 'homeControl':
-			navigateToHomeTab(HOME_TAB_INDEX.control);
+			redirectToHomeTab(HOME_TAB_INDEX.control);
 			return;
 		case 'homeConfigurations':
-			navigateToHomeTab(HOME_TAB_INDEX.config);
+			redirectToHomeTab(HOME_TAB_INDEX.config);
 			return;
 		case 'categoryAnalysis':
-			dismissToRoute(APP_ROUTE_PATHS.categoryAnalysis);
+			redirectToRoute(APP_ROUTE_PATHS.categoryAnalysis);
 			return;
 		case 'addRegisterExpenses':
-			dismissToRoute(APP_ROUTE_PATHS.addRegisterExpenses);
+			redirectToRoute(APP_ROUTE_PATHS.addRegisterExpenses);
 			return;
 		case 'addRegisterGain':
-			dismissToRoute(APP_ROUTE_PATHS.addRegisterGain);
+			redirectToRoute(APP_ROUTE_PATHS.addRegisterGain);
 			return;
 		case 'registerMonthlyBalance':
-			dismissToRoute(APP_ROUTE_PATHS.registerMonthlyBalance);
+			redirectToRoute(APP_ROUTE_PATHS.registerMonthlyBalance);
 			return;
 		case 'transferScreen':
-			dismissToRoute(APP_ROUTE_PATHS.transferScreen);
+			redirectToRoute(APP_ROUTE_PATHS.transferScreen);
 			return;
 		case 'addRescue':
-			dismissToRoute(APP_ROUTE_PATHS.addRescue);
+			redirectToRoute(APP_ROUTE_PATHS.addRescue);
 			return;
 		case 'mandatoryExpenses':
-			dismissToRoute(APP_ROUTE_PATHS.mandatoryExpenses);
+			redirectToRoute(APP_ROUTE_PATHS.mandatoryExpenses);
 			return;
 		case 'mandatoryGains':
-			dismissToRoute(APP_ROUTE_PATHS.mandatoryGains);
+			redirectToRoute(APP_ROUTE_PATHS.mandatoryGains);
 			return;
 		case 'financialList':
-			dismissToRoute(APP_ROUTE_PATHS.financialList);
+			redirectToRoute(APP_ROUTE_PATHS.financialList);
 			return;
 		case 'addRegisterBank':
-			dismissToRoute(APP_ROUTE_PATHS.addRegisterBank);
+			redirectToRoute(APP_ROUTE_PATHS.addRegisterBank);
 			return;
 		case 'addRegisterTag':
-			dismissToRoute(APP_ROUTE_PATHS.addRegisterTag);
+			redirectToRoute(APP_ROUTE_PATHS.addRegisterTag);
 			return;
 		case 'addRegisterUser':
-			dismissToRoute(APP_ROUTE_PATHS.addRegisterUser);
+			redirectToRoute(APP_ROUTE_PATHS.addRegisterUser);
 			return;
 		case 'addUserRelation':
-			dismissToRoute(APP_ROUTE_PATHS.addUserRelation);
+			redirectToRoute(APP_ROUTE_PATHS.addUserRelation);
 			return;
 		default:
-			navigateToHomeTab(HOME_TAB_INDEX.dashboard);
+			redirectToHomeTab(HOME_TAB_INDEX.dashboard);
 	}
 };
 
 export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 	const { getBehaviorForScreen } = usePostSubmitBehaviorPreferences();
+	const isFocused = useIsFocused();
+	const isFocusedRef = React.useRef(isFocused);
+
+	React.useEffect(() => {
+		isFocusedRef.current = isFocused;
+
+		return () => {
+			isFocusedRef.current = false;
+		};
+	}, [isFocused]);
 
 	return React.useCallback(
 		(options: ApplyPostSubmitBehaviorOptions = {}) => {
+			// Uma requisição concluída depois que a tela perdeu foco não pode
+			// sequestrar a rota atual nem limpar estado de um formulário desmontado.
+			if (!isFocusedRef.current) {
+				return;
+			}
+
 			const behavior = getBehaviorForScreen(screenKey);
 
 			if (behavior.shouldReturnAfterSubmit) {
