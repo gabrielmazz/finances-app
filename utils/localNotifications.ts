@@ -1,8 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import type { NotificationPermissionsStatus, NotificationTriggerInput } from 'expo-notifications';
+import type { Notification } from '@notifee/react-native';
 
-export type NotificationsModule = typeof import('expo-notifications');
 export type MandatoryReminderKind = 'expense' | 'gain';
 export type LocalNotificationChannelKind = MandatoryReminderKind | 'systemTest';
 
@@ -12,18 +12,26 @@ export type LocalNotificationPermissionResult =
 
 export type LocalNotificationTestResult =
 	| {
-		success: true;
-		notificationId: string;
-		title: string;
-		body: string;
-	}
+			success: true;
+			notificationId: string;
+			title: string;
+			body: string;
+		}
 	| {
-		success: false;
-		reason: 'permissions-denied' | 'unavailable' | 'schedule-error';
-		message: string;
-	};
+			success: false;
+			reason: 'permissions-denied' | 'unavailable' | 'schedule-error';
+			message: string;
+		};
 
-type GetNotificationsModuleOptions = {
+export type NotifeeRuntime = {
+	notifee: typeof import('@notifee/react-native').default;
+	AuthorizationStatus: typeof import('@notifee/react-native').AuthorizationStatus;
+	AndroidImportance: typeof import('@notifee/react-native').AndroidImportance;
+	EventType: typeof import('@notifee/react-native').EventType;
+	TriggerType: typeof import('@notifee/react-native').TriggerType;
+};
+
+type GetNotifeeOptions = {
 	warnIfUnavailable?: boolean;
 };
 
@@ -37,19 +45,23 @@ type LocalNotificationChannelConfig = {
 	description: string;
 };
 
+const LEGACY_REMINDER_STORAGE_KEY = '@mandatoryReminderNotifications';
+const LEGACY_MIGRATION_STORAGE_KEY = '@mandatoryReminderNotifications:notifee-migration-v1';
+
+// Versioned IDs keep the old Expo channels isolated during the one-release migration.
 const LOCAL_NOTIFICATION_CHANNELS: Record<LocalNotificationChannelKind, LocalNotificationChannelConfig> = {
 	expense: {
-		id: 'mandatory-expenses-v2',
+		id: 'mandatory-expenses-v3-notifee',
 		name: 'Gastos obrigatórios',
 		description: 'Lembretes para os gastos obrigatórios cadastrados.',
 	},
 	gain: {
-		id: 'mandatory-gains-v2',
+		id: 'mandatory-gains-v3-notifee',
 		name: 'Ganhos obrigatórios',
 		description: 'Lembretes para os ganhos obrigatórios cadastrados.',
 	},
 	systemTest: {
-		id: 'system-tests-v1',
+		id: 'system-tests-v2-notifee',
 		name: 'Testes do sistema',
 		description: 'Notificações disparadas pela tela de testes do aplicativo.',
 	},
@@ -60,9 +72,11 @@ const MANDATORY_REMINDER_CHANNELS: Record<MandatoryReminderKind, LocalNotificati
 	gain: LOCAL_NOTIFICATION_CHANNELS.gain,
 };
 
-let cachedNotificationsModule: NotificationsModule | null = null;
+let cachedNotifeeRuntime: NotifeeRuntime | null = null;
 let hasWarnedUnavailableEnvironment = false;
-let hasConfiguredNotificationHandler = false;
+let hasRegisteredForegroundEvents = false;
+let hasRegisteredBackgroundEvents = false;
+let legacyMigrationPromise: Promise<void> | null = null;
 
 export const isExpoGoEnvironment = Constants.appOwnership === 'expo' || Boolean(Constants.expoGoConfig);
 
@@ -71,11 +85,7 @@ export const isNotificationsEnvironmentSupported = () => {
 		return false;
 	}
 
-	if (isExpoGoEnvironment) {
-		return false;
-	}
-
-	return true;
+	return !isExpoGoEnvironment;
 };
 
 export const warnNotificationsUnavailable = () => {
@@ -85,13 +95,11 @@ export const warnNotificationsUnavailable = () => {
 
 	hasWarnedUnavailableEnvironment = true;
 	console.warn(
-		'Os lembretes obrigatórios não podem ser agendados no Expo Go. Use um build de desenvolvimento ou produção para testar notificações.',
+		'Os lembretes locais exigem um build de desenvolvimento ou produção. O Expo Go não inclui o módulo nativo Notifee.',
 	);
 };
 
-export const getNotificationsModule = ({
-	warnIfUnavailable = true,
-}: GetNotificationsModuleOptions = {}): NotificationsModule | null => {
+export const getNotifeeRuntime = ({ warnIfUnavailable = true }: GetNotifeeOptions = {}): NotifeeRuntime | null => {
 	if (!isNotificationsEnvironmentSupported()) {
 		if (warnIfUnavailable) {
 			warnNotificationsUnavailable();
@@ -99,44 +107,29 @@ export const getNotificationsModule = ({
 		return null;
 	}
 
-	if (!cachedNotificationsModule) {
+	if (!cachedNotifeeRuntime) {
 		try {
+			// Notifee is loaded only in native builds so web/Expo Go never resolve a missing native module.
 			// eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
-			cachedNotificationsModule = require('expo-notifications');
+			const module = require('@notifee/react-native') as typeof import('@notifee/react-native');
+			cachedNotifeeRuntime = {
+				notifee: module.default ?? (module as unknown as typeof import('@notifee/react-native').default),
+				AuthorizationStatus: module.AuthorizationStatus,
+				AndroidImportance: module.AndroidImportance,
+				EventType: module.EventType,
+				TriggerType: module.TriggerType,
+			};
 		} catch (error) {
-			console.error('Não foi possível carregar o módulo expo-notifications:', error);
+			console.error('Não foi possível carregar o módulo nativo Notifee:', error);
 			return null;
 		}
 	}
 
-	return cachedNotificationsModule;
+	return cachedNotifeeRuntime;
 };
 
 export const getMandatoryReminderChannelConfig = (kind: MandatoryReminderKind) => MANDATORY_REMINDER_CHANNELS[kind];
 export const getSystemTestNotificationChannelConfig = () => LOCAL_NOTIFICATION_CHANNELS.systemTest;
-
-export const configureLocalNotificationHandler = () => {
-	const Notifications = getNotificationsModule({ warnIfUnavailable: false });
-	if (!Notifications) {
-		return false;
-	}
-
-	if (hasConfiguredNotificationHandler) {
-		return true;
-	}
-
-	// Segue [[Notificações]]: o handler precisa ser registrado no entry real do Expo Router.
-	Notifications.setNotificationHandler({
-		handleNotification: async () => ({
-			shouldPlaySound: true,
-			shouldSetBadge: false,
-			shouldShowBanner: true,
-			shouldShowList: true,
-		}),
-	});
-	hasConfiguredNotificationHandler = true;
-	return true;
-};
 
 export const ensureLocalNotificationChannel = async (
 	kind: LocalNotificationChannelKind,
@@ -146,18 +139,18 @@ export const ensureLocalNotificationChannel = async (
 		return true;
 	}
 
-	const Notifications = getNotificationsModule({ warnIfUnavailable });
-	if (!Notifications) {
+	const runtime = getNotifeeRuntime({ warnIfUnavailable });
+	if (!runtime) {
 		return false;
 	}
 
 	const channel = LOCAL_NOTIFICATION_CHANNELS[kind];
-	await Notifications.setNotificationChannelAsync(channel.id, {
+	await runtime.notifee.createChannel({
+		id: channel.id,
 		name: channel.name,
-		importance: Notifications.AndroidImportance.HIGH,
 		description: channel.description,
-		enableVibrate: true,
-		showBadge: true,
+		importance: runtime.AndroidImportance.HIGH,
+		vibration: true,
 		sound: 'default',
 	});
 	return true;
@@ -187,39 +180,32 @@ export const ensureLocalNotificationChannels = async (options?: EnsureChannelOpt
 	);
 };
 
-const isPermissionGranted = (Notifications: NotificationsModule, settings: NotificationPermissionsStatus) =>
-	settings.granted === true || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+const isPermissionGranted = (runtime: NotifeeRuntime, authorizationStatus: number) =>
+	authorizationStatus >= runtime.AuthorizationStatus.AUTHORIZED;
 
 export const hasLocalNotificationPermission = async () => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		warnNotificationsUnavailable();
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		return false;
 	}
 
-	const settings = await Notifications.getPermissionsAsync();
-	return isPermissionGranted(Notifications, settings);
+	const settings = await runtime.notifee.getNotificationSettings();
+	return isPermissionGranted(runtime, settings.authorizationStatus);
 };
 
 export const requestLocalNotificationPermission = async () => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		warnNotificationsUnavailable();
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		return false;
 	}
 
-	configureLocalNotificationHandler();
 	await ensureLocalNotificationChannels();
-
-	const settings = await Notifications.requestPermissionsAsync({
-		ios: {
-			allowAlert: true,
-			allowBadge: false,
-			allowSound: true,
-		},
+	const settings = await runtime.notifee.requestPermission({
+		alert: true,
+		badge: false,
+		sound: true,
 	});
-
-	return isPermissionGranted(Notifications, settings);
+	return isPermissionGranted(runtime, settings.authorizationStatus);
 };
 
 export const ensureLocalNotificationPermission = async ({
@@ -227,12 +213,9 @@ export const ensureLocalNotificationPermission = async ({
 }: {
 	requestIfNeeded?: boolean;
 } = {}): Promise<LocalNotificationPermissionResult> => {
-	if (!getNotificationsModule()) {
-		warnNotificationsUnavailable();
+	if (!getNotifeeRuntime()) {
 		return { granted: false, reason: 'unavailable' };
 	}
-
-	configureLocalNotificationHandler();
 
 	if (await hasLocalNotificationPermission()) {
 		return { granted: true };
@@ -242,26 +225,103 @@ export const ensureLocalNotificationPermission = async ({
 		return { granted: false, reason: 'permissions-denied' };
 	}
 
-	const granted = await requestLocalNotificationPermission();
-	if (granted) {
-		return { granted: true };
+	try {
+		return (await requestLocalNotificationPermission())
+			? { granted: true }
+			: { granted: false, reason: 'permissions-denied' };
+	} catch (error) {
+		console.error('Erro ao solicitar a permissão de notificações:', error);
+		return { granted: false, reason: 'permissions-denied' };
+	}
+};
+
+const scheduleNextMandatoryReminderFromDelivery = async (notification?: Notification) => {
+	if (Platform.OS !== 'android' || !notification) {
+		return;
 	}
 
-	return { granted: false, reason: 'permissions-denied' };
+	try {
+		// Avoid a circular startup dependency: this is only resolved after a reminder was delivered.
+		// eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+		const { scheduleNextMandatoryReminderFromNotification } = require('@/utils/mandatoryReminderNotifications') as typeof import('@/utils/mandatoryReminderNotifications');
+		await scheduleNextMandatoryReminderFromNotification(notification);
+	} catch (error) {
+		console.error('Erro ao preparar o próximo lembrete obrigatório:', error);
+	}
+};
+
+const registerForegroundEvents = () => {
+	const runtime = getNotifeeRuntime({ warnIfUnavailable: false });
+	if (!runtime || hasRegisteredForegroundEvents) {
+		return;
+	}
+
+	runtime.notifee.onForegroundEvent(async ({ type, detail }) => {
+		if (type === runtime.EventType.DELIVERED) {
+			await scheduleNextMandatoryReminderFromDelivery(detail.notification);
+		}
+	});
+	hasRegisteredForegroundEvents = true;
+};
+
+export const registerLocalNotificationBackgroundHandler = () => {
+	const runtime = getNotifeeRuntime({ warnIfUnavailable: false });
+	if (!runtime || hasRegisteredBackgroundEvents) {
+		return false;
+	}
+
+	// Notifee accepts one background handler. index.ts registers it before Expo Router starts.
+	runtime.notifee.onBackgroundEvent(async ({ type, detail }) => {
+		if (type === runtime.EventType.DELIVERED) {
+			await scheduleNextMandatoryReminderFromDelivery(detail.notification);
+		}
+	});
+	hasRegisteredBackgroundEvents = true;
+	return true;
+};
+
+const migrateLegacyExpoSchedules = async () => {
+	const migrationComplete = await AsyncStorage.getItem(LEGACY_MIGRATION_STORAGE_KEY);
+	if (migrationComplete) {
+		return;
+	}
+
+	const legacySchedules = await AsyncStorage.getItem(LEGACY_REMINDER_STORAGE_KEY);
+	if (!legacySchedules) {
+		await AsyncStorage.setItem(LEGACY_MIGRATION_STORAGE_KEY, 'no-legacy-schedules');
+		return;
+	}
+
+	try {
+		// The Expo module remains in this release only to cancel alarms created by prior builds.
+		// eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+		const legacyNotifications = require('expo-notifications') as typeof import('expo-notifications');
+		await legacyNotifications.cancelAllScheduledNotificationsAsync();
+		await AsyncStorage.removeItem(LEGACY_REMINDER_STORAGE_KEY);
+		await AsyncStorage.setItem(LEGACY_MIGRATION_STORAGE_KEY, 'cancelled');
+	} catch (error) {
+		console.warn('Não foi possível limpar os agendamentos legados do Expo Notifications:', error);
+	}
+};
+
+export const ensureLegacyNotificationMigration = async () => {
+	if (!legacyMigrationPromise) {
+		legacyMigrationPromise = migrateLegacyExpoSchedules();
+	}
+
+	await legacyMigrationPromise;
 };
 
 export const sendLocalNotificationTest = async (): Promise<LocalNotificationTestResult> => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
-		warnNotificationsUnavailable();
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		return {
 			success: false,
 			reason: 'unavailable',
-			message: 'As notificações locais não estão disponíveis neste ambiente.',
+			message: 'As notificações locais exigem um build de desenvolvimento ou produção.',
 		};
 	}
 
-	configureLocalNotificationHandler();
 	const permission = await ensureLocalNotificationPermission();
 	if (!permission.granted) {
 		return {
@@ -269,7 +329,7 @@ export const sendLocalNotificationTest = async (): Promise<LocalNotificationTest
 			reason: permission.reason,
 			message:
 				permission.reason === 'unavailable'
-					? 'As notificações locais não estão disponíveis neste ambiente.'
+					? 'As notificações locais exigem um build de desenvolvimento ou produção.'
 					: 'As notificações do aplicativo estão desativadas para este dispositivo.',
 		};
 	}
@@ -279,28 +339,23 @@ export const sendLocalNotificationTest = async (): Promise<LocalNotificationTest
 		const channel = getSystemTestNotificationChannelConfig();
 		const title = 'Teste de notificação';
 		const body = 'Se esta mensagem apareceu, as notificações locais do Lumus Finanças estão funcionando neste dispositivo.';
-		const trigger: NotificationTriggerInput = Platform.OS === 'android' ? { channelId: channel.id } : null;
-		const notificationId = await Notifications.scheduleNotificationAsync({
-			content: {
-				title,
-				body,
-				sound: true,
-				priority: Platform.OS === 'android' ? Notifications.AndroidNotificationPriority.HIGH : undefined,
-				vibrate: Platform.OS === 'android' ? [0, 250, 250, 250] : undefined,
-				data: {
-					kind: 'system-test',
-					triggeredAt: new Date().toISOString(),
-				},
-			},
-			trigger,
-		});
-
-		return {
-			success: true,
-			notificationId,
+		const notificationId = await runtime.notifee.displayNotification({
 			title,
 			body,
-		};
+			data: {
+				kind: 'system-test',
+				triggeredAt: new Date().toISOString(),
+			},
+			android: {
+				channelId: channel.id,
+				pressAction: { id: 'default' },
+			},
+			ios: {
+				sound: 'default',
+			},
+		});
+
+		return { success: true, notificationId, title, body };
 	} catch (error) {
 		console.error('Erro ao disparar notificação local de teste:', error);
 		return {
@@ -311,11 +366,29 @@ export const sendLocalNotificationTest = async (): Promise<LocalNotificationTest
 	}
 };
 
+export const openLocalNotificationSettings = async () => {
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
+		return false;
+	}
+
+	await runtime.notifee.openNotificationSettings(
+		Platform.OS === 'android' ? getSystemTestNotificationChannelConfig().id : undefined,
+	);
+	return true;
+};
+
 export const bootstrapLocalNotifications = async () => {
-	const didConfigureHandler = configureLocalNotificationHandler();
-	if (!didConfigureHandler) {
+	const runtime = getNotifeeRuntime({ warnIfUnavailable: false });
+	if (!runtime) {
 		return;
 	}
 
-	await ensureLocalNotificationChannels({ warnIfUnavailable: false });
+	try {
+		await ensureLegacyNotificationMigration();
+		await ensureLocalNotificationChannels({ warnIfUnavailable: false });
+		registerForegroundEvents();
+	} catch (error) {
+		console.error('Erro ao inicializar as notificações locais:', error);
+	}
 };
