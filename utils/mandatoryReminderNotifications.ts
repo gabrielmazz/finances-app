@@ -1,17 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import type { NotificationContentInput, SchedulableNotificationTriggerInput } from 'expo-notifications';
+import type { Notification } from '@notifee/react-native';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import {
-	ensureMandatoryReminderNotificationChannel,
+	ensureLegacyNotificationMigration,
 	ensureLocalNotificationPermission,
+	ensureMandatoryReminderNotificationChannel,
 	getMandatoryReminderChannelConfig,
-	getNotificationsModule,
+	getNotifeeRuntime,
 	hasLocalNotificationPermission,
 	warnNotificationsUnavailable,
 	type LocalNotificationPermissionResult,
 	type MandatoryReminderKind,
-	type NotificationsModule,
+	type NotifeeRuntime,
 } from '@/utils/localNotifications';
 
 export type { MandatoryReminderKind } from '@/utils/localNotifications';
@@ -20,16 +21,16 @@ export type MandatoryReminderPermissionResult = LocalNotificationPermissionResul
 
 export type MandatoryReminderScheduleResult =
 	| {
-		success: true;
-		nextTriggerAt: Date;
-		title: string;
-		body: string;
-	}
+			success: true;
+			nextTriggerAt: Date;
+			title: string;
+			body: string;
+		}
 	| {
-		success: false;
-		reason: 'permissions-denied' | 'unavailable' | 'invalid-trigger';
-		message: string;
-	};
+			success: false;
+			reason: 'permissions-denied' | 'unavailable' | 'invalid-trigger' | 'limit-reached';
+			message: string;
+		};
 
 export type MandatoryReminderSyncItem = {
 	id: string;
@@ -42,6 +43,14 @@ export type MandatoryReminderSyncItem = {
 	description?: string | null;
 };
 
+type MandatoryReminderConfig = Required<
+	Pick<MandatoryReminderSyncItem, 'id' | 'name' | 'dueDay' | 'reminderHour' | 'reminderMinute'>
+> & {
+	kind: MandatoryReminderKind;
+	usesBusinessDays: boolean;
+	description: string | null;
+};
+
 type ReminderScheduledOccurrence = {
 	notificationId: string;
 	triggerAt: string;
@@ -49,16 +58,17 @@ type ReminderScheduledOccurrence = {
 
 type ReminderStorageEntry = {
 	fingerprint: string;
+	config: MandatoryReminderConfig;
 	nextTriggerAt: string;
 	schedules: ReminderScheduledOccurrence[];
-	notificationId?: string;
 };
 
 type ReminderStorageMap = Record<string, ReminderStorageEntry>;
 
-const STORAGE_KEY = '@mandatoryReminderNotifications';
-
-const DATE_SCHEDULE_WINDOW_MONTHS = 12;
+const STORAGE_KEY = '@mandatoryReminderNotifications:notifee-v3';
+const IOS_MAX_SCHEDULED_REMINDERS = 60;
+const IOS_MAX_MONTHLY_WINDOW = 12;
+const ANDROID_MAX_SCHEDULED_REMINDERS = 50;
 
 const normalizeDay = (value: number) => Math.min(Math.max(Math.trunc(value) || 1, 1), 31);
 const normalizeHour = (value: number) => Math.min(Math.max(Math.trunc(value) || 0, 0), 23);
@@ -74,35 +84,9 @@ const normalizeDescription = (value?: string | null) => {
 	return trimmed.length > 0 ? trimmed : null;
 };
 
-const buildReminderContent = ({
-	kind,
-	name,
-	description,
-}: {
-	kind: MandatoryReminderKind;
-	name: string;
-	description?: string | null;
-}) => {
-	const normalizedName = normalizeName(name);
-	const normalizedDescription = normalizeDescription(description);
-	const observationSuffix = normalizedDescription ? ` Observação: ${normalizedDescription}` : '';
-
-	if (kind === 'expense') {
-		return {
-			title: `Vencimento de ${normalizedName}`,
-			body: `O pagamento de ${normalizedName} deve ser efetuado hoje.${observationSuffix}`,
-		};
-	}
-
-	return {
-		title: `Recebimento de ${normalizedName}`,
-		body: `O recebimento de ${normalizedName} deve ser realizado hoje.${observationSuffix}`,
-	};
-};
-
 const buildReminderStorageKey = (kind: MandatoryReminderKind, templateId: string) => `${kind}:${templateId}`;
 
-const buildReminderFingerprint = ({
+const buildConfig = ({
 	kind,
 	templateId,
 	name,
@@ -120,22 +104,40 @@ const buildReminderFingerprint = ({
 	reminderHour: number;
 	reminderMinute: number;
 	description?: string | null;
-}) =>
+}): MandatoryReminderConfig => ({
+	kind,
+	id: templateId,
+	name: normalizeName(name),
+	dueDay: normalizeDay(dueDay),
+	usesBusinessDays: normalizeUsesBusinessDays(usesBusinessDays),
+	reminderHour: normalizeHour(reminderHour),
+	reminderMinute: normalizeMinute(reminderMinute),
+	description: normalizeDescription(description),
+});
+
+const buildReminderFingerprint = (config: MandatoryReminderConfig) =>
 	JSON.stringify({
-		kind,
-		templateId,
-		channelId: getMandatoryReminderChannelConfig(kind).id,
-		scheduleStrategy:
-			Platform.OS === 'android' || normalizeUsesBusinessDays(usesBusinessDays)
-				? `date-window-v2:${DATE_SCHEDULE_WINDOW_MONTHS}`
-				: 'repeating-calendar-v2',
-		name: normalizeName(name),
-		dueDay: normalizeDay(dueDay),
-		usesBusinessDays: normalizeUsesBusinessDays(usesBusinessDays),
-		reminderHour: normalizeHour(reminderHour),
-		reminderMinute: normalizeMinute(reminderMinute),
-		description: normalizeDescription(description),
+		version: 'notifee-v3',
+		...config,
+		channelId: getMandatoryReminderChannelConfig(config.kind).id,
+		strategy: Platform.OS === 'android' ? 'next-delivery-v3' : 'capacity-window-v3',
 	});
+
+const buildReminderContent = (config: MandatoryReminderConfig) => {
+	const observationSuffix = config.description ? ` Observação: ${config.description}` : '';
+
+	if (config.kind === 'expense') {
+		return {
+			title: `Vencimento de ${config.name}`,
+			body: `O pagamento de ${config.name} deve ser efetuado hoje.${observationSuffix}`,
+		};
+	}
+
+	return {
+		title: `Recebimento de ${config.name}`,
+		body: `O recebimento de ${config.name} deve ser realizado hoje.${observationSuffix}`,
+	};
+};
 
 const readReminderMap = async (): Promise<ReminderStorageMap> => {
 	try {
@@ -159,84 +161,41 @@ const writeReminderMap = async (map: ReminderStorageMap) => {
 	}
 };
 
-const getEntrySchedules = (entry?: ReminderStorageEntry | null): ReminderScheduledOccurrence[] => {
-	if (!entry) {
-		return [];
-	}
-
-	if (Array.isArray(entry.schedules)) {
-		return entry.schedules.filter(
+const getEntrySchedules = (entry?: ReminderStorageEntry | null): ReminderScheduledOccurrence[] =>
+	Array.isArray(entry?.schedules)
+		? entry.schedules.filter(
 			schedule =>
 				typeof schedule?.notificationId === 'string' &&
 				schedule.notificationId.length > 0 &&
 				typeof schedule?.triggerAt === 'string' &&
 				schedule.triggerAt.length > 0,
-		);
-	}
+		)
+		: [];
 
-	if (typeof entry.notificationId === 'string' && entry.notificationId.length > 0) {
-		return [
-			{
-				notificationId: entry.notificationId,
-				triggerAt: entry.nextTriggerAt,
-			},
-		];
-	}
-
-	return [];
-};
-
-const buildRepeatingFixedDayReminderTrigger = (
-	Notifications: NotificationsModule,
-	kind: MandatoryReminderKind,
-	dueDay: number,
-	reminderHour: number,
-	reminderMinute: number,
-): SchedulableNotificationTriggerInput => {
-	const normalizedDay = normalizeDay(dueDay);
-	const normalizedHour = normalizeHour(reminderHour);
-	const normalizedMinute = normalizeMinute(reminderMinute);
-	const channelId = getMandatoryReminderChannelConfig(kind).id;
-
-	return {
-		type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-		channelId,
-		repeats: true,
-		day: normalizedDay,
-		hour: normalizedHour,
-		minute: normalizedMinute,
-		second: 0,
-	};
-};
-
-const buildMonthlyReminderDates = ({
-	dueDay,
-	usesBusinessDays,
-	reminderHour,
-	reminderMinute,
+const getFutureMonthlyOccurrences = ({
+	config,
+	count,
 	fromDate = new Date(),
 }: {
-	dueDay: number;
-	usesBusinessDays?: boolean;
-	reminderHour: number;
-	reminderMinute: number;
+	config: MandatoryReminderConfig;
+	count: number;
 	fromDate?: Date;
 }) => {
 	const dates: Date[] = [];
 	const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 12, 0, 0, 0);
 
-	while (dates.length < DATE_SCHEDULE_WINDOW_MONTHS) {
+	while (dates.length < count) {
 		const resolvedOccurrence = resolveMonthlyOccurrence({
 			referenceDate: cursor,
-			dueDay,
-			usesBusinessDays,
+			dueDay: config.dueDay,
+			usesBusinessDays: config.usesBusinessDays,
 		});
 		const triggerAt = new Date(
 			resolvedOccurrence.date.getFullYear(),
 			resolvedOccurrence.date.getMonth(),
 			resolvedOccurrence.date.getDate(),
-			normalizeHour(reminderHour),
-			normalizeMinute(reminderMinute),
+			config.reminderHour,
+			config.reminderMinute,
 			0,
 			0,
 		);
@@ -251,210 +210,171 @@ const buildMonthlyReminderDates = ({
 	return dates;
 };
 
-const buildReminderContentInput = ({
-	Notifications,
-	kind,
-	templateId,
-	dueDay,
-	usesBusinessDays,
-	content,
-}: {
-	Notifications: NotificationsModule;
-	kind: MandatoryReminderKind;
-	templateId: string;
-	dueDay: number;
-	usesBusinessDays: boolean;
-	content: ReturnType<typeof buildReminderContent>;
-}): NotificationContentInput => ({
-	title: content.title,
-	body: content.body,
-	sound: true,
-	priority: Platform.OS === 'android' ? Notifications.AndroidNotificationPriority.HIGH : undefined,
-	data: {
-		templateId,
-		kind,
-		dueDay: normalizeDay(dueDay),
-		usesBusinessDays,
-	},
-});
+const buildNotificationId = (config: MandatoryReminderConfig, triggerAt: Date) =>
+	`mandatory-${config.kind}-${encodeURIComponent(config.id)}-${triggerAt.getTime()}`;
 
-const getScheduledNotificationIdSet = async (Notifications: NotificationsModule) => {
-	const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-	return new Set(
-		scheduledNotifications
-			.map(notification => notification.identifier)
-			.filter((identifier): identifier is string => typeof identifier === 'string' && identifier.length > 0),
+const createTriggerNotification = async ({
+	runtime,
+	config,
+	triggerAt,
+}: {
+	runtime: NotifeeRuntime;
+	config: MandatoryReminderConfig;
+	triggerAt: Date;
+}): Promise<ReminderScheduledOccurrence> => {
+	const content = buildReminderContent(config);
+	const notificationId = buildNotificationId(config, triggerAt);
+	await runtime.notifee.createTriggerNotification(
+		{
+			id: notificationId,
+			title: content.title,
+			body: content.body,
+			data: {
+				reminderType: 'mandatory-v3',
+				kind: config.kind,
+				templateId: config.id,
+				name: config.name,
+				dueDay: config.dueDay,
+				usesBusinessDays: config.usesBusinessDays ? '1' : '0',
+				reminderHour: config.reminderHour,
+				reminderMinute: config.reminderMinute,
+				description: config.description ?? '',
+			},
+			android: {
+				channelId: getMandatoryReminderChannelConfig(config.kind).id,
+				pressAction: { id: 'default' },
+			},
+			ios: {
+				sound: 'default',
+			},
+		},
+		{
+			type: runtime.TriggerType.TIMESTAMP,
+			timestamp: triggerAt.getTime(),
+		},
 	);
+
+	return {
+		notificationId,
+		triggerAt: triggerAt.toISOString(),
+	};
 };
 
-const cancelReminderNotificationInternal = async ({
-	kind,
-	templateId,
-	Notifications,
-	map,
-}: {
-	kind: MandatoryReminderKind;
-	templateId: string;
-	Notifications: NotificationsModule;
-	map: ReminderStorageMap;
-}) => {
-	const storageKey = buildReminderStorageKey(kind, templateId);
-	const currentEntry = map[storageKey];
-	const schedules = getEntrySchedules(currentEntry);
-
-	for (const schedule of schedules) {
+const cancelEntrySchedules = async (runtime: NotifeeRuntime, entry?: ReminderStorageEntry | null) => {
+	for (const schedule of getEntrySchedules(entry)) {
 		try {
-			await Notifications.cancelScheduledNotificationAsync(schedule.notificationId);
+			await runtime.notifee.cancelNotification(schedule.notificationId);
 		} catch (error) {
 			console.warn('Erro ao cancelar lembrete obrigatório agendado:', error);
 		}
 	}
-
-	if (currentEntry) {
-		delete map[storageKey];
-		return true;
-	}
-
-	return false;
 };
 
-const scheduleReminderNotificationInternal = async ({
-	kind,
-	templateId,
-	name,
-	dueDay,
-	usesBusinessDays,
-	reminderHour,
-	reminderMinute,
-	description,
-	Notifications,
+const getActiveEntries = (map: ReminderStorageMap) =>
+	Object.entries(map)
+		.filter(([, entry]) => entry?.config && typeof entry.config.id === 'string')
+		.sort(([, left], [, right]) => {
+			const leftNext = getFutureMonthlyOccurrences({ config: left.config, count: 1 })[0]?.getTime() ?? Number.MAX_SAFE_INTEGER;
+			const rightNext = getFutureMonthlyOccurrences({ config: right.config, count: 1 })[0]?.getTime() ?? Number.MAX_SAFE_INTEGER;
+			return leftNext - rightNext || left.config.name.localeCompare(right.config.name);
+		});
+
+const areAllSchedulesCurrent = async (runtime: NotifeeRuntime, map: ReminderStorageMap) => {
+	const triggerIds = new Set(await runtime.notifee.getTriggerNotificationIds());
+	return getActiveEntries(map).every(([, entry]) => {
+		const schedules = getEntrySchedules(entry);
+		return schedules.length > 0 && schedules.every(schedule => triggerIds.has(schedule.notificationId));
+	});
+};
+
+const buildLimitReachedResult = (): MandatoryReminderScheduleResult => ({
+	success: false,
+	reason: 'limit-reached',
+	message:
+		'O dispositivo atingiu o limite de lembretes locais pendentes. Abra a lista de gastos ou ganhos após concluir lembretes antigos para reidratar a agenda.',
+});
+
+const scheduleAllActiveEntries = async ({
+	runtime,
 	map,
 }: {
-	kind: MandatoryReminderKind;
-	templateId: string;
-	name: string;
-	dueDay: number;
-	usesBusinessDays?: boolean;
-	reminderHour: number;
-	reminderMinute: number;
-	description?: string | null;
-	Notifications: NotificationsModule;
+	runtime: NotifeeRuntime;
 	map: ReminderStorageMap;
-}): Promise<MandatoryReminderScheduleResult> => {
-	await ensureMandatoryReminderNotificationChannel(kind);
+}): Promise<Map<string, MandatoryReminderScheduleResult>> => {
+	const entries = getActiveEntries(map);
+	const results = new Map<string, MandatoryReminderScheduleResult>();
 
-	const content = buildReminderContent({ kind, name, description });
-	const storageKey = buildReminderStorageKey(kind, templateId);
-	const normalizedUsesBusinessDays = normalizeUsesBusinessDays(usesBusinessDays);
-	await cancelReminderNotificationInternal({ kind, templateId, Notifications, map });
-	const schedules: ReminderScheduledOccurrence[] = [];
-	let nextTriggerAt: Date | null = null;
-
-	if (Platform.OS === 'android' || normalizedUsesBusinessDays) {
-		const triggerDates = buildMonthlyReminderDates({
-			dueDay,
-			usesBusinessDays: normalizedUsesBusinessDays,
-			reminderHour,
-			reminderMinute,
-		});
-
-		if (triggerDates.length === 0) {
-			return {
-				success: false,
-				reason: 'invalid-trigger',
-				message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
-			};
-		}
-
-		for (const triggerDate of triggerDates) {
-			const notificationId = await Notifications.scheduleNotificationAsync({
-				content: buildReminderContentInput({
-					Notifications,
-					kind,
-					templateId,
-					dueDay,
-					usesBusinessDays: normalizedUsesBusinessDays,
-					content,
-				}),
-				trigger: {
-					type: Notifications.SchedulableTriggerInputTypes.DATE,
-					date: triggerDate,
-					channelId: getMandatoryReminderChannelConfig(kind).id,
-				},
-			});
-
-			schedules.push({
-				notificationId,
-				triggerAt: triggerDate.toISOString(),
-			});
-		}
-
-		nextTriggerAt = triggerDates[0] ?? null;
-	} else {
-		const trigger = buildRepeatingFixedDayReminderTrigger(Notifications, kind, dueDay, reminderHour, reminderMinute);
-		const nextTriggerTimestamp = await Notifications.getNextTriggerDateAsync(trigger);
-
-		if (nextTriggerTimestamp === null) {
-			return {
-				success: false,
-				reason: 'invalid-trigger',
-				message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
-			};
-		}
-
-		const notificationId = await Notifications.scheduleNotificationAsync({
-			content: buildReminderContentInput({
-				Notifications,
-				kind,
-				templateId,
-				dueDay,
-				usesBusinessDays: false,
-				content,
-			}),
-			trigger,
-		});
-
-		nextTriggerAt = new Date(nextTriggerTimestamp);
-		schedules.push({
-			notificationId,
-			triggerAt: nextTriggerAt.toISOString(),
-		});
+	for (const [, entry] of entries) {
+		await cancelEntrySchedules(runtime, entry);
+		entry.schedules = [];
 	}
 
-	if (!nextTriggerAt) {
-		return {
-			success: false,
-			reason: 'invalid-trigger',
-			message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
-		};
+	const existingTriggerCount = (await runtime.notifee.getTriggerNotificationIds()).length;
+	const triggerLimit = Platform.OS === 'android' ? ANDROID_MAX_SCHEDULED_REMINDERS : IOS_MAX_SCHEDULED_REMINDERS;
+	const availableSlots = Math.max(0, triggerLimit - existingTriggerCount);
+	const entriesToSchedule = entries.slice(0, availableSlots);
+	const occurrencesPerEntry =
+		Platform.OS === 'android'
+			? 1
+			: Math.max(1, Math.min(IOS_MAX_MONTHLY_WINDOW, Math.floor(availableSlots / Math.max(entriesToSchedule.length, 1))));
+
+	for (const [storageKey, entry] of entries) {
+		if (!entriesToSchedule.some(([eligibleKey]) => eligibleKey === storageKey)) {
+			results.set(storageKey, buildLimitReachedResult());
+			continue;
+		}
+
+		try {
+			await ensureMandatoryReminderNotificationChannel(entry.config.kind);
+			const triggerDates = getFutureMonthlyOccurrences({ config: entry.config, count: occurrencesPerEntry });
+			const schedules: ReminderScheduledOccurrence[] = [];
+			for (const triggerAt of triggerDates) {
+				schedules.push(await createTriggerNotification({ runtime, config: entry.config, triggerAt }));
+			}
+
+			const nextTriggerAt = triggerDates[0];
+			if (!nextTriggerAt) {
+				results.set(storageKey, {
+					success: false,
+					reason: 'invalid-trigger',
+					message: 'Não foi possível calcular a próxima data do lembrete com os dados informados.',
+				});
+				continue;
+			}
+
+			entry.nextTriggerAt = nextTriggerAt.toISOString();
+			entry.schedules = schedules;
+			const content = buildReminderContent(entry.config);
+			results.set(storageKey, { success: true, nextTriggerAt, ...content });
+		} catch (error) {
+			console.error('Erro ao agendar lembrete obrigatório:', error);
+			results.set(storageKey, {
+				success: false,
+				reason: 'invalid-trigger',
+				message: 'Não foi possível agendar o lembrete neste dispositivo.',
+			});
+		}
 	}
 
+	return results;
+};
+
+const upsertReminderEntry = (map: ReminderStorageMap, config: MandatoryReminderConfig) => {
+	const storageKey = buildReminderStorageKey(config.kind, config.id);
+	const fingerprint = buildReminderFingerprint(config);
+	const currentEntry = map[storageKey];
+	const didChange = currentEntry?.fingerprint !== fingerprint;
 	map[storageKey] = {
-		fingerprint: buildReminderFingerprint({
-			kind,
-			templateId,
-			name,
-			dueDay,
-			usesBusinessDays: normalizedUsesBusinessDays,
-			reminderHour,
-			reminderMinute,
-			description,
-		}),
-		nextTriggerAt: nextTriggerAt.toISOString(),
-		schedules,
+		fingerprint,
+		config,
+		nextTriggerAt: currentEntry?.nextTriggerAt ?? '',
+		schedules: getEntrySchedules(currentEntry),
 	};
-
-	return {
-		success: true,
-		nextTriggerAt,
-		title: content.title,
-		body: content.body,
-	};
+	return { storageKey, didChange };
 };
 
-export const ensureMandatoryReminderPermission = async (): Promise<MandatoryReminderPermissionResult> => {
-	return ensureLocalNotificationPermission();
-};
+export const ensureMandatoryReminderPermission = async (): Promise<MandatoryReminderPermissionResult> =>
+	ensureLocalNotificationPermission();
 
 export const scheduleMandatoryReminderNotification = async ({
 	kind,
@@ -477,8 +397,8 @@ export const scheduleMandatoryReminderNotification = async ({
 	description?: string | null;
 	requestPermission?: boolean;
 }): Promise<MandatoryReminderScheduleResult> => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		warnNotificationsUnavailable();
 		return {
 			success: false,
@@ -487,8 +407,8 @@ export const scheduleMandatoryReminderNotification = async ({
 		};
 	}
 
+	await ensureLegacyNotificationMigration();
 	const permission = await ensureLocalNotificationPermission({ requestIfNeeded: requestPermission });
-
 	if (!permission.granted) {
 		return {
 			success: false,
@@ -501,7 +421,7 @@ export const scheduleMandatoryReminderNotification = async ({
 	}
 
 	const map = await readReminderMap();
-	const result = await scheduleReminderNotificationInternal({
+	const config = buildConfig({
 		kind,
 		templateId,
 		name,
@@ -510,139 +430,171 @@ export const scheduleMandatoryReminderNotification = async ({
 		reminderHour,
 		reminderMinute,
 		description,
-		Notifications,
-		map,
 	});
-
-	if (result.success) {
-		await writeReminderMap(map);
-	}
-
-	return result;
+	const { storageKey } = upsertReminderEntry(map, config);
+	const results = await scheduleAllActiveEntries({ runtime, map });
+	await writeReminderMap(map);
+	return results.get(storageKey) ?? buildLimitReachedResult();
 };
 
 export const cancelMandatoryReminderNotification = async (kind: MandatoryReminderKind, templateId: string) => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		warnNotificationsUnavailable();
 		return;
 	}
 
+	await ensureLegacyNotificationMigration();
 	const map = await readReminderMap();
-	const changed = await cancelReminderNotificationInternal({
-		kind,
-		templateId,
-		Notifications,
-		map,
-	});
-
-	if (changed) {
-		await writeReminderMap(map);
+	const storageKey = buildReminderStorageKey(kind, templateId);
+	const entry = map[storageKey];
+	if (!entry) {
+		return;
 	}
+
+	await cancelEntrySchedules(runtime, entry);
+	delete map[storageKey];
+	if (await hasLocalNotificationPermission()) {
+		await scheduleAllActiveEntries({ runtime, map });
+	}
+	await writeReminderMap(map);
 };
 
 export const syncMandatoryReminderNotifications = async (
 	kind: MandatoryReminderKind,
 	items: MandatoryReminderSyncItem[],
 ) => {
-	const Notifications = getNotificationsModule();
-	if (!Notifications) {
+	const runtime = getNotifeeRuntime();
+	if (!runtime) {
 		warnNotificationsUnavailable();
 		return;
 	}
 
+	await ensureLegacyNotificationMigration();
 	const map = await readReminderMap();
-	const scheduledNotificationIds = await getScheduledNotificationIdSet(Notifications);
-	const permissionGranted = await hasLocalNotificationPermission();
-	const expectedStorageKeys = new Set(items.map(item => buildReminderStorageKey(kind, item.id)));
-	let didChangeMap = false;
+	const expectedKeys = new Set<string>();
+	let didChange = false;
 
 	for (const item of items) {
-		if (item.reminderEnabled === false) {
-			const changed = await cancelReminderNotificationInternal({
-				kind,
-				templateId: item.id,
-				Notifications,
-				map,
-			});
-			didChangeMap = didChangeMap || changed;
-			continue;
-		}
-
-		if (!permissionGranted) {
-			continue;
-		}
-
-		const normalizedHour = normalizeHour(item.reminderHour ?? 9);
-		const normalizedMinute = normalizeMinute(item.reminderMinute ?? 0);
 		const storageKey = buildReminderStorageKey(kind, item.id);
-		const fingerprint = buildReminderFingerprint({
-			kind,
-			templateId: item.id,
-			name: item.name,
-			dueDay: item.dueDay,
-			usesBusinessDays: item.usesBusinessDays,
-			reminderHour: normalizedHour,
-			reminderMinute: normalizedMinute,
-			description: item.description,
-		});
-		const currentEntry = map[storageKey];
-		const currentSchedules = getEntrySchedules(currentEntry);
-		const isCurrentScheduleStillPresent =
-			currentSchedules.length > 0 &&
-			currentSchedules.every(schedule => scheduledNotificationIds.has(schedule.notificationId));
-
-		if (currentEntry && currentEntry.fingerprint === fingerprint && isCurrentScheduleStillPresent) {
+		expectedKeys.add(storageKey);
+		if (item.reminderEnabled === false) {
+			if (map[storageKey]) {
+				await cancelEntrySchedules(runtime, map[storageKey]);
+				delete map[storageKey];
+				didChange = true;
+			}
 			continue;
 		}
 
-		const result = await scheduleReminderNotificationInternal({
-			kind,
-			templateId: item.id,
-			name: item.name,
-			dueDay: item.dueDay,
-			usesBusinessDays: item.usesBusinessDays,
-			reminderHour: normalizedHour,
-			reminderMinute: normalizedMinute,
-			description: item.description,
-			Notifications,
+		const { didChange: entryChanged } = upsertReminderEntry(
 			map,
-		});
-
-		if (result.success) {
-			didChangeMap = true;
-			continue;
-		}
-
-		if (result.reason === 'invalid-trigger') {
-			console.warn(`[mandatoryReminderNotifications] ${result.message}`, {
+			buildConfig({
 				kind,
 				templateId: item.id,
-			});
-		}
+				name: item.name,
+				dueDay: item.dueDay,
+				usesBusinessDays: item.usesBusinessDays,
+				reminderHour: item.reminderHour ?? 9,
+				reminderMinute: item.reminderMinute ?? 0,
+				description: item.description,
+			}),
+		);
+		didChange = didChange || entryChanged;
 	}
 
 	for (const storageKey of Object.keys(map)) {
-		if (!storageKey.startsWith(`${kind}:`)) {
+		if (!storageKey.startsWith(`${kind}:`) || expectedKeys.has(storageKey)) {
 			continue;
 		}
 
-		if (expectedStorageKeys.has(storageKey)) {
-			continue;
-		}
-
-		const templateId = storageKey.slice(kind.length + 1);
-		const changed = await cancelReminderNotificationInternal({
-			kind,
-			templateId,
-			Notifications,
-			map,
-		});
-		didChangeMap = didChangeMap || changed;
+		await cancelEntrySchedules(runtime, map[storageKey]);
+		delete map[storageKey];
+		didChange = true;
 	}
 
-	if (didChangeMap) {
+	const permissionGranted = await hasLocalNotificationPermission();
+	const schedulesAreCurrent = permissionGranted && (await areAllSchedulesCurrent(runtime, map));
+	if (permissionGranted && (didChange || !schedulesAreCurrent)) {
+		const results = await scheduleAllActiveEntries({ runtime, map });
+		for (const [storageKey, result] of results) {
+			if (!result.success) {
+				console.warn(`[mandatoryReminderNotifications] ${result.message}`, { storageKey, reason: result.reason });
+			}
+		}
+		didChange = true;
+	}
+
+	if (didChange) {
 		await writeReminderMap(map);
+	}
+};
+
+const getStringData = (data: Notification['data'], key: string) => {
+	const value = data?.[key];
+	return typeof value === 'string' ? value : '';
+};
+
+const getNumberData = (data: Notification['data'], key: string) => {
+	const value = data?.[key];
+	return typeof value === 'number' ? value : Number(value);
+};
+
+const getConfigFromNotification = (notification: Notification): MandatoryReminderConfig | null => {
+	const kind = getStringData(notification.data, 'kind');
+	if (getStringData(notification.data, 'reminderType') !== 'mandatory-v3' || (kind !== 'expense' && kind !== 'gain')) {
+		return null;
+	}
+
+	const templateId = getStringData(notification.data, 'templateId');
+	const name = getStringData(notification.data, 'name');
+	if (!templateId || !name) {
+		return null;
+	}
+
+	return buildConfig({
+		kind,
+		templateId,
+		name,
+		dueDay: getNumberData(notification.data, 'dueDay'),
+		usesBusinessDays: getStringData(notification.data, 'usesBusinessDays') === '1',
+		reminderHour: getNumberData(notification.data, 'reminderHour'),
+		reminderMinute: getNumberData(notification.data, 'reminderMinute'),
+		description: getStringData(notification.data, 'description'),
+	});
+};
+
+// Android emits DELIVERED in a headless task, so one timestamp trigger keeps recurring indefinitely.
+export const scheduleNextMandatoryReminderFromNotification = async (notification: Notification) => {
+	if (Platform.OS !== 'android') {
+		return;
+	}
+
+	const runtime = getNotifeeRuntime({ warnIfUnavailable: false });
+	const config = getConfigFromNotification(notification);
+	if (!runtime || !config) {
+		return;
+	}
+
+	const nextTriggerAt = getFutureMonthlyOccurrences({ config, count: 1 })[0];
+	if (!nextTriggerAt) {
+		return;
+	}
+
+	try {
+		await ensureMandatoryReminderNotificationChannel(config.kind, { warnIfUnavailable: false });
+		const schedule = await createTriggerNotification({ runtime, config, triggerAt: nextTriggerAt });
+		const map = await readReminderMap();
+		const storageKey = buildReminderStorageKey(config.kind, config.id);
+		map[storageKey] = {
+			fingerprint: buildReminderFingerprint(config),
+			config,
+			nextTriggerAt: schedule.triggerAt,
+			schedules: [schedule],
+		};
+		await writeReminderMap(map);
+	} catch (error) {
+		console.error('Erro ao reagendar o próximo lembrete obrigatório:', error);
 	}
 };
 

@@ -14,7 +14,7 @@ import { VStack } from '@/components/ui/vstack';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { sendLocalNotificationTest } from '@/utils/localNotifications';
+import { openLocalNotificationSettings, sendLocalNotificationTest } from '@/utils/localNotifications';
 import {
 	APP_ROUTE_PATHS,
 	navigateToHomeConfigurations,
@@ -109,7 +109,8 @@ export default function AppTestsScreen() {
 
 	const handleOpenNotificationSettings = React.useCallback(async () => {
 		try {
-			if (Platform.OS === 'android') {
+			const didOpenNotifeeSettings = await openLocalNotificationSettings();
+			if (!didOpenNotifeeSettings && Platform.OS === 'android') {
 				try {
 					await Linking.sendIntent(ANDROID_APP_NOTIFICATION_SETTINGS_ACTION, [
 						{ key: ANDROID_APP_PACKAGE_EXTRA, value: androidPackageName },
@@ -117,17 +118,10 @@ export default function AppTestsScreen() {
 				} catch {
 					await Linking.openSettings();
 				}
-
-				showTestAlert({
-					title: 'Configurações abertas',
-					description: 'Ative as notificações do Lumus Finanças e volte para disparar o teste novamente.',
-					type: 'info',
-					duration: 7000,
-				});
-				return;
+			} else if (!didOpenNotifeeSettings) {
+				await Linking.openSettings();
 			}
 
-			await Linking.openSettings();
 			showTestAlert({
 				title: 'Configurações abertas',
 				description: 'Ative as notificações do Lumus Finanças e volte para disparar o teste novamente.',
@@ -276,8 +270,8 @@ export default function AppTestsScreen() {
 									accessibilityLabel="Abrir configurações de notificação do Android"
 									accessibilityHint="Abre as configurações do aplicativo para ativar as permissões de notificação"
 								>
-									<ButtonIcon as={Settings} size="md" className="text-black" />
-									<ButtonText className="text-black">Abrir configurações de notificação</ButtonText>
+									<ButtonIcon as={Settings} size="md" className={bodyText} />
+									<ButtonText className={bodyText}>Abrir configurações de notificação</ButtonText>
 								</Button>
 							</VStack>
 						</Box>

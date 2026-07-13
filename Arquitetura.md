@@ -207,13 +207,14 @@ O projeto usa **dois apps Firebase** inicializados:
 - Ao criar um banco novo, **deve-se registrar um MonthlyBalance inicial**
 
 ### Notificações Push
-- Detectar ambiente antes de carregar/agendar `expo-notifications`: Expo Go tem limitações
-- Inicializações obrigatórias de notificações devem partir de `app/_layout.tsx`/`utils/localNotifications.ts`, porque o `main` atual usa `expo-router/entry`
-- Android usa canais versionados `mandatory-expenses-v2` e `mandatory-gains-v2` com alta prioridade; mudar canais exige invalidar fingerprint para reidratar agendas antigas
-- Em Android, preferir janelas de notificações `DATE` concretas para recorrências mensais; não depender do trigger mensal nativo para dias 29/30/31
+- Detectar ambiente antes de carregar/agendar Notifee: Expo Go não inclui o módulo nativo
+- `index.ts` registra o único handler de background do Notifee antes de carregar o Expo Router; `app/_layout.tsx`/`utils/localNotifications.ts` fazem o bootstrap de canais e eventos de foreground
+- Android usa canais versionados `mandatory-expenses-v3-notifee`, `mandatory-gains-v3-notifee` e `system-tests-v2-notifee` com alta prioridade; mudar canais exige reidratar agendas antigas
+- Android mantém apenas o próximo `TimestampTrigger` de cada template e o handler `DELIVERED` agenda o mês seguinte; não depender de trigger mensal inexistente para dias 29/30/31
+- iOS usa uma janela de datas concretas distribuída dentro do limite local do sistema e a renova ao sincronizar as listas
 - Notificações são locais (sem servidor) — reinstalar app as apaga
-- Alterações em `app.json` para `expo-notifications` exigem novo build nativo
-- Em Android, não tentar validar lembretes obrigatórios no Expo Go; usar build de desenvolvimento/produção
+- Alterações em módulos/configurações nativas de notificação exigem novo build de desenvolvimento/produção
+- Em Android, não tentar validar lembretes obrigatórios no Expo Go; usar development client ou produção
 
 ---
 
@@ -235,8 +236,10 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-07-12.
+> Atualizado em 2026-07-13.
 
+- Correção de tema na tela [[Testes do Aplicativo]] em 2026-07-13: o ícone e rótulo de **Abrir configurações de notificação** deixam de usar `text-black` fixo e passam a consumir `bodyText` de `useScreenStyles()`, acompanhando os modos claro e escuro; vault alinhado em [[Testes do Aplicativo]].
+- Refatoração completa dos lembretes locais em 2026-07-13: `@notifee/react-native` passa a criar canais, solicitar permissões, disparar o teste manual e agendar recorrências; `index.ts` registra o handler de background antes do Expo Router, Android agenda o mês seguinte ao evento `DELIVERED`, iOS distribui uma janela de datas dentro do limite nativo e o serviço centraliza capacidade/cancelamento/reidratação; `expo-notifications` permanece somente como ponte de uma versão para cancelar agendas legadas, a tela de testes abre as configurações pelo Notifee com fallback, o development client é o caminho de validação e testes/vault foram alinhados em [[Notificações]], [[Testes do Aplicativo]], [[Despesas Fixas]], [[Receitas Fixas]] e [[Navegação]].
 - Correção sistêmica da navegação Android production em 2026-07-12: redirects automáticos deixam de usar `dismissTo`/`POP_TO`, `dismissAll` e `withAnchor`; `utils/navigation.ts` serializa uma única ação `REPLACE` no frame seguinte, `usePostSubmitBehavior()` ignora conclusões de telas desfocadas, retornos inline aguardam o cleanup, timers de teclado são cancelados no unmount, o guard de autenticação mantém o Stack raiz via `Stack.Protected`, `/home` não desempilha histórico obsoleto pelo botão físico e `/app-tests` ganha um redirect de diagnóstico sem Firebase; testes, bundle Android minificado e vault alinhados em [[Navegação]], [[Comportamento Pós-Registro]], [[Autenticação]], [[Hooks Customizados]], [[Dashboard Home]] e [[Testes do Aplicativo]].
 - Remoção da área de anotações locais em 2026-07-06: as rotas `/annotations` e `/annotation-editor`, telas, utilitários, assets, dependências Mantine/Tiptap, item do navigator e atalho de Configurações foram removidos; vault alinhado em [[Navegação]], [[Configurações]] e [[Componentes UI]].
 - Parcelamento por período em 2026-07-06: `AddMandatoryExpensesScreen.tsx` e `AddMandatoryGainsScreen.tsx` ganharam calendários de início/fim para parcelas, com fim desbloqueado após quantidade válida e recálculo bidirecional entre data final e quantidade; listagens recalculam parcelas já transcorridas por `installmentStartDate`; vault alinhado em [[Despesas Fixas]] e [[Receitas Fixas]].

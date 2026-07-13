@@ -7,7 +7,7 @@ const loadNotificationModules = () => {
 	jest.resetModules();
 
 	return {
-		notifications: require('expo-notifications'),
+		notifee: require('@notifee/react-native'),
 		localNotifications: require('@/utils/localNotifications'),
 		mandatoryReminderNotifications: require('@/utils/mandatoryReminderNotifications'),
 	};
@@ -27,72 +27,42 @@ describe('mandatory reminder notifications', () => {
 		jest.useRealTimers();
 	});
 
-	it('bootstraps the handler and Android channels used by mandatory reminders', async () => {
-		const { notifications, localNotifications } = loadNotificationModules();
+	it('bootstraps the Notifee channels and foreground delivery handler', async () => {
+		const { notifee, localNotifications } = loadNotificationModules();
 
 		await localNotifications.bootstrapLocalNotifications();
 
-		expect(notifications.setNotificationHandler).toHaveBeenCalledTimes(1);
-		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
-			'mandatory-expenses-v2',
-			expect.objectContaining({
-				importance: notifications.AndroidImportance.HIGH,
-				name: 'Gastos obrigatórios',
-			}),
+		expect(notifee.default.createChannel).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mandatory-expenses-v3-notifee', importance: notifee.AndroidImportance.HIGH }),
 		);
-		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
-			'mandatory-gains-v2',
-			expect.objectContaining({
-				importance: notifications.AndroidImportance.HIGH,
-				name: 'Ganhos obrigatórios',
-			}),
+		expect(notifee.default.createChannel).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mandatory-gains-v3-notifee', importance: notifee.AndroidImportance.HIGH }),
 		);
-		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
-			'system-tests-v1',
-			expect.objectContaining({
-				importance: notifications.AndroidImportance.HIGH,
-				name: 'Testes do sistema',
-			}),
+		expect(notifee.default.createChannel).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'system-tests-v2-notifee', importance: notifee.AndroidImportance.HIGH }),
 		);
+		expect(notifee.default.onForegroundEvent).toHaveBeenCalledTimes(1);
 	});
 
-	it('requests permission and sends an immediate Android system test notification', async () => {
-		state.permissions = { granted: false };
-		state.requestPermissions = { granted: true };
-		const { notifications, localNotifications } = loadNotificationModules();
+	it('requests permission and sends an immediate Notifee system test notification', async () => {
+		state.permissions = { authorizationStatus: notifeeAuthorizationDenied() };
+		state.requestPermissions = { authorizationStatus: notifeeAuthorizationGranted() };
+		const { notifee, localNotifications } = loadNotificationModules();
 
 		const result = await localNotifications.sendLocalNotificationTest();
 
-		expect(result).toMatchObject({
-			success: true,
+		expect(result).toMatchObject({ success: true, title: 'Teste de notificação' });
+		expect(notifee.default.requestPermission).toHaveBeenCalledTimes(1);
+		expect(notifee.default.displayNotification).toHaveBeenCalledWith(
+			expect.objectContaining({
 			title: 'Teste de notificação',
-		});
-		expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
-		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
-			'system-tests-v1',
-			expect.objectContaining({
-				importance: notifications.AndroidImportance.HIGH,
-				name: 'Testes do sistema',
-			}),
-		);
-		expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
-			expect.objectContaining({
-				content: expect.objectContaining({
-					title: 'Teste de notificação',
-					priority: notifications.AndroidNotificationPriority.HIGH,
-					data: expect.objectContaining({
-						kind: 'system-test',
-					}),
-				}),
-				trigger: {
-					channelId: 'system-tests-v1',
-				},
-			}),
+			android: expect.objectContaining({ channelId: 'system-tests-v2-notifee' }),
+		}),
 		);
 	});
 
-	it('forces an Android local notification schedule from the system date and persists the 12-date window', async () => {
-		const { notifications, mandatoryReminderNotifications } = loadNotificationModules();
+	it('schedules the next Android reminder with a timestamp and persists its Notifee state', async () => {
+		const { notifee, mandatoryReminderNotifications } = loadNotificationModules();
 
 		const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification({
 			kind: 'expense',
@@ -111,37 +81,46 @@ describe('mandatory reminder notifications', () => {
 			title: 'Vencimento de Aluguel',
 			body: 'O pagamento de Aluguel deve ser efetuado hoje. Observação: Pagar pelo app do banco',
 		});
-		expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
-		expect(notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(12);
-
-		const firstSchedule = notifications.scheduleNotificationAsync.mock.calls[0][0];
-		expect(firstSchedule).toMatchObject({
-			content: {
-				title: 'Vencimento de Aluguel',
-				data: {
-					templateId: 'rent',
-					kind: 'expense',
-					dueDay: 31,
-					usesBusinessDays: false,
-				},
-			},
-			trigger: {
-				type: notifications.SchedulableTriggerInputTypes.DATE,
-				channelId: 'mandatory-expenses-v2',
-			},
+		expect(notifee.default.createTriggerNotification).toHaveBeenCalledTimes(1);
+		const [notification, trigger] = notifee.default.createTriggerNotification.mock.calls[0];
+		expect(notification).toMatchObject({
+			android: { channelId: 'mandatory-expenses-v3-notifee', pressAction: { id: 'default' } },
+			data: expect.objectContaining({ templateId: 'rent', kind: 'expense', reminderType: 'mandatory-v3' }),
 		});
-		expect(firstSchedule.trigger.date).toEqual(new Date(2026, 0, 31, 9, 30, 0, 0));
+		expect(trigger).toEqual({ type: notifee.TriggerType.TIMESTAMP, timestamp: new Date(2026, 0, 31, 9, 30, 0, 0).getTime() });
 
-		const storedMap = JSON.parse(state.storage['@mandatoryReminderNotifications']);
-		expect(storedMap['expense:rent'].schedules).toHaveLength(12);
-		expect(storedMap['expense:rent'].fingerprint).toContain('mandatory-expenses-v2');
-		expect(storedMap['expense:rent'].fingerprint).toContain('date-window-v2:12');
+		const storedMap = JSON.parse(state.storage['@mandatoryReminderNotifications:notifee-v3']);
+		expect(storedMap['expense:rent'].schedules).toHaveLength(1);
+		expect(storedMap['expense:rent'].fingerprint).toContain('mandatory-expenses-v3-notifee');
 	});
 
-	it('uses the repeating calendar trigger on iOS for fixed-day reminders', async () => {
+	it('rehydrates the following Android month from the delivered notification event', async () => {
+		const { notifee, localNotifications, mandatoryReminderNotifications } = loadNotificationModules();
+		await localNotifications.bootstrapLocalNotifications();
+		await mandatoryReminderNotifications.scheduleMandatoryReminderNotification({
+			kind: 'gain',
+			templateId: 'salary',
+			name: 'Salário',
+			dueDay: 5,
+			reminderHour: 7,
+			reminderMinute: 15,
+			requestPermission: false,
+		});
+
+		const first = state.triggerNotifications[0];
+		state.triggerNotifications = [];
+		jest.setSystemTime(new Date(2026, 1, 5, 7, 15, 1, 0));
+		await state.foregroundEventHandler({ type: notifee.EventType.DELIVERED, detail: { notification: first.notification } });
+
+		expect(notifee.default.createTriggerNotification).toHaveBeenCalledTimes(2);
+		const [, nextTrigger] = notifee.default.createTriggerNotification.mock.calls[1];
+		expect(nextTrigger.timestamp).toBe(new Date(2026, 2, 5, 7, 15, 0, 0).getTime());
+	});
+
+	it('uses a bounded rolling date window on iOS', async () => {
 		state.platformOS = 'ios';
-		state.permissions = { granted: false, ios: { status: 'provisional' } };
-		const { notifications, mandatoryReminderNotifications } = loadNotificationModules();
+		state.permissions = { authorizationStatus: notifeeAuthorizationGranted() };
+		const { notifee, mandatoryReminderNotifications } = loadNotificationModules();
 
 		const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification({
 			kind: 'gain',
@@ -154,26 +133,14 @@ describe('mandatory reminder notifications', () => {
 		});
 
 		expect(result.success).toBe(true);
-		expect(notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
-		expect(notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
-			expect.objectContaining({
-				trigger: expect.objectContaining({
-					type: notifications.SchedulableTriggerInputTypes.CALENDAR,
-					repeats: true,
-					day: 5,
-					hour: 7,
-					minute: 15,
-					channelId: 'mandatory-gains-v2',
-				}),
-			}),
-		);
+		expect(notifee.default.createTriggerNotification).toHaveBeenCalledTimes(12);
 	});
 
-	it('does not load or schedule notifications in Expo Go', async () => {
+	it('does not load or schedule Notifee notifications in Expo Go', async () => {
 		const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		state.appOwnership = 'expo';
 		state.expoGoConfig = {};
-		const { notifications, mandatoryReminderNotifications } = loadNotificationModules();
+		const { notifee, mandatoryReminderNotifications } = loadNotificationModules();
 
 		const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification({
 			kind: 'expense',
@@ -184,11 +151,11 @@ describe('mandatory reminder notifications', () => {
 			reminderMinute: 0,
 		});
 
-		expect(result).toMatchObject({
-			success: false,
-			reason: 'unavailable',
-		});
-		expect(notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ success: false, reason: 'unavailable' });
+		expect(notifee.default.createTriggerNotification).not.toHaveBeenCalled();
 		warnSpy.mockRestore();
 	});
 });
+
+const notifeeAuthorizationGranted = () => 1;
+const notifeeAuthorizationDenied = () => 0;

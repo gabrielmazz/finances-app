@@ -1,8 +1,8 @@
-import { registerRootComponent } from 'expo';
+import { registerLocalNotificationBackgroundHandler } from './utils/localNotifications';
 
-import App from './App';
+// Notifee accepts one background handler and needs it before Expo Router mounts.
+// This powers the next Android monthly reminder after the current one is delivered.
+registerLocalNotificationBackgroundHandler();
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+// eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+require('expo-router/entry');
