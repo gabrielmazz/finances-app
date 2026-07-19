@@ -9,6 +9,10 @@ import {
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
+import {
+	MANDATORY_REMINDER_CONFIG_VERSION,
+	normalizeMandatoryReminderDaysBefore,
+} from '@/utils/mandatoryReminderConfig';
 
 interface AddMandatoryExpenseParams {
 	name: string;
@@ -19,6 +23,9 @@ interface AddMandatoryExpenseParams {
 	personId: string;
 	description?: string | null;
 	reminderEnabled?: boolean;
+	reminderConfigVersion?: number;
+	reminderDaysBefore?: 1 | 2 | 3;
+	reminderOnDueDate?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
 	installmentTotal?: number | null;
@@ -36,6 +43,9 @@ interface UpdateMandatoryExpenseParams {
 	tagId?: string;
 	description?: string | null;
 	reminderEnabled?: boolean;
+	reminderConfigVersion?: number;
+	reminderDaysBefore?: 1 | 2 | 3;
+	reminderOnDueDate?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
 	installmentTotal?: number | null;
@@ -87,7 +97,10 @@ export async function addMandatoryExpenseFirebase({
 	tagId,
 	personId,
 	description,
-	reminderEnabled = true,
+	reminderEnabled = false,
+	reminderConfigVersion = MANDATORY_REMINDER_CONFIG_VERSION,
+	reminderDaysBefore = 1,
+	reminderOnDueDate = false,
 	reminderHour = 9,
 	reminderMinute = 0,
 	installmentTotal = null,
@@ -113,6 +126,12 @@ export async function addMandatoryExpenseFirebase({
 			personId,
 			description: description ?? null,
 			reminderEnabled,
+			reminderConfigVersion:
+				reminderConfigVersion === MANDATORY_REMINDER_CONFIG_VERSION
+					? reminderConfigVersion
+					: MANDATORY_REMINDER_CONFIG_VERSION,
+			reminderDaysBefore: normalizeMandatoryReminderDaysBefore(reminderDaysBefore),
+			reminderOnDueDate,
 			reminderHour,
 			reminderMinute,
 			...installmentFields,
@@ -139,6 +158,9 @@ export async function updateMandatoryExpenseFirebase({
 	tagId,
 	description,
 	reminderEnabled,
+	reminderConfigVersion,
+	reminderDaysBefore,
+	reminderOnDueDate,
 	reminderHour,
 	reminderMinute,
 	installmentTotal,
@@ -178,6 +200,18 @@ export async function updateMandatoryExpenseFirebase({
 
 		if (typeof reminderEnabled === 'boolean') {
 			updates.reminderEnabled = reminderEnabled;
+		}
+
+		if (reminderConfigVersion !== undefined) {
+			updates.reminderConfigVersion = MANDATORY_REMINDER_CONFIG_VERSION;
+		}
+
+		if (reminderDaysBefore !== undefined) {
+			updates.reminderDaysBefore = normalizeMandatoryReminderDaysBefore(reminderDaysBefore);
+		}
+
+		if (typeof reminderOnDueDate === 'boolean') {
+			updates.reminderOnDueDate = reminderOnDueDate;
 		}
 
 		if (typeof reminderHour === 'number') {

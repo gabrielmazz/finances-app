@@ -45,6 +45,7 @@ export type DateCalendarItem = {
 	tagId: string;
 	description?: string | null;
 	reminderEnabled?: boolean;
+	reminderSummary?: string;
 	usesBusinessDays?: boolean;
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
@@ -636,7 +637,8 @@ function DateCalendar({
 								const itemTagLabel = tagMetadata?.name ?? tagsMap[item.tagId] ?? 'Tag não encontrada';
 								const summaryText = getStatusText(item);
 								const itemTypeLabel = valueTone === 'gain' ? 'Ganho obrigatório' : 'Gasto obrigatório';
-								const reminderLabel = item.reminderEnabled === false ? 'Desativado' : 'Ativado';
+								const reminderLabel =
+									item.reminderSummary ?? (item.reminderEnabled === true ? 'Ativado' : 'Desativado');
 								const isExpanded = expandedDayItemIds.includes(item.id);
 
 								return (

@@ -63,6 +63,8 @@ import {
 	type MandatoryExpenseSuggestion,
 } from '@/utils/mandatoryExpenseSuggestions';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
+import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
+import { suppressMandatoryExpenseNotificationCycle } from '@/utils/mandatoryExpenseNotifications';
 import {
 	isTagVisibleInRegularUsageList,
 	normalizeTagUsageType,
@@ -944,6 +946,16 @@ export default function AddRegisterExpensesScreen() {
 						isDarkMode,
 						duration: 4000,
 					});
+				} else {
+					try {
+						await suppressMandatoryExpenseNotificationCycle(
+							personId,
+							linkedMandatoryExpenseId,
+							getCycleKeyFromDate(dateWithCurrentTime),
+						);
+					} catch (notificationError) {
+						console.error('Erro ao suprimir lembretes do gasto obrigatório pago:', notificationError);
+					}
 				}
 			}
 

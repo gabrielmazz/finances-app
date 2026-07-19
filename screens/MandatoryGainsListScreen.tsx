@@ -40,6 +40,8 @@ import {
 	cancelMandatoryGainNotification,
 	syncMandatoryGainNotifications,
 } from '@/utils/mandatoryGainNotifications';
+import { isMandatoryReminderConfigured } from '@/utils/mandatoryReminderConfig';
+import { buildMandatoryGainReminderSyncItems } from '@/utils/mandatoryReminderAccountSync';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { deleteGainFirebase } from '@/functions/GainFirebase';
@@ -505,7 +507,7 @@ export default function MandatoryGainsListScreen() {
 					holidayName: resolvedOccurrence.holiday?.name ?? null,
 					tagId: typeof gain?.tagId === 'string' ? gain.tagId : '',
 					description: typeof gain?.description === 'string' ? gain.description : null,
-					reminderEnabled: gain?.reminderEnabled !== false,
+					reminderEnabled: isMandatoryReminderConfigured(gain),
 					lastReceiptGainId: typeof gain?.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null,
 					lastReceiptCycle: typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
 					lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
@@ -553,34 +555,15 @@ export default function MandatoryGainsListScreen() {
 				};
 			});
 
+			if (auth.currentUser?.uid !== currentUser.uid) {
+				return;
+			}
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
 			setGains(gainsWithStatus);
 			await syncMandatoryGainNotifications(
-				gainsResult.data.map((gain: any) => {
-					const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
-					const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
-						storedCompleted: gain?.installmentsCompleted,
-						installmentTotal,
-						startDate: normalizeMandatoryInstallmentDate(gain?.installmentStartDate),
-						isCurrentCycleCompleted: isCycleKeyCurrent(
-							typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
-						),
-						referenceDate,
-					});
-					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
-
-					return {
-						id: typeof gain?.id === 'string' ? gain.id : '',
-						name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
-						dueDay: typeof gain?.dueDay === 'number' ? gain.dueDay : 1,
-						usesBusinessDays: gain?.usesBusinessDays === true,
-						reminderEnabled: isInstallmentComplete ? false : gain?.reminderEnabled !== false,
-						reminderHour: typeof gain?.reminderHour === 'number' ? gain.reminderHour : 9,
-						reminderMinute: typeof gain?.reminderMinute === 'number' ? gain.reminderMinute : 0,
-						description: typeof gain?.description === 'string' ? gain.description : null,
-					};
-				}),
+				currentUser.uid,
+				buildMandatoryGainReminderSyncItems(gainsResult.data, referenceDate),
 			);
 		} catch (error) {
 			console.error('Erro ao carregar ganhos obrigatórios:', error);
@@ -682,12 +665,30 @@ export default function MandatoryGainsListScreen() {
 		setIsActionProcessing(true);
 		try {
 			if (pendingAction.type === 'delete') {
+				const accountId = auth.currentUser?.uid;
+				if (!accountId) {
+					showNotifierAlert({
+						description: 'Usuário não autenticado. Faça login novamente.',
+						type: 'error',
+						isDarkMode,
+					});
+					return;
+				}
+
 				const result = await deleteMandatoryGainFirebase(pendingAction.gain.id);
 				if (result.success) {
-					await cancelMandatoryGainNotification(pendingAction.gain.id);
+					let reminderCleanupFailed = false;
+					try {
+						await cancelMandatoryGainNotification(accountId, pendingAction.gain.id);
+					} catch (notificationError) {
+						reminderCleanupFailed = true;
+						console.error('Erro ao remover a agenda do ganho obrigatório excluído:', notificationError);
+					}
 					showNotifierAlert({
-						description: 'Ganho obrigatório removido com sucesso.',
-						type: 'success',
+						description: reminderCleanupFailed
+							? 'Ganho removido, mas a agenda local será limpa na próxima reconciliação.'
+							: 'Ganho obrigatório removido com sucesso.',
+						type: reminderCleanupFailed ? 'warn' : 'success',
 						isDarkMode,
 					});
 					await loadData();

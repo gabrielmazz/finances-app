@@ -1,31 +1,29 @@
 const mockNotificationState = {
 	platformOS: 'android',
-	appOwnership: 'standalone',
-	expoGoConfig: null,
-	permissions: { authorizationStatus: 1 },
-	requestPermissions: { authorizationStatus: 1 },
+	platformVersion: 35,
+	permissions: { granted: true, status: 'granted', canAskAgain: true },
+	requestPermissions: { granted: true, status: 'granted', canAskAgain: true },
 	storage: {},
-	triggerNotifications: [],
+	scheduledNotifications: [],
 	displayedNotifications: [],
+	channels: {},
 	nextNotificationId: 1,
-	foregroundEventHandler: null,
-	backgroundEventHandler: null,
+	notificationHandler: null,
 };
 
 global.__mockNotificationState = mockNotificationState;
 
 global.__resetNotificationMockState = () => {
 	mockNotificationState.platformOS = 'android';
-	mockNotificationState.appOwnership = 'standalone';
-	mockNotificationState.expoGoConfig = null;
-	mockNotificationState.permissions = { authorizationStatus: 1 };
-	mockNotificationState.requestPermissions = { authorizationStatus: 1 };
+	mockNotificationState.platformVersion = 35;
+	mockNotificationState.permissions = { granted: true, status: 'granted', canAskAgain: true };
+	mockNotificationState.requestPermissions = { granted: true, status: 'granted', canAskAgain: true };
 	mockNotificationState.storage = {};
-	mockNotificationState.triggerNotifications = [];
+	mockNotificationState.scheduledNotifications = [];
 	mockNotificationState.displayedNotifications = [];
+	mockNotificationState.channels = {};
 	mockNotificationState.nextNotificationId = 1;
-	mockNotificationState.foregroundEventHandler = null;
-	mockNotificationState.backgroundEventHandler = null;
+	mockNotificationState.notificationHandler = null;
 };
 
 jest.mock('react-native', () => ({
@@ -33,28 +31,22 @@ jest.mock('react-native', () => ({
 	Keyboard: {
 		dismiss: jest.fn(),
 	},
+	Linking: {
+		openSettings: jest.fn(async () => undefined),
+		sendIntent: jest.fn(async () => undefined),
+	},
+	AppState: {
+		addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+	},
 	Platform: {
 		get OS() {
 			return mockNotificationState.platformOS;
 		},
+		get Version() {
+			return mockNotificationState.platformVersion;
+		},
 		select: options => options?.[mockNotificationState.platformOS] ?? options?.default,
 	},
-}));
-
-const constantsMock = {};
-Object.defineProperties(constantsMock, {
-	appOwnership: {
-		get: () => mockNotificationState.appOwnership,
-	},
-	expoGoConfig: {
-		get: () => mockNotificationState.expoGoConfig,
-	},
-});
-
-jest.mock('expo-constants', () => ({
-	__esModule: true,
-	default: constantsMock,
-	...constantsMock,
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
@@ -73,63 +65,76 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 	},
 }));
 
-jest.mock('@notifee/react-native', () => {
-	const notifee = {
-		createChannel: jest.fn(async channel => channel.id),
-		getNotificationSettings: jest.fn(async () => mockNotificationState.permissions),
-		requestPermission: jest.fn(async () => mockNotificationState.requestPermissions),
-		displayNotification: jest.fn(async notification => {
-			const id = notification.id ?? `displayed-${mockNotificationState.nextNotificationId}`;
-			mockNotificationState.nextNotificationId += 1;
-			mockNotificationState.displayedNotifications.push({ id, notification });
-			return id;
-		}),
-		createTriggerNotification: jest.fn(async (notification, trigger) => {
-			const id = notification.id ?? `trigger-${mockNotificationState.nextNotificationId}`;
-			mockNotificationState.nextNotificationId += 1;
-			mockNotificationState.triggerNotifications = mockNotificationState.triggerNotifications.filter(
-				entry => entry.id !== id,
-			);
-			mockNotificationState.triggerNotifications.push({ id, notification, trigger });
-			return id;
-		}),
-		getTriggerNotificationIds: jest.fn(async () => mockNotificationState.triggerNotifications.map(entry => entry.id)),
-		cancelNotification: jest.fn(async id => {
-			mockNotificationState.triggerNotifications = mockNotificationState.triggerNotifications.filter(entry => entry.id !== id);
-			mockNotificationState.displayedNotifications = mockNotificationState.displayedNotifications.filter(entry => entry.id !== id);
-		}),
-		onForegroundEvent: jest.fn(handler => {
-			mockNotificationState.foregroundEventHandler = handler;
-			return jest.fn();
-		}),
-		onBackgroundEvent: jest.fn(handler => {
-			mockNotificationState.backgroundEventHandler = handler;
-		}),
-		openNotificationSettings: jest.fn(async () => undefined),
+jest.mock('expo-notifications', () => {
+	const SchedulableTriggerInputTypes = {
+		DATE: 'date',
+		TIME_INTERVAL: 'timeInterval',
+		DAILY: 'daily',
+		WEEKLY: 'weekly',
+		MONTHLY: 'monthly',
+		YEARLY: 'yearly',
+		CALENDAR: 'calendar',
+	};
+	const AndroidImportance = {
+		NONE: 0,
+		HIGH: 4,
+	};
+	const AndroidNotificationVisibility = {
+		PRIVATE: 2,
+	};
+	const AndroidNotificationPriority = {
+		HIGH: 'high',
 	};
 
 	return {
 		__esModule: true,
-		default: notifee,
-		AuthorizationStatus: {
-			NOT_DETERMINED: -1,
-			DENIED: 0,
-			AUTHORIZED: 1,
-			PROVISIONAL: 2,
-		},
-		AndroidImportance: {
-			HIGH: 4,
-		},
-		TriggerType: {
-			TIMESTAMP: 0,
-		},
-		EventType: {
-			DELIVERED: 3,
-		},
+		SchedulableTriggerInputTypes,
+		AndroidImportance,
+		AndroidNotificationVisibility,
+		AndroidNotificationPriority,
+		setNotificationHandler: jest.fn(handler => {
+			mockNotificationState.notificationHandler = handler;
+		}),
+		setNotificationChannelAsync: jest.fn(async (id, channel) => {
+			const existingChannel = mockNotificationState.channels[id];
+			mockNotificationState.channels[id] = existingChannel?.userDisabled
+				? { id, ...channel, importance: AndroidImportance.NONE, userDisabled: true }
+				: { id, ...channel };
+			return mockNotificationState.channels[id];
+		}),
+		deleteNotificationChannelAsync: jest.fn(async id => {
+			delete mockNotificationState.channels[id];
+		}),
+		getNotificationChannelAsync: jest.fn(async id => mockNotificationState.channels[id] ?? null),
+		getPermissionsAsync: jest.fn(async () => mockNotificationState.permissions),
+		requestPermissionsAsync: jest.fn(async () => {
+			mockNotificationState.permissions = mockNotificationState.requestPermissions;
+			return mockNotificationState.requestPermissions;
+		}),
+		scheduleNotificationAsync: jest.fn(async request => {
+			const identifier = request.identifier ?? `notification-${mockNotificationState.nextNotificationId++}`;
+			const entry = { identifier, content: request.content, trigger: request.trigger };
+			const isScheduledTrigger = Boolean(request.trigger?.type);
+
+			if (isScheduledTrigger) {
+				mockNotificationState.scheduledNotifications = mockNotificationState.scheduledNotifications.filter(
+					notification => notification.identifier !== identifier,
+				);
+				mockNotificationState.scheduledNotifications.push(entry);
+			} else {
+				mockNotificationState.displayedNotifications.push(entry);
+			}
+
+			return identifier;
+		}),
+		getAllScheduledNotificationsAsync: jest.fn(async () => [...mockNotificationState.scheduledNotifications]),
+		cancelScheduledNotificationAsync: jest.fn(async identifier => {
+			mockNotificationState.scheduledNotifications = mockNotificationState.scheduledNotifications.filter(
+				notification => notification.identifier !== identifier,
+			);
+		}),
+		cancelAllScheduledNotificationsAsync: jest.fn(async () => {
+			mockNotificationState.scheduledNotifications = [];
+		}),
 	};
 });
-
-jest.mock('expo-notifications', () => ({
-	__esModule: true,
-	cancelAllScheduledNotificationsAsync: jest.fn(async () => undefined),
-}));

@@ -7,6 +7,7 @@ import {
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
+import { MANDATORY_REMINDER_CONFIG_VERSION } from '@/utils/mandatoryReminderConfig';
 
 interface AddMandatoryGainParams {
 	name: string;
@@ -19,6 +20,9 @@ interface AddMandatoryGainParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	reminderConfigVersion?: number;
+	reminderDaysBefore?: number;
+	reminderOnDueDate?: boolean;
 	installmentTotal?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
@@ -36,6 +40,9 @@ interface UpdateMandatoryGainParams {
 	reminderEnabled?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
+	reminderConfigVersion?: number;
+	reminderDaysBefore?: number;
+	reminderOnDueDate?: boolean;
 	installmentTotal?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
@@ -85,7 +92,7 @@ export async function addMandatoryGainFirebase({
 	tagId,
 	personId,
 	description,
-	reminderEnabled = true,
+	reminderEnabled = false,
 	reminderHour = 9,
 	reminderMinute = 0,
 	installmentTotal = null,
@@ -113,6 +120,9 @@ export async function addMandatoryGainFirebase({
 			reminderEnabled,
 			reminderHour,
 			reminderMinute,
+			reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
+			reminderDaysBefore: 0,
+			reminderOnDueDate: true,
 			...installmentFields,
 			lastReceiptGainId: null,
 			lastReceiptCycle: null,
@@ -139,6 +149,9 @@ export async function updateMandatoryGainFirebase({
 	reminderEnabled,
 	reminderHour,
 	reminderMinute,
+	reminderConfigVersion,
+	reminderDaysBefore,
+	reminderOnDueDate,
 	installmentTotal,
 	installmentsCompleted,
 	installmentStartDate,
@@ -149,6 +162,19 @@ export async function updateMandatoryGainFirebase({
 		const updates: Record<string, unknown> = {
 			updatedAt: new Date(),
 		};
+
+		if (
+			reminderConfigVersion !== undefined ||
+			reminderDaysBefore !== undefined ||
+			reminderOnDueDate !== undefined ||
+			reminderEnabled !== undefined ||
+			reminderHour !== undefined ||
+			reminderMinute !== undefined
+		) {
+			updates.reminderConfigVersion = MANDATORY_REMINDER_CONFIG_VERSION;
+			updates.reminderDaysBefore = 0;
+			updates.reminderOnDueDate = true;
+		}
 
 		if (typeof name === 'string') {
 			updates.name = name;

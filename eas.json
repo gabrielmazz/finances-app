@@ -23,8 +23,6 @@
     },
     "production": {
       "autoIncrement": true,
-      "distribution": "internal",
-      "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",

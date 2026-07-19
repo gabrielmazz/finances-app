@@ -1,6 +1,6 @@
 import React from 'react';
 import '@/utils/reactNativeCompat';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { NotifierWrapper } from 'react-native-notifier';
@@ -11,6 +11,8 @@ import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
+import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminderNotifications';
+import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
 import { APP_ROUTE_PATHS } from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
 import '@/global.css';
@@ -39,6 +41,43 @@ const AuthBootstrapScreen = () => {
 			</View>
 		</SafeAreaView>
 	);
+};
+
+const NotificationLifecycleBridge = () => {
+	const { user, isAuthReady } = useAuth();
+
+	React.useEffect(() => {
+		if (!isAuthReady || !user?.uid) {
+			return;
+		}
+
+		let isCancelled = false;
+		const accountId = user.uid;
+		void synchronizeMandatoryReminderAccount(accountId, () => !isCancelled).catch(error => {
+			console.error('Erro ao sincronizar lembretes após autenticação:', error);
+		});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [isAuthReady, user?.uid]);
+
+	React.useEffect(() => {
+		if (!user?.uid) {
+			return;
+		}
+
+		const accountId = user.uid;
+		const subscription = AppState.addEventListener('change', nextState => {
+			if (nextState === 'active') {
+				void refreshMandatoryReminderNotifications(accountId);
+			}
+		});
+
+		return () => subscription.remove();
+	}, [user?.uid]);
+
+	return null;
 };
 
 const AuthenticatedStack = () => {
@@ -72,6 +111,7 @@ const LayoutWithTheme = () => {
 			<GluestackUIProvider mode={themeMode}>
 				<NotifierWrapper translucentStatusBar>
 					<AuthProvider>
+						<NotificationLifecycleBridge />
 						<AuthenticatedStack />
 					</AuthProvider>
 				</NotifierWrapper>
