@@ -17,10 +17,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   React.useEffect(() => {
     let isMounted = true;
+    let authResolutionVersion = 0;
 
-    const resolveAuthenticatedUser = async (candidate: User | null) => {
+    const resolveAuthenticatedUser = async (candidate: User | null, resolutionVersion: number) => {
       if (!candidate) {
-        if (isMounted) {
+        if (isMounted && resolutionVersion === authResolutionVersion) {
           setUser(null);
           setIsAuthReady(true);
         }
@@ -33,21 +34,25 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         console.warn('Erro ao atualizar sessão autenticada:', error);
       }
 
-      const currentUser = auth.currentUser ?? candidate;
-
-      if (isMounted) {
-        setUser(currentUser);
-        setIsAuthReady(true);
+      if (!isMounted || resolutionVersion !== authResolutionVersion) {
+        return;
       }
+
+      const currentUser = auth.currentUser;
+
+      setUser(currentUser?.uid === candidate.uid ? currentUser : null);
+      setIsAuthReady(true);
     };
 
     const unsubscribe = onAuthStateChanged(
       auth,
       nextUser => {
-        void resolveAuthenticatedUser(nextUser);
+        const resolutionVersion = ++authResolutionVersion;
+        void resolveAuthenticatedUser(nextUser, resolutionVersion);
       },
       error => {
         console.error('Erro ao observar a autenticação do Firebase:', error);
+        authResolutionVersion += 1;
         if (isMounted) {
           setUser(null);
           setIsAuthReady(true);
@@ -57,6 +62,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
     return () => {
       isMounted = false;
+      authResolutionVersion += 1;
       unsubscribe();
     };
   }, []);

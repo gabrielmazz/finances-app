@@ -22,6 +22,18 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { HStack } from '@/components/ui/hstack';
 import { Switch } from '@/components/ui/switch';
 import { Box } from '@/components/ui/box';
+import {
+	Select,
+	SelectBackdrop,
+	SelectContent,
+	SelectDragIndicator,
+	SelectDragIndicatorWrapper,
+	SelectIcon,
+	SelectInput,
+	SelectItem,
+	SelectPortal,
+	SelectTrigger,
+} from '@/components/ui/select';
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
@@ -82,6 +94,12 @@ import {
 	isMandatoryReminderTimeValid,
 	parseMandatoryReminderTime,
 } from '@/utils/mandatoryReminderTime';
+import {
+	MANDATORY_REMINDER_CONFIG_VERSION,
+	formatMandatoryReminderSummary,
+	isMandatoryReminderConfigured,
+	normalizeMandatoryReminderDaysBefore,
+} from '@/utils/mandatoryReminderConfig';
 
 type TagOption = {
 	id: string;
@@ -107,6 +125,8 @@ type MandatoryExpenseFormSnapshot = {
 	description: string;
 	reminderTime: string;
 	reminderEnabled: boolean;
+	reminderDaysBefore: 1 | 2 | 3;
+	reminderOnDueDate: boolean;
 };
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'installments' | 'description' | 'reminder-time';
 
@@ -147,6 +167,11 @@ const parseDateFromBR = (value: string) => {
 
 const formatValueInput = (value: string) => value.replace(/\D/g, '');
 const sanitizeDueDay = (value: string) => value.replace(/\D/g, '').slice(0, 2);
+const MANDATORY_REMINDER_DAY_OPTIONS: Array<{ value: string; label: string }> = [
+	{ value: '1', label: '1 dia antes (1 aviso)' },
+	{ value: '2', label: '2 dias antes (2 avisos)' },
+	{ value: '3', label: '3 dias antes (3 avisos)' },
+];
 const normalizeDateValue = (value: unknown): Date | null => {
 	if (!value) {
 		return null;
@@ -213,6 +238,8 @@ export default function AddMandatoryExpensesScreen() {
 	// Segue [[Despesas Fixas]]: o lembrete só é liberado quando o template base estiver completo.
 	const [reminderEnabled, setReminderEnabled] = React.useState(false);
 	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
+	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<1 | 2 | 3>(1);
+	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
@@ -314,6 +341,10 @@ export default function AddMandatoryExpensesScreen() {
 		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? currentValue);
 	}, []);
 
+	const handleReminderDaysBeforeChange = React.useCallback((value: string) => {
+		setReminderDaysBefore(normalizeMandatoryReminderDaysBefore(value));
+	}, []);
+
 	const isDueDayValid = React.useMemo(() => {
 		if (!dueDay) {
 			return false;
@@ -390,7 +421,7 @@ export default function AddMandatoryExpensesScreen() {
 				title: 'Lembrete indisponível',
 				description:
 					permissionResult.reason === 'unavailable'
-						? 'Os lembretes não funcionam no Expo Go. Gere um build de desenvolvimento ou produção para testar as notificações deste gasto.'
+						? 'Os lembretes locais não estão disponíveis neste ambiente.'
 						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
 				type: 'warn',
 				isDarkMode,
@@ -403,14 +434,16 @@ export default function AddMandatoryExpensesScreen() {
 	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
 
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
-	const formattedReminderTimeLabel = React.useMemo(
-		() =>
-			formatMandatoryReminderTime(
-				parseMandatoryReminderTime(reminderTime)?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
-				parseMandatoryReminderTime(reminderTime)?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
-			),
-		[reminderTime],
-	);
+	const reminderSummary = React.useMemo(() => {
+		const parsedTime = parseMandatoryReminderTime(reminderTime);
+		return formatMandatoryReminderSummary({
+			enabled: reminderEnabled,
+			daysBefore: reminderDaysBefore,
+			onDueDate: reminderOnDueDate,
+			hour: parsedTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
+			minute: parsedTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
+		});
+	}, [reminderDaysBefore, reminderEnabled, reminderOnDueDate, reminderTime]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -458,6 +491,8 @@ export default function AddMandatoryExpensesScreen() {
 			description: description.trim(),
 			reminderTime,
 			reminderEnabled,
+			reminderDaysBefore,
+			reminderOnDueDate,
 		}),
 		[
 			description,
@@ -468,6 +503,8 @@ export default function AddMandatoryExpensesScreen() {
 			installmentsEnabled,
 			normalizedInstallmentTotal,
 			reminderEnabled,
+			reminderDaysBefore,
+			reminderOnDueDate,
 			reminderTime,
 			selectedTagId,
 			usesBusinessDays,
@@ -510,7 +547,9 @@ export default function AddMandatoryExpensesScreen() {
 			currentSnapshot.installmentEndDate !== persistedFormSnapshot.installmentEndDate ||
 			currentSnapshot.description !== persistedFormSnapshot.description ||
 			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
-			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled
+			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled ||
+			currentSnapshot.reminderDaysBefore !== persistedFormSnapshot.reminderDaysBefore ||
+			currentSnapshot.reminderOnDueDate !== persistedFormSnapshot.reminderOnDueDate
 		);
 	}, [buildFormSnapshot, persistedFormSnapshot, selectedExpenseId]);
 
@@ -526,9 +565,9 @@ export default function AddMandatoryExpensesScreen() {
 		? 'Preencha nome, valor, vencimento e categoria antes de ativar o lembrete.'
 		: reminderEnabled
 			? isReminderTimeValid
-				? `Lembrete ativo para ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), usesBusinessDays)} às ${formattedReminderTimeLabel}.`
+				? `${reminderSummary}. Vencimento configurado para ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), usesBusinessDays)}.`
 				: 'Defina um horário válido no padrão 24h para agendar o lembrete.'
-			: 'Ative para receber um lembrete mensal no dia configurado.';
+			: 'Ative para receber lembretes mensais antes do vencimento.';
 
 	const dueDayFieldLabel = usesBusinessDays ? 'Número do dia útil do vencimento' : 'Dia do vencimento';
 	const dueDayPlaceholder = usesBusinessDays
@@ -597,6 +636,8 @@ export default function AddMandatoryExpensesScreen() {
 		setDescription('');
 		setReminderEnabled(false);
 		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
+		setReminderDaysBefore(1);
+		setReminderOnDueDate(false);
 		setSelectedTagId(current => {
 			if (options?.keepTag && current) {
 				return current;
@@ -803,7 +844,13 @@ export default function AddMandatoryExpensesScreen() {
 						? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
 							getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
 						: null;
-				const reminderFlag = data.reminderEnabled !== false;
+				const hasCurrentReminderConfig =
+					data.reminderConfigVersion === MANDATORY_REMINDER_CONFIG_VERSION;
+				const reminderFlag = isMandatoryReminderConfigured(data);
+				const reminderDaysBeforeValue = hasCurrentReminderConfig
+					? normalizeMandatoryReminderDaysBefore(data.reminderDaysBefore)
+					: 1;
+				const reminderOnDueDateValue = hasCurrentReminderConfig && data.reminderOnDueDate === true;
 				const reminderHour =
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
 				const reminderMinute =
@@ -839,6 +886,8 @@ export default function AddMandatoryExpensesScreen() {
 				setDescription(descriptionValue);
 				setReminderEnabled(reminderFlag);
 				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
+				setReminderDaysBefore(reminderDaysBeforeValue);
+				setReminderOnDueDate(reminderOnDueDateValue);
 				setCurrentPaymentInfo({
 					expenseId: lastPaymentExpenseId,
 					cycleKey: lastPaymentCycle,
@@ -856,6 +905,8 @@ export default function AddMandatoryExpensesScreen() {
 					description: descriptionValue.trim(),
 					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
 					reminderEnabled: reminderFlag,
+					reminderDaysBefore: reminderDaysBeforeValue,
+					reminderOnDueDate: reminderOnDueDateValue,
 				});
 			} catch (error) {
 				console.error('Erro ao carregar gasto obrigatório para edição:', error);
@@ -1018,6 +1069,9 @@ export default function AddMandatoryExpensesScreen() {
 				tagId: selectedTagId,
 				description: description.trim().length > 0 ? description.trim() : null,
 				reminderEnabled,
+				reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
+				reminderDaysBefore,
+				reminderOnDueDate,
 				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
 				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
 				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
@@ -1051,32 +1105,56 @@ export default function AddMandatoryExpensesScreen() {
 			}
 
 			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
+			let reminderOperationError: string | null = null;
 
 			if (persistedExpenseId) {
-				if (reminderEnabled) {
-					reminderFeedback = await scheduleMandatoryExpenseNotification({
-						expenseId: persistedExpenseId,
-						name: payload.name,
-						dueDay: payload.dueDay,
-						usesBusinessDays: payload.usesBusinessDays,
-						reminderHour: payload.reminderHour,
-						reminderMinute: payload.reminderMinute,
-						description: payload.description ?? undefined,
-						requestPermission: true,
-					});
-				} else {
-					await cancelMandatoryExpenseNotification(persistedExpenseId);
-					reminderFeedback = null;
+				try {
+					if (reminderEnabled) {
+						reminderFeedback = await scheduleMandatoryExpenseNotification({
+							accountId: currentUser.uid,
+							expenseId: persistedExpenseId,
+							name: payload.name,
+							dueDay: payload.dueDay,
+							usesBusinessDays: payload.usesBusinessDays,
+							reminderHour: payload.reminderHour,
+							reminderMinute: payload.reminderMinute,
+							reminderDaysBefore: payload.reminderDaysBefore,
+							reminderOnDueDate: payload.reminderOnDueDate,
+							description: payload.description ?? undefined,
+							lastCompletedCycle: currentPaymentInfo?.cycleKey ?? undefined,
+							activeFromDate: payload.installmentStartDate ?? undefined,
+							activeThroughDate: payload.installmentEndDate ?? undefined,
+							requestPermission: true,
+						});
+					} else {
+						await cancelMandatoryExpenseNotification(currentUser.uid, persistedExpenseId);
+					}
+				} catch (notificationError) {
+					console.error('Erro ao atualizar a agenda do gasto obrigatório salvo:', notificationError);
+					reminderOperationError = 'Não foi possível atualizar a agenda local neste dispositivo.';
 				}
 			}
 
-			if (reminderEnabled && reminderFeedback && !reminderFeedback.success) {
+			const reminderFailureMessage =
+				reminderOperationError ??
+				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
+			if (reminderFailureMessage) {
 				showNotifierAlert({
 					title: successTitle,
-					description: `O template foi salvo, mas o lembrete não foi agendado. ${reminderFeedback.message}`,
+					description: reminderEnabled
+						? `O template foi salvo, mas o lembrete não foi agendado. ${reminderFailureMessage}`
+						: `O template foi salvo, mas a agenda anterior não pôde ser removida. ${reminderFailureMessage}`,
 					type: 'warn',
 					isDarkMode,
 					duration: 5000,
+				});
+			} else if (reminderEnabled && reminderFeedback?.success && reminderFeedback.capacityLimited) {
+				showNotifierAlert({
+					title: successTitle,
+					description: `O lembrete foi salvo com agenda reduzida pelo limite seguro do dispositivo (${reminderFeedback.scheduledCount} avisos mantidos). Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`,
+					type: 'warn',
+					isDarkMode,
+					duration: 6500,
 				});
 			} else {
 				showNotifierAlert({
@@ -1121,7 +1199,10 @@ export default function AddMandatoryExpensesScreen() {
 		parsedInstallmentEndDate,
 		parsedInstallmentStartDate,
 		reminderEnabled,
+		reminderDaysBefore,
+		reminderOnDueDate,
 		reminderTime,
+		currentPaymentInfo?.cycleKey,
 		resolvedSettledInstallmentsCount,
 		applyPostSubmitBehavior,
 		resetForm,
@@ -1507,68 +1588,127 @@ export default function AddMandatoryExpensesScreen() {
 											</HStack>
 
 											{reminderEnabled ? (
-												<VStack className="gap-2">
-													<HStack className="items-center gap-1">
-														<Text className={`${bodyText} ml-1 text-sm`}>Horário do lembrete</Text>
-														<Popover
-															placement="bottom"
-															size="md"
-															offset={0}
-															shouldFlip
-															focusScope={false}
-															trapFocus={false}
-															trigger={triggerProps => (
-																<Pressable
-																	{...triggerProps}
-																	hitSlop={8}
-																	accessibilityRole="button"
-																	accessibilityLabel="Informações sobre o formato do horário do lembrete"
-																>
-																	<Info
-																		size={14}
-																		color={isDarkMode ? '#94A3B8' : '#64748B'}
-																		style={{ marginLeft: 4 }}
-																	/>
-																</Pressable>
-															)}
+												<VStack className="gap-4">
+													<VStack className="gap-2">
+														<Text className={`${bodyText} ml-1 text-sm`}>Começar a lembrar</Text>
+														<Select
+															selectedValue={String(reminderDaysBefore)}
+															onValueChange={handleReminderDaysBeforeChange}
+															isDisabled={isFormBusy}
 														>
-															<PopoverBackdrop className="bg-transparent" />
-															<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																<PopoverBody className="px-3 py-3">
-																	<Text className={`${bodyText} text-xs leading-5`}>
-																		Use o padrão 24h. Você pode digitar `1900` ou `19:00` e o campo completa para `19:00` automaticamente.
-																	</Text>
-																</PopoverBody>
-															</PopoverContent>
-														</Popover>
+															<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+																<SelectInput
+																	placeholder="Escolha quando começar"
+																	value={MANDATORY_REMINDER_DAY_OPTIONS.find(
+																		option => option.value === String(reminderDaysBefore),
+																	)?.label}
+																	className={inputField}
+																/>
+																<SelectIcon />
+															</SelectTrigger>
+															<SelectPortal>
+																<SelectBackdrop />
+																<SelectContent>
+																	<SelectDragIndicatorWrapper>
+																		<SelectDragIndicator />
+																	</SelectDragIndicatorWrapper>
+																	{MANDATORY_REMINDER_DAY_OPTIONS.map(option => (
+																		<SelectItem key={option.value} label={option.label} value={option.value} />
+																	))}
+																</SelectContent>
+															</SelectPortal>
+														</Select>
+														<Text className={`${helperText} ml-1 text-sm`}>
+															A opção é cumulativa: 3 dias gera avisos em 3, 2 e 1 dia antes do vencimento.
+														</Text>
+													</VStack>
+
+													<HStack className="items-center justify-between gap-4">
+														<VStack className="flex-1 gap-1">
+															<Text className={`${bodyText} text-sm font-semibold`}>
+																Avisar também no vencimento
+															</Text>
+															<Text className={`${helperText} text-xs leading-5`}>
+																Envia um aviso final no próprio dia, além dos lembretes anteriores.
+															</Text>
+														</VStack>
+														<Switch
+															value={reminderOnDueDate}
+															onValueChange={setReminderOnDueDate}
+															disabled={isFormBusy}
+															trackColor={switchTrackColor}
+															thumbColor={switchThumbColor}
+															ios_backgroundColor={switchIosBackgroundColor}
+														/>
 													</HStack>
 
-													<Input className={fieldContainerClassName} isDisabled={isReminderTimeFieldDisabled}>
-														<InputField
-															ref={reminderTimeInputRef}
-															placeholder="Ex: 19:00"
-															value={reminderTime}
-															onChangeText={handleReminderTimeChange}
-															onBlur={handleReminderTimeBlur}
-															keyboardType="numeric"
-															returnKeyType="done"
-															maxLength={5}
-															className={inputField}
-															onFocus={() => handleInputFocus('reminder-time')}
-														/>
-													</Input>
+												<VStack className="gap-2">
+													<HStack className="items-center gap-1">
+														<Text className={`${bodyText} ml-1 text-sm`}>Horário preferido</Text>
+															<Popover
+																placement="bottom"
+																size="md"
+																offset={0}
+																shouldFlip
+																focusScope={false}
+																trapFocus={false}
+																trigger={triggerProps => (
+																	<Pressable
+																		{...triggerProps}
+																		hitSlop={8}
+																		accessibilityRole="button"
+																		accessibilityLabel="Informações sobre o horário preferido do lembrete"
+																	>
+																		<Info
+																			size={14}
+																			color={isDarkMode ? '#94A3B8' : '#64748B'}
+																			style={{ marginLeft: 4 }}
+																		/>
+																	</Pressable>
+																)}
+															>
+																<PopoverBackdrop className="bg-transparent" />
+																<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																	<PopoverBody className="px-3 py-3">
+																		<Text className={`${bodyText} text-xs leading-5`}>
+																			Use o padrão 24h. No Android, economia de bateria e políticas do fabricante podem atrasar a entrega.
+																		</Text>
+																	</PopoverBody>
+																</PopoverContent>
+															</Popover>
+														</HStack>
+
+														<Input className={fieldContainerClassName} isDisabled={isReminderTimeFieldDisabled}>
+															<InputField
+																ref={reminderTimeInputRef}
+																placeholder="Ex: 19:00"
+																value={reminderTime}
+																onChangeText={handleReminderTimeChange}
+																onBlur={handleReminderTimeBlur}
+																keyboardType="numeric"
+																returnKeyType="done"
+																maxLength={5}
+																className={inputField}
+																onFocus={() => handleInputFocus('reminder-time')}
+															/>
+														</Input>
 
 													<Text className={`${helperText} ml-1 text-sm`}>
-														Digite no formato `HH:MM` ou apenas os números que o campo aplica a máscara sozinho.
-													</Text>
-
-													{!isReminderTimeValid ? (
-														<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
-															Informe um horário válido entre 00:00 e 23:59.
+														Digite no formato `HH:MM` ou apenas os números. O sistema usa esse horário como preferência de entrega.
 														</Text>
-													) : null}
+
+														{!isReminderTimeValid ? (
+															<Text className="ml-1 text-sm text-red-500 dark:text-red-400">
+																Informe um horário válido entre 00:00 e 23:59.
+															</Text>
+														) : null}
+													</VStack>
 												</VStack>
 											) : null}
+
+											<Text className={`${helperText} ml-1 text-sm leading-5`}>
+												{reminderHelperMessage}
+											</Text>
 										</VStack>
 									</Box>
 

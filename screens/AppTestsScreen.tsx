@@ -1,8 +1,7 @@
 import React from 'react';
-import Constants from 'expo-constants';
-import { Linking, Platform, ScrollView, StatusBar, View } from 'react-native';
+import { ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BellRing, Route, Settings, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { BellRing, Clock, ListChecks, Route, Settings, TrendingDown, TrendingUp } from 'lucide-react-native';
 
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
@@ -14,7 +13,13 @@ import { VStack } from '@/components/ui/vstack';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { openLocalNotificationSettings, sendLocalNotificationTest } from '@/utils/localNotifications';
+import {
+	getLocalNotificationDiagnostics,
+	openLocalNotificationSettings,
+	scheduleLocalNotificationTest,
+	sendLocalNotificationTest,
+} from '@/utils/localNotifications';
+import { getMandatoryReminderCapacityDiagnostics } from '@/utils/mandatoryReminderNotifications';
 import {
 	APP_ROUTE_PATHS,
 	navigateToHomeConfigurations,
@@ -25,9 +30,15 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import TestsScreenIllustration from '../assets/UnDraw/testsScreen.svg';
 
 const APP_TESTS_ILLUSTRATION_SIZE = 86;
-const ANDROID_APP_NOTIFICATION_SETTINGS_ACTION = 'android.settings.APP_NOTIFICATION_SETTINGS';
-const ANDROID_APP_PACKAGE_EXTRA = 'android.provider.extra.APP_PACKAGE';
 const TEST_TRANSACTION_VALUE_IN_CENTS = '1';
+const SCHEDULED_NOTIFICATION_TEST_DELAY_SECONDS = 15;
+
+const formatScheduledNotificationTime = (date: Date) =>
+	new Intl.DateTimeFormat('pt-BR', {
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+	}).format(date);
 
 export default function AppTestsScreen() {
 	const {
@@ -42,11 +53,8 @@ export default function AppTestsScreen() {
 		insets,
 	} = useScreenStyles();
 	const [isSendingTestNotification, setIsSendingTestNotification] = React.useState(false);
-
-	const androidPackageName = React.useMemo(() => {
-		const expoAndroidConfig = Constants.expoConfig?.android;
-		return expoAndroidConfig?.package ?? 'com.gabrielmazz.lumusfinances';
-	}, []);
+	const [isSchedulingTestNotification, setIsSchedulingTestNotification] = React.useState(false);
+	const [isLoadingNotificationDiagnostics, setIsLoadingNotificationDiagnostics] = React.useState(false);
 
 	const showTestAlert = React.useCallback(
 		({
@@ -95,11 +103,18 @@ export default function AppTestsScreen() {
 				title:
 					result.reason === 'permissions-denied'
 						? 'Permissão bloqueada'
+						: result.reason === 'channel-disabled'
+							? 'Canal desativado'
 						: result.reason === 'unavailable'
 							? 'Ambiente sem suporte'
 							: 'Falha no disparo',
 				description: result.message,
-				type: result.reason === 'permissions-denied' || result.reason === 'unavailable' ? 'warn' : 'error',
+				type:
+					result.reason === 'permissions-denied' ||
+					result.reason === 'channel-disabled' ||
+					result.reason === 'unavailable'
+						? 'warn'
+						: 'error',
 				duration: 7000,
 			});
 		} finally {
@@ -107,19 +122,131 @@ export default function AppTestsScreen() {
 		}
 	}, [isSendingTestNotification, showTestAlert]);
 
+	const handleScheduleTestNotification = React.useCallback(async () => {
+		if (isSchedulingTestNotification) {
+			return;
+		}
+
+		setIsSchedulingTestNotification(true);
+
+		try {
+			const result = await scheduleLocalNotificationTest(SCHEDULED_NOTIFICATION_TEST_DELAY_SECONDS);
+
+			if (result.success) {
+				const scheduledFor = result.scheduledFor ?? new Date(Date.now() + SCHEDULED_NOTIFICATION_TEST_DELAY_SECONDS * 1000);
+				showTestAlert({
+					title: 'Notificação agendada',
+					description: `Aviso programado para perto de ${formatScheduledNotificationTime(scheduledFor)}. Minimize o aplicativo agora; economia de bateria pode atrasar a entrega além dos ${SCHEDULED_NOTIFICATION_TEST_DELAY_SECONDS} segundos.`,
+					type: 'success',
+					duration: 9000,
+				});
+				return;
+			}
+
+			showTestAlert({
+				title:
+					result.reason === 'permissions-denied'
+						? 'Permissão bloqueada'
+						: result.reason === 'channel-disabled'
+							? 'Canal desativado'
+						: result.reason === 'unavailable'
+							? 'Ambiente sem suporte'
+							: 'Falha no agendamento',
+				description: result.message,
+				type:
+					result.reason === 'permissions-denied' ||
+					result.reason === 'channel-disabled' ||
+					result.reason === 'unavailable'
+						? 'warn'
+						: 'error',
+				duration: 7000,
+			});
+		} finally {
+			setIsSchedulingTestNotification(false);
+		}
+	}, [isSchedulingTestNotification, showTestAlert]);
+
+	const handleNotificationDiagnostics = React.useCallback(async () => {
+		if (isLoadingNotificationDiagnostics) {
+			return;
+		}
+
+		setIsLoadingNotificationDiagnostics(true);
+
+		try {
+			const [diagnostics, capacity] = await Promise.all([
+				getLocalNotificationDiagnostics(),
+				getMandatoryReminderCapacityDiagnostics(),
+			]);
+			const permissionLabel = !diagnostics.supported
+				? 'Indisponível'
+				: diagnostics.permissionGranted
+					? 'Concedida'
+					: diagnostics.canAskAgain
+						? 'Não concedida; pode ser solicitada novamente'
+						: 'Bloqueada nas configurações do sistema';
+			const channelLabel =
+				diagnostics.testChannelEnabled === null
+					? 'Não se aplica neste dispositivo'
+					: diagnostics.testChannelEnabled
+						? 'Ativo'
+						: 'Desativado';
+			const expenseChannelLabel =
+				diagnostics.expenseChannelEnabled === null
+					? 'Não se aplica neste dispositivo'
+					: diagnostics.expenseChannelEnabled
+						? 'Ativo'
+						: 'Desativado';
+			const gainChannelLabel =
+				diagnostics.gainChannelEnabled === null
+					? 'Não se aplica neste dispositivo'
+					: diagnostics.gainChannelEnabled
+						? 'Ativo'
+						: 'Desativado';
+			const hasDiagnosticBlock =
+				!diagnostics.supported ||
+				!diagnostics.permissionGranted ||
+				diagnostics.expenseChannelEnabled === false ||
+				diagnostics.gainChannelEnabled === false ||
+				diagnostics.testChannelEnabled === false ||
+				capacity.limitedTemplateCount > 0 ||
+				capacity.unplannedTemplateCount > 0;
+
+			showTestAlert({
+				title: hasDiagnosticBlock ? 'Notificações precisam de atenção' : 'Diagnóstico de notificações',
+				description: [
+					`Permissão: ${permissionLabel}`,
+					`Canal de pagamentos: ${expenseChannelLabel}`,
+					`Canal de recebimentos: ${gainChannelLabel}`,
+					`Canal de testes: ${channelLabel}`,
+					`Total agendado: ${diagnostics.scheduledCount}`,
+					`Lembretes obrigatórios: ${diagnostics.mandatoryReminderCount}`,
+					`Capacidade segura: ${capacity.plannedCount}/${capacity.scheduleBudget}`,
+					`Ocorrências desejadas: ${capacity.desiredCount}`,
+					`Templates com agenda reduzida: ${capacity.limitedTemplateCount}`,
+					`Templates sem próxima ocorrência: ${capacity.unplannedTemplateCount}`,
+				].join('\n'),
+				type: hasDiagnosticBlock ? 'warn' : 'info',
+				duration: 12000,
+			});
+		} catch (error) {
+			console.error('Erro ao consultar diagnóstico de notificações:', error);
+			showTestAlert({
+				title: 'Diagnóstico indisponível',
+				description: 'Não foi possível consultar o estado das notificações neste dispositivo.',
+				type: 'error',
+				duration: 7000,
+			});
+		} finally {
+			setIsLoadingNotificationDiagnostics(false);
+		}
+	}, [isLoadingNotificationDiagnostics, showTestAlert]);
+
 	const handleOpenNotificationSettings = React.useCallback(async () => {
 		try {
-			const didOpenNotifeeSettings = await openLocalNotificationSettings();
-			if (!didOpenNotifeeSettings && Platform.OS === 'android') {
-				try {
-					await Linking.sendIntent(ANDROID_APP_NOTIFICATION_SETTINGS_ACTION, [
-						{ key: ANDROID_APP_PACKAGE_EXTRA, value: androidPackageName },
-					]);
-				} catch {
-					await Linking.openSettings();
-				}
-			} else if (!didOpenNotifeeSettings) {
-				await Linking.openSettings();
+			const didOpenNotificationSettings = await openLocalNotificationSettings();
+			if (!didOpenNotificationSettings) {
+				throw new Error('Ambiente sem configurações nativas de notificação.');
 			}
 
 			showTestAlert({
@@ -137,7 +264,7 @@ export default function AppTestsScreen() {
 				duration: 7000,
 			});
 		}
-	}, [androidPackageName, showTestAlert]);
+	}, [showTestAlert]);
 
 	const handleOpenTestTransaction = React.useCallback((kind: 'expense' | 'gain') => {
 		const isExpense = kind === 'expense';
@@ -232,7 +359,7 @@ export default function AppTestsScreen() {
 											Notificação local
 										</Text>
 										<Text className={`${helperText} text-sm leading-5`}>
-											Valida permissão, canal Android e handler global de notificações locais.
+											Valide o disparo imediato, o agendamento em segundo plano e o estado atual das notificações locais.
 										</Text>
 									</VStack>
 								</HStack>
@@ -254,7 +381,55 @@ export default function AppTestsScreen() {
 									) : (
 										<>
 											<ButtonIcon as={BellRing} size="md" />
-											<ButtonText>Disparar notificação</ButtonText>
+											<ButtonText>Disparar agora</ButtonText>
+										</>
+									)}
+								</Button>
+
+								<Button
+									size="md"
+									variant="solid"
+									action="primary"
+									className={accordionSectionButtonClassName}
+									onPress={() => {
+										void handleScheduleTestNotification();
+									}}
+									isDisabled={isSchedulingTestNotification}
+									accessibilityLabel="Agendar notificação local para quinze segundos"
+									accessibilityHint="Agenda um aviso e permite validar o recebimento com o aplicativo minimizado"
+								>
+									{isSchedulingTestNotification ? (
+										<ButtonSpinner color={isDarkMode ? '#111827' : '#0F172A'} />
+									) : (
+										<>
+											<ButtonIcon as={Clock} size="md" />
+											<ButtonText>Agendar para 15 segundos</ButtonText>
+										</>
+									)}
+								</Button>
+
+								<Text className={`${helperText} text-sm leading-5`}>
+									Depois de agendar, minimize o aplicativo. O horário é preferido e pode sofrer atraso pelo Android.
+								</Text>
+
+								<Button
+									size="md"
+									variant="outline"
+									action="secondary"
+									className={accordionSectionButtonClassName}
+									onPress={() => {
+										void handleNotificationDiagnostics();
+									}}
+									isDisabled={isLoadingNotificationDiagnostics}
+									accessibilityLabel="Consultar diagnóstico de notificações"
+									accessibilityHint="Mostra permissão, canal e quantidade de notificações agendadas"
+								>
+									{isLoadingNotificationDiagnostics ? (
+										<ButtonSpinner color={isDarkMode ? '#E2E8F0' : '#334155'} />
+									) : (
+										<>
+											<ButtonIcon as={ListChecks} size="md" className={bodyText} />
+											<ButtonText className={bodyText}>Ver diagnóstico</ButtonText>
 										</>
 									)}
 								</Button>

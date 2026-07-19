@@ -51,6 +51,8 @@ import { getAllBanksFirebase } from '@/functions/BankFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
 import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
+import { suppressMandatoryGainNotificationCycle } from '@/utils/mandatoryGainNotifications';
+import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
@@ -976,6 +978,16 @@ export default function AddRegisterGainScreen() {
 						isDarkMode,
 						duration: 4000,
 					});
+				} else {
+					try {
+						await suppressMandatoryGainNotificationCycle(
+							personId,
+							linkedMandatoryGainId,
+							getCycleKeyFromDate(dateWithCurrentTime),
+						);
+					} catch (error) {
+						console.error('Erro ao suprimir o lembrete do ganho obrigatório recebido:', error);
+					}
 				}
 			}
 

@@ -206,15 +206,17 @@ O projeto usa **dois apps Firebase** inicializados:
 - Sem snapshot → saldo parte de zero
 - Ao criar um banco novo, **deve-se registrar um MonthlyBalance inicial**
 
-### Notificações Push
-- Detectar ambiente antes de carregar/agendar Notifee: Expo Go não inclui o módulo nativo
-- `index.ts` registra o único handler de background do Notifee antes de carregar o Expo Router; `app/_layout.tsx`/`utils/localNotifications.ts` fazem o bootstrap de canais e eventos de foreground
-- Android usa canais versionados `mandatory-expenses-v3-notifee`, `mandatory-gains-v3-notifee` e `system-tests-v2-notifee` com alta prioridade; mudar canais exige reidratar agendas antigas
-- Android mantém apenas o próximo `TimestampTrigger` de cada template e o handler `DELIVERED` agenda o mês seguinte; não depender de trigger mensal inexistente para dias 29/30/31
-- iOS usa uma janela de datas concretas distribuída dentro do limite local do sistema e a renova ao sincronizar as listas
+### Notificações locais
+- `expo-notifications` é o único motor nativo; não reintroduzir Notifee, handler `DELIVERED` ou um segundo agendador
+- Android usa os canais versionados `payment-reminders-v1`, `income-reminders-v1` e `system-tests-v1-expo`, todos criados no bootstrap
+- Despesas usam schema `reminderConfigVersion: 1`, antecedência cumulativa D-1/D-2/D-3 e D0 opcional; documentos legados ficam opt-out até o usuário salvar a nova configuração
+- O motor agenda datas concretas depois de resolver dia 29/30/31 e dias úteis; Android mantém horizonte móvel de seis meses e reconcilia a agenda ao abrir as listas/voltar ao foreground
+- Toda agenda financeira é escopada por UID. Troca de conta e logout explícito limpam o UID anterior; o estado `user=null` de uma abertura fria não apaga alarmes porque a autenticação primária é memory-only
+- Marcar o ciclo como pago/recebido cancela imediatamente os avisos restantes daquele `YYYY-MM`
+- Não solicitar `USE_EXACT_ALARM` nem `SCHEDULE_EXACT_ALARM`; o horário é preferido e pode sofrer atraso por Doze/economia de bateria
 - Notificações são locais (sem servidor) — reinstalar app as apaga
-- Alterações em módulos/configurações nativas de notificação exigem novo build de desenvolvimento/produção
-- Em Android, não tentar validar lembretes obrigatórios no Expo Go; usar development client ou produção
+- Expo Go serve somente para smoke test local. Validar canais, segundo plano e aceite em development client e build de produção instalados
+- Alterações em plugin, manifesto ou dependência nativa exigem novo build
 
 ---
 
@@ -236,10 +238,10 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-07-13.
+> Atualizado em 2026-07-18.
 
+- Reimplementação integral das notificações locais em 2026-07-18: Notifee, handlers e agendas legadas foram removidos; `expo-notifications` passa a ser o único motor com limpeza migratória, canais Android próprios, datas concretas em horizonte móvel, reconciliação e planejador global seguro (400 agendas Android/60 iOS, descontando agendas externas e priorizando a próxima ocorrência de cada template). O motor mantém escopo por UID, preserva cold start memory-only, redistribui vagas após cancelamento/conclusão e suprime o ciclo pago/recebido. O logout transacional ficou vinculado ao UID originador, conserva snapshot local até o `signOut`, recusa callbacks obsoletos e restaura a agenda offline se a sessão não puder ser encerrada; o `AuthContext` também ignora resoluções antigas de `reload()`. O card de [[Despesas Fixas]] ganhou seleção cumulativa D-1/D-2/D-3 e D0 opcional, [[Testes do Aplicativo]] ganhou agendamento real de 15 segundos e diagnóstico de permissão/canais/agendas/capacidade, `expo-dev-client` entrou no projeto e produção voltou ao AAB; TypeScript, Jest, Expo Doctor e bundle Android foram validados, com vault alinhado em [[Notificações]], [[Despesas Fixas]], [[Receitas Fixas]], [[Testes do Aplicativo]], [[Configurações]], [[Componentes UI]] e [[Autenticação]].
 - Correção de tema na tela [[Testes do Aplicativo]] em 2026-07-13: o ícone e rótulo de **Abrir configurações de notificação** deixam de usar `text-black` fixo e passam a consumir `bodyText` de `useScreenStyles()`, acompanhando os modos claro e escuro; vault alinhado em [[Testes do Aplicativo]].
-- Refatoração completa dos lembretes locais em 2026-07-13: `@notifee/react-native` passa a criar canais, solicitar permissões, disparar o teste manual e agendar recorrências; `index.ts` registra o handler de background antes do Expo Router, Android agenda o mês seguinte ao evento `DELIVERED`, iOS distribui uma janela de datas dentro do limite nativo e o serviço centraliza capacidade/cancelamento/reidratação; `expo-notifications` permanece somente como ponte de uma versão para cancelar agendas legadas, a tela de testes abre as configurações pelo Notifee com fallback, o development client é o caminho de validação e testes/vault foram alinhados em [[Notificações]], [[Testes do Aplicativo]], [[Despesas Fixas]], [[Receitas Fixas]] e [[Navegação]].
 - Correção sistêmica da navegação Android production em 2026-07-12: redirects automáticos deixam de usar `dismissTo`/`POP_TO`, `dismissAll` e `withAnchor`; `utils/navigation.ts` serializa uma única ação `REPLACE` no frame seguinte, `usePostSubmitBehavior()` ignora conclusões de telas desfocadas, retornos inline aguardam o cleanup, timers de teclado são cancelados no unmount, o guard de autenticação mantém o Stack raiz via `Stack.Protected`, `/home` não desempilha histórico obsoleto pelo botão físico e `/app-tests` ganha um redirect de diagnóstico sem Firebase; testes, bundle Android minificado e vault alinhados em [[Navegação]], [[Comportamento Pós-Registro]], [[Autenticação]], [[Hooks Customizados]], [[Dashboard Home]] e [[Testes do Aplicativo]].
 - Remoção da área de anotações locais em 2026-07-06: as rotas `/annotations` e `/annotation-editor`, telas, utilitários, assets, dependências Mantine/Tiptap, item do navigator e atalho de Configurações foram removidos; vault alinhado em [[Navegação]], [[Configurações]] e [[Componentes UI]].
 - Parcelamento por período em 2026-07-06: `AddMandatoryExpensesScreen.tsx` e `AddMandatoryGainsScreen.tsx` ganharam calendários de início/fim para parcelas, com fim desbloqueado após quantidade válida e recálculo bidirecional entre data final e quantidade; listagens recalculam parcelas já transcorridas por `installmentStartDate`; vault alinhado em [[Despesas Fixas]] e [[Receitas Fixas]].

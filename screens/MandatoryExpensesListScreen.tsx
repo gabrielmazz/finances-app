@@ -73,6 +73,16 @@ import {
 } from '@/utils/mandatoryPeriodSummaryPdf';
 import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import {
+	formatMandatoryReminderSummary,
+	isMandatoryReminderConfigured,
+	normalizeMandatoryReminderDaysBefore,
+} from '@/utils/mandatoryReminderConfig';
+import {
+	DEFAULT_MANDATORY_REMINDER_HOUR,
+	DEFAULT_MANDATORY_REMINDER_MINUTE,
+} from '@/utils/mandatoryReminderTime';
+import { buildMandatoryExpenseReminderSyncItems } from '@/utils/mandatoryReminderAccountSync';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -95,6 +105,10 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	installmentEndDate?: Date | null;
 	installmentLabel?: string | null;
 	isInstallmentComplete?: boolean;
+	reminderDaysBefore?: 1 | 2 | 3;
+	reminderOnDueDate?: boolean;
+	reminderHour?: number;
+	reminderMinute?: number;
 };
 
 type TagMetadata = {
@@ -153,6 +167,31 @@ const normalizeDateValue = (value: unknown): Date | null => {
 	}
 
 	return null;
+};
+
+const normalizeExpenseReminderConfiguration = (source: Record<string, unknown>) => {
+	const reminderEnabled = isMandatoryReminderConfigured(source);
+	const reminderDaysBefore = normalizeMandatoryReminderDaysBefore(source.reminderDaysBefore);
+	const reminderOnDueDate = source.reminderOnDueDate === true;
+	const reminderHour =
+		typeof source.reminderHour === 'number' ? source.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
+	const reminderMinute =
+		typeof source.reminderMinute === 'number' ? source.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
+
+	return {
+		reminderEnabled,
+		reminderDaysBefore,
+		reminderOnDueDate,
+		reminderHour,
+		reminderMinute,
+		reminderSummary: formatMandatoryReminderSummary({
+			enabled: reminderEnabled,
+			daysBefore: reminderDaysBefore,
+			onDueDate: reminderOnDueDate,
+			hour: reminderHour,
+			minute: reminderMinute,
+		}),
+	};
 };
 
 const formatPaymentDate = (value: Date | null) => {
@@ -495,6 +534,7 @@ export default function MandatoryExpensesListScreen() {
 					dueDay,
 					usesBusinessDays,
 				});
+				const reminderConfiguration = normalizeExpenseReminderConfiguration(expense);
 
 				return {
 					id: expense.id,
@@ -506,7 +546,7 @@ export default function MandatoryExpensesListScreen() {
 					holidayName: resolvedOccurrence.holiday?.name ?? null,
 					tagId: typeof expense?.tagId === 'string' ? expense.tagId : '',
 					description: typeof expense?.description === 'string' ? expense.description : null,
-					reminderEnabled: expense?.reminderEnabled !== false,
+					...reminderConfiguration,
 					lastPaymentExpenseId:
 						typeof expense?.lastPaymentExpenseId === 'string' ? expense.lastPaymentExpenseId : null,
 					lastPaymentCycle:
@@ -556,34 +596,15 @@ export default function MandatoryExpensesListScreen() {
 				};
 			});
 
+			if (auth.currentUser?.uid !== currentUser.uid) {
+				return;
+			}
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
 			setExpenses(expensesWithStatus);
 			await syncMandatoryExpenseNotifications(
-				expensesResult.data.map((expense: any) => {
-					const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
-					const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
-						storedCompleted: expense?.installmentsCompleted,
-						installmentTotal,
-						startDate: normalizeMandatoryInstallmentDate(expense?.installmentStartDate),
-						isCurrentCycleCompleted: isCycleKeyCurrent(
-							typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
-						),
-						referenceDate,
-					});
-					const isInstallmentComplete = isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted);
-
-					return {
-						id: typeof expense?.id === 'string' ? expense.id : '',
-						name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
-						dueDay: typeof expense?.dueDay === 'number' ? expense.dueDay : 1,
-						usesBusinessDays: expense?.usesBusinessDays === true,
-						reminderEnabled: isInstallmentComplete ? false : expense?.reminderEnabled !== false,
-						reminderHour: typeof expense?.reminderHour === 'number' ? expense.reminderHour : 9,
-						reminderMinute: typeof expense?.reminderMinute === 'number' ? expense.reminderMinute : 0,
-						description: typeof expense?.description === 'string' ? expense.description : null,
-					};
-				}),
+				currentUser.uid,
+				buildMandatoryExpenseReminderSyncItems(expensesResult.data, referenceDate),
 			);
 		} catch (error) {
 			console.error('Erro ao carregar gastos obrigatórios:', error);
@@ -697,10 +718,21 @@ export default function MandatoryExpensesListScreen() {
 			if (pendingAction.type === 'delete') {
 				const result = await deleteMandatoryExpenseFirebase(pendingAction.expense.id);
 				if (result.success) {
-					await cancelMandatoryExpenseNotification(pendingAction.expense.id);
+					const accountId = auth.currentUser?.uid;
+					let reminderCleanupFailed = false;
+					if (accountId) {
+						try {
+							await cancelMandatoryExpenseNotification(accountId, pendingAction.expense.id);
+						} catch (notificationError) {
+							reminderCleanupFailed = true;
+							console.error('Erro ao remover a agenda do gasto obrigatório excluído:', notificationError);
+						}
+					}
 					showNotifierAlert({
-						description: 'Gasto obrigatório removido com sucesso.',
-						type: 'success',
+						description: reminderCleanupFailed
+							? 'Gasto removido, mas a agenda local será limpa na próxima reconciliação.'
+							: 'Gasto obrigatório removido com sucesso.',
+						type: reminderCleanupFailed ? 'warn' : 'success',
 						isDarkMode,
 					});
 					await loadData();
@@ -1413,12 +1445,12 @@ export default function MandatoryExpensesListScreen() {
 																					rowGap: 10,
 																				}}
 																			>
-																				{[
-																					{ label: 'Tipo', value: 'Gasto obrigatório' },
-																					{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
-																					{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
-																					{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
-																					{ label: 'Lembrete', value: expense.reminderEnabled === false ? 'Desativado' : 'Ativado' },
+																	{[
+																		{ label: 'Tipo', value: 'Gasto obrigatório' },
+																		{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
+																		{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
+																		{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
+																		{ label: 'Lembrete', value: expense.reminderSummary ?? 'Desativado' },
 																					...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
 																					...(expense.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }] : []),
 																					...(expense.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }] : []),

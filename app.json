@@ -38,7 +38,7 @@
       [
         "expo-notifications",
         {
-          "defaultChannel": "system-tests-v1"
+          "defaultChannel": "system-tests-v1-expo"
         }
       ]
     ],

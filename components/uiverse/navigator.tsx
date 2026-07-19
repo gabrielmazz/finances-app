@@ -12,6 +12,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import {
+	clearMandatoryReminderAccount,
+	finalizeMandatoryReminderAccountCleanup,
+} from '@/utils/mandatoryReminderNotifications';
+import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
+import {
 	APP_ROUTE_PATHS,
 	HOME_TAB_INDEX,
 	type AppRoutePath,
@@ -51,33 +56,87 @@ type NavigatorGroup = {
 // Logout dispara onAuthStateChanged → AuthContext atualiza → _layout.tsx redireciona para '/' automaticamente.
 // Conforme documentado em [[Autenticação]] e [[Navegação]].
 const logoutUser = async (isDarkMode = false, userId?: string | null, displayName?: string | null) => {
+	const accountId = userId?.trim();
+	if (!accountId || auth.currentUser?.uid !== accountId) {
+		return;
+	}
+
 	// Busca o nome no Firestore (fonte primária) com fallback para displayName do Auth
 	let userName = displayName?.trim() || null;
-	if (userId) {
-		try {
-			const userData = await getUserDataFirebase(userId);
-			if (userData.success) {
-				const storedName = (userData.data as { name?: unknown })?.name;
-				if (typeof storedName === 'string' && storedName.trim()) {
-					userName = storedName.trim().split(/\s+/)[0] ?? userName;
-				}
+	try {
+		const userData = await getUserDataFirebase(accountId);
+		if (userData.success) {
+			const storedName = (userData.data as { name?: unknown })?.name;
+			if (typeof storedName === 'string' && storedName.trim()) {
+				userName = storedName.trim().split(/\s+/)[0] ?? userName;
 			}
-		} catch {
-			// Fallback silencioso para displayName do Auth
 		}
+	} catch {
+		// Fallback silencioso para displayName do Auth
+	}
+
+	if (auth.currentUser?.uid !== accountId) {
+		return;
+	}
+
+	const restoreCurrentAccountReminders = async () => {
+		if (auth.currentUser?.uid !== accountId) {
+			return false;
+		}
+
+		try {
+			const result = await synchronizeMandatoryReminderAccount(accountId);
+			return result.complete;
+		} catch (restoreError) {
+			console.error('Erro ao restaurar lembretes após falha no logout:', restoreError);
+			return false;
+		}
+	};
+
+	let remindersCleared = false;
+	try {
+		remindersCleared = await clearMandatoryReminderAccount(accountId);
+	} catch (error) {
+		console.error('Erro ao limpar lembretes locais durante o logout:', error);
+	}
+
+	if (!remindersCleared) {
+		if (auth.currentUser?.uid === accountId) {
+			const remindersRestored = await restoreCurrentAccountReminders();
+			showNotifierAlert({
+				description: remindersRestored
+					? 'Não foi possível concluir a limpeza. A sessão e os lembretes foram restaurados; tente sair novamente.'
+					: 'Não foi possível limpar os lembretes deste dispositivo. Por segurança, a sessão continua ativa; verifique a conexão e tente novamente.',
+				type: 'error',
+				isDarkMode,
+			});
+		}
+		return;
+	}
+
+	if (auth.currentUser?.uid !== accountId) {
+		return;
 	}
 
 	try {
+		await signOut(auth);
+		try {
+			await finalizeMandatoryReminderAccountCleanup(accountId);
+		} catch (finalizeError) {
+			console.error('Erro ao finalizar a limpeza local após logout:', finalizeError);
+		}
 		showNotifierAlert({
 			description: userName ? `Até mais, ${userName}!` : 'Até mais!',
 			type: 'info',
 			isDarkMode,
 		});
-		await signOut(auth);
 	} catch (error) {
 		console.error('Erro ao deslogar usuário:', error);
+		const remindersRestored = await restoreCurrentAccountReminders();
 		showNotifierAlert({
-			description: 'Não foi possível encerrar a sessão. Tente novamente.',
+			description: remindersRestored
+				? 'Não foi possível encerrar a sessão. Os lembretes foram restaurados; tente sair novamente.'
+				: 'Não foi possível encerrar a sessão nem restaurar os lembretes agora. Verifique a conexão e tente novamente.',
 			type: 'error',
 			isDarkMode,
 		});
@@ -323,6 +382,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	const { user } = useAuth();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
+	const logoutInFlightRef = React.useRef(false);
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
 	const normalizedPathname = React.useMemo(() => normalizePathname(pathname), [pathname]);
@@ -469,7 +529,13 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	const handleSelect = React.useCallback((option: NavigatorOption) => {
 		setOpenGroupValue(null);
 		if (option.id === 'logout') {
-			void logoutUser(isDarkMode, user?.uid, user?.displayName);
+			if (logoutInFlightRef.current) {
+				return;
+			}
+			logoutInFlightRef.current = true;
+			void logoutUser(isDarkMode, user?.uid, user?.displayName).finally(() => {
+				logoutInFlightRef.current = false;
+			});
 			return;
 		}
 

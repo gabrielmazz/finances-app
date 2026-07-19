@@ -42,6 +42,10 @@ import {
 	ensureNotificationPermissionForMandatoryGains,
 	scheduleMandatoryGainNotification,
 } from '@/utils/mandatoryGainNotifications';
+import {
+	MANDATORY_REMINDER_CONFIG_VERSION,
+	isMandatoryReminderConfigured,
+} from '@/utils/mandatoryReminderConfig';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
@@ -398,7 +402,7 @@ export default function AddMandatoryGainsScreen() {
 				title: 'Lembrete indisponível',
 				description:
 					permissionResult.reason === 'unavailable'
-						? 'Os lembretes não funcionam no Expo Go. Gere um build de desenvolvimento ou produção para testar as notificações deste ganho.'
+						? 'Os lembretes locais não estão disponíveis neste ambiente.'
 						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
 				type: 'warn',
 				isDarkMode,
@@ -812,7 +816,7 @@ export default function AddMandatoryGainsScreen() {
 						? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
 							getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
 						: null;
-				const reminderFlag = data.reminderEnabled !== false;
+				const reminderFlag = isMandatoryReminderConfigured(data);
 				const reminderHour =
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
 				const reminderMinute =
@@ -1029,6 +1033,9 @@ export default function AddMandatoryGainsScreen() {
 				reminderEnabled,
 				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
 				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
+				reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
+				reminderDaysBefore: 0,
+				reminderOnDueDate: true,
 				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
 				installmentsCompleted: payloadInstallmentsCompleted,
 				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
@@ -1060,32 +1067,56 @@ export default function AddMandatoryGainsScreen() {
 			}
 
 			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
+			let reminderOperationError: string | null = null;
 
 			if (persistedId) {
-				if (reminderEnabled) {
-					reminderFeedback = await scheduleMandatoryGainNotification({
-						gainTemplateId: persistedId,
-						name: payload.name,
-						dueDay: payload.dueDay,
-						usesBusinessDays: payload.usesBusinessDays,
-						reminderHour: payload.reminderHour,
-						reminderMinute: payload.reminderMinute,
-						description: payload.description ?? undefined,
-						requestPermission: true,
-					});
-				} else {
-					await cancelMandatoryGainNotification(persistedId);
-					reminderFeedback = null;
+				try {
+					if (reminderEnabled) {
+						reminderFeedback = await scheduleMandatoryGainNotification({
+							accountId: currentUser.uid,
+							gainTemplateId: persistedId,
+							name: payload.name,
+							dueDay: payload.dueDay,
+							usesBusinessDays: payload.usesBusinessDays,
+							reminderHour: payload.reminderHour,
+							reminderMinute: payload.reminderMinute,
+							reminderDaysBefore: payload.reminderDaysBefore,
+							reminderOnDueDate: payload.reminderOnDueDate,
+							description: payload.description ?? undefined,
+							lastCompletedCycle: currentReceiptInfo?.cycleKey ?? undefined,
+							activeFromDate: payload.installmentStartDate ?? undefined,
+							activeThroughDate: payload.installmentEndDate ?? undefined,
+							requestPermission: true,
+						});
+					} else {
+						await cancelMandatoryGainNotification(currentUser.uid, persistedId);
+					}
+				} catch (notificationError) {
+					console.error('Erro ao atualizar a agenda do ganho obrigatório salvo:', notificationError);
+					reminderOperationError = 'Não foi possível atualizar a agenda local neste dispositivo.';
 				}
 			}
 
-			if (reminderEnabled && reminderFeedback && !reminderFeedback.success) {
+			const reminderFailureMessage =
+				reminderOperationError ??
+				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
+			if (reminderFailureMessage) {
 				showNotifierAlert({
 					title: successTitle,
-					description: `O template foi salvo, mas o lembrete não foi agendado. ${reminderFeedback.message}`,
+					description: reminderEnabled
+						? `O template foi salvo, mas o lembrete não foi agendado. ${reminderFailureMessage}`
+						: `O template foi salvo, mas a agenda anterior não pôde ser removida. ${reminderFailureMessage}`,
 					type: 'warn',
 					isDarkMode,
 					duration: 5000,
+				});
+			} else if (reminderEnabled && reminderFeedback?.success && reminderFeedback.capacityLimited) {
+				showNotifierAlert({
+					title: successTitle,
+					description: `O lembrete foi salvo com agenda reduzida pelo limite seguro do dispositivo (${reminderFeedback.scheduledCount} avisos mantidos). Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`,
+					type: 'warn',
+					isDarkMode,
+					duration: 6500,
 				});
 			} else {
 				showNotifierAlert({
@@ -1138,6 +1169,7 @@ export default function AddMandatoryGainsScreen() {
 		selectedGainTemplateId,
 		selectedTagId,
 		valueInCents,
+		currentReceiptInfo?.cycleKey,
 	]);
 
 	const handleRegisterReceiptNavigation = React.useCallback(() => {
@@ -1521,7 +1553,7 @@ export default function AddMandatoryGainsScreen() {
 											{reminderEnabled ? (
 												<VStack className="gap-2">
 													<HStack className="items-center gap-1">
-														<Text className={`${bodyText} ml-1 text-sm`}>Horário do lembrete</Text>
+														<Text className={`${bodyText} ml-1 text-sm`}>Horário preferido</Text>
 														<Popover
 															placement="bottom"
 															size="md"
@@ -1534,7 +1566,7 @@ export default function AddMandatoryGainsScreen() {
 																	{...triggerProps}
 																	hitSlop={8}
 																	accessibilityRole="button"
-																	accessibilityLabel="Informações sobre o formato do horário do lembrete"
+																	accessibilityLabel="Informações sobre o horário preferido do lembrete"
 																>
 																	<Info
 																		size={14}
@@ -1548,7 +1580,7 @@ export default function AddMandatoryGainsScreen() {
 															<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 																<PopoverBody className="px-3 py-3">
 																	<Text className={`${bodyText} text-xs leading-5`}>
-																		Use o padrão 24h. Você pode digitar `1900` ou `19:00` e o campo completa para `19:00` automaticamente.
+																		Use o padrão 24h. No Android, economia de bateria e políticas do fabricante podem atrasar a entrega.
 																	</Text>
 																</PopoverBody>
 															</PopoverContent>
@@ -1571,7 +1603,7 @@ export default function AddMandatoryGainsScreen() {
 													</Input>
 
 													<Text className={`${helperText} ml-1 text-sm`}>
-														Digite no formato `HH:MM` ou apenas os números que o campo aplica a máscara sozinho.
+														Digite no formato `HH:MM` ou apenas os números. O sistema usa esse horário como preferência de entrega.
 													</Text>
 
 													{!isReminderTimeValid ? (

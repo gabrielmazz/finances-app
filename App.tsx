@@ -2,15 +2,8 @@ import React from 'react';
 import { ExpoRoot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
-import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 
 export default function App() {
-	
-	React.useEffect(() => {
-		void bootstrapLocalNotifications();
-	}, []);
-
-	
 	// Importação de fontes customizadas
 	const [fontsLoaded] = useFonts({
 		'Arimo': require('./assets/Fonts/Arimo-VariableFont_wght.ttf'),
