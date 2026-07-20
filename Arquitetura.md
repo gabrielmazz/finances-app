@@ -241,6 +241,9 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 > Atualizado em 2026-07-19.
 
+- Ilustrações do seletor de retorno de [[Configurações]] em 2026-07-19: cada destino do ActionSheet em `ScreenSettingsScreen.tsx` passou a exibir o SVG correspondente à tela em vez de um índice numérico. Vault alinhado em [[Configurações]].
+- Seletor de retorno de [[Configurações]] em 2026-07-19: `ScreenSettingsScreen.tsx` substituiu o `Select` nativo por um ActionSheet pesquisável e estilizado, com descrição e destaque visual para o destino atualmente escolhido. Vault alinhado em [[Configurações]].
+- Hierarquia visual de [[Configurações]] em 2026-07-19: o resumo de pós-submit de cada accordion em `ScreenSettingsScreen.tsx` não cresce mais junto à coluna da ilustração e passa a ficar imediatamente abaixo do nome da tela. Vault alinhado em [[Configurações]].
 - Identidade visual de [[Investimentos]] em 2026-07-19: o título **Evolução da carteira** em `FinancialListScreen.tsx` passa a exibir o ícone de calendário amarelo, espelhando o cabeçalho de **Evolução do saldo** na previsão. Vault alinhado em [[Investimentos]].
 - Padronização visual de [[Investimentos]] em 2026-07-19: `investment-evolution-chart.tsx` passa a usar pontos sempre visíveis com raio 4/6 e a tipografia padrão dos eixos, espelhando a escala visual de `financial-forecast-chart.tsx` sem remover as duas curvas e a legenda da carteira. Vault alinhado em [[Investimentos]], [[Monitoramento de Investimentos]] e [[Componentes UI]].
 - Refinamento de layout em [[Investimentos]] em 2026-07-19: os rótulos dos filtros de rentabilidade em `FinancialListScreen.tsx` são centralizados nas quatro colunas de largura igual. Vault alinhado em [[Investimentos]] e [[Monitoramento de Investimentos]].

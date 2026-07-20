@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StatusBar, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -18,17 +18,15 @@ import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
+	Actionsheet,
+	ActionsheetBackdrop,
+	ActionsheetContent,
+	ActionsheetDragIndicator,
+	ActionsheetDragIndicatorWrapper,
+	ActionsheetItem,
+	ActionsheetItemText,
+	ActionsheetScrollView,
+} from '@/components/ui/actionsheet';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
@@ -54,6 +52,12 @@ import AddRegisterTagScreenIllustration from '@/assets/UnDraw/addRegisterTagScre
 import AddRegisterUserScreenIllustration from '@/assets/UnDraw/addRegisterUserScreen.svg';
 import AddRescueScreenIllustration from '@/assets/UnDraw/addRescue.svg';
 import AddUserRelationScreenIllustration from '@/assets/UnDraw/addUserRelationScreen.svg';
+import CategoryAnalysisScreenIllustration from '@/assets/UnDraw/analyzeGainExpensesTag.svg';
+import ConfigurationsScreenIllustration from '@/assets/UnDraw/configurationsScreen.svg';
+import FinancialListScreenIllustration from '@/assets/UnDraw/financialListScreen.svg';
+import HomeScreenIllustration from '@/assets/UnDraw/homeScreen.svg';
+import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryExpensesListScreen.svg';
+import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
 import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
 import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
 
@@ -243,6 +247,26 @@ const screenSettingsCategories: ScreenSettingsCategory[] = [
 	},
 ];
 
+const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React.ComponentType<any>> = {
+	homeDashboard: HomeScreenIllustration,
+	// A aba Controle abre o formulário de despesa dentro da Home.
+	homeControl: AddRegisterExpensesScreenIllustration,
+	homeConfigurations: ConfigurationsScreenIllustration,
+	categoryAnalysis: CategoryAnalysisScreenIllustration,
+	addRegisterExpenses: AddRegisterExpensesScreenIllustration,
+	addRegisterGain: AddRegisterGainScreenIllustration,
+	registerMonthlyBalance: AddRegisterMonthlyBalanceScreenIllustration,
+	transferScreen: TransferScreenIllustration,
+	addRescue: AddRescueScreenIllustration,
+	mandatoryExpenses: MandatoryExpensesListScreenIllustration,
+	mandatoryGains: MandatoryGainsListScreenIllustration,
+	financialList: FinancialListScreenIllustration,
+	addRegisterBank: AddRegisterBankScreenIllustration,
+	addRegisterTag: AddRegisterTagScreenIllustration,
+	addRegisterUser: AddRegisterUserScreenIllustration,
+	addUserRelation: AddUserRelationScreenIllustration,
+};
+
 const getDestinationLabel = (destinationKey: PostSubmitDestinationKey) =>
 	POST_SUBMIT_DESTINATION_OPTIONS.find(option => option.key === destinationKey)?.label ?? 'Home';
 
@@ -266,6 +290,10 @@ export default function ScreenSettingsScreen() {
 	const { getBehaviorForScreen, updateBehaviorForScreen, isLoadingPostSubmitBehavior } =
 		usePostSubmitBehaviorPreferences();
 	const [screenSearch, setScreenSearch] = React.useState('');
+	const [returnDestinationScreenKey, setReturnDestinationScreenKey] =
+		React.useState<PostSubmitScreenKey | null>(null);
+	const [returnDestinationSearch, setReturnDestinationSearch] = React.useState('');
+	const returnDestinationSheetSnapPoints = React.useMemo(() => [86], []);
 
 	const filteredCategories = React.useMemo(() => {
 		const normalizedSearch = normalizeSearchText(screenSearch);
@@ -310,6 +338,54 @@ export default function ScreenSettingsScreen() {
 		},
 		[updateBehaviorForScreen],
 	);
+
+	const handleCloseReturnDestinationSheet = React.useCallback(() => {
+		setReturnDestinationSearch('');
+		setReturnDestinationScreenKey(null);
+	}, []);
+
+	const handleOpenReturnDestinationSheet = React.useCallback(
+		(screenKey: PostSubmitScreenKey) => {
+			if (isLoadingPostSubmitBehavior) {
+				return;
+			}
+
+			setReturnDestinationSearch('');
+			setReturnDestinationScreenKey(screenKey);
+		},
+		[isLoadingPostSubmitBehavior],
+	);
+
+	const handleSelectReturnDestination = React.useCallback(
+		(destination: PostSubmitDestinationKey) => {
+			if (!returnDestinationScreenKey) {
+				return;
+			}
+
+			handleDestinationChange(returnDestinationScreenKey, destination);
+			handleCloseReturnDestinationSheet();
+		},
+		[handleCloseReturnDestinationSheet, handleDestinationChange, returnDestinationScreenKey],
+	);
+
+	const filteredReturnDestinationOptions = React.useMemo(() => {
+		const normalizedSearch = normalizeSearchText(returnDestinationSearch);
+
+		if (!normalizedSearch) {
+			return POST_SUBMIT_DESTINATION_OPTIONS;
+		}
+
+		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+
+		return POST_SUBMIT_DESTINATION_OPTIONS.filter(option => {
+			const searchableText = normalizeSearchText(`${option.label} ${option.description}`);
+			return searchTerms.every(term => searchableText.includes(term));
+		});
+	}, [returnDestinationSearch]);
+
+	const selectedReturnDestination = returnDestinationScreenKey
+		? getBehaviorForScreen(returnDestinationScreenKey, 'create').returnDestination
+		: null;
 
 	const handleClearFieldsToggle = React.useCallback(
 		(screenKey: PostSubmitScreenKey, value: boolean) => {
@@ -410,7 +486,7 @@ export default function ScreenSettingsScreen() {
 																		<Illustration width={64} height={64} className="opacity-90" />
 																	</View>
 																	<VStack className="min-w-0 flex-1 gap-1">
-																		<AccordionTitleText className="font-semibold leading-5">
+																		<AccordionTitleText className="flex-none font-semibold leading-5">
 																			{item.label}
 																		</AccordionTitleText>
 																		<Text className={`${helperText} text-xs`} numberOfLines={1}>
@@ -461,39 +537,18 @@ export default function ScreenSettingsScreen() {
 																	<VStack className="gap-4">
 																		<VStack className="gap-2">
 																			<Text className={`${bodyText} text-sm font-semibold`}>Tela de retorno</Text>
-																			<Select
-																				selectedValue={behavior.returnDestination}
-																				onValueChange={value => handleDestinationChange(item.key, value)}
-																				isDisabled={!behavior.shouldReturnAfterSubmit || isLoadingPostSubmitBehavior}
+																			<Pressable
+																				onPress={() => handleOpenReturnDestinationSheet(item.key)}
+																				disabled={!behavior.shouldReturnAfterSubmit || isLoadingPostSubmitBehavior}
+																				accessibilityRole="button"
+																				accessibilityLabel="Escolher tela de retorno"
+																				className={`${fieldContainerClassName} flex-row items-center justify-between gap-3 px-4 ${!behavior.shouldReturnAfterSubmit ? 'opacity-50' : ''}`}
 																			>
-																				<SelectTrigger
-																					variant="outline"
-																					size="md"
-																					className={`${fieldContainerClassName} ${!behavior.shouldReturnAfterSubmit ? 'opacity-50' : ''}`}
-																				>
-																					<SelectInput
-																						placeholder="Selecione a tela de retorno"
-																						className={inputField}
-																						value={selectedDestinationLabel}
-																					/>
-																					<SelectIcon />
-																				</SelectTrigger>
-																				<SelectPortal>
-																					<SelectBackdrop />
-																					<SelectContent>
-																						<SelectDragIndicatorWrapper>
-																							<SelectDragIndicator />
-																						</SelectDragIndicatorWrapper>
-																						{POST_SUBMIT_DESTINATION_OPTIONS.map(destinationOption => (
-																							<SelectItem
-																								key={destinationOption.key}
-																								label={destinationOption.label}
-																								value={destinationOption.key}
-																							/>
-																						))}
-																					</SelectContent>
-																				</SelectPortal>
-																			</Select>
+																				<Text className={`${inputField} min-w-0 flex-1`} numberOfLines={1}>
+																					{selectedDestinationLabel}
+																				</Text>
+																				<Text className={`${helperText} text-xs`}>Alterar</Text>
+																			</Pressable>
 																		</VStack>
 
 																		<HStack className={`items-center justify-between gap-4 ${isClearFieldsDisabled ? 'opacity-50' : ''}`}>
@@ -537,6 +592,100 @@ export default function ScreenSettingsScreen() {
 						) : null}
 					</VStack>
 				</ScrollView>
+
+				<Actionsheet
+					isOpen={Boolean(returnDestinationScreenKey)}
+					onClose={handleCloseReturnDestinationSheet}
+					snapPoints={returnDestinationSheetSnapPoints}
+				>
+					<ActionsheetBackdrop />
+					<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
+						<ActionsheetDragIndicatorWrapper>
+							<ActionsheetDragIndicator />
+						</ActionsheetDragIndicatorWrapper>
+
+						<KeyboardAvoidingView
+							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+							style={{ width: '100%', flex: 1 }}
+						>
+							<VStack className="w-full gap-1 px-4 pb-3 pt-6">
+								<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+									Escolha a tela de retorno
+								</Heading>
+								<Text className={`${helperText} text-sm`}>
+									Após salvar, o formulário abrirá a tela selecionada.
+								</Text>
+							</VStack>
+
+							<VStack className="w-full px-2 pb-3">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Buscar tela</Text>
+								<Input className={fieldContainerClassName}>
+									<InputField
+										value={returnDestinationSearch}
+										onChangeText={setReturnDestinationSearch}
+										placeholder="Digite o nome da tela"
+										autoCapitalize="none"
+										autoCorrect={false}
+										returnKeyType="search"
+										accessibilityLabel="Buscar tela de retorno"
+										className={inputField}
+									/>
+								</Input>
+							</VStack>
+
+							<ActionsheetScrollView
+								className="w-full flex-1"
+								keyboardShouldPersistTaps="handled"
+								keyboardDismissMode="on-drag"
+								contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
+							>
+								<VStack className="w-full px-2 pb-2">
+									{filteredReturnDestinationOptions.length === 0 ? (
+										<VStack className="items-center px-4 py-8">
+											<Text className={`${bodyText} text-center text-sm`}>
+												Nenhuma tela encontrada para &quot;{returnDestinationSearch.trim()}&quot;.
+											</Text>
+											<Text className={`${helperText} mt-1 text-center text-xs`}>
+												Tente buscar por outro nome ou parte do nome.
+											</Text>
+										</VStack>
+									) : null}
+
+									{filteredReturnDestinationOptions.map(destinationOption => {
+										const isSelected = destinationOption.key === selectedReturnDestination;
+										const DestinationIllustration = returnDestinationIllustrationByKey[destinationOption.key];
+
+										return (
+											<ActionsheetItem
+												key={destinationOption.key}
+												onPress={() => handleSelectReturnDestination(destinationOption.key)}
+												className={isSelected ? (isDarkMode ? 'rounded-2xl bg-slate-900' : 'rounded-2xl bg-amber-50') : 'rounded-2xl'}
+											>
+												<HStack className="w-full items-center gap-3">
+													<View className="h-11 w-11 items-center justify-center rounded-2xl">
+														<DestinationIllustration width={44} height={44} className="opacity-90" />
+													</View>
+													<VStack className="min-w-0 flex-1 items-start gap-1">
+														<ActionsheetItemText className={isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900'}>
+															{destinationOption.label}
+														</ActionsheetItemText>
+														<Text className={`${helperText} text-xs leading-4`}>
+															{destinationOption.description}
+														</Text>
+														{isSelected ? (
+															<Text className="text-xs text-amber-500 dark:text-amber-300">Selecionada atualmente</Text>
+														) : null}
+													</VStack>
+												</HStack>
+											</ActionsheetItem>
+										);
+									})}
+								</VStack>
+							</ActionsheetScrollView>
+						</KeyboardAvoidingView>
+					</ActionsheetContent>
+				</Actionsheet>
 
 				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
 					<Navigator defaultValue={2} onHardwareBack={handleBackToConfigurations} />
