@@ -131,6 +131,19 @@ describe('navigation helpers', () => {
 		expect(router.replace).not.toHaveBeenCalled();
 	});
 
+	it('passes the focused mandatory expense to the mandatory expenses list', () => {
+		const { navigation, router } = loadNavigationModule();
+
+		navigation.navigateToRoute(navigation.APP_ROUTE_PATHS.mandatoryExpenses, {
+			focusMandatoryExpenseId: 'rent',
+		});
+
+		expect(router.push).toHaveBeenCalledWith({
+			pathname: '/mandatory-expenses',
+			params: { focusMandatoryExpenseId: 'rent' },
+		});
+	});
+
 	it('logs a synchronous replace failure without dispatching a destructive fallback action', () => {
 		const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 		const { navigation, router } = loadNavigationModule({

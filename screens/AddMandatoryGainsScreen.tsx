@@ -27,6 +27,7 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import DatePickerField from '@/components/uiverse/date-picker';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import TimePickerField from '@/components/uiverse/time-picker-field';
 
 import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
@@ -80,9 +81,7 @@ import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
 	DEFAULT_MANDATORY_REMINDER_MINUTE,
 	DEFAULT_MANDATORY_REMINDER_TIME,
-	finalizeMandatoryReminderTimeInput,
 	formatMandatoryReminderTime,
-	formatMandatoryReminderTimeInput,
 	isMandatoryReminderTimeValid,
 	parseMandatoryReminderTime,
 } from '@/utils/mandatoryReminderTime';
@@ -112,7 +111,7 @@ type MandatoryGainFormSnapshot = {
 	reminderTime: string;
 	reminderEnabled: boolean;
 };
-type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'installments' | 'description' | 'reminder-time';
+type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'installments' | 'description';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -242,15 +241,10 @@ export default function AddMandatoryGainsScreen() {
 	const dueDayInputRef = React.useRef<TextInput | null>(null);
 	const installmentsInputRef = React.useRef<TextInput | null>(null);
 	const descriptionInputRef = React.useRef<TextInput | null>(null);
-	const reminderTimeInputRef = React.useRef<TextInput | null>(null);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => {
 			if (key === 'description') {
 				return 180;
-			}
-
-			if (key === 'reminder-time') {
-				return 150;
 			}
 
 			return 120;
@@ -314,14 +308,6 @@ export default function AddMandatoryGainsScreen() {
 			setInstallmentTotal(String(totalFromRange));
 		}
 	}, [installmentStartDate]);
-
-	const handleReminderTimeChange = React.useCallback((input: string) => {
-		setReminderTime(formatMandatoryReminderTimeInput(input));
-	}, []);
-
-	const handleReminderTimeBlur = React.useCallback(() => {
-		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? currentValue);
-	}, []);
 
 	const isDueDayValid = React.useMemo(() => {
 		if (!dueDay) {
@@ -411,7 +397,9 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
-		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? DEFAULT_MANDATORY_REMINDER_TIME);
+		setReminderTime(currentValue =>
+			parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
+		);
 		setReminderEnabled(value);
 	}, [gainName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
 
@@ -575,8 +563,6 @@ export default function AddMandatoryGainsScreen() {
 					return installmentsInputRef;
 				case 'description':
 					return descriptionInputRef;
-				case 'reminder-time':
-					return reminderTimeInputRef;
 				default:
 					return null;
 			}
@@ -1133,6 +1119,7 @@ export default function AddMandatoryGainsScreen() {
 
 			applyPostSubmitBehavior({
 				resetForm: !editingGainTemplateId ? resetForm : undefined,
+				isEditing: Boolean(editingGainTemplateId),
 			});
 		} catch (error) {
 			console.error('Erro ao salvar ganho obrigatório:', error);
@@ -1587,23 +1574,17 @@ export default function AddMandatoryGainsScreen() {
 														</Popover>
 													</HStack>
 
-													<Input className={fieldContainerClassName} isDisabled={isReminderTimeFieldDisabled}>
-														<InputField
-															ref={reminderTimeInputRef}
-															placeholder="Ex: 19:00"
-															value={reminderTime}
-															onChangeText={handleReminderTimeChange}
-															onBlur={handleReminderTimeBlur}
-															keyboardType="numeric"
-															returnKeyType="done"
-															maxLength={5}
-															className={inputField}
-															onFocus={() => handleInputFocus('reminder-time')}
-														/>
-													</Input>
+													<TimePickerField
+														value={reminderTime}
+														onChange={setReminderTime}
+														isDisabled={isReminderTimeFieldDisabled}
+														triggerClassName={fieldContainerClassName}
+														inputClassName={inputField}
+														accessibilityLabel="Selecionar horário preferido do lembrete de recebimento"
+													/>
 
-													<Text className={`${helperText} ml-1 text-sm`}>
-														Digite no formato `HH:MM` ou apenas os números. O sistema usa esse horário como preferência de entrega.
+													<Text className={helperText + ' ml-1 text-sm'}>
+														Escolha o horário no seletor do dispositivo. O sistema o usa como preferência de entrega.
 													</Text>
 
 													{!isReminderTimeValid ? (

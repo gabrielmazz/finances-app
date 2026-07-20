@@ -40,6 +40,35 @@
         {
           "defaultChannel": "system-tests-v1-expo"
         }
+      ],
+      [
+        "@react-native-community/datetimepicker",
+        {
+          "android": {
+            "timePicker": {
+              "background": {
+                "light": "#FFFFFF",
+                "dark": "#0F172A"
+              },
+              "headerBackground": {
+                "light": "#FACC15",
+                "dark": "#FDE047"
+              },
+              "numbersBackgroundColor": {
+                "light": "#F8FAFC",
+                "dark": "#1E293B"
+              },
+              "numbersSelectorColor": {
+                "light": "#FACC15",
+                "dark": "#FDE047"
+              },
+              "numbersTextColor": {
+                "light": "#1E293B",
+                "dark": "#E2E8F0"
+              }
+            }
+          }
+        }
       ]
     ],
     "extra": {

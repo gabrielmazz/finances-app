@@ -2,8 +2,10 @@ import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import {
 	isMandatoryInstallmentPlanComplete,
+	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
 
 type MandatoryExpenseSuggestionDraft = {
@@ -17,12 +19,16 @@ export type MandatoryExpenseSuggestionCandidate = {
 	id?: unknown;
 	name?: unknown;
 	valueInCents?: unknown;
+	lastPaymentValueInCents?: unknown;
 	tagId?: unknown;
 	dueDay?: unknown;
 	usesBusinessDays?: unknown;
 	lastPaymentCycle?: unknown;
+	hasLinkedPaymentExpense?: unknown;
 	installmentTotal?: unknown;
 	installmentsCompleted?: unknown;
+	installmentStartDate?: unknown;
+	installmentEndDate?: unknown;
 };
 
 export type MandatoryExpenseSuggestion = {
@@ -31,9 +37,14 @@ export type MandatoryExpenseSuggestion = {
 	valueInCents: number;
 	tagId: string | null;
 	dueDay: number;
-	status: 'pending' | 'paid';
 	matchKey: string;
 	score: number;
+};
+
+export type MandatoryExpenseRegistrationTarget = {
+	id: string;
+	isPaidForCurrentCycle?: boolean;
+	isInstallmentComplete?: boolean;
 };
 
 type ScoredMandatoryExpenseSuggestion = MandatoryExpenseSuggestion & {
@@ -41,11 +52,41 @@ type ScoredMandatoryExpenseSuggestion = MandatoryExpenseSuggestion & {
 	valueScore: number;
 };
 
-const MINIMUM_MATCH_SCORE = 86;
-const MINIMUM_NAME_SCORE = 52;
-const MINIMUM_VALUE_SCORE = 18;
+type ValueMatch = {
+	score: number;
+	isModeratelyClose: boolean;
+};
+
+const MINIMUM_FLEXIBLE_NAME_SCORE = 56;
 const MINIMUM_SECOND_PLACE_GAP = 12;
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+const MINIMUM_CORE_NAME_LENGTH = 3;
+const MODERATE_VALUE_DIFFERENCE_IN_CENTS = 3000;
+const CORE_NAME_IGNORED_TOKENS = new Set([
+	'a',
+	'as',
+	'boleto',
+	'conta',
+	'da',
+	'das',
+	'de',
+	'debito',
+	'despesa',
+	'do',
+	'dos',
+	'em',
+	'fatura',
+	'gasto',
+	'mensal',
+	'mensalidade',
+	'na',
+	'no',
+	'o',
+	'os',
+	'pagamento',
+	'para',
+	'por',
+]);
 
 const normalizeComparableText = (value: unknown) =>
 	(typeof value === 'string' ? value : '')
@@ -57,6 +98,30 @@ const normalizeComparableText = (value: unknown) =>
 		.replace(/\s+/g, ' ');
 
 const getComparableTokens = (value: string) => value.split(' ').filter(token => token.length > 0);
+
+const getCoreMandatoryNameTokens = (value: unknown) => {
+	const normalizedValue = normalizeComparableText(value)
+		.replace(/\benergia eletrica\b/g, 'luz')
+		.replace(/\beletricidade\b/g, 'luz');
+
+	return getComparableTokens(normalizedValue).filter(token => !CORE_NAME_IGNORED_TOKENS.has(token));
+};
+
+const hasSameCoreMandatoryName = (draftName: string, candidateName: string) => {
+	const draftTokens = getCoreMandatoryNameTokens(draftName);
+	const candidateTokens = getCoreMandatoryNameTokens(candidateName);
+	const draftCoreName = draftTokens.join(' ');
+	const candidateCoreName = candidateTokens.join(' ');
+
+	if (
+		draftCoreName.length < MINIMUM_CORE_NAME_LENGTH ||
+		candidateCoreName.length < MINIMUM_CORE_NAME_LENGTH
+	) {
+		return false;
+	}
+
+	return draftCoreName === candidateCoreName;
+};
 
 const getLevenshteinDistance = (left: string, right: string) => {
 	if (left === right) {
@@ -143,24 +208,31 @@ const getNameScore = (draftName: string, candidateName: string) => {
 	return 0;
 };
 
-const getValueScore = (draftValueInCents: number, candidateValueInCents: number) => {
-	if (draftValueInCents === candidateValueInCents) {
-		return 25;
+const getValueMatch = (draftValueInCents: number, candidateValuesInCents: number[]): ValueMatch => {
+	let highestScore = 0;
+	let isModeratelyClose = false;
+
+	for (const candidateValueInCents of candidateValuesInCents) {
+		if (!Number.isFinite(candidateValueInCents) || candidateValueInCents <= 0) {
+			continue;
+		}
+
+		const differenceInCents = Math.abs(draftValueInCents - candidateValueInCents);
+		const referenceValueInCents = Math.max(draftValueInCents, candidateValueInCents);
+		const isVeryClose =
+			differenceInCents <= 100 || differenceInCents * 10000 <= referenceValueInCents * 100;
+		const isWithinVariableBillRange =
+			differenceInCents <= MODERATE_VALUE_DIFFERENCE_IN_CENTS &&
+			differenceInCents * 100 <= referenceValueInCents * 25;
+
+		isModeratelyClose = isModeratelyClose || isWithinVariableBillRange;
+		highestScore = Math.max(
+			highestScore,
+			differenceInCents === 0 ? 25 : isVeryClose ? 21 : isWithinVariableBillRange ? 14 : 0,
+		);
 	}
 
-	const differenceInCents = Math.abs(draftValueInCents - candidateValueInCents);
-	const referenceValueInCents = Math.max(draftValueInCents, candidateValueInCents);
-	const differenceBasisPoints = Math.floor((differenceInCents * 10000) / referenceValueInCents);
-
-	if (differenceInCents <= 100 || differenceBasisPoints <= 100) {
-		return 21;
-	}
-
-	if (differenceInCents <= 500 || differenceBasisPoints <= 500) {
-		return 10;
-	}
-
-	return 0;
+	return { score: highestScore, isModeratelyClose };
 };
 
 const startOfLocalDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -193,12 +265,18 @@ const getDueDateScore = (draftDate: Date, dueDay: number, usesBusinessDays: bool
 const normalizeCandidate = (
 	candidate: MandatoryExpenseSuggestionCandidate,
 	draftCycleKey: string,
+	draftDate: Date,
 ) => {
 	const id = typeof candidate.id === 'string' && candidate.id.trim().length > 0 ? candidate.id : null;
 	const name = typeof candidate.name === 'string' && candidate.name.trim().length > 0 ? candidate.name.trim() : null;
 	const valueInCents =
 		typeof candidate.valueInCents === 'number' && Number.isFinite(candidate.valueInCents)
 			? Math.max(0, Math.trunc(candidate.valueInCents))
+			: null;
+	const lastPaymentValueInCents =
+		typeof candidate.lastPaymentValueInCents === 'number' &&
+		Number.isFinite(candidate.lastPaymentValueInCents)
+			? Math.max(0, Math.trunc(candidate.lastPaymentValueInCents))
 			: null;
 	const dueDay =
 		typeof candidate.dueDay === 'number' && Number.isFinite(candidate.dueDay)
@@ -210,17 +288,39 @@ const normalizeCandidate = (
 	}
 
 	const lastPaymentCycle = typeof candidate.lastPaymentCycle === 'string' ? candidate.lastPaymentCycle : null;
-	const status: MandatoryExpenseSuggestion['status'] = lastPaymentCycle === draftCycleKey ? 'paid' : 'pending';
+	const hasLinkedPaymentExpense = candidate.hasLinkedPaymentExpense !== false;
+	const wasPaidForDraftCycle = lastPaymentCycle === draftCycleKey && hasLinkedPaymentExpense;
 	const installmentTotal = normalizeMandatoryInstallmentTotal(candidate.installmentTotal);
-	const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
+	const storedInstallmentsCompleted = normalizeMandatoryInstallmentsCompleted(
 		candidate.installmentsCompleted,
 		installmentTotal,
 	);
+	const installmentStartDate = normalizeMandatoryInstallmentDate(candidate.installmentStartDate);
+	const installmentEndDate = normalizeMandatoryInstallmentDate(candidate.installmentEndDate);
 
-	if (
-		status === 'pending' &&
-		isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted)
-	) {
+	// O fluxo de [[Despesas Fixas]] só deve sugerir ciclos realmente registráveis.
+	// Um template já pago, concluído ou fora da vigência do parcelamento não é candidato.
+	if (wasPaidForDraftCycle) {
+		return null;
+	}
+
+	if (installmentStartDate && draftCycleKey < getCycleKeyFromDate(installmentStartDate)) {
+		return null;
+	}
+
+	if (installmentEndDate && draftCycleKey > getCycleKeyFromDate(installmentEndDate)) {
+		return null;
+	}
+
+	const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
+		storedCompleted: storedInstallmentsCompleted,
+		installmentTotal,
+		startDate: installmentStartDate,
+		isCurrentCycleCompleted: false,
+		referenceDate: draftDate,
+	});
+
+	if (isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted)) {
 		return null;
 	}
 
@@ -228,27 +328,24 @@ const normalizeCandidate = (
 		id,
 		name,
 		valueInCents,
+		lastPaymentValueInCents,
 		tagId: typeof candidate.tagId === 'string' && candidate.tagId.length > 0 ? candidate.tagId : null,
 		dueDay,
 		usesBusinessDays: candidate.usesBusinessDays === true,
-		status,
 	};
 };
 
 const buildMatchKey = ({
 	draft,
 	candidateId,
-	status,
 	cycleKey,
 }: {
 	draft: MandatoryExpenseSuggestionDraft;
 	candidateId: string;
-	status: MandatoryExpenseSuggestion['status'];
 	cycleKey: string;
 }) =>
 	[
 		candidateId,
-		status,
 		cycleKey,
 		normalizeComparableText(draft.name),
 		String(Math.max(0, Math.trunc(draft.valueInCents))),
@@ -260,20 +357,32 @@ const scoreCandidate = (
 	candidate: NonNullable<ReturnType<typeof normalizeCandidate>>,
 	cycleKey: string,
 ): ScoredMandatoryExpenseSuggestion | null => {
-	const nameScore = getNameScore(draft.name, candidate.name);
-	const valueScore = getValueScore(draft.valueInCents, candidate.valueInCents);
-
-	if (nameScore < MINIMUM_NAME_SCORE || valueScore < MINIMUM_VALUE_SCORE) {
-		return null;
-	}
-
-	const tagScore = draft.tagId && candidate.tagId && draft.tagId === candidate.tagId ? 15 : 0;
+	const hasSameCoreName = hasSameCoreMandatoryName(draft.name, candidate.name);
+	const nameScore = hasSameCoreName
+		? Math.max(80, getNameScore(draft.name, candidate.name))
+		: getNameScore(draft.name, candidate.name);
+	const valueMatch = getValueMatch(
+		draft.valueInCents,
+		[candidate.valueInCents, candidate.lastPaymentValueInCents].filter(
+			(value): value is number => typeof value === 'number' && value > 0,
+		),
+	);
+	const tagMatches = Boolean(draft.tagId && candidate.tagId && draft.tagId === candidate.tagId);
 	const dueDateScore = getDueDateScore(draft.date, candidate.dueDay, candidate.usesBusinessDays);
-	const score = nameScore + valueScore + tagScore + dueDateScore;
+	const hasSupportingContext = tagMatches || dueDateScore > 0;
 
-	if (score < MINIMUM_MATCH_SCORE) {
+	// Em [[Despesas Fixas]], a tag obrigatória pode não estar disponível na lista de
+	// categorias comuns. Por isso, um nome canônico único ("Luz"/"Conta de Luz")
+	// é suficiente; para um nome apenas parecido exigimos valor compatível e outro
+	// sinal independente (categoria ou proximidade com o vencimento).
+	if (
+		!hasSameCoreName &&
+		(nameScore < MINIMUM_FLEXIBLE_NAME_SCORE || !valueMatch.isModeratelyClose || !hasSupportingContext)
+	) {
 		return null;
 	}
+
+	const score = nameScore + valueMatch.score + (tagMatches ? 15 : 0) + dueDateScore;
 
 	return {
 		id: candidate.id,
@@ -281,11 +390,10 @@ const scoreCandidate = (
 		valueInCents: candidate.valueInCents,
 		tagId: candidate.tagId,
 		dueDay: candidate.dueDay,
-		status: candidate.status,
-		matchKey: buildMatchKey({ draft, candidateId: candidate.id, status: candidate.status, cycleKey }),
+		matchKey: buildMatchKey({ draft, candidateId: candidate.id, cycleKey }),
 		score,
 		nameScore,
-		valueScore,
+		valueScore: valueMatch.score,
 	};
 };
 
@@ -298,9 +406,21 @@ export const findMandatoryExpenseSuggestion = (
 	}
 
 	const cycleKey = getCycleKeyFromDate(draft.date);
-	const scoredCandidates = candidates
-		.map(candidate => normalizeCandidate(candidate, cycleKey))
-		.filter((candidate): candidate is NonNullable<ReturnType<typeof normalizeCandidate>> => Boolean(candidate))
+	const normalizedCandidates = candidates
+		.map(candidate => normalizeCandidate(candidate, cycleKey, draft.date))
+		.filter((candidate): candidate is NonNullable<ReturnType<typeof normalizeCandidate>> => Boolean(candidate));
+	const candidatesWithSameCoreName = normalizedCandidates.filter(candidate =>
+		hasSameCoreMandatoryName(draft.name, candidate.name),
+	);
+
+	// Dois obrigatórios pendentes com o mesmo nome principal não são uma suposição segura.
+	if (candidatesWithSameCoreName.length > 1) {
+		return null;
+	}
+
+	const scoredCandidates = (candidatesWithSameCoreName.length === 1
+		? candidatesWithSameCoreName
+		: normalizedCandidates)
 		.map(candidate => scoreCandidate(draft, candidate, cycleKey))
 		.filter((candidate): candidate is ScoredMandatoryExpenseSuggestion => Boolean(candidate))
 		.sort((left, right) => right.score - left.score);
@@ -317,4 +437,22 @@ export const findMandatoryExpenseSuggestion = (
 
 	const { nameScore: _nameScore, valueScore: _valueScore, ...suggestion } = bestCandidate;
 	return suggestion;
+};
+
+export const findMandatoryExpenseRegistrationTarget = <
+	Candidate extends MandatoryExpenseRegistrationTarget,
+>(
+	focusMandatoryExpenseId: string | null,
+	candidates: Candidate[],
+): Candidate | null => {
+	if (!focusMandatoryExpenseId) {
+		return null;
+	}
+
+	const candidate = candidates.find(item => item.id === focusMandatoryExpenseId);
+	if (!candidate || candidate.isPaidForCurrentCycle || candidate.isInstallmentComplete) {
+		return null;
+	}
+
+	return candidate;
 };

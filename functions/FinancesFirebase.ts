@@ -14,12 +14,24 @@ import {
 } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 import { RedemptionTerm } from '@/utils/finance';
+import {
+	getInvestmentAssetType,
+	getInvestmentValuationMethod,
+	normalizeCdiPercentageInBasisPoints,
+	type InvestmentAssetType,
+	type InvestmentCashFlow,
+	type InvestmentSync,
+	type InvestmentValuationMethod,
+} from '@/utils/investmentPortfolio';
 
 interface AddFinanceInvestmentParams {
 	name: string;
 	initialValueInCents: number;
 	currentValueInCents?: number;
 	cdiPercentage: number;
+	cdiPercentageInBasisPoints?: number;
+	assetType?: InvestmentAssetType;
+	valuationMethod?: InvestmentValuationMethod;
 	redemptionTerm: RedemptionTerm;
 	bankId: string;
 	personId: string;
@@ -34,6 +46,9 @@ interface UpdateFinanceInvestmentParams {
 	initialValueInCents?: number;
 	currentValueInCents?: number;
 	cdiPercentage?: number;
+	cdiPercentageInBasisPoints?: number;
+	assetType?: InvestmentAssetType;
+	valuationMethod?: InvestmentValuationMethod;
 	redemptionTerm?: RedemptionTerm;
 	bankId?: string;
 	bankNameSnapshot?: string | null;
@@ -95,11 +110,37 @@ const normalizeDateValue = (value?: Date | null) => {
 	return new Date();
 };
 
+const parseFirestoreDate = (value: unknown): Date | null => {
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? null : value;
+	}
+
+	if (
+		value &&
+		typeof value === 'object' &&
+		'toDate' in value &&
+		typeof (value as { toDate?: () => Date }).toDate === 'function'
+	) {
+		const parsedDate = (value as { toDate: () => Date }).toDate();
+		return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+	}
+
+	if (typeof value === 'string' || typeof value === 'number') {
+		const parsedDate = new Date(value);
+		return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+	}
+
+	return null;
+};
+
 export async function addFinanceInvestmentFirebase({
 	name,
 	initialValueInCents,
 	currentValueInCents,
 	cdiPercentage,
+	cdiPercentageInBasisPoints,
+	assetType,
+	valuationMethod,
 	redemptionTerm,
 	bankId,
 	personId,
@@ -108,6 +149,12 @@ export async function addFinanceInvestmentFirebase({
 	bankNameSnapshot,
 }: AddFinanceInvestmentParams) {
 	try {
+		const resolvedAssetType = getInvestmentAssetType(assetType);
+		const resolvedValuationMethod = getInvestmentValuationMethod(valuationMethod, resolvedAssetType);
+		const resolvedCdiPercentageInBasisPoints =
+		typeof cdiPercentageInBasisPoints === 'number'
+			? Math.max(0, Math.round(cdiPercentageInBasisPoints))
+			: normalizeCdiPercentageInBasisPoints(cdiPercentage);
 		const investmentRef = doc(collection(db, COLLECTION));
 		await setDoc(investmentRef, {
 			name,
@@ -115,6 +162,9 @@ export async function addFinanceInvestmentFirebase({
 			initialInvestedInCents: initialValueInCents,
 			currentValueInCents: typeof currentValueInCents === 'number' ? currentValueInCents : initialValueInCents,
 			cdiPercentage,
+			cdiPercentageInBasisPoints: resolvedCdiPercentageInBasisPoints,
+			assetType: resolvedAssetType,
+			valuationMethod: resolvedValuationMethod,
 			redemptionTerm,
 			bankId,
 			personId,
@@ -141,6 +191,9 @@ export async function updateFinanceInvestmentFirebase({
 	initialValueInCents,
 	currentValueInCents,
 	cdiPercentage,
+	cdiPercentageInBasisPoints,
+	assetType,
+	valuationMethod,
 	redemptionTerm,
 	bankId,
 	bankNameSnapshot,
@@ -183,6 +236,29 @@ export async function updateFinanceInvestmentFirebase({
 
 		if (typeof cdiPercentage === 'number') {
 			updates.cdiPercentage = cdiPercentage;
+			updates.cdiPercentageInBasisPoints =
+				typeof cdiPercentageInBasisPoints === 'number'
+					? Math.max(0, Math.round(cdiPercentageInBasisPoints))
+					: normalizeCdiPercentageInBasisPoints(cdiPercentage);
+		} else if (typeof cdiPercentageInBasisPoints === 'number') {
+			updates.cdiPercentageInBasisPoints = Math.max(0, Math.round(cdiPercentageInBasisPoints));
+		}
+
+		if (assetType !== undefined) {
+			const normalizedAssetType = getInvestmentAssetType(assetType);
+			updates.assetType = normalizedAssetType;
+			if (valuationMethod === undefined) {
+				updates.valuationMethod = getInvestmentValuationMethod(undefined, normalizedAssetType);
+			}
+		}
+
+		if (valuationMethod !== undefined) {
+			updates.valuationMethod = getInvestmentValuationMethod(
+				valuationMethod,
+				assetType !== undefined
+					? getInvestmentAssetType(assetType)
+					: getInvestmentAssetType(currentData?.assetType),
+			);
 		}
 
 		if (typeof redemptionTerm === 'string') {
@@ -705,6 +781,105 @@ export async function getFinanceInvestmentsByPeriodFirebase({
 		return { success: true, data: investments };
 	} catch (error) {
 		console.error('Erro ao buscar investimentos por período:', error);
+		return { success: false, error };
+	}
+}
+
+export type FinanceInvestmentPortfolioActivity = {
+	cashFlows: InvestmentCashFlow[];
+	syncs: InvestmentSync[];
+};
+
+export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase(personId: string) {
+	try {
+		const relatedResult = await getRelatedUsersIDsFirebase(personId);
+		if (!relatedResult.success) {
+			throw new Error('Erro ao buscar usuários relacionados.');
+		}
+
+		const relatedIds = Array.isArray(relatedResult.data) ? relatedResult.data : [];
+		const allowedIds = Array.from(
+			new Set(
+				[personId, ...relatedIds].filter(
+					(candidate): candidate is string =>
+						typeof candidate === 'string' && candidate.trim().length > 0,
+				),
+			),
+		);
+
+		const [syncSnapshot, expensesSnapshot, gainsSnapshot] = await Promise.all([
+			getDocs(query(collection(db, SYNC_COLLECTION), where('personId', 'in', allowedIds))),
+			getDocs(query(collection(db, 'expenses'), where('personId', 'in', allowedIds))),
+			getDocs(query(collection(db, 'gains'), where('personId', 'in', allowedIds))),
+		]);
+
+		const syncs = syncSnapshot.docs
+			.map(syncDoc => {
+				const data = syncDoc.data() as FinanceInvestmentRecord;
+				const investmentId = typeof data.investmentId === 'string' ? data.investmentId : null;
+				const syncedValueInCents =
+					typeof data.syncedValueInCents === 'number' && Number.isFinite(data.syncedValueInCents)
+						? Math.max(0, Math.round(data.syncedValueInCents))
+						: null;
+				const date = parseFirestoreDate(data.date ?? data.createdAt);
+				const reason =
+					data.reason === 'deposit' || data.reason === 'withdrawal' || data.reason === 'manual'
+						? data.reason
+						: 'manual';
+
+				if (!investmentId || syncedValueInCents === null || !date) {
+					return null;
+				}
+
+				return { investmentId, syncedValueInCents, date, reason } satisfies InvestmentSync;
+			})
+			.filter((sync): sync is InvestmentSync => sync !== null);
+
+		const deposits = expensesSnapshot.docs
+			.map<InvestmentCashFlow | null>(expenseDoc => {
+				const data = expenseDoc.data() as FinanceInvestmentRecord;
+				const investmentId = typeof data.investmentId === 'string' ? data.investmentId : null;
+				const valueInCents =
+					typeof data.valueInCents === 'number' && Number.isFinite(data.valueInCents)
+						? Math.max(0, Math.round(data.valueInCents))
+						: null;
+				const date = parseFirestoreDate(data.date ?? data.createdAt);
+
+				if (!data.isInvestmentDeposit || !investmentId || valueInCents === null || !date) {
+					return null;
+				}
+
+				return { investmentId, valueInCents, date, kind: 'deposit' } satisfies InvestmentCashFlow;
+			})
+			.filter((flow): flow is InvestmentCashFlow => flow !== null);
+
+		const redemptions = gainsSnapshot.docs
+			.map<InvestmentCashFlow | null>(gainDoc => {
+				const data = gainDoc.data() as FinanceInvestmentRecord;
+				const investmentId = typeof data.investmentId === 'string' ? data.investmentId : null;
+				const valueInCents =
+					typeof data.valueInCents === 'number' && Number.isFinite(data.valueInCents)
+						? Math.max(0, Math.round(data.valueInCents))
+						: null;
+				const date = parseFirestoreDate(data.date ?? data.createdAt);
+
+				if (!data.isInvestmentRedemption || !investmentId || valueInCents === null || !date) {
+					return null;
+				}
+
+				return { investmentId, valueInCents, date, kind: 'withdrawal' } satisfies InvestmentCashFlow;
+			})
+			.filter((flow): flow is InvestmentCashFlow => flow !== null);
+
+		return {
+			success: true,
+			data: {
+				cashFlows: [...deposits, ...redemptions],
+				syncs,
+			} satisfies FinanceInvestmentPortfolioActivity,
+		};
+	} catch (error) {
+		console.error('Erro ao buscar a atividade do portfólio de investimentos:', error);
 		return { success: false, error };
 	}
 }

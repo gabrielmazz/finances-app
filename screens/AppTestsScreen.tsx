@@ -47,6 +47,7 @@ export default function AppTestsScreen() {
 		cardBackground,
 		bodyText,
 		helperText,
+		submitButtonTextClassName,
 		notTintedCardClassName,
 		accordionSectionButtonClassName,
 		heroHeight,
@@ -428,8 +429,8 @@ export default function AppTestsScreen() {
 										<ButtonSpinner color={isDarkMode ? '#E2E8F0' : '#334155'} />
 									) : (
 										<>
-											<ButtonIcon as={ListChecks} size="md" className={bodyText} />
-											<ButtonText className={bodyText}>Ver diagnóstico</ButtonText>
+											<ButtonIcon as={ListChecks} size="md" className={submitButtonTextClassName} />
+											<ButtonText className={submitButtonTextClassName}>Ver diagnóstico</ButtonText>
 										</>
 									)}
 								</Button>
@@ -445,8 +446,8 @@ export default function AppTestsScreen() {
 									accessibilityLabel="Abrir configurações de notificação do Android"
 									accessibilityHint="Abre as configurações do aplicativo para ativar as permissões de notificação"
 								>
-									<ButtonIcon as={Settings} size="md" className={bodyText} />
-									<ButtonText className={bodyText}>Abrir configurações de notificação</ButtonText>
+									<ButtonIcon as={Settings} size="md" className={submitButtonTextClassName} />
+									<ButtonText className={submitButtonTextClassName}>Abrir configurações de notificação</ButtonText>
 								</Button>
 							</VStack>
 						</Box>

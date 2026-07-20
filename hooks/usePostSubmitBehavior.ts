@@ -15,6 +15,7 @@ import {
 
 type ApplyPostSubmitBehaviorOptions = {
 	resetForm?: () => void;
+	isEditing?: boolean;
 };
 
 const navigateToPostSubmitDestination = (destination: PostSubmitDestinationKey) => {
@@ -93,14 +94,16 @@ export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 				return;
 			}
 
-			const behavior = getBehaviorForScreen(screenKey);
+			const isEditing = options.isEditing === true;
+			const behavior = getBehaviorForScreen(screenKey, isEditing ? 'edit' : 'create');
 
 			if (behavior.shouldReturnAfterSubmit) {
 				navigateToPostSubmitDestination(behavior.returnDestination);
 				return;
 			}
 
-			if (behavior.shouldClearFieldsAfterSubmit) {
+			// Edições preservam o formulário mesmo diante de preferências antigas persistidas.
+			if (!isEditing && behavior.shouldClearFieldsAfterSubmit) {
 				options.resetForm?.();
 			}
 		},

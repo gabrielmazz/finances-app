@@ -7,6 +7,7 @@ export const APP_ROUTE_PATHS = {
 	login: '/',
 	home: '/home',
 	categoryAnalysis: '/category-analysis',
+	financialForecast: '/financial-forecast',
 	addRegisterBank: '/add-register-bank',
 	addRegisterUser: '/add-register-user',
 	addRegisterExpenses: '/add-register-expenses',

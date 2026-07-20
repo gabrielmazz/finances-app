@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
+import { Group } from '@mantine/core';
 import {
 	Button,
 	ButtonIcon,
@@ -27,6 +28,7 @@ import {
 	EditIcon,
 	Icon,
 	RepeatIcon,
+	SettingsIcon,
 	TrashIcon,
 } from '@/components/ui/icon';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
@@ -54,6 +56,8 @@ import {
 } from '@/components/ui/modal';
 
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
+import DatePickerField from '@/components/uiverse/date-picker';
+import InvestmentEvolutionChart from '@/components/uiverse/investment-evolution-chart';
 import Navigator from '@/components/uiverse/navigator';
 import {
 	useValueVisibility,
@@ -67,11 +71,32 @@ import { auth } from '@/FirebaseConfig';
 import {
 	deleteFinanceInvestmentFirebase,
 	getFinanceInvestmentsWithRelationsFirebase,
+	getFinanceInvestmentPortfolioActivityWithRelationsFirebase,
 	updateFinanceInvestmentFirebase,
 	syncFinanceInvestmentValueFirebase,
+	type FinanceInvestmentPortfolioActivity,
 } from '@/functions/FinancesFirebase';
+import {
+	getInvestmentCdiRatesWithRelationsFirebase,
+	upsertInvestmentCdiRateFirebase,
+} from '@/functions/InvestmentCdiRateFirebase';
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
+import {
+	buildInvestmentPortfolioAnalytics,
+	formatBasisPointsAsPercentage,
+	getActiveCdiRateForPerson,
+	getInvestmentAssetType,
+	getInvestmentValuationMethod,
+	investmentAssetTypeLabels,
+	normalizeCdiPercentageInBasisPoints,
+	parsePercentageToBasisPoints,
+	type InvestmentAssetType,
+	type InvestmentCdiRate,
+	type InvestmentPerformanceItem,
+	type InvestmentPerformancePeriod,
+	type InvestmentValuationMethod,
+} from '@/utils/investmentPortfolio';
 import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
 import { tagSupportsUsage } from '@/utils/tagUsage';
 import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
@@ -82,13 +107,18 @@ import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/uti
 
 type FinanceInvestment = {
 	id: string;
+	personId: string;
 	name: string;
 	initialValueInCents: number;
 	currentValueInCents: number;
 	cdiPercentage: number;
+	cdiPercentageInBasisPoints: number;
+	assetType: InvestmentAssetType;
+	valuationMethod: InvestmentValuationMethod;
 	redemptionTerm: RedemptionTerm;
 	bankId: string;
 	description?: string | null;
+	investmentDateISO: string;
 	createdAtISO: string;
 	lastManualSyncValueInCents?: number | null;
 	lastManualSyncAtISO?: string | null;
@@ -135,6 +165,9 @@ const formatDateToBR = (isoDate: string) =>
 		year: 'numeric',
 	}).format(new Date(isoDate));
 
+const formatSignedBasisPointsAsPercentage = (valueInBasisPoints: number) =>
+	`${valueInBasisPoints < 0 ? '-' : ''}${formatBasisPointsAsPercentage(Math.abs(valueInBasisPoints))}%`;
+
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 	{ value: 'anytime', label: redemptionTermLabels.anytime },
 	{ value: '1m', label: redemptionTermLabels['1m'] },
@@ -145,9 +178,17 @@ const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 	{ value: '3y', label: redemptionTermLabels['3y'] },
 ];
 
-const DAYS_IN_YEAR = 365;
-const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
-const BASE_CDI_ANNUAL_RATE = 0.1375;
+const performancePeriodOptions: { value: InvestmentPerformancePeriod; label: string }[] = [
+	{ value: '30d', label: '30 dias' },
+	{ value: '6m', label: '6 meses' },
+	{ value: '12m', label: '12 meses' },
+	{ value: 'all', label: 'Total' },
+];
+
+const emptyPortfolioActivity: FinanceInvestmentPortfolioActivity = {
+	cashFlows: [],
+	syncs: [],
+};
 
 const convertCentsToBRL = (valueInCents: number) => valueInCents / 100;
 const sanitizeNumberInput = (value: string) => value.replace(/[^\d.,]/g, '');
@@ -171,15 +212,6 @@ const parseCurrencyInputToCents = (value: string) => {
 		return null;
 	}
 	return Number(digits);
-};
-
-const parseStringToNumber = (value: string) => {
-	if (!value.trim()) {
-		return NaN;
-	}
-	const normalized = value.replace(/\./g, '').replace(',', '.');
-	const parsed = Number(normalized);
-	return Number.isFinite(parsed) ? parsed : NaN;
 };
 
 const normalizeDate = (value: unknown) => {
@@ -206,13 +238,40 @@ const normalizeDate = (value: unknown) => {
 	return new Date().toISOString();
 };
 
-const getDaysSinceDate = (isoDate: string) => {
-	const createdAt = new Date(isoDate);
-	if (Number.isNaN(createdAt.getTime())) {
-		return 0;
+const formatDateInput = (date: Date) => {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${day}/${month}/${year}`;
+};
+
+const parseDateFromBR = (value: string) => {
+	const [day, month, year] = value.split('/');
+	const parsedDay = Number(day);
+	const parsedMonth = Number(month);
+	const parsedYear = Number(year);
+	if (
+		!day ||
+		!month ||
+		!year ||
+		!Number.isInteger(parsedDay) ||
+		!Number.isInteger(parsedMonth) ||
+		!Number.isInteger(parsedYear) ||
+		parsedDay <= 0 ||
+		parsedMonth <= 0 ||
+		parsedMonth > 12 ||
+		parsedYear < 1900
+	) {
+		return null;
 	}
-	const diff = Date.now() - createdAt.getTime();
-	return diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
+
+	const parsedDate = new Date(parsedYear, parsedMonth - 1, parsedDay);
+	return
+		parsedDate.getDate() === parsedDay &&
+		parsedDate.getMonth() + 1 === parsedMonth &&
+		parsedDate.getFullYear() === parsedYear
+			? parsedDate
+			: null;
 };
 
 const resolveBaseValueInCents = (investment: FinanceInvestment) => {
@@ -223,33 +282,6 @@ const resolveBaseValueInCents = (investment: FinanceInvestment) => {
 		return investment.lastManualSyncValueInCents;
 	}
 	return investment.initialValueInCents;
-};
-
-const resolveBaseDateISO = (investment: FinanceInvestment) =>
-	investment.lastManualSyncAtISO ?? investment.createdAtISO;
-
-const calculateDailyRate = (cdiPercentage: number) => {
-	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
-		return 0;
-	}
-	const normalizedAnnualRate = BASE_CDI_ANNUAL_RATE * (cdiPercentage / 100);
-	return normalizedAnnualRate / DAYS_IN_YEAR;
-};
-
-const simulateCurrentValue = (investment: FinanceInvestment) => {
-	const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
-	const dailyRate = calculateDailyRate(investment.cdiPercentage);
-	if (dailyRate <= 0) {
-		return baseValue;
-	}
-	const days = getDaysSinceDate(resolveBaseDateISO(investment));
-	return baseValue * Math.pow(1 + dailyRate, days);
-};
-
-const simulateDailyYield = (investment: FinanceInvestment) => {
-	const dailyRate = calculateDailyRate(investment.cdiPercentage);
-	const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
-	return dailyRate > 0 ? baseValue * dailyRate : 0;
 };
 
 const getInvestmentBadgeLabel = (value: string) => {
@@ -279,18 +311,27 @@ const getInvestmentManualSyncLabel = (
 // A timeline mantém o acompanhamento por saldo base, projeção e sincronização manual conforme o fluxo descrito em [[Investimentos]].
 const getInvestmentSummaryText = (
 	investment: FinanceInvestment,
+	performance: InvestmentPerformanceItem | undefined,
 	formatCurrencyBRL: (value: number) => string,
 ) => {
-	const simulatedValue = formatCurrencyBRL(simulateCurrentValue(investment));
+	if (!performance?.hasCurrentCdiRate && investment.valuationMethod === 'cdi') {
+		return 'Defina uma taxa CDI anual de referência para ativar a projeção desta renda fixa. Enquanto isso, a carteira mantém o último valor confirmado.';
+	}
+
+	const simulatedValue = formatCurrencyBRL(
+		convertCentsToBRL(performance?.projectedValueInCents ?? resolveBaseValueInCents(investment)),
+	);
+	const periodGain = performance?.periodGainInCents ?? 0;
+	const periodPrefix = periodGain >= 0 ? 'ganho estimado de' : 'variação estimada de';
 
 	if (
 		typeof investment.lastManualSyncValueInCents === 'number' &&
 		investment.lastManualSyncAtISO
 	) {
-		return `Última sincronização manual em ${formatDateToBR(investment.lastManualSyncAtISO)}. O acompanhamento segue com projeção de ${simulatedValue} até a próxima conferência real.`;
+		return `Última sincronização manual em ${formatDateToBR(investment.lastManualSyncAtISO)}. A projeção atual é de ${simulatedValue}, com ${periodPrefix} ${formatCurrencyBRL(convertCentsToBRL(Math.abs(periodGain)))} no período selecionado.`;
 	}
 
-	return `Sem sincronização manual até agora. A carteira usa a projeção de ${simulatedValue} a partir do valor salvo neste investimento.`;
+	return `Sem sincronização manual até agora. A carteira estima ${simulatedValue} a partir do valor salvo neste investimento.`;
 };
 
 function FinancialListSkeleton({
@@ -416,6 +457,15 @@ export default function FinancialListScreen() {
 		{},
 	);
 	const bankOptions = React.useMemo(() => Object.values(banksMap), [banksMap]);
+	const [cdiRates, setCdiRates] = React.useState<InvestmentCdiRate[]>([]);
+	const [portfolioActivity, setPortfolioActivity] =
+		React.useState<FinanceInvestmentPortfolioActivity>(emptyPortfolioActivity);
+	const [performancePeriod, setPerformancePeriod] =
+		React.useState<InvestmentPerformancePeriod>('6m');
+	const [isCdiSettingsOpen, setIsCdiSettingsOpen] = React.useState(false);
+	const [cdiRateInput, setCdiRateInput] = React.useState('');
+	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(formatDateInput(new Date()));
+	const [isSavingCdiRate, setIsSavingCdiRate] = React.useState(false);
 
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
@@ -559,9 +609,11 @@ export default function FinancialListScreen() {
 			setIsLoading(true);
 		}
 		try {
-			const [investmentsResponse, banksResponse] = await Promise.all([
+			const [investmentsResponse, banksResponse, cdiRatesResponse, activityResponse] = await Promise.all([
 				getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
 				getBanksWithUsersByPersonFirebase(currentUser.uid),
+				getInvestmentCdiRatesWithRelationsFirebase(currentUser.uid),
+				getFinanceInvestmentPortfolioActivityWithRelationsFirebase(currentUser.uid),
 			]);
 
 			if (
@@ -587,48 +639,65 @@ export default function FinancialListScreen() {
 
 			const normalizedInvestments: FinanceInvestment[] = (
 				investmentsResponse.data as Array<Record<string, any>>
-			).map((investment) => ({
-				id: String(investment.id),
-				name:
-					typeof investment.name === 'string' &&
-						investment.name.trim().length > 0
-						? investment.name.trim()
-						: 'Investimento sem nome',
-				initialValueInCents:
-					typeof investment.initialValueInCents === 'number'
-						? investment.initialValueInCents
-						: typeof investment.initialInvestedInCents === 'number'
-							? investment.initialInvestedInCents
-							: 0,
-				currentValueInCents:
-					typeof investment.currentValueInCents === 'number'
-						? investment.currentValueInCents
-						: typeof investment.lastManualSyncValueInCents === 'number'
-							? investment.lastManualSyncValueInCents
-							: typeof investment.initialValueInCents === 'number'
-								? investment.initialValueInCents
+			).map((investment) => {
+				const cdiPercentageInBasisPoints =
+					typeof investment.cdiPercentageInBasisPoints === 'number'
+						? Math.max(0, Math.round(investment.cdiPercentageInBasisPoints))
+						: normalizeCdiPercentageInBasisPoints(investment.cdiPercentage);
+
+				const assetType = getInvestmentAssetType(investment.assetType);
+
+				return {
+					id: String(investment.id),
+					personId:
+						typeof investment.personId === 'string' && investment.personId.trim().length > 0
+							? investment.personId.trim()
+							: currentUser.uid,
+					name:
+						typeof investment.name === 'string' &&
+							investment.name.trim().length > 0
+							? investment.name.trim()
+							: 'Investimento sem nome',
+					initialValueInCents:
+						typeof investment.initialValueInCents === 'number'
+							? investment.initialValueInCents
+							: typeof investment.initialInvestedInCents === 'number'
+								? investment.initialInvestedInCents
 								: 0,
-				cdiPercentage:
-					typeof investment.cdiPercentage === 'number'
-						? investment.cdiPercentage
-						: 0,
-				redemptionTerm:
-					(investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
-				bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
-				description:
-					typeof investment.description === 'string' &&
-						investment.description.trim().length > 0
-						? investment.description.trim()
+					currentValueInCents:
+						typeof investment.currentValueInCents === 'number'
+							? investment.currentValueInCents
+							: typeof investment.lastManualSyncValueInCents === 'number'
+								? investment.lastManualSyncValueInCents
+								: typeof investment.initialValueInCents === 'number'
+									? investment.initialValueInCents
+									: 0,
+					cdiPercentage:
+						typeof investment.cdiPercentage === 'number'
+							? investment.cdiPercentage
+							: cdiPercentageInBasisPoints / 100,
+					cdiPercentageInBasisPoints,
+					assetType,
+					valuationMethod: getInvestmentValuationMethod(investment.valuationMethod, assetType),
+					redemptionTerm:
+						(investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
+					bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
+					description:
+						typeof investment.description === 'string' &&
+							investment.description.trim().length > 0
+							? investment.description.trim()
+							: null,
+					investmentDateISO: normalizeDate(investment.date ?? investment.createdAt),
+					createdAtISO: normalizeDate(investment.createdAt),
+					lastManualSyncValueInCents:
+						typeof investment.lastManualSyncValueInCents === 'number'
+							? investment.lastManualSyncValueInCents
+							: null,
+					lastManualSyncAtISO: investment.lastManualSyncAt
+						? normalizeDate(investment.lastManualSyncAt)
 						: null,
-				createdAtISO: normalizeDate(investment.createdAt),
-				lastManualSyncValueInCents:
-					typeof investment.lastManualSyncValueInCents === 'number'
-						? investment.lastManualSyncValueInCents
-						: null,
-				lastManualSyncAtISO: investment.lastManualSyncAt
-					? normalizeDate(investment.lastManualSyncAt)
-					: null,
-			}));
+				} satisfies FinanceInvestment;
+			});
 
 			setBanksMap(
 				normalizedBanks.reduce<Record<string, BankMetadata>>((acc, bank) => {
@@ -637,6 +706,16 @@ export default function FinancialListScreen() {
 				}, {}),
 			);
 			setInvestments(normalizedInvestments);
+			setCdiRates(
+				cdiRatesResponse.success && Array.isArray(cdiRatesResponse.data)
+					? cdiRatesResponse.data
+					: [],
+			);
+			setPortfolioActivity(
+				activityResponse.success && activityResponse.data
+					? activityResponse.data
+					: emptyPortfolioActivity,
+			);
 		} catch (error) {
 			console.error('Erro ao carregar dados de investimentos:', error);
 			showScreenAlert('Não foi possível carregar os investimentos.', 'error');
@@ -709,76 +788,60 @@ export default function FinancialListScreen() {
 		[],
 	);
 
-	const totalInvested = React.useMemo(
+	const portfolioAnalytics = React.useMemo(
 		() =>
-			convertCentsToBRL(
-				investments.reduce(
-					(total, current) => total + resolveBaseValueInCents(current),
-					0,
-				),
-			),
-		[investments],
+			buildInvestmentPortfolioAnalytics({
+				investments: investments.map(investment => {
+					const investmentDate = new Date(investment.investmentDateISO);
+					const createdAt = new Date(investment.createdAtISO);
+					const lastManualSyncAt = investment.lastManualSyncAtISO
+						? new Date(investment.lastManualSyncAtISO)
+						: null;
+					return {
+						id: investment.id,
+						personId: investment.personId,
+						name: investment.name,
+						bankId: investment.bankId || null,
+						initialValueInCents: investment.initialValueInCents,
+						currentValueInCents: resolveBaseValueInCents(investment),
+						cdiPercentageInBasisPoints: investment.cdiPercentageInBasisPoints,
+						assetType: investment.assetType,
+						valuationMethod: investment.valuationMethod,
+						investmentDate: Number.isNaN(investmentDate.getTime()) ? null : investmentDate,
+						createdAt: Number.isNaN(createdAt.getTime()) ? null : createdAt,
+						lastManualSyncAt:
+							lastManualSyncAt && !Number.isNaN(lastManualSyncAt.getTime())
+								? lastManualSyncAt
+								: null,
+					};
+				}),
+				rates: cdiRates,
+				cashFlows: portfolioActivity.cashFlows,
+				syncs: portfolioActivity.syncs,
+				period: performancePeriod,
+			}),
+		[cdiRates, investments, performancePeriod, portfolioActivity],
 	);
 
-	const totalSimulatedAmount = React.useMemo(
+	const currentUserId = auth.currentUser?.uid ?? '';
+	const activeCdiRate = React.useMemo(
 		() =>
-			investments.reduce(
-				(total, investment) => total + simulateCurrentValue(investment),
-				0,
-			),
-		[investments],
+			currentUserId
+				? getActiveCdiRateForPerson(cdiRates, currentUserId, new Date())
+				: null,
+		[cdiRates, currentUserId],
 	);
-
-	const totalDailyYield = React.useMemo(
+	const ownCdiRateHistory = React.useMemo(
 		() =>
-			investments.reduce(
-				(total, investment) => total + simulateDailyYield(investment),
-				0,
-			),
-		[investments],
+			cdiRates
+				.filter(rate => rate.personId === currentUserId)
+				.sort((left, right) => right.effectiveFrom.getTime() - left.effectiveFrom.getTime()),
+		[cdiRates, currentUserId],
 	);
-
-	const bankSummaries = React.useMemo(() => {
-		const summaries: Record<
-			string,
-			{
-				bankId: string;
-				bankName: string;
-				colorHex?: string | null;
-				totalInvested: number;
-				totalSimulated: number;
-				totalDailyYield: number;
-				investmentCount: number;
-			}
-		> = {};
-
-		investments.forEach((investment) => {
-			const meta = banksMap[investment.bankId];
-			const bankKey = investment.bankId || 'unknown';
-			if (!summaries[bankKey]) {
-				summaries[bankKey] = {
-					bankId: bankKey,
-					bankName: meta?.name ?? 'Banco não vinculado',
-					colorHex: meta?.colorHex,
-					totalInvested: 0,
-					totalSimulated: 0,
-					totalDailyYield: 0,
-					investmentCount: 0,
-				};
-			}
-
-			summaries[bankKey].totalInvested += convertCentsToBRL(
-				resolveBaseValueInCents(investment),
-			);
-			summaries[bankKey].totalSimulated += simulateCurrentValue(investment);
-			summaries[bankKey].totalDailyYield += simulateDailyYield(investment);
-			summaries[bankKey].investmentCount += 1;
-		});
-
-		return Object.values(summaries).sort(
-			(a, b) => b.totalInvested - a.totalInvested,
-		);
-	}, [banksMap, investments]);
+	const formatCurrencyInCents = React.useCallback(
+		(valueInCents: number) => formatCurrencyBRL(convertCentsToBRL(valueInCents)),
+		[formatCurrencyBRL],
+	);
 
 	const syncedWithdrawalDisplayValue = React.useMemo(() => {
 		if (syncedWithdrawalValueInCents === null) {
@@ -793,6 +856,70 @@ export default function FinancialListScreen() {
 		}
 		return formatCurrencyBRL(convertCentsToBRL(syncedDepositValueInCents));
 	}, [formatCurrencyBRL, syncedDepositValueInCents]);
+
+	const handleOpenCdiSettings = React.useCallback(() => {
+		setCdiRateInput(
+			activeCdiRate
+				? formatBasisPointsAsPercentage(activeCdiRate.annualRateInBasisPoints)
+				: '',
+		);
+		setCdiEffectiveDate(formatDateInput(new Date()));
+		setIsCdiSettingsOpen(true);
+	}, [activeCdiRate]);
+
+	const handleCloseCdiSettings = React.useCallback(() => {
+		if (isSavingCdiRate) {
+			return;
+		}
+		setIsCdiSettingsOpen(false);
+		setCdiRateInput('');
+		setCdiEffectiveDate(formatDateInput(new Date()));
+	}, [isSavingCdiRate]);
+
+	const handleSaveCdiRate = React.useCallback(async () => {
+		const currentUser = auth.currentUser;
+		const annualRateInBasisPoints = parsePercentageToBasisPoints(cdiRateInput);
+		const effectiveFrom = parseDateFromBR(cdiEffectiveDate);
+
+		if (!currentUser) {
+			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
+			return;
+		}
+		if (
+			typeof annualRateInBasisPoints !== 'number' ||
+			annualRateInBasisPoints <= 0 ||
+			annualRateInBasisPoints > 100_000
+		) {
+			showScreenAlert('Informe uma taxa CDI anual válida.', 'warn');
+			return;
+		}
+		if (!effectiveFrom) {
+			showScreenAlert('Informe a data de vigência no formato DD/MM/AAAA.', 'warn');
+			return;
+		}
+
+		setIsSavingCdiRate(true);
+		try {
+			const result = await upsertInvestmentCdiRateFirebase({
+				personId: currentUser.uid,
+				annualRateInBasisPoints,
+				effectiveFrom,
+			});
+			if (!result.success) {
+				throw new Error('Não foi possível salvar a taxa CDI.');
+			}
+
+			await loadData();
+			setIsCdiSettingsOpen(false);
+			setCdiRateInput('');
+			showScreenAlert('Taxa CDI salva e aplicada às projeções.', 'success');
+		} catch (error) {
+			console.error('Erro ao salvar taxa CDI:', error);
+			showScreenAlert('Não foi possível salvar a taxa CDI agora.', 'error');
+		} finally {
+			setIsSavingCdiRate(false);
+		}
+	}, [cdiEffectiveDate, cdiRateInput, loadData, showScreenAlert]);
 
 	const handleNavigateToAdd = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addFinance);
@@ -833,7 +960,7 @@ export default function FinancialListScreen() {
 			setEditInitialInput(
 				formatCurrencyBRLRaw(convertCentsToBRL(investment.initialValueInCents)),
 			);
-			setEditCdiInput(investment.cdiPercentage.toString());
+			setEditCdiInput(formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints));
 			setEditTerm(investment.redemptionTerm);
 			setEditBankId(investment.bankId);
 			setEditDescription(investment.description ?? '');
@@ -847,7 +974,7 @@ export default function FinancialListScreen() {
 		}
 
 		const parsedInitialCents = parseCurrencyInputToCents(editInitialInput);
-		const parsedCdi = parseStringToNumber(editCdiInput);
+		const parsedCdiInBasisPoints = parsePercentageToBasisPoints(editCdiInput);
 
 		if (
 			editName.trim().length === 0 ||
@@ -858,7 +985,10 @@ export default function FinancialListScreen() {
 			return;
 		}
 
-		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
+		if (
+			typeof parsedCdiInBasisPoints !== 'number' ||
+			parsedCdiInBasisPoints <= 0
+		) {
 			showScreenAlert('Informe um CDI válido para editar.', 'warn');
 			return;
 		}
@@ -871,7 +1001,8 @@ export default function FinancialListScreen() {
 				investmentId: editingInvestment.id,
 				name: editName.trim(),
 				initialValueInCents: parsedInitialCents,
-				cdiPercentage: parsedCdi,
+				cdiPercentage: parsedCdiInBasisPoints / 100,
+				cdiPercentageInBasisPoints: parsedCdiInBasisPoints,
 				redemptionTerm: editTerm,
 				bankId: editBankId,
 				bankNameSnapshot: resolvedBankName,
@@ -1371,7 +1502,7 @@ export default function FinancialListScreen() {
 								className="text-lg uppercase tracking-widest "
 								size="lg"
 							>
-								Plataforma de simulação financeira
+								Visão da carteira
 							</Heading>
 							{isInitialLoading ? (
 								<VStack className="gap-4">
@@ -1393,45 +1524,139 @@ export default function FinancialListScreen() {
 								</VStack>
 							) : (
 								<VStack className="gap-4">
+									<Box className={`${topSummaryCardClassName} px-4 py-4`}>
+										<VStack className="gap-3">
+											<HStack className="items-start justify-between gap-3">
+												<VStack className="flex-1 gap-1">
+													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+														CDI anual de referência
+													</Text>
+													<Heading size="xl" className="text-violet-600 dark:text-violet-300">
+														{activeCdiRate
+															? `${formatBasisPointsAsPercentage(activeCdiRate.annualRateInBasisPoints)}% a.a.`
+															: 'Não configurado'}
+													</Heading>
+												</VStack>
+												<Button variant="link" action="primary" onPress={handleOpenCdiSettings}>
+													<ButtonIcon as={SettingsIcon} size="sm" />
+													<ButtonText>Configurar</ButtonText>
+												</Button>
+											</HStack>
+											<Text className={`${helperText} text-xs leading-5`}>
+												{activeCdiRate
+													? `Vigente desde ${formatDateInput(activeCdiRate.effectiveFrom)} • ${ownCdiRateHistory.length} taxa${ownCdiRateHistory.length === 1 ? '' : 's'} no histórico.`
+													: 'Defina uma taxa de referência para ativar as projeções de renda fixa CDI.'}
+											</Text>
+										</VStack>
+									</Box>
+
+									{portfolioAnalytics.unconfiguredInvestmentIds.length > 0 ? (
+										<Box className={`${tintedCardClassName} px-4 py-3`}>
+											<HStack className="items-center justify-between gap-3">
+												<Text className={`${bodyText} flex-1 text-sm leading-5`}>
+													{portfolioAnalytics.unconfiguredInvestmentIds.length === 1
+														? '1 investimento está sem taxa CDI vigente; a projeção usa o último valor confirmado.'
+														: `${portfolioAnalytics.unconfiguredInvestmentIds.length} investimentos estão sem taxa CDI vigente; as projeções usam o último valor confirmado.`}
+												</Text>
+												<Button variant="link" action="primary" onPress={handleOpenCdiSettings}>
+													<ButtonText>Resolver</ButtonText>
+												</Button>
+											</HStack>
+										</Box>
+									) : null}
 
 									<View className="flex-row flex-wrap gap-3">
-										<Box
-											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
-										>
-											<Text
-												className={`${helperText} text-xs uppercase tracking-wide`}
-											>
-												Total investido
+										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+												Patrimônio estimado
 											</Text>
-											<Text className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-												{formatCurrencyBRL(totalInvested)}
+											<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-300">
+												{formatCurrencyInCents(portfolioAnalytics.projectedValueInCents)}
 											</Text>
 										</Box>
-										<Box
-											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
-										>
-											<Text
-												className={`${helperText} text-xs uppercase tracking-wide`}
-											>
-												Simulado hoje
+										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+												Rendimento acumulado
 											</Text>
-											<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-400">
-												{formatCurrencyBRL(totalSimulatedAmount)}
+											<Text
+												className={`mt-2 text-2xl font-bold ${
+													portfolioAnalytics.totalGainInCents >= 0
+														? 'text-emerald-600 dark:text-emerald-400'
+														: 'text-rose-600 dark:text-rose-400'
+												}`}
+											>
+												{formatCurrencyInCents(portfolioAnalytics.totalGainInCents)}
 											</Text>
 										</Box>
-										<Box
-											className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
-										>
-											<Text
-												className={`${helperText} text-xs uppercase tracking-wide`}
-											>
-												Rendimento diário
+										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+												Aplicado líquido
 											</Text>
-											<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-400">
-												{formatCurrencyBRL(totalDailyYield)}
+											<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-300">
+												{formatCurrencyInCents(portfolioAnalytics.netAppliedInCents)}
+											</Text>
+										</Box>
+										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+												Próximo dia
+											</Text>
+											<Text className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-300">
+												{formatCurrencyInCents(portfolioAnalytics.dailyYieldInCents)}
 											</Text>
 										</Box>
 									</View>
+
+									<VStack className="gap-2">
+										<Text className={`${bodyText} text-sm font-semibold`}>
+											Rentabilidade por período
+										</Text>
+										<View className="flex-row gap-2">
+											{performancePeriodOptions.map(option => {
+												const isSelected = option.value === performancePeriod;
+												return (
+													<TouchableOpacity
+														key={option.value}
+														onPress={() => setPerformancePeriod(option.value)}
+														className={
+															isSelected
+																? 'flex-1 rounded-full bg-yellow-400 px-3 py-2'
+																: 'flex-1 rounded-full border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950'
+														}
+													>
+														<Text className={isSelected ? 'w-full text-center text-xs font-semibold text-slate-900' : `${bodyText} w-full text-center text-xs font-semibold`}>
+															{option.label}
+														</Text>
+													</TouchableOpacity>
+												);
+											})}
+										</View>
+									</VStack>
+
+									{investments.length > 0 ? (
+										<Box className={`${notTintedCardClassName} px-4 py-4`}>
+											<VStack className="gap-1">
+												<HStack className="items-center gap-2">
+													<Icon
+														as={CalendarDaysIcon}
+														size="md"
+														className={isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}
+													/>
+													<Heading size="md">Evolução da carteira</Heading>
+												</HStack>
+												<Text className={`${helperText} text-xs leading-5`}>
+													Comparação entre capital líquido aplicado e patrimônio estimado no período selecionado.
+												</Text>
+											</VStack>
+											<View style={{ height: 292, marginTop: 6 }}>
+												<InvestmentEvolutionChart
+													data={portfolioAnalytics.evolution}
+													isDarkMode={isDarkMode}
+													shouldHideValues={shouldHideValues}
+													dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
+												/>
+											</View>
+										</Box>
+									) : null}
 								</VStack>
 							)}
 
@@ -1470,8 +1695,10 @@ export default function FinancialListScreen() {
 								<VStack className="gap-2">
 									<View style={{ marginTop: 10 }}>
 										{investments.map((investment, index) => {
-											const simulatedValue = simulateCurrentValue(investment);
-											const dailyYield = simulateDailyYield(investment);
+											const performance = portfolioAnalytics.itemsByInvestmentId[investment.id];
+											const simulatedValueInCents =
+												performance?.projectedValueInCents ?? resolveBaseValueInCents(investment);
+											const dailyYieldInCents = performance?.dailyYieldInCents ?? 0;
 											const bankInfo = banksMap[investment.bankId];
 											const lastSyncLabel = getInvestmentManualSyncLabel(
 												investment,
@@ -1479,6 +1706,7 @@ export default function FinancialListScreen() {
 											);
 											const summaryText = getInvestmentSummaryText(
 												investment,
+												performance,
 												formatCurrencyBRL,
 											);
 											const isExpanded = expandedInvestmentIds.includes(
@@ -1766,18 +1994,29 @@ export default function FinancialListScreen() {
 																					),
 																				),
 																			},
-																			{
-																				label: 'Simulado hoje',
-																				value:
-																					formatCurrencyBRL(simulatedValue),
-																			},
-																			{
-																				label: 'Rendimento diário',
-																				value: formatCurrencyBRL(dailyYield),
-																			},
-																			{
-																				label: 'CDI',
-																				value: `${investment.cdiPercentage}%`,
+															{
+																label: 'Patrimônio estimado',
+																value:
+																	formatCurrencyBRL(
+																		convertCentsToBRL(simulatedValueInCents),
+																	),
+															},
+															{
+																label: 'Próximo dia',
+																value: formatCurrencyBRL(
+																	convertCentsToBRL(dailyYieldInCents),
+																),
+															},
+															{
+																label: 'Produto',
+																value: investmentAssetTypeLabels[investment.assetType],
+															},
+															{
+																label: 'Percentual CDI',
+																value:
+																	investment.valuationMethod === 'cdi'
+																		? `${formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints)}%`
+																		: 'Atualização manual',
 																			},
 																			{
 																				label: 'Banco',
@@ -1971,13 +2210,113 @@ export default function FinancialListScreen() {
 				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
 					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
 				</View>
+				<Modal isOpen={isCdiSettingsOpen} onClose={handleCloseCdiSettings}>
+					<ModalBackdrop />
+					<KeyboardAvoidingView
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+					>
+						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+							<ModalHeader>
+								<ModalTitle>Taxa CDI anual</ModalTitle>
+								<ModalCloseButton onPress={handleCloseCdiSettings} />
+							</ModalHeader>
+							<ModalBody>
+								<ScrollView
+									keyboardShouldPersistTaps="handled"
+									keyboardDismissMode="on-drag"
+									contentContainerStyle={{ paddingBottom: 20 }}
+								>
+									<VStack className="gap-2">
+										<Text className={`${bodyText} text-sm leading-5`}>
+											Cadastre a taxa anual de referência e sua data de vigência. A carteira aplica cada alteração somente a partir da data informada, sem criar transações.
+										</Text>
+										{renderStandardizedInput({
+											label: 'CDI anual (%)',
+											value: cdiRateInput,
+											onChangeText: text => setCdiRateInput(sanitizeNumberInput(text)),
+											placeholder: 'Ex: 13,75',
+											keyboardType: 'decimal-pad',
+											isDisabled: isSavingCdiRate,
+										})}
+										<VStack className="mb-2 gap-1">
+											<Text className={`${bodyText} ml-1 text-sm`}>Vigência da taxa</Text>
+											<DatePickerField
+												accessibilityLabel="Selecionar início de vigência da taxa CDI"
+												value={cdiEffectiveDate}
+												onChange={setCdiEffectiveDate}
+												triggerClassName={fieldContainerClassName}
+												inputClassName={inputField}
+												isDisabled={isSavingCdiRate}
+											/>
+										</VStack>
+
+										<VStack className="mt-2 gap-2">
+											<Text className={`${bodyText} text-sm font-semibold`}>Histórico salvo</Text>
+											{ownCdiRateHistory.length === 0 ? (
+												<Box className={`${tintedCardClassName} px-3 py-3`}>
+													<Text className={`${helperText} text-xs leading-5`}>
+														Nenhuma taxa foi cadastrada ainda. Enquanto não houver uma taxa vigente, a projeção conserva o valor sincronizado.
+													</Text>
+												</Box>
+											) : (
+												ownCdiRateHistory.slice(0, 6).map(rate => (
+													<HStack
+														key={rate.id}
+														className={`${notTintedCardClassName} items-center justify-between px-3 py-3`}
+													>
+														<VStack className="gap-1">
+															<Text className={`${bodyText} text-sm font-semibold`}>
+																{formatBasisPointsAsPercentage(rate.annualRateInBasisPoints)}% a.a.
+															</Text>
+															<Text className={`${helperText} text-xs`}>
+																Vigente desde {formatDateInput(rate.effectiveFrom)}
+															</Text>
+														</VStack>
+														{activeCdiRate?.id === rate.id ? (
+															<Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Atual</Text>
+														) : null}
+													</HStack>
+												))
+											)}
+										</VStack>
+									</VStack>
+								</ScrollView>
+							</ModalBody>
+							<ModalFooter className="gap-3">
+								<Button
+									variant="outline"
+									onPress={handleCloseCdiSettings}
+									isDisabled={isSavingCdiRate}
+									className={submitButtonCancelClassName}
+								>
+									<ButtonText>Cancelar</ButtonText>
+								</Button>
+								<Button
+									onPress={handleSaveCdiRate}
+									isDisabled={isSavingCdiRate}
+									className={submitButtonClassName}
+								>
+									{isSavingCdiRate ? (
+										<>
+											<ButtonSpinner color="white" />
+											<ButtonText>Salvando</ButtonText>
+										</>
+									) : (
+										<ButtonText>Salvar taxa</ButtonText>
+									)}
+								</Button>
+							</ModalFooter>
+						</ModalContent>
+					</KeyboardAvoidingView>
+				</Modal>
 				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
 					<ModalBackdrop />
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
-						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 							<ModalHeader>
 								<ModalTitle>Editar investimento</ModalTitle>
 								<ModalCloseButton onPress={closeEditModal} />

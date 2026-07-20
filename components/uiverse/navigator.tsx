@@ -166,6 +166,14 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				matchPaths: [APP_ROUTE_PATHS.categoryAnalysis],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.categoryAnalysis),
 			},
+			{
+				id: 'financial-forecast',
+				label: 'Previsão Financeira',
+				value: 0,
+				icon: 'trending-up-outline',
+				matchPaths: [APP_ROUTE_PATHS.financialForecast],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialForecast),
+			},
 		],
 	},
 	{
