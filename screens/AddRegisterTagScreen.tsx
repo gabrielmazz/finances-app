@@ -606,7 +606,7 @@ export default function AddRegisterTagScreen() {
 					if (shouldReturnAfterCreate) {
 						navigateBackToInlineSource();
 					} else {
-						applyPostSubmitBehavior();
+						applyPostSubmitBehavior({ isEditing: true });
 					}
 				} else {
 					showNotifierAlert({

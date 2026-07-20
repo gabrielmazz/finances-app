@@ -53,7 +53,7 @@ import {
 import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
 import {
 	getMandatoryExpensesWithRelationsFirebase,
-	markMandatoryExpensePaymentFirebase,
+	registerMandatoryExpensePaymentFirebase,
 } from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
@@ -826,6 +826,19 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedExpenseDate);
+		if (
+			linkedMandatoryExpenseId &&
+			getCycleKeyFromDate(dateWithCurrentTime) !== getCycleKeyFromDate(new Date())
+		) {
+			showNotifierAlert({
+				title: 'Data fora do ciclo atual',
+				description: 'Registre o pagamento obrigatório com uma data deste mês para manter o ciclo correto.',
+				type: 'error',
+				isDarkMode,
+				duration: 5000,
+			});
+			return;
+		}
 		submitLockRef.current = true;
 		setIsSubmitting(true);
 
@@ -845,9 +858,13 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			// Segue [[Transações de Despesas]] e [[Despesas Fixas]]: antes de salvar uma despesa comum,
-			// validamos se ela parece pertencer a um template obrigatório já existente.
+			// validamos o ciclo corrente para não redirecionar lançamentos históricos a uma lista
+			// que só efetiva o pagamento do mês atual.
 			const shouldCheckMandatoryExpenseSuggestion =
-				!isEditing && !linkedMandatoryExpenseId && !pendingInvestmentAdjustment;
+				!isEditing &&
+				!linkedMandatoryExpenseId &&
+				!pendingInvestmentAdjustment &&
+				getCycleKeyFromDate(dateWithCurrentTime) === getCycleKeyFromDate(new Date());
 			if (shouldCheckMandatoryExpenseSuggestion) {
 				const mandatoryExpensesResult = await getMandatoryExpensesWithRelationsFirebase(personId);
 
@@ -905,57 +922,73 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				showSuccessfulExpenseNotification(true);
-				applyPostSubmitBehavior();
+				applyPostSubmitBehavior({ isEditing: true });
 				return;
 			}
 
-			const result = await addExpenseFirebase({
-				name: expenseName.trim(),
-				valueInCents: expenseValueCents,
-				tagId: selectedTagId as string,
-				bankId: isBankSelectionRequired ? (selectedBankId as string) : null,
-				date: dateWithCurrentTime,
-				personId,
-				explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
-				moneyFormat,
-			});
-
-			if (!result.success) {
-				showNotifierAlert({
-					title: 'Erro ao registrar despesa',
-					description: 'Tente novamente mais tarde.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				return;
-			}
-
-			if (linkedMandatoryExpenseId && result.expenseId) {
-				const markResult = await markMandatoryExpensePaymentFirebase({
-					expenseId: linkedMandatoryExpenseId,
-					paymentExpenseId: result.expenseId,
-					paymentDate: dateWithCurrentTime,
+			if (linkedMandatoryExpenseId) {
+				const mandatoryPaymentResult = await registerMandatoryExpensePaymentFirebase({
+					mandatoryExpenseId: linkedMandatoryExpenseId,
+					name: expenseName.trim(),
+					valueInCents: expenseValueCents,
+					tagId: selectedTagId as string,
+					bankId: isBankSelectionRequired ? (selectedBankId as string) : null,
+					date: dateWithCurrentTime,
+					personId,
+					explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
+					moneyFormat,
 				});
 
-				if (!markResult.success) {
+				if (!mandatoryPaymentResult.success) {
+					const description =
+						mandatoryPaymentResult.reason === 'already_paid_for_cycle'
+							? 'Este gasto obrigatório já foi registrado neste ciclo. Atualize a lista para conferir o status.'
+							: mandatoryPaymentResult.reason === 'installment_plan_complete'
+								? 'Todas as parcelas deste gasto obrigatório já foram registradas.'
+								: mandatoryPaymentResult.reason === 'mandatory_expense_not_found'
+									? 'Este gasto obrigatório não foi encontrado. Volte à lista e atualize os dados.'
+									: 'Não foi possível registrar este pagamento obrigatório. Nenhuma despesa foi criada.';
+
 					showNotifierAlert({
-						title: 'Erro ao atualizar gasto obrigatório',
-						description: 'Despesa registrada, mas não foi possível atualizar o status do gasto obrigatório.',
+						title: 'Erro ao registrar gasto obrigatório',
+						description,
+						type: 'error',
+						isDarkMode,
+						duration: 5000,
+					});
+					return;
+				}
+
+				try {
+					await suppressMandatoryExpenseNotificationCycle(
+						personId,
+						linkedMandatoryExpenseId,
+						getCycleKeyFromDate(dateWithCurrentTime),
+					);
+				} catch (notificationError) {
+					console.error('Erro ao suprimir lembretes do gasto obrigatório pago:', notificationError);
+				}
+			} else {
+				const result = await addExpenseFirebase({
+					name: expenseName.trim(),
+					valueInCents: expenseValueCents,
+					tagId: selectedTagId as string,
+					bankId: isBankSelectionRequired ? (selectedBankId as string) : null,
+					date: dateWithCurrentTime,
+					personId,
+					explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
+					moneyFormat,
+				});
+
+				if (!result.success) {
+					showNotifierAlert({
+						title: 'Erro ao registrar despesa',
+						description: 'Tente novamente mais tarde.',
 						type: 'error',
 						isDarkMode,
 						duration: 4000,
 					});
-				} else {
-					try {
-						await suppressMandatoryExpenseNotificationCycle(
-							personId,
-							linkedMandatoryExpenseId,
-							getCycleKeyFromDate(dateWithCurrentTime),
-						);
-					} catch (notificationError) {
-						console.error('Erro ao suprimir lembretes do gasto obrigatório pago:', notificationError);
-					}
+					return;
 				}
 			}
 
@@ -1029,9 +1062,15 @@ export default function AddRegisterExpensesScreen() {
 	}, [handleSubmit, mandatoryExpenseSuggestion]);
 
 	const handleGoToMandatoryExpenses = React.useCallback(() => {
+		if (!mandatoryExpenseSuggestion) {
+			return;
+		}
+
 		setMandatoryExpenseSuggestion(null);
-		navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses);
-	}, []);
+		navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses, {
+			focusMandatoryExpenseId: mandatoryExpenseSuggestion.id,
+		});
+	}, [mandatoryExpenseSuggestion]);
 
 	React.useEffect(() => {
 		if (!editingExpenseId) {
@@ -1270,18 +1309,12 @@ export default function AddRegisterExpensesScreen() {
 		return null;
 	}, [banks, selectedBankId, selectedMovementBankName]);
 
-	const mandatoryExpenseSuggestionMessage = React.useMemo(() => {
+	const mandatoryExpenseSuggestionValue = React.useMemo(() => {
 		if (!mandatoryExpenseSuggestion) {
 			return '';
 		}
 
-		const suggestionValue = formatCurrencyBRL(mandatoryExpenseSuggestion.valueInCents);
-		const statusDescription =
-			mandatoryExpenseSuggestion.status === 'paid'
-				? 'Esse gasto obrigatório já foi lançado neste ciclo. Registrar outra despesa comum pode duplicar o controle mensal.'
-				: 'Esse gasto obrigatório ainda está pendente neste ciclo. O registro correto deve partir da lista de gastos obrigatórios.';
-
-		return `Este registro parece corresponder ao gasto obrigatório "${mandatoryExpenseSuggestion.name}" (${suggestionValue}). ${statusDescription}`;
+		return formatCurrencyBRL(mandatoryExpenseSuggestion.valueInCents);
 	}, [mandatoryExpenseSuggestion]);
 
 	const screenTitle = 'Registro de Despesa';
@@ -1642,33 +1675,39 @@ export default function AddRegisterExpensesScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<ModalTitle>Possível gasto obrigatório</ModalTitle>
+							<ModalTitle>Pagamento obrigatório pendente</ModalTitle>
 							<ModalCloseButton onPress={handleCloseMandatoryExpenseSuggestionModal} />
 						</ModalHeader>
 						<ModalBody>
-							<Text className={`${bodyText} text-sm leading-5`}>
-								{mandatoryExpenseSuggestionMessage}
+							<Text className={`${bodyText} text-sm leading-5 text-justify`}>
+								Encontramos o gasto obrigatório pendente{' '}
+								<Text className="font-semibold text-yellow-600 dark:text-yellow-400">
+									&quot;{mandatoryExpenseSuggestion?.name}&quot; ({mandatoryExpenseSuggestionValue})
+								</Text>
+								. Deseja ir aos pagamentos obrigatórios para efetivá-lo?
 							</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
-							<Button
-								variant="outline"
-								onPress={handleIgnoreMandatoryExpenseSuggestion}
-								isDisabled={isSubmitting}
-								className={submitButtonCancelClassName}
-							>
-								<ButtonText>Ignorar e registrar</ButtonText>
-							</Button>
-							<Button
-								variant="solid"
-								onPress={handleGoToMandatoryExpenses}
-								isDisabled={isSubmitting}
-								className={submitButtonClassName}
-							>
-								<ButtonText className={submitButtonTextClassName}>
-									Ir para gastos obrigatórios
-								</ButtonText>
-							</Button>
+							<VStack className="w-full gap-3">
+								<Button
+									variant="outline"
+									onPress={handleIgnoreMandatoryExpenseSuggestion}
+									isDisabled={isSubmitting}
+									className={submitButtonCancelClassName}
+								>
+									<ButtonText>Registrar como gasto avulso</ButtonText>
+								</Button>
+								<Button
+									variant="solid"
+									onPress={handleGoToMandatoryExpenses}
+									isDisabled={isSubmitting}
+									className={submitButtonClassName}
+								>
+									<ButtonText className={submitButtonTextClassName}>
+										Ir para pagamentos obrigatórios
+									</ButtonText>
+								</Button>
+							</VStack>
 						</ModalFooter>
 					</ModalContent>
 				</Modal>

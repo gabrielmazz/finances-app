@@ -39,6 +39,7 @@ import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
 import DatePickerField from '@/components/uiverse/date-picker';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import TimePickerField from '@/components/uiverse/time-picker-field';
 
 import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
@@ -88,9 +89,7 @@ import {
 	DEFAULT_MANDATORY_REMINDER_HOUR,
 	DEFAULT_MANDATORY_REMINDER_MINUTE,
 	DEFAULT_MANDATORY_REMINDER_TIME,
-	finalizeMandatoryReminderTimeInput,
 	formatMandatoryReminderTime,
-	formatMandatoryReminderTimeInput,
 	isMandatoryReminderTimeValid,
 	parseMandatoryReminderTime,
 } from '@/utils/mandatoryReminderTime';
@@ -128,7 +127,7 @@ type MandatoryExpenseFormSnapshot = {
 	reminderDaysBefore: 1 | 2 | 3;
 	reminderOnDueDate: boolean;
 };
-type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'installments' | 'description' | 'reminder-time';
+type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'installments' | 'description';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -260,15 +259,10 @@ export default function AddMandatoryExpensesScreen() {
 	const dueDayInputRef = React.useRef<TextInput | null>(null);
 	const installmentsInputRef = React.useRef<TextInput | null>(null);
 	const descriptionInputRef = React.useRef<TextInput | null>(null);
-	const reminderTimeInputRef = React.useRef<TextInput | null>(null);
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => {
 			if (key === 'description') {
 				return 180;
-			}
-
-			if (key === 'reminder-time') {
-				return 150;
 			}
 
 			return 120;
@@ -332,14 +326,6 @@ export default function AddMandatoryExpensesScreen() {
 			setInstallmentTotal(String(totalFromRange));
 		}
 	}, [installmentStartDate]);
-
-	const handleReminderTimeChange = React.useCallback((input: string) => {
-		setReminderTime(formatMandatoryReminderTimeInput(input));
-	}, []);
-
-	const handleReminderTimeBlur = React.useCallback(() => {
-		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? currentValue);
-	}, []);
 
 	const handleReminderDaysBeforeChange = React.useCallback((value: string) => {
 		setReminderDaysBefore(normalizeMandatoryReminderDaysBefore(value));
@@ -429,7 +415,9 @@ export default function AddMandatoryExpensesScreen() {
 			});
 			return;
 		}
-		setReminderTime(currentValue => finalizeMandatoryReminderTimeInput(currentValue) ?? DEFAULT_MANDATORY_REMINDER_TIME);
+		setReminderTime(currentValue =>
+			parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
+		);
 		setReminderEnabled(value);
 	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
 
@@ -458,8 +446,6 @@ export default function AddMandatoryExpensesScreen() {
 					return installmentsInputRef;
 				case 'description':
 					return descriptionInputRef;
-				case 'reminder-time':
-					return reminderTimeInputRef;
 				default:
 					return null;
 			}
@@ -560,14 +546,6 @@ export default function AddMandatoryExpensesScreen() {
 			: !isCoreTemplateReady
 				? 'Preencha nome, valor e dia do vencimento para liberar a categoria.'
 				: 'Selecione a categoria obrigatória que identifica este template.';
-
-	const reminderHelperMessage = !isTemplateReady
-		? 'Preencha nome, valor, vencimento e categoria antes de ativar o lembrete.'
-		: reminderEnabled
-			? isReminderTimeValid
-				? `${reminderSummary}. Vencimento configurado para ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), usesBusinessDays)}.`
-				: 'Defina um horário válido no padrão 24h para agendar o lembrete.'
-			: 'Ative para receber lembretes mensais antes do vencimento.';
 
 	const dueDayFieldLabel = usesBusinessDays ? 'Número do dia útil do vencimento' : 'Dia do vencimento';
 	const dueDayPlaceholder = usesBusinessDays
@@ -1171,6 +1149,7 @@ export default function AddMandatoryExpensesScreen() {
 
 			applyPostSubmitBehavior({
 				resetForm: !editingExpenseId ? resetForm : undefined,
+				isEditing: Boolean(editingExpenseId),
 			});
 		} catch (error) {
 			console.error('Erro ao salvar gasto obrigatório:', error);
@@ -1623,8 +1602,8 @@ export default function AddMandatoryExpensesScreen() {
 														</Text>
 													</VStack>
 
-													<HStack className="items-center justify-between gap-4">
-														<VStack className="flex-1 gap-1">
+													<HStack className="items-center justify-between gap-4 px-1">
+														<VStack className="flex-1 gap-1 py-1">
 															<Text className={`${bodyText} text-sm font-semibold`}>
 																Avisar também no vencimento
 															</Text>
@@ -1678,23 +1657,17 @@ export default function AddMandatoryExpensesScreen() {
 															</Popover>
 														</HStack>
 
-														<Input className={fieldContainerClassName} isDisabled={isReminderTimeFieldDisabled}>
-															<InputField
-																ref={reminderTimeInputRef}
-																placeholder="Ex: 19:00"
-																value={reminderTime}
-																onChangeText={handleReminderTimeChange}
-																onBlur={handleReminderTimeBlur}
-																keyboardType="numeric"
-																returnKeyType="done"
-																maxLength={5}
-																className={inputField}
-																onFocus={() => handleInputFocus('reminder-time')}
-															/>
-														</Input>
+														<TimePickerField
+															value={reminderTime}
+															onChange={setReminderTime}
+															isDisabled={isReminderTimeFieldDisabled}
+															triggerClassName={fieldContainerClassName}
+															inputClassName={inputField}
+															accessibilityLabel="Selecionar horário preferido do lembrete de vencimento"
+														/>
 
-													<Text className={`${helperText} ml-1 text-sm`}>
-														Digite no formato `HH:MM` ou apenas os números. O sistema usa esse horário como preferência de entrega.
+														<Text className={helperText + ' ml-1 text-sm pb-4'}>
+															Escolha o horário no seletor do dispositivo. O sistema o usa como preferência de entrega.
 														</Text>
 
 														{!isReminderTimeValid ? (
@@ -1705,10 +1678,6 @@ export default function AddMandatoryExpensesScreen() {
 													</VStack>
 												</VStack>
 											) : null}
-
-											<Text className={`${helperText} ml-1 text-sm leading-5`}>
-												{reminderHelperMessage}
-											</Text>
 										</VStack>
 									</Box>
 

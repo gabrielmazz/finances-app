@@ -5,9 +5,11 @@ import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTran
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import {
+	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
 import {
 	MANDATORY_REMINDER_CONFIG_VERSION,
@@ -60,6 +62,42 @@ interface MarkMandatoryExpensePaymentParams {
 	paymentDate: Date;
 }
 
+interface RegisterMandatoryExpensePaymentParams {
+	mandatoryExpenseId: string;
+	name: string;
+	valueInCents: number;
+	tagId?: string | null;
+	bankId: string | null;
+	date: Date;
+	personId: string;
+	explanation?: string | null;
+	moneyFormat?: boolean;
+	isInvestmentDeposit?: boolean;
+	investmentId?: string | null;
+	investmentNameSnapshot?: string | null;
+	isBankTransfer?: boolean;
+	bankTransferPairId?: string | null;
+	bankTransferDirection?: 'outgoing' | 'incoming';
+	bankTransferSourceBankId?: string | null;
+	bankTransferTargetBankId?: string | null;
+	bankTransferSourceBankNameSnapshot?: string | null;
+	bankTransferTargetBankNameSnapshot?: string | null;
+	bankTransferExpenseId?: string | null;
+	bankTransferGainId?: string | null;
+}
+
+type MandatoryExpensePaymentFailureReason =
+	| 'mandatory_expense_not_found'
+	| 'payment_expense_not_found'
+	| 'already_paid_for_cycle'
+	| 'installment_plan_complete'
+	| 'invalid_payment_data'
+	| 'transaction_failed';
+
+type MandatoryExpensePaymentResult =
+	| { success: true; expenseId: string }
+	| { success: false; reason: MandatoryExpensePaymentFailureReason };
+
 const MANDATORY_EXPENSES_COLLECTION = 'mandatoryExpenses';
 const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
 
@@ -88,6 +126,45 @@ const chunkDocumentIds = (ids: string[]) =>
 	Array.from({ length: Math.ceil(ids.length / LINKED_MOVEMENTS_QUERY_LIMIT) }, (_, index) =>
 		ids.slice(index * LINKED_MOVEMENTS_QUERY_LIMIT, (index + 1) * LINKED_MOVEMENTS_QUERY_LIMIT),
 	);
+
+const getMandatoryExpenseInstallmentPaymentState = (data: Record<string, unknown>, paymentDate: Date) => {
+	const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+	const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
+		storedCompleted: data.installmentsCompleted,
+		installmentTotal,
+		startDate: normalizeMandatoryInstallmentDate(data.installmentStartDate),
+		isCurrentCycleCompleted: false,
+		referenceDate: paymentDate,
+	});
+
+	return {
+		installmentTotal,
+		installmentsCompleted,
+		isInstallmentPlanComplete: isMandatoryInstallmentPlanComplete(installmentTotal, installmentsCompleted),
+	};
+};
+
+const isValidMandatoryExpensePaymentInput = (params: RegisterMandatoryExpensePaymentParams | null | undefined) => {
+	if (!params) {
+		return false;
+	}
+
+	const { mandatoryExpenseId, name, valueInCents, date, personId } = params;
+
+	return (
+		typeof mandatoryExpenseId === 'string' &&
+		mandatoryExpenseId.trim().length > 0 &&
+		typeof name === 'string' &&
+		name.trim().length > 0 &&
+		typeof valueInCents === 'number' &&
+		Number.isSafeInteger(valueInCents) &&
+		valueInCents > 0 &&
+		date instanceof Date &&
+		!Number.isNaN(date.getTime()) &&
+		typeof personId === 'string' &&
+		personId.trim().length > 0
+	);
+};
 
 export async function addMandatoryExpenseFirebase({
 	name,
@@ -320,6 +397,7 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 			),
 		);
 		const linkedPaymentValuesById = new Map<string, number>();
+		const linkedPaymentDocumentIds = new Set<string>();
 
 		if (linkedPaymentIds.length > 0) {
 			const linkedPaymentSnapshots = await Promise.all(
@@ -330,6 +408,7 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 
 			linkedPaymentSnapshots.forEach(linkedPaymentSnapshot => {
 				linkedPaymentSnapshot.docs.forEach(paymentDoc => {
+					linkedPaymentDocumentIds.add(paymentDoc.id);
 					const paymentData = paymentDoc.data();
 					if (typeof paymentData.valueInCents === 'number' && !Number.isNaN(paymentData.valueInCents)) {
 						linkedPaymentValuesById.set(paymentDoc.id, paymentData.valueInCents);
@@ -343,11 +422,19 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 				typeof expense.lastPaymentExpenseId === 'string' && expense.lastPaymentExpenseId.length > 0
 					? expense.lastPaymentExpenseId
 					: null;
+			const hasLinkedPaymentExpense =
+				linkedPaymentExpenseId !== null && linkedPaymentDocumentIds.has(linkedPaymentExpenseId);
 
 			return {
 				...expense,
+				hasLinkedPaymentExpense,
+				lastPaymentExpenseId: hasLinkedPaymentExpense ? linkedPaymentExpenseId : null,
+				lastPaymentCycle: hasLinkedPaymentExpense ? expense.lastPaymentCycle ?? null : null,
+				lastPaymentDate: hasLinkedPaymentExpense ? expense.lastPaymentDate ?? null : null,
 				lastPaymentValueInCents:
-					linkedPaymentExpenseId !== null ? linkedPaymentValuesById.get(linkedPaymentExpenseId) ?? null : null,
+					hasLinkedPaymentExpense && linkedPaymentExpenseId !== null
+						? linkedPaymentValuesById.get(linkedPaymentExpenseId) ?? null
+						: null,
 			};
 		});
 
@@ -358,55 +445,217 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 	}
 }
 
+// O pagamento obrigatório precisa criar a despesa real e concluir o ciclo como uma única unidade.
+// Isso evita duplicidade quando dois submits concorrem pelo mesmo ciclo de [[Despesas Fixas]].
+export async function registerMandatoryExpensePaymentFirebase(
+	params: RegisterMandatoryExpensePaymentParams,
+): Promise<MandatoryExpensePaymentResult> {
+	if (!isValidMandatoryExpensePaymentInput(params)) {
+		return { success: false, reason: 'invalid_payment_data' };
+	}
+
+	const {
+		mandatoryExpenseId,
+		name,
+		valueInCents,
+		tagId,
+		bankId,
+		date,
+		personId,
+		explanation,
+		moneyFormat,
+		isInvestmentDeposit,
+		investmentId,
+		investmentNameSnapshot,
+		isBankTransfer,
+		bankTransferPairId,
+		bankTransferDirection,
+		bankTransferSourceBankId,
+		bankTransferTargetBankId,
+		bankTransferSourceBankNameSnapshot,
+		bankTransferTargetBankNameSnapshot,
+		bankTransferExpenseId,
+		bankTransferGainId,
+	} = params;
+	const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, mandatoryExpenseId);
+	const paymentExpenseRef = doc(collection(db, 'expenses'));
+	const paymentCycle = getCycleKeyFromDate(date);
+
+	try {
+		return await runTransaction<MandatoryExpensePaymentResult>(db, async transaction => {
+			const mandatoryExpenseSnapshot = await transaction.get(mandatoryExpenseRef);
+
+			if (!mandatoryExpenseSnapshot.exists()) {
+				return { success: false, reason: 'mandatory_expense_not_found' };
+			}
+
+			const mandatoryExpenseData = mandatoryExpenseSnapshot.data() as Record<string, unknown>;
+			const lastPaymentCycle =
+				typeof mandatoryExpenseData.lastPaymentCycle === 'string'
+					? mandatoryExpenseData.lastPaymentCycle
+					: null;
+
+			if (lastPaymentCycle === paymentCycle) {
+				const linkedPaymentExpenseId =
+					typeof mandatoryExpenseData.lastPaymentExpenseId === 'string'
+						? mandatoryExpenseData.lastPaymentExpenseId
+						: null;
+
+				if (linkedPaymentExpenseId) {
+					const linkedPaymentSnapshot = await transaction.get(doc(db, 'expenses', linkedPaymentExpenseId));
+					if (linkedPaymentSnapshot.exists()) {
+						return { success: false, reason: 'already_paid_for_cycle' };
+					}
+				}
+			}
+
+			const installmentState = getMandatoryExpenseInstallmentPaymentState(mandatoryExpenseData, date);
+			if (installmentState.isInstallmentPlanComplete) {
+				return { success: false, reason: 'installment_plan_complete' };
+			}
+
+			const createdAt = new Date();
+			const nextInstallmentsCompleted =
+				installmentState.installmentTotal === null
+					? null
+					: Math.min(installmentState.installmentsCompleted + 1, installmentState.installmentTotal);
+
+			// Mantém exatamente o documento padrão de addExpenseFirebase para que a despesa
+			// continue participando de saldo, timeline e totais como uma despesa normal.
+			transaction.set(paymentExpenseRef, {
+				name,
+				valueInCents,
+				tagId: typeof tagId === 'string' ? tagId : null,
+				bankId: typeof bankId === 'string' ? bankId : null,
+				date,
+				personId,
+				explanation: explanation ?? null,
+				moneyFormat: typeof moneyFormat === 'boolean' ? moneyFormat : false,
+				isInvestmentDeposit: Boolean(isInvestmentDeposit),
+				investmentId: investmentId ?? null,
+				investmentNameSnapshot: investmentNameSnapshot ?? null,
+				isBankTransfer: Boolean(isBankTransfer),
+				bankTransferPairId: bankTransferPairId ?? null,
+				bankTransferDirection: bankTransferDirection ?? null,
+				bankTransferSourceBankId: bankTransferSourceBankId ?? null,
+				bankTransferTargetBankId: bankTransferTargetBankId ?? null,
+				bankTransferSourceBankNameSnapshot: bankTransferSourceBankNameSnapshot ?? null,
+				bankTransferTargetBankNameSnapshot: bankTransferTargetBankNameSnapshot ?? null,
+				bankTransferExpenseId: bankTransferExpenseId ?? null,
+				bankTransferGainId: bankTransferGainId ?? null,
+				createdAt,
+				updatedAt: createdAt,
+			});
+
+			transaction.update(mandatoryExpenseRef, {
+				lastPaymentExpenseId: paymentExpenseRef.id,
+				lastPaymentDate: date,
+				lastPaymentCycle: paymentCycle,
+				...(nextInstallmentsCompleted !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+				updatedAt: createdAt,
+			});
+
+			return { success: true, expenseId: paymentExpenseRef.id };
+		});
+	} catch (error) {
+		console.error('Erro ao registrar pagamento do gasto obrigatório:', error);
+		return { success: false, reason: 'transaction_failed' };
+	}
+}
+
 export async function markMandatoryExpensePaymentFirebase({
 	expenseId,
 	paymentExpenseId,
 	paymentDate,
 }: MarkMandatoryExpensePaymentParams) {
+	if (
+		typeof expenseId !== 'string' ||
+		expenseId.trim().length === 0 ||
+		typeof paymentExpenseId !== 'string' ||
+		paymentExpenseId.trim().length === 0 ||
+		!(paymentDate instanceof Date) ||
+		Number.isNaN(paymentDate.getTime())
+	) {
+		return { success: false, reason: 'invalid_payment_data' as const };
+	}
+
 	try {
 		const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, expenseId);
+		const paymentExpenseRef = doc(db, 'expenses', paymentExpenseId);
 		const paymentCycle = getCycleKeyFromDate(paymentDate);
 
-		await runTransaction(db, async transaction => {
-			const expenseSnapshot = await transaction.get(mandatoryExpenseRef);
-			const data = expenseSnapshot.exists() ? expenseSnapshot.data() : {};
-			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
-			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-				data.installmentsCompleted,
-				installmentTotal,
-			);
+		return await runTransaction(db, async transaction => {
+			const [mandatoryExpenseSnapshot, paymentExpenseSnapshot] = await Promise.all([
+				transaction.get(mandatoryExpenseRef),
+				transaction.get(paymentExpenseRef),
+			]);
+
+			if (!mandatoryExpenseSnapshot.exists()) {
+				return { success: false, reason: 'mandatory_expense_not_found' as const };
+			}
+
+			if (!paymentExpenseSnapshot.exists()) {
+				return { success: false, reason: 'payment_expense_not_found' as const };
+			}
+
+			const data = mandatoryExpenseSnapshot.data() as Record<string, unknown>;
 			const lastPaymentCycle = typeof data.lastPaymentCycle === 'string' ? data.lastPaymentCycle : null;
-			const shouldAdvanceInstallment = installmentTotal !== null && lastPaymentCycle !== paymentCycle;
-			const nextInstallmentsCompleted = shouldAdvanceInstallment
-				? Math.min(installmentsCompleted + 1, installmentTotal)
-				: installmentsCompleted;
+			if (lastPaymentCycle === paymentCycle) {
+				const linkedPaymentExpenseId =
+					typeof data.lastPaymentExpenseId === 'string' ? data.lastPaymentExpenseId : null;
 
-			transaction.set(
-				mandatoryExpenseRef,
-				{
-					lastPaymentExpenseId: paymentExpenseId,
-					lastPaymentDate: paymentDate,
-					lastPaymentCycle: paymentCycle,
-					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
-					updatedAt: new Date(),
-				},
-				{ merge: true },
-			);
+				if (linkedPaymentExpenseId === paymentExpenseId) {
+					return { success: true };
+				}
+
+				if (linkedPaymentExpenseId) {
+					const linkedPaymentSnapshot = await transaction.get(doc(db, 'expenses', linkedPaymentExpenseId));
+					if (linkedPaymentSnapshot.exists()) {
+						return { success: false, reason: 'already_paid_for_cycle' as const };
+					}
+				}
+			}
+
+			const installmentState = getMandatoryExpenseInstallmentPaymentState(data, paymentDate);
+			if (installmentState.isInstallmentPlanComplete) {
+				return { success: false, reason: 'installment_plan_complete' as const };
+			}
+
+			const nextInstallmentsCompleted =
+				installmentState.installmentTotal === null
+					? null
+					: Math.min(installmentState.installmentsCompleted + 1, installmentState.installmentTotal);
+
+			transaction.update(mandatoryExpenseRef, {
+				lastPaymentExpenseId: paymentExpenseId,
+				lastPaymentDate: paymentDate,
+				lastPaymentCycle: paymentCycle,
+				...(nextInstallmentsCompleted !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+				updatedAt: new Date(),
+			});
+
+			return { success: true };
 		});
-
-		return { success: true };
 	} catch (error) {
 		console.error('Erro ao marcar pagamento do gasto obrigatório:', error);
-		return { success: false, error };
+		return { success: false, reason: 'transaction_failed' as const };
 	}
 }
 
 export async function clearMandatoryExpensePaymentFirebase(expenseId: string) {
+	if (typeof expenseId !== 'string' || expenseId.trim().length === 0) {
+		return { success: false, reason: 'mandatory_expense_not_found' as const };
+	}
+
 	try {
 		const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, expenseId);
-		await runTransaction(db, async transaction => {
+		return await runTransaction(db, async transaction => {
 			const expenseSnapshot = await transaction.get(mandatoryExpenseRef);
-			const data = expenseSnapshot.exists() ? expenseSnapshot.data() : {};
+			if (!expenseSnapshot.exists()) {
+				return { success: false, reason: 'mandatory_expense_not_found' as const };
+			}
+
+			const data = expenseSnapshot.data() as Record<string, unknown>;
 			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
 			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
 				data.installmentsCompleted,
@@ -417,22 +666,18 @@ export async function clearMandatoryExpensePaymentFirebase(expenseId: string) {
 			const nextInstallmentsCompleted =
 				installmentTotal !== null && hasLinkedPayment ? Math.max(0, installmentsCompleted - 1) : installmentsCompleted;
 
-			transaction.set(
-				mandatoryExpenseRef,
-				{
-					lastPaymentExpenseId: null,
-					lastPaymentDate: null,
-					lastPaymentCycle: null,
-					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
-					updatedAt: new Date(),
-				},
-				{ merge: true },
-			);
-		});
+			transaction.update(mandatoryExpenseRef, {
+				lastPaymentExpenseId: null,
+				lastPaymentDate: null,
+				lastPaymentCycle: null,
+				...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
+				updatedAt: new Date(),
+			});
 
-		return { success: true };
+			return { success: true };
+		});
 	} catch (error) {
 		console.error('Erro ao remover registro de pagamento do gasto obrigatório:', error);
-		return { success: false, error };
+		return { success: false, reason: 'transaction_failed' as const };
 	}
 }

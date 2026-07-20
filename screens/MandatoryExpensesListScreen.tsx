@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -83,6 +83,7 @@ import {
 	DEFAULT_MANDATORY_REMINDER_MINUTE,
 } from '@/utils/mandatoryReminderTime';
 import { buildMandatoryExpenseReminderSyncItems } from '@/utils/mandatoryReminderAccountSync';
+import { findMandatoryExpenseRegistrationTarget } from '@/utils/mandatoryExpenseSuggestions';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -344,6 +345,15 @@ export default function MandatoryExpensesListScreen() {
 		submitButtonClassName,
 		submitButtonCancelClassName,
 	} = useScreenStyles();
+	const params = useLocalSearchParams<{
+		focusMandatoryExpenseId?: string | string[];
+	}>();
+	const focusMandatoryExpenseId = React.useMemo(() => {
+		const value = Array.isArray(params.focusMandatoryExpenseId)
+			? params.focusMandatoryExpenseId[0]
+			: params.focusMandatoryExpenseId;
+		return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+	}, [params.focusMandatoryExpenseId]);
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
@@ -354,6 +364,8 @@ export default function MandatoryExpensesListScreen() {
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
+	const [hasLoadedData, setHasLoadedData] = React.useState(false);
+	const handledFocusedExpenseIdRef = React.useRef<string | null>(null);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -458,6 +470,36 @@ export default function MandatoryExpensesListScreen() {
 		setExpandedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [expenses]);
 
+	React.useEffect(() => {
+		if (
+			!focusMandatoryExpenseId ||
+			!hasLoadedData ||
+			handledFocusedExpenseIdRef.current === focusMandatoryExpenseId
+		) {
+			return;
+		}
+
+		handledFocusedExpenseIdRef.current = focusMandatoryExpenseId;
+		const matchingExpense = expenses.find(expense => expense.id === focusMandatoryExpenseId) ?? null;
+		const targetExpense = findMandatoryExpenseRegistrationTarget(focusMandatoryExpenseId, expenses);
+
+		if (!targetExpense) {
+			if (matchingExpense) {
+				showNotifierAlert({
+					description: 'Este gasto obrigatório não está mais pendente neste ciclo.',
+					type: 'info',
+					isDarkMode,
+				});
+			}
+			return;
+		}
+
+		setExpandedExpenseIds(previousState =>
+			previousState.includes(targetExpense.id) ? previousState : [...previousState, targetExpense.id],
+		);
+		setPendingAction({ type: 'register', expense: targetExpense });
+	}, [expenses, focusMandatoryExpenseId, hasLoadedData, isDarkMode]);
+
 	const loadData = React.useCallback(async (asRefresh = false) => {
 		const currentUser = auth.currentUser;
 		if (!currentUser) {
@@ -468,6 +510,8 @@ export default function MandatoryExpensesListScreen() {
 			});
 			return;
 		}
+
+		setHasLoadedData(false);
 
 		if (asRefresh) {
 			setIsRefreshing(true);
@@ -535,6 +579,7 @@ export default function MandatoryExpensesListScreen() {
 					usesBusinessDays,
 				});
 				const reminderConfiguration = normalizeExpenseReminderConfiguration(expense);
+				const hasLinkedPaymentExpense = expense?.hasLinkedPaymentExpense === true;
 
 				return {
 					id: expense.id,
@@ -548,12 +593,20 @@ export default function MandatoryExpensesListScreen() {
 					description: typeof expense?.description === 'string' ? expense.description : null,
 					...reminderConfiguration,
 					lastPaymentExpenseId:
-						typeof expense?.lastPaymentExpenseId === 'string' ? expense.lastPaymentExpenseId : null,
+						hasLinkedPaymentExpense && typeof expense?.lastPaymentExpenseId === 'string'
+							? expense.lastPaymentExpenseId
+							: null,
 					lastPaymentCycle:
-						typeof expense?.lastPaymentCycle === 'string' ? expense.lastPaymentCycle : null,
-					lastPaymentDate: normalizeDateValue(expense?.lastPaymentDate ?? null),
+						hasLinkedPaymentExpense && typeof expense?.lastPaymentCycle === 'string'
+							? expense.lastPaymentCycle
+							: null,
+					lastPaymentDate: hasLinkedPaymentExpense
+						? normalizeDateValue(expense?.lastPaymentDate ?? null)
+						: null,
 					lastPaymentValueInCents:
-						typeof expense?.lastPaymentValueInCents === 'number' ? expense.lastPaymentValueInCents : null,
+						hasLinkedPaymentExpense && typeof expense?.lastPaymentValueInCents === 'number'
+							? expense.lastPaymentValueInCents
+							: null,
 					installmentTotal,
 					installmentsCompleted,
 					installmentStartDate,
@@ -614,6 +667,7 @@ export default function MandatoryExpensesListScreen() {
 				isDarkMode,
 			});
 		} finally {
+			setHasLoadedData(true);
 			setIsLoading(false);
 			setIsRefreshing(false);
 		}

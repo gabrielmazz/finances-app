@@ -492,7 +492,10 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			setExistingBalanceId(response.id);
 			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
 			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
-			applyPostSubmitBehavior({ resetForm: resetMonthlyBalanceForm });
+			applyPostSubmitBehavior({
+				resetForm: isUpdating ? undefined : resetMonthlyBalanceForm,
+				isEditing: isUpdating,
+			});
 		} catch (error) {
 			console.error('Erro ao registrar saldo mensal:', error);
 			showNotifierAlert({

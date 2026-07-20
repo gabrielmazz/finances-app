@@ -33,6 +33,8 @@ export type PostSubmitDestinationKey =
 	| 'addRegisterUser'
 	| 'addUserRelation';
 
+export type PostSubmitBehaviorMode = 'create' | 'edit';
+
 export type PostSubmitBehavior = {
 	shouldReturnAfterSubmit: boolean;
 	returnDestination: PostSubmitDestinationKey;
@@ -40,10 +42,14 @@ export type PostSubmitBehavior = {
 };
 
 type PostSubmitBehaviorContextValue = {
-	behaviorByScreen: Record<PostSubmitScreenKey, PostSubmitBehavior>;
-	getBehaviorForScreen: (screenKey: PostSubmitScreenKey) => PostSubmitBehavior;
+	behaviorByScreen: Record<PostSubmitScreenKey, Record<PostSubmitBehaviorMode, PostSubmitBehavior>>;
+	getBehaviorForScreen: (
+		screenKey: PostSubmitScreenKey,
+		mode?: PostSubmitBehaviorMode,
+	) => PostSubmitBehavior;
 	updateBehaviorForScreen: (
 		screenKey: PostSubmitScreenKey,
+		mode: PostSubmitBehaviorMode,
 		patch:
 			| Partial<PostSubmitBehavior>
 			| ((current: PostSubmitBehavior) => PostSubmitBehavior),
@@ -59,12 +65,12 @@ export const POST_SUBMIT_SCREEN_OPTIONS: Array<{
 	{
 		key: 'addRegisterExpenses',
 		label: 'Registrar despesa',
-		description: 'Define o destino depois de criar ou atualizar despesas comuns.',
+		description: 'Define o destino depois de criar uma despesa comum.',
 	},
 	{
 		key: 'addRegisterGain',
 		label: 'Registrar ganho',
-		description: 'Define o destino depois de criar ou atualizar receitas comuns.',
+		description: 'Define o destino depois de criar uma receita comum.',
 	},
 	{
 		key: 'addMandatoryExpenses',
@@ -99,12 +105,12 @@ export const POST_SUBMIT_SCREEN_OPTIONS: Array<{
 	{
 		key: 'addRegisterBank',
 		label: 'Bancos',
-		description: 'Define o destino depois de cadastrar ou editar um banco.',
+		description: 'Define o destino depois de cadastrar um banco.',
 	},
 	{
 		key: 'addRegisterTag',
 		label: 'Categorias',
-		description: 'Define o destino depois de cadastrar ou editar uma categoria fora dos fluxos inline.',
+		description: 'Define o destino depois de cadastrar uma categoria fora dos fluxos inline.',
 	},
 	{
 		key: 'addRegisterUser',
@@ -216,13 +222,19 @@ export const DEFAULT_POST_SUBMIT_BEHAVIOR: PostSubmitBehavior = {
 const screenKeys = POST_SUBMIT_SCREEN_OPTIONS.map(item => item.key);
 const destinationKeys = POST_SUBMIT_DESTINATION_OPTIONS.map(item => item.key);
 
-const createDefaultBehaviorMap = (): Record<PostSubmitScreenKey, PostSubmitBehavior> =>
+const createDefaultBehaviorMap = (): Record<
+	PostSubmitScreenKey,
+	Record<PostSubmitBehaviorMode, PostSubmitBehavior>
+> =>
 	screenKeys.reduce(
 		(acc, key) => ({
 			...acc,
-			[key]: { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+			[key]: {
+				create: { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+				edit: { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+			},
 		}),
-		{} as Record<PostSubmitScreenKey, PostSubmitBehavior>,
+		{} as Record<PostSubmitScreenKey, Record<PostSubmitBehaviorMode, PostSubmitBehavior>>,
 	);
 
 const isPostSubmitScreenKey = (value: unknown): value is PostSubmitScreenKey =>
@@ -231,7 +243,7 @@ const isPostSubmitScreenKey = (value: unknown): value is PostSubmitScreenKey =>
 const isPostSubmitDestinationKey = (value: unknown): value is PostSubmitDestinationKey =>
 	typeof value === 'string' && destinationKeys.includes(value as PostSubmitDestinationKey);
 
-const normalizeBehavior = (value: unknown): PostSubmitBehavior => {
+const normalizeBehavior = (value: unknown, mode: PostSubmitBehaviorMode): PostSubmitBehavior => {
 	if (!value || typeof value !== 'object') {
 		return { ...DEFAULT_POST_SUBMIT_BEHAVIOR };
 	}
@@ -241,9 +253,12 @@ const normalizeBehavior = (value: unknown): PostSubmitBehavior => {
 		typeof rawBehavior.shouldReturnAfterSubmit === 'boolean'
 			? rawBehavior.shouldReturnAfterSubmit
 			: DEFAULT_POST_SUBMIT_BEHAVIOR.shouldReturnAfterSubmit;
-	const returnDestination = isPostSubmitDestinationKey(rawBehavior.returnDestination)
-		? rawBehavior.returnDestination
-		: DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination;
+	const returnDestination =
+		mode === 'edit'
+			? DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination
+			: isPostSubmitDestinationKey(rawBehavior.returnDestination)
+				? rawBehavior.returnDestination
+				: DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination;
 	const shouldClearFieldsAfterSubmit =
 		typeof rawBehavior.shouldClearFieldsAfterSubmit === 'boolean'
 			? rawBehavior.shouldClearFieldsAfterSubmit
@@ -252,13 +267,15 @@ const normalizeBehavior = (value: unknown): PostSubmitBehavior => {
 	return {
 		shouldReturnAfterSubmit,
 		returnDestination,
-		shouldClearFieldsAfterSubmit: shouldReturnAfterSubmit
+		shouldClearFieldsAfterSubmit: mode === 'edit' || shouldReturnAfterSubmit
 			? false
 			: shouldClearFieldsAfterSubmit,
 	};
 };
 
-const normalizeBehaviorMap = (value: unknown): Record<PostSubmitScreenKey, PostSubmitBehavior> => {
+const normalizeBehaviorMap = (
+	value: unknown,
+): Record<PostSubmitScreenKey, Record<PostSubmitBehaviorMode, PostSubmitBehavior>> => {
 	const fallbackMap = createDefaultBehaviorMap();
 
 	if (!value || typeof value !== 'object') {
@@ -271,9 +288,19 @@ const normalizeBehaviorMap = (value: unknown): Record<PostSubmitScreenKey, PostS
 				return acc;
 			}
 
+			const rawBehaviorByMode =
+				rawBehavior && typeof rawBehavior === 'object'
+					? (rawBehavior as Partial<Record<PostSubmitBehaviorMode, unknown>>)
+					: null;
+			const legacyBehavior = rawBehaviorByMode?.create ? null : rawBehavior;
+
 			return {
 				...acc,
-				[key]: normalizeBehavior(rawBehavior),
+				[key]: {
+					// Preferências salvas antes da separação pertencem aos cadastros.
+					create: normalizeBehavior(rawBehaviorByMode?.create ?? legacyBehavior, 'create'),
+					edit: normalizeBehavior(rawBehaviorByMode?.edit, 'edit'),
+				},
 			};
 		},
 		fallbackMap,
@@ -286,7 +313,10 @@ export const PostSubmitBehaviorProvider: React.FC<React.PropsWithChildren> = ({ 
 	const [behaviorByScreen, setBehaviorByScreen] = React.useState(createDefaultBehaviorMap);
 	const [isLoadingPostSubmitBehavior, setIsLoadingPostSubmitBehavior] = React.useState(true);
 
-	const persistBehaviorMap = React.useCallback(async (nextBehaviorByScreen: Record<PostSubmitScreenKey, PostSubmitBehavior>) => {
+	const persistBehaviorMap = React.useCallback(async (nextBehaviorByScreen: Record<
+		PostSubmitScreenKey,
+		Record<PostSubmitBehaviorMode, PostSubmitBehavior>
+	>) => {
 		try {
 			await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextBehaviorByScreen));
 		} catch (error) {
@@ -331,14 +361,15 @@ export const PostSubmitBehaviorProvider: React.FC<React.PropsWithChildren> = ({ 
 	}, []);
 
 	const getBehaviorForScreen = React.useCallback(
-		(screenKey: PostSubmitScreenKey) => behaviorByScreen[screenKey] ?? { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode = 'create') =>
+			behaviorByScreen[screenKey]?.[mode] ?? { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
 		[behaviorByScreen],
 	);
 
 	const updateBehaviorForScreen = React.useCallback<PostSubmitBehaviorContextValue['updateBehaviorForScreen']>(
-		(screenKey, patch) => {
+		(screenKey, mode, patch) => {
 			setBehaviorByScreen(currentMap => {
-				const currentBehavior = currentMap[screenKey] ?? { ...DEFAULT_POST_SUBMIT_BEHAVIOR };
+				const currentBehavior = currentMap[screenKey]?.[mode] ?? { ...DEFAULT_POST_SUBMIT_BEHAVIOR };
 				const patchedBehavior =
 					typeof patch === 'function'
 						? patch(currentBehavior)
@@ -346,10 +377,16 @@ export const PostSubmitBehaviorProvider: React.FC<React.PropsWithChildren> = ({ 
 							...currentBehavior,
 							...patch,
 						};
-				const normalizedBehavior = normalizeBehavior(patchedBehavior);
+				const normalizedBehavior = normalizeBehavior(patchedBehavior, mode);
 				const nextMap = {
 					...currentMap,
-					[screenKey]: normalizedBehavior,
+					[screenKey]: {
+						...(currentMap[screenKey] ?? {
+							create: { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+							edit: { ...DEFAULT_POST_SUBMIT_BEHAVIOR },
+						}),
+						[mode]: normalizedBehavior,
+					},
 				};
 
 				void persistBehaviorMap(nextMap);

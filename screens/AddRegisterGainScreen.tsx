@@ -932,7 +932,7 @@ export default function AddRegisterGainScreen() {
 				}
 
 				showSuccessfulGainNotification(true);
-				applyPostSubmitBehavior();
+				applyPostSubmitBehavior({ isEditing: true });
 				return;
 			}
 

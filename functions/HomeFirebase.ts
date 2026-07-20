@@ -1,7 +1,17 @@
 import { db } from '@/FirebaseConfig';
+import { getInvestmentCdiRatesByPersonIdsFirebase } from '@/functions/InvestmentCdiRateFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { computeMonthlyBankBalances, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
+import {
+	getInvestmentAssetType,
+	getInvestmentValuationMethod,
+	normalizeCdiPercentageInBasisPoints,
+	projectInvestmentValueInCents,
+	type InvestmentAssetType,
+	type InvestmentCdiRate,
+	type InvestmentValuationMethod,
+} from '@/utils/investmentPortfolio';
 import {
 	collection,
 	getDocs,
@@ -141,20 +151,21 @@ type HomeQueryContext = {
 
 type NormalizedInvestmentSummary = {
 	id: string;
+	personId: string;
 	name: string;
 	initialValueInCents: number;
 	currentValueInCents: number;
 	cdiPercentage: number;
+	cdiPercentageInBasisPoints: number;
+	assetType: InvestmentAssetType;
+	valuationMethod: InvestmentValuationMethod;
 	bankId: string | null;
 	bankNameSnapshot: string | null;
 	lastManualSyncValueInCents: number | null;
 	lastManualSyncAt: Date | null;
+	investmentDate: Date | null;
 	createdAt: Date | null;
 };
-
-const DAYS_IN_YEAR = 365;
-const MILLISECONDS_IN_DAY = 24 * 60 * 60 * 1000;
-const BASE_CDI_ANNUAL_RATE = 0.1375;
 
 const EMPTY_OVERVIEW_DATA: HomeOverviewData = {
 	bankBalances: [],
@@ -246,14 +257,6 @@ const sumMovementValues = (items: HomeMovementDocument[]) =>
 		return accumulator + Math.max(value, 0);
 	}, 0);
 
-const calculateInvestmentDailyRate = (cdiPercentage: number) => {
-	if (!Number.isFinite(cdiPercentage) || cdiPercentage <= 0) {
-		return 0;
-	}
-
-	return (BASE_CDI_ANNUAL_RATE * (cdiPercentage / 100)) / DAYS_IN_YEAR;
-};
-
 const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSummary) => {
 	if (typeof investment.currentValueInCents === 'number') {
 		return investment.currentValueInCents;
@@ -267,21 +270,25 @@ const resolveInvestmentBaseValueInCents = (investment: NormalizedInvestmentSumma
 };
 
 const resolveInvestmentBaseDate = (investment: NormalizedInvestmentSummary) => {
-	return investment.lastManualSyncAt ?? investment.createdAt ?? new Date();
+	return investment.lastManualSyncAt ?? investment.investmentDate ?? investment.createdAt ?? new Date();
 };
 
-const simulateInvestmentValueInCents = (investment: NormalizedInvestmentSummary) => {
+const simulateInvestmentValueInCents = (
+	investment: NormalizedInvestmentSummary,
+	rates: InvestmentCdiRate[],
+) => {
 	const baseValueInCents = resolveInvestmentBaseValueInCents(investment);
-	const dailyRate = calculateInvestmentDailyRate(investment.cdiPercentage);
-	if (dailyRate <= 0) {
-		return baseValueInCents;
-	}
 
-	const baseDate = resolveInvestmentBaseDate(investment);
-	const diff = Date.now() - baseDate.getTime();
-	const days = diff > 0 ? Math.floor(diff / MILLISECONDS_IN_DAY) : 0;
-	const simulatedBRL = (baseValueInCents / 100) * Math.pow(1 + dailyRate, days);
-	return Math.round(simulatedBRL * 100);
+	return projectInvestmentValueInCents({
+		valueInCents: baseValueInCents,
+		fromDate: resolveInvestmentBaseDate(investment),
+		toDate: new Date(),
+		personId: investment.personId,
+		cdiPercentageInBasisPoints: investment.cdiPercentageInBasisPoints,
+		assetType: investment.assetType,
+		valuationMethod: investment.valuationMethod,
+		rates,
+	}).valueInCents;
 };
 
 const buildAllowedPersonIds = async (personId: string) => {
@@ -711,7 +718,14 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 		orderBy('createdAt', 'desc'),
 		limitQuery(50),
 	);
-	const investmentsSnapshot = await getDocs(investmentsQuery);
+	const [investmentsSnapshot, cdiRatesResult] = await Promise.all([
+		getDocs(investmentsQuery),
+		getInvestmentCdiRatesByPersonIdsFirebase(context.allowedPersonIds),
+	]);
+	if (!cdiRatesResult.success || !Array.isArray(cdiRatesResult.data)) {
+		throw new Error('Erro ao carregar a taxa CDI configurada.');
+	}
+	const cdiRates: InvestmentCdiRate[] = cdiRatesResult.data;
 	const normalizedInvestments: NormalizedInvestmentSummary[] = investmentsSnapshot.docs.map(docSnap => {
 		const investment = docSnap.data() as HomeInvestmentDocument;
 		const initialValueInCents =
@@ -728,16 +742,28 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 					: initialValueInCents;
 		const lastManualSyncValueInCents =
 			typeof investment.lastManualSyncValueInCents === 'number' ? investment.lastManualSyncValueInCents : null;
+		const cdiPercentageInBasisPoints =
+			typeof investment.cdiPercentageInBasisPoints === 'number'
+				? Math.max(0, Math.round(investment.cdiPercentageInBasisPoints))
+				: normalizeCdiPercentageInBasisPoints(investment.cdiPercentage);
+		const assetType = getInvestmentAssetType(investment.assetType);
 
 		return {
 			id: docSnap.id,
+			personId: typeof investment.personId === 'string' ? investment.personId : '',
 			name:
 				typeof investment.name === 'string' && investment.name.trim().length > 0
 					? investment.name.trim()
 					: 'Investimento sem nome',
 			initialValueInCents,
 			currentValueInCents,
-			cdiPercentage: typeof investment.cdiPercentage === 'number' ? investment.cdiPercentage : 0,
+			cdiPercentage:
+				typeof investment.cdiPercentage === 'number'
+					? investment.cdiPercentage
+					: cdiPercentageInBasisPoints / 100,
+			cdiPercentageInBasisPoints,
+			assetType,
+			valuationMethod: getInvestmentValuationMethod(investment.valuationMethod, assetType),
 			bankId: typeof investment.bankId === 'string' ? investment.bankId : null,
 			bankNameSnapshot:
 				typeof investment.bankNameSnapshot === 'string' && investment.bankNameSnapshot.trim().length > 0
@@ -745,6 +771,7 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 					: null,
 			lastManualSyncValueInCents,
 			lastManualSyncAt: parseToDate(investment.lastManualSyncAt),
+			investmentDate: parseToDate(investment.date),
 			createdAt: parseToDate(investment.createdAt ?? investment.createdAtISO ?? investment.createdAtUtc),
 		};
 	});
@@ -752,7 +779,7 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 	const portfolioItems = normalizedInvestments
 		.map<HomeInvestmentItem>(investment => {
 			const currentBaseValueInCents = resolveInvestmentBaseValueInCents(investment);
-			const simulatedValueInCents = simulateInvestmentValueInCents(investment);
+			const simulatedValueInCents = simulateInvestmentValueInCents(investment, cdiRates);
 
 			return {
 				id: investment.id,

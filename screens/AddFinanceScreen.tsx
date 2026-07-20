@@ -46,6 +46,7 @@ import BankActionsheetSelector, { type BankActionsheetOption } from '@/component
 import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
+import { parsePercentageToBasisPoints } from '@/utils/investmentPortfolio';
 import { auth } from '@/FirebaseConfig';
 import { addFinanceInvestmentFirebase, getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import {
@@ -74,15 +75,6 @@ const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 ];
 
 const sanitizeNumberInput = (value: string) => value.replace(/[^\d.,]/g, '');
-
-const parseStringToNumber = (value: string) => {
-	if (!value.trim()) {
-		return NaN;
-	}
-	const normalized = value.replace(/\./g, '').replace(',', '.');
-	const parsed = Number(normalized);
-	return Number.isFinite(parsed) ? parsed : NaN;
-};
 
 const formatDateToBR = (date: Date) => {
 	const year = date.getFullYear();
@@ -243,11 +235,22 @@ export default function AddFinanceScreen() {
 		keyboardScrollOffset,
 	});
 	const parsedInvestmentDate = React.useMemo(() => parseDateFromBR(investmentDate), [investmentDate]);
-	const parsedCdi = React.useMemo(() => parseStringToNumber(cdiInput), [cdiInput]);
+	const parsedCdiInBasisPoints = React.useMemo(
+		() => parsePercentageToBasisPoints(cdiInput),
+		[cdiInput],
+	);
+	const parsedCdi = React.useMemo(
+		() =>
+			typeof parsedCdiInBasisPoints === 'number'
+				? parsedCdiInBasisPoints / 100
+				: NaN,
+		[parsedCdiInBasisPoints],
+	);
 	const hasInvestmentName = investmentName.trim().length > 0;
 	const hasInitialValue = typeof initialValueInCents === 'number' && initialValueInCents > 0;
 	const hasValidInvestmentDate = Boolean(parsedInvestmentDate);
-	const hasValidCdi = Number.isFinite(parsedCdi) && parsedCdi > 0;
+	const hasValidCdi =
+		typeof parsedCdiInBasisPoints === 'number' && parsedCdiInBasisPoints > 0;
 	const isFormBusy = isSaving;
 	const isInitialValueDisabled = !hasInvestmentName || isFormBusy;
 	const isInvestmentDateDisabled = !hasInvestmentName || !hasInitialValue || isFormBusy;
@@ -632,7 +635,11 @@ export default function AddFinanceScreen() {
 			}
 		}
 
-		if (!Number.isFinite(parsedCdi) || parsedCdi <= 0) {
+		if (
+			typeof parsedCdiInBasisPoints !== 'number' ||
+			parsedCdiInBasisPoints <= 0 ||
+			!Number.isFinite(parsedCdi)
+		) {
 			showScreenAlert('Informe um CDI válido.', 'warn');
 			return;
 		}
@@ -656,6 +663,7 @@ export default function AddFinanceScreen() {
 				initialValueInCents: initialInCents,
 				currentValueInCents: initialInCents,
 				cdiPercentage: parsedCdi,
+				cdiPercentageInBasisPoints: parsedCdiInBasisPoints,
 				redemptionTerm: selectedRedemptionTerm,
 				bankId: selectedBankId,
 				personId: currentUser.uid,
@@ -689,6 +697,7 @@ export default function AddFinanceScreen() {
 		currentBankBalanceInCents,
 		isLoadingBankBalance,
 		parsedCdi,
+		parsedCdiInBasisPoints,
 		parsedInvestmentDate,
 		applyPostSubmitBehavior,
 		showScreenAlert,

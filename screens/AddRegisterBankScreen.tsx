@@ -300,7 +300,7 @@ export default function AddRegisterBankScreen() {
                         isDarkMode,
                         duration: 4000,
                     });
-                    applyPostSubmitBehavior();
+					applyPostSubmitBehavior({ isEditing: true });
                 } else {
                     showNotifierAlert({
                         title: 'Erro ao atualizar banco',
