@@ -49,6 +49,16 @@ jest.mock('react-native', () => ({
 	},
 }));
 
+jest.mock('expo-constants', () => ({
+	__esModule: true,
+	default: { executionEnvironment: 'bare' },
+	ExecutionEnvironment: {
+		Bare: 'bare',
+		Standalone: 'standalone',
+		StoreClient: 'storeClient',
+	},
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
 	__esModule: true,
 	default: {

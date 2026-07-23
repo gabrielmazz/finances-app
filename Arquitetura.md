@@ -35,6 +35,7 @@ O vault é a **fonte de verdade** do projeto. Toda feature, decisão arquitetura
 | Trabalhar em notificações | `Notificações.md` |
 | Trabalhar em testes manuais do app | `Testes do Aplicativo.md` |
 | Configurar Firebase | `Firebase Config.md` |
+| Trabalhar no assistente/IA/voz | `Assistente Lumus.md`, `Firebase Config.md`, `Privacidade de Valores.md` |
 
 ---
 
@@ -96,9 +97,9 @@ Expo Router (file-based routing) — app/
     ↓
 Screens — screens/
     ↓
-Firebase Functions — functions/
+Services/Functions — services/ + functions/
     ↓
-Firebase (Auth + Firestore)
+Firebase (Auth + Firestore + AI Logic)
 ```
 
 ### Stack
@@ -107,7 +108,8 @@ Firebase (Auth + Firestore)
 |---|---|
 | Framework | Expo ~54 / React Native 0.81 |
 | Routing | Expo Router ~6 (file-based) |
-| Backend | Firebase 12 (Auth + Firestore) |
+| Backend | Firebase 12.16 (Auth + Firestore + AI Logic web) |
+| IA Android | React Native Firebase 25.1 (AI + App Check + Remote Config) |
 | Design System | Gluestack UI + NativeWind (Tailwind) |
 | Linguagem | TypeScript 5.9 (strict mode) |
 | React | 19.1.0 |
@@ -122,6 +124,7 @@ components/
   ui/          → Primitivos Gluestack UI
   uiverse/     → Componentes customizados do domínio
 contexts/      → AuthContext, ThemeContext, ValueVisibilityContext
+services/      → Gateways, comandos e relatórios do Assistente Lumus
 hooks/         → useHomeScreenData, useScreenStyle
 utils/         → Utilitários (segurança, notificações, cálculos)
 types/         → TypeScript declarations
@@ -188,7 +191,7 @@ O projeto usa **dois apps Firebase** inicializados:
 ### Estilos
 - **Nunca** escrever estilos dark/light diretamente nas telas
 - **Sempre** usar `useScreenStyle()` para estilos adaptativos
-- Classes Tailwind dinâmicas devem estar na safe list do `tailwind.config.js`
+- Classes Tailwind montadas dinamicamente devem ter todas as variantes literais visíveis ao scanner ou entrar na `safelist` de `tailwind.config.js`
 
 ### Componentes Gluestack
 - **Nunca** editar arquivos em `components/ui/` manualmente sem cautela — são gerados pelo CLI do Gluestack
@@ -219,6 +222,17 @@ O projeto usa **dois apps Firebase** inicializados:
 - Expo Go serve somente para smoke test local. Validar canais, segundo plano e aceite em development client e build de produção instalados
 - Alterações em plugin, manifesto ou dependência nativa exigem novo build
 
+### Assistente Lumus
+- Firebase AI Logic interpreta e propõe ações; o modelo nunca recebe ferramenta de escrita no Firestore
+- Toda escrita exige botão de confirmação individual no cartão; texto/voz dizendo “sim” não executa
+- IDs reais, UID, e-mail, tokens e configuração Firebase nunca entram no prompt; usar somente handles temporários
+- Handles usam salt aleatório, ficam estáveis durante a sessão e são renovados ao limpar a conversa, trocar UID ou sair
+- Valores permanecem em centavos e datas usam `America/Sao_Paulo`
+- Conversa/rascunhos vivem apenas em memória durante o UID autenticado; consentimento e leitura automática são as únicas preferências persistidas
+- App Check é obrigatório para AI Logic. Nesta etapa, não ativar enforcement para Firestore Android
+- Android usa debug provider apenas em development e Play Integrity em produção; Expo Go não suporta esta feature
+- Cota gratuita ou indisponibilidade interrompe somente o assistente, sem fallback pago e sem gravação automática
+
 ---
 
 ## Variáveis de Ambiente
@@ -231,6 +245,11 @@ EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=
 EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 EXPO_PUBLIC_FIREBASE_APP_ID=
 EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
+EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY=
+EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER=debug
+EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN=
+# Caminho/secret de arquivo usado pelo EAS, nunca commitar o JSON:
+GOOGLE_SERVICES_JSON=
 ```
 
 > Prefixo `EXPO_PUBLIC_` = exposto no bundle. Não colocar secrets aqui.
@@ -239,7 +258,54 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 ## Active Context
 
-> Atualizado em 2026-07-19.
+> Atualizado em 2026-07-22.
+
+- Accordion do [[Assistente Lumus]] em 2026-07-22: a configuração de visibilidade do Lumus em `ScreenSettingsScreen.tsx` passou a usar o mesmo accordion ilustrado das demais telas, com status resumido no cabeçalho e **Mostrar no app** no conteúdo expandido. A persistência local e o bloqueio da rota foram preservados. Vault alinhado em [[Configurações]] e [[Visibilidade de Rotas]].
+
+- Ciclo de vida de voz do [[Assistente Lumus]] em 2026-07-22: ao desmontar `LumusAssistantScreen.tsx`, a limpeza não consulta nem interrompe mais o `AudioRecorder`, pois `useAudioRecorder` libera automaticamente esse objeto nativo. A tela ainda cancela o timer, apaga áudio temporário e restaura o modo de áudio; cancelamento e revogação enquanto montada continuam interrompendo a gravação normalmente. Vault alinhado em [[Assistente Lumus]].
+
+- [[Visibilidade de Rotas]] em 2026-07-22: `ScreenSettingsScreen.tsx` passou a oferecer **Mostrar no app** para cada tela configurável e um controle próprio do [[Assistente Lumus]]. A preferência local em AsyncStorage começa visível, filtra o `navigator.tsx` e é reforçada por `Stack.Protected`, incluindo acesso direto à rota. Destinos pós-submit que forem ocultados fazem fallback para o Dashboard. Vault alinhado em [[Navegação]], [[Configurações]], [[Comportamento Pós-Registro]] e [[Assistente Lumus]].
+
+- Identidade das Tabs em 2026-07-22: os controles de horizonte da [[Previsão de Fluxo de Caixa]], tipo da [[Análise por Categoria]] e período de [[Monitoramento de Investimentos]] passaram a ficar em cards `notTintedCardClassName`, com indicador amarelo e conteúdo ativo escuro para contraste. A animação e os comportamentos controlados foram preservados; vault alinhado nos módulos e em [[Componentes UI]].
+
+- Retorno pós-edição em 2026-07-22: as opções de edição em `ScreenSettingsScreen.tsx` agora reutilizam o ActionSheet de destinos dos cadastros. `PostSubmitBehaviorContext.tsx` preserva o destino escolhido na preferência de edição, enquanto dados antigos sem destino mantêm o retorno padrão para a Home; edições continuam sem limpeza de campos. Vault alinhado em [[Configurações]] e [[Comportamento Pós-Registro]].
+
+- Rentabilidade de [[Monitoramento de Investimentos]] em 2026-07-22: `FinancialListScreen.tsx` passou a usar as Tabs controladas de `components/ui/tabs` para 30 dias, 6 meses, 12 meses e total, preservando o cálculo local e a largura igual dos quatro gatilhos. Vault alinhado em [[Investimentos]], [[Monitoramento de Investimentos]] e [[Componentes UI]].
+
+- Tipo da [[Análise por Categoria]] em 2026-07-22: o seletor entre **Gastos** e **Ganhos** passou a usar as Tabs controladas de `components/ui/tabs`, preservando as restrições de uso da categoria, os ícones de entrada/saída e o relatório carregado em memória. Vault alinhado em [[Análise por Categoria]] e [[Componentes UI]].
+
+- Restauração do tamanho padrão do `navigator.tsx` em 2026-07-22: a barra inferior preserva três grupos de largura igual em um conteúdo centralizado de até `280px`, com `16px` de respiro lateral. Isso impede que Home, Controle e Config cresçam em telas maiores; vault alinhado em [[Navegação]].
+
+- Horizonte da [[Previsão de Fluxo de Caixa]] em 2026-07-22: `FinancialForecastScreen.tsx` passou a usar as Tabs controladas de `components/ui/tabs` para as opções de 3/6/12 meses, preservando o recálculo e o indicador animado. O seletor de domínio `forecast-horizon-selector.tsx` foi removido; `tabs/` foi compatibilizado com o toolchain estável, sem atualizar dependências. Vault alinhado em [[Previsão de Fluxo de Caixa]] e [[Componentes UI]].
+
+- Refinamento visual do [[Assistente Lumus]] em 2026-07-22: `LumusAssistantScreen.tsx` passou a aplicar classes NativeWind e componentes Gluestack para superfícies, mensagens, atalhos e consentimento; permanecem em `style` somente os valores geométricos calculados pelo hero, insets e teclado. O compositor agora espelha os formulários com campo, microfone e envio em `h-10`, e os dois controles de ícone em `w-10 rounded-2xl`. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+- Preferências do [[Assistente Lumus]] em 2026-07-22: o atalho de configurações abre um `Drawer` à direita, sem inserir controles no histórico da conversa. A leitura automática agora usa o `Switch` padrão com tokens de `useScreenStyles()`; revogar consentimento fecha o drawer antes de executar a limpeza de sessão já existente. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+- Compositor do [[Assistente Lumus]] em 2026-07-22: o `PromptInput` deixou o conteúdo rolável do chat e passou a ocupar o rodapé fixo do painel, logo acima do `navigator.tsx`. Assim, a tela abre com o campo pronto para uso e apenas o histórico recebe rolagem; o `KeyboardAvoidingView` preserva a posição acima do teclado. Vault alinhado em [[Assistente Lumus]].
+- Exemplos do [[Assistente Lumus]] em 2026-07-22: os `QUICK_PROMPTS` deixaram o estado vazio e passaram para um `Modal` aberto pelo novo botão de lâmpada entre limpar conversa e configurações. A escolha fecha o modal e segue o mesmo envio controlado do compositor. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+- Preferências do [[Assistente Lumus]] em 2026-07-22: a leitura automática passou a explicar a execução local por `Popover`, sem texto auxiliar permanente. A revogação de consentimento agora ocupa um card próprio no mesmo padrão do `Switch`, com ação destrutiva de ícone à direita. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+
+- Correção definitiva da tela branca e reinstalação limpa em 2026-07-21: o salto simultâneo para NativeWind 5 preview, Tailwind 4 e Gluestack 5 trouxe `react-stately` moderno com sintaxe que o Metro de desenvolvimento não transformava, além de descaracterizar a configuração visual conhecida. O projeto voltou às versões exatas NativeWind 4.2.1, Tailwind 3.4.18, Gluestack 3.0.12, `react-stately` 3.42.0 e `@react-stately/color` 3.9.2; `package-lock.json` voltou a partir do grafo estável, os patches aplicam durante `npm ci` e não há plugin Babel compensatório. `global.css`, `tailwind.config.js`, `metro.config.js`, `babel.config.js` e os componentes gerados voltaram ao fluxo NativeWind 4. Vault alinhado em [[Componentes UI]], [[Sistema de Temas]] e [[Navegação]].
+
+- Isolamento real do [[Assistente Lumus]] em 2026-07-21: os arquivos de rota `/lumus-assistant` e `/app-tests` agora usam `React.lazy`/`Suspense` para importar provider e telas somente ao navegar. `AssistantRouteBoundary` captura a ausência de `expo-audio`/`expo-speech` em um development client antigo e mostra orientação de atualização sem derrubar Login ou Home; `tests/assistantRouteBootstrap.test.ts` impede regressão de importação antecipada. Vault alinhado em [[Assistente Lumus]], [[Navegação]] e [[Testes do Aplicativo]].
+
+- Configuração nativa resiliente do [[Assistente Lumus]] em 2026-07-21: `app.config.ts` mantém apenas o plugin oficial de áudio e adiciona `@react-native-firebase/app`/`android.googleServicesFile` quando `GOOGLE_SERVICES_JSON` ou `google-services.json` realmente existe. Sem o arquivo, o app-base continua gerável e a IA informa configuração pendente; com o arquivo, é obrigatório gerar e instalar um novo development build. O prebuild Android foi sincronizado e materializou `RECORD_AUDIO`/`MODIFY_AUDIO_SETTINGS`. Vault alinhado em [[Firebase Config]].
+
+- Bootstrap resiliente de [[Notificações]] em 2026-07-21: `utils/notificationsRuntime.ts` detecta o Expo Go por `executionEnvironment: storeClient` antes de avaliar `expo-notifications`, pois o pacote emite erro no Android desse host ao carregar APIs remotas. Assim, uma falha de notificações não bloqueia o Expo Router, a autenticação nem o [[Assistente Lumus]]; lembretes ficam indisponíveis no Expo Go e voltam a operar no development build instalado. Typecheck, testes de lembretes e bundle Android validados; vault alinhado em [[Notificações]].
+
+- Horizonte da [[Previsão de Fluxo de Caixa]] em 2026-07-21: `forecast-horizon-selector.tsx` preserva as opções 3/6/12 meses, largura total e indicador animado com primitivas React Native. O controle de domínio substitui as Tabs que exigiam Gluestack 5 e permite manter o toolchain visual estável sem alterar o recálculo do cenário. Vault alinhado em [[Previsão de Fluxo de Caixa]] e [[Componentes UI]].
+
+- Chat do [[Assistente Lumus]] em 2026-07-21: `LumusAssistantScreen.tsx` passou a compor histórico, estado vazio, mensagens e compositor com `components/ui/chatAi` (`Conversation`, `Message` e `PromptInput`). A adaptação preserva os cartões de confirmação individual, voz, privacidade e o `useKeyboardAwareScroll()`, enquanto o textarea continua sobre `Input`/`InputField` do Gluestack; vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+
+- Compositor do [[Assistente Lumus]] em 2026-07-21: `LumusAssistantScreen.tsx` substituiu o `TextInput` direto pelo `Input`/`InputField` do Gluestack e passou a usar `useKeyboardAwareScroll()` no histórico rolável. Ao focar o campo, o painel sobe e mantém o compositor visível acima do teclado; vault alinhado em [[Assistente Lumus]].
+
+- Espaçamento do `navigator.tsx` em 2026-07-21: o contêiner da barra inferior voltou a ter `16px` de padding horizontal, preservando o respiro visual dos ícones de Home e Config nas bordas; vault alinhado em [[Navegação]].
+
+- Navegação do [[Assistente Lumus]] em 2026-07-21: o atalho **Lumus IA** saiu da quarta ação isolada da barra inferior e passou para o menu do botão **Home**. O navigator volta a ter três grupos de largura igual e a rota `/lumus-assistant` deixa Home ativo; vault alinhado em [[Navegação]] e [[Assistente Lumus]].
+
+- Padronização visual do [[Assistente Lumus]] em 2026-07-21: `LumusAssistantScreen.tsx` adotou o mesmo hero das demais telas — wallpaper amarelo, título e ilustração — e posiciona consentimento e chat no painel arredondado abaixo. As ações e o compositor foram preservados; vault alinhado em [[Assistente Lumus]].
+
+- Bootstrap resiliente do [[Assistente Lumus]] em 2026-07-20: o adaptador Android passou a detectar Expo Go antes de importar React Native Firebase e a carregar App Check/AI/Remote Config somente quando o runtime nativo é compatível. Assim, `RNFBAppModule` ausente desativa apenas a IA com orientação para development build, sem impedir o Expo Router de reconhecer `_layout`, `/app-tests` e `/lumus-assistant` nem desmontar a hierarquia de tema. Teste de regressão e bundle Android validados; vault alinhado em [[Assistente Lumus]] e [[Firebase Config]].
+- [[Assistente Lumus]] implementado em 2026-07-20: nova rota protegida `/lumus-assistant`, quarta ação fixa **Lumus IA**, conversa por texto/voz, consentimento por UID, TTS local, perguntas e cartões editáveis com confirmação individual. O Gemini somente propõe ações por function calling; `FinanceCommandService` valida propriedade, Zod, saldo, dependências, fingerprint e executa comandos atômicos/idempotentes. Handles opacos agora são estáveis apenas durante a sessão, datas civis são materializadas em `America/Sao_Paulo`, a cota local é isolada por UID e falhas da agenda podem ser repetidas sem refazer o commit financeiro. Relatórios usam agregadores determinísticos e narrativa opcional com fallback local. Web usa `firebase/ai` + reCAPTCHA Enterprise; Android usa React Native Firebase AI/App Check/Remote Config e requer `google-services.json` + development build. Diagnósticos seguros foram adicionados à [[Testes do Aplicativo]]. Testes novos cobrem o cenário de 18/19 de julho de 2026, limites, privacidade, estados e contratos dos adaptadores.
 
 - Ilustrações do seletor de retorno de [[Configurações]] em 2026-07-19: cada destino do ActionSheet em `ScreenSettingsScreen.tsx` passou a exibir o SVG correspondente à tela em vez de um índice numérico. Vault alinhado em [[Configurações]].
 - Seletor de retorno de [[Configurações]] em 2026-07-19: `ScreenSettingsScreen.tsx` substituiu o `Select` nativo por um ActionSheet pesquisável e estilizado, com descrição e destaque visual para o destino atualmente escolhido. Vault alinhado em [[Configurações]].
@@ -249,7 +315,7 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=
 - Refinamento de layout em [[Investimentos]] em 2026-07-19: os rótulos dos filtros de rentabilidade em `FinancialListScreen.tsx` são centralizados nas quatro colunas de largura igual. Vault alinhado em [[Investimentos]] e [[Monitoramento de Investimentos]].
 - Reversão visual de [[Investimentos]] em 2026-07-19: as duas mudanças recentes de grade e de cores explícitas dos ticks em `investment-evolution-chart.tsx` foram desfeitas, restaurando a configuração Mantine anterior. Vault alinhado em [[Investimentos]], [[Monitoramento de Investimentos]] e [[Componentes UI]].
 - Ajuste de layout em [[Investimentos]] em 2026-07-19: os quatro filtros de rentabilidade em `FinancialListScreen.tsx` dividem igualmente toda a largura disponível, removendo o espaço vazio à direita. Vault alinhado em [[Investimentos]] e [[Monitoramento de Investimentos]].
-- Configurações por tela em 2026-07-19: `ScreenSettingsScreen.tsx` passou a separar cadastros e edições em cards transparentes por categoria, com busca por nome e accordions ilustrados por formulário. As preferências de edição agora são independentes das de cadastro, só permitem retornar para a Home ou permanecer no formulário e nunca limpam valores carregados; `usePostSubmitBehavior()` reforça a regra ao salvar. Vault alinhado em [[Configurações]] e [[Comportamento Pós-Registro]].
+- Configurações por tela em 2026-07-19: `ScreenSettingsScreen.tsx` passou a separar cadastros e edições em cards transparentes por categoria, com busca por nome e accordions ilustrados por formulário. Na configuração inicial, as preferências de edição eram independentes das de cadastro, permitiam retornar para a Home ou permanecer no formulário e nunca limpavam valores carregados; `usePostSubmitBehavior()` reforça a regra ao salvar. Vault alinhado em [[Configurações]] e [[Comportamento Pós-Registro]].
 - Padronização dos gráficos de [[Investimentos]] e [[Previsão de Fluxo de Caixa]] em 2026-07-19: `investment-evolution-chart.tsx` passa a aplicar o mesmo fundo transparente, supressão de foco e regra de rolagem horizontal para séries com mais de sete pontos de `financial-forecast-chart.tsx`, preservando as duas curvas, legenda e eixos compactos da carteira. Vault alinhado em [[Investimentos]], [[Monitoramento de Investimentos]] e [[Componentes UI]].
 - Legibilidade no horizonte longo de [[Previsão de Fluxo de Caixa]] em 2026-07-19: `financial-forecast-chart.tsx` deixa de comprimir os 13 pontos de 12 meses no celular; séries com mais de sete pontos ganham largura por período e rolagem horizontal. Vault alinhado em [[Previsão de Fluxo de Caixa]] e [[Componentes UI]].
 - Refinamento de toque em [[Previsão de Fluxo de Caixa]] em 2026-07-19: o Expo DOM de `financial-forecast-chart.tsx` não aceita foco e seus elementos internos não desenham `outline`, removendo a borda branca que surgia ao tocar o gráfico. Vault alinhado em [[Previsão de Fluxo de Caixa]] e [[Componentes UI]].

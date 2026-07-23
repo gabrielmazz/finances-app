@@ -1,6 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { Linking, Platform } from 'react-native';
+
+import {
+	Notifications,
+	isNotificationsRuntimeAvailable,
+	type NotificationChannel,
+	type NotificationPermissionsStatus,
+} from '@/utils/notificationsRuntime';
 
 export type MandatoryReminderKind = 'expense' | 'gain';
 export type LocalNotificationChannelKind = MandatoryReminderKind | 'systemTest';
@@ -80,7 +86,8 @@ let hasRegisteredNotificationHandler = false;
 let legacyMigrationPromise: Promise<void> | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 
-export const isNotificationsEnvironmentSupported = () => Platform.OS === 'android' || Platform.OS === 'ios';
+export const isNotificationsEnvironmentSupported = () =>
+	(Platform.OS === 'android' || Platform.OS === 'ios') && isNotificationsRuntimeAvailable();
 const supportsAndroidNotificationChannels = () =>
 	Platform.OS === 'android' && (typeof Platform.Version !== 'number' || Platform.Version >= 26);
 
@@ -112,7 +119,7 @@ export const ensureLocalNotificationChannel = async (kind: LocalNotificationChan
 export const ensureMandatoryReminderNotificationChannel = (kind: MandatoryReminderKind) =>
 	ensureLocalNotificationChannel(kind);
 
-const isAndroidChannelEnabled = (channel: Notifications.NotificationChannel | null) =>
+const isAndroidChannelEnabled = (channel: NotificationChannel | null) =>
 	Boolean(channel && channel.importance > Notifications.AndroidImportance.NONE);
 
 export const isMandatoryReminderNotificationChannelEnabled = async (kind: MandatoryReminderKind) => {
@@ -159,7 +166,7 @@ export const ensureLocalNotificationChannels = async () => {
 	]);
 };
 
-const isPermissionGranted = (status: Notifications.NotificationPermissionsStatus) => status.granted === true;
+const isPermissionGranted = (status: NotificationPermissionsStatus) => status.granted === true;
 
 export const hasLocalNotificationPermission = async () => {
 	if (!isNotificationsEnvironmentSupported()) {
@@ -279,7 +286,7 @@ const permissionFailureResult = (permission: LocalNotificationPermissionResult):
 	reason: permission.granted ? 'schedule-error' : permission.reason,
 	message:
 		!permission.granted && permission.reason === 'unavailable'
-			? 'As notificações locais só estão disponíveis no Android e no iOS.'
+			? 'As notificações locais exigem um development build instalado neste ambiente.'
 			: 'As notificações do aplicativo estão desativadas para este dispositivo.',
 });
 

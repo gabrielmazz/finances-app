@@ -40,6 +40,13 @@ export function useScreenStyles() {
 	const sectionCardClassName = isDarkMode
 		? 'rounded-3xl border border-slate-800 bg-slate-950'
 		: 'rounded-3xl border border-slate-200 bg-white';
+	const dividerClassName = isDarkMode ? 'border-slate-800' : 'border-slate-200';
+	const warningCardClassName = isDarkMode
+		? 'rounded-2xl bg-warning-950'
+		: 'rounded-2xl bg-warning-50';
+	const warningTextClassName = isDarkMode ? 'text-warning-200' : 'text-warning-800';
+	const assistantAvailableTextClassName = isDarkMode ? 'text-success-400' : 'text-success-600';
+	const assistantUnavailableTextClassName = isDarkMode ? 'text-warning-300' : 'text-warning-700';
 	const compactCardClassName = isDarkMode
 		? ''
 		: '';
@@ -197,6 +204,11 @@ export function useScreenStyles() {
 		fieldContainerCardClassName,
 		textareaContainerClassName,
 		sectionCardClassName,
+		dividerClassName,
+		warningCardClassName,
+		warningTextClassName,
+		assistantAvailableTextClassName,
+		assistantUnavailableTextClassName,
 		compactCardClassName,
 		tintedCardClassName,
 		notTintedCardClassName,

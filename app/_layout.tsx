@@ -10,10 +10,15 @@ import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
+import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminderNotifications';
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
-import { APP_ROUTE_PATHS } from '@/utils/navigation';
+import {
+	APP_ROUTE_PATHS,
+	getRouteVisibilityKeyForPath,
+	type AppRoutePath,
+} from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
 import '@/global.css';
 
@@ -83,8 +88,9 @@ const NotificationLifecycleBridge = () => {
 const AuthenticatedStack = () => {
 	const { isLoadingTheme } = useAppTheme();
 	const { isAuthReady, isAuthenticated } = useAuth();
+	const { isLoadingRouteVisibility, isRouteVisible } = useRouteVisibility();
 
-	if (!isAuthReady || isLoadingTheme) {
+	if (!isAuthReady || isLoadingTheme || isLoadingRouteVisibility) {
 		return <AuthBootstrapScreen />;
 	}
 
@@ -94,11 +100,19 @@ const AuthenticatedStack = () => {
 				<Stack.Screen name="index" />
 			</Stack.Protected>
 
-			<Stack.Protected guard={isAuthenticated}>
-				{AUTHENTICATED_ROUTE_NAMES.map(routeName => (
-					<Stack.Screen key={routeName} name={routeName} />
-				))}
-			</Stack.Protected>
+			{AUTHENTICATED_ROUTE_NAMES.map(routeName => {
+				const pathname = `/${routeName}` as AppRoutePath;
+				const routeVisibilityKey = getRouteVisibilityKeyForPath(pathname);
+
+				return (
+					<Stack.Protected
+						key={routeName}
+						guard={isAuthenticated && (!routeVisibilityKey || isRouteVisible(routeVisibilityKey))}
+					>
+						<Stack.Screen name={routeName} />
+					</Stack.Protected>
+				);
+			})}
 		</Stack>
 	);
 };
@@ -125,7 +139,9 @@ export default function RootLayout() {
 		<ThemeProvider>
 			<ValueVisibilityProvider>
 				<PostSubmitBehaviorProvider>
-					<LayoutWithTheme />
+					<RouteVisibilityProvider>
+						<LayoutWithTheme />
+					</RouteVisibilityProvider>
 				</PostSubmitBehaviorProvider>
 			</ValueVisibilityProvider>
 		</ThemeProvider>

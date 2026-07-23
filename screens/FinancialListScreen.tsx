@@ -10,6 +10,13 @@ import { HStack } from '@/components/ui/hstack';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
+import {
+	Tabs,
+	TabsIndicator,
+	TabsList,
+	TabsTrigger,
+	TabsTriggerText,
+} from '@/components/ui/tabs';
 import { Input, InputField } from '@/components/ui/input';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Group } from '@mantine/core';
@@ -462,6 +469,18 @@ export default function FinancialListScreen() {
 		React.useState<FinanceInvestmentPortfolioActivity>(emptyPortfolioActivity);
 	const [performancePeriod, setPerformancePeriod] =
 		React.useState<InvestmentPerformancePeriod>('6m');
+	const handlePerformancePeriodChange = React.useCallback(
+		(nextPeriod: string) => {
+			const selectedOption = performancePeriodOptions.find(
+				option => option.value === nextPeriod,
+			);
+
+			if (selectedOption) {
+				setPerformancePeriod(selectedOption.value);
+			}
+		},
+		[],
+	);
 	const [isCdiSettingsOpen, setIsCdiSettingsOpen] = React.useState(false);
 	const [cdiRateInput, setCdiRateInput] = React.useState('');
 	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(formatDateInput(new Date()));
@@ -1610,26 +1629,27 @@ export default function FinancialListScreen() {
 										<Text className={`${bodyText} text-sm font-semibold`}>
 											Rentabilidade por período
 										</Text>
-										<View className="flex-row gap-2">
-											{performancePeriodOptions.map(option => {
-												const isSelected = option.value === performancePeriod;
-												return (
-													<TouchableOpacity
-														key={option.value}
-														onPress={() => setPerformancePeriod(option.value)}
-														className={
-															isSelected
-																? 'flex-1 rounded-full bg-yellow-400 px-3 py-2'
-																: 'flex-1 rounded-full border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-950'
-														}
-													>
-														<Text className={isSelected ? 'w-full text-center text-xs font-semibold text-slate-900' : `${bodyText} w-full text-center text-xs font-semibold`}>
-															{option.label}
-														</Text>
-													</TouchableOpacity>
-												);
-											})}
-										</View>
+										<Box className={`${notTintedCardClassName} p-1.5`}>
+											<Tabs
+												value={performancePeriod}
+												onValueChange={handlePerformancePeriodChange}
+											>
+												<TabsList>
+													{performancePeriodOptions.map(option => (
+														<TabsTrigger
+															key={option.value}
+															value={option.value}
+															className="flex-1 px-1"
+														>
+															<TabsTriggerText className="text-xs">
+																{option.label}
+															</TabsTriggerText>
+														</TabsTrigger>
+													))}
+													<TabsIndicator />
+												</TabsList>
+											</Tabs>
+										</Box>
 									</VStack>
 
 									{investments.length > 0 ? (

@@ -1,7 +1,15 @@
 import React from 'react';
 import { ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BellRing, Clock, ListChecks, Route, Settings, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { BellRing, Bot, ChartNoAxesCombined, Clock, FileCheck2, ListChecks, Mic, Route, Settings, TrendingDown, TrendingUp, Volume2 } from 'lucide-react-native';
+import {
+	RecordingPresets,
+	requestRecordingPermissionsAsync,
+	setAudioModeAsync,
+	useAudioRecorder,
+	useAudioRecorderState,
+} from 'expo-audio';
+import * as Speech from 'expo-speech';
 
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
@@ -12,7 +20,11 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { assistantAiGateway } from '@/services/lumusAssistant/assistantPlatform';
+import { assistantReportService } from '@/services/lumusAssistant/assistantReportService';
 import {
 	getLocalNotificationDiagnostics,
 	openLocalNotificationSettings,
@@ -20,6 +32,14 @@ import {
 	sendLocalNotificationTest,
 } from '@/utils/localNotifications';
 import { getMandatoryReminderCapacityDiagnostics } from '@/utils/mandatoryReminderNotifications';
+import {
+	buildAssistantDraft,
+	parseSimpleExpenseExample,
+} from '@/utils/lumusAssistant';
+import {
+	deleteAssistantTemporaryAudio,
+	readAssistantAudioFile,
+} from '@/utils/lumusAssistantAudio';
 import {
 	APP_ROUTE_PATHS,
 	navigateToHomeConfigurations,
@@ -53,9 +73,18 @@ export default function AppTestsScreen() {
 		heroHeight,
 		insets,
 	} = useScreenStyles();
+	const { user } = useAuth();
+	const assistant = useLumusAssistant();
 	const [isSendingTestNotification, setIsSendingTestNotification] = React.useState(false);
 	const [isSchedulingTestNotification, setIsSchedulingTestNotification] = React.useState(false);
 	const [isLoadingNotificationDiagnostics, setIsLoadingNotificationDiagnostics] = React.useState(false);
+	const [isLoadingAssistantDiagnostics, setIsLoadingAssistantDiagnostics] = React.useState(false);
+	const [isLoadingAssistantLocalDataTest, setIsLoadingAssistantLocalDataTest] = React.useState(false);
+	const [assistantVoiceTestState, setAssistantVoiceTestState] = React.useState<'idle' | 'recording' | 'transcribing'>('idle');
+	const assistantTestRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+	const assistantTestRecorderState = useAudioRecorderState(assistantTestRecorder, 200);
+	const assistantVoiceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+	const assistantVoiceStopRef = React.useRef<(() => Promise<void>) | null>(null);
 
 	const showTestAlert = React.useCallback(
 		({
@@ -280,6 +309,184 @@ export default function AppTestsScreen() {
 		redirectToHomeDashboard();
 	}, []);
 
+	const handleAssistantConfigurationDiagnostics = React.useCallback(async () => {
+		if (isLoadingAssistantDiagnostics) return;
+		setIsLoadingAssistantDiagnostics(true);
+		try {
+			const [availability, config] = await Promise.all([
+				assistantAiGateway.getAvailability(),
+				assistantAiGateway.getConfig(true),
+			]);
+			let liveMessage = assistant.consentGranted
+				? 'Teste ao vivo não executado.'
+				: 'Conceda o consentimento na tela Lumus IA para testar uma mensagem.';
+				if (assistant.consentGranted && availability.available) {
+					const response = await assistantAiGateway.converse({
+						requestScope: user?.uid,
+						text: 'Responda apenas com uma frase curta confirmando que o Lumus IA está conectado. Não crie ações nem relatórios.',
+					turns: [],
+					catalog: {},
+					nowIso: new Date().toISOString(),
+					timeZone: 'America/Sao_Paulo',
+					config,
+				});
+				liveMessage = response.text.trim()
+					? 'Mensagem simples validada sem dados financeiros.'
+					: 'A chamada respondeu sem texto.';
+			}
+			showTestAlert({
+				title: availability.available ? 'Lumus IA configurado' : 'Lumus IA precisa de configuração',
+				description: [
+					`Plataforma: ${availability.platform}`,
+					`App Check: ${availability.appCheckConfigured ? 'configurado' : 'pendente'}`,
+					`Remote Config: ${availability.remoteConfigLoaded ? 'atualizado' : 'usando padrões locais'}`,
+					`Modelo: ${config.model}`,
+					`Kill switch: ${config.enabled ? 'ativado' : 'desativado'}`,
+					liveMessage,
+					...(availability.reason ? [`Atenção: ${availability.reason}`] : []),
+				].join('\n'),
+				type: availability.available ? 'success' : 'warn',
+				duration: 11000,
+			});
+		} catch {
+			showTestAlert({
+				title: 'Diagnóstico da IA indisponível',
+				description: 'A configuração, o App Check ou a chamada simples não puderam ser validados. Nenhum dado foi alterado.',
+				type: 'error',
+				duration: 8000,
+			});
+		} finally {
+			setIsLoadingAssistantDiagnostics(false);
+		}
+	}, [assistant.consentGranted, isLoadingAssistantDiagnostics, showTestAlert]);
+
+	const handleAssistantLocalDataDiagnostics = React.useCallback(async () => {
+		if (isLoadingAssistantLocalDataTest || !user?.uid) return;
+		setIsLoadingAssistantLocalDataTest(true);
+		try {
+			const proposals = parseSimpleExpenseExample(
+				'No dia 18 deste mês gastei 50 reais e no dia 19 gastei 150 reais',
+				new Date(2026, 6, 20, 12),
+			);
+			const drafts = proposals.map(proposal => buildAssistantDraft(proposal));
+			const report = await assistantReportService.createReport(
+				user.uid,
+				{ kind: 'monthly_overview' },
+				assistant.catalog,
+			);
+			showTestAlert({
+				title: 'Rascunho e relatório validados',
+				description: [
+					`Rascunhos sem commit: ${drafts.length}`,
+					`Pendentes de banco/categoria: ${drafts.filter(draft => draft.status === 'needs_input').length}`,
+					`Métricas locais do relatório: ${report.metrics.length}`,
+					`Gráfico escolhido pelo aplicativo: ${report.chart?.kind ?? 'sem dados'}`,
+					'Nenhuma operação financeira foi gravada.',
+				].join('\n'),
+				type: 'success',
+				duration: 9000,
+			});
+		} catch {
+			showTestAlert({
+				title: 'Teste local incompleto',
+				description: 'Não foi possível carregar o relatório, mas nenhuma operação financeira foi gravada.',
+				type: 'warn',
+				duration: 7000,
+			});
+		} finally {
+			setIsLoadingAssistantLocalDataTest(false);
+		}
+	}, [assistant.catalog, isLoadingAssistantLocalDataTest, showTestAlert, user?.uid]);
+
+	const stopAssistantVoiceTest = React.useCallback(async () => {
+		if (assistantVoiceTimerRef.current) clearTimeout(assistantVoiceTimerRef.current);
+		assistantVoiceTimerRef.current = null;
+		if (!assistantTestRecorder.isRecording) return;
+		setAssistantVoiceTestState('transcribing');
+		let uri: string | null = null;
+		try {
+			await assistantTestRecorder.stop();
+			uri = assistantTestRecorder.uri ?? assistantTestRecorderState.url;
+			if (!uri) throw new Error('Arquivo de áudio indisponível.');
+			const audio = await readAssistantAudioFile(uri);
+			const transcript = await assistant.transcribeAudio({
+				...audio,
+				durationMs: Math.min(10_000, assistantTestRecorderState.durationMillis),
+			});
+			showTestAlert({
+				title: 'Microfone e transcrição validados',
+				description: `O áudio temporário foi transcrito (${transcript.length} caracteres) e apagado. O conteúdo não foi exibido nem registrado no diagnóstico.`,
+				type: 'success',
+				duration: 8000,
+			});
+		} catch {
+			showTestAlert({
+				title: 'Teste de voz não concluído',
+				description: 'Confira o consentimento, a permissão do microfone, o App Check e a disponibilidade da cota.',
+				type: 'warn',
+				duration: 8000,
+			});
+		} finally {
+			deleteAssistantTemporaryAudio(uri);
+			setAssistantVoiceTestState('idle');
+			await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+		}
+	}, [assistant, assistantTestRecorder, assistantTestRecorderState.durationMillis, assistantTestRecorderState.url, showTestAlert]);
+
+	React.useEffect(() => {
+		assistantVoiceStopRef.current = stopAssistantVoiceTest;
+	}, [stopAssistantVoiceTest]);
+
+	const cleanupAssistantVoiceTest = React.useCallback(async () => {
+		if (assistantVoiceTimerRef.current) clearTimeout(assistantVoiceTimerRef.current);
+		assistantVoiceTimerRef.current = null;
+		if (assistantTestRecorder.isRecording) await assistantTestRecorder.stop().catch(() => undefined);
+		deleteAssistantTemporaryAudio(assistantTestRecorder.uri);
+		await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+	}, [assistantTestRecorder]);
+
+	React.useEffect(() => () => { void cleanupAssistantVoiceTest(); }, [cleanupAssistantVoiceTest]);
+	React.useEffect(() => { void cleanupAssistantVoiceTest(); }, [assistant.revocationEpoch, cleanupAssistantVoiceTest]);
+
+	const handleAssistantVoiceTest = React.useCallback(async () => {
+		if (assistantVoiceTestState === 'recording') {
+			await stopAssistantVoiceTest();
+			return;
+		}
+		if (assistantVoiceTestState !== 'idle') return;
+		if (!assistant.consentGranted || !assistant.availability?.available) {
+			showTestAlert({
+				title: 'Ative o Lumus IA primeiro',
+				description: 'Abra a tela Lumus IA, leia o aviso e conceda o consentimento antes de enviar áudio ao Gemini.',
+				type: 'warn',
+			});
+			return;
+		}
+		try {
+			const permission = await requestRecordingPermissionsAsync();
+			if (!permission.granted) throw new Error('Permissão negada.');
+			await setAudioModeAsync({ allowsRecording: true, allowsBackgroundRecording: false });
+			await assistantTestRecorder.prepareToRecordAsync();
+			assistantTestRecorder.record();
+			setAssistantVoiceTestState('recording');
+			assistantVoiceTimerRef.current = setTimeout(() => {
+				void assistantVoiceStopRef.current?.();
+			}, 10_000);
+		} catch {
+			setAssistantVoiceTestState('idle');
+			showTestAlert({
+				title: 'Microfone indisponível',
+				description: 'Permita o acesso ao microfone nas configurações do dispositivo ou use o teste no navegador compatível.',
+				type: 'warn',
+			});
+		}
+	}, [assistant.availability?.available, assistant.consentGranted, assistantTestRecorder, assistantVoiceTestState, showTestAlert, stopAssistantVoiceTest]);
+
+	const handleAssistantTtsTest = React.useCallback(() => {
+		void Speech.stop();
+		Speech.speak('Teste de leitura do Lumus concluído.', { language: 'pt-BR', rate: 0.95 });
+	}, []);
+
 	const handleBackToConfigurations = React.useCallback(() => {
 		navigateToHomeConfigurations();
 		return true;
@@ -345,6 +552,90 @@ export default function AppTestsScreen() {
 									<ButtonIcon as={Route} size="md" />
 									<ButtonText>Testar redirect para Home</ButtonText>
 								</Button>
+							</VStack>
+						</Box>
+
+						<Heading className="text-lg uppercase tracking-widest" size="lg">
+							Assistente Lumus
+						</Heading>
+
+						<Box className={`${notTintedCardClassName} px-4 py-4`}>
+							<VStack className="gap-4">
+								<VStack className="min-w-0 gap-1">
+									<Text className={`${bodyText} text-base font-semibold`}>
+										Diagnósticos seguros da IA
+									</Text>
+									<Text className={`${helperText} text-sm leading-5`}>
+										Valida configuração, App Check, mensagem simples, rascunho sem commit, relatório, voz e leitura. Tokens e conteúdo financeiro não são exibidos.
+									</Text>
+								</VStack>
+
+								<Button
+									size="md"
+									variant="solid"
+									action="primary"
+									className={accordionSectionButtonClassName}
+									onPress={() => void handleAssistantConfigurationDiagnostics()}
+									isDisabled={isLoadingAssistantDiagnostics}
+									accessibilityLabel="Validar configuração e mensagem simples do Lumus IA"
+								>
+									{isLoadingAssistantDiagnostics ? (
+										<ButtonSpinner color={isDarkMode ? '#111827' : '#0F172A'} />
+									) : (
+										<><ButtonIcon as={Bot} size="md" /><ButtonText>Configuração e mensagem</ButtonText></>
+									)}
+								</Button>
+
+								<Button
+									size="md"
+									variant="outline"
+									action="secondary"
+									className={accordionSectionButtonClassName}
+									onPress={() => void handleAssistantLocalDataDiagnostics()}
+									isDisabled={isLoadingAssistantLocalDataTest}
+									accessibilityLabel="Validar rascunho e relatório sem gravar"
+								>
+									{isLoadingAssistantLocalDataTest ? (
+										<ButtonSpinner color={isDarkMode ? '#E2E8F0' : '#334155'} />
+									) : (
+										<><ButtonIcon as={ChartNoAxesCombined} size="md" className={submitButtonTextClassName} /><ButtonText className={submitButtonTextClassName}>Rascunho e relatório sem gravar</ButtonText></>
+									)}
+								</Button>
+
+								<Button
+									size="md"
+									variant={assistantVoiceTestState === 'recording' ? 'solid' : 'outline'}
+									action={assistantVoiceTestState === 'recording' ? 'negative' : 'secondary'}
+									className={accordionSectionButtonClassName}
+									onPress={() => void handleAssistantVoiceTest()}
+									isDisabled={assistantVoiceTestState === 'transcribing'}
+									accessibilityLabel={assistantVoiceTestState === 'recording' ? 'Parar e transcrever teste de voz' : 'Iniciar teste de microfone e transcrição'}
+								>
+									{assistantVoiceTestState === 'transcribing' ? (
+										<ButtonSpinner color={isDarkMode ? '#E2E8F0' : '#334155'} />
+									) : (
+										<><ButtonIcon as={Mic} size="md" className={assistantVoiceTestState === 'recording' ? undefined : submitButtonTextClassName} /><ButtonText className={assistantVoiceTestState === 'recording' ? undefined : submitButtonTextClassName}>{assistantVoiceTestState === 'recording' ? `Parar gravação (${Math.min(10, Math.round(assistantTestRecorderState.durationMillis / 1000))}s)` : 'Testar microfone e transcrição'}</ButtonText></>
+									)}
+								</Button>
+
+								<Button
+									size="md"
+									variant="outline"
+									action="secondary"
+									className={accordionSectionButtonClassName}
+									onPress={handleAssistantTtsTest}
+									accessibilityLabel="Ouvir teste de leitura em português"
+								>
+									<ButtonIcon as={Volume2} size="md" className={submitButtonTextClassName} />
+									<ButtonText className={submitButtonTextClassName}>Ouvir teste de leitura</ButtonText>
+								</Button>
+
+								<HStack className="items-center gap-2">
+									<FileCheck2 size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+									<Text className={`${helperText} flex-1 text-xs leading-4`}>
+										O teste de voz grava por no máximo 10 segundos e apaga o arquivo após a transcrição.
+									</Text>
+								</HStack>
 							</VStack>
 						</Box>
 

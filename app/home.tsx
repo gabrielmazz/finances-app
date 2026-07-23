@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { BackHandler } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Redirect, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import HomeScreen from '@/screens/HomeScreen';
 import AddRegisterExpensesScreen from '@/screens/AddRegisterExpensesScreen';
 import ConfigurationsScreen from '@/screens/ConfigurationsScreen';
+import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { HOME_DASHBOARD_ROUTE } from '@/utils/navigation';
 
 const TAB_ITEMS = [
 	{
@@ -23,6 +25,7 @@ const TAB_ITEMS = [
 
 export default function HomeRoute() {
 	const { tab } = useLocalSearchParams<{ tab?: string }>();
+	const { isRouteVisible } = useRouteVisibility();
 	const tabCount = TAB_ITEMS.length;
 
 	useFocusEffect(
@@ -45,6 +48,13 @@ export default function HomeRoute() {
 	}, [tab, tabCount]);
 
 	const normalizedIndex = Math.min(Math.max(parsedTabFromParams, 0), tabCount - 1);
+
+	// [[Visibilidade de Rotas]]: a aba Controle reutiliza o formulário de
+	// despesas e não pode oferecer uma rota que foi ocultada neste aparelho.
+	if (normalizedIndex === 1 && !isRouteVisible('addRegisterExpenses')) {
+		return <Redirect href={HOME_DASHBOARD_ROUTE} />;
+	}
+
 	const ActiveComponent =
 		TAB_ITEMS[normalizedIndex]?.component ?? TAB_ITEMS[0].component;
 

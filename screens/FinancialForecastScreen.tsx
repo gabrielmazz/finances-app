@@ -4,7 +4,6 @@ import {
 	RefreshControl,
 	ScrollView,
 	StatusBar,
-	TouchableOpacity,
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,12 +22,14 @@ import {
 import { auth } from '@/FirebaseConfig';
 import FinancialForecastChart from '@/components/uiverse/financial-forecast-chart';
 import Navigator from '@/components/uiverse/navigator';
+import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerText } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
@@ -153,7 +154,6 @@ export default function FinancialForecastScreen() {
 			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
 			activeSurface: isDarkMode ? 'rgba(250, 204, 21, 0.14)' : '#FEF9C3',
 			activeBorder: isDarkMode ? 'rgba(250, 204, 21, 0.42)' : '#FACC15',
-			activeButtonContent: isDarkMode ? '#FFFFFF' : '#0F172A',
 			positive: isDarkMode ? '#34D399' : '#059669',
 			negative: isDarkMode ? '#F87171' : '#DC2626',
 			warning: isDarkMode ? '#FDE047' : '#CA8A04',
@@ -370,38 +370,27 @@ export default function FinancialForecastScreen() {
 											<Text className={`${helperText} mb-2 text-xs font-semibold`}>
 												Escolha o horizonte da previsão
 											</Text>
-											<HStack className="gap-2">
-												{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => {
-													const isActive = periodInMonths === option;
-													return (
-														<TouchableOpacity
-															key={option}
-															activeOpacity={0.84}
-															disabled={isLoading}
-															onPress={() => handleSelectPeriod(option)}
-															accessibilityRole="button"
-															accessibilityState={{ selected: isActive, disabled: isLoading }}
-															style={{
-																flex: 1,
-																minHeight: 42,
-																borderRadius: 16,
-																borderWidth: 1,
-																borderColor: isActive ? palette.activeBorder : palette.border,
-																backgroundColor: isActive ? palette.activeSurface : 'transparent',
-																alignItems: 'center',
-																justifyContent: 'center',
-																opacity: isLoading && !isActive ? 0.55 : 1,
-															}}
-														>
-															<Text
-																style={{ color: isActive ? palette.activeButtonContent : palette.title, fontSize: 13, fontWeight: '700' }}
-															>
-																{option} meses
-															</Text>
-														</TouchableOpacity>
-													);
-												})}
-											</HStack>
+											<Box className={`${notTintedCardClassName} p-1.5`}>
+												<Tabs
+													value={String(periodInMonths)}
+													disabled={isLoading}
+													onValueChange={nextValue => {
+														const nextPeriod = Number(nextValue) as FinancialForecastPeriod;
+														if (FINANCIAL_FORECAST_PERIOD_OPTIONS.includes(nextPeriod)) {
+															handleSelectPeriod(nextPeriod);
+														}
+													}}
+												>
+													<TabsList>
+														{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => (
+															<TabsTrigger key={option} value={String(option)} className="flex-1">
+																<TabsTriggerText>{option} meses</TabsTriggerText>
+															</TabsTrigger>
+														))}
+														<TabsIndicator />
+													</TabsList>
+												</Tabs>
+											</Box>
 										</View>
 
 										<LinearGradient
