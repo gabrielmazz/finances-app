@@ -243,7 +243,7 @@ const isPostSubmitScreenKey = (value: unknown): value is PostSubmitScreenKey =>
 const isPostSubmitDestinationKey = (value: unknown): value is PostSubmitDestinationKey =>
 	typeof value === 'string' && destinationKeys.includes(value as PostSubmitDestinationKey);
 
-const normalizeBehavior = (value: unknown, mode: PostSubmitBehaviorMode): PostSubmitBehavior => {
+export const normalizePostSubmitBehavior = (value: unknown, mode: PostSubmitBehaviorMode): PostSubmitBehavior => {
 	if (!value || typeof value !== 'object') {
 		return { ...DEFAULT_POST_SUBMIT_BEHAVIOR };
 	}
@@ -253,12 +253,11 @@ const normalizeBehavior = (value: unknown, mode: PostSubmitBehaviorMode): PostSu
 		typeof rawBehavior.shouldReturnAfterSubmit === 'boolean'
 			? rawBehavior.shouldReturnAfterSubmit
 			: DEFAULT_POST_SUBMIT_BEHAVIOR.shouldReturnAfterSubmit;
-	const returnDestination =
-		mode === 'edit'
-			? DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination
-			: isPostSubmitDestinationKey(rawBehavior.returnDestination)
-				? rawBehavior.returnDestination
-				: DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination;
+	// [[Comportamento Pós-Registro]]: edições também usam o destino escolhido.
+	// Preferências antigas, sem esse campo, continuam retornando para a Home.
+	const returnDestination = isPostSubmitDestinationKey(rawBehavior.returnDestination)
+		? rawBehavior.returnDestination
+		: DEFAULT_POST_SUBMIT_BEHAVIOR.returnDestination;
 	const shouldClearFieldsAfterSubmit =
 		typeof rawBehavior.shouldClearFieldsAfterSubmit === 'boolean'
 			? rawBehavior.shouldClearFieldsAfterSubmit
@@ -298,8 +297,8 @@ const normalizeBehaviorMap = (
 				...acc,
 				[key]: {
 					// Preferências salvas antes da separação pertencem aos cadastros.
-					create: normalizeBehavior(rawBehaviorByMode?.create ?? legacyBehavior, 'create'),
-					edit: normalizeBehavior(rawBehaviorByMode?.edit, 'edit'),
+					create: normalizePostSubmitBehavior(rawBehaviorByMode?.create ?? legacyBehavior, 'create'),
+					edit: normalizePostSubmitBehavior(rawBehaviorByMode?.edit, 'edit'),
 				},
 			};
 		},
@@ -377,7 +376,7 @@ export const PostSubmitBehaviorProvider: React.FC<React.PropsWithChildren> = ({ 
 							...currentBehavior,
 							...patch,
 						};
-				const normalizedBehavior = normalizeBehavior(patchedBehavior, mode);
+				const normalizedBehavior = normalizePostSubmitBehavior(patchedBehavior, mode);
 				const nextMap = {
 					...currentMap,
 					[screenKey]: {

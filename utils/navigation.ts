@@ -1,11 +1,14 @@
 import { Keyboard } from 'react-native';
 import { router, type Href, type UnknownInputParams } from 'expo-router';
+import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
+import type { PostSubmitDestinationKey } from '@/contexts/PostSubmitBehaviorContext';
 
 type RouterNavigationOptions = Parameters<typeof router.push>[1];
 
 export const APP_ROUTE_PATHS = {
 	login: '/',
 	home: '/home',
+	lumusAssistant: '/lumus-assistant',
 	categoryAnalysis: '/category-analysis',
 	financialForecast: '/financial-forecast',
 	addRegisterBank: '/add-register-bank',
@@ -31,6 +34,71 @@ export const APP_ROUTE_PATHS = {
 
 export type AppRouteKey = keyof typeof APP_ROUTE_PATHS;
 export type AppRoutePath = (typeof APP_ROUTE_PATHS)[AppRouteKey];
+
+export const ROUTE_VISIBILITY_PATHS: Record<RouteVisibilityKey, readonly AppRoutePath[]> = {
+	addRegisterExpenses: [APP_ROUTE_PATHS.addRegisterExpenses],
+	addRegisterGain: [APP_ROUTE_PATHS.addRegisterGain],
+	addMandatoryExpenses: [APP_ROUTE_PATHS.mandatoryExpenses, APP_ROUTE_PATHS.addMandatoryExpenses],
+	addMandatoryGains: [APP_ROUTE_PATHS.mandatoryGains, APP_ROUTE_PATHS.addMandatoryGains],
+	addFinance: [APP_ROUTE_PATHS.financialList, APP_ROUTE_PATHS.addFinance],
+	addRescue: [APP_ROUTE_PATHS.addRescue],
+	transferScreen: [APP_ROUTE_PATHS.transferScreen],
+	registerMonthlyBalance: [APP_ROUTE_PATHS.registerMonthlyBalance],
+	addRegisterBank: [APP_ROUTE_PATHS.addRegisterBank],
+	addRegisterTag: [APP_ROUTE_PATHS.addRegisterTag],
+	addRegisterUser: [APP_ROUTE_PATHS.addRegisterUser],
+	addUserRelation: [APP_ROUTE_PATHS.addUserRelation],
+	lumusAssistant: [APP_ROUTE_PATHS.lumusAssistant],
+};
+
+export const getRouteVisibilityKeyForPath = (pathname: AppRoutePath): RouteVisibilityKey | null => {
+	for (const [routeKey, routePaths] of Object.entries(ROUTE_VISIBILITY_PATHS) as Array<
+		[RouteVisibilityKey, readonly AppRoutePath[]]
+	>) {
+		if (routePaths.includes(pathname)) {
+			return routeKey;
+		}
+	}
+
+	return null;
+};
+
+export const getPostSubmitDestinationPath = (
+	destination: PostSubmitDestinationKey,
+): AppRoutePath | null => {
+	switch (destination) {
+		case 'homeControl':
+			return APP_ROUTE_PATHS.addRegisterExpenses;
+		case 'categoryAnalysis':
+			return APP_ROUTE_PATHS.categoryAnalysis;
+		case 'addRegisterExpenses':
+			return APP_ROUTE_PATHS.addRegisterExpenses;
+		case 'addRegisterGain':
+			return APP_ROUTE_PATHS.addRegisterGain;
+		case 'registerMonthlyBalance':
+			return APP_ROUTE_PATHS.registerMonthlyBalance;
+		case 'transferScreen':
+			return APP_ROUTE_PATHS.transferScreen;
+		case 'addRescue':
+			return APP_ROUTE_PATHS.addRescue;
+		case 'mandatoryExpenses':
+			return APP_ROUTE_PATHS.mandatoryExpenses;
+		case 'mandatoryGains':
+			return APP_ROUTE_PATHS.mandatoryGains;
+		case 'financialList':
+			return APP_ROUTE_PATHS.financialList;
+		case 'addRegisterBank':
+			return APP_ROUTE_PATHS.addRegisterBank;
+		case 'addRegisterTag':
+			return APP_ROUTE_PATHS.addRegisterTag;
+		case 'addRegisterUser':
+			return APP_ROUTE_PATHS.addRegisterUser;
+		case 'addUserRelation':
+			return APP_ROUTE_PATHS.addUserRelation;
+		default:
+			return null;
+	}
+};
 
 export const HOME_TAB_INDEX = {
 	dashboard: 0,

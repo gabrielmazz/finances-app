@@ -144,6 +144,20 @@ describe('navigation helpers', () => {
 		});
 	});
 
+	it('maps each configurable route to its local visibility preference', () => {
+		const { navigation } = loadNavigationModule();
+
+		expect(
+			navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.lumusAssistant),
+		).toBe('lumusAssistant');
+		expect(
+			navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.mandatoryExpenses),
+		).toBe('addMandatoryExpenses');
+		expect(
+			navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.home),
+		).toBeNull();
+	});
+
 	it('logs a synchronous replace failure without dispatching a destructive fallback action', () => {
 		const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 		const { navigation, router } = loadNavigationModule({

@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/text';
 import { auth } from '@/FirebaseConfig';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import {
@@ -41,6 +42,7 @@ type NavigatorOption = {
 	label: string;
 	value?: number;
 	icon: IoniconName;
+	visibilityKey?: RouteVisibilityKey;
 	matchPaths?: AppRoutePath[];
 	onSelect: () => void;
 };
@@ -159,6 +161,15 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => navigateToHomeDashboard(),
 			},
 			{
+				id: 'lumus-assistant',
+				label: 'Lumus IA',
+				value: 0,
+				icon: 'sparkles-outline',
+				visibilityKey: 'lumusAssistant',
+				matchPaths: [APP_ROUTE_PATHS.lumusAssistant],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.lumusAssistant),
+			},
+			{
 				id: 'category-analysis',
 				label: 'Análise por Categoria',
 				value: 0,
@@ -187,6 +198,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Registrar despesa',
 				value: 1,
 				icon: 'remove-circle-outline',
+				visibilityKey: 'addRegisterExpenses',
 				matchPaths: [APP_ROUTE_PATHS.addRegisterExpenses],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses),
 			},
@@ -195,6 +207,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Registrar ganho',
 				value: 1,
 				icon: 'add-circle-outline',
+				visibilityKey: 'addRegisterGain',
 				matchPaths: [APP_ROUTE_PATHS.addRegisterGain],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterGain),
 			},
@@ -203,6 +216,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Saldo mensal',
 				value: 1,
 				icon: 'calendar-outline',
+				visibilityKey: 'registerMonthlyBalance',
 				matchPaths: [APP_ROUTE_PATHS.registerMonthlyBalance],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance),
 			},
@@ -211,6 +225,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Transferência',
 				value: 1,
 				icon: 'swap-horizontal-outline',
+				visibilityKey: 'transferScreen',
 				matchPaths: [APP_ROUTE_PATHS.transferScreen],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.transferScreen),
 			},
@@ -219,6 +234,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Registrar saque',
 				value: 1,
 				icon: 'cash-outline',
+				visibilityKey: 'addRescue',
 				matchPaths: [APP_ROUTE_PATHS.addRescue],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRescue),
 			},
@@ -227,6 +243,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Gastos obrigatórios',
 				value: 1,
 				icon: 'document-text-outline',
+				visibilityKey: 'addMandatoryExpenses',
 				matchPaths: [APP_ROUTE_PATHS.mandatoryExpenses, APP_ROUTE_PATHS.addMandatoryExpenses],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses),
 			},
@@ -235,6 +252,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Ganhos obrigatórios',
 				value: 1,
 				icon: 'trending-up-outline',
+				visibilityKey: 'addMandatoryGains',
 				matchPaths: [APP_ROUTE_PATHS.mandatoryGains, APP_ROUTE_PATHS.addMandatoryGains],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.mandatoryGains),
 			},
@@ -243,6 +261,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Investimentos',
 				value: 1,
 				icon: 'wallet-outline',
+				visibilityKey: 'addFinance',
 				matchPaths: [APP_ROUTE_PATHS.financialList, APP_ROUTE_PATHS.addFinance],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialList),
 			},
@@ -267,6 +286,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Novo usuário',
 				value: 2,
 				icon: 'person-add-outline',
+				visibilityKey: 'addRegisterUser',
 				matchPaths: [APP_ROUTE_PATHS.addRegisterUser],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterUser),
 			},
@@ -275,6 +295,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Novo banco',
 				value: 2,
 				icon: 'business-outline',
+				visibilityKey: 'addRegisterBank',
 				matchPaths: [APP_ROUTE_PATHS.addRegisterBank],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterBank),
 			},
@@ -283,6 +304,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Nova categoria',
 				value: 2,
 				icon: 'pricetag-outline',
+				visibilityKey: 'addRegisterTag',
 				matchPaths: [APP_ROUTE_PATHS.addRegisterTag],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag),
 			},
@@ -291,6 +313,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				label: 'Relacionar usuário',
 				value: 2,
 				icon: 'people-outline',
+				visibilityKey: 'addUserRelation',
 				matchPaths: [APP_ROUTE_PATHS.addUserRelation],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation),
 			},
@@ -388,6 +411,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 }) => {
 	const { isDarkMode } = useAppTheme();
 	const { user } = useAuth();
+	const { isRouteVisible } = useRouteVisibility();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
 	const logoutInFlightRef = React.useRef(false);
@@ -462,26 +486,36 @@ export const Navigator: React.FC<NavigatorProps> = ({
 						].filter((option): option is NavigatorOption => Boolean(option))
 						: group.options;
 
+				const optionsWithCurrentState = groupOptions.map(option => {
+					if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
+						return { ...option, ...mandatoryExpensesState };
+					}
+
+					if (option.id === 'mandatory-gains' && mandatoryGainsState) {
+						return { ...option, ...mandatoryGainsState };
+					}
+
+					if (option.id === 'financial-list' && financialListState) {
+						return { ...option, ...financialListState };
+					}
+
+					return option;
+				});
+
 				return {
 					...group,
-					options: groupOptions.map(option => {
-						if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
-							return { ...option, ...mandatoryExpensesState };
-						}
-
-						if (option.id === 'mandatory-gains' && mandatoryGainsState) {
-							return { ...option, ...mandatoryGainsState };
-						}
-
-						if (option.id === 'financial-list' && financialListState) {
-							return { ...option, ...financialListState };
-						}
-
-						return option;
-					}),
+					options: optionsWithCurrentState.filter(
+						option => !option.visibilityKey || isRouteVisible(option.visibilityKey),
+					),
 				};
 			}),
-		[bankMovementsOption, mandatoryExpensesState, mandatoryGainsState, financialListState],
+		[
+			bankMovementsOption,
+			financialListState,
+			isRouteVisible,
+			mandatoryExpensesState,
+			mandatoryGainsState,
+		],
 	);
 	const activeRoute = React.useMemo(
 		() => getActiveRoute(normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab),
@@ -489,6 +523,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	);
 	const activeValue = activeRoute?.groupValue ?? normalizedDefault;
 	const activeOptionId = activeRoute?.optionId ?? getDefaultOption(activeValue, resolvedGroups)?.id ?? null;
+	const navigationItemWidth: `${number}%` = `${100 / resolvedGroups.length}%`;
 
 	const palette = React.useMemo(
 		() => ({
@@ -580,7 +615,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	return (
 		<View
 			style={{
-				paddingHorizontal: 0,
+				paddingHorizontal: 16,
 				paddingTop: 6,
 				paddingBottom: 0,
 			}}
@@ -617,7 +652,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 									hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
 									pressRetentionOffset={{ top: 12, right: 12, bottom: 12, left: 12 }}
 									style={({ pressed }) => ({
-										width: `${100 / NAV_GROUPS.length}%`,
+										width: navigationItemWidth,
 										minHeight: 56,
 										minWidth: 0,
 										paddingHorizontal: 8,

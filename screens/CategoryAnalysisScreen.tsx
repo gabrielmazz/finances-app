@@ -4,7 +4,6 @@ import {
 	RefreshControl,
 	ScrollView,
 	StatusBar,
-	TouchableOpacity,
 	View,
 	useWindowDimensions,
 } from 'react-native';
@@ -19,12 +18,14 @@ import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCa
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigator';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerIcon, TabsTriggerText } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
@@ -54,6 +55,7 @@ const BANK_PIE_COLORS = ['#FACC15', '#22C55E', '#38BDF8', '#F97316', '#A855F7', 
 const CASH_BREAKDOWN_COLOR = '#22C55E';
 const DEFAULT_BREAKDOWN_COLOR = '#64748B';
 const ANALYSIS_BASELINE_MONTHS = 3;
+const ANALYSIS_MOVEMENT_TYPE_OPTIONS = ['expense', 'gain'] as const;
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -308,15 +310,12 @@ export default function CategoryAnalysisScreen() {
 			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
 			border: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : '#E2E8F0',
 			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
-			activeSurface: isDarkMode ? 'rgba(250, 204, 21, 0.14)' : '#FEF9C3',
-			activeBorder: isDarkMode ? 'rgba(250, 204, 21, 0.42)' : '#FACC15',
 			positive: isDarkMode ? '#34D399' : '#059669',
 			negative: isDarkMode ? '#F87171' : '#DC2626',
 			warning: isDarkMode ? '#FDE047' : '#CA8A04',
 			blue: isDarkMode ? '#38BDF8' : '#0284C7',
 			chartTrack: isDarkMode ? 'rgba(51, 65, 85, 0.72)' : '#E2E8F0',
 			chartCenter: isDarkMode ? '#081120' : '#FFFFFF',
-			activeButtonContent: isDarkMode ? '#FFFFFF' : '#0F172A',
 		}),
 		[isDarkMode],
 	);
@@ -434,7 +433,19 @@ export default function CategoryAnalysisScreen() {
 	);
 	const canSelectExpense = selectedTag?.usageType !== 'gain';
 	const canSelectGain = selectedTag?.usageType !== 'expense';
-	const typeOptions: CategoryAnalysisMovementType[] = ['expense', 'gain'];
+	const handleSelectMovementType = React.useCallback(
+		(nextType: string) => {
+			if (nextType === 'expense' && canSelectExpense) {
+				setSelectedType(nextType);
+				return;
+			}
+
+			if (nextType === 'gain' && canSelectGain) {
+				setSelectedType(nextType);
+			}
+		},
+		[canSelectExpense, canSelectGain],
+	);
 	const activeBreakdown = React.useMemo(() => {
 		if (!selectedReport) {
 			return [];
@@ -803,49 +814,28 @@ export default function CategoryAnalysisScreen() {
 											accessibilityLabel="Selecionar categoria para análise"
 										/>
 
-										<HStack className="gap-2">
-											{typeOptions.map(option => {
-												const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
-												const isActive = selectedType === option;
+										<Box className={`${notTintedCardClassName} p-1.5`}>
+											<Tabs value={selectedType} onValueChange={handleSelectMovementType}>
+												<TabsList>
+													{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
+														const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
+														const isSelected = selectedType === option;
 
-												return (
-													<TouchableOpacity
-														key={option}
-														activeOpacity={0.84}
-														disabled={isDisabled}
-														onPress={() => setSelectedType(option)}
-														style={{
-															flex: 1,
-															minHeight: 42,
-															borderRadius: 16,
-															borderWidth: 1,
-															borderColor: isActive ? palette.activeBorder : palette.border,
-															backgroundColor: isActive ? palette.activeSurface : 'transparent',
-															alignItems: 'center',
-															justifyContent: 'center',
-															opacity: isDisabled ? 0.45 : 1,
-														}}
-													>
-														<HStack className="items-center gap-2">
-															{option === 'expense' ? (
-																<TrendingDown size={16} color={isActive ? palette.activeButtonContent : palette.subtitle} />
-															) : (
-																<TrendingUp size={16} color={isActive ? palette.activeButtonContent : palette.subtitle} />
-															)}
-															<Text
-																style={{
-																	color: isActive ? palette.activeButtonContent : palette.title,
-																	fontSize: 13,
-																	fontWeight: '700',
-																}}
-															>
-																{getMovementTypeLabel(option)}
-															</Text>
-														</HStack>
-													</TouchableOpacity>
-												);
-											})}
-										</HStack>
+														return (
+															<TabsTrigger key={option} value={option} disabled={isDisabled} className="flex-1">
+																<TabsTriggerIcon
+																	as={option === 'expense' ? TrendingDown : TrendingUp}
+																	size={16}
+																	color={isSelected ? '#0F172A' : palette.subtitle}
+																/>
+																<TabsTriggerText>{getMovementTypeLabel(option)}</TabsTriggerText>
+															</TabsTrigger>
+														);
+													})}
+													<TabsIndicator />
+												</TabsList>
+											</Tabs>
+										</Box>
 
 										<LinearGradient
 											colors={

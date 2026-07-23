@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
@@ -17,6 +16,7 @@ import {
 	type LocalNotificationPermissionResult,
 	type MandatoryReminderKind,
 } from '@/utils/localNotifications';
+import { Notifications, type NotificationRequest } from '@/utils/notificationsRuntime';
 
 export type { MandatoryReminderKind } from '@/utils/localNotifications';
 
@@ -623,11 +623,11 @@ const buildGlobalOccurrencePlan = (
 	};
 };
 
-const isManagedNotification = (request: Notifications.NotificationRequest) =>
+const isManagedNotification = (request: NotificationRequest) =>
 	request.content.data?.notificationSystem === NOTIFICATION_SYSTEM_ID;
 
 const matchesManagedConfig = (
-	request: Notifications.NotificationRequest,
+	request: NotificationRequest,
 	config: Pick<MandatoryReminderConfig, 'accountId' | 'kind' | 'id'>,
 ) =>
 	isManagedNotification(request) &&
@@ -642,7 +642,7 @@ const cancelNotificationIds = async (notificationIds: Iterable<string>) => {
 
 const cancelEntrySchedules = async (
 	entry: ReminderStorageEntry | undefined,
-	nativeRequests?: Notifications.NotificationRequest[],
+	nativeRequests?: NotificationRequest[],
 ) => {
 	if (!entry) {
 		return;
@@ -657,14 +657,14 @@ const cancelEntrySchedules = async (
 	entry.horizonEndAt = null;
 };
 
-const cancelAllManagedSchedules = async (nativeRequests?: Notifications.NotificationRequest[]) => {
+const cancelAllManagedSchedules = async (nativeRequests?: NotificationRequest[]) => {
 	const requests = nativeRequests ?? (await Notifications.getAllScheduledNotificationsAsync());
 	await cancelNotificationIds(requests.filter(isManagedNotification).map(request => request.identifier));
 };
 
 const scheduleEntry = async (
 	entry: ReminderStorageEntry,
-	nativeRequests?: Notifications.NotificationRequest[],
+	nativeRequests?: NotificationRequest[],
 	plannedOccurrences?: ReminderOccurrence[],
 	capacityLimited = false,
 ): Promise<MandatoryReminderScheduleResult> => {
@@ -777,7 +777,7 @@ const buildSuccessfulScheduleResult = (
 const reconcileStoreSchedules = async (
 	store: ReminderStore,
 	accountId: string,
-	nativeRequests?: Notifications.NotificationRequest[],
+	nativeRequests?: NotificationRequest[],
 ) => {
 	const requests = nativeRequests ?? (await Notifications.getAllScheduledNotificationsAsync());
 	const nonManagedScheduleCount = requests.filter(request => !isManagedNotification(request)).length;

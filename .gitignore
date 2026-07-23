@@ -11,6 +11,8 @@ expo-env.d.ts
 
 # Native
 .kotlin/
+google-services.json
+GoogleService-Info.plist
 *.orig.*
 *.jks
 *.p8
@@ -49,9 +51,6 @@ git-branch.sh
 git-commit.sh
 git-pull.sh
 git-revert.sh
-
-# Ignorar arquivos do expo
-eas.json
 
 # Arquivo da Arquitetura do Projeto
 Arquitetura.md

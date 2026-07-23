@@ -8,10 +8,13 @@ import {
 } from '@/contexts/PostSubmitBehaviorContext';
 import {
 	APP_ROUTE_PATHS,
+	getPostSubmitDestinationPath,
+	getRouteVisibilityKeyForPath,
 	HOME_TAB_INDEX,
 	redirectToHomeTab,
 	redirectToRoute,
 } from '@/utils/navigation';
+import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 
 type ApplyPostSubmitBehaviorOptions = {
 	resetForm?: () => void;
@@ -75,6 +78,7 @@ const navigateToPostSubmitDestination = (destination: PostSubmitDestinationKey) 
 
 export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 	const { getBehaviorForScreen } = usePostSubmitBehaviorPreferences();
+	const { isRouteVisible } = useRouteVisibility();
 	const isFocused = useIsFocused();
 	const isFocusedRef = React.useRef(isFocused);
 
@@ -98,6 +102,16 @@ export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 			const behavior = getBehaviorForScreen(screenKey, isEditing ? 'edit' : 'create');
 
 			if (behavior.shouldReturnAfterSubmit) {
+				const destinationPath = getPostSubmitDestinationPath(behavior.returnDestination);
+				const destinationVisibilityKey = destinationPath
+					? getRouteVisibilityKeyForPath(destinationPath)
+					: null;
+
+				if (destinationVisibilityKey && !isRouteVisible(destinationVisibilityKey)) {
+					redirectToHomeTab(HOME_TAB_INDEX.dashboard);
+					return;
+				}
+
 				navigateToPostSubmitDestination(behavior.returnDestination);
 				return;
 			}
@@ -107,6 +121,6 @@ export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 				options.resetForm?.();
 			}
 		},
-		[getBehaviorForScreen, screenKey],
+		[getBehaviorForScreen, isRouteVisible, screenKey],
 	);
 };
