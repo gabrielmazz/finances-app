@@ -27,6 +27,17 @@ import {
 	ActionsheetItemText,
 	ActionsheetScrollView,
 } from '@/components/ui/actionsheet';
+import { Button, ButtonText } from '@/components/ui/button';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+	ModalTitle,
+} from '@/components/ui/modal';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
@@ -38,7 +49,7 @@ import {
 	type PostSubmitScreenKey,
 	usePostSubmitBehaviorPreferences,
 } from '@/contexts/PostSubmitBehaviorContext';
-import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
 	getPostSubmitDestinationPath,
@@ -57,6 +68,7 @@ import AddRegisterTagScreenIllustration from '@/assets/UnDraw/addRegisterTagScre
 import AddRegisterUserScreenIllustration from '@/assets/UnDraw/addRegisterUserScreen.svg';
 import AddRescueScreenIllustration from '@/assets/UnDraw/addRescue.svg';
 import AddUserRelationScreenIllustration from '@/assets/UnDraw/addUserRelationScreen.svg';
+import AnnotationIllustration from '@/assets/UnDraw/annotationScreen.svg';
 import CategoryAnalysisScreenIllustration from '@/assets/UnDraw/analyzeGainExpensesTag.svg';
 import ConfigurationsScreenIllustration from '@/assets/UnDraw/configurationsScreen.svg';
 import FinancialListScreenIllustration from '@/assets/UnDraw/financialListScreen.svg';
@@ -85,6 +97,15 @@ type ScreenSettingsCategory = {
 type ReturnDestinationSelection = {
 	screenKey: PostSubmitScreenKey;
 	mode: PostSubmitBehaviorMode;
+};
+
+type StandaloneVisibilitySetting = {
+	key: 'lumusAssistant' | 'annotations';
+	label: string;
+	description: string;
+	searchableText: string;
+	Illustration: React.ComponentType<any>;
+	isDevelopmentOnly?: boolean;
 };
 
 const normalizeSearchText = (value: string) =>
@@ -258,6 +279,24 @@ const screenSettingsCategories: ScreenSettingsCategory[] = [
 	},
 ];
 
+const standaloneVisibilitySettings: readonly StandaloneVisibilitySetting[] = [
+	{
+		key: 'lumusAssistant',
+		label: 'Assistente Lumus',
+		description: 'Defina se o assistente inteligente fica disponível neste aparelho.',
+		searchableText: 'Lumus IA Assistente inteligente Configure o acesso ao assistente',
+		Illustration: LumusAssistantScreenIllustration,
+	},
+	{
+		key: 'annotations',
+		label: 'Anotações',
+		description: 'Defina se suas páginas locais ficam disponíveis no menu Home deste aparelho.',
+		searchableText: 'Anotações páginas locais notas listas checklist organização',
+		Illustration: AnnotationIllustration,
+		isDevelopmentOnly: true,
+	},
+];
+
 const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React.ComponentType<any>> = {
 	homeDashboard: HomeScreenIllustration,
 	// A aba Controle abre o formulário de despesa dentro da Home.
@@ -279,7 +318,7 @@ const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React
 };
 
 const getDestinationLabel = (destinationKey: PostSubmitDestinationKey) =>
-	POST_SUBMIT_DESTINATION_OPTIONS.find(option => option.key === destinationKey)?.label ?? 'Home';
+	POST_SUBMIT_DESTINATION_OPTIONS.find((option) => option.key === destinationKey)?.label ?? 'Home';
 
 export default function ScreenSettingsScreen() {
 	const {
@@ -302,9 +341,11 @@ export default function ScreenSettingsScreen() {
 		usePostSubmitBehaviorPreferences();
 	const { isRouteVisible, setRouteVisibility, isLoadingRouteVisibility } = useRouteVisibility();
 	const [screenSearch, setScreenSearch] = React.useState('');
-	const [returnDestinationSelection, setReturnDestinationSelection] =
-		React.useState<ReturnDestinationSelection | null>(null);
+	const [returnDestinationSelection, setReturnDestinationSelection] = React.useState<ReturnDestinationSelection | null>(
+		null,
+	);
 	const [returnDestinationSearch, setReturnDestinationSearch] = React.useState('');
+	const [isAnnotationDevelopmentNoticeOpen, setIsAnnotationDevelopmentNoticeOpen] = React.useState(false);
 	const returnDestinationSheetSnapPoints = React.useMemo(() => [86], []);
 
 	const filteredCategories = React.useMemo(() => {
@@ -317,36 +358,37 @@ export default function ScreenSettingsScreen() {
 		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
 
 		return screenSettingsCategories
-			.map(category => ({
+			.map((category) => ({
 				...category,
-				items: category.items.filter(item => {
+				items: category.items.filter((item) => {
 					const searchableText = normalizeSearchText(
 						[category.label, category.description, item.label, item.description].join(' '),
 					);
 
-					return searchTerms.every(term => searchableText.includes(term));
+					return searchTerms.every((term) => searchableText.includes(term));
 				}),
 			}))
-			.filter(category => category.items.length > 0);
+			.filter((category) => category.items.length > 0);
 	}, [screenSearch]);
 
-	const isLumusAssistantSearchMatch = React.useMemo(() => {
+	const filteredStandaloneVisibilitySettings = React.useMemo(() => {
 		const normalizedSearch = normalizeSearchText(screenSearch);
 
 		if (!normalizedSearch) {
-			return true;
+			return standaloneVisibilitySettings;
 		}
 
 		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
-		const searchableText = normalizeSearchText('Lumus IA Assistente inteligente Configure o acesso ao assistente');
 
-		return searchTerms.every(term => searchableText.includes(term));
+		return standaloneVisibilitySettings.filter((item) => {
+			const searchableText = normalizeSearchText(`${item.label} ${item.description} ${item.searchableText}`);
+			return searchTerms.every((term) => searchableText.includes(term));
+		});
 	}, [screenSearch]);
-	const isLumusAssistantVisible = isRouteVisible('lumusAssistant');
 
 	const handleReturnToggle = React.useCallback(
 		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode, value: boolean) => {
-			updateBehaviorForScreen(screenKey, mode, current => ({
+			updateBehaviorForScreen(screenKey, mode, (current) => ({
 				...current,
 				shouldReturnAfterSubmit: value,
 				shouldClearFieldsAfterSubmit: mode === 'create' ? !value : false,
@@ -356,11 +398,27 @@ export default function ScreenSettingsScreen() {
 	);
 
 	const handleRouteVisibilityChange = React.useCallback(
-		(screenKey: PostSubmitScreenKey | 'lumusAssistant', isVisible: boolean) => {
-			setRouteVisibility(screenKey, isVisible);
+		(routeKey: RouteVisibilityKey, isVisible: boolean) => {
+			setRouteVisibility(routeKey, isVisible);
 		},
 		[setRouteVisibility],
 	);
+
+	const handleStandaloneVisibilityChange = React.useCallback(
+		(item: StandaloneVisibilitySetting, toggleValue: boolean) => {
+			const isVisible = item.isDevelopmentOnly ? !toggleValue : toggleValue;
+			setRouteVisibility(item.key, isVisible);
+
+			if (item.key === 'annotations' && isVisible) {
+				setIsAnnotationDevelopmentNoticeOpen(true);
+			}
+		},
+		[setRouteVisibility],
+	);
+
+	const handleCloseAnnotationDevelopmentNotice = React.useCallback(() => {
+		setIsAnnotationDevelopmentNoticeOpen(false);
+	}, []);
 
 	const handleDestinationChange = React.useCallback(
 		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode, destination: PostSubmitDestinationKey) => {
@@ -394,11 +452,7 @@ export default function ScreenSettingsScreen() {
 				return;
 			}
 
-			handleDestinationChange(
-				returnDestinationSelection.screenKey,
-				returnDestinationSelection.mode,
-				destination,
-			);
+			handleDestinationChange(returnDestinationSelection.screenKey, returnDestinationSelection.mode, destination);
 			handleCloseReturnDestinationSheet();
 		},
 		[handleCloseReturnDestinationSheet, handleDestinationChange, returnDestinationSelection],
@@ -408,16 +462,14 @@ export default function ScreenSettingsScreen() {
 		const normalizedSearch = normalizeSearchText(returnDestinationSearch);
 		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
 
-		return POST_SUBMIT_DESTINATION_OPTIONS.filter(option => {
+		return POST_SUBMIT_DESTINATION_OPTIONS.filter((option) => {
 			const searchableText = normalizeSearchText(`${option.label} ${option.description}`);
 			const destinationPath = getPostSubmitDestinationPath(option.key);
-			const routeVisibilityKey = destinationPath
-				? getRouteVisibilityKeyForPath(destinationPath)
-				: null;
+			const routeVisibilityKey = destinationPath ? getRouteVisibilityKeyForPath(destinationPath) : null;
 
 			return (
 				(!routeVisibilityKey || isRouteVisible(routeVisibilityKey)) &&
-				searchTerms.every(term => searchableText.includes(term))
+				searchTerms.every((term) => searchableText.includes(term))
 			);
 		});
 	}, [isRouteVisible, returnDestinationSearch]);
@@ -428,7 +480,7 @@ export default function ScreenSettingsScreen() {
 
 	const handleClearFieldsToggle = React.useCallback(
 		(screenKey: PostSubmitScreenKey, value: boolean) => {
-			updateBehaviorForScreen(screenKey, 'create', current => {
+			updateBehaviorForScreen(screenKey, 'create', (current) => {
 				if (current.shouldReturnAfterSubmit) {
 					return current;
 				}
@@ -496,7 +548,7 @@ export default function ScreenSettingsScreen() {
 							</Input>
 						</VStack>
 
-						{filteredCategories.map(category => (
+						{filteredCategories.map((category) => (
 							<Box key={category.id} className={`${notTintedCardClassName} px-4 py-4`}>
 								<VStack className="gap-3">
 									<VStack className="gap-1">
@@ -507,7 +559,7 @@ export default function ScreenSettingsScreen() {
 									</VStack>
 
 									<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
-										{category.items.map(item => {
+										{category.items.map((item) => {
 											const behavior = getBehaviorForScreen(item.key, item.mode);
 											const isEditing = item.mode === 'edit';
 											const isScreenVisible = isRouteVisible(item.key);
@@ -530,20 +582,23 @@ export default function ScreenSettingsScreen() {
 																			{item.label}
 																		</AccordionTitleText>
 																		<Text className={`${helperText} text-xs`} numberOfLines={1}>
-																					{!isScreenVisible
-																						? 'Oculta do navigator e sem acesso neste aparelho'
-																						: isEditing
-																							? behavior.shouldReturnAfterSubmit
-																								? `Volta para ${selectedDestinationLabel} após atualizar`
-																								: 'Permanece na edição com os dados atuais'
-																							: behavior.shouldReturnAfterSubmit
-																								? `Volta para ${selectedDestinationLabel}`
-																								: behavior.shouldClearFieldsAfterSubmit
-																									? 'Permanece na tela e limpa campos'
-																									: 'Permanece na tela mantendo campos'}
+																			{!isScreenVisible
+																				? 'Oculta do navigator e sem acesso neste aparelho'
+																				: isEditing
+																					? behavior.shouldReturnAfterSubmit
+																						? `Volta para ${selectedDestinationLabel} após atualizar`
+																						: 'Permanece na edição com os dados atuais'
+																					: behavior.shouldReturnAfterSubmit
+																						? `Volta para ${selectedDestinationLabel}`
+																						: behavior.shouldClearFieldsAfterSubmit
+																							? 'Permanece na tela e limpa campos'
+																							: 'Permanece na tela mantendo campos'}
 																		</Text>
 																	</VStack>
-																	<AccordionIcon as={isExpanded ? ChevronUpIcon : ChevronDownIcon} className={helperText} />
+																	<AccordionIcon
+																		as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																		className={helperText}
+																	/>
 																</View>
 															)}
 														</AccordionTrigger>
@@ -551,41 +606,41 @@ export default function ScreenSettingsScreen() {
 
 													<AccordionContent className="px-0 pb-3">
 														<Box className={`${notTintedCardClassName} px-4 py-4`}>
-																				<VStack className="gap-4">
-																					<Text className={`${helperText} text-sm leading-5`}>{item.description}</Text>
+															<VStack className="gap-4">
+																<Text className={`${helperText} text-sm leading-5`}>{item.description}</Text>
 
-																					<View className={`${fieldContainerCardClassName} px-4 py-3`}>
-																						<HStack className="items-center justify-between gap-4">
-																							<VStack className="min-w-0 flex-1 gap-1">
-																								<Text className={`${bodyText} text-sm font-semibold`}>Mostrar no app</Text>
-																								<Text className={`${helperText} text-xs`}>
-																									Quando desativada, a tela sai do navigator e não pode ser aberta neste aparelho.
-																								</Text>
-																							</VStack>
-																							<Switch
-																								value={isScreenVisible}
-																								onValueChange={value => handleRouteVisibilityChange(item.key, value)}
-																								isDisabled={isLoadingRouteVisibility}
-																								trackColor={switchTrackColor}
-																								thumbColor={switchThumbColor}
-																								ios_backgroundColor={switchIosBackgroundColor}
-																							/>
-																						</HStack>
-																					</View>
+																<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+																	<HStack className="items-center justify-between gap-4">
+																		<VStack className="min-w-0 flex-1 gap-1">
+																			<Text className={`${bodyText} text-sm font-semibold`}>Mostrar no app</Text>
+																			<Text className={`${helperText} text-xs`}>
+																				Quando desativada, a tela sai do navigator e não pode ser aberta neste aparelho.
+																			</Text>
+																		</VStack>
+																		<Switch
+																			value={isScreenVisible}
+																			onValueChange={(value) => handleRouteVisibilityChange(item.key, value)}
+																			isDisabled={isLoadingRouteVisibility}
+																			trackColor={switchTrackColor}
+																			thumbColor={switchThumbColor}
+																			ios_backgroundColor={switchIosBackgroundColor}
+																		/>
+																	</HStack>
+																</View>
 
-																					<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+																<View className={`${fieldContainerCardClassName} px-4 py-3`}>
 																	<HStack className="items-center justify-between gap-4">
 																		<VStack className="min-w-0 flex-1 gap-1">
 																			<Text className={`${bodyText} text-sm font-semibold`}>Voltar após salvar</Text>
 																			{isEditing ? (
-																					<Text className={`${helperText} text-xs`}>
-																						Depois de atualizar, a edição abre a tela escolhida.
-																					</Text>
-																				) : null}
+																				<Text className={`${helperText} text-xs`}>
+																					Depois de atualizar, a edição abre a tela escolhida.
+																				</Text>
+																			) : null}
 																		</VStack>
 																		<Switch
 																			value={behavior.shouldReturnAfterSubmit}
-																			onValueChange={value => handleReturnToggle(item.key, item.mode, value)}
+																			onValueChange={(value) => handleReturnToggle(item.key, item.mode, value)}
 																			isDisabled={isLoadingPostSubmitBehavior}
 																			trackColor={switchTrackColor}
 																			thumbColor={switchThumbColor}
@@ -612,7 +667,9 @@ export default function ScreenSettingsScreen() {
 																	</VStack>
 
 																	{!isEditing ? (
-																		<HStack className={`items-center justify-between gap-4 ${isClearFieldsDisabled ? 'opacity-50' : ''}`}>
+																		<HStack
+																			className={`items-center justify-between gap-4 ${isClearFieldsDisabled ? 'opacity-50' : ''}`}
+																		>
 																			<VStack className="min-w-0 flex-1">
 																				<Text className={`${bodyText} text-sm font-semibold`}>Limpar campos</Text>
 																				<Text className={`${helperText} text-xs`}>
@@ -620,8 +677,10 @@ export default function ScreenSettingsScreen() {
 																				</Text>
 																			</VStack>
 																			<Switch
-																				value={!behavior.shouldReturnAfterSubmit && behavior.shouldClearFieldsAfterSubmit}
-																				onValueChange={value => handleClearFieldsToggle(item.key, value)}
+																				value={
+																					!behavior.shouldReturnAfterSubmit && behavior.shouldClearFieldsAfterSubmit
+																				}
+																				onValueChange={(value) => handleClearFieldsToggle(item.key, value)}
 																				isDisabled={isClearFieldsDisabled}
 																				trackColor={switchTrackColor}
 																				thumbColor={switchThumbColor}
@@ -629,7 +688,7 @@ export default function ScreenSettingsScreen() {
 																			/>
 																		</HStack>
 																	) : null}
-																	</VStack>
+																</VStack>
 															</VStack>
 														</Box>
 													</AccordionContent>
@@ -638,70 +697,83 @@ export default function ScreenSettingsScreen() {
 										})}
 									</Accordion>
 								</VStack>
-								</Box>
-							))}
+							</Box>
+						))}
 
-						{isLumusAssistantSearchMatch ? (
-							<Box className={`${notTintedCardClassName} px-4 py-4`}>
-								<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
-									<AccordionItem value="lumus-assistant">
-										<AccordionHeader>
-											<AccordionTrigger className="px-0 py-3">
-												{({ isExpanded }: { isExpanded: boolean }) => (
-													<View className="w-full flex-row items-center justify-between gap-3">
-														<View className="h-[64px] w-[64px] shrink-0 items-center justify-center rounded-2xl">
-															<LumusAssistantScreenIllustration width={64} height={64} className="opacity-90" />
-														</View>
-														<VStack className="min-w-0 flex-1 gap-1">
-															<AccordionTitleText className="flex-none font-semibold leading-5">
-																Assistente Lumus
-															</AccordionTitleText>
-															<Text className={`${helperText} text-xs`} numberOfLines={1}>
-																{isLumusAssistantVisible
-																	? 'Visível no navigator deste aparelho'
-																	: 'Oculto do navigator e sem acesso neste aparelho'}
-															</Text>
-														</VStack>
-														<AccordionIcon as={isExpanded ? ChevronUpIcon : ChevronDownIcon} className={helperText} />
-													</View>
-												)}
-											</AccordionTrigger>
-										</AccordionHeader>
+						{filteredStandaloneVisibilitySettings.map((item) => {
+							const isScreenVisible = isRouteVisible(item.key);
+							const isDevelopmentOnly = item.isDevelopmentOnly === true;
+							const toggleValue = isDevelopmentOnly ? !isScreenVisible : isScreenVisible;
+							const Illustration = item.Illustration;
 
-										<AccordionContent className="px-0 pb-3">
-											<Box className={`${notTintedCardClassName} px-4 py-4`}>
-												<VStack className="gap-4">
-													<Text className={`${helperText} text-sm leading-5`}>
-														Defina se o assistente inteligente fica disponível neste aparelho.
-													</Text>
-
-													<View className={`${fieldContainerCardClassName} px-4 py-3`}>
-														<HStack className="items-center justify-between gap-4">
+							return (
+								<Box key={item.key} className={`${notTintedCardClassName} px-4 py-4`}>
+									<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
+										<AccordionItem value={item.key}>
+											<AccordionHeader>
+												<AccordionTrigger className="px-0 py-3">
+													{({ isExpanded }: { isExpanded: boolean }) => (
+														<View className="w-full flex-row items-center justify-between gap-3">
+															<View className="h-[64px] w-[64px] shrink-0 items-center justify-center rounded-2xl">
+																<Illustration width={64} height={64} className="opacity-90" />
+															</View>
 															<VStack className="min-w-0 flex-1 gap-1">
-																<Text className={`${bodyText} text-sm font-semibold`}>Mostrar no app</Text>
-																<Text className={`${helperText} text-xs`}>
-																	Quando desativado, o Lumus sai do navigator e a rota fica bloqueada neste aparelho.
+																<AccordionTitleText className="flex-none font-semibold leading-5">
+																	{item.label}
+																</AccordionTitleText>
+																<Text className={`${helperText} text-xs`} numberOfLines={1}>
+																	{isDevelopmentOnly
+																		? isScreenVisible
+																			? 'Em desenvolvimento: visível para testes neste aparelho'
+																			: 'Em desenvolvimento: oculta no app'
+																		: isScreenVisible
+																			? 'Visível no navigator deste aparelho'
+																			: 'Oculta do navigator e sem acesso neste aparelho'}
 																</Text>
 															</VStack>
-															<Switch
-																value={isLumusAssistantVisible}
-																onValueChange={value => handleRouteVisibilityChange('lumusAssistant', value)}
-																isDisabled={isLoadingRouteVisibility}
-																trackColor={switchTrackColor}
-																thumbColor={switchThumbColor}
-																ios_backgroundColor={switchIosBackgroundColor}
-															/>
-														</HStack>
-													</View>
-												</VStack>
-											</Box>
-										</AccordionContent>
-									</AccordionItem>
-								</Accordion>
-							</Box>
-						) : null}
+															<AccordionIcon as={isExpanded ? ChevronUpIcon : ChevronDownIcon} className={helperText} />
+														</View>
+													)}
+												</AccordionTrigger>
+											</AccordionHeader>
 
-						{filteredCategories.length === 0 && !isLumusAssistantSearchMatch ? (
+											<AccordionContent className="px-0 pb-3">
+												<Box className={`${notTintedCardClassName} px-4 py-4`}>
+													<VStack className="gap-4">
+														<Text className={`${helperText} text-sm leading-5`}>{item.description}</Text>
+
+														<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+															<HStack className="items-center justify-between gap-4">
+																<VStack className="min-w-0 flex-1 gap-1">
+																	<Text className={`${bodyText} text-sm font-semibold`}>
+																		{isDevelopmentOnly ? 'Em desenvolvimento' : 'Mostrar no app'}
+																	</Text>
+																	<Text className={`${helperText} text-xs`}>
+																		{isDevelopmentOnly
+																			? 'Enquanto ativada, esta tela permanece oculta. Desative para liberá-la para testes neste aparelho.'
+																			: 'Quando desativada, a tela sai do navigator e a rota fica bloqueada neste aparelho.'}
+																	</Text>
+																</VStack>
+																<Switch
+																	value={toggleValue}
+																	onValueChange={(value) => handleStandaloneVisibilityChange(item, value)}
+																	isDisabled={isLoadingRouteVisibility}
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	ios_backgroundColor={switchIosBackgroundColor}
+																/>
+															</HStack>
+														</View>
+													</VStack>
+												</Box>
+											</AccordionContent>
+										</AccordionItem>
+									</Accordion>
+								</Box>
+							);
+						})}
+
+						{filteredCategories.length === 0 && filteredStandaloneVisibilitySettings.length === 0 ? (
 							<Box className={`${notTintedCardClassName} px-4 py-6`}>
 								<VStack className="items-center gap-1">
 									<Text className={`${bodyText} text-center text-sm font-semibold`}>Nenhuma tela encontrada</Text>
@@ -734,9 +806,7 @@ export default function ScreenSettingsScreen() {
 								<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
 									Escolha a tela de retorno
 								</Heading>
-								<Text className={`${helperText} text-sm`}>
-									Após salvar, o formulário abrirá a tela selecionada.
-								</Text>
+								<Text className={`${helperText} text-sm`}>Após salvar, o formulário abrirá a tela selecionada.</Text>
 							</VStack>
 
 							<VStack className="w-full px-2 pb-3">
@@ -773,7 +843,7 @@ export default function ScreenSettingsScreen() {
 										</VStack>
 									) : null}
 
-									{filteredReturnDestinationOptions.map(destinationOption => {
+									{filteredReturnDestinationOptions.map((destinationOption) => {
 										const isSelected = destinationOption.key === selectedReturnDestination;
 										const DestinationIllustration = returnDestinationIllustrationByKey[destinationOption.key];
 
@@ -781,7 +851,13 @@ export default function ScreenSettingsScreen() {
 											<ActionsheetItem
 												key={destinationOption.key}
 												onPress={() => handleSelectReturnDestination(destinationOption.key)}
-												className={isSelected ? (isDarkMode ? 'rounded-2xl bg-slate-900' : 'rounded-2xl bg-amber-50') : 'rounded-2xl'}
+												className={
+													isSelected
+														? isDarkMode
+															? 'rounded-2xl bg-slate-900'
+															: 'rounded-2xl bg-amber-50'
+														: 'rounded-2xl'
+												}
 											>
 												<HStack className="w-full items-center gap-3">
 													<View className="h-11 w-11 items-center justify-center rounded-2xl">
@@ -791,9 +867,7 @@ export default function ScreenSettingsScreen() {
 														<ActionsheetItemText className={isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900'}>
 															{destinationOption.label}
 														</ActionsheetItemText>
-														<Text className={`${helperText} text-xs leading-4`}>
-															{destinationOption.description}
-														</Text>
+														<Text className={`${helperText} text-xs leading-4`}>{destinationOption.description}</Text>
 														{isSelected ? (
 															<Text className="text-xs text-amber-500 dark:text-amber-300">Selecionada atualmente</Text>
 														) : null}
@@ -807,6 +881,31 @@ export default function ScreenSettingsScreen() {
 						</KeyboardAvoidingView>
 					</ActionsheetContent>
 				</Actionsheet>
+
+				<Modal isOpen={isAnnotationDevelopmentNoticeOpen} onClose={handleCloseAnnotationDevelopmentNotice}>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
+						<ModalHeader>
+							<ModalTitle>Anotações em desenvolvimento</ModalTitle>
+							<ModalCloseButton onPress={handleCloseAnnotationDevelopmentNotice} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} text-sm leading-5`}>
+								Esta tela ainda está em desenvolvimento e pode mudar antes de ficar pronta para uso geral.
+							</Text>
+						</ModalBody>
+						<ModalFooter>
+							<Button
+								action="primary"
+								variant="solid"
+								onPress={handleCloseAnnotationDevelopmentNotice}
+								className="w-full"
+							>
+								<ButtonText>Entendi</ButtonText>
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
 
 				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
 					<Navigator defaultValue={2} onHardwareBack={handleBackToConfigurations} />

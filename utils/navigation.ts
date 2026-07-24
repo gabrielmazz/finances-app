@@ -11,6 +11,7 @@ export const APP_ROUTE_PATHS = {
 	lumusAssistant: '/lumus-assistant',
 	categoryAnalysis: '/category-analysis',
 	financialForecast: '/financial-forecast',
+	annotations: '/annotations',
 	addRegisterBank: '/add-register-bank',
 	addRegisterUser: '/add-register-user',
 	addRegisterExpenses: '/add-register-expenses',
@@ -21,7 +22,6 @@ export const APP_ROUTE_PATHS = {
 	addFinance: '/add-finance',
 	addRescue: '/add-rescue',
 	addUserRelation: '/add-user-relation',
-	appTests: '/app-tests',
 	screenSettings: '/screen-settings',
 	registerMonthlyBalance: '/register-monthly-balance',
 	bankMovements: '/bank-movements',
@@ -49,6 +49,7 @@ export const ROUTE_VISIBILITY_PATHS: Record<RouteVisibilityKey, readonly AppRout
 	addRegisterUser: [APP_ROUTE_PATHS.addRegisterUser],
 	addUserRelation: [APP_ROUTE_PATHS.addUserRelation],
 	lumusAssistant: [APP_ROUTE_PATHS.lumusAssistant],
+	annotations: [APP_ROUTE_PATHS.annotations],
 };
 
 export const getRouteVisibilityKeyForPath = (pathname: AppRoutePath): RouteVisibilityKey | null => {
@@ -63,9 +64,7 @@ export const getRouteVisibilityKeyForPath = (pathname: AppRoutePath): RouteVisib
 	return null;
 };
 
-export const getPostSubmitDestinationPath = (
-	destination: PostSubmitDestinationKey,
-): AppRoutePath | null => {
+export const getPostSubmitDestinationPath = (destination: PostSubmitDestinationKey): AppRoutePath | null => {
 	switch (destination) {
 		case 'homeControl':
 			return APP_ROUTE_PATHS.addRegisterExpenses;
@@ -122,17 +121,14 @@ export const normalizeHomeTabIndex = (
 	fallback: HomeTabIndex = HOME_TAB_INDEX.dashboard,
 ): HomeTabIndex => {
 	const firstValue = Array.isArray(value) ? value[0] : value;
-	const parsedValue =
-		typeof firstValue === 'number' ? firstValue : Number(firstValue);
+	const parsedValue = typeof firstValue === 'number' ? firstValue : Number(firstValue);
 
 	if (!Number.isFinite(parsedValue)) {
 		return fallback;
 	}
 
 	const normalizedValue = Math.trunc(parsedValue);
-	return HOME_TAB_VALUES.includes(normalizedValue)
-		? (normalizedValue as HomeTabIndex)
-		: fallback;
+	return HOME_TAB_VALUES.includes(normalizedValue) ? (normalizedValue as HomeTabIndex) : fallback;
 };
 
 const compactParams = (params?: NavigationParams) => {
@@ -146,9 +142,7 @@ const compactParams = (params?: NavigationParams) => {
 		}
 
 		if (Array.isArray(value)) {
-			const normalizedArray = value.filter(
-				item => item !== undefined && item !== null,
-			);
+			const normalizedArray = value.filter((item) => item !== undefined && item !== null);
 			return normalizedArray.length > 0 ? [[key, normalizedArray]] : [];
 		}
 
@@ -162,10 +156,7 @@ const compactParams = (params?: NavigationParams) => {
 	return Object.fromEntries(compactedEntries) as UnknownInputParams;
 };
 
-export const createAppHref = (
-	pathname: AppRoutePath,
-	params?: NavigationParams,
-): Href => {
+export const createAppHref = (pathname: AppRoutePath, params?: NavigationParams): Href => {
 	const compactedParams = compactParams(params);
 
 	return {
@@ -226,15 +217,10 @@ const scheduleReplace = (href: Href, options?: RouterNavigationOptions) => {
 	scheduleNavigation(() => replaceSafely(href, options));
 };
 
-const createBackFallbackHref = (
-	fallbackPathname: AppRoutePath,
-	fallbackParams?: NavigationParams,
-) => {
+const createBackFallbackHref = (fallbackPathname: AppRoutePath, fallbackParams?: NavigationParams) => {
 	const resolvedFallbackParams =
 		fallbackParams ??
-		(fallbackPathname === APP_ROUTE_PATHS.home
-			? { tab: String(HOME_TAB_INDEX.dashboard) }
-			: undefined);
+		(fallbackPathname === APP_ROUTE_PATHS.home ? { tab: String(HOME_TAB_INDEX.dashboard) } : undefined);
 
 	return createAppHref(fallbackPathname, resolvedFallbackParams);
 };
@@ -281,17 +267,13 @@ export const redirectToRoute = (
 	scheduleReplace(createAppHref(pathname, params), options);
 };
 
-export const navigateToHomeTab = (
-	tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard,
-) => {
+export const navigateToHomeTab = (tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard) => {
 	cancelPendingRedirect();
 	Keyboard.dismiss();
 	replaceSafely(createHomeHref(tab));
 };
 
-export const redirectToHomeTab = (
-	tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard,
-) => {
+export const redirectToHomeTab = (tab: HomeTabIndex | number | string | string[] | null = HOME_TAB_INDEX.dashboard) => {
 	Keyboard.dismiss();
 	// POP_TO/dismissTo é deliberadamente proibido neste fluxo: a falha da ação
 	// enfileirada é silenciosa em release e pode deixar o NativeStack sem conteúdo.

@@ -64,28 +64,23 @@ describe('mandatory reminder notifications', () => {
 			'income-reminders-v1',
 			expect.objectContaining({ importance: notifications.AndroidImportance.HIGH }),
 		);
-		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
-			'system-tests-v1-expo',
-			expect.objectContaining({ importance: notifications.AndroidImportance.HIGH }),
-		);
 		expect(notifications.setNotificationHandler).toHaveBeenCalledTimes(1);
 	});
 
-	it('requests permission and sends an immediate Expo notification test', async () => {
-		state.permissions = { granted: false, status: 'denied', canAskAgain: true };
-		state.requestPermissions = { granted: true, status: 'granted', canAskAgain: true };
+	it('removes retired test channels even when the previous legacy migration already completed', async () => {
+		state.storage['@lumusNotifications:legacy-cleanup-v1'] = 'complete';
+		state.channels['system-tests-v1'] = { id: 'system-tests-v1' };
+		state.channels['system-tests-v2-notifee'] = { id: 'system-tests-v2-notifee' };
+		state.channels['system-tests-v1-expo'] = { id: 'system-tests-v1-expo' };
 		const { notifications, localNotifications } = loadNotificationModules();
 
-		const result = await localNotifications.sendLocalNotificationTest();
+		await localNotifications.bootstrapLocalNotifications();
 
-		expect(result).toMatchObject({ success: true, title: 'Teste de notificação' });
-		expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
-		expect(state.displayedNotifications).toHaveLength(1);
-		expect(state.displayedNotifications[0]).toMatchObject({
-			content: expect.objectContaining({
-				data: { notificationSystem: 'lumus-system-test-v1', mode: 'immediate' },
-			}),
-		});
+		expect(notifications.cancelAllScheduledNotificationsAsync).not.toHaveBeenCalled();
+		expect(state.channels['system-tests-v1']).toBeUndefined();
+		expect(state.channels['system-tests-v2-notifee']).toBeUndefined();
+		expect(state.channels['system-tests-v1-expo']).toBeUndefined();
+		expect(state.storage['@lumusNotifications:removed-test-channels-v1']).toBe('complete');
 	});
 
 	it('schedules D-3, D-2, D-1 and the due date as concrete Android dates for six cycles', async () => {
@@ -121,18 +116,12 @@ describe('mandatory reminder notifications', () => {
 
 	it('schedules normally on Android 7 where notification channels do not exist', async () => {
 		state.platformVersion = 25;
-		const { notifications, localNotifications, mandatoryReminderNotifications } = loadNotificationModules();
+		const { notifications, mandatoryReminderNotifications } = loadNotificationModules();
 
 		const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification(buildExpenseSchedule());
-		const diagnostics = await localNotifications.getLocalNotificationDiagnostics();
 
 		expect(result).toMatchObject({ success: true, scheduledCount: 24 });
 		expect(notifications.setNotificationChannelAsync).not.toHaveBeenCalled();
-		expect(diagnostics).toMatchObject({
-			expenseChannelEnabled: null,
-			gainChannelEnabled: null,
-			testChannelEnabled: null,
-		});
 	});
 
 	it('does not schedule the cycle that was already paid', async () => {
@@ -552,26 +541,6 @@ describe('mandatory reminder notifications', () => {
 		expect(store.entries).toEqual({});
 	});
 
-	it('creates a real scheduled test notification and exposes diagnostics', async () => {
-		const { localNotifications } = loadNotificationModules();
-
-		const result = await localNotifications.scheduleLocalNotificationTest(15);
-		const diagnostics = await localNotifications.getLocalNotificationDiagnostics();
-
-		expect(result).toMatchObject({ success: true });
-		expect(result.scheduledFor.getTime()).toBe(new Date(2026, 0, 10, 8, 0, 15, 0).getTime());
-		expect(state.scheduledNotifications).toHaveLength(1);
-		expect(diagnostics).toMatchObject({
-			supported: true,
-			permissionGranted: true,
-			scheduledCount: 1,
-			mandatoryReminderCount: 0,
-			expenseChannelEnabled: true,
-			gainChannelEnabled: true,
-			testChannelEnabled: true,
-		});
-	});
-
 	it('caps Android alarms globally, reserves non-managed slots and preserves every template next occurrence', async () => {
 		const { localNotifications, mandatoryReminderNotifications } = loadNotificationModules();
 		await localNotifications.bootstrapLocalNotifications();
@@ -603,8 +572,6 @@ describe('mandatory reminder notifications', () => {
 
 		await mandatoryReminderNotifications.syncMandatoryReminderNotifications('user-1', 'expense', expenses);
 		await mandatoryReminderNotifications.syncMandatoryReminderNotifications('user-1', 'gain', gains);
-		const capacity = await mandatoryReminderNotifications.getMandatoryReminderCapacityDiagnostics();
-
 		expect(state.scheduledNotifications).toHaveLength(400);
 		expect(
 			state.scheduledNotifications.filter(
@@ -621,16 +588,6 @@ describe('mandatory reminder notifications', () => {
 				state.scheduledNotifications.some((entry: any) => entry.content.data.templateId === gain.id),
 			).toBe(true);
 		}
-		expect(capacity).toMatchObject({
-			scheduleLimit: 400,
-			nonManagedScheduleCount: 10,
-			scheduleBudget: 390,
-			desiredCount: 432,
-			plannedCount: 390,
-			unplannedTemplateCount: 0,
-		});
-		expect(capacity.limitedTemplateCount).toBeGreaterThan(0);
-
 		state.scheduledNotifications = state.scheduledNotifications.filter(
 			(entry: any) => entry.content.data.notificationSystem === 'lumus-mandatory-reminders-v1',
 		);
@@ -656,18 +613,8 @@ describe('mandatory reminder notifications', () => {
 			'gain',
 			gains,
 		);
-		const capacity = await mandatoryReminderNotifications.getMandatoryReminderCapacityDiagnostics();
-
 		expect(state.scheduledNotifications).toHaveLength(400);
 		expect(syncResult).toEqual({ scheduled: 400, failed: 1 });
-		expect(capacity).toMatchObject({
-			scheduleLimit: 400,
-			scheduleBudget: 400,
-			desiredCount: 2406,
-			plannedCount: 400,
-			limitedTemplateCount: 401,
-			unplannedTemplateCount: 1,
-		});
 	});
 
 	it('uses the smaller safe pending-notification budget on iOS', async () => {
@@ -685,29 +632,12 @@ describe('mandatory reminder notifications', () => {
 		}));
 
 		await mandatoryReminderNotifications.syncMandatoryReminderNotifications('user-1', 'expense', expenses);
-		const capacity = await mandatoryReminderNotifications.getMandatoryReminderCapacityDiagnostics();
-
 		expect(state.scheduledNotifications).toHaveLength(60);
 		for (const expense of expenses) {
 			expect(
 				state.scheduledNotifications.some((entry: any) => entry.content.data.templateId === expense.id),
 			).toBe(true);
 		}
-		expect(capacity).toMatchObject({ scheduleLimit: 60, plannedCount: 60, desiredCount: 64 });
-	});
-
-	it('does not claim that a scheduled test succeeded when its Android channel is disabled', async () => {
-		state.channels['system-tests-v1-expo'] = {
-			id: 'system-tests-v1-expo',
-			importance: 0,
-			userDisabled: true,
-		};
-		const { localNotifications } = loadNotificationModules();
-
-		const result = await localNotifications.scheduleLocalNotificationTest(15);
-
-		expect(result).toMatchObject({ success: false, reason: 'channel-disabled' });
-		expect(state.scheduledNotifications).toHaveLength(0);
 	});
 
 	it('does not claim success when the Android payment reminder channel was disabled by the user', async () => {

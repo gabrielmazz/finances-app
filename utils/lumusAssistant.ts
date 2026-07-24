@@ -564,25 +564,3 @@ export const getActionAmountInCents = (kind: AssistantActionKind, payload: Recor
 	const value = candidates.find(candidate => typeof candidate === 'number' && Number.isFinite(candidate));
 	return typeof value === 'number' ? value : null;
 };
-
-/** Parser conservador usado nos testes e no diagnóstico sem commit; não substitui o Gemini. */
-export const parseSimpleExpenseExample = (
-	text: string,
-	reference = new Date(),
-): AssistantModelActionProposal[] => {
-	const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-	const matches = Array.from(
-		normalized.matchAll(/(?:dia|no dia)\s+(\d{1,2})[^\d]{0,80}?(?:gastei|gasto|gastou)\s+(?:R\$\s*)?(\d+(?:[.,]\d{1,2})?)/gi),
-	);
-	const { year, month } = getSaoPauloDateParts(reference);
-
-	return matches.slice(0, ASSISTANT_DEFAULT_MAX_ACTIONS).map((match, index) => ({
-		clientActionId: `expense_example_${index + 1}`,
-		kind: 'create_expense',
-		payload: {
-			name: /mercado/i.test(normalized) ? 'Mercado' : 'Despesa',
-			valueInCents: parseMoneyToCents(match[2]) ?? 0,
-			date: `${year}-${pad(month)}-${pad(Number(match[1]))}`,
-		},
-	}));
-};

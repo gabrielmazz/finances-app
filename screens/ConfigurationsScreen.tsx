@@ -86,7 +86,6 @@ import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/nav
 // Importação do SVG
 import ConfigurationIllustration from '../assets/UnDraw/configurationsScreen.svg';
 import ScreenConfigurationsSettingsIllustration from '../assets/UnDraw/screenConfigurationsSettings.svg';
-import TestsScreenIllustration from '../assets/UnDraw/testsScreen.svg';
 import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserScreen.svg';
 import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankScreen.svg';
 import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScreen.svg';
@@ -110,23 +109,9 @@ type AccordionItem = {
 	showValueVisibilitySwitch?: boolean;
 	showThemeSwitch?: boolean;
 	showScreenSettingsShortcut?: boolean;
-	showAppTests?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
-	{
-		id: 'item-0',
-		title: 'Testes do aplicativo',
-		content: 'Acesse validações manuais concentradas em uma tela dedicada.',
-		cardTitle: 'Central de testes',
-		Illustration: TestsScreenIllustration,
-		showAppTests: true,
-		actionRequiresAdmin: false,
-		action: {
-			route: APP_ROUTE_PATHS.appTests,
-			label: 'Abrir testes do aplicativo',
-		},
-	},
 	{
 		id: 'item-1',
 		title: 'Adicionar um novo usuário ao aplicativo',
@@ -2376,13 +2361,7 @@ export default function ConfigurationsScreen() {
 														</VStack>
 													) : null}
 
-													{item.showAppTests && canAccessSection ? (
-														renderAccordionCard(item, {
-															action: renderSectionAction(item.action),
-														})
-													) : null}
-
-													{item.showScreenSettingsShortcut && canAccessSection ? (
+														{item.showScreenSettingsShortcut && canAccessSection ? (
 														renderAccordionCard(item, {
 															action: renderSectionAction(item.action),
 														})
