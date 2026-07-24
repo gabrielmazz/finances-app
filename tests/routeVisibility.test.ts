@@ -17,21 +17,24 @@ describe('route visibility preferences', () => {
 			normalizeRouteVisibility({
 				lumusAssistant: false,
 				addRegisterExpenses: false,
+				annotations: false,
 			}),
 		).toMatchObject({
 			lumusAssistant: false,
 			addRegisterExpenses: false,
 			addRegisterGain: true,
+			annotations: false,
 		});
 	});
 
-	it('keeps all routes visible when no preference has been saved', () => {
+	it('keeps standard routes visible while annotations stays hidden by default', () => {
 		const { normalizeRouteVisibility } = loadRouteVisibility();
 
 		expect(normalizeRouteVisibility(null)).toMatchObject({
 			lumusAssistant: true,
 			addRegisterExpenses: true,
 			addRegisterGain: true,
+			annotations: false,
 		});
 	});
 });

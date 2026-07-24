@@ -185,6 +185,15 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				matchPaths: [APP_ROUTE_PATHS.financialForecast],
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialForecast),
 			},
+			{
+				id: 'annotations',
+				label: 'Anotações',
+				value: 0,
+				icon: 'document-text-outline',
+				visibilityKey: 'annotations',
+				matchPaths: [APP_ROUTE_PATHS.annotations],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.annotations),
+			},
 		],
 	},
 	{
@@ -318,14 +327,6 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation),
 			},
 			{
-				id: 'app-tests',
-				label: 'Testes do app',
-				value: 2,
-				icon: 'flask-outline',
-				matchPaths: [APP_ROUTE_PATHS.appTests],
-				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.appTests),
-			},
-			{
 				id: 'screen-settings',
 				label: 'Config. das telas',
 				value: 2,
@@ -352,7 +353,7 @@ const normalizeValue = (value?: number) => {
 };
 
 const getDefaultOption = (value: number, groups: NavigatorGroup[]) => {
-	const selectedGroup = groups.find(item => item.value === value) ?? groups[0];
+	const selectedGroup = groups.find((item) => item.value === value) ?? groups[0];
 	return selectedGroup?.options[0] ?? null;
 };
 
@@ -367,7 +368,7 @@ const normalizePathname = (pathname?: string | null) => {
 
 const hasRouteParamValue = (value?: string | string[]) => {
 	if (Array.isArray(value)) {
-		return value.some(item => typeof item === 'string' && item.trim().length > 0);
+		return value.some((item) => typeof item === 'string' && item.trim().length > 0);
 	}
 
 	return typeof value === 'string' && value.trim().length > 0;
@@ -380,10 +381,7 @@ const getActiveRoute = (
 	tabParam?: string | string[],
 ) => {
 	if (pathname === APP_ROUTE_PATHS.home) {
-		const groupValue = normalizeHomeTabIndex(
-			tabParam,
-			normalizeValue(defaultValue) as HomeTabIndex,
-		);
+		const groupValue = normalizeHomeTabIndex(tabParam, normalizeValue(defaultValue) as HomeTabIndex);
 
 		return {
 			groupValue,
@@ -393,7 +391,7 @@ const getActiveRoute = (
 
 	for (const group of groups) {
 		for (const option of group.options) {
-			if (option.matchPaths?.some(matchPath => normalizePathname(matchPath) === pathname)) {
+			if (option.matchPaths?.some((matchPath) => normalizePathname(matchPath) === pathname)) {
 				return {
 					groupValue: group.value,
 					optionId: option.id,
@@ -405,10 +403,7 @@ const getActiveRoute = (
 	return null;
 };
 
-export const Navigator: React.FC<NavigatorProps> = ({
-	defaultValue = 0,
-	onHardwareBack,
-}) => {
+export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwareBack }) => {
 	const { isDarkMode } = useAppTheme();
 	const { user } = useAuth();
 	const { isRouteVisible } = useRouteVisibility();
@@ -424,12 +419,8 @@ export const Navigator: React.FC<NavigatorProps> = ({
 		}
 
 		return {
-			label: hasRouteParamValue(routeParams.expenseId)
-				? 'Editar gasto obrigatório'
-				: 'Registrar gasto obrigatório',
-			icon: (hasRouteParamValue(routeParams.expenseId)
-				? 'create-outline'
-				: 'add-circle-outline') as IoniconName,
+			label: hasRouteParamValue(routeParams.expenseId) ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório',
+			icon: (hasRouteParamValue(routeParams.expenseId) ? 'create-outline' : 'add-circle-outline') as IoniconName,
 			onSelect: () => {},
 		};
 	}, [normalizedPathname, routeParams.expenseId]);
@@ -442,9 +433,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 			label: hasRouteParamValue(routeParams.gainTemplateId)
 				? 'Editar ganho obrigatório'
 				: 'Registrar ganho obrigatório',
-			icon: (hasRouteParamValue(routeParams.gainTemplateId)
-				? 'create-outline'
-				: 'add-circle-outline') as IoniconName,
+			icon: (hasRouteParamValue(routeParams.gainTemplateId) ? 'create-outline' : 'add-circle-outline') as IoniconName,
 			onSelect: () => {},
 		};
 	}, [normalizedPathname, routeParams.gainTemplateId]);
@@ -476,17 +465,15 @@ export const Navigator: React.FC<NavigatorProps> = ({
 	// Mantém o estado ativo do navigator alinhado com a rota corrente, conforme o fluxo documentado em Arquitetura/Navegação.md, Arquitetura/Gerenciamento de Bancos.md e Arquitetura/Investimentos.md.
 	const resolvedGroups = React.useMemo(
 		() =>
-			NAV_GROUPS.map(group => {
+			NAV_GROUPS.map((group) => {
 				const groupOptions =
 					group.value === HOME_TAB_INDEX.dashboard && bankMovementsOption
-						? [
-							group.options[0],
-							bankMovementsOption,
-							...group.options.slice(1),
-						].filter((option): option is NavigatorOption => Boolean(option))
+						? [group.options[0], bankMovementsOption, ...group.options.slice(1)].filter(
+								(option): option is NavigatorOption => Boolean(option),
+							)
 						: group.options;
 
-				const optionsWithCurrentState = groupOptions.map(option => {
+				const optionsWithCurrentState = groupOptions.map((option) => {
 					if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
 						return { ...option, ...mandatoryExpensesState };
 					}
@@ -505,17 +492,11 @@ export const Navigator: React.FC<NavigatorProps> = ({
 				return {
 					...group,
 					options: optionsWithCurrentState.filter(
-						option => !option.visibilityKey || isRouteVisible(option.visibilityKey),
+						(option) => !option.visibilityKey || isRouteVisible(option.visibilityKey),
 					),
 				};
 			}),
-		[
-			bankMovementsOption,
-			financialListState,
-			isRouteVisible,
-			mandatoryExpensesState,
-			mandatoryGainsState,
-		],
+		[bankMovementsOption, financialListState, isRouteVisible, mandatoryExpensesState, mandatoryGainsState],
 	);
 	const activeRoute = React.useMemo(
 		() => getActiveRoute(normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab),
@@ -533,31 +514,31 @@ export const Navigator: React.FC<NavigatorProps> = ({
 			menuSurface: 'border-transparent',
 			menuSurfaceStyle: isDarkMode
 				? {
-					backgroundColor: '#030417',
-					borderWidth: 0,
-					borderRadius: 18,
-					shadowColor: '#020617',
-					shadowOpacity: 0.42,
-					shadowRadius: 24,
-					shadowOffset: {
-						width: 0,
-						height: 18,
-					},
-					elevation: 18,
-				}
+						backgroundColor: '#030417',
+						borderWidth: 0,
+						borderRadius: 18,
+						shadowColor: '#020617',
+						shadowOpacity: 0.42,
+						shadowRadius: 24,
+						shadowOffset: {
+							width: 0,
+							height: 18,
+						},
+						elevation: 18,
+					}
 				: {
-					backgroundColor: '#FFFFFF',
-					borderWidth: 0,
-					borderRadius: 18,
-					shadowColor: '#0F172A',
-					shadowOpacity: 0.1,
-					shadowRadius: 16,
-					shadowOffset: {
-						width: 0,
-						height: 10,
+						backgroundColor: '#FFFFFF',
+						borderWidth: 0,
+						borderRadius: 18,
+						shadowColor: '#0F172A',
+						shadowOpacity: 0.1,
+						shadowRadius: 16,
+						shadowOffset: {
+							width: 0,
+							height: 10,
+						},
+						elevation: 8,
 					},
-					elevation: 8,
-				},
 			menuItem: isDarkMode
 				? 'min-w-[176px] rounded-2xl bg-transparent data-[hover=true]:bg-[#101a2c] data-[active=true]:bg-[#101a2c] data-[focus=true]:bg-[#101a2c]'
 				: 'min-w-[176px] rounded-2xl bg-transparent data-[hover=true]:bg-yellow-50 data-[active=true]:bg-yellow-50 data-[focus=true]:bg-yellow-50',
@@ -569,32 +550,35 @@ export const Navigator: React.FC<NavigatorProps> = ({
 		[isDarkMode],
 	);
 
-	const handleSelect = React.useCallback((option: NavigatorOption) => {
-		setOpenGroupValue(null);
-		if (option.id === 'logout') {
-			if (logoutInFlightRef.current) {
+	const handleSelect = React.useCallback(
+		(option: NavigatorOption) => {
+			setOpenGroupValue(null);
+			if (option.id === 'logout') {
+				if (logoutInFlightRef.current) {
+					return;
+				}
+				logoutInFlightRef.current = true;
+				void logoutUser(isDarkMode, user?.uid, user?.displayName).finally(() => {
+					logoutInFlightRef.current = false;
+				});
 				return;
 			}
-			logoutInFlightRef.current = true;
-			void logoutUser(isDarkMode, user?.uid, user?.displayName).finally(() => {
-				logoutInFlightRef.current = false;
-			});
-			return;
-		}
 
-		if (option.id === activeOptionId) {
-			return;
-		}
+			if (option.id === activeOptionId) {
+				return;
+			}
 
-		option.onSelect();
-	}, [activeOptionId, isDarkMode, user?.uid, user?.displayName]);
+			option.onSelect();
+		},
+		[activeOptionId, isDarkMode, user?.uid, user?.displayName],
+	);
 
 	const handleMenuOpen = React.useCallback((groupValue: number) => {
 		setOpenGroupValue(groupValue);
 	}, []);
 
 	const handleMenuClose = React.useCallback((groupValue: number) => {
-		setOpenGroupValue(currentValue => (currentValue === groupValue ? null : currentValue));
+		setOpenGroupValue((currentValue) => (currentValue === groupValue ? null : currentValue));
 	}, []);
 
 	React.useEffect(() => {
@@ -602,10 +586,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 			return;
 		}
 
-		const backHandler = BackHandler.addEventListener(
-			'hardwareBackPress',
-			onHardwareBack,
-		);
+		const backHandler = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
 
 		return () => {
 			backHandler.remove();
@@ -632,7 +613,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 					paddingVertical: 2,
 				}}
 			>
-				{resolvedGroups.map(group => {
+				{resolvedGroups.map((group) => {
 					const isActive = group.value === activeValue;
 
 					return (
@@ -646,7 +627,7 @@ export const Navigator: React.FC<NavigatorProps> = ({
 							closeOnSelect
 							className={palette.menuSurface}
 							style={palette.menuSurfaceStyle}
-							trigger={triggerProps => (
+							trigger={(triggerProps) => (
 								<Pressable
 									{...(triggerProps as Record<string, unknown>)}
 									hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}

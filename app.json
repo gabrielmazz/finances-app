@@ -36,7 +36,7 @@
       [
         "expo-notifications",
         {
-          "defaultChannel": "system-tests-v1-expo"
+          "defaultChannel": "payment-reminders-v1"
         }
       ],
       [

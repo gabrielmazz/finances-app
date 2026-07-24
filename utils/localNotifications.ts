@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 import {
 	Notifications,
@@ -9,36 +9,11 @@ import {
 } from '@/utils/notificationsRuntime';
 
 export type MandatoryReminderKind = 'expense' | 'gain';
-export type LocalNotificationChannelKind = MandatoryReminderKind | 'systemTest';
+export type LocalNotificationChannelKind = MandatoryReminderKind;
 
 export type LocalNotificationPermissionResult =
 	| { granted: true }
 	| { granted: false; reason: 'permissions-denied' | 'unavailable' };
-
-export type LocalNotificationTestResult =
-	| {
-			success: true;
-			notificationId: string;
-			title: string;
-			body: string;
-			scheduledFor?: Date;
-		}
-	| {
-			success: false;
-			reason: 'permissions-denied' | 'channel-disabled' | 'unavailable' | 'schedule-error';
-			message: string;
-		};
-
-export type LocalNotificationDiagnostics = {
-	supported: boolean;
-	permissionGranted: boolean;
-	canAskAgain: boolean;
-	scheduledCount: number;
-	mandatoryReminderCount: number;
-	expenseChannelEnabled: boolean | null;
-	gainChannelEnabled: boolean | null;
-	testChannelEnabled: boolean | null;
-};
 
 type LocalNotificationChannelConfig = {
 	id: string;
@@ -47,7 +22,7 @@ type LocalNotificationChannelConfig = {
 };
 
 const LEGACY_MIGRATION_STORAGE_KEY = '@lumusNotifications:legacy-cleanup-v1';
-const ANDROID_APPLICATION_ID = 'com.gabrielmazz.lumusfinances';
+const REMOVED_TEST_CHANNELS_CLEANUP_STORAGE_KEY = '@lumusNotifications:removed-test-channels-v1';
 const LEGACY_STORAGE_KEYS = [
 	'@mandatoryReminderNotifications',
 	'@mandatoryReminderNotifications:notifee-v3',
@@ -60,9 +35,8 @@ const LEGACY_ANDROID_CHANNEL_IDS = [
 	'mandatory-gains-v2',
 	'mandatory-expenses-v3-notifee',
 	'mandatory-gains-v3-notifee',
-	'system-tests-v1',
-	'system-tests-v2-notifee',
 ];
+const REMOVED_TEST_ANDROID_CHANNEL_IDS = ['system-tests-v1', 'system-tests-v2-notifee', 'system-tests-v1-expo'];
 
 const LOCAL_NOTIFICATION_CHANNELS: Record<LocalNotificationChannelKind, LocalNotificationChannelConfig> = {
 	expense: {
@@ -75,15 +49,11 @@ const LOCAL_NOTIFICATION_CHANNELS: Record<LocalNotificationChannelKind, LocalNot
 		name: 'Lembretes de recebimentos',
 		description: 'Avisos configurados para os recebimentos de ganhos obrigatórios.',
 	},
-	systemTest: {
-		id: 'system-tests-v1-expo',
-		name: 'Testes de notificações',
-		description: 'Notificações disparadas pela central de testes do Lumus Finanças.',
-	},
 };
 
 let hasRegisteredNotificationHandler = false;
 let legacyMigrationPromise: Promise<void> | null = null;
+let removedTestChannelsCleanupPromise: Promise<void> | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 
 export const isNotificationsEnvironmentSupported = () =>
@@ -92,7 +62,6 @@ const supportsAndroidNotificationChannels = () =>
 	Platform.OS === 'android' && (typeof Platform.Version !== 'number' || Platform.Version >= 26);
 
 export const getMandatoryReminderChannelConfig = (kind: MandatoryReminderKind) => LOCAL_NOTIFICATION_CHANNELS[kind];
-export const getSystemTestNotificationChannelConfig = () => LOCAL_NOTIFICATION_CHANNELS.systemTest;
 
 export const ensureLocalNotificationChannel = async (kind: LocalNotificationChannelKind) => {
 	if (!supportsAndroidNotificationChannels()) {
@@ -136,20 +105,6 @@ export const isMandatoryReminderNotificationChannelEnabled = async (kind: Mandat
 	);
 };
 
-export const isSystemTestNotificationChannelEnabled = async () => {
-	if (Platform.OS !== 'android') {
-		return true;
-	}
-	if (!supportsAndroidNotificationChannels()) {
-		return true;
-	}
-
-	await ensureSystemTestNotificationChannel();
-	return isAndroidChannelEnabled(
-		await Notifications.getNotificationChannelAsync(getSystemTestNotificationChannelConfig().id),
-	);
-};
-
 export const ensureMandatoryReminderNotificationChannels = async () => {
 	await Promise.all([
 		ensureMandatoryReminderNotificationChannel('expense'),
@@ -157,14 +112,7 @@ export const ensureMandatoryReminderNotificationChannels = async () => {
 	]);
 };
 
-export const ensureSystemTestNotificationChannel = () => ensureLocalNotificationChannel('systemTest');
-
-export const ensureLocalNotificationChannels = async () => {
-	await Promise.all([
-		ensureMandatoryReminderNotificationChannels(),
-		ensureSystemTestNotificationChannel(),
-	]);
-};
+export const ensureLocalNotificationChannels = ensureMandatoryReminderNotificationChannels;
 
 const isPermissionGranted = (status: NotificationPermissionsStatus) => status.granted === true;
 
@@ -276,175 +224,35 @@ export const ensureLegacyNotificationMigration = async () => {
 	await legacyMigrationPromise;
 };
 
-const buildTestContent = () => ({
-	title: 'Teste de notificação',
-	body: 'As notificações locais do Lumus Finanças estão funcionando neste dispositivo.',
-});
-
-const permissionFailureResult = (permission: LocalNotificationPermissionResult): LocalNotificationTestResult => ({
-	success: false,
-	reason: permission.granted ? 'schedule-error' : permission.reason,
-	message:
-		!permission.granted && permission.reason === 'unavailable'
-			? 'As notificações locais exigem um development build instalado neste ambiente.'
-			: 'As notificações do aplicativo estão desativadas para este dispositivo.',
-});
-
-export const sendLocalNotificationTest = async (): Promise<LocalNotificationTestResult> => {
-	const permission = await ensureLocalNotificationPermission();
-	if (!permission.granted) {
-		return permissionFailureResult(permission);
-	}
-
-	try {
-		await ensureLegacyNotificationMigration();
-		if (!(await isSystemTestNotificationChannelEnabled())) {
-			return {
-				success: false,
-				reason: 'channel-disabled',
-				message: 'O canal de testes está desativado nas configurações de notificações do Android.',
-			};
-		}
-		const content = buildTestContent();
-		const notificationId = await Notifications.scheduleNotificationAsync({
-			identifier: `lumus-system-test-now-${Date.now()}`,
-			content: {
-				...content,
-				sound: 'default',
-				priority: Notifications.AndroidNotificationPriority.HIGH,
-				data: { notificationSystem: 'lumus-system-test-v1', mode: 'immediate' },
-			},
-			trigger: Platform.OS === 'android' ? { channelId: getSystemTestNotificationChannelConfig().id } : null,
-		});
-
-		return { success: true, notificationId, ...content };
-	} catch (error) {
-		console.error('Erro ao disparar a notificação local de teste:', error);
-		return {
-			success: false,
-			reason: 'schedule-error',
-			message: 'Não foi possível disparar a notificação de teste neste dispositivo.',
-		};
-	}
-};
-
-export const scheduleLocalNotificationTest = async (delaySeconds = 15): Promise<LocalNotificationTestResult> => {
-	const permission = await ensureLocalNotificationPermission();
-	if (!permission.granted) {
-		return permissionFailureResult(permission);
-	}
-
-	try {
-		await ensureLegacyNotificationMigration();
-		if (!(await isSystemTestNotificationChannelEnabled())) {
-			return {
-				success: false,
-				reason: 'channel-disabled',
-				message: 'O canal de testes está desativado nas configurações de notificações do Android.',
-			};
-		}
-		const content = buildTestContent();
-		const scheduledFor = new Date(Date.now() + Math.max(5, Math.trunc(delaySeconds)) * 1000);
-		const notificationId = await Notifications.scheduleNotificationAsync({
-			identifier: `lumus-system-test-scheduled-${scheduledFor.getTime()}`,
-			content: {
-				...content,
-				body: 'Este aviso foi agendado pela central de testes. O motor de datas concretas está funcionando.',
-				sound: 'default',
-				priority: Notifications.AndroidNotificationPriority.HIGH,
-				data: { notificationSystem: 'lumus-system-test-v1', mode: 'scheduled' },
-			},
-			trigger: {
-				type: Notifications.SchedulableTriggerInputTypes.DATE,
-				date: scheduledFor,
-				...(Platform.OS === 'android' ? { channelId: getSystemTestNotificationChannelConfig().id } : {}),
-			},
-		});
-
-		return {
-			success: true,
-			notificationId,
-			title: content.title,
-			body: 'Este aviso foi agendado pela central de testes. O motor de datas concretas está funcionando.',
-			scheduledFor,
-		};
-	} catch (error) {
-		console.error('Erro ao agendar a notificação local de teste:', error);
-		return {
-			success: false,
-			reason: 'schedule-error',
-			message: 'Não foi possível criar o teste agendado neste dispositivo.',
-		};
-	}
-};
-
-export const getLocalNotificationDiagnostics = async (): Promise<LocalNotificationDiagnostics> => {
-	if (!isNotificationsEnvironmentSupported()) {
-		return {
-			supported: false,
-			permissionGranted: false,
-			canAskAgain: false,
-			scheduledCount: 0,
-			mandatoryReminderCount: 0,
-			expenseChannelEnabled: null,
-			gainChannelEnabled: null,
-			testChannelEnabled: null,
-		};
-	}
-
-	await ensureLegacyNotificationMigration();
-	await ensureLocalNotificationChannels();
-	const androidChannelsSupported = supportsAndroidNotificationChannels();
-
-	const [permission, scheduled, expenseChannel, gainChannel, testChannel] = await Promise.all([
-		Notifications.getPermissionsAsync(),
-		Notifications.getAllScheduledNotificationsAsync(),
-		androidChannelsSupported
-			? Notifications.getNotificationChannelAsync(getMandatoryReminderChannelConfig('expense').id)
-			: Promise.resolve(null),
-		androidChannelsSupported
-			? Notifications.getNotificationChannelAsync(getMandatoryReminderChannelConfig('gain').id)
-			: Promise.resolve(null),
-		androidChannelsSupported
-			? Notifications.getNotificationChannelAsync(getSystemTestNotificationChannelConfig().id)
-			: Promise.resolve(null),
-	]);
-
-	return {
-		supported: true,
-		permissionGranted: isPermissionGranted(permission),
-		canAskAgain: permission.canAskAgain,
-		scheduledCount: scheduled.length,
-		mandatoryReminderCount: scheduled.filter(
-			request => request.content.data?.notificationSystem === 'lumus-mandatory-reminders-v1',
-		).length,
-		expenseChannelEnabled: androidChannelsSupported ? isAndroidChannelEnabled(expenseChannel) : null,
-		gainChannelEnabled: androidChannelsSupported ? isAndroidChannelEnabled(gainChannel) : null,
-		testChannelEnabled: androidChannelsSupported ? isAndroidChannelEnabled(testChannel) : null,
-	};
-};
-
-export const openLocalNotificationSettings = async () => {
-	if (!isNotificationsEnvironmentSupported()) {
-		return false;
+const cleanupRemovedTestNotificationChannels = async () => {
+	if ((await AsyncStorage.getItem(REMOVED_TEST_CHANNELS_CLEANUP_STORAGE_KEY)) === 'complete') {
+		return;
 	}
 
 	if (Platform.OS === 'android') {
-		try {
-			await Linking.sendIntent('android.settings.APP_NOTIFICATION_SETTINGS', [
-				{
-					key: 'android.provider.extra.APP_PACKAGE',
-					value: ANDROID_APPLICATION_ID,
-				},
-			]);
-			return true;
-		} catch (error) {
-			console.warn('Não foi possível abrir a tela específica de notificações:', error);
-		}
+		await Promise.all(
+			REMOVED_TEST_ANDROID_CHANNEL_IDS.map(async channelId => {
+				try {
+					await Notifications.deleteNotificationChannelAsync(channelId);
+				} catch (error) {
+					console.warn(`Não foi possível remover o canal de teste descontinuado ${channelId}:`, error);
+				}
+			}),
+		);
 	}
 
-	await Linking.openSettings();
-	return true;
+	await AsyncStorage.setItem(REMOVED_TEST_CHANNELS_CLEANUP_STORAGE_KEY, 'complete');
+};
+
+const ensureRemovedTestNotificationChannelsCleanup = async () => {
+	if (!removedTestChannelsCleanupPromise) {
+		removedTestChannelsCleanupPromise = cleanupRemovedTestNotificationChannels().catch(error => {
+			removedTestChannelsCleanupPromise = null;
+			throw error;
+		});
+	}
+
+	await removedTestChannelsCleanupPromise;
 };
 
 export const bootstrapLocalNotifications = async () => {
@@ -456,6 +264,7 @@ export const bootstrapLocalNotifications = async () => {
 	if (!bootstrapPromise) {
 		bootstrapPromise = (async () => {
 			await ensureLegacyNotificationMigration();
+			await ensureRemovedTestNotificationChannelsCleanup();
 			await ensureLocalNotificationChannels();
 		})().catch(error => {
 			bootstrapPromise = null;

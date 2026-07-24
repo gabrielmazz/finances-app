@@ -13,7 +13,6 @@ import {
 	parseIsoDateAtLocalNoon,
 	parseAssistantQuestionAnswer,
 	parseMoneyToCents,
-	parseSimpleExpenseExample,
 	sanitizeAssistantInput,
 	sanitizeAssistantModelText,
 	transitionAssistantDraft,
@@ -212,32 +211,6 @@ describe('Lumus Assistant domain contracts', () => {
 
 			expect(proposals[1]?.payload.sourceBankRef).toBeUndefined();
 			expect(proposals[1]?.payload.targetBankRef).toBeUndefined();
-		});
-	});
-
-	describe('frozen July 2026 example', () => {
-		it('creates two independent drafts in cents and asks shared bank/category fields', () => {
-			const reference = new Date('2026-07-20T15:00:00.000Z');
-			const proposals = parseSimpleExpenseExample(
-				'Fui no mercado dois dias seguidos, no dia 18 deste mês eu gastei 50 reais, e no dia 19 eu gastei 150 reais',
-				reference,
-			);
-
-			expect(proposals).toHaveLength(2);
-			expect(proposals.map(item => item.payload.valueInCents)).toEqual([5_000, 15_000]);
-			expect(proposals.map(item => item.payload.date)).toEqual(['2026-07-18', '2026-07-19']);
-
-			const drafts = proposals.map(item => buildAssistantDraft(item, reference));
-			expect(drafts.every(draft => draft.status === 'needs_input')).toBe(true);
-			expect(drafts.every(draft => draft.missingFields.some(field => field.key === 'bankRef'))).toBe(true);
-			expect(drafts.every(draft => draft.missingFields.some(field => field.key === 'categoryRef'))).toBe(true);
-
-			const completed = drafts.map(draft => updateAssistantDraftPayload(draft, {
-				bankRef: 'bank_opaque',
-				categoryRef: 'category_opaque',
-			}));
-			expect(completed.map(draft => draft.status)).toEqual(['ready', 'ready']);
-			expect(completed[0]?.clientActionId).not.toBe(completed[1]?.clientActionId);
 		});
 	});
 

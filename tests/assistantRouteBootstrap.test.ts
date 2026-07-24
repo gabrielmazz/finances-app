@@ -1,4 +1,4 @@
-const ROUTES = ['@/app/lumus-assistant', '@/app/app-tests'] as const;
+const ROUTES = ['@/app/lumus-assistant'] as const;
 
 describe('rotas que usam os módulos nativos do Assistente Lumus', () => {
 	beforeEach(() => {

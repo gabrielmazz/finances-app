@@ -1,12 +1,9 @@
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import {
-	POST_SUBMIT_SCREEN_OPTIONS,
-	type PostSubmitScreenKey,
-} from '@/contexts/PostSubmitBehaviorContext';
+import { POST_SUBMIT_SCREEN_OPTIONS, type PostSubmitScreenKey } from '@/contexts/PostSubmitBehaviorContext';
 
-export type RouteVisibilityKey = PostSubmitScreenKey | 'lumusAssistant';
+export type RouteVisibilityKey = PostSubmitScreenKey | 'lumusAssistant' | 'annotations';
 
 export type RouteVisibilityByKey = Record<RouteVisibilityKey, boolean>;
 
@@ -18,15 +15,18 @@ type RouteVisibilityContextValue = {
 
 const STORAGE_KEY = '@finances/route-visibility';
 const routeVisibilityKeys: RouteVisibilityKey[] = [
-	...POST_SUBMIT_SCREEN_OPTIONS.map(item => item.key),
+	...POST_SUBMIT_SCREEN_OPTIONS.map((item) => item.key),
 	'lumusAssistant',
+	'annotations',
 ];
 
 const createDefaultRouteVisibility = (): RouteVisibilityByKey =>
 	routeVisibilityKeys.reduce(
 		(visibilityByKey, routeKey) => ({
 			...visibilityByKey,
-			[routeKey]: true,
+			// [[Visibilidade de Rotas]]: Anotações permanece oculta até ser liberada
+			// manualmente, pois a tela ainda está em desenvolvimento.
+			[routeKey]: routeKey !== 'annotations',
 		}),
 		{} as RouteVisibilityByKey,
 	);
@@ -43,10 +43,7 @@ export const normalizeRouteVisibility = (value: unknown): RouteVisibilityByKey =
 	return routeVisibilityKeys.reduce(
 		(visibilityByKey, routeKey) => ({
 			...visibilityByKey,
-			[routeKey]:
-				typeof rawVisibility[routeKey] === 'boolean'
-					? rawVisibility[routeKey]
-					: fallbackVisibility[routeKey],
+			[routeKey]: typeof rawVisibility[routeKey] === 'boolean' ? rawVisibility[routeKey] : fallbackVisibility[routeKey],
 		}),
 		{} as RouteVisibilityByKey,
 	);
@@ -104,7 +101,7 @@ export const RouteVisibilityProvider: React.FC<React.PropsWithChildren> = ({ chi
 
 	const setRouteVisibility = React.useCallback(
 		(routeKey: RouteVisibilityKey, isVisible: boolean) => {
-			setVisibilityByRoute(currentVisibility => {
+			setVisibilityByRoute((currentVisibility) => {
 				const nextVisibility = {
 					...currentVisibility,
 					[routeKey]: isVisible,
@@ -126,11 +123,7 @@ export const RouteVisibilityProvider: React.FC<React.PropsWithChildren> = ({ chi
 		[isLoadingRouteVisibility, isRouteVisible, setRouteVisibility],
 	);
 
-	return (
-		<RouteVisibilityContext.Provider value={contextValue}>
-			{children}
-		</RouteVisibilityContext.Provider>
-	);
+	return <RouteVisibilityContext.Provider value={contextValue}>{children}</RouteVisibilityContext.Provider>;
 };
 
 export const useRouteVisibility = () => {

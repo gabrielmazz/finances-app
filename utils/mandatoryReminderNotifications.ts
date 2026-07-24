@@ -1379,54 +1379,6 @@ export const refreshMandatoryReminderNotifications = async (accountId: string, f
 	});
 };
 
-export const getMandatoryReminderCapacityDiagnostics = () =>
-	runExclusive(async () => {
-		if (!isNotificationsEnvironmentSupported()) {
-			return {
-				scheduleLimit: 0,
-				nonManagedScheduleCount: 0,
-				scheduleBudget: 0,
-				desiredCount: 0,
-				plannedCount: 0,
-				limitedTemplateCount: 0,
-				unplannedTemplateCount: 0,
-			};
-		}
-
-		await ensureLegacyNotificationMigration();
-		const [store, nativeRequests] = await Promise.all([
-			readReminderStore(),
-			Notifications.getAllScheduledNotificationsAsync(),
-		]);
-		const scheduleLimit = getManagedScheduleLimit();
-		const nonManagedScheduleCount = nativeRequests.filter(request => !isManagedNotification(request)).length;
-		const scheduleBudget = Math.max(0, scheduleLimit - nonManagedScheduleCount);
-		const accountId = store.activeAccountId;
-		const plan = accountId
-			? buildGlobalOccurrencePlan(
-					store,
-					accountId,
-					new Set<MandatoryReminderKind>(['expense', 'gain']),
-					scheduleBudget,
-				)
-			: {
-					desiredCount: 0,
-					plannedCount: 0,
-					limitedTemplateCount: 0,
-					unplannedTemplateCount: 0,
-				};
-
-		return {
-			scheduleLimit,
-			nonManagedScheduleCount,
-			scheduleBudget,
-			desiredCount: plan.desiredCount,
-			plannedCount: plan.plannedCount,
-			limitedTemplateCount: plan.limitedTemplateCount,
-			unplannedTemplateCount: plan.unplannedTemplateCount,
-		};
-	});
-
 export const setActiveMandatoryReminderAccount = async (accountId: string) => {
 	const normalizedAccountId = accountId.trim();
 	if (!normalizedAccountId) {
