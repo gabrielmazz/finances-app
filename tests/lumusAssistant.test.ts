@@ -251,9 +251,34 @@ describe('Lumus Assistant domain contracts', () => {
 			[{ code: 429, message: 'quota exceeded' }, 'quota'],
 			[{ code: 503, message: 'unavailable' }, 'unavailable'],
 			[new Error('Firebase AppCheck rejected reCAPTCHA'), 'app-check'],
+			[{ code: 'ai/fetch-error', customErrorData: { status: 401 }, message: 'Unauthenticated request' }, 'configuration'],
+			[{ code: 'api-not-enabled', message: 'Firebase AI API is not enabled' }, 'configuration'],
+			[{ code: 'auth/user-token-expired', message: 'Firebase Auth token expired' }, 'authentication'],
+			[Object.assign(new Error('Usuário não autenticado.'), { name: 'AssistantAuthenticationError' }), 'authentication'],
 			[new Error('network offline'), 'network'],
 		])('maps %p to a safe user-facing error', (error, expectedCode) => {
 			expect(mapAssistantError(error).code).toBe(expectedCode);
+		});
+
+		it('does not send a user back to login for a generic Firebase AI authorization failure', () => {
+			const error = mapAssistantError({
+				code: 'ai/fetch-error',
+				message: 'Request failed while preparing authentication headers.',
+				customErrorData: { status: 401, statusText: 'Unauthorized' },
+			});
+
+			expect(error.code).toBe('configuration');
+			expect(error.message).toContain('sessão do aplicativo continua ativa');
+		});
+
+		it('keeps error mapping safe when an SDK detail cannot be serialized', () => {
+			const circular: { self?: unknown } = {};
+			circular.self = circular;
+
+			expect(() => mapAssistantError({
+				code: 'ai/fetch-error',
+				customErrorData: { errorDetails: [circular] },
+			})).not.toThrow();
 		});
 	});
 });

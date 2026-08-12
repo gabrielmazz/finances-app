@@ -633,10 +633,9 @@ export default function AddMandatoryExpensesScreen() {
 		}
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			usageType: 'expense',
+			placement: 'mandatory-expense',
 			returnAfterCreate: '1',
 			returnToRoute: APP_ROUTE_PATHS.addMandatoryExpenses,
-			isMandatoryExpense: '1',
 		});
 	}, [isAddTagButtonDisabled]);
 

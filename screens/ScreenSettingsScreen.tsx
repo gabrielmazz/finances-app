@@ -77,6 +77,7 @@ import LumusAssistantScreenIllustration from '@/assets/UnDraw/lumusAssistantScre
 import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryExpensesListScreen.svg';
 import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
 import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
+import TestsScreenIllustration from '@/assets/UnDraw/testsScreen.svg';
 import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
 
 type ScreenSettingsItem = {
@@ -100,7 +101,7 @@ type ReturnDestinationSelection = {
 };
 
 type StandaloneVisibilitySetting = {
-	key: 'lumusAssistant' | 'annotations';
+	key: 'lumusAssistant' | 'annotations' | 'appTests';
 	label: string;
 	description: string;
 	searchableText: string;
@@ -294,6 +295,13 @@ const standaloneVisibilitySettings: readonly StandaloneVisibilitySetting[] = [
 		searchableText: 'Anotações páginas locais notas listas checklist organização',
 		Illustration: AnnotationIllustration,
 		isDevelopmentOnly: true,
+	},
+	{
+		key: 'appTests',
+		label: 'Testes do aplicativo',
+		description: 'Libere a central manual de verificações somente quando precisar usá-la neste aparelho.',
+		searchableText: 'Testes aplicativo central verificações navegação segurança Firestore',
+		Illustration: TestsScreenIllustration,
 	},
 ];
 

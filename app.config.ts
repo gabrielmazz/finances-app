@@ -25,6 +25,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 	const androidGoogleServicesFile = process.env.EAS_BUILD_PLATFORM === 'ios'
 		? undefined
 		: googleServicesFile;
+	const isAndroidEasBuild =
+		['development', 'preview', 'production', 'production-apk'].includes(process.env.EAS_BUILD_PROFILE ?? '') &&
+		process.env.EAS_BUILD_PLATFORM === 'android';
+
+	// [[Firebase Config]]: qualquer build EAS Android sem esse arquivo excluiria
+	// os módulos nativos do Lumus IA e produziria um cliente aparentemente funcional.
+	if (isAndroidEasBuild && !androidGoogleServicesFile) {
+		throw new Error(
+			'O build EAS Android exige GOOGLE_SERVICES_JSON (variável de arquivo do EAS/CI) para incluir o Firebase AI do Lumus.',
+		);
+	}
 
 	return {
 		...config,

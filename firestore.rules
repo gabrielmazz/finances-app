@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function group(groupId) {
+      return get(/databases/$(database)/documents/financialGroups/$(groupId));
+    }
+
+    function isMember(groupId) {
+      return signedIn()
+        && group(groupId).data.status == 'active'
+        && group(groupId).data.members[request.auth.uid] in ['admin', 'member'];
+    }
+
+    function isAdmin(groupId) {
+      return isMember(groupId) && group(groupId).data.members[request.auth.uid] == 'admin';
+    }
+
+    function userHasCutOver() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.financialGroupId is string;
+    }
+
+    function canReadLegacy(personId) {
+      return signedIn() && !userHasCutOver() && (
+        personId == request.auth.uid ||
+        personId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.relatedIdUsers
+      );
+    }
+
+    function canCreateLegacy() {
+      return signedIn()
+        && !userHasCutOver()
+        && request.resource.data.personId == request.auth.uid;
+    }
+
+    function canMutateLegacy() {
+      return signedIn()
+        && !userHasCutOver()
+        && resource.data.personId == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (
+        userId == request.auth.uid ||
+        userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.relatedIdUsers
+      );
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && !request.resource.data.keys().hasAny([
+          'financialGroupId',
+          'financialGroupRole',
+          'financialLegacyCutoverAt'
+        ]);
+      allow update: if signedIn()
+        && userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'financialGroupId',
+          'financialGroupRole',
+          'financialLegacyCutoverAt'
+        ]);
+      allow delete: if signedIn() && userId == request.auth.uid;
+    }
+
+    match /financialGroups/{groupId} {
+      allow read: if isMember(groupId);
+      allow write: if false;
+
+      match /operations/{operationId} {
+        allow read: if isMember(groupId);
+        allow write: if false;
+      }
+
+      match /migrationRuns/{runId} {
+        allow read: if isAdmin(groupId);
+        allow write: if false;
+      }
+    }
+
+    match /financialAccounts/{accountId} {
+      allow read: if isMember(resource.data.groupId);
+      allow write: if false;
+    }
+
+    match /ledgerTransactions/{transactionId} {
+      allow read: if isMember(resource.data.groupId);
+      allow write: if false;
+    }
+
+    match /accountReconciliations/{reconciliationId} {
+      allow read: if isMember(resource.data.groupId);
+      allow write: if false;
+    }
+
+    match /financialAuditEvents/{eventId} {
+      allow read: if isAdmin(resource.data.groupId);
+      allow write: if false;
+    }
+
+    match /financialMigrationIssues/{issueId} {
+      allow read: if isAdmin(resource.data.groupId);
+      allow write: if false;
+    }
+
+    // The old collection layout remains readable for compatibility. Once a user
+    // has a group cutover, direct legacy writes are denied; the migration never
+    // changes or deletes these documents.
+    match /banks/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /expenses/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /gains/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /bankTransfers/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /cashRescues/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /monthlyBalances/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /investments/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /financeInvestments/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+  }
+}

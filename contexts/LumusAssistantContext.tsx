@@ -37,6 +37,7 @@ type LumusAssistantContextValue = {
 	availability: AssistantAiAvailability | null;
 	config: AssistantAiConfig | null;
 	isBootstrapping: boolean;
+	isRefreshingAvailability: boolean;
 	isSending: boolean;
 	consentGranted: boolean;
 	autoReadEnabled: boolean;
@@ -44,6 +45,7 @@ type LumusAssistantContextValue = {
 	revocationEpoch: number;
 	grantConsent(): Promise<void>;
 	revokeConsent(): Promise<void>;
+	refreshAvailability(): Promise<void>;
 	setAutoReadEnabled(value: boolean): void;
 	sendMessage(text: string): Promise<void>;
 	transcribeAudio(input: { base64Audio: string; mimeType: string; durationMs: number }): Promise<string>;
@@ -95,6 +97,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	const [availability, setAvailability] = React.useState<AssistantAiAvailability | null>(null);
 	const [config, setConfig] = React.useState<AssistantAiConfig | null>(null);
 	const [isBootstrapping, setIsBootstrapping] = React.useState(true);
+	const [isRefreshingAvailability, setIsRefreshingAvailability] = React.useState(false);
 	const [isSending, setIsSending] = React.useState(false);
 	const [consentGranted, setConsentGranted] = React.useState(false);
 	const [autoReadEnabled, updateAutoReadEnabled] = React.useState(false);
@@ -125,12 +128,39 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		setRevocationEpoch(value => value + 1);
 	}, []);
 
+	const refreshAvailability = React.useCallback(async () => {
+		const uid = user?.uid;
+		if (!uid || accountRef.current !== uid) return;
+		setIsRefreshingAvailability(true);
+		try {
+			const nextConfig = await assistantAiGateway.getConfig(true);
+			const nextAvailability = await assistantAiGateway.getAvailability();
+			if (accountRef.current !== uid) return;
+			setConfig(nextConfig);
+			setAvailability(nextAvailability);
+		} catch (error) {
+			if (accountRef.current !== uid) return;
+			const friendly = mapAssistantError(error);
+			setAvailability({
+				available: false,
+				platform: 'unsupported',
+				appCheckConfigured: false,
+				remoteConfigLoaded: false,
+				model: 'gemini-3.5-flash',
+				reason: friendly.message,
+			});
+		} finally {
+			if (accountRef.current === uid) setIsRefreshingAvailability(false);
+		}
+	}, [user?.uid]);
+
 	React.useEffect(() => {
 		if (!isAuthReady) return;
 		const uid = user?.uid ?? null;
 		if (accountRef.current !== uid) {
 			clearSession();
 			accountRef.current = uid;
+			setIsRefreshingAvailability(false);
 		}
 		if (!uid) {
 			setConsentGranted(false);
@@ -138,6 +168,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			setAvailability(null);
 			setConfig(null);
 			setIsBootstrapping(false);
+			setIsRefreshingAvailability(false);
 			return;
 		}
 
@@ -536,6 +567,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		availability,
 		config,
 		isBootstrapping,
+		isRefreshingAvailability,
 		isSending,
 		consentGranted,
 		autoReadEnabled,
@@ -543,6 +575,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		revocationEpoch,
 		grantConsent,
 		revokeConsent,
+		refreshAvailability,
 		setAutoReadEnabled,
 		sendMessage,
 		transcribeAudio,
@@ -559,7 +592,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	}), [
 		answerQuestion, autoReadEnabled, availability, beginConfirmation, cancelConfirmation,
 		cancelDraft, catalog, clearSession, config, consentGranted, drafts, editDraft, executeDraft,
-		grantConsent, isBootstrapping, isSending, messages, revokeConsent, revocationEpoch,
+		grantConsent, isBootstrapping, isRefreshingAvailability, isSending, messages, refreshAvailability, revokeConsent, revocationEpoch,
 		retryNotification, sendMessage, setAutoReadEnabled, speak, speakingMessageId, stopSpeaking, transcribeAudio,
 	]);
 

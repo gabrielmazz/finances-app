@@ -22,6 +22,7 @@ export const APP_ROUTE_PATHS = {
 	addFinance: '/add-finance',
 	addRescue: '/add-rescue',
 	addUserRelation: '/add-user-relation',
+	appTests: '/app-tests',
 	screenSettings: '/screen-settings',
 	registerMonthlyBalance: '/register-monthly-balance',
 	bankMovements: '/bank-movements',
@@ -50,6 +51,7 @@ export const ROUTE_VISIBILITY_PATHS: Record<RouteVisibilityKey, readonly AppRout
 	addUserRelation: [APP_ROUTE_PATHS.addUserRelation],
 	lumusAssistant: [APP_ROUTE_PATHS.lumusAssistant],
 	annotations: [APP_ROUTE_PATHS.annotations],
+	appTests: [APP_ROUTE_PATHS.appTests],
 };
 
 export const getRouteVisibilityKeyForPath = (pathname: AppRoutePath): RouteVisibilityKey | null => {

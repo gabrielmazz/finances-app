@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",
@@ -21,6 +22,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
@@ -36,6 +38,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "env": {
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCy5RN7g0rcR__TSeo-s-LVeDZs1xKpe6M",
         "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "finances-app-e8685.firebaseapp.com",
@@ -47,6 +50,12 @@
         "EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY": "6Ledn1wtAAAAACA-UYUtlbCIbsfrfEjIstLfS34R",
         "EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER": "playIntegrity"
       }
+    },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "environment": "production",
+      "android": { "buildType": "apk" }
     }
   },
   "submit": {

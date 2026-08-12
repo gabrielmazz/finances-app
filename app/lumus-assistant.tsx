@@ -1,25 +1,16 @@
 import React from 'react';
 
-import {
-	AssistantRouteBoundary,
-	AssistantRouteLoading,
-} from '@/components/uiverse/assistant-route-boundary';
-
-const LumusAssistantProvider = React.lazy(() =>
-	import('@/contexts/LumusAssistantContext').then(module => ({
-		default: module.LumusAssistantProvider,
-	})),
-);
-const LumusAssistantScreen = React.lazy(() => import('@/screens/LumusAssistantScreen'));
+import { AssistantRouteBoundary } from '@/components/uiverse/assistant-route-boundary';
+import { LumusAssistantProvider } from '@/contexts/LumusAssistantContext';
+import LumusAssistantScreen from '@/screens/LumusAssistantScreen';
 
 export default function LumusAssistantRoute() {
 	return (
 		<AssistantRouteBoundary>
-			<React.Suspense fallback={<AssistantRouteLoading />}>
-				<LumusAssistantProvider>
-					<LumusAssistantScreen />
-				</LumusAssistantProvider>
-			</React.Suspense>
+			{/* [[Assistente Lumus]]: a rota monta a tela de imediato; a disponibilidade da IA é resolvida dentro do painel. */}
+			<LumusAssistantProvider>
+				<LumusAssistantScreen />
+			</LumusAssistantProvider>
 		</AssistantRouteBoundary>
 	);
 }

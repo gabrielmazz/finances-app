@@ -31,6 +31,13 @@ import {
 	getCurrentMonthSummaryByBankFirebaseGains,
 	getBanksWithUsersByPersonFirebase,
 } from '@/functions/BankFirebase';
+import {
+	createFinancialClientActionId,
+	getFinancialLedgerAccountsFirebase,
+	getFinancialLedgerContextFirebase,
+	transferFundsFinancialLedgerFirebase,
+	type FinancialLedgerContext,
+} from '@/functions/FinancialLedgerFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
@@ -48,6 +55,7 @@ type BankOption = {
 	name: string;
 	iconKey?: string | null;
 	colorHex?: string | null;
+	currentBalanceInCents?: number | null;
 };
 type FocusableInputKey = 'rescue-value' | 'rescue-description';
 
@@ -130,6 +138,8 @@ export default function AddRescueScreen() {
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
+	const [financialLedgerContext, setFinancialLedgerContext] = React.useState<FinancialLedgerContext | null>(null);
+	const [cashAccountId, setCashAccountId] = React.useState<string | null>(null);
 	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
 	const submitLockRef = React.useRef(false);
 	const rescueValueInputRef = React.useRef<TextInput | null>(null);
@@ -229,6 +239,17 @@ export default function AddRescueScreen() {
 		if (!selectedBankId) {
 			setCurrentBankBalanceInCents(null);
 			setIsLoadingBankBalance(false);
+			return;
+		}
+
+		if (financialLedgerContext) {
+			const selectedLedgerBank = banks.find(bank => bank.id === selectedBankId);
+			setIsLoadingBankBalance(false);
+			setCurrentBankBalanceInCents(
+				typeof selectedLedgerBank?.currentBalanceInCents === 'number'
+					? selectedLedgerBank.currentBalanceInCents
+					: null,
+			);
 			return;
 		}
 
@@ -357,7 +378,7 @@ export default function AddRescueScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [selectedBankId, showScreenAlert]);
+	}, [banks, financialLedgerContext, selectedBankId, showScreenAlert]);
 
 	const hasInsufficientBalance =
 		typeof currentBankBalanceInCents === 'number' &&
@@ -374,7 +395,8 @@ export default function AddRescueScreen() {
 			return;
 		}
 
-		const shouldShowUnavailableBalanceAlert = hasUnavailableBalance || hasInsufficientBalance;
+		const shouldShowUnavailableBalanceAlert =
+			!financialLedgerContext && (hasUnavailableBalance || hasInsufficientBalance);
 
 		if (shouldShowUnavailableBalanceAlert && !previousUnavailableBalanceRef.current) {
 			showUnavailableBalanceNotification();
@@ -384,6 +406,7 @@ export default function AddRescueScreen() {
 	}, [
 		hasInsufficientBalance,
 		hasUnavailableBalance,
+		financialLedgerContext,
 		isLoadingBankBalance,
 		rescueValueInCents,
 		selectedBankId,
@@ -406,6 +429,31 @@ export default function AddRescueScreen() {
 					return;
 				}
 
+				const ledgerContext = await getFinancialLedgerContextFirebase(currentUser.uid);
+				if (ledgerContext) {
+					const ledgerAccounts = await getFinancialLedgerAccountsFirebase(ledgerContext.groupId);
+					if (!isMounted) {
+						return;
+					}
+					const cashAccount = ledgerAccounts.find(account => account.kind === 'cash') ?? null;
+					const formattedBanks = ledgerAccounts
+						.filter(account => account.kind === 'bank')
+						.map(account => ({
+							id: account.id,
+							name: account.name,
+							iconKey: account.iconKey ?? null,
+							colorHex: account.colorHex ?? null,
+							currentBalanceInCents: account.currentBalanceInCents,
+						}));
+					setFinancialLedgerContext(ledgerContext);
+					setCashAccountId(cashAccount?.id ?? null);
+					setBanks(formattedBanks);
+					if (!cashAccount) {
+						showScreenAlert('O grupo financeiro não possui uma conta Caixa configurada.', 'error');
+					}
+					return;
+				}
+
 				const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
 				if (!isMounted) {
 					return;
@@ -422,6 +470,8 @@ export default function AddRescueScreen() {
 							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 						}));
 					setBanks(formattedBanks);
+					setFinancialLedgerContext(null);
+					setCashAccountId(null);
 				} else {
 					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
 				}
@@ -442,7 +492,7 @@ export default function AddRescueScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, []);
+	}, [showScreenAlert]);
 
 	const parsedRescueDate = React.useMemo(() => parseDateFromBR(rescueDate), [rescueDate]);
 	const selectedBankLabel = React.useMemo(
@@ -454,6 +504,11 @@ export default function AddRescueScreen() {
 		[banks, selectedBankId],
 	);
 	const hasRescueValue = rescueValueInCents !== null && rescueValueInCents > 0;
+	const requiresOverdraftReason =
+		financialLedgerContext !== null &&
+		typeof currentBankBalanceInCents === 'number' &&
+		typeof rescueValueInCents === 'number' &&
+		rescueValueInCents > currentBankBalanceInCents;
 	const isBankSelectDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
 	const isRescueValueDisabled = isSubmitting || !selectedBankId;
 	const isRescueDateDisabled = isSubmitting || !selectedBankId || !hasRescueValue;
@@ -465,8 +520,8 @@ export default function AddRescueScreen() {
 		!selectedBankId ||
 		!hasRescueValue ||
 		!parsedRescueDate ||
-		hasUnavailableBalance ||
-		hasInsufficientBalance ||
+		(financialLedgerContext !== null && !cashAccountId) ||
+		(!financialLedgerContext && (hasUnavailableBalance || hasInsufficientBalance)) ||
 		isBalanceValidationUnavailable;
 
 	const handleSubmit = React.useCallback(async () => {
@@ -484,7 +539,7 @@ export default function AddRescueScreen() {
 			return;
 		}
 
-		if (typeof currentBankBalanceInCents === 'number') {
+		if (!financialLedgerContext && typeof currentBankBalanceInCents === 'number') {
 			if (currentBankBalanceInCents <= 0) {
 				showUnavailableBalanceNotification();
 				return;
@@ -495,8 +550,18 @@ export default function AddRescueScreen() {
 				return;
 			}
 		} else {
+			if (typeof currentBankBalanceInCents !== 'number') {
+				showScreenAlert(
+					'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
+					'warn',
+				);
+				return;
+			}
+		}
+
+		if (requiresOverdraftReason && !(rescueDescription && rescueDescription.trim().length >= 3)) {
 			showScreenAlert(
-				'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
+				'Informe uma justificativa de pelo menos 3 caracteres para deixar o banco negativo.',
 				'warn',
 			);
 			return;
@@ -522,18 +587,35 @@ export default function AddRescueScreen() {
 		setIsSubmitting(true);
 
 		try {
-			const result = await addCashRescueFirebase({
-				bankId: selectedBankId,
-				bankNameSnapshot: bankSnapshotName,
-				valueInCents: rescueValueInCents,
-				date: dateWithCurrentTime,
-				personId: currentUser.uid,
-				description: rescueDescription?.trim() ? rescueDescription.trim() : null,
-			});
+			if (financialLedgerContext) {
+				if (!cashAccountId) {
+					showScreenAlert('A conta Caixa do grupo não está disponível.', 'error');
+					return;
+				}
+				await transferFundsFinancialLedgerFirebase({
+					groupId: financialLedgerContext.groupId,
+					fromAccountId: selectedBankId,
+					toAccountId: cashAccountId,
+					amountInCents: rescueValueInCents,
+					effectiveAt: dateWithCurrentTime,
+					clientActionId: createFinancialClientActionId('cash_rescue'),
+					note: rescueDescription?.trim() ? rescueDescription.trim() : null,
+					overdraftReason: requiresOverdraftReason ? rescueDescription?.trim() ?? null : null,
+				});
+			} else {
+				const result = await addCashRescueFirebase({
+					bankId: selectedBankId,
+					bankNameSnapshot: bankSnapshotName,
+					valueInCents: rescueValueInCents,
+					date: dateWithCurrentTime,
+					personId: currentUser.uid,
+					description: rescueDescription?.trim() ? rescueDescription.trim() : null,
+				});
 
-			if (!result.success) {
-				showScreenAlert('Não foi possível registrar o saque. Tente novamente.', 'error');
-				return;
+				if (!result.success) {
+					showScreenAlert('Não foi possível registrar o saque. Tente novamente.', 'error');
+					return;
+				}
 			}
 
 			showSuccessfulRescueNotification();
@@ -549,6 +631,9 @@ export default function AddRescueScreen() {
 		selectedBankId,
 		rescueValueInCents,
 		currentBankBalanceInCents,
+		financialLedgerContext,
+		cashAccountId,
+		requiresOverdraftReason,
 		parsedRescueDate,
 		rescueDescription,
 		isSubmitting,
@@ -659,8 +744,9 @@ export default function AddRescueScreen() {
 											!isLoadingBankBalance &&
 											typeof currentBankBalanceInCents !== 'number' && (
 												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
-													Saldo não registrado para este mês. Registre o saldo mensal para validar o
-													saque.
+													{financialLedgerContext
+														? 'Não foi possível verificar o saldo materializado desta conta.'
+														: 'Saldo não registrado para este mês. Registre o saldo mensal para validar o saque.'}
 												</Text>
 											)}
 									</View>

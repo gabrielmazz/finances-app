@@ -20,5 +20,8 @@
         "./tailwind.config.js"
       ]
     }
-  }
+  },
+  "exclude": [
+    "backend"
+  ]
 }

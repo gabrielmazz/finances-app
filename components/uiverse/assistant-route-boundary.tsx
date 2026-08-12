@@ -1,9 +1,9 @@
 import React from 'react';
-import { ActivityIndicator, SafeAreaView, Text, View } from 'react-native';
+import { SafeAreaView, Text, View } from 'react-native';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
-const AssistantRouteStatus = ({ failed = false }: { failed?: boolean }) => {
+const AssistantRouteFailure = () => {
 	const { surfaceBackground, headingText, bodyText } = useScreenStyles();
 
 	return (
@@ -17,15 +17,12 @@ const AssistantRouteStatus = ({ failed = false }: { failed?: boolean }) => {
 					gap: 12,
 				}}
 			>
-				{failed ? null : <ActivityIndicator size="large" color="#eab308" />}
 				<Text className={`text-center text-xl font-bold ${headingText}`}>
-					{failed ? 'Este build precisa ser atualizado' : 'Carregando recursos do Lumus'}
+					Não foi possível abrir o Lumus IA
 				</Text>
-				{failed ? (
-					<Text className={`text-center text-sm leading-5 ${bodyText}`}>
-						Os módulos nativos do assistente não existem nesta instalação. Volte para a tela anterior e instale um development build novo; as demais áreas do aplicativo continuam disponíveis.
-					</Text>
-				) : null}
+				<Text className={`text-center text-sm leading-5 ${bodyText}`}>
+					Atualize ou reinstale o aplicativo e tente novamente. As demais áreas do Lumus continuam disponíveis.
+				</Text>
 			</View>
 		</SafeAreaView>
 	);
@@ -33,8 +30,7 @@ const AssistantRouteStatus = ({ failed = false }: { failed?: boolean }) => {
 
 type AssistantRouteBoundaryState = { failed: boolean };
 
-// [[Assistente Lumus]]: o Expo Router avalia arquivos de rota no bootstrap.
-// A boundary segura mantém módulos nativos novos fora da abertura da Login.
+// [[Assistente Lumus]]: recuperação de erro inesperado da tela, sem bloquear a entrada normal da rota.
 export class AssistantRouteBoundary extends React.Component<
 	React.PropsWithChildren,
 	AssistantRouteBoundaryState
@@ -46,12 +42,10 @@ export class AssistantRouteBoundary extends React.Component<
 	}
 
 	componentDidCatch(error: unknown) {
-		console.error('Não foi possível carregar os módulos nativos do Assistente Lumus:', error);
+		console.error('Não foi possível renderizar o Assistente Lumus:', error);
 	}
 
 	render() {
-		return this.state.failed ? <AssistantRouteStatus failed /> : this.props.children;
+		return this.state.failed ? <AssistantRouteFailure /> : this.props.children;
 	}
 }
-
-export const AssistantRouteLoading = () => <AssistantRouteStatus />;

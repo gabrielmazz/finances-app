@@ -504,7 +504,7 @@ export default function AddRegisterExpensesScreen() {
 		}
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			usageType: 'expense',
+			placement: 'expense',
 			returnAfterCreate: '1',
 			returnToRoute: APP_ROUTE_PATHS.addRegisterExpenses,
 		});
