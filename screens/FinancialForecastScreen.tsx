@@ -1,9 +1,11 @@
 import React from 'react';
 import {
+	Platform,
 	Pressable,
 	RefreshControl,
 	ScrollView,
 	StatusBar,
+	useWindowDimensions,
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,6 +45,7 @@ import {
 	type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import { isWebDesktopLayout } from '@/utils/webLayout';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialForecastIllustration from '../assets/UnDraw/financialForecast.svg';
@@ -119,6 +122,8 @@ const FinancialForecastSkeleton = () => (
 );
 
 export default function FinancialForecastScreen() {
+	const { width: windowWidth } = useWindowDimensions();
+	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
 	const currentUserId = auth.currentUser?.uid ?? null;
 	const [periodInMonths, setPeriodInMonths] = React.useState<FinancialForecastPeriod>(3);
@@ -303,9 +308,15 @@ export default function FinancialForecastScreen() {
 
 				<View
 					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-					style={{ marginTop: heroHeight - 64 }}
+					style={{
+						marginTop: heroHeight - 64,
+						paddingHorizontal: isDesktopWeb ? 32 : 24,
+					}}
 				>
-					<View className="flex-1 w-full">
+					<View
+						className="flex-1 w-full"
+						style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+					>
 						<ScrollView
 							className="flex-1 w-full"
 							contentContainerStyle={{ paddingBottom: 18 }}
@@ -433,9 +444,20 @@ export default function FinancialForecastScreen() {
 														: 'O cenário indica saldo negativo em algum ponto do período selecionado.'}
 												</Text>
 											</VStack>
-										</LinearGradient>
+											</LinearGradient>
 
-										<HStack className="gap-3">
+											<View
+												style={{
+													flexDirection: isDesktopWeb ? 'row' : 'column',
+													alignItems: 'stretch',
+													gap: 20,
+												}}
+											>
+												<VStack
+													className="gap-5"
+													style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
+												>
+											<HStack className="gap-3">
 											<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
 												<Text className={`${helperText} text-xs font-bold uppercase`}>Saldo hoje</Text>
 												<Text className={`mt-2 text-lg font-bold ${headingText}`}>
@@ -483,9 +505,13 @@ export default function FinancialForecastScreen() {
 													</Pressable>
 												</VStack>
 											</View>
-										) : null}
+											) : null}
+												</VStack>
 
-										<View className={`${sectionCardClassName} px-5 py-5`}>
+											<View
+												className={`${sectionCardClassName} px-5 py-5`}
+												style={isDesktopWeb ? { flex: 1.35, minWidth: 0 } : undefined}
+											>
 											<VStack className="gap-3">
 												<HStack className="items-center justify-between gap-3">
 													<HStack className="items-center gap-2">
@@ -505,9 +531,10 @@ export default function FinancialForecastScreen() {
 													/>
 												</View>
 											</VStack>
-										</View>
+											</View>
+											</View>
 
-										<VStack className="gap-3">
+											<VStack className="gap-3">
 											<HStack className="items-center gap-2 px-1">
 												<CalendarClock size={18} color={palette.warning} />
 												<Heading size="sm" className={headingText}>

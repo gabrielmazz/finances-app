@@ -388,7 +388,7 @@ export default function AddMandatoryGainsScreen() {
 				title: 'Lembrete indisponível',
 				description:
 					permissionResult.reason === 'unavailable'
-						? 'Os lembretes locais não estão disponíveis neste ambiente.'
+						? 'Lembretes agendados estão disponíveis somente na versão instalada do aplicativo Android ou iOS.'
 						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
 				type: 'warn',
 				isDarkMode,

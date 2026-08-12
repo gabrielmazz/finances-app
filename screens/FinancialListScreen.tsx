@@ -1,5 +1,14 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	RefreshControl,
+	ScrollView,
+	StatusBar,
+	TouchableOpacity,
+	useWindowDimensions,
+	View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -111,6 +120,7 @@ import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
+import { isWebDesktopLayout } from '@/utils/webLayout';
 
 type FinanceInvestment = {
 	id: string;
@@ -436,6 +446,8 @@ function FinancialListSkeleton({
 }
 
 export default function FinancialListScreen() {
+	const { width: windowWidth } = useWindowDimensions();
+	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -1506,7 +1518,10 @@ export default function FinancialListScreen() {
 					<ScrollView
 						keyboardShouldPersistTaps="handled"
 						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-						style={{ marginTop: heroHeight - 64 }}
+						style={{
+							marginTop: heroHeight - 64,
+							paddingHorizontal: isDesktopWeb ? 32 : 24,
+						}}
 						contentContainerStyle={{ paddingBottom: 48 }}
 						refreshControl={
 							<RefreshControl
@@ -1516,31 +1531,34 @@ export default function FinancialListScreen() {
 							/>
 						}
 					>
-						<VStack className="mt-4 gap-4">
+						<VStack
+							className="mt-4 gap-4"
+							style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+						>
 							<Heading
 								className="text-lg uppercase tracking-widest "
 								size="lg"
 							>
 								Visão da carteira
 							</Heading>
-							{isInitialLoading ? (
-								<VStack className="gap-4">
-									<View className="flex-row flex-wrap gap-3">
-										{Array.from({ length: 3 }).map((_, index) => (
-											<Skeleton
-												key={`financial-list-summary-${index}`}
-												className="h-24 min-w-[145px] flex-1 rounded-2xl"
-												baseColor={skeletonMutedBaseColor}
-												highlightColor={skeletonMutedHighlightColor}
-											/>
-										))}
-									</View>
-									<Skeleton
-										className="h-16 rounded-[24px]"
-										baseColor={skeletonMutedBaseColor}
-										highlightColor={skeletonMutedHighlightColor}
-									/>
-								</VStack>
+								{isInitialLoading ? (
+									<VStack className="gap-4">
+										<View className="flex-row flex-wrap gap-3">
+											{Array.from({ length: 3 }).map((_, index) => (
+												<Skeleton
+													key={`financial-list-summary-${index}`}
+													className="h-24 min-w-[145px] flex-1 rounded-2xl"
+													baseColor={skeletonMutedBaseColor}
+													highlightColor={skeletonMutedHighlightColor}
+												/>
+											))}
+										</View>
+										<Skeleton
+											className="h-16 rounded-[24px]"
+											baseColor={skeletonMutedBaseColor}
+											highlightColor={skeletonMutedHighlightColor}
+										/>
+									</VStack>
 							) : (
 								<VStack className="gap-4">
 									<Box className={`${topSummaryCardClassName} px-4 py-4`}>
@@ -1584,7 +1602,18 @@ export default function FinancialListScreen() {
 										</Box>
 									) : null}
 
-									<View className="flex-row flex-wrap gap-3">
+									<View
+										style={{
+											flexDirection: isDesktopWeb ? 'row' : 'column',
+											alignItems: 'stretch',
+											gap: 16,
+										}}
+									>
+										<VStack
+											className="gap-4"
+											style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
+										>
+											<View className="flex-row flex-wrap gap-3">
 										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
 											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
 												Patrimônio estimado
@@ -1623,9 +1652,9 @@ export default function FinancialListScreen() {
 												{formatCurrencyInCents(portfolioAnalytics.dailyYieldInCents)}
 											</Text>
 										</Box>
-									</View>
+											</View>
 
-									<VStack className="gap-2">
+											<VStack className="gap-2">
 										<Text className={`${bodyText} text-sm font-semibold`}>
 											Rentabilidade por período
 										</Text>
@@ -1650,10 +1679,14 @@ export default function FinancialListScreen() {
 												</TabsList>
 											</Tabs>
 										</Box>
-									</VStack>
+											</VStack>
+										</VStack>
 
-									{investments.length > 0 ? (
-										<Box className={`${notTintedCardClassName} px-4 py-4`}>
+										{investments.length > 0 ? (
+											<Box
+												className={`${notTintedCardClassName} px-4 py-4`}
+												style={isDesktopWeb ? { flex: 1.2, minWidth: 0 } : undefined}
+											>
 											<VStack className="gap-1">
 												<HStack className="items-center gap-2">
 													<Icon
@@ -1675,8 +1708,9 @@ export default function FinancialListScreen() {
 													dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
 												/>
 											</View>
-										</Box>
-									) : null}
+											</Box>
+										) : null}
+									</View>
 								</VStack>
 							)}
 

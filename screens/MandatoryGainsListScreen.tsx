@@ -1,8 +1,6 @@
 import React from 'react';
 import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
@@ -74,7 +72,8 @@ import {
 	type MandatoryPeriodSummaryPdfItem,
 	type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
-import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
+import { buildPdfFileName } from '@/utils/pdfFileName';
+import { exportHtmlReport } from '@/utils/reportExport';
 
 type MandatoryGainItem = DateCalendarItem & {
 	usesBusinessDays?: boolean;
@@ -843,27 +842,32 @@ export default function MandatoryGainsListScreen() {
 		setIsExportingPdf(true);
 		try {
 			// Exporta o resumo mensal seguindo [[Receitas Fixas]] e [[Privacidade de Valores]].
-			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
 			const pdfFileName = buildPdfFileName(['Receitas Fixas', referenceMonthLabel]);
-			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
-			const canShare = await Sharing.isAvailableAsync();
+			const exportResult = await exportHtmlReport({
+				html: pdfHtml,
+				fileName: pdfFileName,
+				dialogTitle: 'Baixar resumo de ganhos obrigatórios',
+			});
 
-			if (!canShare) {
-				await Print.printAsync({ html: pdfHtml });
+			if (exportResult.status === 'popup-blocked') {
 				showNotifierAlert({
-					title: 'Resumo pronto',
-					description: 'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
-					type: 'info',
+					title: 'Permita pop-ups',
+					description: 'O navegador bloqueou a nova aba do relatório. Permita pop-ups para este site e tente novamente.',
+					type: 'error',
 					isDarkMode,
 				});
 				return;
 			}
 
-			await Sharing.shareAsync(namedPdfUri, {
-				dialogTitle: 'Baixar resumo de ganhos obrigatórios',
-				mimeType: 'application/pdf',
-				UTI: 'com.adobe.pdf',
-			});
+			if (exportResult.status === 'printed') {
+				showNotifierAlert({
+					title: 'Resumo pronto',
+					description: 'O resumo foi aberto para impressão. Use a opção de salvar como PDF.',
+					type: 'info',
+					isDarkMode,
+				});
+				return;
+			}
 
 			showNotifierAlert({
 				title: 'PDF pronto',

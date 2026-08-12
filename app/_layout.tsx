@@ -20,6 +20,7 @@ import {
 	type AppRoutePath,
 } from '@/utils/navigation';
 import Loader from '@/components/uiverse/loader';
+import WebAppShell from '@/components/uiverse/web-app-shell';
 import '@/global.css';
 
 void bootstrapLocalNotifications();
@@ -95,25 +96,27 @@ const AuthenticatedStack = () => {
 	}
 
 	return (
-		<Stack screenOptions={{ headerShown: false }}>
-			<Stack.Protected guard={!isAuthenticated}>
-				<Stack.Screen name="index" />
-			</Stack.Protected>
+		<WebAppShell isAuthenticated={isAuthenticated}>
+			<Stack screenOptions={{ headerShown: false }}>
+				<Stack.Protected guard={!isAuthenticated}>
+					<Stack.Screen name="index" />
+				</Stack.Protected>
 
-			{AUTHENTICATED_ROUTE_NAMES.map(routeName => {
-				const pathname = `/${routeName}` as AppRoutePath;
-				const routeVisibilityKey = getRouteVisibilityKeyForPath(pathname);
+				{AUTHENTICATED_ROUTE_NAMES.map(routeName => {
+					const pathname = `/${routeName}` as AppRoutePath;
+					const routeVisibilityKey = getRouteVisibilityKeyForPath(pathname);
 
-				return (
-					<Stack.Protected
-						key={routeName}
-						guard={isAuthenticated && (!routeVisibilityKey || isRouteVisible(routeVisibilityKey))}
-					>
-						<Stack.Screen name={routeName} />
-					</Stack.Protected>
-				);
-			})}
-		</Stack>
+					return (
+						<Stack.Protected
+							key={routeName}
+							guard={isAuthenticated && (!routeVisibilityKey || isRouteVisible(routeVisibilityKey))}
+						>
+							<Stack.Screen name={routeName} />
+						</Stack.Protected>
+					);
+				})}
+			</Stack>
+		</WebAppShell>
 	);
 };
 
