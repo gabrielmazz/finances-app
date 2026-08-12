@@ -20,6 +20,7 @@ import {
 	TRANSCRIPTION_INSTRUCTION,
 	buildReportNarrationInstruction,
 } from '@/services/lumusAssistant/assistantPrompt';
+import { canObtainAssistantAppCheckToken } from '@/utils/lumusAssistantAppCheck';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
 import type { FirebaseAppCheckTypes } from '@react-native-firebase/app-check';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
@@ -187,12 +188,20 @@ const toPlatformResponse = (result: { response: { text(): string; functionCalls(
 const createAuthFacade = () =>
 	createAssistantAuthTokenBridge(() => auth.currentUser) as unknown as FirebaseAuthTypes.Module;
 
+const assertAuthenticatedAssistantUser = () => {
+	if (auth.currentUser) return;
+	const error = new Error('Usuário não autenticado.');
+	error.name = 'AssistantAuthenticationError';
+	throw error;
+};
+
 const adapter: AssistantPlatformAdapter = {
 	getConfig: readRemoteConfig,
 	async getAvailability(): Promise<AssistantAiAvailability> {
 		const platformSupported = Platform.OS === 'android';
 		const isExpoGo = platformSupported && isExpoGoAssistantRuntime();
 		let nativeConfigured = false;
+		let appCheckConfigured = false;
 		if (platformSupported && !isExpoGo) {
 			try {
 				await getConfiguredNativeApp();
@@ -200,12 +209,20 @@ const adapter: AssistantPlatformAdapter = {
 			} catch {
 				nativeConfigured = false;
 			}
+			if (nativeConfigured) {
+				try {
+					const appCheck = await ensureNativeAppCheck();
+					appCheckConfigured = await canObtainAssistantAppCheckToken(appCheck);
+				} catch {
+					appCheckConfigured = false;
+				}
+			}
 		}
 		const config = await readRemoteConfig();
 		return {
-			available: Boolean(platformSupported && nativeConfigured && auth.currentUser && config.enabled),
+			available: Boolean(platformSupported && nativeConfigured && appCheckConfigured && auth.currentUser && config.enabled),
 			platform: platformSupported ? 'android' : 'unsupported',
-			appCheckConfigured: nativeConfigured,
+			appCheckConfigured,
 			remoteConfigLoaded,
 			model: config.model,
 			reason: !platformSupported
@@ -214,6 +231,8 @@ const adapter: AssistantPlatformAdapter = {
 					? 'O Lumus IA no Android exige um development build. O restante do aplicativo pode ser testado no Expo Go.'
 				: !nativeConfigured
 					? 'Forneça google-services.json e gere um development build.'
+					: !appCheckConfigured
+						? 'Não foi possível obter um token do Firebase App Check. Verifique o provider e gere uma nova build se a configuração nativa mudou.'
 					: !auth.currentUser
 						? 'Entre na sua conta para usar o Lumus IA.'
 						: !config.enabled
@@ -222,12 +241,10 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async createChat(input) {
+		assertAuthenticatedAssistantUser();
 		const app = await getConfiguredNativeApp();
 		const appCheck = await ensureNativeAppCheck();
 		const { ai: nativeAi } = await loadNativeFirebaseModules();
-		if (!auth.currentUser) {
-			throw new Error('Usuário não autenticado.');
-		}
 		const ai = nativeAi.getAI(app, {
 			backend: new nativeAi.GoogleAIBackend(),
 			appCheck,
@@ -255,12 +272,10 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async transcribe(request: AssistantTranscriptionRequest) {
+		assertAuthenticatedAssistantUser();
 		const app = await getConfiguredNativeApp();
 		const appCheck = await ensureNativeAppCheck();
 		const { ai: nativeAi } = await loadNativeFirebaseModules();
-		if (!auth.currentUser) {
-			throw new Error('Usuário não autenticado.');
-		}
 		const estimatedBytes = Math.floor((request.base64Audio.length * 3) / 4);
 		if (estimatedBytes > 20 * 1024 * 1024 || request.durationMs > 60_500) {
 			throw new Error('O áudio excede o limite de 60 segundos ou 20 MB.');
@@ -284,12 +299,10 @@ const adapter: AssistantPlatformAdapter = {
 		return parsed.transcript;
 	},
 	async narrateReport(request: AssistantReportNarrationRequest) {
+		assertAuthenticatedAssistantUser();
 		const app = await getConfiguredNativeApp();
 		const appCheck = await ensureNativeAppCheck();
 		const { ai: nativeAi } = await loadNativeFirebaseModules();
-		if (!auth.currentUser) {
-			throw new Error('Usuário não autenticado.');
-		}
 		const ai = nativeAi.getAI(app, { backend: new nativeAi.GoogleAIBackend(), appCheck, auth: createAuthFacade() });
 		const model = nativeAi.getGenerativeModel(ai, {
 			model: request.config.model,

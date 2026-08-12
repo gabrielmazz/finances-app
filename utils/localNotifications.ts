@@ -15,6 +15,14 @@ export type LocalNotificationPermissionResult =
 	| { granted: true }
 	| { granted: false; reason: 'permissions-denied' | 'unavailable' };
 
+export type LocalNotificationTestResult =
+	| { success: true; notificationId: string }
+	| {
+			success: false;
+			reason: 'permissions-denied' | 'unavailable' | 'channel-disabled' | 'schedule-error';
+			message: string;
+		};
+
 type LocalNotificationChannelConfig = {
 	id: string;
 	name: string;
@@ -165,6 +173,63 @@ export const ensureLocalNotificationPermission = async ({
 	} catch (error) {
 		console.error('Erro ao verificar a permissão de notificações:', error);
 		return { granted: false, reason: 'permissions-denied' };
+	}
+};
+
+/**
+ * Dispara uma notificação local imediata para validação manual da instalação.
+ * Não cria canal próprio, não altera os lembretes agendados e não persiste dados.
+ */
+export const sendLocalNotificationTest = async (): Promise<LocalNotificationTestResult> => {
+	const permission = await ensureLocalNotificationPermission();
+	if (!permission.granted) {
+		return {
+			success: false,
+			reason: permission.reason,
+			message:
+				permission.reason === 'unavailable'
+					? 'Notificações locais não estão disponíveis neste ambiente. Use uma development build ou a versão instalada.'
+					: 'Permita as notificações do Lumus nas configurações do aparelho e tente novamente.',
+		};
+	}
+
+	try {
+		const kind: MandatoryReminderKind = 'expense';
+		if (!(await isMandatoryReminderNotificationChannelEnabled(kind))) {
+			return {
+				success: false,
+				reason: 'channel-disabled',
+				message: 'O canal de lembretes de pagamentos está desativado nas configurações de notificações do Android.',
+			};
+		}
+
+		const notificationId = await Notifications.scheduleNotificationAsync({
+			identifier: `lumus-app-test-${Date.now()}`,
+			content: {
+				title: 'Teste de notificação',
+				body: 'As notificações locais do Lumus estão funcionando neste aparelho.',
+				sound: 'default',
+				priority: Notifications.AndroidNotificationPriority.HIGH,
+				autoDismiss: true,
+				data: {
+					notificationSystem: 'lumus-app-tests-v1',
+					mode: 'immediate',
+				},
+			},
+			trigger:
+				Platform.OS === 'android'
+					? { channelId: getMandatoryReminderChannelConfig(kind).id }
+					: null,
+		});
+
+		return { success: true, notificationId };
+	} catch (error) {
+		console.error('Erro ao disparar a notificação local de teste:', error);
+		return {
+			success: false,
+			reason: 'schedule-error',
+			message: 'Não foi possível disparar a notificação local. Tente novamente após verificar as permissões do aparelho.',
+		};
 	}
 };
 

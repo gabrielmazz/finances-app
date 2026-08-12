@@ -613,10 +613,9 @@ export default function AddMandatoryGainsScreen() {
 		}
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			usageType: 'gain',
+			placement: 'mandatory-gain',
 			returnAfterCreate: '1',
 			returnToRoute: APP_ROUTE_PATHS.addMandatoryGains,
-			isMandatoryGain: '1',
 		});
 	}, [isAddTagButtonDisabled]);
 

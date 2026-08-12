@@ -1,34 +1,40 @@
-const ROUTES = ['@/app/lumus-assistant'] as const;
-
-describe('rotas que usam os módulos nativos do Assistente Lumus', () => {
+describe('rota do Assistente Lumus', () => {
 	beforeEach(() => {
 		jest.resetModules();
 	});
 
 	afterEach(() => {
-		jest.dontMock('expo-audio');
-		jest.dontMock('expo-speech');
 		jest.dontMock('react-native-css-interop/jsx-runtime');
 		jest.dontMock('@/components/uiverse/assistant-route-boundary');
+		jest.dontMock('@/contexts/LumusAssistantContext');
+		jest.dontMock('@/screens/LumusAssistantScreen');
 	});
 
-	it.each(ROUTES)('não avalia áudio ou voz durante o bootstrap de %s', route => {
-		let nativeModuleEvaluations = 0;
-		const unavailableNativeModule = () => {
-			nativeModuleEvaluations += 1;
-			throw new Error('Módulo nativo ausente neste development build.');
-		};
+	it('monta provider e tela diretamente, sem Suspense na entrada da rota', () => {
+		const AssistantRouteBoundary = ({ children }: { children: unknown }) => children;
+		const LumusAssistantProvider = ({ children }: { children: unknown }) => children;
+		const LumusAssistantScreen = () => null;
 
-		jest.doMock('expo-audio', unavailableNativeModule);
-		jest.doMock('expo-speech', unavailableNativeModule);
 		jest.doMock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
 		jest.doMock('@/components/uiverse/assistant-route-boundary', () => ({
 			__esModule: true,
-			AssistantRouteBoundary: ({ children }: { children: unknown }) => children,
-			AssistantRouteLoading: () => null,
+			AssistantRouteBoundary,
+		}));
+		jest.doMock('@/contexts/LumusAssistantContext', () => ({
+			__esModule: true,
+			LumusAssistantProvider,
+		}));
+		jest.doMock('@/screens/LumusAssistantScreen', () => ({
+			__esModule: true,
+			default: LumusAssistantScreen,
 		}));
 
-		expect(() => require(route)).not.toThrow();
-		expect(nativeModuleEvaluations).toBe(0);
+		const LumusAssistantRoute = require('@/app/lumus-assistant').default;
+		const routeElement = LumusAssistantRoute();
+		const providerElement = routeElement.props.children;
+
+		expect(routeElement.type).toBe(AssistantRouteBoundary);
+		expect(providerElement.type).toBe(LumusAssistantProvider);
+		expect(providerElement.props.children.type).toBe(LumusAssistantScreen);
 	});
 });

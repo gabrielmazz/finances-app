@@ -2,8 +2,19 @@
 // registradas para uso no aplicativo.
 
 import { db } from '@/FirebaseConfig';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import {
+	collection,
+	deleteDoc,
+	doc,
+	getCountFromServer,
+	getDoc,
+	getDocs,
+	query,
+	setDoc,
+	where,
+} from 'firebase/firestore';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { createTagReferenceSummary } from '@/utils/categoryReferenceSummary';
 import type { TagUsageType } from '@/utils/tagUsage';
 
 interface AddTagParams {
@@ -29,6 +40,8 @@ interface UpdateTagParams {
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
 }
+
+export type { TagReferenceSummary } from '@/utils/categoryReferenceSummary';
 
 // =========================================== Funções de Registro ================================================== //
 
@@ -148,6 +161,33 @@ export async function deleteTagFirebase(tagId: string) {
 		return { success: true };
 	} catch (error) {
 		console.error('Erro ao deletar tag:', error);
+		return { success: false, error };
+	}
+}
+
+export async function getTagReferenceSummary(tagId: string) {
+	try {
+		const collections = ['expenses', 'gains', 'mandatoryExpenses', 'mandatoryGains'] as const;
+		const counts = await Promise.all(
+			collections.map(async collectionName => {
+				const result = await getCountFromServer(
+					query(collection(db, collectionName), where('tagId', '==', tagId)),
+				);
+				return result.data().count;
+			}),
+		);
+
+		const [expenses, gains, mandatoryExpenses, mandatoryGains] = counts;
+		const summary = createTagReferenceSummary({
+			expenses,
+			gains,
+			mandatoryExpenses,
+			mandatoryGains,
+		});
+
+		return { success: true, data: summary };
+	} catch (error) {
+		console.error('Erro ao verificar usos da categoria:', error);
 		return { success: false, error };
 	}
 }

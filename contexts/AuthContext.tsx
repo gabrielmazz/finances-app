@@ -2,6 +2,7 @@ import React from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 
 import { auth } from '@/FirebaseConfig';
+import { isTerminalFirebaseSessionError } from '@/utils/authSession';
 
 type AuthContextValue = {
   user: User | null;
@@ -31,7 +32,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         await candidate.reload();
       } catch (error) {
-        console.warn('Erro ao atualizar sessão autenticada:', error);
+        if (isTerminalFirebaseSessionError(error)) {
+          console.warn('A sessão autenticada não é mais válida; encerrando-a localmente.', error);
+          if (auth.currentUser?.uid === candidate.uid) {
+            await auth.signOut().catch(signOutError => {
+              console.warn('Não foi possível limpar a sessão inválida no Firebase:', signOutError);
+            });
+          }
+          if (isMounted && resolutionVersion === authResolutionVersion) {
+            setUser(null);
+            setIsAuthReady(true);
+          }
+          return;
+        }
+        console.warn('Não foi possível atualizar a sessão autenticada; mantendo-a até uma resposta definitiva do Firebase.', error);
       }
 
       if (!isMounted || resolutionVersion !== authResolutionVersion) {
@@ -44,6 +58,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setIsAuthReady(true);
     };
 
+    // `reload()` notifica observadores de token; usar onIdTokenChanged aqui criaria
+    // uma nova validação em cadeia. onAuthStateChanged só reinicia para troca real de usuário.
     const unsubscribe = onAuthStateChanged(
       auth,
       nextUser => {

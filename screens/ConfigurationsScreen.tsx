@@ -48,6 +48,7 @@ import { auth } from '@/FirebaseConfig';
 // Componentes do Uiverse
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import CategoryAvailabilitySelector from '@/components/uiverse/category-availability-selector';
 import TagActionsheetSelector from '@/components/uiverse/tag-actionsheet-selector';
 import type { TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
 
@@ -60,7 +61,12 @@ import {
 	deleteUserRelationFirebase,
 } from '@/functions/RegisterUserFirebase';
 import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
-import { deleteTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
+import {
+	deleteTagFirebase,
+	getAllTagsFirebase,
+	getTagReferenceSummary,
+	type TagReferenceSummary,
+} from '@/functions/TagFirebase';
 import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
@@ -75,12 +81,18 @@ import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
-	getTagUsageTypeLabel,
 	isTagVisibleInMandatoryUsageList,
 	isTagVisibleInRegularUsageList,
 	normalizeTagUsageType,
 	type TagUsageType,
 } from '@/utils/tagUsage';
+import {
+	getCategoryAvailabilitySummary,
+	isCategoryAvailabilityPreset,
+	type CategoryAvailabilityFields,
+	type CategoryAvailabilityPreset,
+} from '@/utils/categoryAvailability';
+import { hasTagReferences } from '@/utils/categoryReferenceSummary';
 import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/navigation';
 
 // Importação do SVG
@@ -224,20 +236,8 @@ type PendingAction =
 		payload: { tagId: string; tagName: string };
 	}
 	| {
-		type: 'edit-tag';
-		payload: {
-			tag: {
-				id: string;
-				name: string;
-				usageType?: TagUsageType;
-				isMandatoryExpense?: boolean;
-				isMandatoryGain?: boolean;
-				showInBothLists?: boolean;
-				iconFamily?: TagIconFamily | null;
-				iconName?: string | null;
-				iconStyle?: TagIconStyle | null;
-			};
-		};
+		type: 'tag-in-use';
+		payload: { tagName: string; references: TagReferenceSummary };
 	};
 
 type TablePaginationKey = 'users' | 'banks' | 'tags' | 'relatedUsers';
@@ -256,6 +256,17 @@ type PaginatedTableResult<T> = {
 // Limite por página segue a convenção documentada em [[Configurações]].
 const CONFIGURATIONS_TABLE_PAGE_SIZE = 5;
 const CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE = 82;
+
+const getTagReferenceMessage = (references: TagReferenceSummary) => {
+	const items = [
+		references.expenses ? `${references.expenses} despesa(s)` : null,
+		references.gains ? `${references.gains} ganho(s)` : null,
+		references.mandatoryExpenses ? `${references.mandatoryExpenses} despesa(s) recorrente(s)` : null,
+		references.mandatoryGains ? `${references.mandatoryGains} ganho(s) recorrente(s)` : null,
+	].filter((item): item is string => Boolean(item));
+
+	return items.join(', ');
+};
 
 function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTableResult<T> {
 	const totalItems = items.length;
@@ -996,26 +1007,26 @@ export default function ConfigurationsScreen() {
 	const [tagFilter, setTagFilter] = React.useState<CategoryFilterValue>('all');
 	const tagFilterLabels: Record<CategoryFilterValue, string> = {
 		all: 'Todas',
-		expense: 'Despesas',
-		'mandatory-expense': 'Despesas obrigatórias',
-		gain: 'Ganhos',
-		'mandatory-gain': 'Ganhos obrigatórios',
+		expense: 'Despesas do dia a dia',
+		'mandatory-expense': 'Despesas recorrentes',
+		gain: 'Ganhos do dia a dia',
+		'mandatory-gain': 'Ganhos recorrentes',
 	};
 	const tagFilterOptions = React.useMemo(
 		(): TagActionsheetOption[] =>
 			[
 				{ id: 'all' satisfies CategoryFilterValue, name: 'Todas', description: 'Exibe todas as categorias cadastradas.' },
-				{ id: 'expense' satisfies CategoryFilterValue, name: 'Despesas', description: 'Categorias disponíveis em despesas comuns.' },
+				{ id: 'expense' satisfies CategoryFilterValue, name: 'Despesas do dia a dia', description: 'Categorias disponíveis em despesas comuns.' },
 				{
 					id: 'mandatory-expense' satisfies CategoryFilterValue,
-					name: 'Despesas obrigatórias',
-					description: 'Categorias marcadas para despesas fixas.',
+					name: 'Despesas recorrentes',
+					description: 'Categorias disponíveis em despesas recorrentes.',
 				},
-				{ id: 'gain' satisfies CategoryFilterValue, name: 'Ganhos', description: 'Categorias disponíveis em ganhos comuns.' },
+				{ id: 'gain' satisfies CategoryFilterValue, name: 'Ganhos do dia a dia', description: 'Categorias disponíveis em ganhos comuns.' },
 				{
 					id: 'mandatory-gain' satisfies CategoryFilterValue,
-					name: 'Ganhos obrigatórios',
-					description: 'Categorias marcadas para receitas fixas.',
+					name: 'Ganhos recorrentes',
+					description: 'Categorias disponíveis em ganhos recorrentes.',
 				},
 			],
 		[],
@@ -1027,6 +1038,8 @@ export default function ConfigurationsScreen() {
 	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
+	const [isCheckingTagUsageId, setIsCheckingTagUsageId] = React.useState<string | null>(null);
+	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
 	const [isCopyingUserId, setIsCopyingUserId] = React.useState(false);
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
 		users: 1,
@@ -1303,6 +1316,25 @@ export default function ConfigurationsScreen() {
 
 	const handleTagRemoval = React.useCallback(
 		async (tagId: string, tagName: string) => {
+			const referencesResult = await getTagReferenceSummary(tagId);
+			if (!referencesResult.success || !referencesResult.data) {
+				showConfigurationAlert({
+					title: 'Não foi possível verificar a categoria',
+					description: 'A categoria não foi excluída para preservar seus lançamentos.',
+					type: 'error',
+				});
+				return;
+			}
+
+			if (hasTagReferences(referencesResult.data)) {
+				showConfigurationAlert({
+					title: 'Categoria ainda está em uso',
+					description: `Reclassifique ${getTagReferenceMessage(referencesResult.data)} antes de excluir esta categoria.`,
+					type: 'warn',
+				});
+				return;
+			}
+
 			const result = await handleDeleteTag(tagId);
 
 			if (result.success) {
@@ -1321,6 +1353,40 @@ export default function ConfigurationsScreen() {
 			}
 		},
 		[setTagData, showConfigurationAlert],
+	);
+
+	const handleRequestTagRemoval = React.useCallback(
+		async (tagId: string, tagName: string) => {
+			if (!tagId || isCheckingTagUsageId) {
+				return;
+			}
+
+			setIsCheckingTagUsageId(tagId);
+			try {
+				const result = await getTagReferenceSummary(tagId);
+				if (!result.success || !result.data) {
+					showConfigurationAlert({
+						title: 'Não foi possível verificar a categoria',
+						description: 'Tente novamente antes de excluir.',
+						type: 'error',
+					});
+					return;
+				}
+
+				if (hasTagReferences(result.data)) {
+					setPendingAction({
+						type: 'tag-in-use',
+						payload: { tagName, references: result.data },
+					});
+					return;
+				}
+
+				setPendingAction({ type: 'delete-tag', payload: { tagId, tagName } });
+			} finally {
+				setIsCheckingTagUsageId(null);
+			}
+		},
+		[isCheckingTagUsageId, showConfigurationAlert],
 	);
 
 	const handleRelatedUserRemoval = React.useCallback(
@@ -1363,35 +1429,7 @@ export default function ConfigurationsScreen() {
 			return;
 		}
 
-		if (pendingAction.type === 'edit-tag') {
-			const encodedName = encodeURIComponent(pendingAction.payload.tag.name ?? '');
-			const encodedUsage = pendingAction.payload.tag.usageType
-				? encodeURIComponent(pendingAction.payload.tag.usageType)
-				: undefined;
-			const encodedIconFamily = pendingAction.payload.tag.iconFamily
-				? encodeURIComponent(pendingAction.payload.tag.iconFamily)
-				: undefined;
-			const encodedIconName = pendingAction.payload.tag.iconName
-				? encodeURIComponent(pendingAction.payload.tag.iconName)
-				: undefined;
-			const encodedIconStyle = pendingAction.payload.tag.iconStyle
-				? encodeURIComponent(pendingAction.payload.tag.iconStyle)
-				: undefined;
-			const mandatoryExpenseFlag = pendingAction.payload.tag.isMandatoryExpense ? 'true' : 'false';
-			const mandatoryGainFlag = pendingAction.payload.tag.isMandatoryGain ? 'true' : 'false';
-			const showInBothListsFlag = pendingAction.payload.tag.showInBothLists ? 'true' : 'false';
-
-			navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-				tagId: pendingAction.payload.tag.id,
-				tagName: encodedName,
-				...(encodedUsage ? { usageType: encodedUsage } : {}),
-				...(encodedIconFamily ? { tagIconFamily: encodedIconFamily } : {}),
-				...(encodedIconName ? { tagIconName: encodedIconName } : {}),
-				...(encodedIconStyle ? { tagIconStyle: encodedIconStyle } : {}),
-				isMandatoryExpense: mandatoryExpenseFlag,
-				isMandatoryGain: mandatoryGainFlag,
-				showInBothLists: showInBothListsFlag,
-			});
+		if (pendingAction.type === 'tag-in-use') {
 			setPendingAction(null);
 			return;
 		}
@@ -1420,7 +1458,7 @@ export default function ConfigurationsScreen() {
 				title: '',
 				message: '',
 				confirmLabel: 'Confirmar',
-				isEdit: false,
+				isDestructive: false,
 			};
 		}
 
@@ -1431,7 +1469,7 @@ export default function ConfigurationsScreen() {
 					message: `Tem certeza de que deseja remover o usuário ${pendingAction.payload.identifier || 'selecionado'
 						}? Esta ação não pode ser desfeita.`,
 					confirmLabel: 'Remover',
-					isEdit: false,
+					isDestructive: true,
 				};
 			case 'delete-related-user':
 				return {
@@ -1439,7 +1477,7 @@ export default function ConfigurationsScreen() {
 					message: `Tem certeza de que deseja remover o vínculo com ${pendingAction.payload.identifier || 'o usuário selecionado'
 						}?`,
 					confirmLabel: 'Desvincular',
-					isEdit: false,
+					isDestructive: true,
 				};
 			case 'delete-bank':
 				return {
@@ -1447,21 +1485,14 @@ export default function ConfigurationsScreen() {
 					message: `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
 						}? Esta ação removerá todas as referências a ele.`,
 					confirmLabel: 'Excluir',
-					isEdit: false,
+					isDestructive: true,
 				};
 			case 'edit-bank':
 				return {
 					title: 'Editar banco',
 					message: `Deseja editar o banco ${pendingAction.payload.bank.name}? Você será redirecionado para a tela de edição.`,
 					confirmLabel: 'Editar',
-					isEdit: true,
-				};
-			case 'edit-tag':
-				return {
-					title: 'Editar categoria',
-					message: `Deseja editar a categoria ${pendingAction.payload.tag.name}? Você será redirecionado para a tela de edição.`,
-					confirmLabel: 'Editar',
-					isEdit: true,
+					isDestructive: false,
 				};
 			case 'delete-tag':
 				return {
@@ -1469,44 +1500,39 @@ export default function ConfigurationsScreen() {
 					message: `Tem certeza de que deseja excluir a categoria ${pendingAction.payload.tagName || 'selecionada'
 						}? Esta ação não pode ser desfeita.`,
 					confirmLabel: 'Excluir',
-					isEdit: false,
+					isDestructive: true,
+				};
+			case 'tag-in-use':
+				return {
+					title: 'Categoria em uso',
+					message: `“${pendingAction.payload.tagName}” está vinculada a ${getTagReferenceMessage(pendingAction.payload.references)}. Reclassifique esses registros antes de excluir a categoria.`,
+					confirmLabel: 'Entendi',
+					isDestructive: false,
 				};
 			default:
 				return {
 					title: '',
 					message: '',
 					confirmLabel: 'Confirmar',
-					isEdit: false,
+					isDestructive: false,
 				};
 		}
 	}, [pendingAction]);
 
 	const isModalOpen = Boolean(pendingAction);
-	const confirmButtonAction = actionModalCopy.isEdit ? 'primary' : 'negative';
-
-	const getTagTypeLabel = React.useCallback((tag: (typeof tagData)[number]) => {
-		return getTagUsageTypeLabel(tag.usageType);
-	}, []);
+	const confirmButtonAction = actionModalCopy.isDestructive ? 'negative' : 'primary';
 
 	const getTagBadgeLabels = React.useCallback(
 		(tag: (typeof tagData)[number]) => {
-			const badges = [getTagTypeLabel(tag)];
-
-			if (tag.isMandatoryExpense) {
-				badges.push('Despesa obrigatória');
-			}
-
-			if (tag.isMandatoryGain) {
-				badges.push('Ganho obrigatório');
-			}
-
-			if (tag.showInBothLists) {
-				badges.push(tag.usageType === 'both' ? 'Tambem nos obrigatorios' : 'Listas normal e obrigatoria');
-			}
-
-			return badges;
+			const fields: Partial<CategoryAvailabilityFields> = {
+				usageType: tag.usageType,
+				isMandatoryExpense: tag.isMandatoryExpense,
+				isMandatoryGain: tag.isMandatoryGain,
+				showInBothLists: tag.showInBothLists,
+			};
+			return [getCategoryAvailabilitySummary(fields)];
 		},
-		[getTagTypeLabel],
+		[],
 	);
 
 	const renderEmptyTableState = React.useCallback(
@@ -1516,6 +1542,18 @@ export default function ConfigurationsScreen() {
 			</Box>
 		),
 		[helperText, tintedCardClassName],
+	);
+
+	const handleCategoryPlacementSelection = React.useCallback(
+		(value: CategoryAvailabilityPreset) => {
+			if (!isCategoryAvailabilityPreset(value)) {
+				return;
+			}
+
+			setIsCategoryPlacementSelectorOpen(false);
+			navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, { availabilityPreset: value });
+		},
+		[],
 	);
 
 	const renderSectionAction = React.useCallback(
@@ -1529,7 +1567,14 @@ export default function ConfigurationsScreen() {
 					<ConfigurationActionButton
 						label={action.label}
 						icon={AddIcon}
-						onPress={() => navigateToRoute(action.route)}
+						onPress={() => {
+							if (action.route === APP_ROUTE_PATHS.addRegisterTag) {
+								setIsCategoryPlacementSelectorOpen(true);
+								return;
+							}
+
+							navigateToRoute(action.route);
+						}}
 						disabled={disabled}
 						size="md"
 						variant="solid"
@@ -2230,43 +2275,21 @@ export default function ConfigurationsScreen() {
 																							icon={EditIcon}
 																							variant="link"
 																							action="default"
-																							className={tableIconButtonClassName}
-																							iconClassName={tablePrimaryIconClassName}
-																							accessibilityLabel={`Editar categoria ${tag.name}`}
-																							onPress={() =>
-																								setPendingAction({
-																									type: 'edit-tag',
-																									payload: {
-																										tag: {
-																											id: tag.id,
-																											name: tag.name,
-																											usageType: normalizeTagUsageType(tag.usageType),
-																											isMandatoryExpense: Boolean(tag.isMandatoryExpense),
-																											isMandatoryGain: Boolean(tag.isMandatoryGain),
-																											showInBothLists: Boolean(tag.showInBothLists),
-																											iconFamily: tag.iconFamily ?? null,
-																											iconName: tag.iconName ?? null,
-																											iconStyle: tag.iconStyle ?? null,
-																										},
-																									},
-																								})
-																							}
-																						/>
+													className={tableIconButtonClassName}
+													iconClassName={tablePrimaryIconClassName}
+													accessibilityLabel={`Editar categoria ${tag.name}`}
+													onPress={() => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, { tagId: tag.id })}
+												/>
 																						<ConfigurationActionButton
 																							icon={TrashIcon}
 																							variant="link"
-																							className={tableIconButtonClassName}
-																							action="negative"
-																							accessibilityLabel={`Excluir categoria ${tag.name}`}
-																							onPress={() =>
-																								setPendingAction({
-																									type: 'delete-tag',
-																									payload: {
-																										tagId: tag.id,
-																										tagName: tag.name,
-																									},
-																								})
-																							}
+													className={tableIconButtonClassName}
+													action="negative"
+													accessibilityLabel={`Excluir categoria ${tag.name}`}
+													disabled={isCheckingTagUsageId === tag.id}
+													onPress={() => {
+														void handleRequestTagRemoval(tag.id, tag.name);
+													}}
 																						/>
 																					</TableActionsCell>
 																				</TableRow>
@@ -2493,6 +2516,14 @@ export default function ConfigurationsScreen() {
 					<Navigator defaultValue={2} />
 				</View>
 
+				<CategoryAvailabilitySelector
+					mode="preset"
+					isOpen={isCategoryPlacementSelectorOpen}
+					onClose={() => setIsCategoryPlacementSelectorOpen(false)}
+					onSelect={handleCategoryPlacementSelection}
+					isDarkMode={isDarkMode}
+				/>
+
 				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
@@ -2509,7 +2540,7 @@ export default function ConfigurationsScreen() {
 								onPress={handleCloseActionModal}
 								isDisabled={isProcessingAction}
 								className={submitButtonCancelClassName}>
-								<ButtonText>Cancelar</ButtonText>
+								<ButtonText>{pendingAction?.type === 'tag-in-use' ? 'Fechar' : 'Cancelar'}</ButtonText>
 							</Button>
 							<Button
 								variant="solid"

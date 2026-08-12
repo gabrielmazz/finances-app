@@ -119,6 +119,7 @@ Firebase (Auth + Firestore + AI Logic)
 app/           → Rotas Expo Router (1 arquivo = 1 rota)
 screens/       → Componentes de tela (lógica + UI)
 functions/     → Operações Firebase Firestore
+backend/       → Firebase Functions confiáveis do razão financeiro
 components/
   ui/          → Primitivos Gluestack UI
   uiverse/     → Componentes customizados do domínio
@@ -205,6 +206,12 @@ O projeto usa **dois apps Firebase** inicializados:
 - Marcar como pago/recebido **cria uma transação real** no Firestore — não é apenas uma flag
 
 ### Saldo de Bancos
+
+- **Transição segura do razão:** antes do corte do grupo, o saldo ainda depende do MonthlyBalance legado. Depois do corte, financialAccounts unifica banco, Caixa e investimento, com saldo em centavos verificável pela última reconciliação e pelos eventos posteriores.
+- Caixa é único e compartilhado pelo grupo, e nunca pode ficar negativo. Banco pode ficar negativo somente com justificativa auditável.
+- Lançamento confirmado não é apagado: corrigir significa estornar e criar outro lançamento.
+- O corte é aditivo e por grupo. Antes dele, exportar Firestore e regras implantadas, executar a migração em dry-run, resolver pendências e só então habilitar o grupo.
+
 - Saldo = último `MonthlyBalance` snapshot + movimentos posteriores
 - Sem snapshot → saldo parte de zero
 - Ao criar um banco novo, **deve-se registrar um MonthlyBalance inicial**
@@ -256,6 +263,27 @@ GOOGLE_SERVICES_JSON=
 ---
 
 ## Active Context
+
+- Categorias contextuais em 2026-08-11: `AddRegisterTagScreen.tsx` agora cria categorias com os presets legíveis de disponibilidade, nome, ícone opcional e preview, sem expor `usageType` nem switches técnicos. A criação normal oferece os mesmos oito objetivos da edição, incluindo todas as despesas e todos os ganhos; os atalhos inline preservam o `placement` da tela de origem para garantir o retorno com seleção automática. `categoryAvailability.ts` centraliza os mapeamentos para o schema Firestore atual e combinações legadas são preservadas como uso personalizado até uma escolha explícita. Configurações abre o seletor completo, resume e filtra categorias pelos quatro destinos, edita por `tagId` e bloqueia exclusão quando houver referências em lançamentos ou recorrências, revalidando antes de remover. O título e a descrição de cada opção do seletor compartilham o mesmo eixo de leitura. Cobertura Jest adicionada para disponibilidade e segurança de referências; vault alinhado em [[Gerenciamento de Tags]], [[Configurações]] e [[Navegação]].
+> Atualizado em 2026-08-11.
+
+- Núcleo bancário/caixa em transição segura em 2026-08-11: utils/financialLedger.ts define partidas balanceadas em centavos, estornos e saldo por reconciliação; backend/ contém as seis callable Functions, regras/índices versionados e teste do Emulator. A migração é aditiva, idempotente e em lotes: o dry-run não escreve, inconsistências entram em financialMigrationIssues, e o corte só bloqueia o legado depois da impressão digital aprovada. AddRescueScreen usa transferFunds para grupos já cortados e preserva o fluxo legado para os demais. Não implantar regras nem executar a migração sem exportar Firestore/regras atuais e validar a cópia preview. Vault alinhado em [[Gerenciamento de Bancos]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Transferências]] e [[Firebase Config]].
+> Atualizado em 2026-08-11.
+
+- Build EAS Android confiável para o [[Assistente Lumus]] em 2026-08-11: a rota continua com montagem direta de provider/tela, bootstrap interno e recuperação de App Check/Remote Config sem derrubar a sessão. `app.config.ts` agora recusa os perfis EAS Android `development`, `preview`, `production` e `production-apk` quando `GOOGLE_SERVICES_JSON` não está provisionado; `eas.json` liga development, preview e produção aos seus ambientes EAS, evitando clients instaláveis sem Firebase AI nativo. Vault alinhado em [[Assistente Lumus]] e [[Firebase Config]].
+> Atualizado em 2026-08-11.
+
+- Central **Testes do aplicativo** atualizada em 2026-07-27: a rota `/app-tests` continua opcional no grupo Config, protegida pela preferência local `appTests`, cujo switch **Mostrar no app** começa desligado em `ScreenSettingsScreen.tsx`. A central oferece retorno ao Dashboard, uma notificação local imediata pelo canal existente `payment-reminders-v1` (sem canal próprio ou lembrete agendado), diagnóstico de disponibilidade/configuração do Lumus IA sem enviar prompt e atalhos para os formulários de despesa/ganho com rascunho de R$ 0,01. Os lançamentos só persistem se o usuário confirmar o formulário. Vault alinhado em [[Navegação]], [[Configurações]], [[Visibilidade de Rotas]], [[Notificações]], [[Assistente Lumus]], [[Transações de Despesas]] e [[Transações de Receitas]].
+> Atualizado em 2026-07-27.
+
+- Sessão e teclado do [[Assistente Lumus]] em 2026-07-27: `AuthContext` mantém `onAuthStateChanged`; o `reload()` valida a sessão nessa transição, mas não roda dentro de `onIdTokenChanged` para não criar loop de renovação. Só erros confirmados de token/sessão inválido, expirado, usuário desabilitado ou inexistente limpam a sessão, enquanto falhas transitórias de `reload()` a preservam. O mapper do assistente deixa de tratar `401`/`403` genérico, App Check, integração nativa ou configuração pendente como sessão expirada, e a disponibilidade Android exige preflight com token App Check não vazio. Quando ele falha, **Tentar novamente** executa `refreshAvailability()` com nova resolução de Remote Config e preflight, sem apagar conversa ou sessão. `app.json` declara `softwareKeyboardLayoutMode: "resize"`; a tela mede o hero por `onLayout`, usa `KeyboardAvoidingView` apenas no iOS e mantém histórico rolável, compositor e navigator no fluxo inferior redimensionado. Vault alinhado em [[Autenticação]], [[Assistente Lumus]], [[Firebase Config]] e [[Componentes UI]].
+> Atualizado em 2026-07-27.
+
+- Build Android instalável em 2026-07-27: `eas.json` recebeu o perfil `production-apk`, que herda a configuração Firebase/Play Integrity de `production`, usa o ambiente EAS `production` e gera APK para distribuição interna. A validação de `app.config.ts` agora exige `GOOGLE_SERVICES_JSON` também nesse perfil, impedindo APKs de teste sem os módulos nativos do Lumus. [[Firebase Config]] foi alinhado.
+> Atualizado em 2026-07-27.
+
+- Abertura direta do [[Assistente Lumus]] em 2026-07-27: `/lumus-assistant` deixou de usar `React.lazy`/`Suspense`; `LumusAssistantProvider` e `LumusAssistantScreen` montam diretamente, e o hero/painel ficam visíveis durante a consulta assíncrona de preferências, Remote Config e disponibilidade. A indisponibilidade da IA aparece dentro do painel, enquanto `assistant-route-boundary.tsx` ficou restrita à recuperação de erro inesperado. A investigação do AAB de produção também confirmou que o arquivo `GOOGLE_SERVICES_JSON` precisa estar provisionado como variável de arquivo no EAS/CI para que o AAB inclua os módulos React Native Firebase e a IA funcione em release; `app.config.ts` passa a recusar o perfil Android `production` sem esse arquivo. Vault alinhado em [[Assistente Lumus]], [[Navegação]], [[Firebase Config]] e [[Componentes UI]].
+> Atualizado em 2026-07-27.
 
 - Correção de estabilidade em 2026-07-23: a central manual `/app-tests` e suas ações de teste de notificação e lançamento financeiro foram removidas, evitando dados de teste no Firestore; a cobertura Jest permanece offline. [[Anotações Locais]] foi preservada com rota `/annotations`, entrada no menu Home, persistência local por UID e editor visual em Expo DOM que guarda Markdown, sem `react-native-enriched-markdown`, Tiptap ou novo módulo nativo. O editor reaproveita o runtime WebView já usado pelos gráficos do baseline Expo SDK 54. As dependências Expo retornaram ao baseline SDK 54 e os pacotes Stately exigidos pelo Gluestack foram declarados de modo explícito. Vault alinhado em [[Navegação]], [[Configurações]], [[Notificações]], [[Assistente Lumus]], [[Transações de Despesas]], [[Transações de Receitas]], [[Anotações Locais]] e [[Componentes UI]].
 > Atualizado em 2026-07-24.

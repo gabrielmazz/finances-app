@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { POST_SUBMIT_SCREEN_OPTIONS, type PostSubmitScreenKey } from '@/contexts/PostSubmitBehaviorContext';
 
-export type RouteVisibilityKey = PostSubmitScreenKey | 'lumusAssistant' | 'annotations';
+export type RouteVisibilityKey = PostSubmitScreenKey | 'lumusAssistant' | 'annotations' | 'appTests';
 
 export type RouteVisibilityByKey = Record<RouteVisibilityKey, boolean>;
 
@@ -18,15 +18,18 @@ const routeVisibilityKeys: RouteVisibilityKey[] = [
 	...POST_SUBMIT_SCREEN_OPTIONS.map((item) => item.key),
 	'lumusAssistant',
 	'annotations',
+	'appTests',
 ];
+
+const HIDDEN_BY_DEFAULT_ROUTE_VISIBILITY_KEYS = new Set<RouteVisibilityKey>(['annotations', 'appTests']);
 
 const createDefaultRouteVisibility = (): RouteVisibilityByKey =>
 	routeVisibilityKeys.reduce(
 		(visibilityByKey, routeKey) => ({
 			...visibilityByKey,
-			// [[Visibilidade de Rotas]]: Anotações permanece oculta até ser liberada
-			// manualmente, pois a tela ainda está em desenvolvimento.
-			[routeKey]: routeKey !== 'annotations',
+			// [[Visibilidade de Rotas]]: Anotações e a central de testes exigem
+			// liberação manual neste aparelho antes de aparecerem no navigator.
+			[routeKey]: !HIDDEN_BY_DEFAULT_ROUTE_VISIBILITY_KEYS.has(routeKey),
 		}),
 		{} as RouteVisibilityByKey,
 	);

@@ -7,6 +7,7 @@ import {
 	Pressable,
 	ScrollView,
 	StatusBar,
+	type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -77,7 +78,6 @@ import {
 	PromptInputTools,
 } from '@/components/ui/chatAi';
 import Navigator from '@/components/uiverse/navigator';
-import Loader from '@/components/uiverse/loader';
 import {
 	AssistantDraftCard,
 	AssistantQuestionCard,
@@ -92,6 +92,7 @@ import {
 	deleteAssistantTemporaryAudio,
 	readAssistantAudioFile,
 } from '@/utils/lumusAssistantAudio';
+import { getLumusAssistantViewportLayout } from '@/utils/lumusAssistantLayout';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import LumusAssistantIllustration from '../assets/UnDraw/lumusAssistantScreen.svg';
@@ -175,6 +176,27 @@ const ConsentView = ({
 	);
 };
 
+// [[Assistente Lumus]]: a rota já está aberta enquanto disponibilidade, preferências e Remote Config são resolvidos.
+const AssistantBootstrappingView = () => {
+	const { headingText, helperText, sectionCardClassName } = useScreenStyles();
+
+	return (
+		<Box className="flex-1 px-5 py-5">
+			<Box className="flex-1 items-center justify-center">
+				<VStack className={`${sectionCardClassName} w-full max-w-[680px] items-center rounded-[28px] p-6`} space="md">
+					<ActivityIndicator size="large" color="#eab308" />
+					<Heading size="lg" className={`text-center ${headingText}`}>
+						Preparando o Lumus IA
+					</Heading>
+					<Text className={`text-center leading-5 ${helperText}`}>
+						Verificando a configuração do assistente. Você já está na tela; o chat ficará disponível assim que essa etapa terminar.
+					</Text>
+				</VStack>
+			</Box>
+		</Box>
+	);
+};
+
 export default function LumusAssistantScreen() {
 	const {
 		isDarkMode,
@@ -209,7 +231,10 @@ export default function LumusAssistantScreen() {
 	const [voiceError, setVoiceError] = React.useState<string | null>(null);
 	const [isTranscribing, setIsTranscribing] = React.useState(false);
 	const [isAcceptingConsent, setIsAcceptingConsent] = React.useState(false);
+	const [viewportHeight, setViewportHeight] = React.useState(0);
+	const [expandedViewportHeight, setExpandedViewportHeight] = React.useState(0);
 	const scrollViewRef = React.useRef<ScrollView | null>(null);
+	const shouldAutoScrollRef = React.useRef(true);
 	const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 	const recorderState = useAudioRecorderState(recorder, 200);
 	const stopTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -217,6 +242,34 @@ export default function LumusAssistantScreen() {
 	const temporaryUriRef = React.useRef<string | null>(null);
 	const wasRecordingRef = React.useRef(false);
 	const isMountedRef = React.useRef(true);
+	const assistantViewportLayout = React.useMemo(
+		() => getLumusAssistantViewportLayout({
+			defaultHeroHeight: heroHeight,
+			viewportHeight,
+			expandedViewportHeight,
+		}),
+		[expandedViewportHeight, heroHeight, viewportHeight],
+	);
+	const handleViewportLayout = React.useCallback(({ nativeEvent }: LayoutChangeEvent) => {
+		const nextHeight = Math.round(nativeEvent.layout.height);
+		if (nextHeight <= 0) return;
+		setViewportHeight(current => current === nextHeight ? current : nextHeight);
+		setExpandedViewportHeight(current => Math.max(current, nextHeight));
+	}, []);
+	const scrollConversationToEnd = React.useCallback((animated = true) => {
+		scrollViewRef.current?.scrollToEnd({ animated });
+	}, []);
+	const focusComposer = React.useCallback(() => {
+		shouldAutoScrollRef.current = true;
+		requestAnimationFrame(() => scrollConversationToEnd());
+	}, [scrollConversationToEnd]);
+
+	React.useEffect(() => {
+		if (!assistantViewportLayout.isCompact) return;
+		shouldAutoScrollRef.current = true;
+		const frame = requestAnimationFrame(() => scrollConversationToEnd(false));
+		return () => cancelAnimationFrame(frame);
+	}, [assistantViewportLayout.isCompact, scrollConversationToEnd]);
 
 	const cleanupRecording = React.useCallback(async () => {
 		if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
@@ -335,38 +388,40 @@ export default function LumusAssistantScreen() {
 		: `${fieldContainerClassNameNotSpace} ${composerControlClassName}`;
 	const submitButtonControlClassName = `${submitButtonClassName} ${composerControlClassName}`;
 
-	if (assistant.isBootstrapping) {
-		return (
-			<SafeAreaView className={`flex-1 items-center justify-center ${cardBackground}`}>
-				<Loader />
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView className={`flex-1 ${cardBackground}`} edges={['left', 'right', 'bottom']}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<Box className={`flex-1 ${cardBackground}`}>
-				<Box className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
+			<Box className={`flex-1 ${cardBackground}`} onLayout={handleViewportLayout}>
+				<Box className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: assistantViewportLayout.heroHeight }}>
 					<Image
 						source={LoginWallpaper}
 						alt="Background amarelo da tela do Lumus IA"
 						className="absolute h-full w-full rounded-b-3xl"
 						resizeMode="cover"
 					/>
-					<VStack className="h-full w-full items-center justify-start px-6" space="lg" style={{ paddingTop: insets.top + 24 }}>
-						<Heading size="xl" className="text-center text-white">Lumus IA</Heading>
-						<LumusAssistantIllustration width="40%" height="40%" className="opacity-90" />
+					<VStack
+						className="h-full w-full items-center justify-start px-6"
+						space={assistantViewportLayout.isCompact ? 'xs' : 'lg'}
+						style={{ paddingTop: insets.top + (assistantViewportLayout.isCompact ? 10 : 24) }}
+					>
+						<Heading size={assistantViewportLayout.isCompact ? 'lg' : 'xl'} className="text-center text-white">Lumus IA</Heading>
+						{!assistantViewportLayout.isCompact ? <LumusAssistantIllustration width="40%" height="40%" className="opacity-90" /> : null}
 					</VStack>
 				</Box>
 
 				<KeyboardAvoidingView
 					className="flex-1"
-					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					enabled={Platform.OS === 'ios'}
+					behavior="padding"
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 				>
-					<Box className={`flex-1 rounded-t-3xl ${cardBackground}`} style={{ marginTop: heroHeight - 64 }}>
-						{!assistant.consentGranted ? (
+					<Box
+						className={`flex-1 rounded-t-3xl ${cardBackground}`}
+						style={{ marginTop: assistantViewportLayout.panelTopMargin, minHeight: 0 }}
+					>
+						{assistant.isBootstrapping ? (
+							<AssistantBootstrappingView />
+						) : !assistant.consentGranted ? (
 							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} />
 						) : (
 							<>
@@ -393,11 +448,18 @@ export default function LumusAssistantScreen() {
 										</HStack>
 									</HStack>
 								</Box>
-								<Conversation className="flex-1">
+								<Conversation className="flex-1" style={{ minHeight: 0 }}>
 									<ConversationContent
 										ref={scrollViewRef}
 										className="flex-1"
-										onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+										onContentSizeChange={() => {
+											if (shouldAutoScrollRef.current) scrollConversationToEnd();
+										}}
+										onScroll={event => {
+											const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+											shouldAutoScrollRef.current = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 48;
+										}}
+										scrollEventThrottle={16}
 										keyboardShouldPersistTaps="handled"
 										keyboardDismissMode="on-drag"
 									>
@@ -405,7 +467,22 @@ export default function LumusAssistantScreen() {
 										{!assistant.availability?.available ? (
 											<HStack className={`${warningCardClassName} p-3`} space="sm">
 												<Icon as={TriangleAlert} size="lg" className="text-warning-500" />
-												<Text className={`flex-1 ${warningTextClassName}`}>{assistant.availability?.reason ?? 'O assistente ainda não está configurado. O restante do Lumus continua funcionando.'}</Text>
+												<VStack className="flex-1" space="xs">
+													<Text className={warningTextClassName}>{assistant.availability?.reason ?? 'O assistente ainda não está configurado. O restante do Lumus continua funcionando.'}</Text>
+													{assistant.availability?.platform === 'android' ? (
+														<Pressable
+															accessibilityRole="button"
+															accessibilityLabel="Tentar verificar a configuração do Lumus IA novamente"
+															disabled={assistant.isRefreshingAvailability}
+															onPress={() => void assistant.refreshAvailability()}
+															className="self-start rounded-xl py-1 disabled:opacity-40"
+														>
+															<Text bold size="xs" className={warningTextClassName}>
+																{assistant.isRefreshingAvailability ? 'Verificando…' : 'Tentar novamente'}
+															</Text>
+														</Pressable>
+													) : null}
+												</VStack>
 											</HStack>
 										) : null}
 										{assistant.messages.length === 0 ? (
@@ -452,7 +529,7 @@ export default function LumusAssistantScreen() {
 
 										</VStack>
 									</ConversationContent>
-									<Box className="w-full max-w-[760px] self-center px-6 pb-2">
+									<Box className="w-full max-w-[760px] self-center px-6 pb-2" style={{ flexShrink: 0 }}>
 										<PromptInputProvider
 											value={composerText}
 											onChangeText={setComposerText}
@@ -474,6 +551,8 @@ export default function LumusAssistantScreen() {
 														<PromptInputTextarea
 															maxLength={ASSISTANT_MAX_INPUT_CHARACTERS}
 															multiline
+															textAlignVertical="top"
+															onFocus={focusComposer}
 															placeholder="Digite ou use o microfone…"
 															containerClassName={`${fieldContainerClassNameNotSpace} min-h-10 max-h-30 flex-1`}
 															fieldClassName={inputField}
@@ -493,6 +572,7 @@ export default function LumusAssistantScreen() {
 							</>
 						)}
 					</Box>
+					<Navigator defaultValue={0} />
 				</KeyboardAvoidingView>
 			</Box>
 			<Modal isOpen={isQuickPromptsModalOpen} onClose={() => setIsQuickPromptsModalOpen(false)} size="sm">
@@ -603,7 +683,6 @@ export default function LumusAssistantScreen() {
 					</DrawerBody>
 				</DrawerContent>
 			</Drawer>
-			<Navigator defaultValue={0} />
 		</SafeAreaView>
 	);
 }

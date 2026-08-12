@@ -83,6 +83,31 @@ describe('mandatory reminder notifications', () => {
 		expect(state.storage['@lumusNotifications:removed-test-channels-v1']).toBe('complete');
 	});
 
+	it('sends the manual notification test through the existing payment channel without scheduling a reminder', async () => {
+		const { notifications, localNotifications } = loadNotificationModules();
+
+		const result = await localNotifications.sendLocalNotificationTest();
+
+		expect(result).toMatchObject({ success: true });
+		expect(state.scheduledNotifications).toHaveLength(0);
+		expect(state.displayedNotifications).toHaveLength(1);
+		expect(state.displayedNotifications[0]).toMatchObject({
+			content: expect.objectContaining({
+				title: 'Teste de notificação',
+				data: expect.objectContaining({ notificationSystem: 'lumus-app-tests-v1', mode: 'immediate' }),
+			}),
+			trigger: expect.objectContaining({ channelId: 'payment-reminders-v1' }),
+		});
+		expect(notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+			'payment-reminders-v1',
+			expect.any(Object),
+		);
+		expect(notifications.setNotificationChannelAsync).not.toHaveBeenCalledWith(
+			expect.stringMatching(/^system-tests-/),
+			expect.anything(),
+		);
+	});
+
 	it('schedules D-3, D-2, D-1 and the due date as concrete Android dates for six cycles', async () => {
 		const { mandatoryReminderNotifications } = loadNotificationModules();
 

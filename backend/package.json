@@ -1,0 +1,26 @@
+{
+  "name": "lumus-financial-backend",
+  "private": true,
+  "main": "lib/backend/src/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "serve": "npm run build && npx -y firebase-tools@latest emulators:start --config ../firebase.json --only functions,firestore",
+    "test:rules": "tsx tests/firestore.rules.test.ts",
+    "test:functions": "tsx tests/functions.emulator.test.ts",
+    "test:emulator": "npm run build && npx -y firebase-tools@latest emulators:exec --project lumus-financial-rules-test --config ../firebase.json --only auth,functions,firestore \"npm run test:rules && npm run test:functions\""
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.1",
+    "firebase-functions": "^6.5.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "@types/node": "^22.10.2",
+    "firebase": "^10.14.1",
+    "tsx": "^4.19.2",
+    "typescript": "~5.9.3"
+  }
+}

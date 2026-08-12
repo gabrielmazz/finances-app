@@ -555,7 +555,7 @@ export default function AddRegisterGainScreen() {
 		}
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterTag, {
-			usageType: 'gain',
+			placement: 'gain',
 			returnAfterCreate: '1',
 			returnToRoute: APP_ROUTE_PATHS.addRegisterGain,
 		});
