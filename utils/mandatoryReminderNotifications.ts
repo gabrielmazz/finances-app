@@ -974,7 +974,7 @@ export const scheduleMandatoryReminderNotification = async ({
 			return {
 				success: false,
 				reason: 'unavailable',
-				message: 'As notificações locais só estão disponíveis no Android e no iOS.',
+				message: 'Lembretes agendados estão disponíveis somente no aplicativo Android ou iOS.',
 			};
 		}
 

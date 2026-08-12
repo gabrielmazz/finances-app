@@ -1,8 +1,16 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View, TouchableOpacity, StatusBar, Pressable } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	Pressable,
+	RefreshControl,
+	ScrollView,
+	StatusBar,
+	TouchableOpacity,
+	useWindowDimensions,
+	View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -94,8 +102,10 @@ import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/uti
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
+import { isWebDesktopLayout } from '@/utils/webLayout';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
-import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
+import { buildPdfFileName } from '@/utils/pdfFileName';
+import { exportHtmlReport } from '@/utils/reportExport';
 import { Info, Tags as TagsIcon } from 'lucide-react-native';
 
 // Importação do SVG de ilustração
@@ -932,6 +942,8 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 };
 
 export default function BankMovementsScreen() {
+	const { width: windowWidth } = useWindowDimensions();
+	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 
 	const {
 		isDarkMode,
@@ -2169,31 +2181,35 @@ export default function BankMovementsScreen() {
 		setIsExportingPdf(true);
 		try {
 			// Exporta o resumo do período seguindo [[Gerenciamento de Bancos]] e [[Privacidade de Valores]].
-			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
 			const pdfFileName = buildPdfFileName([
 				isCashView ? 'Movimentos Dinheiro' : 'Movimentos Banco',
 				bankName,
 				startDateInput,
 				endDateInput,
 			]);
-			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
-			const canShare = await Sharing.isAvailableAsync();
+			const exportResult = await exportHtmlReport({
+				html: pdfHtml,
+				fileName: pdfFileName,
+				dialogTitle: `Baixar resumo de ${bankName}`,
+			});
 
-			if (!canShare) {
-				await Print.printAsync({ html: pdfHtml });
+			if (exportResult.status === 'popup-blocked') {
 				showScreenAlert(
-					'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
+					'O navegador bloqueou a nova aba do relatório. Permita pop-ups para este site e tente novamente.',
+					'error',
+					'Permita pop-ups',
+				);
+				return;
+			}
+
+			if (exportResult.status === 'printed') {
+				showScreenAlert(
+					'O resumo foi aberto para impressão. Use a opção de salvar como PDF.',
 					'info',
 					'Resumo pronto',
 				);
 				return;
 			}
-
-			await Sharing.shareAsync(namedPdfUri, {
-				dialogTitle: `Baixar resumo de ${bankName}`,
-				mimeType: 'application/pdf',
-				UTI: 'com.adobe.pdf',
-			});
 
 			showScreenAlert('Resumo em PDF gerado com sucesso.', 'success', 'PDF pronto');
 		} catch (error) {
@@ -2720,7 +2736,10 @@ export default function BankMovementsScreen() {
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
 							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-							style={{ marginTop: heroHeight - 64 }}
+							style={{
+								marginTop: heroHeight - 64,
+								paddingHorizontal: isDesktopWeb ? 32 : 24,
+							}}
 							contentContainerStyle={{ paddingBottom: 32 }}
 							refreshControl={
 								<RefreshControl
@@ -2730,10 +2749,23 @@ export default function BankMovementsScreen() {
 								/>
 							}
 						>
-							<VStack className="justify-between mt-4">
+							<VStack
+								className="justify-between mt-4"
+								style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+							>
 
-								<VStack className="mb-4">
-									<BankCardSurface palette={summaryCardPalette}>
+								<View
+									style={{
+										flexDirection: isDesktopWeb ? 'row' : 'column',
+										alignItems: 'stretch',
+										gap: isDesktopWeb ? 24 : 0,
+									}}
+								>
+									<VStack
+										className="mb-4"
+										style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
+									>
+										<BankCardSurface palette={summaryCardPalette}>
 										<VStack className="flex-1 gap-5">
 											<HStack className="items-start justify-between gap-4">
 												<VStack className="flex-1 gap-1">
@@ -2816,10 +2848,14 @@ export default function BankMovementsScreen() {
 												</VStack>
 											</View>
 										</VStack>
-									</BankCardSurface>
-								</VStack>
 
-								<VStack className="mb-4">
+									</BankCardSurface>
+									</VStack>
+
+									<VStack
+										className="mb-4"
+										style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
+									>
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Filtros do período</Text>
 									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
 										<VStack className="gap-4">
@@ -3059,8 +3095,10 @@ export default function BankMovementsScreen() {
 												)}
 											</Button>
 										</VStack>
+
 									</View>
-								</VStack>
+									</VStack>
+								</View>
 
 								{errorMessage && (
 									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>

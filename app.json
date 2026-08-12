@@ -5,6 +5,7 @@
     "scheme": "financesapp",
     "version": "2.0.2",
     "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
     "icon": "./assets/lumusIcon.png",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -28,7 +29,8 @@
       "package": "com.gabrielmazz.lumusfinances"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single"
     },
     "plugins": [
       "expo-router",

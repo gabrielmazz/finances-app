@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+	Platform,
 	Pressable,
 	RefreshControl,
 	ScrollView,
@@ -10,8 +11,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { PieChart } from 'react-native-gifted-charts';
 import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
 
@@ -42,11 +41,13 @@ import {
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { isWebDesktopLayout } from '@/utils/webLayout';
 import {
 	type CategoryAnalysisPdfMetric,
 	buildCategoryAnalysisPdfHtml,
 } from '@/utils/categoryAnalysisPdf';
-import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
+import { buildPdfFileName } from '@/utils/pdfFileName';
+import { exportHtmlReport } from '@/utils/reportExport';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import CategoryAnalysisIllustration from '../assets/UnDraw/analyzeGainExpensesTag.svg';
@@ -273,6 +274,7 @@ const CategoryAnalysisSkeleton = () => (
 
 export default function CategoryAnalysisScreen() {
 	const { width: windowWidth } = useWindowDimensions();
+	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
 	const currentUserId = auth.currentUser?.uid ?? null;
 	const [analysis, setAnalysis] = React.useState<CategoryAnalysisData | null>(null);
@@ -628,31 +630,36 @@ export default function CategoryAnalysisScreen() {
 		setIsExportingPdf(true);
 		try {
 			// Exporta a análise seguindo [[Análise por Categoria]] e [[Privacidade de Valores]].
-			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
 			const pdfFileName = buildPdfFileName([
 				'Analise por Categoria',
 				selectedReport.tagName,
 				getMovementTypeLabel(selectedType),
 			]);
-			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
-			const canShare = await Sharing.isAvailableAsync();
+			const exportResult = await exportHtmlReport({
+				html: pdfHtml,
+				fileName: pdfFileName,
+				dialogTitle: `Baixar análise de ${selectedReport.tagName}`,
+			});
 
-			if (!canShare) {
-				await Print.printAsync({ html: pdfHtml });
+			if (exportResult.status === 'popup-blocked') {
 				showNotifierAlert({
-					title: 'Análise pronta',
-					description: 'A análise foi aberta na impressão do dispositivo. Use a opção de salvar como PDF.',
-					type: 'info',
+					title: 'Permita pop-ups',
+					description: 'O navegador bloqueou a nova aba do relatório. Permita pop-ups para este site e tente novamente.',
+					type: 'error',
 					isDarkMode,
 				});
 				return;
 			}
 
-			await Sharing.shareAsync(namedPdfUri, {
-				dialogTitle: `Baixar análise de ${selectedReport.tagName}`,
-				mimeType: 'application/pdf',
-				UTI: 'com.adobe.pdf',
-			});
+			if (exportResult.status === 'printed') {
+				showNotifierAlert({
+					title: 'Análise pronta',
+					description: 'A análise foi aberta para impressão. Use a opção de salvar como PDF.',
+					type: 'info',
+					isDarkMode,
+				});
+				return;
+			}
 
 			showNotifierAlert({
 				title: 'PDF pronto',
@@ -723,9 +730,15 @@ export default function CategoryAnalysisScreen() {
 
 				<View
 					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-					style={{ marginTop: heroHeight - 64 }}
+					style={{
+						marginTop: heroHeight - 64,
+						paddingHorizontal: isDesktopWeb ? 32 : 24,
+					}}
 				>
-					<View className="flex-1 w-full">
+					<View
+						className="flex-1 w-full"
+						style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+					>
 						<ScrollView
 							className="flex-1 w-full"
 							contentContainerStyle={{ paddingBottom: 18 }}
@@ -797,45 +810,57 @@ export default function CategoryAnalysisScreen() {
 									</View>
 								) : (
 									<VStack className="gap-5">
-										<TagActionsheetSelector
-											options={tagSelectorOptions}
-											selectedId={selectedTagId}
-											selectedOption={selectedTagOption}
-											onSelect={handleSelectTag}
-											isDarkMode={isDarkMode}
-											bodyTextClassName={bodyText}
-											helperTextClassName={helperText}
-											triggerClassName={sectionCardClassName}
-											placeholder="Selecione uma categoria"
-											sheetTitle="Categorias da análise"
-											emptyMessage="Nenhuma categoria disponível para análise."
-											triggerHint="Toque para escolher a categoria do relatório."
-											disabledHint="Categorias indisponíveis no momento."
-											accessibilityLabel="Selecionar categoria para análise"
-										/>
+										<View
+											style={{
+												flexDirection: isDesktopWeb ? 'row' : 'column',
+												alignItems: 'stretch',
+												gap: isDesktopWeb ? 16 : 20,
+											}}
+										>
+											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
+												<TagActionsheetSelector
+													options={tagSelectorOptions}
+													selectedId={selectedTagId}
+													selectedOption={selectedTagOption}
+													onSelect={handleSelectTag}
+													isDarkMode={isDarkMode}
+													bodyTextClassName={bodyText}
+													helperTextClassName={helperText}
+													triggerClassName={sectionCardClassName}
+													placeholder="Selecione uma categoria"
+													sheetTitle="Categorias da análise"
+													emptyMessage="Nenhuma categoria disponível para análise."
+													triggerHint="Toque para escolher a categoria do relatório."
+													disabledHint="Categorias indisponíveis no momento."
+													accessibilityLabel="Selecionar categoria para análise"
+												/>
+											</View>
 
-										<Box className={`${notTintedCardClassName} p-1.5`}>
-											<Tabs value={selectedType} onValueChange={handleSelectMovementType}>
-												<TabsList>
-													{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
-														const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
-														const isSelected = selectedType === option;
+											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
+												<Box className={`${notTintedCardClassName} p-1.5`}>
+													<Tabs value={selectedType} onValueChange={handleSelectMovementType}>
+														<TabsList>
+															{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
+																const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
+																const isSelected = selectedType === option;
 
-														return (
-															<TabsTrigger key={option} value={option} disabled={isDisabled} className="flex-1">
-																<TabsTriggerIcon
-																	as={option === 'expense' ? TrendingDown : TrendingUp}
-																	size={16}
-																	color={isSelected ? '#0F172A' : palette.subtitle}
-																/>
-																<TabsTriggerText>{getMovementTypeLabel(option)}</TabsTriggerText>
-															</TabsTrigger>
-														);
-													})}
-													<TabsIndicator />
-												</TabsList>
-											</Tabs>
-										</Box>
+																return (
+																	<TabsTrigger key={option} value={option} disabled={isDisabled} className="flex-1">
+																		<TabsTriggerIcon
+																			as={option === 'expense' ? TrendingDown : TrendingUp}
+																			size={16}
+																			color={isSelected ? '#0F172A' : palette.subtitle}
+																		/>
+																		<TabsTriggerText>{getMovementTypeLabel(option)}</TabsTriggerText>
+																	</TabsTrigger>
+																);
+															})}
+															<TabsIndicator />
+														</TabsList>
+													</Tabs>
+												</Box>
+											</View>
+										</View>
 
 										<LinearGradient
 											colors={

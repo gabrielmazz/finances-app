@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+	Platform,
 	Pressable,
 	RefreshControl,
 	ScrollView,
@@ -60,6 +61,7 @@ import { CalendarDays, Info, Tags as TagsIcon } from 'lucide-react-native';
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import { isWebDesktopLayout } from '@/utils/webLayout';
 
 type HomeTimelineToneKey =
 	| 'gain'
@@ -423,10 +425,15 @@ const HomeMovementsSkeleton = ({
 
 export default function HomeScreen() {
 	const { width: windowWidth } = useWindowDimensions();
+	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const bankCarouselRef = React.useRef<ICarouselInstance>(null);
 	const bankCarouselProgress = useSharedValue(0);
 	const { shouldHideValues } = useValueVisibility();
-	const bankCarouselWidth = Math.max(windowWidth - 48, 1);
+	const [bankOverviewWidth, setBankOverviewWidth] = React.useState<number | null>(null);
+	const bankCarouselWidth = Math.max(
+		isDesktopWeb ? (bankOverviewWidth ?? Math.max((windowWidth - 400) / 2, 1)) : windowWidth - 48,
+		1,
+	);
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
 	const currentUserId = auth.currentUser?.uid ?? null;
@@ -1169,9 +1176,15 @@ export default function HomeScreen() {
 
 				<View
 					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-					style={{ marginTop: heroHeight - 64 }}
+					style={{
+						marginTop: heroHeight - 64,
+						paddingHorizontal: isDesktopWeb ? 32 : 24,
+					}}
 				>
-					<View className="flex-1 w-full">
+					<View
+						className="flex-1 w-full"
+						style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+					>
 						<ScrollView
 							className="flex-1 w-full"
 							contentContainerStyle={{ paddingBottom: 16 }}
@@ -1186,7 +1199,25 @@ export default function HomeScreen() {
 								/>
 							}
 						>
-							<View className="mb-6 mt-4">
+							<View
+								style={{
+									flexDirection: isDesktopWeb ? 'row' : 'column',
+									alignItems: 'flex-start',
+									gap: isDesktopWeb ? 24 : 0,
+								}}
+							>
+								<View
+									className="mb-6 mt-4"
+									style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
+									onLayout={event => {
+										if (!isDesktopWeb) {
+											return;
+										}
+
+										const nextWidth = Math.round(event.nativeEvent.layout.width);
+										setBankOverviewWidth(current => (current === nextWidth ? current : nextWidth));
+									}}
+								>
 								<VStack className="px-2 pb-3">
 									<HStack className="gap-1 items-center">
 										<Heading
@@ -1370,7 +1401,10 @@ export default function HomeScreen() {
 								)}
 							</View>
 
-							<View className="mb-6">
+								<View
+									className="mb-6"
+									style={isDesktopWeb ? { flex: 1, minWidth: 0, marginTop: 16 } : undefined}
+								>
 								<VStack className="px-2 pb-3">
 									<HStack className="gap-1 items-center">
 										<Heading
@@ -1644,6 +1678,7 @@ export default function HomeScreen() {
 											</HStack>
 										</>
 									)}
+									</View>
 								</View>
 							</View>
 

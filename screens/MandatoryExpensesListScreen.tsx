@@ -1,8 +1,6 @@
 import React from 'react';
 import { RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
@@ -71,7 +69,8 @@ import {
 	type MandatoryPeriodSummaryPdfItem,
 	type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
-import { buildPdfFileName, copyPdfToNamedCacheFile } from '@/utils/pdfFileName';
+import { buildPdfFileName } from '@/utils/pdfFileName';
+import { exportHtmlReport } from '@/utils/reportExport';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
 import {
 	formatMandatoryReminderSummary,
@@ -941,27 +940,32 @@ export default function MandatoryExpensesListScreen() {
 		setIsExportingPdf(true);
 		try {
 			// Exporta o resumo mensal seguindo [[Despesas Fixas]] e [[Privacidade de Valores]].
-			const { uri } = await Print.printToFileAsync({ html: pdfHtml });
 			const pdfFileName = buildPdfFileName(['Despesas Fixas', referenceMonthLabel]);
-			const namedPdfUri = await copyPdfToNamedCacheFile(uri, pdfFileName);
-			const canShare = await Sharing.isAvailableAsync();
+			const exportResult = await exportHtmlReport({
+				html: pdfHtml,
+				fileName: pdfFileName,
+				dialogTitle: 'Baixar resumo de gastos obrigatórios',
+			});
 
-			if (!canShare) {
-				await Print.printAsync({ html: pdfHtml });
+			if (exportResult.status === 'popup-blocked') {
 				showNotifierAlert({
-					title: 'Resumo pronto',
-					description: 'O resumo foi aberto na impressão do dispositivo. Use a opção de salvar como PDF.',
-					type: 'info',
+					title: 'Permita pop-ups',
+					description: 'O navegador bloqueou a nova aba do relatório. Permita pop-ups para este site e tente novamente.',
+					type: 'error',
 					isDarkMode,
 				});
 				return;
 			}
 
-			await Sharing.shareAsync(namedPdfUri, {
-				dialogTitle: 'Baixar resumo de gastos obrigatórios',
-				mimeType: 'application/pdf',
-				UTI: 'com.adobe.pdf',
-			});
+			if (exportResult.status === 'printed') {
+				showNotifierAlert({
+					title: 'Resumo pronto',
+					description: 'O resumo foi aberto para impressão. Use a opção de salvar como PDF.',
+					type: 'info',
+					isDarkMode,
+				});
+				return;
+			}
 
 			showNotifierAlert({
 				title: 'PDF pronto',

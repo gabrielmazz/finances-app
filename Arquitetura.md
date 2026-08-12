@@ -34,6 +34,7 @@ O vault é a **fonte de verdade** do projeto. Toda feature, decisão arquitetura
 | Trabalhar em temas/estilos | `Sistema de Temas.md`, `Hooks Customizados.md` |
 | Trabalhar em notificações | `Notificações.md` |
 | Configurar Firebase | `Firebase Config.md` |
+| Trabalhar na versão Web ou Hosting | `Versão Web.md`, `Navegação.md`, `Firebase Config.md`, `Notificações.md`, `Componentes UI.md` |
 | Trabalhar no assistente/IA/voz | `Assistente Lumus.md`, `Firebase Config.md`, `Privacidade de Valores.md` |
 
 ---
@@ -107,6 +108,8 @@ Firebase (Auth + Firestore + AI Logic)
 |---|---|
 | Framework | Expo ~54 / React Native 0.81 |
 | Routing | Expo Router ~6 (file-based) |
+| Web | React Native Web + export estático Expo em `dist/` |
+| Hosting Web | Firebase Hosting do projeto `finances-app-e8685` |
 | Backend | Firebase 12.16 (Auth + Firestore + AI Logic web) |
 | IA Android | React Native Firebase 25.1 (AI + App Check + Remote Config) |
 | Design System | Gluestack UI + NativeWind (Tailwind) |
@@ -151,6 +154,8 @@ Firebase Auth → AuthContext → _layout.tsx (guard)
 O projeto usa **dois apps Firebase** inicializados:
 - **Primário** (`auth`, `db`): sessão atual + todas as queries Firestore
 - **Secundário** (`secondaryApp`, `secondaryAuth`): exclusivamente para criar novos usuários sem deslogar o usuário atual
+
+No Android/iOS, o app secundário usa o armazenamento seguro temporário documentado em [[Firebase Config]]. No navegador, os dois apps usam persistência somente em memória: recarregar, fechar a aba ou encerrar o navegador exige novo login.
 
 ---
 
@@ -227,6 +232,7 @@ O projeto usa **dois apps Firebase** inicializados:
 - Notificações são locais (sem servidor) — reinstalar app as apaga
 - Expo Go serve somente para smoke test local. Validar canais, segundo plano e aceite em development client e build de produção instalados
 - Alterações em plugin, manifesto ou dependência nativa exigem novo build
+- O navegador não solicita permissão, não cria canal e não agenda lembretes; a UI deve informar que essa capacidade existe somente no aplicativo instalado
 
 ### Assistente Lumus
 - Firebase AI Logic interpreta e propõe ações; o modelo nunca recebe ferramenta de escrita no Firestore
@@ -263,6 +269,9 @@ GOOGLE_SERVICES_JSON=
 ---
 
 ## Active Context
+
+- Versão Web com Firebase Hosting em 2026-08-11: o Expo Router continua compartilhando rotas, regras financeiras e guards, mas agora exporta a SPA em `dist/` (`web.output: "single"`) para o projeto `finances-app-e8685`. O Hosting usa URL limpa e rewrite para `index.html`, preservando deep links como `/home` e `/financial-list`. Em 1024px ou mais, `WebAppShell` reserva a área da sidebar fixa renderizada pelo `navigator`; abaixo disso, a barra inferior mobile permanece. `FirebaseConfig.web.ts` deixa os dois apps Auth somente em memória, relatórios usam a janela de impressão/PDF do navegador e lembretes agendados ficam indisponíveis sem pedir permissão. Antes da publicação remota, cadastrar os domínios do Hosting no Firebase Authentication e no reCAPTCHA Enterprise/App Check. Vault alinhado em [[Versão Web]], [[Navegação]], [[Firebase Config]], [[Notificações]] e [[Componentes UI]].
+> Atualizado em 2026-08-11.
 
 - Categorias contextuais em 2026-08-11: `AddRegisterTagScreen.tsx` agora cria categorias com os presets legíveis de disponibilidade, nome, ícone opcional e preview, sem expor `usageType` nem switches técnicos. A criação normal oferece os mesmos oito objetivos da edição, incluindo todas as despesas e todos os ganhos; os atalhos inline preservam o `placement` da tela de origem para garantir o retorno com seleção automática. `categoryAvailability.ts` centraliza os mapeamentos para o schema Firestore atual e combinações legadas são preservadas como uso personalizado até uma escolha explícita. Configurações abre o seletor completo, resume e filtra categorias pelos quatro destinos, edita por `tagId` e bloqueia exclusão quando houver referências em lançamentos ou recorrências, revalidando antes de remover. O título e a descrição de cada opção do seletor compartilham o mesmo eixo de leitura. Cobertura Jest adicionada para disponibilidade e segurança de referências; vault alinhado em [[Gerenciamento de Tags]], [[Configurações]] e [[Navegação]].
 > Atualizado em 2026-08-11.

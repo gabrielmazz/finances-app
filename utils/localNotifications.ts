@@ -7,6 +7,7 @@ import {
 	type NotificationChannel,
 	type NotificationPermissionsStatus,
 } from '@/utils/notificationsRuntime';
+import { platformCapabilities } from '@/utils/platformCapabilities';
 
 export type MandatoryReminderKind = 'expense' | 'gain';
 export type LocalNotificationChannelKind = MandatoryReminderKind;
@@ -65,7 +66,7 @@ let removedTestChannelsCleanupPromise: Promise<void> | null = null;
 let bootstrapPromise: Promise<void> | null = null;
 
 export const isNotificationsEnvironmentSupported = () =>
-	(Platform.OS === 'android' || Platform.OS === 'ios') && isNotificationsRuntimeAvailable();
+	platformCapabilities.supportsScheduledLocalNotifications && isNotificationsRuntimeAvailable();
 const supportsAndroidNotificationChannels = () =>
 	Platform.OS === 'android' && (typeof Platform.Version !== 'number' || Platform.Version >= 26);
 
