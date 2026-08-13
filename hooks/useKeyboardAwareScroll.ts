@@ -44,6 +44,12 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 
 	const scrollToInput = React.useCallback(
 		(key: InputKey) => {
+			// React Native Web não implementa findNodeHandle. O navegador já mantém o
+			// campo focado visível sem o scroll nativo usado em Android/iOS.
+			if (Platform.OS === 'web') {
+				return;
+			}
+
 			const inputRef = getInputRef(key);
 			if (!inputRef?.current) {
 				return;
@@ -114,6 +120,11 @@ export function useKeyboardAwareScroll<InputKey extends string>({
 		(key: InputKey) => {
 			clearPendingScrollTimers();
 			lastFocusedInputKey.current = key;
+
+			if (Platform.OS === 'web') {
+				return;
+			}
+
 			scrollToInput(key);
 			focusRetryDelays.forEach(delay => {
 				scheduleScrollToInput(key, delay);

@@ -270,6 +270,39 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Identidade do Login Web atualizada em 2026-08-12: a imagem rasterizada foi substituída por `StrokeText`, renderizando o texto SVG animado **Finances** sobre o painel de gradiente. O componente usa a fonte padrão do sistema por padrão. Vault alinhado em [[Autenticação]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Contorno dos inputs no Login Web corrigido em 2026-08-12: `LoginScreen.web.tsx` suprime o `web:ring-1` padrão do Gluestack no foco, preservando somente a borda amarela do tema e eliminando o segundo contorno branco. Vault alinhado em [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Correção do foco de login Web em 2026-08-12: `useKeyboardAwareScroll()` deixa de executar `findNodeHandle` e as rechecagens de rolagem nativa no navegador, eliminando o erro ao focar email ou senha em `LoginScreen.web.tsx`. A tela Web também removeu o `TouchableWithoutFeedback` que cancelava o foco pelo `Keyboard.dismiss()` do clique. Android e iOS preservam o comportamento de teclado existente. Vault alinhado em [[Hooks Customizados]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Escala da logo do Login Web refinada em 2026-08-12: a logo centralizada ocupa 66% da largura no painel em duas colunas e 62% no layout compacto, preservando a proporção sem corte. Vault alinhado em [[Autenticação]].
+> Atualizado em 2026-08-12.
+
+- Logo do Login Web ajustada em 2026-08-12: `LogoUpscale.png` usa `resizeMode="contain"` e `aspectRatio` baseado no próprio asset, impedindo corte em qualquer dimensão do painel de identidade. Vault alinhado em [[Autenticação]].
+> Atualizado em 2026-08-12.
+
+- Rolagem do Login Web corrigida em 2026-08-12: na composição em duas colunas (a partir de 768px), `LoginScreen.web.tsx` desabilita o `ScrollView`, remove o padding inferior reservado ao teclado e não monta o pull-to-refresh. Em largura menor, esses comportamentos seguem ativos para o formulário móvel. Vault alinhado em [[Autenticação]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Identidade do Login Web atualizada em 2026-08-12: a logo branca Lumus é exibida sobre o `Grainient`, centralizada no painel esquerdo e sem comprometer o preenchimento integral do gradiente. Vault alinhado em [[Autenticação]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Login Web refinado em 2026-08-12: o contêiner do `Grainient` agora ocupa toda a altura da coluna esquerda, sem a limitação fixa de 600px. Na coluna direita, o bloco de acesso (título e campos) fica centralizado verticalmente, enquanto os créditos continuam no rodapé. Vault alinhado em [[Autenticação]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Regressão da tela mobile de Login corrigida em 2026-08-12: `screens/LoginScreen.tsx` foi restaurada integralmente, preservando wallpaper, logos por tema, card sobreposto e comportamento de teclado do Android/iOS. `screens/LoginScreen.web.tsx` permanece a implementação exclusiva do navegador; não há terceiro arquivo `.native.tsx`. Vault alinhado em [[Autenticação]], [[Componentes UI]] e [[Sistema de Temas]].
+> Atualizado em 2026-08-12.
+
+- Compilação Web reparada em 2026-08-12: a entrada `global.css` voltou a conter apenas CSS compatível com NativeWind/Tailwind CSS 3. Imports do shadcn/Tailwind 4 e as utilidades correspondentes travavam a transformação CSS do Metro em 99,9%; `npx expo export --platform web` voltou a concluir e gerar `dist/`. Vault alinhado em [[Versão Web]].
+> Atualizado em 2026-08-12.
+
+- Tela de Login organizada por plataforma em 2026-08-12: `screens/LoginScreen.tsx` e `screens/LoginScreen.web.tsx` concentram a interface e preservam autenticação Firebase, validação, throttle, pull-to-refresh e feedback existentes. A Web mantém o formulário em duas colunas a partir de 768px e, em telas menores, os blocos se empilham sem comprometer o teclado; Android/iOS preservam a composição original com wallpaper, logo por tema e card sobreposto. As duas implementações dispensam WebGL, canvas, `ogl` e WebView. Vault alinhado em [[Autenticação]], [[Componentes UI]], [[Sistema de Temas]] e [[Versão Web]].
+> Atualizado em 2026-08-12.
+
 - Versão Web com Firebase Hosting em 2026-08-11: o Expo Router continua compartilhando rotas, regras financeiras e guards, mas agora exporta a SPA em `dist/` (`web.output: "single"`) para o projeto `finances-app-e8685`. O Hosting usa URL limpa e rewrite para `index.html`, preservando deep links como `/home` e `/financial-list`. Em 1024px ou mais, `WebAppShell` reserva a área da sidebar fixa renderizada pelo `navigator`; abaixo disso, a barra inferior mobile permanece. `FirebaseConfig.web.ts` deixa os dois apps Auth somente em memória, relatórios usam a janela de impressão/PDF do navegador e lembretes agendados ficam indisponíveis sem pedir permissão. Antes da publicação remota, cadastrar os domínios do Hosting no Firebase Authentication e no reCAPTCHA Enterprise/App Check. Vault alinhado em [[Versão Web]], [[Navegação]], [[Firebase Config]], [[Notificações]] e [[Componentes UI]].
 > Atualizado em 2026-08-11.
 
@@ -324,6 +357,7 @@ GOOGLE_SERVICES_JSON=
 - Horizonte da [[Previsão de Fluxo de Caixa]] em 2026-07-22: `FinancialForecastScreen.tsx` passou a usar as Tabs controladas de `components/ui/tabs` para as opções de 3/6/12 meses, preservando o recálculo e o indicador animado. O seletor de domínio `forecast-horizon-selector.tsx` foi removido; `tabs/` foi compatibilizado com o toolchain estável, sem atualizar dependências. Vault alinhado em [[Previsão de Fluxo de Caixa]] e [[Componentes UI]].
 
 - Refinamento visual do [[Assistente Lumus]] em 2026-07-22: `LumusAssistantScreen.tsx` passou a aplicar classes NativeWind e componentes Gluestack para superfícies, mensagens, atalhos e consentimento; permanecem em `style` somente os valores geométricos calculados pelo hero, insets e teclado. O compositor agora espelha os formulários com campo, microfone e envio em `h-10`, e os dois controles de ícone em `w-10 rounded-2xl`. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
+
 - Preferências do [[Assistente Lumus]] em 2026-07-22: o atalho de configurações abre um `Drawer` à direita, sem inserir controles no histórico da conversa. A leitura automática agora usa o `Switch` padrão com tokens de `useScreenStyles()`; revogar consentimento fecha o drawer antes de executar a limpeza de sessão já existente. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
 - Compositor do [[Assistente Lumus]] em 2026-07-22: o `PromptInput` deixou o conteúdo rolável do chat e passou a ocupar o rodapé fixo do painel, logo acima do `navigator.tsx`. Assim, a tela abre com o campo pronto para uso e apenas o histórico recebe rolagem; o `KeyboardAvoidingView` preserva a posição acima do teclado. Vault alinhado em [[Assistente Lumus]].
 - Exemplos do [[Assistente Lumus]] em 2026-07-22: os `QUICK_PROMPTS` deixaram o estado vazio e passaram para um `Modal` aberto pelo novo botão de lâmpada entre limpar conversa e configurações. A escolha fecha o modal e segue o mesmo envio controlado do compositor. Vault alinhado em [[Assistente Lumus]] e [[Componentes UI]].
