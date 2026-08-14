@@ -131,6 +131,7 @@ export function useScreenStyles() {
 	const tableActionsCellClassName = 'flex-none items-center justify-center px-2 py-3';
 	const tableSingleActionColumnClassName = 'w-[76px]';
 	const tableDoubleActionColumnClassName = 'w-[112px]';
+	const tableTripleActionColumnClassName = 'w-[160px]';
 	const tableUsersMinWidthClassName = 'w-full';
 	const tableBanksMinWidthClassName = 'w-full';
 	const tableTagsMinWidthClassName = 'w-full';
@@ -262,6 +263,7 @@ export function useScreenStyles() {
 		tableActionsCellClassName,
 		tableSingleActionColumnClassName,
 		tableDoubleActionColumnClassName,
+		tableTripleActionColumnClassName,
 		tableUsersMinWidthClassName,
 		tableBanksMinWidthClassName,
 		tableTagsMinWidthClassName,

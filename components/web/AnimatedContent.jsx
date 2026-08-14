@@ -27,6 +27,10 @@ const AnimatedContent = ({
   ...props
 }) => {
   const ref = useRef(null);
+	const domStyle = Array.isArray(props.style)
+		? Object.assign({}, ...props.style.filter(Boolean))
+		: props.style;
+	const { style: _style, ...domProps } = props;
 
   useEffect(() => {
     const el = ref.current;
@@ -109,7 +113,12 @@ const AnimatedContent = ({
   ]);
 
   return (
-    <div ref={ref} className={className} style={{ visibility: 'hidden' }} {...props}>
+    <div
+      ref={ref}
+      className={className}
+      style={{ visibility: 'hidden', ...(domStyle || {}) }}
+      {...domProps}
+    >
       {children}
     </div>
   );

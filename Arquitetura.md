@@ -270,6 +270,18 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Desativação reversível de bancos em 2026-08-14: `ConfigurationsScreen.tsx` agora carrega bancos ativos e inativos na tabela administrativa e oferece confirmação para desativar/reativar, preservando o documento e o histórico. `updateBankStatusFirebase()` mantém `isActive`; os seletores operacionais continuam filtrando bancos inativos. Vault alinhado em [[Gerenciamento de Bancos]] e [[Configurações]].
+> Atualizado em 2026-08-14.
+
+- Migração visual parcial para Tailwind na Web em 2026-08-14: `LoginScreen.web.tsx` removeu o `StyleSheet.create()` da composição principal e passou a usar classes NativeWind para os layouts responsivo, painel de identidade e formulário; tokens de tema e dimensões medidas continuam em runtime. A lógica de autenticação e a composição nativa permanecem inalteradas.
+> Atualizado em 2026-08-14.
+
+- Push remoto para recorrências compartilhadas em 2026-08-14: builds instaladas registram um Expo Push Token privado por aparelho; Functions confiáveis observam `mandatoryExpenses` e `mandatoryGains` e notificam o dono e `relatedIdUsers` sem expor tokens entre usuários. A central de testes chama o mesmo envio por **Testar dispositivos vinculados**. Vault alinhado em [[Notificações]], [[Despesas Fixas]] e [[Receitas Fixas]].
+> Atualizado em 2026-08-14.
+
+- Quitação de parcelas com desconto em 2026-08-14: `settleMandatoryExpenseFirebase()` passou a aceitar o valor efetivamente pago informado no formulário, mesmo quando diferente da soma teórica das parcelas restantes. A transação continua validando a existência do parcelamento e de parcelas pendentes antes de criar a despesa e remover o template atomicamente. Vault alinhado em [[Despesas Fixas]] e [[Transações de Despesas]].
+> Atualizado em 2026-08-14.
+
 - Correção de consistência de saldos em 2026-08-13: `calculateLegacyBankBalanceInCents()` centraliza o saldo legado no último snapshot de abertura mais os movimentos posteriores, usando somente a aplicação inicial (nunca rendimento/sincronização) como saída bancária. Home, transferência, saque, novo investimento e Assistente Lumus usam essa mesma regra; transferências saem dos totais de ganhos/gastos, escritas legadas passam a exigir centavos inteiros e a Home lê `financialAccounts` após o corte do grupo. Cobertura adicionada em `monthlyBalance.test.ts`. Vault alinhado em [[Balanço Mensal]] e [[Dashboard Home]].
 > Atualizado em 2026-08-13.
 

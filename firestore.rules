@@ -75,6 +75,18 @@ service cloud.firestore {
           'financialLegacyCutoverAt'
         ]);
       allow delete: if signedIn() && userId == request.auth.uid;
+
+      // Tokens Expo are private to their owner. Shared users can receive a
+      // notification through the trusted Function, but never read each other’s tokens.
+      match /pushDevices/{deviceId} {
+        allow read: if signedIn() && userId == request.auth.uid;
+        allow create, update: if signedIn()
+          && userId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['expoPushToken', 'platform', 'updatedAt'])
+          && request.resource.data.expoPushToken is string
+          && request.resource.data.platform in ['android', 'ios'];
+        allow delete: if signedIn() && userId == request.auth.uid;
+      }
     }
 
     match /financialGroups/{groupId} {

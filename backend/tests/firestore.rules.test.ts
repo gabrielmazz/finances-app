@@ -31,6 +31,12 @@ async function seed(): Promise<void> {
       groupId: 'group-1',
       legs: [],
     });
+    await setDoc(doc(firestore, 'users', 'member'), {
+      relatedIdUsers: ['admin'],
+    });
+    await setDoc(doc(firestore, 'users', 'admin'), {
+      relatedIdUsers: ['member'],
+    });
   });
 }
 
@@ -58,6 +64,20 @@ async function run(): Promise<void> {
   await assertFails(setDoc(doc(admin, 'ledgerTransactions', 'new-transaction'), {
     groupId: 'group-1',
     legs: [],
+  }));
+
+  const device = doc(member, 'users', 'member', 'pushDevices', 'device-1');
+  await assertSucceeds(setDoc(device, {
+    expoPushToken: 'ExponentPushToken[test-member-device]',
+    platform: 'android',
+    updatedAt: new Date(),
+  }));
+  await assertSucceeds(getDoc(device));
+  await assertFails(getDoc(doc(admin, 'users', 'member', 'pushDevices', 'device-1')));
+  await assertFails(setDoc(doc(outsider, 'users', 'member', 'pushDevices', 'device-2'), {
+    expoPushToken: 'ExponentPushToken[outsider-device]',
+    platform: 'android',
+    updatedAt: new Date(),
   }));
 
   await environment.cleanup();

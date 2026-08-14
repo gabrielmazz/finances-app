@@ -15,6 +15,7 @@ import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVis
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
 import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminderNotifications';
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
+import { registerRemoteNotificationDevice } from '@/utils/remoteNotifications';
 import {
 	APP_ROUTE_PATHS,
 	getRouteVisibilityKeyForPath,
@@ -62,6 +63,11 @@ const NotificationLifecycleBridge = () => {
 		const accountId = user.uid;
 		void synchronizeMandatoryReminderAccount(accountId, () => !isCancelled).catch(error => {
 			console.error('Erro ao sincronizar lembretes após autenticação:', error);
+		});
+		void registerRemoteNotificationDevice(accountId).then(result => {
+			if (!result.registered && result.reason === 'token-error') {
+				console.warn('Não foi possível registrar este aparelho para notificações remotas.');
+			}
 		});
 
 		return () => {

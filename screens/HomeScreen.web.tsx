@@ -19,6 +19,7 @@ import {
 	ScrollView,
 	StyleSheet,
 	Text,
+	type ViewStyle,
 	useWindowDimensions,
 	View,
 } from "react-native";
@@ -68,8 +69,8 @@ import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
 import { useScreenStyles } from "@/hooks/useScreenStyle";
 import { APP_ROUTE_PATHS, navigateToRoute } from "@/utils/navigation";
-import LoginWallpaper from "@/assets/Background/wallpaper01.png";
-import HomeScreenIllustration from "@/assets/UnDraw/homeScreen.svg";
+import LoginWallpaper from "../assets/Background/wallpaper01.png";
+import HomeScreenIllustration from "../assets/UnDraw/homeScreen.svg";
 
 type WebBankItem =
 	| ({ kind: "bank" } & HomeBankBalanceCard)
@@ -490,26 +491,24 @@ export default function HomeScreen() {
 				? current.filter((item) => item !== id)
 				: [...current, id],
 		);
-	const contentWidth = desktop
+	const contentWidth: ViewStyle | undefined = desktop
 		? { width: "100%", maxWidth: 1180, alignSelf: "center" as const }
 		: undefined;
 
 	return (
 		<SafeAreaView
-			style={[styles.screen, { backgroundColor: surfaceBackground }]}
+			className="flex-1"
+			style={{ backgroundColor: surfaceBackground }}
 			edges={["left", "right", "bottom"]}
 		>
-			<View style={[styles.fill, { backgroundColor: surfaceBackground }]}>
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<View
-					style={[
-						styles.hero,
-						{ height: heroHeight, backgroundColor: surfaceBackground },
-					]}
+					style={[styles.hero, { height: heroHeight, backgroundColor: surfaceBackground }]}
 				>
 					<RNImage
 						source={LoginWallpaper}
 						accessibilityLabel="Background da tela inicial"
-						style={styles.heroImage}
+					style={styles.heroImage}
 						resizeMode="cover"
 					/>
 					<View pointerEvents="none" style={styles.heroGrainient}>
@@ -570,13 +569,10 @@ export default function HomeScreen() {
 					</View>
 				</View>
 				<View
-					style={[
-						styles.sheet,
-						{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground },
-						compact && styles.sheetCompact,
-					]}
+					className={`flex-1 rounded-tl-[28px] rounded-tr-[28px] px-8 pb-0.5 ${compact ? 'px-[18px]' : ''}`}
+					style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
 				>
-					<View style={[styles.sheetInner, contentWidth]}>
+					<View className="flex-1" style={contentWidth}>
 						<ScrollView
 							contentContainerStyle={styles.scrollContent}
 							showsVerticalScrollIndicator={false}
