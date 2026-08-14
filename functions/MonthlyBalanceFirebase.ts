@@ -3,6 +3,7 @@ import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, where } from '
 
 // Importação das funções auxiliares
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { isSafeIntegerCents } from '@/utils/monthlyBalance';
 
 
 const COLLECTION_NAME = 'monthlyBalances';
@@ -37,6 +38,9 @@ export async function upsertMonthlyBalanceFirebase({
 }: UpsertMonthlyBalanceParams): Promise<UpsertMonthlyBalanceResponse> {
 
 	try {
+		if (!isSafeIntegerCents(valueInCents)) {
+			return { success: false, error: 'O saldo deve ser um número inteiro de centavos.' };
+		}
 
 		// Resgata os usuarios relacionados ao personId
 		const usersRelatedResponse = await getRelatedUsersIDsFirebase(personId);

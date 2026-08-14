@@ -8,6 +8,7 @@ type Movement = {
 	bankId?: string | null;
 	valueInCents?: number;
 	isInvestmentRedemption?: boolean;
+	isBankTransfer?: boolean;
 };
 
 type InvestmentMovement = {
@@ -24,6 +25,26 @@ type GainExpenseTotalsMovement = {
 	isInvestmentRedemption?: boolean | null;
 	isFinanceInvestment?: boolean | null;
 	isFinanceInvestmentSync?: boolean | null;
+	isBankTransfer?: boolean | null;
+};
+
+type DatedMovement = Movement & {
+	date?: unknown;
+	createdAt?: unknown;
+};
+
+type DatedInvestment = InvestmentMovement & {
+	date?: unknown;
+	createdAt?: unknown;
+};
+
+export type LegacyMonthlyBalanceSnapshot = {
+	bankId?: string | null;
+	year?: number;
+	month?: number;
+	valueInCents?: number;
+	updatedAt?: unknown;
+	createdAt?: unknown;
 };
 
 export type MonthlyBankBalanceInput = {
@@ -48,11 +69,36 @@ export type MonthlyBankBalance = {
 	currentBalanceInCents: number | null;
 };
 
+export const isSafeIntegerCents = (value: unknown): value is number =>
+	typeof value === 'number' && Number.isSafeInteger(value);
+
 const normalizeCurrencyValue = (value: unknown): number => {
-	if (typeof value === 'number' && Number.isFinite(value)) {
+	if (isSafeIntegerCents(value)) {
 		return value;
 	}
 	return 0;
+};
+
+const parseDate = (value: unknown): Date | null => {
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime()) ? null : value;
+	}
+	if (value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+		const date = (value as { toDate: () => Date }).toDate();
+		return Number.isNaN(date.getTime()) ? null : date;
+	}
+	if (typeof value === 'string' || typeof value === 'number') {
+		const date = new Date(value);
+		return Number.isNaN(date.getTime()) ? null : date;
+	}
+	return null;
+};
+
+const getMonthStart = (snapshot: LegacyMonthlyBalanceSnapshot) => {
+	if (!Number.isInteger(snapshot.year) || !Number.isInteger(snapshot.month) || !snapshot.year || !snapshot.month || snapshot.month < 1 || snapshot.month > 12) {
+		return null;
+	}
+	return new Date(snapshot.year, snapshot.month - 1, 1);
 };
 
 const getBankId = (raw: unknown): string | null => {
@@ -101,7 +147,94 @@ export const shouldIncludeMovementInGainExpenseTotals = (
 		movement?.isFinanceInvestment ||
 			movement?.isInvestmentDeposit ||
 			movement?.isInvestmentRedemption ||
-			movement?.isFinanceInvestmentSync,
+			movement?.isFinanceInvestmentSync ||
+			movement?.isBankTransfer,
+	);
+};
+
+/**
+ * Legacy snapshots represent the opening balance of their calendar month.
+ * Every balance consumer must use this same rule until the group is migrated
+ * to the financial ledger reconciliation model.
+ */
+export const calculateLegacyBankBalanceInCents = ({
+	bankId,
+	snapshots,
+	expenses = [],
+	gains = [],
+	cashRescues = [],
+	investments = [],
+	asOfDate = new Date(),
+}: {
+	bankId: string;
+	snapshots: LegacyMonthlyBalanceSnapshot[];
+	expenses?: DatedMovement[];
+	gains?: DatedMovement[];
+	cashRescues?: DatedMovement[];
+	investments?: DatedInvestment[];
+	asOfDate?: Date;
+}): number | null => {
+	if (!bankId || Number.isNaN(asOfDate.getTime())) {
+		return null;
+	}
+
+	const latestSnapshot = snapshots.reduce<{
+		snapshot: LegacyMonthlyBalanceSnapshot;
+		monthStart: Date;
+		updatedAt: Date | null;
+	} | null>((current, snapshot) => {
+		if (snapshot.bankId !== bankId || !Number.isSafeInteger(snapshot.valueInCents)) {
+			return current;
+		}
+		const monthStart = getMonthStart(snapshot);
+		if (!monthStart || monthStart.getTime() > asOfDate.getTime()) {
+			return current;
+		}
+		const updatedAt = parseDate(snapshot.updatedAt ?? snapshot.createdAt);
+		if (
+			!current ||
+			monthStart.getTime() > current.monthStart.getTime() ||
+			(monthStart.getTime() === current.monthStart.getTime() &&
+				(updatedAt?.getTime() ?? 0) >= (current.updatedAt?.getTime() ?? 0))
+		) {
+			return { snapshot, monthStart, updatedAt };
+		}
+		return current;
+	}, null);
+
+	if (!latestSnapshot || typeof latestSnapshot.snapshot.valueInCents !== 'number') {
+		return null;
+	}
+
+	const isMovementAfterSnapshot = (item: DatedMovement | DatedInvestment) => {
+		if (item.bankId !== bankId) {
+			return false;
+		}
+		const date = parseDate(item.date ?? item.createdAt);
+		return Boolean(
+			date &&
+			date.getTime() >= latestSnapshot.monthStart.getTime() &&
+			date.getTime() <= asOfDate.getTime(),
+		);
+	};
+	const sumMovements = (items: DatedMovement[]) =>
+		items.reduce(
+			(total, item) => total + (isMovementAfterSnapshot(item) ? Math.max(0, normalizeCurrencyValue(item.valueInCents)) : 0),
+			0,
+		);
+	const totalInitialInvestments = investments.reduce((total, investment) => {
+		if (!isMovementAfterSnapshot(investment)) {
+			return total;
+		}
+		return total + Math.max(0, normalizeCurrencyValue(resolveInvestmentInitialValue(investment)));
+	}, 0);
+
+	return (
+		latestSnapshot.snapshot.valueInCents +
+		sumMovements(gains) -
+		sumMovements(expenses) -
+		sumMovements(cashRescues) -
+		totalInitialInvestments
 	);
 };
 

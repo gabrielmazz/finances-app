@@ -163,6 +163,35 @@ export const isMandatoryInstallmentPlanComplete = (
 	installmentsCompleted: number,
 ) => installmentTotal !== null && installmentsCompleted >= installmentTotal;
 
+export const getMandatoryInstallmentRemainingValueInCents = ({
+	installmentTotal,
+	installmentsCompleted,
+	installmentValueInCents,
+}: {
+	installmentTotal: unknown;
+	installmentsCompleted: unknown;
+	installmentValueInCents: unknown;
+}) => {
+	const normalizedTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+	const normalizedValue =
+		typeof installmentValueInCents === 'number' && Number.isSafeInteger(installmentValueInCents)
+			? installmentValueInCents
+			: null;
+
+	if (normalizedTotal === null || normalizedValue === null || normalizedValue <= 0) {
+		return null;
+	}
+
+	const normalizedCompleted = normalizeMandatoryInstallmentsCompleted(
+		installmentsCompleted,
+		normalizedTotal,
+	);
+	const remainingInstallments = normalizedTotal - normalizedCompleted;
+	const remainingValueInCents = remainingInstallments * normalizedValue;
+
+	return Number.isSafeInteger(remainingValueInCents) ? remainingValueInCents : null;
+};
+
 export const getMandatoryInstallmentDisplayNumber = (
 	installmentTotal: number | null,
 	installmentsCompleted: number,

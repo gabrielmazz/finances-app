@@ -28,7 +28,7 @@ type SkeletonTextProps = Omit<SkeletonProps, 'children' | 'onLayout' | 'variant'
 };
 
 const VARIANT_RADIUS: Record<SkeletonVariant, number> = {
-  rounded: 999,
+  rounded: 8,
   sharp: 8,
   circular: 9999,
 };

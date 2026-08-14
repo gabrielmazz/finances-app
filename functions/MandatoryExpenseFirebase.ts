@@ -6,6 +6,7 @@ import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import {
 	isMandatoryInstallmentPlanComplete,
+	getMandatoryInstallmentRemainingValueInCents,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
@@ -91,6 +92,9 @@ type MandatoryExpensePaymentFailureReason =
 	| 'payment_expense_not_found'
 	| 'already_paid_for_cycle'
 	| 'installment_plan_complete'
+	| 'installment_plan_required'
+	| 'settlement_value_mismatch'
+	| 'no_remaining_installments'
 	| 'invalid_payment_data'
 	| 'transaction_failed';
 
@@ -559,6 +563,106 @@ export async function registerMandatoryExpensePaymentFirebase(
 		});
 	} catch (error) {
 		console.error('Erro ao registrar pagamento do gasto obrigatório:', error);
+		return { success: false, reason: 'transaction_failed' };
+	}
+}
+
+// A quitação antecipada cria uma despesa única com o saldo das parcelas e remove
+// o template na mesma transação, seguindo [[Despesas Fixas]] e [[Transações de Despesas]].
+export async function settleMandatoryExpenseFirebase(
+	params: RegisterMandatoryExpensePaymentParams,
+): Promise<MandatoryExpensePaymentResult> {
+	if (!isValidMandatoryExpensePaymentInput(params)) {
+		return { success: false, reason: 'invalid_payment_data' };
+	}
+
+	const {
+		mandatoryExpenseId,
+		name,
+		valueInCents,
+		tagId,
+		bankId,
+		date,
+		personId,
+		explanation,
+		moneyFormat,
+		isInvestmentDeposit,
+		investmentId,
+		investmentNameSnapshot,
+		isBankTransfer,
+		bankTransferPairId,
+		bankTransferDirection,
+		bankTransferSourceBankId,
+		bankTransferTargetBankId,
+		bankTransferSourceBankNameSnapshot,
+		bankTransferTargetBankNameSnapshot,
+		bankTransferExpenseId,
+		bankTransferGainId,
+	} = params;
+	const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, mandatoryExpenseId);
+	const settlementExpenseRef = doc(collection(db, 'expenses'));
+
+	try {
+		return await runTransaction<MandatoryExpensePaymentResult>(db, async transaction => {
+			const mandatoryExpenseSnapshot = await transaction.get(mandatoryExpenseRef);
+
+			if (!mandatoryExpenseSnapshot.exists()) {
+				return { success: false, reason: 'mandatory_expense_not_found' };
+			}
+
+			const mandatoryExpenseData = mandatoryExpenseSnapshot.data() as Record<string, unknown>;
+			const installmentTotal = normalizeMandatoryInstallmentTotal(mandatoryExpenseData.installmentTotal);
+			if (installmentTotal === null) {
+				return { success: false, reason: 'installment_plan_required' };
+			}
+
+			const installmentState = getMandatoryExpenseInstallmentPaymentState(mandatoryExpenseData, date);
+			const remainingInstallments = installmentTotal - installmentState.installmentsCompleted;
+			if (remainingInstallments <= 0) {
+				return { success: false, reason: 'no_remaining_installments' };
+			}
+
+			const expectedValueInCents = getMandatoryInstallmentRemainingValueInCents({
+				installmentTotal,
+				installmentsCompleted: installmentState.installmentsCompleted,
+				installmentValueInCents: mandatoryExpenseData.valueInCents,
+			});
+
+			if (expectedValueInCents === null || !Number.isSafeInteger(expectedValueInCents) || valueInCents !== expectedValueInCents) {
+				return { success: false, reason: 'settlement_value_mismatch' };
+			}
+
+			const createdAt = new Date();
+			transaction.set(settlementExpenseRef, {
+				name,
+				valueInCents,
+				tagId: typeof tagId === 'string' ? tagId : null,
+				bankId: typeof bankId === 'string' ? bankId : null,
+				date,
+				personId,
+				explanation: explanation ?? null,
+				moneyFormat: typeof moneyFormat === 'boolean' ? moneyFormat : false,
+				isInvestmentDeposit: Boolean(isInvestmentDeposit),
+				investmentId: investmentId ?? null,
+				investmentNameSnapshot: investmentNameSnapshot ?? null,
+				isBankTransfer: Boolean(isBankTransfer),
+				bankTransferPairId: bankTransferPairId ?? null,
+				bankTransferDirection: bankTransferDirection ?? null,
+				bankTransferSourceBankId: bankTransferSourceBankId ?? null,
+				bankTransferTargetBankId: bankTransferTargetBankId ?? null,
+				bankTransferSourceBankNameSnapshot: bankTransferSourceBankNameSnapshot ?? null,
+				bankTransferTargetBankNameSnapshot: bankTransferTargetBankNameSnapshot ?? null,
+				bankTransferExpenseId: bankTransferExpenseId ?? null,
+				bankTransferGainId: bankTransferGainId ?? null,
+				createdAt,
+				updatedAt: createdAt,
+			});
+			transaction.delete(mandatoryExpenseRef);
+
+			return { success: true, expenseId: settlementExpenseRef.id };
+		});
+	} catch (error) {
+		console.error('Erro ao quitar antecipadamente o gasto obrigatório:', error);
 		return { success: false, reason: 'transaction_failed' };
 	}
 }

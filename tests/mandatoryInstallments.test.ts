@@ -1,5 +1,6 @@
 import {
 	getMandatoryInstallmentEndDateFromTotal,
+	getMandatoryInstallmentRemainingValueInCents,
 	getMandatoryInstallmentTotalFromDateRange,
 	getMandatoryInstallmentsCompletedFromStartDate,
 	resolveMandatoryInstallmentsCompleted,
@@ -60,5 +61,25 @@ describe('mandatory installments', () => {
 				referenceDate: new Date(2026, 6, 6),
 			}),
 		).toBe(5);
+	});
+
+	it('calculates the remaining settlement amount in cents', () => {
+		expect(
+			getMandatoryInstallmentRemainingValueInCents({
+				installmentTotal: 10,
+				installmentsCompleted: 3,
+				installmentValueInCents: 12500,
+			}),
+		).toBe(87500);
+	});
+
+	it('does not allow settlement for a non-installment plan', () => {
+		expect(
+			getMandatoryInstallmentRemainingValueInCents({
+				installmentTotal: null,
+				installmentsCompleted: 0,
+				installmentValueInCents: 12500,
+			}),
+		).toBeNull();
 	});
 });

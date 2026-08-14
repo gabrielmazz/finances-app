@@ -43,6 +43,18 @@ service cloud.firestore {
         && resource.data.personId == request.auth.uid;
     }
 
+    function isIntegerCents(value) {
+      return value is int;
+    }
+
+    function hasValidInvestmentCents(data) {
+      return (isIntegerCents(data.initialValueInCents) || isIntegerCents(data.initialInvestedInCents))
+        && (isIntegerCents(data.currentValueInCents)
+          || isIntegerCents(data.lastManualSyncValueInCents)
+          || isIntegerCents(data.initialValueInCents)
+          || isIntegerCents(data.initialInvestedInCents));
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (
         userId == request.auth.uid ||
@@ -115,28 +127,33 @@ service cloud.firestore {
     }
     match /expenses/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
     }
     match /gains/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
     }
     match /bankTransfers/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
     }
     match /cashRescues/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
     }
     match /monthlyBalances/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
     }
     match /investments/{id} {
       allow read: if canReadLegacy(resource.data.personId);
@@ -145,8 +162,9 @@ service cloud.firestore {
     }
     match /financeInvestments/{id} {
       allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+      allow create: if canCreateLegacy() && hasValidInvestmentCents(request.resource.data);
+      allow update: if canMutateLegacy() && hasValidInvestmentCents(request.resource.data);
+      allow delete: if canMutateLegacy();
     }
   }
 }

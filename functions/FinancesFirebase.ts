@@ -23,6 +23,7 @@ import {
 	type InvestmentSync,
 	type InvestmentValuationMethod,
 } from '@/utils/investmentPortfolio';
+import { isSafeIntegerCents } from '@/utils/monthlyBalance';
 
 interface AddFinanceInvestmentParams {
 	name: string;
@@ -149,6 +150,13 @@ export async function addFinanceInvestmentFirebase({
 	bankNameSnapshot,
 }: AddFinanceInvestmentParams) {
 	try {
+		if (
+			!isSafeIntegerCents(initialValueInCents) ||
+			initialValueInCents <= 0 ||
+			(currentValueInCents !== undefined && (!isSafeIntegerCents(currentValueInCents) || currentValueInCents < 0))
+		) {
+			return { success: false, error: 'Os valores do investimento devem ser centavos inteiros válidos.' };
+		}
 		const resolvedAssetType = getInvestmentAssetType(assetType);
 		const resolvedValuationMethod = getInvestmentValuationMethod(valuationMethod, resolvedAssetType);
 		const resolvedCdiPercentageInBasisPoints =
@@ -200,6 +208,12 @@ export async function updateFinanceInvestmentFirebase({
 	description,
 }: UpdateFinanceInvestmentParams) {
 	try {
+		if (
+			(initialValueInCents !== undefined && (!isSafeIntegerCents(initialValueInCents) || initialValueInCents < 0)) ||
+			(currentValueInCents !== undefined && (!isSafeIntegerCents(currentValueInCents) || currentValueInCents < 0))
+		) {
+			return { success: false, error: 'Os valores do investimento devem ser centavos inteiros válidos.' };
+		}
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		const currentSnapshot = await getDoc(investmentRef);
 		const currentData = currentSnapshot.data() as FinanceInvestmentRecord | undefined;
@@ -366,7 +380,7 @@ export async function adjustFinanceInvestmentValueFirebase({
 	deltaInCents: number;
 }) {
 	try {
-		if (!investmentId || !Number.isFinite(deltaInCents)) {
+		if (!investmentId || !isSafeIntegerCents(deltaInCents)) {
 			return { success: false, error: 'Dados inválidos para ajustar investimento.' };
 		}
 
@@ -415,6 +429,9 @@ export async function syncFinanceInvestmentValueFirebase({
 	date?: Date | null;
 }) {
 	try {
+		if (!isSafeIntegerCents(syncedValueInCents) || syncedValueInCents < 0) {
+			return { success: false, error: 'O valor sincronizado deve ser um número inteiro de centavos.' };
+		}
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		if (!recordHistory) {
 			await setDoc(

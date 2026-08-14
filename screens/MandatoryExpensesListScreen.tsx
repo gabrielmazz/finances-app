@@ -13,7 +13,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { AddIcon, CalendarDaysIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
+import { AddIcon, CalendarDaysIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
 	ModalBackdrop,
@@ -49,6 +49,7 @@ import {
 import {
 	formatMandatoryInstallmentDateLabel,
 	formatMandatoryInstallmentLabel,
+	getMandatoryInstallmentRemainingValueInCents,
 	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
@@ -86,6 +87,7 @@ import { findMandatoryExpenseRegistrationTarget } from '@/utils/mandatoryExpense
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
+	| { type: 'settle'; expense: MandatoryExpenseItem }
 	| { type: 'edit'; expense: MandatoryExpenseItem }
 	| { type: 'delete'; expense: MandatoryExpenseItem }
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
@@ -104,6 +106,8 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
 	installmentLabel?: string | null;
+	remainingInstallments?: number;
+	remainingValueInCents?: number | null;
 	isInstallmentComplete?: boolean;
 	reminderDaysBefore?: 1 | 2 | 3;
 	reminderOnDueDate?: boolean;
@@ -631,6 +635,11 @@ export default function MandatoryExpensesListScreen() {
 					resolvedInstallmentsCompleted,
 					isPaidForCurrentCycle,
 				);
+				const remainingValueInCents = getMandatoryInstallmentRemainingValueInCents({
+					installmentTotal: expense.installmentTotal,
+					installmentsCompleted: resolvedInstallmentsCompleted,
+					installmentValueInCents: expense.valueInCents,
+				});
 				const displayValueInCents =
 					isPaidForCurrentCycle &&
 					typeof expense.lastPaymentValueInCents === 'number' &&
@@ -644,6 +653,11 @@ export default function MandatoryExpensesListScreen() {
 					isPaidForCurrentCycle,
 					isInstallmentComplete,
 					installmentLabel,
+					remainingInstallments:
+						expense.installmentTotal !== null
+							? Math.max(0, expense.installmentTotal - resolvedInstallmentsCompleted)
+							: 0,
+					remainingValueInCents,
 					displayValueInCents,
 				};
 			});
@@ -742,6 +756,53 @@ export default function MandatoryExpensesListScreen() {
 		});
 	}, [tagMetadataMap]);
 
+	const handleSettleExpense = React.useCallback((expense: MandatoryExpenseItem) => {
+		if (typeof expense.installmentTotal !== 'number' || expense.isInstallmentComplete) {
+			showNotifierAlert({
+				description: 'A quitação antecipada só está disponível para parcelamentos ativos.',
+				type: 'warn',
+				isDarkMode,
+			});
+			return;
+		}
+
+		if (!expense.remainingValueInCents || expense.remainingValueInCents <= 0) {
+			showNotifierAlert({
+				description: 'Não há parcelas restantes para quitar neste gasto.',
+				type: 'warn',
+				isDarkMode,
+			});
+			return;
+		}
+
+		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
+			templateName: encodeURIComponent(expense.name),
+			templateValueInCents: String(expense.remainingValueInCents),
+			templateTagId: expense.tagId,
+			templateDueDay: String(expense.dueDay),
+			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
+			templateDescription: encodeURIComponent(
+				[expense.description, `Quitação antecipada de ${expense.remainingInstallments ?? 0} parcela(s) restantes.`]
+					.filter(Boolean)
+					.join('\n'),
+			),
+			templateMandatoryExpenseId: expense.id,
+			templateMandatoryExpenseSettlement: '1',
+			templateTagName: tagMetadataMap[expense.tagId]?.name
+				? encodeURIComponent(tagMetadataMap[expense.tagId].name)
+				: undefined,
+			templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
+				: undefined,
+			templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
+				: undefined,
+			templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
+				? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
+				: undefined,
+		});
+	}, [isDarkMode, tagMetadataMap]);
+
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isActionProcessing) {
 			return;
@@ -756,6 +817,12 @@ export default function MandatoryExpensesListScreen() {
 
 		if (pendingAction.type === 'register') {
 			handleRegisterExpense(pendingAction.expense);
+			setPendingAction(null);
+			return;
+		}
+
+		if (pendingAction.type === 'settle') {
+			handleSettleExpense(pendingAction.expense);
 			setPendingAction(null);
 			return;
 		}
@@ -843,7 +910,7 @@ export default function MandatoryExpensesListScreen() {
 			setIsActionProcessing(false);
 			setPendingAction(null);
 		}
-	}, [handleEdit, handleRegisterExpense, loadData, pendingAction]);
+	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading) {
@@ -1034,6 +1101,15 @@ export default function MandatoryExpensesListScreen() {
 			};
 		}
 
+		if (pendingAction.type === 'settle') {
+			return {
+				title: 'Quitar parcelas',
+				message: `Registrar ${pendingAction.expense.remainingInstallments ?? 0} parcela(s) restantes de "${expenseName}" em uma única despesa no valor de ${formatCurrencyBRL(pendingAction.expense.remainingValueInCents ?? 0)}? O parcelamento será encerrado após o lançamento.`,
+				confirmLabel: 'Continuar',
+				action: 'primary' as const,
+			};
+		}
+
 		if (pendingAction.type === 'edit') {
 			return {
 				title: 'Editar gasto obrigatório',
@@ -1058,7 +1134,7 @@ export default function MandatoryExpensesListScreen() {
 			confirmLabel: 'Excluir',
 			action: 'negative' as const,
 		};
-	}, [pendingAction]);
+	}, [formatCurrencyBRL, pendingAction]);
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
 			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
@@ -1334,7 +1410,7 @@ export default function MandatoryExpensesListScreen() {
 															</View>
 
 															<View style={{ width: '93%', paddingBottom: 14 }}>
-																<TouchableOpacity
+																	<TouchableOpacity
 																	activeOpacity={0.85}
 																	onPress={() => handleToggleExpenseCard(expense.id)}
 																	style={{ width: '100%' }}
@@ -1598,6 +1674,22 @@ export default function MandatoryExpensesListScreen() {
 																					<Icon as={EditIcon} size="sm" className="text-white" />
 																					<Text className="text-xs font-semibold text-white">Editar</Text>
 																				</TouchableOpacity>
+
+																				{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
+																					<TouchableOpacity
+																						activeOpacity={0.85}
+																						onPress={() => setPendingAction({ type: 'settle', expense })}
+																						style={{
+																							flexDirection: 'row',
+																							alignItems: 'center',
+																							gap: 8,
+																							paddingVertical: 8,
+																						}}
+																					>
+																						<Icon as={CheckCircleIcon} size="sm" className="text-white" />
+																						<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
+																					</TouchableOpacity>
+																				) : null}
 
 																				{expense.isPaidForCurrentCycle ? (
 																					<TouchableOpacity

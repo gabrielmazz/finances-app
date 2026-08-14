@@ -54,6 +54,7 @@ import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFireba
 import {
 	getMandatoryExpensesWithRelationsFirebase,
 	registerMandatoryExpensePaymentFirebase,
+	settleMandatoryExpenseFirebase,
 } from '@/functions/MandatoryExpenseFirebase';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
@@ -64,7 +65,10 @@ import {
 } from '@/utils/mandatoryExpenseSuggestions';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
-import { suppressMandatoryExpenseNotificationCycle } from '@/utils/mandatoryExpenseNotifications';
+import {
+	cancelMandatoryExpenseNotification,
+	suppressMandatoryExpenseNotificationCycle,
+} from '@/utils/mandatoryExpenseNotifications';
 import {
 	isTagVisibleInRegularUsageList,
 	normalizeTagUsageType,
@@ -262,7 +266,7 @@ export default function AddRegisterExpensesScreen() {
 		[],
 	);
 
-	const showSuccessfulExpenseNotification = React.useCallback((isUpdating = false) => {
+	const showSuccessfulExpenseNotification = React.useCallback((isUpdating = false, isSettlement = false) => {
 		const normalizedExpenseName = expenseName.trim() || 'informada';
 		const resolvedBankName =
 			banks.find(bank => bank.id === selectedBankId)?.name ??
@@ -275,8 +279,10 @@ export default function AddRegisterExpensesScreen() {
 				: 'no banco selecionado';
 
 		showNotifierAlert({
-			title: isUpdating ? 'Despesa atualizada' : 'Despesa registrada',
-			description: `A despesa "${normalizedExpenseName}" foi ${isUpdating ? 'atualizada' : 'registrada'} com sucesso ${destinationLabel}.`,
+			title: isSettlement ? 'Quitação registrada' : isUpdating ? 'Despesa atualizada' : 'Despesa registrada',
+			description: isSettlement
+				? `A quitação de "${normalizedExpenseName}" foi registrada com sucesso ${destinationLabel}.`
+				: `A despesa "${normalizedExpenseName}" foi ${isUpdating ? 'atualizada' : 'registrada'} com sucesso ${destinationLabel}.`,
 			type: 'success',
 			isDarkMode,
 			duration: 4000,
@@ -321,6 +327,7 @@ export default function AddRegisterExpensesScreen() {
 		templateTagIconName?: string | string[];
 		templateTagIconStyle?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
+		templateMandatoryExpenseSettlement?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
 		investmentDeltaInCents?: string | string[];
@@ -365,6 +372,7 @@ export default function AddRegisterExpensesScreen() {
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const usesBusinessDaysParam = decodeParam(params.templateUsesBusinessDays);
 		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
+		const mandatoryExpenseSettlement = decodeParam(params.templateMandatoryExpenseSettlement);
 		const lockTagParam = decodeParam(params.templateLockTag);
 		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
 		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
@@ -401,6 +409,7 @@ export default function AddRegisterExpensesScreen() {
 			dueDay,
 			usesBusinessDays: usesBusinessDaysParam === '1',
 			mandatoryExpenseId,
+			isMandatoryExpenseSettlement: mandatoryExpenseSettlement === '1',
 			lockTag: lockTagParam === '1',
 			investmentAdjustmentId,
 			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
@@ -417,6 +426,7 @@ export default function AddRegisterExpensesScreen() {
 		params.templateTagIconStyle,
 		params.templateLockTag,
 		params.templateMandatoryExpenseId,
+		params.templateMandatoryExpenseSettlement,
 		params.templateName,
 		params.templateTagId,
 		params.templateTagName,
@@ -427,6 +437,7 @@ export default function AddRegisterExpensesScreen() {
 		() => (templateData?.mandatoryExpenseId ? templateData.mandatoryExpenseId : null),
 		[templateData],
 	);
+	const isMandatoryExpenseSettlement = templateData?.isMandatoryExpenseSettlement === true;
 	React.useEffect(() => {
 		if (!templateData) {
 			setHasAppliedTemplate(false);
@@ -927,7 +938,7 @@ export default function AddRegisterExpensesScreen() {
 			}
 
 			if (linkedMandatoryExpenseId) {
-				const mandatoryPaymentResult = await registerMandatoryExpensePaymentFirebase({
+				const paymentParams = {
 					mandatoryExpenseId: linkedMandatoryExpenseId,
 					name: expenseName.trim(),
 					valueInCents: expenseValueCents,
@@ -937,17 +948,27 @@ export default function AddRegisterExpensesScreen() {
 					personId,
 					explanation: explanationExpense?.trim() ? explanationExpense.trim() : null,
 					moneyFormat,
-				});
+				};
+				const mandatoryPaymentResult = isMandatoryExpenseSettlement
+					? await settleMandatoryExpenseFirebase(paymentParams)
+					: await registerMandatoryExpensePaymentFirebase(paymentParams);
 
 				if (!mandatoryPaymentResult.success) {
-					const description =
-						mandatoryPaymentResult.reason === 'already_paid_for_cycle'
-							? 'Este gasto obrigatório já foi registrado neste ciclo. Atualize a lista para conferir o status.'
-							: mandatoryPaymentResult.reason === 'installment_plan_complete'
-								? 'Todas as parcelas deste gasto obrigatório já foram registradas.'
-								: mandatoryPaymentResult.reason === 'mandatory_expense_not_found'
-									? 'Este gasto obrigatório não foi encontrado. Volte à lista e atualize os dados.'
-									: 'Não foi possível registrar este pagamento obrigatório. Nenhuma despesa foi criada.';
+					let description = 'Não foi possível registrar este pagamento obrigatório. Nenhuma despesa foi criada.';
+					if (mandatoryPaymentResult.reason === 'settlement_value_mismatch') {
+						description = 'O saldo das parcelas mudou. Volte à lista e tente quitar novamente.';
+					} else if (mandatoryPaymentResult.reason === 'installment_plan_required') {
+						description = 'A quitação antecipada só está disponível para gastos parcelados.';
+					} else if (
+						mandatoryPaymentResult.reason === 'no_remaining_installments' ||
+						mandatoryPaymentResult.reason === 'installment_plan_complete'
+					) {
+						description = 'Todas as parcelas deste gasto obrigatório já foram registradas.';
+					} else if (mandatoryPaymentResult.reason === 'already_paid_for_cycle') {
+						description = 'Este gasto obrigatório já foi registrado neste ciclo. Atualize a lista para conferir o status.';
+					} else if (mandatoryPaymentResult.reason === 'mandatory_expense_not_found') {
+						description = 'Este gasto obrigatório não foi encontrado. Volte à lista e atualize os dados.';
+					}
 
 					showNotifierAlert({
 						title: 'Erro ao registrar gasto obrigatório',
@@ -960,13 +981,17 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				try {
-					await suppressMandatoryExpenseNotificationCycle(
-						personId,
-						linkedMandatoryExpenseId,
-						getCycleKeyFromDate(dateWithCurrentTime),
-					);
+					if (isMandatoryExpenseSettlement) {
+						await cancelMandatoryExpenseNotification(personId, linkedMandatoryExpenseId);
+					} else {
+						await suppressMandatoryExpenseNotificationCycle(
+							personId,
+							linkedMandatoryExpenseId,
+							getCycleKeyFromDate(dateWithCurrentTime),
+						);
+					}
 				} catch (notificationError) {
-					console.error('Erro ao suprimir lembretes do gasto obrigatório pago:', notificationError);
+					console.error('Erro ao atualizar lembretes do gasto obrigatório:', notificationError);
 				}
 			} else {
 				const result = await addExpenseFirebase({
@@ -1009,7 +1034,7 @@ export default function AddRegisterExpensesScreen() {
 				}
 			}
 
-			showSuccessfulExpenseNotification();
+			showSuccessfulExpenseNotification(false, isMandatoryExpenseSettlement);
 			applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
 		} catch (error) {
 			console.error('Erro ao registrar/atualizar despesa:', error);
@@ -1024,27 +1049,28 @@ export default function AddRegisterExpensesScreen() {
 			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
-		}, [
-			editingExpenseId,
-			expenseDate,
-			expenseName,
-			expenseValueCents,
-			explanationExpense,
-			isEditing,
-			isBankSelectionRequired,
-			isSubmitting,
-			ignoredMandatorySuggestionKey,
-			linkedMandatoryExpenseId,
-			moneyFormat,
-			pendingInvestmentAdjustment,
-			isDarkMode,
-			selectedBankId,
-			selectedTagId,
-			parsedExpenseDate,
-			resetNewExpenseForm,
-			applyPostSubmitBehavior,
-			showSuccessfulExpenseNotification,
-		]);
+	}, [
+		editingExpenseId,
+		expenseDate,
+		expenseName,
+		expenseValueCents,
+		explanationExpense,
+		isEditing,
+		isBankSelectionRequired,
+		isSubmitting,
+		ignoredMandatorySuggestionKey,
+		linkedMandatoryExpenseId,
+		isMandatoryExpenseSettlement,
+		moneyFormat,
+		pendingInvestmentAdjustment,
+		isDarkMode,
+		selectedBankId,
+		selectedTagId,
+		parsedExpenseDate,
+		resetNewExpenseForm,
+		applyPostSubmitBehavior,
+		showSuccessfulExpenseNotification,
+	]);
 
 	const handleCloseMandatoryExpenseSuggestionModal = React.useCallback(() => {
 		setMandatoryExpenseSuggestion(null);

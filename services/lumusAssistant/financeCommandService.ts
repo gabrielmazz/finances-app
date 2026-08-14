@@ -1,4 +1,5 @@
 import { db } from '@/FirebaseConfig';
+import { getLegacyBankBalanceInCentsFirebase } from '@/functions/BankFirebase';
 import type {
 	AssistantActionKind,
 	AssistantCatalogType,
@@ -220,41 +221,16 @@ const resolveInitialInvestmentValue = (data: FirestoreRecord) => {
 	return 0;
 };
 
-const isDateInMonth = (value: unknown, year: number, month: number) => {
-	const date = toDate(value);
-	return Boolean(date && date.getFullYear() === year && date.getMonth() + 1 === month);
-};
-
 const loadOwnCurrentBankBalance = async (
 	personId: string,
 	bankId: string,
 	referenceDate: Date,
 ): Promise<number | null> => {
-	const year = referenceDate.getFullYear();
-	const month = referenceDate.getMonth() + 1;
-	const load = async (collectionName: string) => {
-		const snapshot = await getDocs(query(collection(db, collectionName), where('personId', '==', personId)));
-		return snapshot.docs.map<FirestoreRecord>(document => ({ id: document.id, ...(document.data() as FirestoreRecord) }));
-	};
-	const [balances, expenses, gains, rescues, investments] = await Promise.all([
-		load('monthlyBalances'),
-		load('expenses'),
-		load('gains'),
-		load('cashRescues'),
-		load('financeInvestments'),
-	]);
-	const balance = balances.find(item => item.bankId === bankId && item.year === year && item.month === month);
-	if (!balance || typeof balance.valueInCents !== 'number') {
-		return null;
+	const result = await getLegacyBankBalanceInCentsFirebase({ personId, bankId, asOfDate: referenceDate });
+	if (!result.success) {
+		throw result.error;
 	}
-	const sum = (items: FirestoreRecord[]) =>
-		items
-			.filter(item => item.bankId === bankId && isDateInMonth(item.date ?? item.createdAt, year, month))
-			.reduce((total, item) => total + (typeof item.valueInCents === 'number' ? Math.max(0, item.valueInCents) : 0), 0);
-	const invested = investments
-		.filter(item => item.bankId === bankId && isDateInMonth(item.date ?? item.createdAt, year, month))
-		.reduce((total, item) => total + resolveCurrentInvestmentValue(item), 0);
-	return Math.round(balance.valueInCents + sum(gains) - (sum(expenses) + sum(rescues) + invested));
+	return result.data;
 };
 
 const ensureBankBalance = async (

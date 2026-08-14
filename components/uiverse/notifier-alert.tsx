@@ -195,3 +195,7 @@ export const showNotifierAlert = ({
 };
 
 export default NotifierAlert;
+
+// O host Mantine só é montado pela variante Web; em plataformas nativas o
+// react-native-notifier continua sendo o canal documentado em [[Notificações]].
+export const WebNotifierAlertHost = () => null;
