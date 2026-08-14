@@ -21,7 +21,6 @@ import {
 	TrendingUp,
 	UserPlus,
 	UsersRound,
-	WalletCards,
 } from 'lucide-react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
@@ -206,9 +205,30 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 	const { isRouteVisible } = useRouteVisibility();
 	const { width } = useWindowDimensions();
 	const [openMobileGroup, setOpenMobileGroup] = React.useState<number | null>(null);
+	const [profileName, setProfileName] = React.useState(user?.displayName?.trim() || '');
 	const logoutInFlightRef = React.useRef(false);
 	const isDesktopWeb = isWebDesktopLayout('web', width);
 	const homeTab = normalizeHomeTabIndex(params.tab, defaultValue as 0 | 1 | 2);
+
+	React.useEffect(() => {
+		let isMounted = true;
+		const fallbackName = user?.displayName?.trim() || '';
+		setProfileName(fallbackName);
+
+		if (!user?.uid) return () => { isMounted = false; };
+
+		const loadProfileName = async () => {
+			const result = await getUserDataFirebase(user.uid);
+			if (!isMounted || !result.success) return;
+			const storedName = (result.data as { name?: unknown })?.name;
+			if (typeof storedName === 'string' && storedName.trim()) {
+				setProfileName(storedName.trim());
+			}
+		};
+
+		void loadProfileName();
+		return () => { isMounted = false; };
+	}, [user?.displayName, user?.uid]);
 
 	const groups = React.useMemo(() => {
 		const visibleGroups = createGroups().map(group => ({
@@ -322,7 +342,13 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 				openMenuButtonColor="#fef08a"
 				brandName="Lumus"
 				brandSubtitle="Finanças"
-				brandIcon={<WalletCards size={19} strokeWidth={2.2} />}
+				profile={{
+					name: profileName || user?.email?.split('@')[0] || 'Usuário',
+					subtitle: user?.email || '',
+					imageUrl: user?.photoURL || '',
+					initials: (profileName || user?.email || 'U').trim().charAt(0).toUpperCase(),
+				}}
+				collapsedRail
 				displayItemNumbering={false}
 				displaySocials={false}
 				items={items}
