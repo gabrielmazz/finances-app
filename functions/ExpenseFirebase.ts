@@ -4,6 +4,7 @@
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
+import { isSafeIntegerCents } from '@/utils/monthlyBalance';
 
 interface AddExpenseParams {
 	name: string;
@@ -74,6 +75,9 @@ export async function addExpenseFirebase({
 	bankTransferGainId,
 }: AddExpenseParams) {
 	try {
+		if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
+			return { success: false, error: 'O valor da despesa deve ser um número inteiro de centavos maior que zero.' };
+		}
 		const expenseRef = doc(collection(db, 'expenses'));
 		const createdAt = new Date();
 
@@ -129,6 +133,9 @@ export async function updateExpenseFirebase({
 	bankTransferGainId,
 }: UpdateExpenseParams) {
 	try {
+		if (valueInCents !== undefined && (!isSafeIntegerCents(valueInCents) || valueInCents <= 0)) {
+			return { success: false, error: 'O valor da despesa deve ser um número inteiro de centavos maior que zero.' };
+		}
 		const expenseRef = doc(db, 'expenses', expenseId);
 		const updates: Record<string, unknown> = {
 			updatedAt: new Date(),

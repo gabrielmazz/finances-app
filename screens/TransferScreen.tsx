@@ -30,14 +30,11 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
 	getBanksWithUsersByPersonFirebase,
-	getCurrentMonthSummaryByBankFirebaseExpanses,
-	getCurrentMonthSummaryByBankFirebaseGains,
+	getLegacyBankBalanceInCentsFirebase,
 	transferBetweenBanksFirebase,
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
-import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import DatePickerField from '@/components/uiverse/date-picker';
 
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
@@ -250,93 +247,14 @@ export default function TransferScreen() {
 				return;
 			}
 
-			const now = new Date();
-			const currentYear = now.getFullYear();
-			const currentMonth = now.getMonth() + 1;
-			const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
-			const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
-
-			const [expensesResult, gainsResult, balanceResponse, investmentsResponse] = await Promise.all([
-				getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
-				getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
-				getMonthlyBalanceFirebaseRelatedToUser({
-					personId: currentUser.uid,
-					bankId,
-					year: currentYear,
-					month: currentMonth,
-				}),
-				getFinanceInvestmentsByPeriodFirebase({
-					personId: currentUser.uid,
-					bankId,
-					startDate: startOfMonth,
-					endDate: endOfMonth,
-				}),
-			]);
-
-			const expensesArray: any[] =
-				expensesResult?.success && Array.isArray(expensesResult.data) ? expensesResult.data : [];
-			const gainsArray: any[] =
-				gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
-			const investmentsArray: any[] =
-				investmentsResponse?.success && Array.isArray(investmentsResponse.data) ? investmentsResponse.data : [];
-
-			const resolveBankId = (rawBankId: unknown) => {
-				if (typeof rawBankId === 'string') {
-					return rawBankId;
-				}
-				if (
-					rawBankId &&
-					typeof rawBankId === 'object' &&
-					'id' in rawBankId &&
-					typeof (rawBankId as { id?: unknown }).id === 'string'
-				) {
-					return (rawBankId as { id: string }).id;
-				}
-				return '';
-			};
-
-			const sumByBank = (items: any[]) =>
-				items.reduce<Record<string, number>>((acc, item) => {
-					const bankKey = resolveBankId(item?.bankId);
-					if (!bankKey) {
-						return acc;
-					}
-
-					const value =
-						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents) ? item.valueInCents : 0;
-
-					acc[bankKey] = (acc[bankKey] ?? 0) + Math.max(value, 0);
-					return acc;
-				}, {});
-
-			const expensesByBank = sumByBank(expensesArray);
-			const gainsByBank = sumByBank(gainsArray);
-
-			const totalExpensesInCents = expensesByBank[bankId] ?? 0;
-			const totalGainsInCents = gainsByBank[bankId] ?? 0;
-			const totalInvestmentsInCents = investmentsArray.reduce((acc, investment) => {
-				const value =
-					typeof investment?.currentValueInCents === 'number'
-						? investment.currentValueInCents
-						: typeof investment?.lastManualSyncValueInCents === 'number'
-							? investment.lastManualSyncValueInCents
-							: typeof investment?.initialValueInCents === 'number'
-								? investment.initialValueInCents
-								: 0;
-				return acc + value;
-			}, 0);
-
-			const initialBalance =
-				balanceResponse?.success && balanceResponse.data && typeof balanceResponse.data.valueInCents === 'number'
-					? balanceResponse.data.valueInCents
-					: null;
-
-			const currentBalance =
-				typeof initialBalance === 'number'
-					? initialBalance + (totalGainsInCents - (totalExpensesInCents + totalInvestmentsInCents))
-					: null;
-
-			setOriginBalanceInCents(currentBalance);
+			const balanceResult = await getLegacyBankBalanceInCentsFirebase({
+				personId: currentUser.uid,
+				bankId,
+			});
+			if (!balanceResult.success) {
+				throw balanceResult.error;
+			}
+			setOriginBalanceInCents(balanceResult.data);
 		} catch (error) {
 			console.error('Erro ao carregar saldo do banco:', error);
 			showScreenAlert('Não foi possível carregar o saldo atual do banco de origem.', 'error');

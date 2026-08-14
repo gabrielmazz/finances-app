@@ -20,6 +20,7 @@ import {
 	CalendarDaysIcon,
 	ChevronDownIcon,
 	ChevronUpIcon,
+	CheckCircleIcon,
 	EditIcon,
 	Icon,
 	RepeatIcon,
@@ -51,6 +52,7 @@ export type DateCalendarItem = {
 	holidayName?: string | null;
 	isCompletedForCurrentCycle?: boolean;
 	isInstallmentComplete?: boolean;
+	installmentTotal?: number | null;
 	installmentLabel?: string | null;
 	canReclaimCurrentCycle?: boolean;
 	lastStatusDate?: Date | null;
@@ -71,7 +73,7 @@ type DateCalendarProps = {
 	getStatusText: (item: DateCalendarItem) => string;
 	getStatusClassName: (item: DateCalendarItem) => string;
 	getDueDayColorClass: (dueDay: number, item?: DateCalendarItem) => string;
-	onAction: (action: 'register' | 'edit' | 'delete' | 'reclaim', item: DateCalendarItem) => void;
+	onAction: (action: 'register' | 'settle' | 'edit' | 'delete' | 'reclaim', item: DateCalendarItem) => void;
 	valueLabel?: string;
 	dueLabel?: string;
 	completedLabel?: string;
@@ -385,7 +387,7 @@ function DateCalendar({
 	}, []);
 
 	const handleDayAction = React.useCallback(
-		(action: 'register' | 'edit' | 'delete' | 'reclaim', item: DateCalendarItem) => {
+		(action: 'register' | 'settle' | 'edit' | 'delete' | 'reclaim', item: DateCalendarItem) => {
 			setExpandedDayItemIds([]);
 			setSelectedDayItems(null);
 			onAction(action, item);
@@ -886,6 +888,21 @@ function DateCalendar({
 															<Icon as={AddIcon} size="sm" className="text-white" />
 															<Text className="text-xs font-semibold text-white">Registrar</Text>
 														</Pressable>
+
+														{typeof item.installmentTotal === 'number' && !item.isInstallmentComplete ? (
+															<Pressable
+																onPress={() => handleDayAction('settle', item)}
+																style={{
+																	flexDirection: 'row',
+																	alignItems: 'center',
+																	gap: 8,
+																	paddingVertical: 8,
+																}}
+															>
+																<Icon as={CheckCircleIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
+															</Pressable>
+														) : null}
 
 														<Pressable
 															onPress={() => handleDayAction('edit', item)}

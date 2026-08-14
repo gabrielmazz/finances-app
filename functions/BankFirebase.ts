@@ -5,6 +5,7 @@ import { db } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { calculateLegacyBankBalanceInCents, isSafeIntegerCents } from '@/utils/monthlyBalance';
 
 // Define os parâmetros necessários para adicionar um banco
 interface AddBankParams {
@@ -126,6 +127,9 @@ export async function addCashRescueFirebase({
     description,
 }: AddCashRescueParams) {
     try {
+        if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
+            return { success: false, error: 'O valor do saque deve ser um número inteiro de centavos maior que zero.' };
+        }
         const rescueRef = doc(collection(db, 'cashRescues'));
         await setDoc(rescueRef, {
             name: 'Saque em dinheiro',
@@ -164,7 +168,7 @@ export async function transferBetweenBanksFirebase({
             return { success: false, error: 'Selecione bancos diferentes para realizar a transferência.' };
         }
 
-        if (typeof valueInCents !== 'number' || valueInCents <= 0) {
+        if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
             return { success: false, error: 'Informe um valor válido para transferir.' };
         }
 
@@ -274,6 +278,64 @@ export async function transferBetweenBanksFirebase({
         };
     } catch (error) {
         console.error('Erro ao registrar transferência entre bancos:', error);
+        return { success: false, error };
+    }
+}
+
+/**
+ * Resolves a legacy bank balance from the latest monthly opening snapshot and
+ * movements after it. Keep every legacy balance validation on this function.
+ */
+export async function getLegacyBankBalanceInCentsFirebase({
+    personId,
+    bankId,
+    asOfDate = new Date(),
+}: {
+    personId: string;
+    bankId: string;
+    asOfDate?: Date;
+}): Promise<{ success: true; data: number | null } | { success: false; error: unknown }> {
+    try {
+        if (!personId || !bankId || Number.isNaN(asOfDate.getTime())) {
+            return { success: false, error: 'Dados inválidos para calcular o saldo do banco.' };
+        }
+
+        const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
+        if (!relatedUsersResult.success) {
+            throw new Error('Erro ao obter usuários relacionados.');
+        }
+        const personIds = Array.from(new Set([
+            personId,
+            ...(Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data : []).filter(
+                (id): id is string => typeof id === 'string' && id.length > 0,
+            ),
+        ]));
+        const load = async (collectionName: string) => {
+            const snapshot = await getDocs(query(collection(db, collectionName), where('personId', 'in', personIds)));
+            return snapshot.docs.map(document => document.data());
+        };
+        const [snapshots, expenses, gains, cashRescues, investments] = await Promise.all([
+            load('monthlyBalances'),
+            load('expenses'),
+            load('gains'),
+            load('cashRescues'),
+            load('financeInvestments'),
+        ]);
+
+        return {
+            success: true,
+            data: calculateLegacyBankBalanceInCents({
+                bankId,
+                snapshots,
+                expenses,
+                gains,
+                cashRescues,
+                investments,
+                asOfDate,
+            }),
+        };
+    } catch (error) {
+        console.error('Erro ao calcular saldo legado do banco:', error);
         return { success: false, error };
     }
 }

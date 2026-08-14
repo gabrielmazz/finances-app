@@ -48,13 +48,11 @@ import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { parsePercentageToBasisPoints } from '@/utils/investmentPortfolio';
 import { auth } from '@/FirebaseConfig';
-import { addFinanceInvestmentFirebase, getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
+import { addFinanceInvestmentFirebase } from '@/functions/FinancesFirebase';
 import {
 	getBanksWithUsersByPersonFirebase,
-	getCurrentMonthSummaryByBankFirebaseExpanses,
-	getCurrentMonthSummaryByBankFirebaseGains,
+	getLegacyBankBalanceInCentsFirebase,
 } from '@/functions/BankFirebase';
-import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -489,91 +487,17 @@ export default function AddFinanceScreen() {
 					return;
 				}
 
-				const now = new Date();
-				const currentYear = now.getFullYear();
-				const currentMonth = now.getMonth() + 1;
-				const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-				const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-				const [expensesResult, gainsResult, balanceResponse, investmentsResult] = await Promise.all([
-					getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
-					getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
-					getMonthlyBalanceFirebaseRelatedToUser({
-						personId: currentUser.uid,
-						bankId: selectedBankId,
-						year: currentYear,
-						month: currentMonth,
-					}),
-					getFinanceInvestmentsByPeriodFirebase({
-						personId: currentUser.uid,
-						bankId: selectedBankId,
-						startDate: startOfMonth,
-						endDate: endOfMonth,
-					}),
-				]);
-
+				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
+					personId: currentUser.uid,
+					bankId: selectedBankId,
+				});
 				if (!isMounted) {
 					return;
 				}
-
-				const expensesArray: any[] =
-					expensesResult?.success && Array.isArray(expensesResult.data) ? expensesResult.data : [];
-				const gainsArray: any[] =
-					gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
-				const investmentsArray: any[] =
-					investmentsResult?.success && Array.isArray(investmentsResult.data) ? investmentsResult.data : [];
-
-				const totalExpensesInCents = expensesArray.reduce((acc, item) => {
-					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
-					const value =
-						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
-							? item.valueInCents
-							: 0;
-					if (bankId === selectedBankId) {
-						return acc + value;
-					}
-					return acc;
-				}, 0);
-
-				const totalInvestmentInCents = investmentsArray.reduce((acc, item) => {
-					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
-					const value =
-						typeof item?.currentValueInCents === 'number' && !Number.isNaN(item.currentValueInCents)
-							? item.currentValueInCents
-							: typeof item?.lastManualSyncValueInCents === 'number' && !Number.isNaN(item.lastManualSyncValueInCents)
-								? item.lastManualSyncValueInCents
-								: typeof item?.initialValueInCents === 'number' && !Number.isNaN(item.initialValueInCents)
-									? item.initialValueInCents
-									: 0;
-					if (bankId === selectedBankId) {
-						return acc + value;
-					}
-					return acc;
-				}, 0);
-
-				const totalGainsInCents = gainsArray.reduce((acc, item) => {
-					const bankId = typeof item?.bankId === 'string' ? item.bankId : null;
-					const value =
-						typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
-							? item.valueInCents
-							: 0;
-					if (bankId === selectedBankId) {
-						return acc + value;
-					}
-					return acc;
-				}, 0);
-
-				const initialBalance =
-					balanceResponse?.success && balanceResponse.data && typeof balanceResponse.data.valueInCents === 'number'
-						? balanceResponse.data.valueInCents
-						: null;
-
-				const currentBalance =
-					typeof initialBalance === 'number'
-						? initialBalance + (totalGainsInCents - (totalExpensesInCents + totalInvestmentInCents))
-						: null;
-
-				setCurrentBankBalanceInCents(currentBalance);
+				if (!balanceResult.success) {
+					throw balanceResult.error;
+				}
+				setCurrentBankBalanceInCents(balanceResult.data);
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {

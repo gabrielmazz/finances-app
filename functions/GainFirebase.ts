@@ -4,6 +4,7 @@
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
+import { isSafeIntegerCents } from '@/utils/monthlyBalance';
 
 interface AddGainParams {
 	name: string;
@@ -77,6 +78,9 @@ export async function addGainFirebase({
 	bankTransferGainId,
 }: AddGainParams) {
 	try {
+		if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
+			return { success: false, error: 'O valor do ganho deve ser um número inteiro de centavos maior que zero.' };
+		}
 	const gainRef = doc(collection(db, 'gains'));
 	const createdAt = new Date();
 	const normalizedPaymentFormats = Array.isArray(paymentFormats)
@@ -138,6 +142,9 @@ export async function updateGainFirebase({
 	bankTransferGainId,
 }: UpdateGainParams) {
 	try {
+		if (valueInCents !== undefined && (!isSafeIntegerCents(valueInCents) || valueInCents <= 0)) {
+			return { success: false, error: 'O valor do ganho deve ser um número inteiro de centavos maior que zero.' };
+		}
 		const gainRef = doc(db, 'gains', gainId);
 		const updates: Record<string, unknown> = {
 			updatedAt: new Date(),

@@ -270,6 +270,58 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Correção de consistência de saldos em 2026-08-13: `calculateLegacyBankBalanceInCents()` centraliza o saldo legado no último snapshot de abertura mais os movimentos posteriores, usando somente a aplicação inicial (nunca rendimento/sincronização) como saída bancária. Home, transferência, saque, novo investimento e Assistente Lumus usam essa mesma regra; transferências saem dos totais de ganhos/gastos, escritas legadas passam a exigir centavos inteiros e a Home lê `financialAccounts` após o corte do grupo. Cobertura adicionada em `monthlyBalance.test.ts`. Vault alinhado em [[Balanço Mensal]] e [[Dashboard Home]].
+> Atualizado em 2026-08-13.
+
+- Resumo mensal na Home Web em 2026-08-13: `HomeScreen.web.tsx` exibe dois cards entre contas/investimentos e as últimas movimentações, com o total de ganhos e gastos do mês atual. Os valores são derivados dos agregados mensais existentes por banco e dinheiro, permanecem em centavos até a formatação e respeitam a privacidade e os tokens de tema. Vault alinhado em [[Dashboard Home]].
+> Atualizado em 2026-08-13.
+
+- Direção da saída do alerta Web em 2026-08-13: `AnimatedContent` ganhou `disappearReverse` para separar a direção de entrada da direção de saída; o alerta entra pela direita e também retorna para a direita antes de desmontar. Os usos existentes preservam o comportamento anterior por padrão. Vault alinhado em [[Notificações]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Saída animada do alerta Web em 2026-08-13: `AnimatedContent` agora usa `disappearAfter` e `onDisappearanceComplete` para executar o retorno horizontal antes de desmontar o `Alert`; o timer direto foi removido para não cortar a animação. Vault alinhado em [[Notificações]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Animação do alerta Web em 2026-08-13: `notifier-alert.web.tsx` envolve o `Alert` Mantine com `components/web/AnimatedContent.jsx`, usando entrada horizontal de 300px pela direita, duração de 1s, `power3.out` e opacidade inicial zero. O wrapper nativo e os fluxos Android/iOS permanecem inalterados. Vault alinhado em [[Notificações]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Feedback in-app Web corrigido em 2026-08-13: `notifier-alert.web.tsx` agora renderiza o `Alert` do Mantine diretamente em um portal do `document.body`, compartilhando a árvore React onde `showNotifierAlert()` dispara os eventos. `notifier-boundary.web.tsx` impede o `react-native-notifier` de montar no navegador; Android/iOS preservam o wrapper nativo e o sucesso do login não exige alterações individuais. Vault alinhado em [[Notificações]], [[Componentes UI]] e [[Versão Web]].
+> Atualizado em 2026-08-13.
+
+- Correção de compilação da Home Web em 2026-08-13: a família tipográfica do `StrokeText` passou a usar uma expressão JSX válida, preservando a pilha de fontes do hero e eliminando o erro de parsing causado por aspas escapadas em atributo JSX. Vault alinhado em [[Dashboard Home]] e [[Versão Web]].
+> Atualizado em 2026-08-13.
+
+- Integração Mantine em 2026-08-13: Mantine permanece restrito a componentes Web, como os gráficos em `components/uiverse/` e o alerta Web-only. Os gráficos usam Expo DOM (`'use dom'`); o alerta usa portal para compartilhar a árvore React Native com o disparo global. Telas e componentes nativos continuam usando Gluestack/NativeWind, sem imports Mantine em arquivos nativos.
+
+- Efeito de entrada do título da Home Web em 2026-08-13: `HomeScreen.web.tsx` usa `components/web/StrokeText.jsx` com `trigger="mount"` para desenhar o título do hero, mantendo a ilustração com `AnimatedContent` e Android/iOS inalterados. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Animação da ilustração sobre o wallpaper da Home Web em 2026-08-13: `HomeScreen.web.tsx` envolve `homeScreen.svg` com `components/web/AnimatedContent.jsx`, usando entrada vertical de 300px, duração de 1s, opacidade inicial zero e `power3.out`. O wallpaper permanece estático e Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Camada visual do wallpaper da Home Web em 2026-08-13: `HomeScreen.web.tsx` mantém `wallpaper01.png` como base e aplica `components/web/Grainient.jsx` por cima do hero, com paleta adaptada ao tema e granulação sutil. Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Ajuste visual da Home em 2026-08-13: os skeletons do carrossel e do gráfico de investimentos usam a largura real da coluna e offsets explícitos; o skeleton do carrossel espelha a hierarquia real do card e suas margens laterais, enquanto os placeholders mantêm cantos arredondados proporcionais às barras de conteúdo. O `PieChart` também preserva a centralização e a área de toque. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Redesign do carrossel de contas na Home Web em 2026-08-13: `components/web/Carousel.jsx` agora aceita `renderItem`, e `HomeScreen.web.tsx` usa essa base do React Bits para exibir todos os bancos e o cartão de Dinheiro com a mesma coleção, privacidade, saldos em centavos na origem e navegação para movimentos. Android/iOS permanecem com o carrossel nativo existente. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Correção do wallpaper da Home Web em 2026-08-13: `HomeScreen.web.tsx` usa `Image` do React Native diretamente para o background absoluto do hero. O wrapper Gluestack Web redefine `width`/`height` como `revert-layer`, fazendo a imagem aparecer apenas no tamanho intrínseco no canto superior esquerdo; o componente compartilhado foi preservado sem alteração. TypeScript, export Web e detector visual foram validados. Vault alinhado em [[Versão Web]] e [[Dashboard Home]].
+> Atualizado em 2026-08-13.
+
+- Portabilidade visual da Home para Web em 2026-08-13: `HomeScreen.web.tsx` passa a reproduzir a estética de `HomeScreen.tsx`, com wallpaper, ilustração, cartões `BankCardSurface`, distribuição de investimentos, timeline vertical expansível, ícones de tags, tooltips/popovers e modal de saldo mensal pendente. A rolagem horizontal substitui somente o carrossel nativo; hooks, rotas, privacidade, estados e `Navigator` permanecem. `StaggeredMenu.jsx` não foi alterado. Vault alinhado em [[Dashboard Home]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-13.
+
+- Quitação antecipada de despesas parceladas em 2026-08-13: `MandatoryExpensesListScreen.tsx` oferece a ação **Quitar parcelas** somente para parcelamentos ativos, calcula o saldo restante em centavos e reutiliza o formulário de despesa para escolha do banco. `settleMandatoryExpenseFirebase()` cria a despesa agregada e remove o template atomicamente; a lista deixa de exibir o item após a conclusão. Cobertura adicionada em `mandatoryInstallments.test.ts`. Vault alinhado em [[Despesas Fixas]] e [[Transações de Despesas]].
+> Atualizado em 2026-08-13.
+
+- Navegação e Dashboard Web renovados em 2026-08-12: `navigator.web.tsx` substitui a sidebar fixa por `StaggeredMenu` Lumus com as mesmas rotas, filtros de visibilidade, item contextual de movimentos, rótulos de cadastro e logout seguro. Os ícones substituem a numeração do componente original. `HomeScreen.web.tsx` usa o mesmo `useHomeScreenData` do dashboard nativo para exibir saldo, ações rápidas, contas, movimentos e investimentos, mantendo centavos até a formatação e privacidade de valores. `WebAppShell` deixa de reservar espaço lateral permanente. Vault alinhado em [[Navegação]], [[Versão Web]], [[Dashboard Home]] e [[Componentes UI]].
+
+- Compatibilidade do dashboard Web corrigida em 2026-08-12: as variantes Web de `HomeScreen` e `navigator` usam o `Text` de React Native Web para normalizar arrays de estilo, `numberOfLines` e semântica de acessibilidade antes de alcançar o DOM. O primitivo Gluestack `components/ui/text/index.web.tsx` produz um `span` DOM direto e não deve receber props/arrays próprios de React Native nessas telas. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-12.
+
 - Identidade do Login Web atualizada em 2026-08-12: a imagem rasterizada foi substituída por `StrokeText`, renderizando o texto SVG animado **Finances** sobre o painel de gradiente. O componente usa a fonte padrão do sistema por padrão. Vault alinhado em [[Autenticação]] e [[Versão Web]].
 > Atualizado em 2026-08-12.
 

@@ -27,9 +27,8 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
 	addCashRescueFirebase,
-	getCurrentMonthSummaryByBankFirebaseExpanses,
-	getCurrentMonthSummaryByBankFirebaseGains,
 	getBanksWithUsersByPersonFirebase,
+	getLegacyBankBalanceInCentsFirebase,
 } from '@/functions/BankFirebase';
 import {
 	createFinancialClientActionId,
@@ -40,8 +39,6 @@ import {
 } from '@/functions/FinancialLedgerFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
-import { getFinanceInvestmentsByPeriodFirebase } from '@/functions/FinancesFirebase';
 import DatePickerField from '@/components/uiverse/date-picker';
 
 import AddRescueIllustration from '../assets/UnDraw/addRescue.svg';
@@ -259,107 +256,23 @@ export default function AddRescueScreen() {
 
 		const loadBankBalance = async () => {
 			try {
-				const resolveBankId = (rawBankId: unknown) => {
-					if (typeof rawBankId === 'string') {
-						return rawBankId;
-					}
-					if (
-						rawBankId &&
-						typeof rawBankId === 'object' &&
-						'id' in rawBankId &&
-						typeof (rawBankId as { id?: unknown }).id === 'string'
-					) {
-						return (rawBankId as { id: string }).id;
-					}
-					return '';
-				};
-
-				const currentUser = auth.currentUser;
+					const currentUser = auth.currentUser;
 				if (!currentUser) {
 					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 					return;
 				}
 
-				const now = new Date();
-				const currentYear = now.getFullYear();
-				const currentMonth = now.getMonth() + 1;
-				const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
-				const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
-
-				const [expensesResult, gainsResult, balanceResponse, investmentsResponse] = await Promise.all([
-					getCurrentMonthSummaryByBankFirebaseExpanses(currentUser.uid),
-					getCurrentMonthSummaryByBankFirebaseGains(currentUser.uid),
-					getMonthlyBalanceFirebaseRelatedToUser({
+					const balanceResult = await getLegacyBankBalanceInCentsFirebase({
 						personId: currentUser.uid,
 						bankId: selectedBankId,
-						year: currentYear,
-						month: currentMonth,
-					}),
-					getFinanceInvestmentsByPeriodFirebase({
-						personId: currentUser.uid,
-						bankId: selectedBankId,
-						startDate: startOfMonth,
-						endDate: endOfMonth,
-					}),
-				]);
-
-				if (!isMounted) {
-					return;
-				}
-
-				const expensesArray: any[] =
-					expensesResult?.success && Array.isArray(expensesResult.data) ? expensesResult.data : [];
-				const gainsArray: any[] =
-					gainsResult?.success && Array.isArray(gainsResult.data) ? gainsResult.data : [];
-				const investmentsArray: any[] =
-					investmentsResponse?.success && Array.isArray(investmentsResponse.data)
-						? investmentsResponse.data
-						: [];
-
-				const sumByBank = (items: any[]) =>
-					items.reduce<Record<string, number>>((acc, item) => {
-						const bankId = resolveBankId(item?.bankId);
-						if (!bankId) {
-							return acc;
-						}
-
-						const value =
-							typeof item?.valueInCents === 'number' && !Number.isNaN(item.valueInCents)
-								? item.valueInCents
-								: 0;
-
-						acc[bankId] = (acc[bankId] ?? 0) + Math.max(value, 0);
-						return acc;
-					}, {});
-
-				const expensesByBank = sumByBank(expensesArray);
-				const gainsByBank = sumByBank(gainsArray);
-
-				const totalExpensesInCents = expensesByBank[selectedBankId] ?? 0;
-				const totalGainsInCents = gainsByBank[selectedBankId] ?? 0;
-				const totalInvestmentsInCents = investmentsArray.reduce((acc, investment) => {
-					const value =
-						typeof investment?.currentValueInCents === 'number'
-							? investment.currentValueInCents
-							: typeof investment?.lastManualSyncValueInCents === 'number'
-								? investment.lastManualSyncValueInCents
-								: typeof investment?.initialValueInCents === 'number'
-									? investment.initialValueInCents
-									: 0;
-					return acc + value;
-				}, 0);
-
-				const initialBalance =
-					balanceResponse?.success && balanceResponse.data && typeof balanceResponse.data.valueInCents === 'number'
-						? balanceResponse.data.valueInCents
-						: null;
-
-				const currentBalance =
-					typeof initialBalance === 'number'
-						? initialBalance + (totalGainsInCents - (totalExpensesInCents + totalInvestmentsInCents))
-						: null;
-
-				setCurrentBankBalanceInCents(currentBalance);
+					});
+					if (!isMounted) {
+						return;
+					}
+					if (!balanceResult.success) {
+						throw balanceResult.error;
+					}
+					setCurrentBankBalanceInCents(balanceResult.data);
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {

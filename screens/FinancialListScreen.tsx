@@ -28,7 +28,6 @@ import {
 } from '@/components/ui/tabs';
 import { Input, InputField } from '@/components/ui/input';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { Group } from '@mantine/core';
 import {
 	Button,
 	ButtonIcon,

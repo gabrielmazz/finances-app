@@ -1,7 +1,13 @@
 import { db } from '@/FirebaseConfig';
 import { getInvestmentCdiRatesByPersonIdsFirebase } from '@/functions/InvestmentCdiRateFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
-import { computeMonthlyBankBalances, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { getLegacyBankBalanceInCentsFirebase } from '@/functions/BankFirebase';
+import {
+	getFinancialLedgerAccountsFirebase,
+	getFinancialLedgerContextFirebase,
+	type FinancialLedgerAccount,
+} from '@/functions/FinancialLedgerFirebase';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import {
 	getInvestmentAssetType,
@@ -30,7 +36,6 @@ type HomeBankRecord = {
 
 type HomeMovementDocument = Record<string, any>;
 type HomeInvestmentDocument = Record<string, any>;
-type HomeMonthlyBalanceDocument = Record<string, any>;
 type HomeTagMetadata = {
 	name: string | null;
 	iconFamily: string | null;
@@ -138,15 +143,15 @@ export type HomeSnapshot = {
 };
 
 type HomeQueryContext = {
+	personId: string;
 	allowedPersonIds: string[];
 	banks: HomeBankRecord[];
 	bankIds: string[];
 	bankNamesById: Record<string, string>;
 	bankColorsById: Record<string, string | null>;
-	currentYear: number;
-	currentMonth: number;
 	startOfMonth: Date;
 	endOfMonth: Date;
+	financialLedgerAccounts: FinancialLedgerAccount[] | null;
 };
 
 type NormalizedInvestmentSummary = {
@@ -309,6 +314,28 @@ const buildAllowedPersonIds = async (personId: string) => {
 
 const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext> => {
 	const allowedPersonIds = await buildAllowedPersonIds(personId);
+	const financialLedgerContext = await getFinancialLedgerContextFirebase(personId);
+	const now = new Date();
+	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+	if (financialLedgerContext) {
+		const accounts = await getFinancialLedgerAccountsFirebase(financialLedgerContext.groupId);
+		const banks = accounts
+			.filter(account => account.kind === 'bank')
+			.map(account => ({ id: account.id, name: account.name, colorHex: account.colorHex ?? null }));
+		return {
+			personId,
+			allowedPersonIds,
+			banks,
+			bankIds: banks.map(bank => bank.id),
+			bankNamesById: banks.reduce<Record<string, string>>((acc, bank) => ({ ...acc, [bank.id]: bank.name }), {}),
+			bankColorsById: banks.reduce<Record<string, string | null>>((acc, bank) => ({ ...acc, [bank.id]: bank.colorHex }), {}),
+			startOfMonth,
+			endOfMonth,
+			financialLedgerAccounts: accounts,
+		};
+	}
 	const banksQuery = query(collection(db, 'banks'), where('personId', 'in', allowedPersonIds));
 	const banksSnapshot = await getDocs(banksQuery);
 
@@ -336,33 +363,83 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 		return acc;
 	}, {});
 
-	const now = new Date();
-	const currentYear = now.getFullYear();
-	const currentMonth = now.getMonth() + 1;
-	const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
-	const endOfMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999);
-
 	return {
+		personId,
 		allowedPersonIds,
 		banks,
 		bankIds: banks.map(bank => bank.id),
 		bankNamesById,
 		bankColorsById,
-		currentYear,
-		currentMonth,
 		startOfMonth,
 		endOfMonth,
+		financialLedgerAccounts: null,
 	};
 };
 
 const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverviewData> => {
+	if (context.financialLedgerAccounts) {
+		const cashAccount = context.financialLedgerAccounts.find(account => account.kind === 'cash') ?? null;
+		const ledgerGroupId = context.financialLedgerAccounts[0]?.groupId;
+		const currentMonthExpensesByBankId: Record<string, number> = {};
+		const currentMonthGainsByBankId: Record<string, number> = {};
+		if (ledgerGroupId) {
+			const transactionsSnapshot = await getDocs(
+				query(collection(db, 'ledgerTransactions'), where('groupId', '==', ledgerGroupId)),
+			);
+			transactionsSnapshot.docs.forEach(document => {
+				const data = document.data() as Record<string, unknown>;
+				const effectiveAt = parseToDate(data.effectiveAt);
+				if (
+					(effectiveAt?.getTime() ?? 0) < context.startOfMonth.getTime() ||
+					(effectiveAt?.getTime() ?? 0) > new Date().getTime() ||
+					(data.kind !== 'income' && data.kind !== 'expense') ||
+					!Array.isArray(data.legs)
+				) {
+					return;
+				}
+				data.legs.forEach(leg => {
+					if (!leg || typeof leg !== 'object') return;
+					const accountId = (leg as { accountId?: unknown }).accountId;
+					const deltaInCents = (leg as { deltaInCents?: unknown }).deltaInCents;
+					if (
+						typeof accountId !== 'string' ||
+						typeof deltaInCents !== 'number' ||
+						!Number.isSafeInteger(deltaInCents)
+					) return;
+					if (data.kind === 'expense' && deltaInCents < 0) {
+						currentMonthExpensesByBankId[accountId] =
+							(currentMonthExpensesByBankId[accountId] ?? 0) + Math.abs(deltaInCents);
+					}
+					if (data.kind === 'income' && deltaInCents > 0) {
+						currentMonthGainsByBankId[accountId] =
+							(currentMonthGainsByBankId[accountId] ?? 0) + deltaInCents;
+					}
+				});
+			});
+		}
+		return {
+			bankBalances: context.financialLedgerAccounts
+				.filter(account => account.kind === 'bank')
+				.map(account => ({
+					id: account.id,
+					name: account.name,
+					balanceInCents: account.currentBalanceInCents,
+					colorHex: account.colorHex ?? null,
+				})),
+			cashSummary: cashAccount
+				? {
+						id: 'cash-transactions',
+						name: cashAccount.name,
+						balanceInCents: cashAccount.currentBalanceInCents,
+						currentMonthExpensesInCents: currentMonthExpensesByBankId[cashAccount.id] ?? 0,
+						currentMonthGainsInCents: currentMonthGainsByBankId[cashAccount.id] ?? 0,
+					}
+				: null,
+			currentMonthExpensesByBankId,
+			currentMonthGainsByBankId,
+		};
+	}
 	const bankIdsSet = new Set(context.bankIds);
-	const monthlyBalancesQuery = query(
-		collection(db, 'monthlyBalances'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('year', '==', context.currentYear),
-		where('month', '==', context.currentMonth),
-	);
 	const monthlyExpensesQuery = query(
 		collection(db, 'expenses'),
 		where('personId', 'in', context.allowedPersonIds),
@@ -375,12 +452,6 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
 		where('date', '<=', Timestamp.fromDate(context.endOfMonth)),
 	);
-	const monthlyInvestmentsQuery = query(
-		collection(db, 'financeInvestments'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', context.startOfMonth),
-		where('date', '<=', context.endOfMonth),
-	);
 	const cashRescuesQuery = query(
 		collection(db, 'cashRescues'),
 		where('personId', 'in', context.allowedPersonIds),
@@ -389,16 +460,12 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 	);
 
 	const [
-		monthlyBalancesSnapshot,
 		monthlyExpensesSnapshot,
 		monthlyGainsSnapshot,
-		monthlyInvestmentsSnapshot,
 		cashRescuesSnapshot,
 	] = await Promise.all([
-		getDocs(monthlyBalancesQuery),
 		getDocs(monthlyExpensesQuery),
 		getDocs(monthlyGainsQuery),
-		getDocs(monthlyInvestmentsQuery),
 		getDocs(cashRescuesQuery),
 	]);
 	const normalizedCashRescues = cashRescuesSnapshot.docs.map<HomeMovementDocument>(docSnap => ({
@@ -430,74 +497,25 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
 		.filter(item => item?.bankId == null);
 	const cashGainsWithRescues = [...cashGains, ...normalizedCashRescues];
-	const monthlyInvestments = monthlyInvestmentsSnapshot.docs
-		.map<HomeInvestmentDocument>(docSnap => ({
-			id: docSnap.id,
-			...(docSnap.data() as HomeInvestmentDocument),
-		}))
-		.filter(item => {
-			const bankId = typeof item.bankId === 'string' ? item.bankId : null;
-			return Boolean(bankId && bankIdsSet.has(bankId));
-		});
-
-	const initialBalancesByBank = monthlyBalancesSnapshot.docs.reduce<Record<string, number | null>>((acc, docSnap) => {
-		const data = docSnap.data() as HomeMonthlyBalanceDocument;
-		const bankId = typeof data.bankId === 'string' ? data.bankId : null;
-		if (!bankId || !bankIdsSet.has(bankId) || bankId in acc) {
-			return acc;
-		}
-
-		acc[bankId] = typeof data.valueInCents === 'number' ? data.valueInCents : null;
-		return acc;
-	}, {});
-
-	const investmentsByBank = monthlyInvestments.reduce<Record<string, HomeInvestmentDocument[]>>((acc, item) => {
-		const bankId = typeof item.bankId === 'string' ? item.bankId : null;
-		if (!bankId || !bankIdsSet.has(bankId)) {
-			return acc;
-		}
-
-		const normalizedInvestment = {
-			...item,
-			initialValueInCents:
-				typeof item.initialValueInCents === 'number'
-					? item.initialValueInCents
-					: typeof item.initialInvestedInCents === 'number'
-						? item.initialInvestedInCents
-						: undefined,
-			initialInvestedInCents:
-				typeof item.initialInvestedInCents === 'number' ? item.initialInvestedInCents : undefined,
-			currentValueInCents:
-				typeof item.currentValueInCents === 'number'
-					? item.currentValueInCents
-					: typeof item.lastManualSyncValueInCents === 'number'
-						? item.lastManualSyncValueInCents
-						: typeof item.initialValueInCents === 'number'
-							? item.initialValueInCents
-							: undefined,
-		};
-
-		if (!acc[bankId]) {
-			acc[bankId] = [];
-		}
-
-		acc[bankId].push(normalizedInvestment);
-		return acc;
-	}, {});
-
-	const bankSummaries = computeMonthlyBankBalances({
-		banks: context.banks,
-		initialBalancesByBank,
-		expenses: [...monthlyExpenses, ...cashRescues],
-		gains: monthlyGains,
-		investmentsByBank,
-	});
+	const legacyBalanceResults = await Promise.all(
+		context.banks.map(async bank => {
+			const result = await getLegacyBankBalanceInCentsFirebase({
+				personId: context.personId,
+				bankId: bank.id,
+				asOfDate: new Date(),
+			});
+			if (!result.success) {
+				throw result.error;
+			}
+			return { bank, balanceInCents: result.data };
+		}),
+	);
 
 	return {
-		bankBalances: bankSummaries.map(bank => ({
+		bankBalances: legacyBalanceResults.map(({ bank, balanceInCents }) => ({
 			id: bank.id,
 			name: bank.name,
-			balanceInCents: bank.currentBalanceInCents,
+			balanceInCents,
 			colorHex: bank.colorHex,
 		})),
 		cashSummary: {
@@ -513,6 +531,9 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 };
 
 const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMovementsData> => {
+	if (context.financialLedgerAccounts) {
+		return { timelineMovements: [], bankColorsById: context.bankColorsById };
+	}
 	const recentExpensesQuery = query(
 		collection(db, 'expenses'),
 		where('personId', 'in', context.allowedPersonIds),
@@ -712,6 +733,9 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 };
 
 const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeInvestmentsData> => {
+	if (context.financialLedgerAccounts) {
+		return { portfolio: createEmptyInvestmentPortfolio() };
+	}
 	const investmentsQuery = query(
 		collection(db, 'financeInvestments'),
 		where('personId', 'in', context.allowedPersonIds),

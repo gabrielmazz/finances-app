@@ -384,11 +384,39 @@ export default function LoginScreen() {
 											strokeColor="#FFFFFF"
 											fillColor="#FFFDF5"
 											strokeWidth={1.8}
-											drawDuration={1.45}
+											drawDuration={1.75}
+											fillDelay={0.6}
 											fontSize={isSplitLayout ? 110 : 68}
 											fontWeight={500}
 											letterSpacing={-3}
 											fontFamily="Poppins, sans-serif"
+											ease="sine.inOut"
+											trigger="mount"
+										/>
+									</div>
+
+									<div
+										style={{
+											position: 'absolute',
+											width: isSplitLayout ? '46%' : '62%',
+											top: isSplitLayout ? 'calc(50%)' : 'calc(50%)',
+											zIndex: 1,
+										}}
+									>
+										<StrokeText
+											text="Controle suas finanças com clareza"
+											strokeColor="#FFFFFF"
+											fillColor="#FFFDF5"
+											strokeWidth={1.8}
+											drawDuration={1.3}
+											fillDelay={1}
+											fontSize={isSplitLayout ? 110 : 68}
+											fontWeight={500}
+											letterSpacing={-3}
+											fontFamily="Poppins, sans-serif"
+											ease="sine.inOut"
+											trigger="mount"
+											reverse
 										/>
 									</div>
 

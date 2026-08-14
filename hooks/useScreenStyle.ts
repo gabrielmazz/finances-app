@@ -188,6 +188,27 @@ export function useScreenStyles() {
 	);
 	const switchThumbColor = '#FFFFFF';
 	const switchIosBackgroundColor = '#CBD5E1';
+	// Tokens da composição Web do Dashboard. Mantidos aqui para que telas não
+	// decidam a paleta claro/escuro localmente, conforme [[Sistema de Temas]].
+	const webDashboardPalette = isDarkMode
+		? {
+			canvas: surfaceBackground,
+			surface: '#0B1225',
+			surfaceMuted: '#111B31',
+			border: '#1E293B',
+			primaryText: '#F8FAFC',
+			secondaryText: '#94A3B8',
+			accent: '#FACC15',
+		}
+		: {
+			canvas: surfaceBackground,
+			surface: '#FFFFFF',
+			surfaceMuted: '#F8FAFC',
+			border: '#E2E8F0',
+			primaryText: '#0F172A',
+			secondaryText: '#64748B',
+			accent: '#CA8A04',
+		};
 
 	return {
 		isDarkMode,
@@ -267,5 +288,6 @@ export function useScreenStyles() {
 		switchTrackColor,
 		switchThumbColor,
 		switchIosBackgroundColor,
+		webDashboardPalette,
 	};
 }

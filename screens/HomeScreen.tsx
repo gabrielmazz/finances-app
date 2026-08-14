@@ -204,95 +204,84 @@ const resolveHomeTimelineToneKey = (movement: HomeTimelineMovement): HomeTimelin
 const getHomeTimelineItemKey = (movement: HomeTimelineMovement) => `${movement.type}:${movement.id}`;
 
 const HomeBankOverviewSkeleton = ({
+	bankCarouselWidth,
 	bankCarouselHeight,
+	bankCarouselItemSpacing,
 	cardPalette,
 	skeletonBaseColor,
 	skeletonHighlightColor,
 	paginationBaseColor,
 	paginationHighlightColor,
 }: {
+	bankCarouselWidth: number;
 	bankCarouselHeight: number;
+	bankCarouselItemSpacing: number;
 	cardPalette: BankCardPalette;
 	skeletonBaseColor: string;
 	skeletonHighlightColor: string;
 	paginationBaseColor: string;
 	paginationHighlightColor: string;
 }) => (
-	<View style={{ marginTop: 16 }}>
-		<BankCardSurface palette={cardPalette} style={{ height: bankCarouselHeight }}>
-			<VStack className="flex-1 justify-between">
-				<VStack className="gap-2">
-					<Skeleton
-						className="h-3 w-20"
-						baseColor={skeletonBaseColor}
-						highlightColor={skeletonHighlightColor}
-					/>
-					<Skeleton
-						className="h-7 w-44"
-						baseColor={skeletonBaseColor}
-						highlightColor={skeletonHighlightColor}
-					/>
+	<View style={{ width: bankCarouselWidth, marginTop: 16 }}>
+		<View style={{ paddingHorizontal: bankCarouselItemSpacing / 2 }}>
+			<BankCardSurface palette={cardPalette} style={{ height: bankCarouselHeight }}>
+				<VStack className="flex-1 justify-between">
+					<VStack className="gap-1">
+						<Skeleton
+							className="h-3 w-14"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						<Skeleton
+							className="h-6 w-32"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+					</VStack>
+
+					<VStack className="mt-4 gap-1">
+						<Skeleton
+							className="h-3 w-24"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+						<Skeleton
+							className="h-6 w-36"
+							baseColor={skeletonBaseColor}
+							highlightColor={skeletonHighlightColor}
+						/>
+
+						<HStack className="mt-4 items-end justify-between gap-4">
+							<VStack className="flex-1 gap-1">
+								<Skeleton
+									className="h-3 w-16"
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+								<Skeleton
+									className="h-5 w-24"
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+							</VStack>
+
+							<VStack className="flex-1 items-end gap-1">
+								<Skeleton
+									className="h-3 w-16"
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+								<Skeleton
+									className="h-5 w-24"
+									baseColor={skeletonBaseColor}
+									highlightColor={skeletonHighlightColor}
+								/>
+							</VStack>
+						</HStack>
+					</VStack>
 				</VStack>
-
-				<VStack className="gap-4">
-					<HStack className="items-end justify-between gap-4">
-						<VStack className="flex-1 gap-2">
-							<Skeleton
-								className="h-3 w-24"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-							<Skeleton
-								className="h-8 w-36"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-						</VStack>
-
-						<VStack className="items-end gap-2">
-							<Skeleton
-								className="h-3 w-20"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-							<Skeleton
-								className="h-5 w-24"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-						</VStack>
-					</HStack>
-
-					<HStack className="gap-3">
-						<VStack className="flex-1 gap-2">
-							<Skeleton
-								className="h-3 w-16"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-							<Skeleton
-								className="h-5 w-24"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-						</VStack>
-
-						<VStack className="flex-1 gap-2">
-							<Skeleton
-								className="h-3 w-16"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-							<Skeleton
-								className="h-5 w-24"
-								baseColor={skeletonBaseColor}
-								highlightColor={skeletonHighlightColor}
-							/>
-						</VStack>
-					</HStack>
-				</VStack>
-			</VStack>
-		</BankCardSurface>
+			</BankCardSurface>
+		</View>
 
 		<HStack className="mt-3 items-center justify-center gap-2">
 			{Array.from({ length: 3 }).map((_, index) => (
@@ -309,22 +298,34 @@ const HomeBankOverviewSkeleton = ({
 );
 
 const HomeInvestmentSkeleton = ({
+	investmentChartContainerWidth,
 	investmentChartWidth,
 	investmentChartHeight,
 	surfaceBackground,
 }: {
+	investmentChartContainerWidth: number;
 	investmentChartWidth: number;
 	investmentChartHeight: number;
 	surfaceBackground: string;
 }) => {
 	const donutSize = Math.max(Math.min(investmentChartWidth - 28, investmentChartHeight - 12), 120);
 	const innerCircleSize = Math.max(donutSize - 72, 58);
+	const chartOffset = Math.max((investmentChartContainerWidth - investmentChartWidth) / 2, 0);
 
 	return (
-		<View style={{ marginTop: 12 }}>
-			<View className="items-center justify-center">
+		<View style={{ width: investmentChartContainerWidth, marginTop: 12 }}>
+			<View
+				style={{
+					width: investmentChartContainerWidth,
+					height: investmentChartHeight,
+					position: 'relative',
+				}}
+			>
 				<View
 					style={{
+						position: 'absolute',
+						top: 0,
+						left: chartOffset,
 						width: investmentChartWidth,
 						height: investmentChartHeight,
 						alignItems: 'center',
@@ -434,6 +435,7 @@ export default function HomeScreen() {
 		isDesktopWeb ? (bankOverviewWidth ?? Math.max((windowWidth - 400) / 2, 1)) : windowWidth - 48,
 		1,
 	);
+	const investmentChartContainerWidth = bankCarouselWidth;
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
 	const currentUserId = auth.currentUser?.uid ?? null;
@@ -673,6 +675,10 @@ export default function HomeScreen() {
 		() => investmentChartRadius * 2 + INVESTMENT_CHART_PADDING_VERTICAL,
 		[investmentChartRadius],
 	);
+	const investmentChartOffset = Math.max(
+		(investmentChartContainerWidth - investmentChartWidth) / 2,
+		0,
+	);
 	const investmentDistributionTotalInCents = React.useMemo(
 		() =>
 			investmentDistributionItems.reduce(
@@ -810,7 +816,7 @@ export default function HomeScreen() {
 				return;
 			}
 
-			const centerX = investmentChartWidth / 2;
+			const centerX = investmentChartContainerWidth / 2;
 			const centerY = investmentChartHeight / 2;
 			const locationX = event.nativeEvent.locationX;
 			const locationY = event.nativeEvent.locationY;
@@ -857,6 +863,7 @@ export default function HomeScreen() {
 			investmentChartHeight,
 			investmentChartInnerRadius,
 			investmentChartRadius,
+			investmentChartContainerWidth,
 			investmentChartWidth,
 			investmentDistributionItems,
 			investmentDistributionTotalInCents,
@@ -1264,7 +1271,9 @@ export default function HomeScreen() {
 
 								{overview.loading && bankCarouselItems.length === 0 ? (
 									<HomeBankOverviewSkeleton
+										bankCarouselWidth={bankCarouselWidth}
 										bankCarouselHeight={bankCarouselHeight}
+										bankCarouselItemSpacing={bankCarouselItemSpacing}
 										cardPalette={bankOverviewSkeletonPalette}
 										skeletonBaseColor={skeletonBaseColor}
 										skeletonHighlightColor={skeletonHighlightColor}
@@ -1452,12 +1461,13 @@ export default function HomeScreen() {
 								<View style={{ marginTop: 8 }}>
 									{investments.error ? (
 										<Text style={{ color: investmentPalette.subtitle }}>{investments.error}</Text>
-									) : investments.loading && investmentPortfolio.investmentCount === 0 ? (
-										<HomeInvestmentSkeleton
-											investmentChartWidth={investmentChartWidth}
-											investmentChartHeight={investmentChartHeight}
-											surfaceBackground={surfaceBackground}
-										/>
+					) : investments.loading && investmentPortfolio.investmentCount === 0 ? (
+						<HomeInvestmentSkeleton
+							investmentChartContainerWidth={investmentChartContainerWidth}
+							investmentChartWidth={investmentChartWidth}
+							investmentChartHeight={investmentChartHeight}
+							surfaceBackground={surfaceBackground}
+						/>
 									) : investmentPortfolio.investmentCount === 0 ? (
 										<Text style={{ color: investmentPalette.subtitle }}>
 											Nenhum investimento registrado até o momento.
@@ -1469,14 +1479,15 @@ export default function HomeScreen() {
 										</Text>
 									) : (
 										<>
-											<View className="mt-2 items-center justify-center">
+											<View className="mt-2 items-center justify-center" style={{ width: '100%' }}>
 												<View
-													style={{
-														width: investmentChartWidth,
-														height: investmentChartHeight,
-														position: 'relative',
-														overflow: 'visible',
-													}}
+														style={{
+															width: investmentChartContainerWidth,
+															height: investmentChartHeight,
+															alignSelf: 'center',
+															position: 'relative',
+															overflow: 'visible',
+														}}
 												>
 													{selectedInvestmentPopoverTarget && selectedInvestmentPopoverInvestment ? (
 														<Popover
@@ -1542,7 +1553,17 @@ export default function HomeScreen() {
 														</Popover>
 													) : null}
 
-													<View style={{ position: 'absolute', top: 0, left: 0 }}>
+									<View
+										style={{
+											position: 'absolute',
+											top: 0,
+											left: investmentChartOffset,
+											width: investmentChartWidth,
+											height: investmentChartHeight,
+											alignItems: 'center',
+											justifyContent: 'center',
+										}}
+									>
 														<PieChart
 															data={investmentDonutChartData}
 															donut
@@ -1610,7 +1631,7 @@ export default function HomeScreen() {
 															position: 'absolute',
 															top: 0,
 															left: 0,
-															width: investmentChartWidth,
+															width: investmentChartContainerWidth,
 															height: investmentChartHeight,
 															backgroundColor: 'transparent',
 															zIndex: 1,
