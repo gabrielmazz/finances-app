@@ -2,6 +2,12 @@ import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import './StaggeredMenu.css';
 
+// O Navigator Web é remontado quando o Expo Router troca de tela. Mantemos
+// somente o estado visual da rail entre essas remontagens para que navegar não
+// force o menu aberto a voltar para o estado fechado.
+let collapsedRailOpen = false;
+let activeMenuInstance = null;
+
 export const StaggeredMenu = ({
   position = 'right',
   colors = ['#B497CF', '#5227FF'],
@@ -22,8 +28,10 @@ export const StaggeredMenu = ({
   onMenuOpen,
   onMenuClose
 }) => {
-  const [open, setOpen] = useState(false);
-  const openRef = useRef(false);
+  const initialOpen = collapsedRail && collapsedRailOpen;
+  const [open, setOpen] = useState(initialOpen);
+  const openRef = useRef(initialOpen);
+  const menuInstanceRef = useRef({});
   const panelRef = useRef(null);
   const preLayersRef = useRef(null);
   const preLayerElsRef = useRef([]);
@@ -66,8 +74,12 @@ export const StaggeredMenu = ({
 
       const offscreen = position === 'left' ? -100 : 100;
       if (collapsedRail) {
-        gsap.set(panel, { xPercent: 0, opacity: 1, clipPath: getCollapsedClip(panel) });
-        gsap.set(preLayers, { xPercent: offscreen, autoAlpha: 1 });
+        gsap.set(panel, {
+          xPercent: 0,
+          opacity: 1,
+          clipPath: openRef.current ? 'inset(0 0px 0 0 round 0 14px 14px 0)' : getCollapsedClip(panel)
+        });
+        gsap.set(preLayers, { xPercent: openRef.current ? 0 : offscreen, autoAlpha: 1 });
       } else {
         gsap.set([panel, ...preLayers], { xPercent: offscreen, opacity: 1, clearProps: 'clipPath' });
       }
@@ -82,6 +94,15 @@ export const StaggeredMenu = ({
     });
     return () => ctx.revert();
   }, [collapsedRail, getCollapsedClip, menuButtonColor, position]);
+
+  useLayoutEffect(() => {
+    activeMenuInstance = menuInstanceRef.current;
+    return () => {
+      if (activeMenuInstance === menuInstanceRef.current) {
+        activeMenuInstance = null;
+      }
+    };
+  }, []);
 
   const buildOpenTimeline = useCallback(() => {
     const panel = panelRef.current;
@@ -355,6 +376,7 @@ export const StaggeredMenu = ({
   const toggleMenu = useCallback(() => {
     const target = !openRef.current;
     openRef.current = target;
+    if (collapsedRail) collapsedRailOpen = target;
     setOpen(target);
     if (target) {
       onMenuOpen?.();
@@ -369,8 +391,10 @@ export const StaggeredMenu = ({
   }, [playOpen, playClose, animateIcon, animateColor, animateText, onMenuOpen, onMenuClose]);
 
   const closeMenu = useCallback(() => {
+    if (activeMenuInstance !== menuInstanceRef.current) return;
     if (openRef.current) {
       openRef.current = false;
+      if (collapsedRail) collapsedRailOpen = false;
       setOpen(false);
       onMenuClose?.();
       playClose();
@@ -384,6 +408,7 @@ export const StaggeredMenu = ({
     if (!closeOnClickAway || !open) return;
 
     const handleClickOutside = event => {
+      if (activeMenuInstance !== menuInstanceRef.current) return;
       if (
         panelRef.current &&
         !panelRef.current.contains(event.target) &&
@@ -404,6 +429,7 @@ export const StaggeredMenu = ({
     if (!open) return;
 
     const handleEscape = event => {
+      if (activeMenuInstance !== menuInstanceRef.current) return;
       if (event.key === 'Escape') {
         closeMenu();
       }
@@ -511,7 +537,6 @@ export const StaggeredMenu = ({
                         event.preventDefault();
                         if (it.disabled) return;
                         it.onSelect?.();
-                        closeMenu();
                       }}
                     >
                       <span className="sm-panel-itemLabel">
