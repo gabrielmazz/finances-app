@@ -13,11 +13,14 @@ export interface AnimatedContentProps
   initialOpacity?: number;
   animateOpacity?: boolean;
   scale?: number;
+  disappearScale?: number;
   threshold?: number;
   delay?: number;
   disappearAfter?: number;
   disappearDuration?: number;
   disappearEase?: string;
+  trigger?: 'scroll' | 'mount';
+  visible?: boolean;
   onComplete?: () => void;
   onDisappearanceComplete?: () => void;
 }

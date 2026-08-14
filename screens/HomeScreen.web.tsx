@@ -372,6 +372,9 @@ export default function HomeScreen() {
 	const [expandedMovements, setExpandedMovements] = React.useState<string[]>(
 		[],
 	);
+	const [renderedMovements, setRenderedMovements] = React.useState<string[]>(
+		[],
+	);
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] =
 		React.useState(false);
 	const [dismissedPrompt, setDismissedPrompt] = React.useState<string | null>(
@@ -485,12 +488,16 @@ export default function HomeScreen() {
 		setDismissedPrompt(promptKey);
 		setIsMonthlyBalanceModalOpen(false);
 	}, [promptKey]);
-	const toggleMovement = (id: string) =>
-		setExpandedMovements((current) =>
-			current.includes(id)
-				? current.filter((item) => item !== id)
-				: [...current, id],
+	const toggleMovement = (id: string) => {
+		if (expandedMovements.includes(id)) {
+			setExpandedMovements((current) => current.filter((item) => item !== id));
+			return;
+		}
+		setRenderedMovements((rendered) =>
+			rendered.includes(id) ? rendered : [...rendered, id],
 		);
+		setExpandedMovements((current) => [...current, id]);
+	};
 	const contentWidth: ViewStyle | undefined = desktop
 		? { width: "100%", maxWidth: 1180, alignSelf: "center" as const }
 		: undefined;
@@ -780,6 +787,7 @@ export default function HomeScreen() {
 									onPress={() => setIsMovementsExpanded((current) => !current)}
 									accessibilityRole="button"
 									accessibilityLabel="Expandir ou recolher últimas movimentações"
+									accessibilityState={{ expanded: isMovementsExpanded }}
 								>
 									<View style={styles.sectionHeading}>
 										<View style={styles.headingWithTip}>
@@ -846,8 +854,9 @@ export default function HomeScreen() {
 															<View style={styles.timelineBody}>
 																<Pressable
 																	onPress={() => toggleMovement(key)}
-																	accessibilityRole="button"
-																	accessibilityLabel={`Detalhes de ${movement.name}`}
+																							accessibilityRole="button"
+																							accessibilityLabel={`Detalhes de ${movement.name}`}
+																							accessibilityState={{ expanded }}
 																>
 																	<View style={styles.movementHeader}>
 																		<View style={styles.movementIdentity}>
@@ -920,50 +929,90 @@ export default function HomeScreen() {
 																		</View>
 																	</View>
 																</Pressable>
-																{expanded ? (
-																	<View
-																		style={[
-																			styles.movementDetail,
-																			{ backgroundColor: tone.gradient[0] },
-																		]}
-																	>
-																		<Text style={styles.detailLabel}>
-																			RESUMO
-																		</Text>
-																		<Text style={styles.detailText}>
-																			{movementDetail(movement)}
-																		</Text>
-																		<View style={styles.detailGrid}>
-																			<DetailItem
-																				label="Tipo"
-																				value={movementLabel(movement)}
-																			/>
-																			<DetailItem
-																				label={
-																					movement.isBankTransfer
-																						? "Origem"
-																						: "Conta"
-																				}
-																				value={
-																					movement.bankName ||
-																					(movement.moneyFormat
-																						? "Dinheiro em espécie"
-																						: "Sem banco vinculado")
-																				}
-																			/>
-																			<DetailItem
-																				label="Data"
-																				value={formatDate(movement.date)}
-																			/>
-																			{movement.tagName ? (
-																				<DetailItem
-																					label="Tag"
-																					value={movement.tagName}
-																				/>
-																			) : null}
-																		</View>
-																	</View>
-																) : null}
+						{renderedMovements.includes(key) ? (
+							<AnimatedContent
+								key={`${key}:detail`}
+								trigger="mount"
+								visible={expanded}
+								distance={18}
+								duration={0.36}
+								disappearDuration={0.28}
+								disappearScale={1}
+								ease="power3.out"
+								initialOpacity={0}
+								animateOpacity
+								scale={1}
+								className="movement-detail-animation"
+								style={styles.movementDetailAnimation}
+								onDisappearanceComplete={() =>
+									setRenderedMovements((rendered) =>
+										rendered.filter((item) => item !== key),
+									)
+								}
+											>
+												<View style={styles.movementDetail}>
+													<View
+														pointerEvents="none"
+														style={styles.movementDetailGrainient}
+													>
+															<Grainient
+																className="movement-detail-grainient"
+																timeSpeed={0.1}
+															warpStrength={0.8}
+															warpFrequency={3.5}
+															warpSpeed={1.6}
+															warpAmplitude={90}
+															blendSoftness={0.2}
+															grainAmount={0.06}
+															grainScale={3}
+															grainAnimated
+															contrast={1.12}
+															zoom={1.05}
+															color1={tone.gradient[0]}
+															color2={tone.accent}
+															color3={tone.gradient[1]}
+														/>
+													</View>
+													<View style={styles.movementDetailContent}>
+														<Text style={styles.detailLabel}>
+														RESUMO
+													</Text>
+													<Text style={styles.detailText}>
+														{movementDetail(movement)}
+													</Text>
+													<View style={styles.detailGrid}>
+														<DetailItem
+															label="Tipo"
+															value={movementLabel(movement)}
+														/>
+														<DetailItem
+															label={
+																movement.isBankTransfer
+																	? "Origem"
+																	: "Conta"
+															}
+															value={
+																movement.bankName ||
+																(movement.moneyFormat
+																	? "Dinheiro em espécie"
+																	: "Sem banco vinculado")
+															}
+														/>
+														<DetailItem
+															label="Data"
+															value={formatDate(movement.date)}
+														/>
+														{movement.tagName ? (
+															<DetailItem
+																label="Tag"
+																value={movement.tagName}
+															/>
+														) : null}
+													</View>
+																							</View>
+																						</View>
+																				</AnimatedContent>
+										) : null}
 															</View>
 														</View>
 													);
@@ -1262,10 +1311,33 @@ const styles = StyleSheet.create({
 		marginTop: 4,
 	},
 	dateText: { color: "#94A3B8", fontSize: 11 },
-	movementDetail: {
-		marginTop: 10,
-		marginRight: 16,
+	movementDetailAnimation: {
+		width: "100%",
+		alignSelf: "stretch",
 		borderRadius: 18,
+		borderTopRightRadius: 18,
+		borderBottomRightRadius: 18,
+		overflow: "hidden",
+	},
+	movementDetail: {
+		position: "relative",
+		marginTop: 10,
+		width: "100%",
+		borderRadius: 18,
+		borderTopRightRadius: 18,
+		borderBottomRightRadius: 18,
+		overflow: "hidden",
+	},
+	movementDetailGrainient: {
+		...StyleSheet.absoluteFillObject,
+		width: "100%",
+		height: "100%",
+		opacity: 0.96,
+		borderRadius: 18,
+	},
+	movementDetailContent: {
+		position: "relative",
+		zIndex: 1,
 		paddingHorizontal: 16,
 		paddingVertical: 14,
 	},

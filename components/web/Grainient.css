@@ -2,6 +2,26 @@
   position: relative;
   width: 100%;
   height: 100%;
+  min-width: 100%;
+  min-height: 100%;
+  display: block;
   overflow: hidden;
   pointer-events: none;
+}
+
+.movement-detail-animation {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  clip-path: inset(0 round 18px);
+}
+
+.grainient-container.movement-detail-grainient {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  border-radius: inherit;
 }

@@ -145,9 +145,13 @@ const Grainient = ({
 
     const gl = renderer.gl;
     const canvas = gl.canvas;
+    canvas.style.position = 'absolute';
+    canvas.style.inset = '0';
     canvas.style.width = '100%';
     canvas.style.height = '100%';
     canvas.style.display = 'block';
+    canvas.style.maxWidth = 'none';
+    canvas.style.maxHeight = 'none';
     container.appendChild(canvas);
 
     const geometry = new Triangle(gl);
