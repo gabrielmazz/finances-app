@@ -22,6 +22,11 @@ interface UpdateBankParams {
     iconKey?: string | null;
 }
 
+interface UpdateBankStatusParams {
+    bankId: string;
+    isActive: boolean;
+}
+
 interface AddCashRescueParams {
     bankId: string;
     bankNameSnapshot: string | null;
@@ -70,6 +75,7 @@ export async function addBankFirebase({ bankName, personId, colorHex = null, ico
             personId,
             colorHex: colorHex ?? null,
             iconKey: iconKey ?? null,
+            isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -82,6 +88,20 @@ export async function addBankFirebase({ bankName, personId, colorHex = null, ico
         
         return { success: false, error };
 
+    }
+}
+
+export async function updateBankStatusFirebase({ bankId, isActive }: UpdateBankStatusParams) {
+    try {
+        await setDoc(
+            doc(db, 'banks', bankId),
+            { isActive, updatedAt: new Date() },
+            { merge: true },
+        );
+        return { success: true };
+    } catch (error) {
+        console.error('Erro ao atualizar status do banco:', error);
+        return { success: false, error };
     }
 }
 
@@ -369,7 +389,7 @@ export async function deleteBankFirebase(bankId: string) {
 // =========================================== Funções de Consulta ================================================== //
 
 // Função para obter todos os bancos registrados no Firestore
-export async function getAllBanksFirebase() {
+export async function getAllBanksFirebase(includeInactive = false) {
 
     try {
 
@@ -377,7 +397,7 @@ export async function getAllBanksFirebase() {
         const banks = banksSnapshot.docs.map(bankDoc => ({
             id: bankDoc.id,
             ...bankDoc.data(),
-        }));
+        })).filter(bank => includeInactive || bank.isActive !== false);
 
         return { success: true, data: banks };
 
@@ -429,7 +449,7 @@ export async function getBanksByPersonFirebase(personId: string) {
         const banks = banksSnapshot.docs.map(bankDoc => ({
             id: bankDoc.id,
             ...bankDoc.data(),
-        }));
+        })).filter(bank => bank.isActive !== false);
 
         return { success: true, data: banks };
 
@@ -471,7 +491,7 @@ export async function getBanksWithUsersByPersonFirebase(personId: string) {
         const banks = banksSnapshot.docs.map(bankDoc => ({
             id: bankDoc.id,
             ...bankDoc.data(),
-        }));
+        })).filter(bank => bank.isActive !== false);
 
         return { success: true, data: banks };
 

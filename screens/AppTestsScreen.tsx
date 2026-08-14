@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BellRing, Bot, Route, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { BellRing, Bot, Radio, Route, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react-native';
 
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
@@ -15,6 +15,11 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { assistantAiGateway } from '@/services/lumusAssistant/assistantPlatform';
 import { sendLocalNotificationTest } from '@/utils/localNotifications';
 import {
+	registerRemoteNotificationDevice,
+	sendLinkedDevicesNotificationTest,
+} from '@/utils/remoteNotifications';
+import { auth } from '@/FirebaseConfig';
+import {
 	APP_ROUTE_PATHS,
 	navigateToHomeConfigurations,
 	navigateToRoute,
@@ -25,6 +30,7 @@ import TestsScreenIllustration from '@/assets/UnDraw/testsScreen.svg';
 
 export default function AppTestsScreen() {
 	const [isSendingTestNotification, setIsSendingTestNotification] = React.useState(false);
+	const [isSendingRemoteTestNotification, setIsSendingRemoteTestNotification] = React.useState(false);
 	const [isLoadingAssistantDiagnostics, setIsLoadingAssistantDiagnostics] = React.useState(false);
 	const {
 		isDarkMode,
@@ -66,6 +72,54 @@ export default function AppTestsScreen() {
 			setIsSendingTestNotification(false);
 		}
 	}, [isDarkMode, isSendingTestNotification]);
+
+	const handleRemoteNotificationTest = React.useCallback(async () => {
+		if (isSendingRemoteTestNotification) return;
+
+		setIsSendingRemoteTestNotification(true);
+		try {
+			const accountId = auth.currentUser?.uid;
+			if (!accountId) {
+				throw new Error('Usuário não autenticado.');
+			}
+			const registration = await registerRemoteNotificationDevice(accountId, { requestPermission: true });
+			if (!registration.registered) {
+				showNotifierAlert({
+					title: 'Ative as notificações neste aparelho',
+					description:
+						registration.reason === 'unavailable'
+							? 'Use uma development build ou a versão instalada para testar notificações remotas.'
+							: 'Permita as notificações do Lumus e tente novamente.',
+					type: 'warn',
+					isDarkMode,
+					duration: 6000,
+				});
+				return;
+			}
+			const result = await sendLinkedDevicesNotificationTest();
+			showNotifierAlert({
+				title: 'Teste enviado aos vinculados',
+				description:
+					result.deviceCount > 0
+						? `Envio aceito para ${result.deviceCount} aparelho(s) de ${result.recipientCount} usuário(s) vinculados.`
+						: 'Nenhum aparelho vinculado possui notificações remotas ativas. Abra o app instalado e permita as notificações.',
+				type: result.deviceCount > 0 ? 'success' : 'warn',
+				isDarkMode,
+				duration: 6000,
+			});
+		} catch (error) {
+			console.error('Erro ao testar notificações remotas:', error);
+			showNotifierAlert({
+				title: 'Não foi possível enviar o teste',
+				description: 'Confirme sua sessão e se a Cloud Function de notificações foi publicada.',
+				type: 'error',
+				isDarkMode,
+				duration: 6000,
+			});
+		} finally {
+			setIsSendingRemoteTestNotification(false);
+		}
+	}, [isDarkMode, isSendingRemoteTestNotification]);
 
 	const handleAssistantTest = React.useCallback(async () => {
 		if (isLoadingAssistantDiagnostics) return;
@@ -148,6 +202,32 @@ export default function AppTestsScreen() {
 								<Text className={`${helperText} text-sm leading-5`}>
 									Os testes são manuais: a notificação usa o canal existente, o Lumus só verifica a configuração e os formulários só gravam após sua confirmação.
 								</Text>
+							</VStack>
+						</Box>
+
+						<Box className={`${notTintedCardClassName} px-4 py-4`}>
+							<VStack className="gap-4">
+								<VStack className="gap-1">
+									<Heading size="md" className={bodyText}>
+										Notificação aos dispositivos vinculados
+									</Heading>
+									<Text className={`${helperText} text-sm leading-5`}>
+										Envia um push a todos os aparelhos autorizados do usuário atual e das pessoas vinculadas. Não cria nem altera lançamentos.
+									</Text>
+								</VStack>
+
+								<Button
+									size="md"
+									variant="solid"
+									action="primary"
+									className={accordionSectionButtonClassName}
+									onPress={handleRemoteNotificationTest}
+									isDisabled={isSendingRemoteTestNotification}
+									accessibilityLabel="Enviar notificação de teste aos dispositivos vinculados"
+								>
+									{isSendingRemoteTestNotification ? <ButtonSpinner /> : <ButtonIcon as={Radio} size="md" />}
+									<ButtonText>{isSendingRemoteTestNotification ? 'Enviando...' : 'Testar dispositivos vinculados'}</ButtonText>
+								</Button>
 							</VStack>
 						</Box>
 

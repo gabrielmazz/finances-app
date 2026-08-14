@@ -955,9 +955,7 @@ export default function AddRegisterExpensesScreen() {
 
 				if (!mandatoryPaymentResult.success) {
 					let description = 'Não foi possível registrar este pagamento obrigatório. Nenhuma despesa foi criada.';
-					if (mandatoryPaymentResult.reason === 'settlement_value_mismatch') {
-						description = 'O saldo das parcelas mudou. Volte à lista e tente quitar novamente.';
-					} else if (mandatoryPaymentResult.reason === 'installment_plan_required') {
+					if (mandatoryPaymentResult.reason === 'installment_plan_required') {
 						description = 'A quitação antecipada só está disponível para gastos parcelados.';
 					} else if (
 						mandatoryPaymentResult.reason === 'no_remaining_installments' ||

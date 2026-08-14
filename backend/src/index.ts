@@ -9,6 +9,7 @@ import {
   type Transaction as FirestoreTransaction,
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
@@ -40,6 +41,14 @@ setGlobalOptions({ region: REGION, maxInstances: 20 });
 
 type FinancialRole = 'admin' | 'member';
 type JsonRecord = Record<string, unknown>;
+type MandatoryNotificationKind = 'expense' | 'gain';
+type ExpoPushTicket = {
+  status?: unknown;
+  details?: { error?: unknown };
+};
+
+const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
+const EXPO_PUSH_MESSAGE_LIMIT = 100;
 
 type FinancialAccountDocument = {
   groupId: string;
@@ -105,6 +114,110 @@ function callableUserId(request: { auth?: { uid: string } | null }): string {
     throw new HttpsError('unauthenticated', 'Sign in before performing a financial operation.');
   }
   return request.auth.uid;
+}
+
+function isExpoPushToken(value: unknown): value is string {
+  return typeof value === 'string' && /^(?:ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(value);
+}
+
+async function linkedRecipientIds(ownerId: string): Promise<string[]> {
+  const owner = await db.doc('users/' + ownerId).get();
+  const related = Array.isArray(owner.data()?.relatedIdUsers)
+    ? owner.data()!.relatedIdUsers.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
+    : [];
+  return Array.from(new Set([ownerId, ...related]));
+}
+
+async function remoteDevicesForRecipients(recipientIds: string[]) {
+  const snapshots = await Promise.all(recipientIds.map(userId => db.collection('users').doc(userId).collection('pushDevices').get()));
+  return snapshots.flatMap(snapshot => snapshot.docs.flatMap(device => {
+    const token = device.data().expoPushToken;
+    return isExpoPushToken(token) ? [{ token, reference: device.ref }] : [];
+  }));
+}
+
+async function sendRemoteNotification({
+  ownerId,
+  title,
+  body,
+  data,
+}: {
+  ownerId: string;
+  title: string;
+  body: string;
+  data: JsonRecord;
+}) {
+  const recipientIds = await linkedRecipientIds(ownerId);
+  const devices = await remoteDevicesForRecipients(recipientIds);
+  const uniqueDevices = Array.from(new Map(devices.map(device => [device.token, device])).values());
+  let acceptedCount = 0;
+
+  for (let index = 0; index < uniqueDevices.length; index += EXPO_PUSH_MESSAGE_LIMIT) {
+    const batch = uniqueDevices.slice(index, index + EXPO_PUSH_MESSAGE_LIMIT);
+    const response = await fetch(EXPO_PUSH_ENDPOINT, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch.map(device => ({
+        to: device.token,
+        title,
+        body,
+        sound: 'default',
+        priority: 'high',
+        data: { notificationSystem: 'lumus-remote-notifications-v1', ...data },
+      }))),
+    });
+    if (!response.ok) throw new Error('Expo Push respondeu com HTTP ' + response.status + '.');
+
+    const payload = await response.json() as { data?: ExpoPushTicket[] };
+    const tickets = Array.isArray(payload.data) ? payload.data : [];
+    await Promise.all(batch.map(async (device, ticketIndex) => {
+      const ticket = tickets[ticketIndex];
+      if (ticket?.status === 'ok') {
+        acceptedCount += 1;
+      } else if (ticket?.details?.error === 'DeviceNotRegistered') {
+        await device.reference.delete();
+      }
+    }));
+  }
+
+  return { recipientCount: recipientIds.length, deviceCount: uniqueDevices.length, acceptedCount };
+}
+
+function mandatoryNotificationCopy(kind: MandatoryNotificationKind, operation: 'created' | 'updated' | 'deleted', name: string) {
+  const subject = kind === 'expense' ? 'Gasto obrigatório' : 'Ganho obrigatório';
+  const action = operation === 'created' ? 'adicionado' : operation === 'deleted' ? 'removido' : 'atualizado';
+  return {
+    title: `${subject} ${action}`,
+    body: `${name} foi ${action} em uma conta vinculada.`,
+  };
+}
+
+async function notifyMandatoryDocumentChange(kind: MandatoryNotificationKind, event: { params: { id: string }; data?: { before: { exists: boolean; data: () => DocumentData | undefined }; after: { exists: boolean; data: () => DocumentData | undefined } } }) {
+  const before = event.data?.before;
+  const after = event.data?.after;
+  if (!before || !after || (!before.exists && !after.exists)) return;
+
+  const previous = before.exists ? before.data() ?? {} : {};
+  const current = after.exists ? after.data() ?? {} : {};
+  const source = after.exists ? current : previous;
+  const ownerId = typeof source.personId === 'string' ? source.personId : null;
+  if (!ownerId) return;
+  const operation = !before.exists ? 'created' : !after.exists ? 'deleted' : 'updated';
+  const name = typeof source.name === 'string' && source.name.trim().length > 0
+    ? source.name.trim()
+    : kind === 'expense' ? 'Gasto sem nome' : 'Ganho sem nome';
+  const copy = mandatoryNotificationCopy(kind, operation, name);
+
+  try {
+    await sendRemoteNotification({
+      ownerId,
+      ...copy,
+      data: { kind, operation, templateId: event.params.id },
+    });
+  } catch (error) {
+    // O Firestore já confirmou a alteração. Uma falha de entrega não a desfaz.
+    console.error('Erro ao enviar notificação remota de recorrência:', error);
+  }
 }
 
 function operationReference(groupId: string, clientActionId: string) {
@@ -398,6 +511,26 @@ export const transferFunds = onCall(async (request) => {
     ledgerTransactionFromTransfer(data, actorId),
   ));
 });
+
+export const sendLinkedDevicesNotificationTest = onCall(async (request) => {
+  const ownerId = callableUserId(request);
+  return sendRemoteNotification({
+    ownerId,
+    title: 'Teste de notificações vinculadas',
+    body: 'Os avisos remotos do Lumus estão funcionando para este grupo vinculado.',
+    data: { kind: 'test', operation: 'manual' },
+  });
+});
+
+export const notifyMandatoryExpenseChange = onDocumentWritten(
+  'mandatoryExpenses/{id}',
+  event => notifyMandatoryDocumentChange('expense', event),
+);
+
+export const notifyMandatoryGainChange = onDocumentWritten(
+  'mandatoryGains/{id}',
+  event => notifyMandatoryDocumentChange('gain', event),
+);
 
 export const reverseTransaction = onCall(async (request) => {
   const actorId = callableUserId(request);

@@ -195,12 +195,15 @@ const StrokeText = ({
   }, [box, dash, drawDuration, fillDelay, stagger, ease, trigger, fillMode, reverse]);
 
   const viewBox = box ? `${box.x} ${box.y} ${box.width} ${box.height}` : `0 ${-fontSize} 600 ${fontSize * 1.3}`;
+	const domStyle = Array.isArray(style)
+		? Object.assign({}, ...style.filter(Boolean))
+		: style;
 
   return (
     <span
       ref={rootRef}
       className={`stroke-text ${trigger === 'hover' ? 'stroke-text--hover' : ''} ${className}`.trim()}
-      style={{ ...style, '--stroke-text-height': `${Math.round(fontSize * 1.3)}px` }}
+      style={{ ...domStyle, '--stroke-text-height': `${Math.round(fontSize * 1.3)}px` }}
       role="img"
       aria-label={String(text ?? '')}
     >

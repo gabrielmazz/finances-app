@@ -60,7 +60,12 @@ import {
 	getRelatedUsersFirebase,
 	deleteUserRelationFirebase,
 } from '@/functions/RegisterUserFirebase';
-import { addBankFirebase, getAllBanksFirebase, deleteBankFirebase } from '@/functions/BankFirebase';
+import {
+	addBankFirebase,
+	getAllBanksFirebase,
+	deleteBankFirebase,
+	updateBankStatusFirebase,
+} from '@/functions/BankFirebase';
 import {
 	deleteTagFirebase,
 	getAllTagsFirebase,
@@ -104,7 +109,7 @@ import AddRegisterTagScreenIllustration from '../assets/UnDraw/addRegisterTagScr
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 import FinancialListIllustration from '../assets/UnDraw/financialListScreen.svg';
 
-import { Info } from 'lucide-react-native';
+import { Info, Power, PowerOff } from 'lucide-react-native';
 
 type AccordionItem = {
 	id: string;
@@ -228,8 +233,14 @@ type PendingAction =
 		payload: { bankId: string; bankName: string };
 	}
 	| {
+		type: 'toggle-bank-status';
+		payload: { bankId: string; bankName: string; isActive: boolean };
+	}
+	| {
 		type: 'edit-bank';
-		payload: { bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null } };
+		payload: {
+			bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean };
+		};
 	}
 	| {
 		type: 'delete-tag';
@@ -571,8 +582,8 @@ function ConfigurationsSkeleton({
 							{renderAccordionHeader('w-[74%]')}
 							{renderTableSection({
 								titleWidthClassName: 'w-16',
-								actionHeaderWidthClassName: 'w-16',
-								actionCount: 2,
+								actionHeaderWidthClassName: 'w-24',
+								actionCount: 3,
 								showColorIndicator: true,
 							})}
 						</VStack>
@@ -896,9 +907,16 @@ export async function handleDeleteBank(bankId: string) {
 	return result;
 }
 
+export async function handleUpdateBankStatus(bankId: string, isActive: boolean) {
+
+	const result = await updateBankStatusFirebase({ bankId, isActive });
+
+	return result;
+}
+
 export async function fetchAllBanks() {
 
-	const result = await getAllBanksFirebase();
+	const result = await getAllBanksFirebase(true);
 
 	if (result.success) {
 
@@ -966,6 +984,7 @@ export default function ConfigurationsScreen() {
 		tableActionsCellClassName,
 		tableSingleActionColumnClassName,
 		tableDoubleActionColumnClassName,
+		tableTripleActionColumnClassName,
 		tableUsersMinWidthClassName,
 		tableBanksMinWidthClassName,
 		tableTagsMinWidthClassName,
@@ -990,7 +1009,9 @@ export default function ConfigurationsScreen() {
 	} = useScreenStyles();
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
-	const [bankData, setBankData] = React.useState<Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null }>>([]);
+	const [bankData, setBankData] = React.useState<
+		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean }>
+	>([]);
 	const [tagData, setTagData] = React.useState<
 		Array<{
 			id: string;
@@ -1294,8 +1315,34 @@ export default function ConfigurationsScreen() {
 		[showConfigurationAlert],
 	);
 
+	const handleBankStatusChange = React.useCallback(
+		async (bankId: string, bankName: string, isActive: boolean) => {
+			const result = await handleUpdateBankStatus(bankId, isActive);
+
+			if (result.success) {
+				setBankData(prev =>
+					prev.map(bank => (bank.id === bankId ? { ...bank, isActive } : bank)),
+				);
+				showConfigurationAlert({
+					title: isActive ? 'Banco reativado' : 'Banco desativado',
+					description: isActive
+						? `${bankName || bankId} voltou a aparecer nos seletores de banco.`
+						: `${bankName || bankId} foi mantido no cadastro, mas não aparecerá nos seletores de banco.`,
+					type: 'success',
+				});
+			} else {
+				showConfigurationAlert({
+					title: isActive ? 'Erro ao reativar banco' : 'Erro ao desativar banco',
+					description: 'Não foi possível atualizar o status do banco. Tente novamente.',
+					type: 'error',
+				});
+			}
+		},
+		[showConfigurationAlert],
+	);
+
 	const handleBankEdit = React.useCallback(
-		(bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null }) => {
+		(bank: { id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean }) => {
 			if (!bank?.id) {
 				return;
 			}
@@ -1441,6 +1488,12 @@ export default function ConfigurationsScreen() {
 				await handleUserRemoval(pendingAction.payload.userId, pendingAction.payload.identifier);
 			} else if (pendingAction.type === 'delete-bank') {
 				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName);
+			} else if (pendingAction.type === 'toggle-bank-status') {
+				await handleBankStatusChange(
+					pendingAction.payload.bankId,
+					pendingAction.payload.bankName,
+					pendingAction.payload.isActive,
+				);
 			} else if (pendingAction.type === 'delete-tag') {
 				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName);
 			} else if (pendingAction.type === 'delete-related-user') {
@@ -1450,7 +1503,15 @@ export default function ConfigurationsScreen() {
 			setIsProcessingAction(false);
 			setPendingAction(null);
 		}
-	}, [pendingAction, handleBankEdit, handleBankRemoval, handleTagRemoval, handleUserRemoval, handleRelatedUserRemoval]);
+	}, [
+		pendingAction,
+		handleBankEdit,
+		handleBankRemoval,
+		handleBankStatusChange,
+		handleTagRemoval,
+		handleUserRemoval,
+		handleRelatedUserRemoval,
+	]);
 
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
@@ -1486,6 +1547,15 @@ export default function ConfigurationsScreen() {
 						}? Esta ação removerá todas as referências a ele.`,
 					confirmLabel: 'Excluir',
 					isDestructive: true,
+				};
+			case 'toggle-bank-status':
+				return {
+					title: pendingAction.payload.isActive ? 'Reativar banco' : 'Desativar banco',
+					message: pendingAction.payload.isActive
+						? `Deseja reativar o banco ${pendingAction.payload.bankName || 'selecionado'}? Ele voltará a aparecer nos seletores de banco.`
+						: `Deseja desativar o banco ${pendingAction.payload.bankName || 'selecionado'}? O cadastro e o histórico serão preservados, mas ele deixará de aparecer nos seletores de banco.`,
+					confirmLabel: pendingAction.payload.isActive ? 'Reativar' : 'Desativar',
+					isDestructive: !pendingAction.payload.isActive,
 				};
 			case 'edit-bank':
 				return {
@@ -1725,6 +1795,7 @@ export default function ConfigurationsScreen() {
 							name: bank.name,
 							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+							isActive: bank?.isActive !== false,
 						}));
 
 						setBankData(formattedBanks);
@@ -2116,14 +2187,14 @@ export default function ConfigurationsScreen() {
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
 																	<Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
 																		<TableHeader>
-																			<TableRow className={tableHeaderRowClassName}>
-																				<TableHead className={tableHeadTextClassName}>Banco</TableHead>
-																				<TableActionsHeader
-																					widthClassName={tableDoubleActionColumnClassName}
-																					headerClassName={tableActionsHeaderClassName}
-																					textClassName={tableActionsHeaderTextClassName}
-																				/>
-																			</TableRow>
+															<TableRow className={tableHeaderRowClassName}>
+																<TableHead className={tableHeadTextClassName}>Banco</TableHead>
+																<TableActionsHeader
+																	widthClassName={tableTripleActionColumnClassName}
+																	headerClassName={tableActionsHeaderClassName}
+																	textClassName={tableActionsHeaderTextClassName}
+																/>
+															</TableRow>
 																		</TableHeader>
 																		<TableBody>
 																			{banksTable.items.map(bank => (
@@ -2139,21 +2210,43 @@ export default function ConfigurationsScreen() {
 																								colorHex={bank.colorHex}
 																								size={30}
 																							/>
-																							<VStack className="min-w-0 flex-1 gap-1">
-																								<Text className="text-sm font-semibold" numberOfLines={1}>
-																									{bank.name}
-																								</Text>
-																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
-																									ID: {bank.id}
-																								</Text>
-																							</VStack>
+																					<VStack className="min-w-0 flex-1 gap-1">
+																					<Text className="text-sm font-semibold" numberOfLines={1}>
+																						{bank.name}
+																					</Text>
+																					<Text className={`${helperText} text-xs`}>
+																						{bank.isActive ? 'Ativo' : 'Desativado'}
+																					</Text>
+																					<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																							ID: {bank.id}
+																					</Text>
+																				</VStack>
 																						</HStack>
 																					</TableData>
-																					<TableActionsCell
-																						widthClassName={tableDoubleActionColumnClassName}
-																						cellClassName={tableActionsCellClassName}
-																					>
-																						<ConfigurationActionButton
+													<TableActionsCell
+														widthClassName={tableTripleActionColumnClassName}
+														cellClassName={tableActionsCellClassName}
+													>
+														<ConfigurationActionButton
+															icon={bank.isActive ? PowerOff : Power}
+															variant="link"
+															action={bank.isActive ? 'negative' : 'positive'}
+															className={tableIconButtonClassName}
+															iconClassName={bank.isActive ? undefined : tablePrimaryIconClassName}
+															accessibilityLabel={`${bank.isActive ? 'Desativar' : 'Reativar'} banco ${bank.name}`}
+															onPress={() =>
+																setPendingAction({
+																	type: 'toggle-bank-status',
+																	payload: {
+																		bankId: bank.id,
+																		bankName: bank.name,
+																		isActive: !bank.isActive,
+																	},
+																	})
+															}
+															disabled={isProcessingAction}
+														/>
+																<ConfigurationActionButton
 																							icon={EditIcon}
 																							variant="link"
 																							action="default"

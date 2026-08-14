@@ -1,7 +1,6 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-	StyleSheet,
 	View,
 	Keyboard,
 	StatusBar,
@@ -301,8 +300,8 @@ export default function LoginScreen() {
 
 	return (
 		<SafeAreaView
-			className="flex-1"
 			edges={['left', 'right', 'bottom']}
+			className="flex-1"
 			style={{ backgroundColor: surfaceBackground }}
 		>
 			<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
@@ -314,7 +313,8 @@ export default function LoginScreen() {
 			>
 				<ScrollView
 					ref={scrollViewRef}
-					style={{ flex: 1, backgroundColor: surfaceBackground }}
+					className="flex-1"
+					style={{ backgroundColor: surfaceBackground }}
 					scrollEnabled={!isSplitLayout}
 					contentContainerStyle={{
 						flexGrow: 1,
@@ -335,16 +335,13 @@ export default function LoginScreen() {
 						) : undefined
 					}
 				>
-					<View style={[styles.screen, { backgroundColor: surfaceBackground }]}>
-						<View style={[styles.layout, isSplitLayout && styles.splitLayout]}>
+					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+						<View className={`flex-1 ${isSplitLayout ? 'flex-row min-h-[680px]' : 'flex-col'}`}>
 							<View
-								style={[
-									styles.identitySurface,
-									isSplitLayout ? styles.wideIdentitySurface : styles.compactIdentitySurface,
-									{ height: identityHeight },
-								]}
+								className={`w-full items-center justify-center overflow-hidden ${isSplitLayout ? 'flex-[1.14] rounded-br-[32px] rounded-tr-[32px]' : 'min-h-[360px]'}`}
+								style={{ height: identityHeight }}
 							>
-								<View style={styles.identityContent}>
+								<View className="relative flex-1 w-full items-center justify-center">
 									<div style={{ position: 'absolute', inset: 0 }}>
 										<Grainient
 											color1="#f8bd0c"
@@ -425,10 +422,10 @@ export default function LoginScreen() {
 
 							<View
 								className={cardBackground}
-								style={[styles.formSurface, !isSplitLayout && styles.compactFormSurface]}
+								className={`flex-[0.86] justify-center px-8 py-[42px] ${!isSplitLayout ? '-mt-7 rounded-tl-[32px] rounded-tr-[32px] pt-12' : ''}`}
 							>
-								<View style={styles.formContent}>
-									<View style={styles.formFields}>
+								<View className="w-full max-w-[420px] flex-1 self-center">
+									<View className="flex-1 justify-center">
 										<VStack className="mb-10 gap-2">
 											<Text
 												className={`${helperText} text-xs font-semibold uppercase tracking-widest`}
@@ -548,7 +545,7 @@ export default function LoginScreen() {
 												Desenvolvido por Gabriel Mazzuco
 											</Text>
 
-											<Text className={`${helperText} text-center text-xs`}>Versão 2.2.0</Text>
+											<Text className={`${helperText} text-center text-xs`}>Versão 2.2.1</Text>
 										</VStack>
 									</VStack>
 								</View>
@@ -560,60 +557,3 @@ export default function LoginScreen() {
 		</SafeAreaView>
 	);
 }
-
-const styles = StyleSheet.create({
-	screen: {
-		flex: 1,
-	},
-	layout: {
-		flex: 1,
-		flexDirection: 'column',
-	},
-	splitLayout: {
-		flexDirection: 'row',
-		minHeight: 680,
-	},
-	identitySurface: {
-		alignItems: 'center',
-		justifyContent: 'center',
-		width: '100%',
-		overflow: 'hidden',
-	},
-	identityContent: {
-		alignItems: 'center',
-		flex: 1,
-		justifyContent: 'center',
-		position: 'relative',
-		width: '100%',
-	},
-	wideIdentitySurface: {
-		flex: 1.14,
-		borderBottomRightRadius: 32,
-		borderTopRightRadius: 32,
-	},
-	compactIdentitySurface: {
-		minHeight: 360,
-	},
-	formSurface: {
-		flex: 0.86,
-		justifyContent: 'center',
-		paddingHorizontal: 32,
-		paddingVertical: 42,
-	},
-	compactFormSurface: {
-		marginTop: -28,
-		borderTopLeftRadius: 32,
-		borderTopRightRadius: 32,
-		paddingTop: 48,
-	},
-	formContent: {
-		flex: 1,
-		width: '100%',
-		maxWidth: 420,
-		alignSelf: 'center',
-	},
-	formFields: {
-		flex: 1,
-		justifyContent: 'center',
-	},
-});

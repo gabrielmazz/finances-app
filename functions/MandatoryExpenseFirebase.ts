@@ -6,7 +6,6 @@ import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import {
 	isMandatoryInstallmentPlanComplete,
-	getMandatoryInstallmentRemainingValueInCents,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
@@ -93,7 +92,6 @@ type MandatoryExpensePaymentFailureReason =
 	| 'already_paid_for_cycle'
 	| 'installment_plan_complete'
 	| 'installment_plan_required'
-	| 'settlement_value_mismatch'
 	| 'no_remaining_installments'
 	| 'invalid_payment_data'
 	| 'transaction_failed';
@@ -622,17 +620,10 @@ export async function settleMandatoryExpenseFirebase(
 				return { success: false, reason: 'no_remaining_installments' };
 			}
 
-			const expectedValueInCents = getMandatoryInstallmentRemainingValueInCents({
-				installmentTotal,
-				installmentsCompleted: installmentState.installmentsCompleted,
-				installmentValueInCents: mandatoryExpenseData.valueInCents,
-			});
-
-			if (expectedValueInCents === null || !Number.isSafeInteger(expectedValueInCents) || valueInCents !== expectedValueInCents) {
-				return { success: false, reason: 'settlement_value_mismatch' };
-			}
-
 			const createdAt = new Date();
+			// A settlement may be discounted by the creditor. The entered amount is
+			// the actual cash outflow; only the remaining installment count is
+			// protected by the transaction above.
 			transaction.set(settlementExpenseRef, {
 				name,
 				valueInCents,
