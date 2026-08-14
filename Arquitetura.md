@@ -270,6 +270,23 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Fundo dinâmico nos detalhes da timeline Web em 2026-08-14: `HomeScreen.web.tsx` substituiu a cor sólida dos accordions de últimas movimentações pelo `Grainient`, usando três stops derivados da paleta de cada tipo de lançamento. O canvas continua sendo montado somente para detalhes expandidos, com o conteúdo em camada superior; Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+- Fechamento animado dos detalhes da timeline Web em 2026-08-14: `AnimatedContent` agora aceita `visible` e executa a saída antes do detalhe ser desmontado. `HomeScreen.web.tsx` mantém o card renderizado durante a animação e remove-o no callback final; reabrir durante a saída interrompe o fechamento e restaura a entrada. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+- Cantos completos dos detalhes da timeline Web em 2026-08-14: o card de últimas movimentações explicita os raios superior e inferior direitos, garantindo que o recorte do `Grainient` acompanhe os quatro cantos da superfície. Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+- Recorte do canvas nos detalhes da timeline Web em 2026-08-14: o wrapper `AnimatedContent`, a camada absoluta e a instância contextual do `Grainient` compartilham o recorte arredondado, evitando que o WebGL cubra os cantos direitos do card. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+- Largura dos detalhes da timeline Web em 2026-08-14: o recuo lateral do painel foi removido e o wrapper passa a ocupar 100% do `timelineBody`, preservando os quatro cantos arredondados sem vão até o fim da coluna. Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+- Preenchimento do Grainient nos detalhes da timeline Web em 2026-08-14: o container contextual e o canvas WebGL usam `position: absolute` com `inset: 0`, além de dimensões mínimas explícitas, para ocupar toda a superfície do card sem depender do tamanho intrínseco do canvas. Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+- Estabilidade dos cantos na animação da timeline Web em 2026-08-14: o detalhe deixa de aplicar escala na entrada e na saída; `AnimatedContent` mantém a escala de saída configurável para preservar o comportamento de outros usos, enquanto o card usa apenas deslocamento e opacidade. Assim o recorte do Grainient não é rasterizado em tamanhos diferentes a cada abertura. Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+- Entrada animada dos detalhes da timeline Web em 2026-08-14: o `AnimatedContent` passou a aceitar `trigger="mount"`; ao abrir uma movimentação, o detalhe entra com deslocamento curto para baixo, opacidade e escala suaves, sem animar propriedades de layout. A preferência `prefers-reduced-motion` desativa a transição. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-14.
+
 - Correção da seleção na rail Web em 2026-08-14: no `StaggeredMenu` reduzido, os rótulos ocultos saem do fluxo de layout e os itens ativos, em foco ou sob o ponteiro mantêm a largura de 68px e a mesma altura do painel aberto; a expansão continua restrita ao painel aberto, com retorno animado da seleção ao fechar sem limitar a interpolação da largura. A troca de rota preserva o painel aberto entre as remontagens do Navigator, e somente a instância mais recente responde aos eventos globais de fechamento. Vault alinhado em [[Navegação]] e [[Componentes UI]].
 - Nome cadastrado no perfil Web em 2026-08-14: o rodapé do `StaggeredMenu` busca o campo `name` persistido para mostrar o nome completo acima do e-mail, com fallback para `displayName` e inicial quando a leitura ainda não estiver disponível. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
 - Perfil do usuário na navegação Web em 2026-08-14: o painel expandido do `StaggeredMenu` agora reserva o rodapé para avatar, nome e e-mail do usuário autenticado, usando `photoURL` com fallback para inicial. No estado reduzido, somente o avatar permanece visível; os textos entram junto com a expansão. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].

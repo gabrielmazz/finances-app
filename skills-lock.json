@@ -49,6 +49,12 @@
       "skillPath": ".agents/skills/gluestack-ui-v5/SKILL.md",
       "computedHash": "2d7e2ed985d31d2d058d62d3e14c56e3e159c4417d12afc0b22f0ce9702fa0a1"
     },
+    "hyperframes-animation": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes-animation/SKILL.md",
+      "computedHash": "dcb152706e225699c3a954e434c094fa8ae23a9061d62d49b0798b20a60b297e"
+    },
     "mobile-android-design": {
       "source": "wshobson/agents",
       "sourceType": "github",
