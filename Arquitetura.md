@@ -270,6 +270,32 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Nome cadastrado no perfil Web em 2026-08-14: o rodapé do `StaggeredMenu` busca o campo `name` persistido para mostrar o nome completo acima do e-mail, com fallback para `displayName` e inicial quando a leitura ainda não estiver disponível. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Perfil do usuário na navegação Web em 2026-08-14: o painel expandido do `StaggeredMenu` agora reserva o rodapé para avatar, nome e e-mail do usuário autenticado, usando `photoURL` com fallback para inicial. No estado reduzido, somente o avatar permanece visível; os textos entram junto com a expansão. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Entrada dinâmica dos rótulos da navegação Web em 2026-08-14: no `StaggeredMenu` reduzido, os textos das opções agora entram com opacidade e deslocamento horizontal sincronizados à expansão do mesmo painel, e saem suavemente antes do recorte voltar a 68px. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Fechamento reverso da navegação Web em 2026-08-14: o `StaggeredMenu` agora usa uma timeline espelhada da abertura para retornar do painel expandido ao estado reduzido. Camadas, recorte de 68px, conteúdo social e painel respeitam os mesmos tempos e easing, mantendo a transição contínua e sem saltos. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Expansão contínua da navegação Web em 2026-08-14: a rail e o painel do `StaggeredMenu` foram unificados em um único `aside`. Fechado, o mesmo painel é recortado a 68px e mostra apenas os ícones; ao abrir ou fechar, o recorte revela ou recolhe a largura completa sem montar, ocultar ou sobrepor um segundo componente. A sequência original das camadas coloridas foi preservada atrás da expansão, e os ícones preservam o mesmo DOM, dimensão e coordenadas nos dois estados. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Crossfade da abertura do menu Web em 2026-08-14: o painel expandido e a rail reduzida agora começam a transição no mesmo instante. A rail permanece visível no início, sai somente após o painel já ter avançado 30% e retorna antes do fim da saída do painel, eliminando o intervalo em que a rail desaparecia antes do `StaggeredMenu` aparecer. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Transição unificada do menu Web em 2026-08-14: a rail reduzida e o painel expandido agora participam da mesma timeline GSAP. Ao abrir, a rail desliza 15% para a esquerda e desaparece enquanto o painel entra; ao fechar, a rail retorna em paralelo à saída do painel. O modo `prefers-reduced-motion` mantém a troca instantânea. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Microajuste da régua vertical do menu Web em 2026-08-14: a lista do painel expandido sobe 2px para coincidir com os centros dos itens da rail reduzida, sem mover o cabeçalho ou o controle de fechamento. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Alinhamento entre estados do menu Web em 2026-08-14: a rail reduzida e o painel expandido agora compartilham a mesma régua vertical para o topo, altura de seção, espaçamento entre grupos e tamanho de item/ícone. O destino ativo mantém a mesma área visual nos dois estados. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Remoção do ícone de marca da rail Web em 2026-08-14: a sidebar reduzida não exibe mais o `WalletCards` no topo; o espaço foi devolvido ao eixo da navegação e o botão de abertura continua no cabeçalho. O painel expandido e os ícones das rotas permanecem inalterados. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Ajuste visual e sobreposição da navegação Web em 2026-08-14: a rail reduzida do `StaggeredMenu` agora usa o mesmo navy/amarelo do painel expandido. Ao abrir o painel, a rail e seus ponteiros ficam ocultos; o botão de fechar permanece no cabeçalho do menu. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
+- Rail fixa do menu Web em 2026-08-14: `StaggeredMenu` agora pode renderizar uma sidebar desktop compacta de 68px, fixa à esquerda, com os ícones dos mesmos itens reais do `navigator.web.tsx`. O item ativo recebe destaque, os links preservam acessibilidade/tooltip e o botão superior continua abrindo o painel expandido. Abaixo de 1024px, a navegação Web compacta existente permanece inalterada. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+> Atualizado em 2026-08-14.
+
 - Desativação reversível de bancos em 2026-08-14: `ConfigurationsScreen.tsx` agora carrega bancos ativos e inativos na tabela administrativa e oferece confirmação para desativar/reativar, preservando o documento e o histórico. `updateBankStatusFirebase()` mantém `isActive`; os seletores operacionais continuam filtrando bancos inativos. Vault alinhado em [[Gerenciamento de Bancos]] e [[Configurações]].
 > Atualizado em 2026-08-14.
 

@@ -9,6 +9,8 @@ export const StaggeredMenu = ({
   socialItems = [],
   displaySocials = true,
   displayItemNumbering = true,
+  collapsedRail = false,
+  profile,
   className,
   navigationLabel = 'Navegação principal',
   menuButtonColor = '#fff',
@@ -41,6 +43,11 @@ export const StaggeredMenu = ({
   const busyRef = useRef(false);
   const prefersReducedMotionRef = useRef(false);
 
+  const getCollapsedClip = useCallback(panel => {
+    const railWidth = 68;
+    return `inset(0 ${Math.max(panel.offsetWidth - railWidth, 0)}px 0 0 round 0 14px 14px 0)`;
+  }, []);
+
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
       const panel = panelRef.current;
@@ -58,7 +65,12 @@ export const StaggeredMenu = ({
       preLayerElsRef.current = preLayers;
 
       const offscreen = position === 'left' ? -100 : 100;
-      gsap.set([panel, ...preLayers], { xPercent: offscreen, opacity: 1 });
+      if (collapsedRail) {
+        gsap.set(panel, { xPercent: 0, opacity: 1, clipPath: getCollapsedClip(panel) });
+        gsap.set(preLayers, { xPercent: offscreen, autoAlpha: 1 });
+      } else {
+        gsap.set([panel, ...preLayers], { xPercent: offscreen, opacity: 1, clearProps: 'clipPath' });
+      }
       if (preContainer) {
         gsap.set(preContainer, { xPercent: 0, opacity: 1 });
       }
@@ -69,7 +81,7 @@ export const StaggeredMenu = ({
       if (toggleBtnRef.current) gsap.set(toggleBtnRef.current, { color: menuButtonColor });
     });
     return () => ctx.revert();
-  }, [menuButtonColor, position]);
+  }, [collapsedRail, getCollapsedClip, menuButtonColor, position]);
 
   const buildOpenTimeline = useCallback(() => {
     const panel = panelRef.current;
@@ -95,20 +107,32 @@ export const StaggeredMenu = ({
       gsap.set(socialLinks, { y: 25, opacity: 0 });
     }
 
+    const lastLayerStart = layerStates.length ? (layerStates.length - 1) * 0.07 : 0;
+    const panelInsertTime = lastLayerStart + (layerStates.length ? 0.08 : 0);
+    const panelDuration = 0.65;
     const tl = gsap.timeline({ paused: true });
 
-    layerStates.forEach((ls, i) => {
-      tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, i * 0.07);
-    });
-    const lastTime = layerStates.length ? (layerStates.length - 1) * 0.07 : 0;
-    const panelInsertTime = lastTime + (layerStates.length ? 0.08 : 0);
-    const panelDuration = 0.65;
-    tl.fromTo(
-      panel,
-      { xPercent: panelStart },
-      { xPercent: 0, duration: panelDuration, ease: 'power4.out' },
-      panelInsertTime
-    );
+    if (collapsedRail) {
+      layerStates.forEach((ls, i) => {
+        tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, i * 0.07);
+      });
+      tl.to(panel, {
+        clipPath: 'inset(0 0px 0 0 round 0 14px 14px 0)',
+        duration: panelDuration,
+        ease: 'power4.out',
+        overwrite: 'auto'
+      }, panelInsertTime);
+    } else {
+      layerStates.forEach((ls, i) => {
+        tl.fromTo(ls.el, { xPercent: ls.start }, { xPercent: 0, duration: 0.5, ease: 'power4.out' }, i * 0.07);
+      });
+      tl.fromTo(
+        panel,
+        { xPercent: panelStart },
+        { xPercent: 0, duration: panelDuration, ease: 'power4.out' },
+        panelInsertTime
+      );
+    }
 
     if (socialTitle || socialLinks.length) {
       const socialsStart = panelInsertTime + panelDuration * 0.4;
@@ -142,7 +166,7 @@ export const StaggeredMenu = ({
 
     openTlRef.current = tl;
     return tl;
-  }, []);
+  }, [collapsedRail, position]);
 
   const playOpen = useCallback(() => {
     if (busyRef.current) return;
@@ -166,26 +190,69 @@ export const StaggeredMenu = ({
     openTlRef.current?.kill();
     openTlRef.current = null;
     const panel = panelRef.current;
-    const layers = preLayerElsRef.current;
     if (!panel) return;
 
-    const all = [...layers, panel];
     closeTweenRef.current?.kill();
+    const layers = preLayerElsRef.current;
     const offscreen = position === 'left' ? -100 : 100;
-    closeTweenRef.current = gsap.to(all, {
-      xPercent: offscreen,
-      duration: prefersReducedMotionRef.current ? 0 : 0.32,
-      ease: 'power3.in',
-      overwrite: 'auto',
-      onComplete: () => {
-        const socialTitle = panel.querySelector('.sm-socials-title');
-        const socialLinks = Array.from(panel.querySelectorAll('.sm-socials-link'));
-        if (socialTitle) gsap.set(socialTitle, { opacity: 0 });
-        if (socialLinks.length) gsap.set(socialLinks, { y: 25, opacity: 0 });
-        busyRef.current = false;
-      }
-    });
-  }, [position]);
+    const panelDuration = collapsedRail ? 0.55 : 0.65;
+    const finishClose = () => {
+      const socialTitle = panel.querySelector('.sm-socials-title');
+      const socialLinks = Array.from(panel.querySelectorAll('.sm-socials-link'));
+      if (socialTitle) gsap.set(socialTitle, { opacity: 0 });
+      if (socialLinks.length) gsap.set(socialLinks, { y: 25, opacity: 0 });
+      busyRef.current = false;
+    };
+
+    const closeTimeline = gsap.timeline({ paused: true, onComplete: finishClose });
+
+    if (collapsedRail) {
+      layers.forEach((layer, index) => {
+        closeTimeline.fromTo(
+          layer,
+          { xPercent: 0 },
+          {
+            xPercent: offscreen,
+            duration: prefersReducedMotionRef.current ? 0 : 0.5,
+            ease: 'power4.in',
+            overwrite: 'auto'
+          },
+          index * 0.07
+        );
+      });
+      closeTimeline.fromTo(
+        panel,
+        { clipPath: 'inset(0 0px 0 0 round 0 14px 14px 0)' },
+        {
+          clipPath: getCollapsedClip(panel),
+          duration: prefersReducedMotionRef.current ? 0 : panelDuration,
+          ease: 'power4.in',
+          overwrite: 'auto'
+        },
+        0
+      );
+    } else {
+      closeTimeline.fromTo(
+        [...layers, panel],
+        { xPercent: 0 },
+        {
+          xPercent: offscreen,
+          duration: prefersReducedMotionRef.current ? 0 : 0.32,
+          ease: 'power3.in',
+          overwrite: 'auto'
+        },
+        0
+      );
+    }
+
+    if (prefersReducedMotionRef.current) {
+      closeTimeline.progress(1);
+      finishClose();
+    } else {
+      closeTimeline.play(0);
+    }
+    closeTweenRef.current = closeTimeline;
+  }, [collapsedRail, getCollapsedClip, position]);
 
   const animateIcon = useCallback(opening => {
     const icon = iconRef.current;
@@ -352,6 +419,7 @@ export const StaggeredMenu = ({
       style={accentColor ? { ['--sm-accent']: accentColor } : undefined}
       data-position={position}
       data-open={open || undefined}
+      data-collapsed-rail={collapsedRail || undefined}
     >
       <div ref={preLayersRef} className="sm-prelayers" aria-hidden="true">
         {(() => {
@@ -390,7 +458,7 @@ export const StaggeredMenu = ({
         </button>
       </header>
 
-      <aside id="staggered-menu-panel" ref={panelRef} className="staggered-menu-panel" aria-hidden={!open}>
+      <aside id="staggered-menu-panel" ref={panelRef} className="staggered-menu-panel" aria-hidden={!open && !collapsedRail}>
         <div className="sm-panel-inner">
           <ul className="sm-panel-list" role="list" data-numbering={displayItemNumbering || undefined}>
             {items && items.length ? (
@@ -405,7 +473,7 @@ export const StaggeredMenu = ({
                       className="sm-panel-item sm-panel-action"
                       type="button"
                       aria-label={it.ariaLabel || it.label}
-                      tabIndex={open && !it.disabled ? undefined : -1}
+                      tabIndex={(open || collapsedRail) && !it.disabled ? undefined : -1}
                       disabled={it.disabled}
                       onClick={() => {
                         it.onSelect?.();
@@ -428,7 +496,7 @@ export const StaggeredMenu = ({
                       aria-disabled={it.disabled || undefined}
                       data-index={idx + 1}
                       data-active={it.isActive || undefined}
-                      tabIndex={open && !it.disabled ? undefined : -1}
+                      tabIndex={(open || collapsedRail) && !it.disabled ? undefined : -1}
                       onClick={event => {
                         if (
                           event.defaultPrevented ||
@@ -474,6 +542,17 @@ export const StaggeredMenu = ({
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {profile && (
+            <div className="sm-profile" aria-label="Usuário conectado">
+              <span className="sm-profile-avatar" aria-hidden="true">
+                {profile.imageUrl ? <img src={profile.imageUrl} alt="" /> : profile.initials}
+              </span>
+              <span className="sm-profile-copy">
+                <strong>{profile.name}</strong>
+                {profile.subtitle ? <small>{profile.subtitle}</small> : null}
+              </span>
             </div>
           )}
         </div>
