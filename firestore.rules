@@ -178,5 +178,30 @@ service cloud.firestore {
       allow update: if canMutateLegacy() && hasValidInvestmentCents(request.resource.data);
       allow delete: if canMutateLegacy();
     }
+    match /tags/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy();
+      allow update, delete: if canMutateLegacy();
+    }
+    match /mandatoryExpenses/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
+    }
+    match /mandatoryGains/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
+      allow delete: if canMutateLegacy();
+    }
+    match /financeInvestmentSyncs/{id} {
+      allow read: if canReadLegacy(resource.data.personId);
+      allow create: if canCreateLegacy()
+        && isIntegerCents(request.resource.data.previousValueInCents)
+        && isIntegerCents(request.resource.data.syncedValueInCents)
+        && isIntegerCents(request.resource.data.deltaInCents);
+      allow delete: if canMutateLegacy();
+    }
   }
 }
