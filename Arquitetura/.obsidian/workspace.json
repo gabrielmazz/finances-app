@@ -1,0 +1,239 @@
+{
+  "main": {
+    "id": "5def549c2cc9a8cf",
+    "type": "split",
+    "children": [
+      {
+        "id": "4efa27aab3d1b555",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8a2c46119f1be61b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "MOC - Lumus Finanças.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "MOC - Lumus Finanças"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "a05801f9604e7199",
+    "type": "split",
+    "children": [
+      {
+        "id": "dd76375ed4bade7a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6822f87ab0833d2b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "29f427af536feeed",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "031276faaeadec88",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "db4fd0e19886f6d5",
+    "type": "split",
+    "children": [
+      {
+        "id": "b7fbce4061acadc5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ee5b19835d48ca98",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Aliare/Tarefas/12062/Planejamento.canvas",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Planejamento"
+            }
+          },
+          {
+            "id": "c1850e711f87e20d",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "ca1b6012ed26b5bc",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "0e7b2626a74088a4",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "fce3db144b3e476d",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "obsidian42-brat:BRAT": false,
+      "claude-code-mcp:Toggle Claude Terminal": false
+    }
+  },
+  "active": "8a2c46119f1be61b",
+  "lastOpenFiles": [
+    "Gerenciamento de Bancos.md",
+    "Transações de Receitas.md",
+    "Transações de Despesas.md",
+    "Sistema de Temas.md",
+    "Segurança de Login.md",
+    "Resgate de Caixa.md",
+    "Receitas Fixas.md",
+    "Privacidade de Valores.md",
+    "Notificações.md",
+    "Navegação.md",
+    "MOC - Lumus Finanças.md",
+    "Investimentos.md",
+    "Hooks Customizados.md",
+    "Gerenciamento de Usuários.md",
+    "Gerenciamento de Tags.md",
+    "Firebase Config.md",
+    "Despesas Fixas.md",
+    "Dashboard Home.md",
+    "Configurações.md",
+    "Componentes UI.md",
+    "Balanço Mensal.md",
+    "Autenticação.md",
+    "Transferências.md",
+    "Mapa Mental Simer MOC.md",
+    "Ícones e Emojis do Sistema.md",
+    "Funções NFe XML DANFE.md",
+    "Módulo de Contabilidade.md.tmp.19336.1775062304024",
+    "Estrutura de Funções Backend.md.tmp.19336.1775061768745",
+    "Instruções do Mapa Mental",
+    "Aliare/Tarefas/12062/Planejamento.canvas",
+    "Aliare/Tarefas/12062/Imagem/DiagnosticoDoseAgriQ atualizado.png",
+    "Aliare/Tarefas/12062/Imagem/Funções atualizadas DiagnosticoAgriQ.png",
+    "Aliare/Tarefas/12062/Imagem/TRecDadosDiagnosticoAgriQ atualizada.png",
+    "Aliare/Tarefas/12062/Imagem/DiagnosticoAgriQ atualizada.png",
+    "Aliare/Tarefas/12062/Imagem/Funções atualizadas ProdutosDiagnosticos.png",
+    "Aliare/Tarefas/12062/Imagem/ProdutoDiagnosticoAgriQ atualizada.png",
+    "Aliare/Tarefas/12062/Imagem/Pedido de venda com o erro de seletor.png",
+    "Aliare/Tarefas/22008/Pasted image 20260327154618.png",
+    "Aliare/Tarefas/22008/Pasted image 20260327102015.png",
+    "Aliare/Tarefas/22008/Pasted image 20260327154530.png",
+    "Aliare/Tarefas/22008",
+    "Aliare/Tarefas/21836",
+    "Aliare/Tarefas/8458/Planejamento.canvas",
+    "Aliare/Tarefas/12062/Imagem",
+    "Aliare/Tarefas/12062",
+    "Aliare/Tarefas/20656/Imagens",
+    "Aliare/Tarefas/20656",
+    "Aliare/Tarefas/8458/Imagens",
+    "Untitled.canvas"
+  ]
+}

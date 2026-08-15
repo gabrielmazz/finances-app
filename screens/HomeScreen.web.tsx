@@ -29,6 +29,9 @@ import Carousel from "@/components/web/Carousel";
 import AnimatedContent from "@/components/web/AnimatedContent";
 import Grainient from "@/components/web/Grainient";
 import StrokeText from "@/components/web/StrokeText";
+import HomeExpenseChart from "@/components/uiverse/home-expense-chart";
+import HomeExpenseLineChart from "@/components/uiverse/home-expense-line-chart";
+import HomeActivityHeatmap from "@/components/uiverse/home-activity-heatmap";
 
 import Navigator from "@/components/uiverse/navigator";
 import {
@@ -55,7 +58,7 @@ import {
 } from "@/components/ui/modal";
 import { Button, ButtonText } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { auth } from "@/FirebaseConfig";
+import { useAuth } from "@/contexts/AuthContext";
 import {
 	HIDDEN_VALUE_PLACEHOLDER,
 	useValueVisibility,
@@ -63,11 +66,13 @@ import {
 import {
 	type HomeBankBalanceCard,
 	type HomeCashSummary,
+	type HomeMandatoryItem,
 	type HomeTimelineMovement,
 } from "@/functions/HomeFirebase";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
 import { useScreenStyles } from "@/hooks/useScreenStyle";
+import { getUserDataFirebase } from "@/functions/RegisterUserFirebase";
 import { APP_ROUTE_PATHS, navigateToRoute } from "@/utils/navigation";
 import LoginWallpaper from "../assets/Background/wallpaper01.png";
 import HomeScreenIllustration from "../assets/UnDraw/homeScreen.svg";
@@ -75,6 +80,13 @@ import HomeScreenIllustration from "../assets/UnDraw/homeScreen.svg";
 type WebBankItem =
 	| ({ kind: "bank" } & HomeBankBalanceCard)
 	| ({ kind: "cash" } & HomeCashSummary);
+
+type WebDashboardPalette = {
+	border: string;
+	primaryText: string;
+	secondaryText: string;
+	surfaceMuted: string;
+};
 
 const INVESTMENT_COLORS = [
 	"#FACC15",
@@ -106,6 +118,98 @@ const formatDate = (date: Date | null) =>
 			month: "2-digit",
 		}).format(date)
 		: "Sem data";
+
+const formatMandatoryDueDate = (item: HomeMandatoryItem) => {
+	if (item.isOverdue) return `Atrasado · ${formatDate(item.dueDate)}`;
+
+	const today = new Date();
+	const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+	const startOfDueDate = new Date(
+		item.dueDate.getFullYear(),
+		item.dueDate.getMonth(),
+		item.dueDate.getDate(),
+	);
+	const daysUntilDue = Math.round(
+		(startOfDueDate.getTime() - startOfToday.getTime()) / (24 * 60 * 60 * 1000),
+	);
+
+	if (daysUntilDue === 0) return "Hoje";
+	if (daysUntilDue === 1) return "Amanhã";
+	return formatDate(item.dueDate);
+};
+
+const MandatoryScheduleColumn = ({
+	items,
+	type,
+	palette,
+	hidden,
+	}: {
+	items: HomeMandatoryItem[];
+	type: HomeMandatoryItem["type"];
+	palette: WebDashboardPalette;
+	hidden: boolean;
+}) => {
+	const isExpense = type === "expense";
+	const accent = isExpense ? "#EF4444" : "#10B981";
+	const Icon = isExpense ? ArrowDownCircle : ArrowUpCircle;
+
+	return (
+		<View
+			style={[
+				styles.mandatoryColumn,
+				{ backgroundColor: palette.surfaceMuted, borderColor: palette.border },
+			]}
+		>
+			<View style={styles.mandatoryColumnHeader}>
+				<View style={[styles.mandatoryColumnIcon, { backgroundColor: `${accent}1A` }]}>
+					<Icon size={18} color={accent} />
+				</View>
+				<View style={styles.mandatoryColumnCopy}>
+					<Text accessibilityRole="header" style={[styles.mandatoryColumnTitle, { color: palette.primaryText }]}>
+						{isExpense ? "Gastos obrigatórios" : "Ganhos obrigatórios"}
+					</Text>
+					<Text style={[styles.mandatoryColumnHelper, { color: palette.secondaryText }]}>
+						{isExpense ? "Próximas saídas" : "Próximas entradas"}
+					</Text>
+				</View>
+			</View>
+
+			{items.length === 0 ? (
+				<Text style={[styles.mandatoryEmptyText, { color: palette.secondaryText }]}>
+					Nenhum compromisso pendente.
+				</Text>
+			) : (
+				<View style={styles.mandatoryItems}>
+					{items.map((item) => (
+						<View key={`${item.type}:${item.id}`} style={styles.mandatoryItem}>
+							<View style={[styles.mandatoryDateChip, { borderColor: `${accent}55` }]}>
+								<Text style={[styles.mandatoryDateText, { color: accent }]}>
+									{formatMandatoryDueDate(item)}
+								</Text>
+							</View>
+							<View style={styles.mandatoryItemCopy}>
+								<Text
+									numberOfLines={1}
+									style={[styles.mandatoryItemName, { color: palette.primaryText }]}
+								>
+									{item.name}
+								</Text>
+								<View style={styles.mandatoryItemMeta}>
+									<Text style={[styles.mandatoryItemInstallment, { color: palette.secondaryText }]}>
+										{item.installmentLabel ?? "Ciclo mensal"}
+									</Text>
+									<Text style={[styles.mandatoryItemAmount, { color: accent }]}>
+										{formatCurrency(item.valueInCents, hidden)}
+									</Text>
+								</View>
+							</View>
+						</View>
+					))}
+				</View>
+			)}
+		</View>
+	);
+};
 
 const movementTone = (movement: HomeTimelineMovement) => {
 	if (movement.isFinanceInvestmentSync)
@@ -351,6 +455,7 @@ const BankCard = ({
 
 export default function HomeScreen() {
 	const { width } = useWindowDimensions();
+	const { user } = useAuth();
 	const { shouldHideValues, toggleShouldHideValues } = useValueVisibility();
 	const {
 		insets,
@@ -364,7 +469,39 @@ export default function HomeScreen() {
 	const bodyColor = isDarkMode ? "#CBD5E1" : "#334155";
 	const bodyText = bodyColor;
 	const cardBackground = surfaceBackground;
-	const currentUserId = auth.currentUser?.uid ?? null;
+	const currentUserId = user?.uid ?? null;
+	const [userName, setUserName] = React.useState<string | null>(null);
+	React.useEffect(() => {
+		let isActive = true;
+		const loadUserName = async () => {
+			if (!user) {
+				setUserName(null);
+				return;
+			}
+
+			const fallbackName = user.displayName?.trim() || null;
+			try {
+				const userData = await getUserDataFirebase(user.uid);
+				const storedName = userData.success
+					? (userData.data as { name?: unknown })?.name
+					: null;
+				if (isActive) {
+					setUserName(
+						typeof storedName === "string" && storedName.trim()
+							? storedName.trim()
+							: fallbackName,
+					);
+				}
+			} catch {
+				if (isActive) setUserName(fallbackName);
+			}
+		};
+
+		void loadUserName();
+		return () => {
+			isActive = false;
+		};
+	}, [user]);
 	const { overview, movements, investments, reload } =
 		useHomeScreenData(currentUserId);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
@@ -445,6 +582,17 @@ export default function HomeScreen() {
 			overview.data.cashSummary?.currentMonthGainsInCents,
 		],
 	);
+	const expenseHistory = overview.data.expenseHistoryLastThreeMonths;
+	const hasExpenseHistory = expenseHistory.some(
+		(month) => month.totalExpensesInCents > 0,
+	);
+	const gainTrendData = expenseHistory.map((month) => month.totalGainsInCents);
+	const expenseTrendData = expenseHistory.map((month) => month.totalExpensesInCents);
+	const neutralTrendData = expenseHistory.map(() => 1);
+	const upcomingMandatoryItems = overview.data.upcomingMandatoryItems;
+	const upcomingMandatoryExpenses = upcomingMandatoryItems.filter((item) => item.type === "expense");
+	const upcomingMandatoryGains = upcomingMandatoryItems.filter((item) => item.type === "gain");
+	const activityHeatmap = overview.data.activityHeatmap;
 	const renderBankCard = React.useCallback(
 		({ item }: { item: WebBankItem }) => (
 			<BankCard
@@ -540,14 +688,14 @@ export default function HomeScreen() {
 					</View>
 					<View style={[styles.heroContent, { paddingTop: insets.top + 24 }]}>
 						<StrokeText
-							text={`Olá, ${firstName(auth.currentUser?.displayName)}! Esse é seu resumo financeiro.`}
+							text={`Olá, ${firstName(userName)}! Esse é seu resumo financeiro.`}
 							strokeColor="#FFFFFF"
 							fillColor="#FFFFFF"
-							strokeWidth={1.8}
-							drawDuration={1}
-							fillDelay={0.5}
-							fontSize={35}
-							fontWeight={400}
+							strokeWidth={1.5}
+							drawDuration={2}
+							fillDelay={1}
+							fontSize={40}
+							fontWeight={600}
 							letterSpacing={-0.5}
 							fontFamily={'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}
 							ease="power3.out"
@@ -558,7 +706,7 @@ export default function HomeScreen() {
 							distance={100}
 							direction="vertical"
 							reverse={false}
-							duration={1}
+							duration={2}
 							ease="power3.out"
 							initialOpacity={0}
 							animateOpacity
@@ -724,7 +872,7 @@ export default function HomeScreen() {
 											</View>
 										</View>
 									)}
-								</View>
+							</View>
 							</View>
 
 							<View
@@ -741,20 +889,35 @@ export default function HomeScreen() {
 										},
 									]}
 								>
-									<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
-										Total ganho
-									</Text>
-									<Text style={[styles.monthlySummaryValue, { color: "#10B981" }]}>
-										{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
-									</Text>
-									<Text
-										style={[
-											styles.monthlySummaryHelper,
-											{ color: webDashboardPalette.secondaryText },
-										]}
-									>
-										Entradas no mês atual
-									</Text>
+									<View style={styles.monthlySummaryCardContent}>
+										<View style={styles.monthlySummaryCopy}>
+											<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
+												Total ganho
+											</Text>
+											<Text style={[styles.monthlySummaryValue, { color: "#10B981" }]}>
+												{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
+											</Text>
+											<Text
+												style={[
+													styles.monthlySummaryHelper,
+													{ color: webDashboardPalette.secondaryText },
+												]}
+											>
+												Entradas no mês atual
+											</Text>
+										</View>
+										<HomeExpenseChart
+											data={shouldHideValues ? neutralTrendData : gainTrendData}
+											label="Tendência de ganhos nos últimos três meses"
+											color="#10B981"
+											isDarkMode={isDarkMode}
+											dom={{
+												focusable: false,
+												scrollEnabled: false,
+												style: { width: 112, height: 52, backgroundColor: "transparent" },
+											}}
+										/>
+									</View>
 								</View>
 
 								<View
@@ -765,24 +928,182 @@ export default function HomeScreen() {
 										},
 									]}
 								>
-									<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
-										Total gasto
-									</Text>
-									<Text style={[styles.monthlySummaryValue, { color: "#EF4444" }]}>
-										{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
-									</Text>
-									<Text
-										style={[
-											styles.monthlySummaryHelper,
-											{ color: webDashboardPalette.secondaryText },
-										]}
-									>
-										Saídas no mês atual
-									</Text>
+									<View style={styles.monthlySummaryCardContent}>
+										<View style={styles.monthlySummaryCopy}>
+											<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
+												Total gasto
+											</Text>
+											<Text style={[styles.monthlySummaryValue, { color: "#EF4444" }]}>
+												{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
+											</Text>
+											<Text
+												style={[
+													styles.monthlySummaryHelper,
+													{ color: webDashboardPalette.secondaryText },
+												]}
+											>
+												Saídas no mês atual
+											</Text>
+										</View>
+										<HomeExpenseChart
+											data={shouldHideValues ? neutralTrendData : expenseTrendData}
+											label="Tendência de gastos nos últimos três meses"
+											color="#EF4444"
+											isDarkMode={isDarkMode}
+											dom={{
+												focusable: false,
+												scrollEnabled: false,
+												style: { width: 112, height: 52, backgroundColor: "transparent" },
+											}}
+										/>
+									</View>
 								</View>
 							</View>
 
-							<View style={styles.section}>
+
+
+							<View
+								style={[
+									styles.expenseChartSection,
+									{ borderColor: webDashboardPalette.border },
+								]}
+							>
+								<View style={styles.sectionHeading}>
+									<View style={styles.headingWithTip}>
+										<Text style={[styles.sectionHeadingText, { color: bodyText }]}>Gastos por dia</Text>
+										<InfoTip label="Informações sobre gastos por dia">
+											Cada linha representa um dos últimos três meses. Os pontos aparecem somente nos dias que tiveram gastos.
+										</InfoTip>
+									</View>
+								</View>
+								<Text style={[styles.expenseChartHelper, { color: webDashboardPalette.secondaryText }]}>Últimos três meses · gastos agrupados por dia</Text>
+								{overview.loading && expenseHistory.length === 0 ? (
+									<Skeleton
+										style={styles.expenseChartSkeleton}
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								) : overview.error ? (
+									<Text style={[styles.inlineError, { color: "#F59E0B" }]}>{overview.error}</Text>
+								) : !hasExpenseHistory ? (
+									<Text style={[styles.emptyText, { color: bodyText }]}>Nenhum gasto registrado nos últimos três meses.</Text>
+								) : (
+									<HomeExpenseLineChart
+										months={expenseHistory}
+										isDarkMode={isDarkMode}
+										shouldHideValues={shouldHideValues}
+										dom={{
+											focusable: false,
+											scrollEnabled: false,
+											style: { height: 326, width: "100%", backgroundColor: "transparent" },
+										}}
+									/>
+								)}
+							</View>
+
+							<View
+								style={[
+									styles.activityHeatmapSection,
+									{ borderColor: webDashboardPalette.border },
+								]}
+							>
+								<View style={styles.sectionHeading}>
+									<View style={styles.headingWithTip}>
+										<Text style={[styles.sectionHeadingText, { color: bodyText }]}>
+											Atividade no ano
+										</Text>
+										<InfoTip label="Informações sobre atividade no ano">
+											Cada bloco representa um dia. A intensidade mostra quantos
+											lançamentos financeiros confirmados foram feitos nele.
+										</InfoTip>
+									</View>
+								</View>
+								<Text style={[styles.activityHeatmapHelper, { color: webDashboardPalette.secondaryText }]}>
+									{activityHeatmap.totalActions} ações registradas em {new Date().getFullYear()}
+								</Text>
+								{overview.loading && activityHeatmap.totalActions === 0 ? (
+									<Skeleton
+										style={styles.activityHeatmapSkeleton}
+										baseColor={skeletonBaseColor}
+										highlightColor={skeletonHighlightColor}
+									/>
+								) : overview.error ? (
+									<Text style={[styles.inlineError, { color: "#F59E0B" }]}>{overview.error}</Text>
+								) : (
+									<HomeActivityHeatmap
+										data={activityHeatmap.dailyActionCounts}
+										startDate={activityHeatmap.startDate}
+										endDate={activityHeatmap.endDate}
+										isDarkMode={isDarkMode}
+										dom={{
+											focusable: false,
+											scrollEnabled: false,
+											style: { minHeight: 190, width: "100%", backgroundColor: "transparent" },
+										}}
+									/>
+								)}
+							</View>
+
+								<View
+									style={[
+										styles.mandatorySection,
+										{ borderColor: webDashboardPalette.border },
+									]}
+								>
+									<View style={styles.sectionHeading}>
+										<View style={styles.headingWithTip}>
+											<Text
+												accessibilityRole="header"
+												style={[styles.sectionHeadingText, { color: bodyText }]}
+											>
+												Próximos compromissos
+											</Text>
+											<InfoTip label="Informações sobre próximos compromissos">
+												Mostramos o próximo ciclo pendente de cada gasto ou ganho obrigatório.
+											</InfoTip>
+										</View>
+									</View>
+									<Text
+										style={[styles.mandatorySectionHelper, { color: webDashboardPalette.secondaryText }]}
+									>
+										O que entra e sai da sua conta em seguida.
+									</Text>
+									{overview.loading && upcomingMandatoryItems.length === 0 ? (
+										<View style={[styles.mandatoryColumns, compact && styles.mandatoryColumnsCompact]}>
+											<Skeleton
+												style={styles.mandatorySkeleton}
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+											<Skeleton
+												style={styles.mandatorySkeleton}
+												baseColor={skeletonBaseColor}
+												highlightColor={skeletonHighlightColor}
+											/>
+										</View>
+									) : overview.error ? (
+										<Text style={[styles.inlineError, { color: "#F59E0B" }]}>
+											{overview.error}
+										</Text>
+									) : (
+										<View style={[styles.mandatoryColumns, compact && styles.mandatoryColumnsCompact]}>
+											<MandatoryScheduleColumn
+												items={upcomingMandatoryExpenses}
+												type="expense"
+												palette={webDashboardPalette}
+												hidden={shouldHideValues}
+											/>
+											<MandatoryScheduleColumn
+												items={upcomingMandatoryGains}
+												type="gain"
+												palette={webDashboardPalette}
+												hidden={shouldHideValues}
+											/>
+										</View>
+									)}
+								</View>
+
+								<View style={styles.section}>
 								<Pressable
 									onPress={() => setIsMovementsExpanded((current) => !current)}
 									accessibilityRole="button"
@@ -1182,6 +1503,60 @@ const styles = StyleSheet.create({
 	topColumnsDesktop: { flexDirection: "row", gap: 26 },
 	monthlySummaryCards: { flexDirection: "row", gap: 12 },
 	monthlySummaryCardsCompact: { flexDirection: "column" },
+	mandatorySection: {
+		width: "100%",
+		borderWidth: 1,
+		borderRadius: 20,
+		paddingHorizontal: 16,
+		paddingTop: 16,
+		paddingBottom: 16,
+	},
+	mandatorySectionHelper: { marginTop: -6, marginBottom: 14, fontSize: 12 },
+	mandatoryColumns: { flexDirection: "row", gap: 12 },
+	mandatoryColumnsCompact: { flexDirection: "column" },
+	mandatoryColumn: {
+		flex: 1,
+		minWidth: 0,
+		borderWidth: 1,
+		borderRadius: 16,
+		padding: 12,
+	},
+	mandatoryColumnHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+	mandatoryColumnIcon: {
+		width: 34,
+		height: 34,
+		borderRadius: 12,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	mandatoryColumnCopy: { flex: 1, minWidth: 0 },
+	mandatoryColumnTitle: { fontSize: 13, fontWeight: "800" },
+	mandatoryColumnHelper: { marginTop: 2, fontSize: 11 },
+	mandatoryItems: { marginTop: 14, gap: 10 },
+	mandatoryItem: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
+	mandatoryDateChip: {
+		minWidth: 58,
+		paddingHorizontal: 7,
+		paddingVertical: 6,
+		borderWidth: 1,
+		borderRadius: 9,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	mandatoryDateText: { fontSize: 10, fontWeight: "800", textAlign: "center" },
+	mandatoryItemCopy: { flex: 1, minWidth: 0 },
+	mandatoryItemName: { fontSize: 13, fontWeight: "700" },
+	mandatoryItemMeta: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: 8,
+		marginTop: 3,
+	},
+	mandatoryItemInstallment: { flex: 1, minWidth: 0, fontSize: 10 },
+	mandatoryItemAmount: { fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
+	mandatoryEmptyText: { marginTop: 14, fontSize: 12 },
+	mandatorySkeleton: { flex: 1, height: 126, borderRadius: 16 },
 	monthlySummaryCard: {
 		flex: 1,
 		minHeight: 126,
@@ -1190,6 +1565,13 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 18,
 		paddingVertical: 16,
 	},
+	monthlySummaryCardContent: {
+		flex: 1,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+	},
+	monthlySummaryCopy: { flex: 1, minWidth: 0 },
 	monthlySummaryPeriod: {
 		fontSize: 10,
 		fontWeight: "800",
@@ -1199,6 +1581,31 @@ const styles = StyleSheet.create({
 	monthlySummaryLabel: { marginTop: 10, fontSize: 13, fontWeight: "700" },
 	monthlySummaryValue: { marginTop: 4, fontSize: 21, fontWeight: "800" },
 	monthlySummaryHelper: { marginTop: 7, fontSize: 12 },
+	expenseChartSection: {
+		width: "100%",
+		borderWidth: 1,
+		borderRadius: 20,
+		paddingHorizontal: 12,
+		paddingTop: 16,
+		paddingBottom: 6,
+	},
+	expenseChartHelper: { marginTop: -5, marginBottom: 2, fontSize: 12 },
+	expenseChartSkeleton: {
+		width: "100%",
+		height: 290,
+		marginTop: 12,
+		borderRadius: 14,
+	},
+	activityHeatmapSection: {
+		width: "100%",
+		borderWidth: 1,
+		borderRadius: 20,
+		paddingHorizontal: 12,
+		paddingTop: 16,
+		paddingBottom: 12,
+	},
+	activityHeatmapHelper: { marginTop: -5, marginBottom: 10, fontSize: 12 },
+	activityHeatmapSkeleton: { width: "100%", height: 178, borderRadius: 14 },
 	section: { marginBottom: 4 },
 	columnSection: { flex: 1, minWidth: 0 },
 	bankSection: { flexDirection: "column" },

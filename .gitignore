@@ -5,10 +5,15 @@ node_modules/
 backend/lib/
 backend/*-debug.log
 
-# Expo
-.expo/
+# Firebase / generated build output
+.firebase/
+*-debug.log
 dist/
 web-build/
+coverage/
+
+# Expo
+.expo/
 expo-env.d.ts
 
 # Native
@@ -29,14 +34,26 @@ GoogleService-Info.plist
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.log*
 
 # macOS
 .DS_Store
 *.pem
+Thumbs.db
+Desktop.ini
+
+# Windows metadata accidentally copied with documents
+*:Zone.Identifier
+
+# Local editor and tool state
+.idea/
+.history/
+.fleet/
 
 # local env files
 .env
 .env*.local
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -54,6 +71,7 @@ git-commit.sh
 git-pull.sh
 git-revert.sh
 
-# Arquivo da Arquitetura do Projeto
-Arquitetura.md
-Arquitetura/
+# Ignora as skills utilizadas no projeto
+.agents/
+.claude/
+.codex/

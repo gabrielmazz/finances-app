@@ -270,6 +270,18 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Correção do carregamento do resumo da Home em 2026-08-14: `firestore.rules` passou a cobrir `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs` com o mesmo escopo de usuário/relacionamentos do legado. `loadUpcomingMandatoryItems()` agora trata compromissos como dados auxiliares, evitando que uma falha nessa leitura derrube saldos, totais, histórico e atividade. Vault alinhado em [[Dashboard Home]], [[Hooks Customizados]], [[Firebase Config]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+
+- Próximos compromissos obrigatórios na Home Web em 2026-08-14: `HomeFirebase.ts` agrega os ciclos pendentes de `mandatoryExpenses` e `mandatoryGains` para grupos legados e migrados; `utils/homeMandatorySchedule.ts` resolve a próxima ocorrência com dias úteis/feriados, parcelas ativas e ciclos `YYYY-MM`, e `HomeScreen.web.tsx` exibe até três itens por coluna acima de últimas movimentações, respeitando a máscara de valores. Efetivar o ciclo continua nos fluxos oficiais de [[Despesas Fixas]] e [[Receitas Fixas]]. Vault alinhado em [[Dashboard Home]], [[Hooks Customizados]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+
+- Heatmap de atividade anual na Home Web em 2026-08-14: `HomeScreen.web.tsx` agora exibe um `Heatmap` Mantine em Expo DOM com a intensidade de lançamentos financeiros confirmados por dia do ano atual. O snapshot conta uma transação do razão uma vez e, no legado, ignora a perna de entrada das transferências para não duplicar a ação; não há telemetria nova. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+
+- Sparklines de tendência na Home Web em 2026-08-14: os cards de **Total ganho** e **Total gasto** agora exibem, ao lado do resumo, `Sparkline` Mantine em Expo DOM com os totais dos três últimos meses. A curva usa ganhos no primeiro card e despesas no segundo; o modo de privacidade troca os dados por uma linha neutra, sem revelar proporções. O gráfico detalhado **Gastos por dia** permanece abaixo dos cards em um componente separado. O snapshot mantém a mesma regra de centavos/exclusões da Home nos caminhos legado e do razão financeiro. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
+- Atualizado em 2026-08-14.
+
 - Fundo dinâmico nos detalhes da timeline Web em 2026-08-14: `HomeScreen.web.tsx` substituiu a cor sólida dos accordions de últimas movimentações pelo `Grainient`, usando três stops derivados da paleta de cada tipo de lançamento. O canvas continua sendo montado somente para detalhes expandidos, com o conteúdo em camada superior; Android/iOS permanecem inalterados. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
 - Atualizado em 2026-08-14.
 - Fechamento animado dos detalhes da timeline Web em 2026-08-14: `AnimatedContent` agora aceita `visible` e executa a saída antes do detalhe ser desmontado. `HomeScreen.web.tsx` mantém o card renderizado durante a animação e remove-o no callback final; reabrir durante a saída interrompe o fechamento e restaura a entrada. Vault alinhado em [[Dashboard Home]] e [[Componentes UI]].

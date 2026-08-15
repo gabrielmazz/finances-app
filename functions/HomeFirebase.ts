@@ -19,6 +19,20 @@ import {
 	type InvestmentValuationMethod,
 } from '@/utils/investmentPortfolio';
 import {
+	buildHomeExpenseHistory,
+	type HomeExpenseHistorySource,
+	type HomeExpenseHistoryMonth,
+} from '@/utils/homeExpenseHistory';
+import {
+	buildHomeActivityHeatmap,
+	type HomeActivityHeatmap,
+	type HomeActivityHeatmapSource,
+} from '@/utils/homeActivityHeatmap';
+import {
+	buildHomeMandatorySchedule,
+	type HomeMandatoryItem,
+} from '@/utils/homeMandatorySchedule';
+import {
 	collection,
 	getDocs,
 	limit as limitQuery,
@@ -115,6 +129,9 @@ export type HomeOverviewData = {
 	cashSummary: HomeCashSummary | null;
 	currentMonthExpensesByBankId: Record<string, number>;
 	currentMonthGainsByBankId: Record<string, number>;
+	expenseHistoryLastThreeMonths: HomeExpenseHistoryMonth[];
+	activityHeatmap: HomeActivityHeatmap;
+	upcomingMandatoryItems: HomeMandatoryItem[];
 };
 
 export type HomeMovementsData = {
@@ -151,6 +168,9 @@ type HomeQueryContext = {
 	bankColorsById: Record<string, string | null>;
 	startOfMonth: Date;
 	endOfMonth: Date;
+	startOfExpenseHistory: Date;
+	startOfActivityYear: Date;
+	asOfDate: Date;
 	financialLedgerAccounts: FinancialLedgerAccount[] | null;
 };
 
@@ -177,6 +197,9 @@ const EMPTY_OVERVIEW_DATA: HomeOverviewData = {
 	cashSummary: null,
 	currentMonthExpensesByBankId: {},
 	currentMonthGainsByBankId: {},
+	expenseHistoryLastThreeMonths: [],
+	activityHeatmap: buildHomeActivityHeatmap([]),
+	upcomingMandatoryItems: [],
 };
 
 const EMPTY_MOVEMENTS_DATA: HomeMovementsData = {
@@ -318,6 +341,8 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 	const now = new Date();
 	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+	const startOfExpenseHistory = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+	const startOfActivityYear = new Date(now.getFullYear(), 0, 1);
 
 	if (financialLedgerContext) {
 		const accounts = await getFinancialLedgerAccountsFirebase(financialLedgerContext.groupId);
@@ -333,6 +358,9 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 			bankColorsById: banks.reduce<Record<string, string | null>>((acc, bank) => ({ ...acc, [bank.id]: bank.colorHex }), {}),
 			startOfMonth,
 			endOfMonth,
+				startOfExpenseHistory,
+				startOfActivityYear,
+			asOfDate: now,
 			financialLedgerAccounts: accounts,
 		};
 	}
@@ -372,16 +400,70 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 		bankColorsById,
 		startOfMonth,
 		endOfMonth,
+		startOfExpenseHistory,
+		startOfActivityYear,
+		asOfDate: now,
 		financialLedgerAccounts: null,
 	};
 };
 
+const toExpenseHistorySource = (item: HomeMovementDocument): HomeExpenseHistorySource | null => {
+	if (!shouldIncludeMovementInGainExpenseTotals(item)) {
+		return null;
+	}
+
+	const date = parseToDate(item.date ?? item.createdAt);
+	const valueInCents = item.valueInCents;
+	if (!date || !Number.isSafeInteger(valueInCents) || valueInCents <= 0) {
+		return null;
+	}
+
+	return { date, valueInCents };
+};
+
+const loadUpcomingMandatoryItems = async (context: HomeQueryContext) => {
+	try {
+		const mandatoryExpensesQuery = query(
+			collection(db, 'mandatoryExpenses'),
+			where('personId', 'in', context.allowedPersonIds),
+		);
+		const mandatoryGainsQuery = query(
+			collection(db, 'mandatoryGains'),
+			where('personId', 'in', context.allowedPersonIds),
+		);
+		const [mandatoryExpensesSnapshot, mandatoryGainsSnapshot] = await Promise.all([
+			getDocs(mandatoryExpensesQuery),
+			getDocs(mandatoryGainsQuery),
+		]);
+
+		return buildHomeMandatorySchedule(
+			mandatoryExpensesSnapshot.docs.map(document => ({
+				id: document.id,
+				...(document.data() as Record<string, unknown>),
+			})),
+			mandatoryGainsSnapshot.docs.map(document => ({
+				id: document.id,
+				...(document.data() as Record<string, unknown>),
+			})),
+			context.asOfDate,
+		);
+	} catch (error) {
+		console.warn('Não foi possível carregar os compromissos obrigatórios da Home:', error);
+		return [];
+	}
+};
+
 const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverviewData> => {
+	const upcomingMandatoryItems = await loadUpcomingMandatoryItems(context);
+
 	if (context.financialLedgerAccounts) {
 		const cashAccount = context.financialLedgerAccounts.find(account => account.kind === 'cash') ?? null;
 		const ledgerGroupId = context.financialLedgerAccounts[0]?.groupId;
 		const currentMonthExpensesByBankId: Record<string, number> = {};
 		const currentMonthGainsByBankId: Record<string, number> = {};
+		const expenseHistorySources: HomeExpenseHistorySource[] = [];
+		const gainHistorySources: HomeExpenseHistorySource[] = [];
+		const activityHeatmapSources: HomeActivityHeatmapSource[] = [];
 		if (ledgerGroupId) {
 			const transactionsSnapshot = await getDocs(
 				query(collection(db, 'ledgerTransactions'), where('groupId', '==', ledgerGroupId)),
@@ -390,13 +472,16 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 				const data = document.data() as Record<string, unknown>;
 				const effectiveAt = parseToDate(data.effectiveAt);
 				if (
-					(effectiveAt?.getTime() ?? 0) < context.startOfMonth.getTime() ||
-					(effectiveAt?.getTime() ?? 0) > new Date().getTime() ||
-					(data.kind !== 'income' && data.kind !== 'expense') ||
+					!effectiveAt ||
+					effectiveAt.getTime() > context.asOfDate.getTime() ||
 					!Array.isArray(data.legs)
 				) {
 					return;
 				}
+				if (effectiveAt.getTime() >= context.startOfActivityYear.getTime()) {
+					activityHeatmapSources.push({ date: effectiveAt });
+				}
+				if (data.kind !== 'income' && data.kind !== 'expense') return;
 				data.legs.forEach(leg => {
 					if (!leg || typeof leg !== 'object') return;
 					const accountId = (leg as { accountId?: unknown }).accountId;
@@ -406,13 +491,38 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 						typeof deltaInCents !== 'number' ||
 						!Number.isSafeInteger(deltaInCents)
 					) return;
-					if (data.kind === 'expense' && deltaInCents < 0) {
+					if (
+						data.kind === 'expense' &&
+						effectiveAt.getTime() >= context.startOfMonth.getTime() &&
+						deltaInCents < 0
+					) {
 						currentMonthExpensesByBankId[accountId] =
 							(currentMonthExpensesByBankId[accountId] ?? 0) + Math.abs(deltaInCents);
 					}
-					if (data.kind === 'income' && deltaInCents > 0) {
+					if (
+						data.kind === 'income' &&
+						effectiveAt.getTime() >= context.startOfMonth.getTime() &&
+						deltaInCents > 0
+					) {
 						currentMonthGainsByBankId[accountId] =
 							(currentMonthGainsByBankId[accountId] ?? 0) + deltaInCents;
+					}
+					if (
+						data.kind === 'expense' &&
+						effectiveAt.getTime() >= context.startOfExpenseHistory.getTime() &&
+						deltaInCents < 0
+					) {
+						expenseHistorySources.push({
+							date: effectiveAt,
+							valueInCents: Math.abs(deltaInCents),
+						});
+					}
+					if (
+						data.kind === 'income' &&
+						effectiveAt.getTime() >= context.startOfExpenseHistory.getTime() &&
+						deltaInCents > 0
+					) {
+						gainHistorySources.push({ date: effectiveAt, valueInCents: deltaInCents });
 					}
 				});
 			});
@@ -437,6 +547,13 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 				: null,
 			currentMonthExpensesByBankId,
 			currentMonthGainsByBankId,
+			upcomingMandatoryItems,
+			expenseHistoryLastThreeMonths: buildHomeExpenseHistory(
+				expenseHistorySources,
+				gainHistorySources,
+				context.asOfDate,
+			),
+			activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources, context.asOfDate),
 		};
 	}
 	const bankIdsSet = new Set(context.bankIds);
@@ -458,15 +575,71 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
 		where('date', '<=', Timestamp.fromDate(context.endOfMonth)),
 	);
+	const expenseHistoryQuery = query(
+		collection(db, 'expenses'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const cashRescueHistoryQuery = query(
+		collection(db, 'cashRescues'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const gainHistoryQuery = query(
+		collection(db, 'gains'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const activityExpensesQuery = query(
+		collection(db, 'expenses'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const activityGainsQuery = query(
+		collection(db, 'gains'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const activityCashRescuesQuery = query(
+		collection(db, 'cashRescues'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
+	const activityInvestmentSyncsQuery = query(
+		collection(db, 'financeInvestmentSyncs'),
+		where('personId', 'in', context.allowedPersonIds),
+		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	);
 
 	const [
 		monthlyExpensesSnapshot,
 		monthlyGainsSnapshot,
 		cashRescuesSnapshot,
+		expenseHistorySnapshot,
+		cashRescueHistorySnapshot,
+		gainHistorySnapshot,
+		activityExpensesSnapshot,
+		activityGainsSnapshot,
+		activityCashRescuesSnapshot,
+		activityInvestmentSyncsSnapshot,
 	] = await Promise.all([
 		getDocs(monthlyExpensesQuery),
 		getDocs(monthlyGainsQuery),
 		getDocs(cashRescuesQuery),
+		getDocs(expenseHistoryQuery),
+		getDocs(cashRescueHistoryQuery),
+		getDocs(gainHistoryQuery),
+		getDocs(activityExpensesQuery),
+		getDocs(activityGainsQuery),
+		getDocs(activityCashRescuesQuery),
+		getDocs(activityInvestmentSyncsQuery),
 	]);
 	const normalizedCashRescues = cashRescuesSnapshot.docs.map<HomeMovementDocument>(docSnap => ({
 		id: docSnap.id,
@@ -497,12 +670,43 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
 		.filter(item => item?.bankId == null);
 	const cashGainsWithRescues = [...cashGains, ...normalizedCashRescues];
+	const expenseHistorySources = [
+		...expenseHistorySnapshot.docs.map<HomeMovementDocument>(docSnap => ({
+			id: docSnap.id,
+			...(docSnap.data() as HomeMovementDocument),
+		})),
+		...cashRescueHistorySnapshot.docs.map<HomeMovementDocument>(docSnap => ({
+			id: docSnap.id,
+			...(docSnap.data() as HomeMovementDocument),
+			isCashRescue: true,
+		})),
+	]
+		.map(toExpenseHistorySource)
+		.filter((source): source is HomeExpenseHistorySource => Boolean(source));
+	const gainHistorySources = gainHistorySnapshot.docs
+		.map<HomeMovementDocument>(docSnap => ({
+			id: docSnap.id,
+			...(docSnap.data() as HomeMovementDocument),
+		}))
+		.map(toExpenseHistorySource)
+		.filter((source): source is HomeExpenseHistorySource => Boolean(source));
+	const activityHeatmapSources = [
+		...activityExpensesSnapshot.docs,
+		...activityGainsSnapshot.docs,
+		...activityCashRescuesSnapshot.docs,
+		...activityInvestmentSyncsSnapshot.docs.filter(
+			document => (document.data() as HomeMovementDocument).reason === 'manual',
+		),
+	]
+		.map(docSnap => docSnap.data() as HomeMovementDocument)
+		.filter(item => !item.isBankTransfer || item.bankTransferDirection !== 'incoming')
+		.map(item => ({ date: parseToDate(item.date ?? item.createdAt) }));
 	const legacyBalanceResults = await Promise.all(
 		context.banks.map(async bank => {
 			const result = await getLegacyBankBalanceInCentsFirebase({
 				personId: context.personId,
 				bankId: bank.id,
-				asOfDate: new Date(),
+				asOfDate: context.asOfDate,
 			});
 			if (!result.success) {
 				throw result.error;
@@ -527,6 +731,13 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		},
 		currentMonthExpensesByBankId: aggregateMonthlyValuesByBankId([...monthlyExpenses, ...cashRescues], bankIdsSet),
 		currentMonthGainsByBankId: aggregateMonthlyValuesByBankId(monthlyGains, bankIdsSet),
+		upcomingMandatoryItems,
+		expenseHistoryLastThreeMonths: buildHomeExpenseHistory(
+			expenseHistorySources,
+		gainHistorySources,
+		context.asOfDate,
+		),
+		activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources, context.asOfDate),
 	};
 };
 
