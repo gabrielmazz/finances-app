@@ -3,7 +3,7 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.0
+versao: 1.7.1
 ---
 
 # Gerenciamento de Bancos
@@ -23,7 +23,7 @@ Permite criar e gerenciar contas bancárias, visualizar movimentos por período 
 ### Desativação reversível
 1. A tabela de bancos em `ConfigurationsScreen.tsx` exibe bancos ativos e desativados, mantendo o registro e o histórico financeiro no Firestore
 2. A ação **Desativar banco** grava `isActive: false` no documento existente; a ação muda para **Reativar banco** enquanto o banco estiver desativado
-3. Bancos desativados não são retornados por `getAllBanksFirebase()`, `getBanksByPersonFirebase()` ou `getBanksWithUsersByPersonFirebase()`, portanto deixam de aparecer nos seletores de despesas, ganhos, investimentos, saques, transferências e saldos
+3. Bancos desativados não são retornados por `getAllBanksFirebase()`, `getBanksByPersonFirebase()` ou `getBanksWithUsersByPersonFirebase()`, portanto deixam de aparecer nos seletores de despesas, ganhos, investimentos, saques, transferências e saldos. `getAllBanksFirebase()` mantém o nome legado, mas consulta somente o UID autenticado e seus relacionados; consultas Firestore sem `where('personId', ...)` são rejeitadas pelas Rules, que não funcionam como filtros
 4. A alteração é confirmada em modal e o feedback informa que o cadastro/histórico foram preservados; excluir o documento continua sendo uma ação separada e destrutiva
 
 ### Visualização de Movimentos

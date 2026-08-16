@@ -1,7 +1,7 @@
 // O arquivo GainFirebase.ts é responsável por gerenciar as operações relacionadas
 // aos ganhos registrados no aplicativo.
 
-import { db } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 import { isSafeIntegerCents } from '@/utils/monthlyBalance';
@@ -248,7 +248,12 @@ export async function deleteGainFirebase(gainId: string) {
 // Função para obter todos os ganhos registrados no Firestore
 export async function getAllGainsFirebase() {
 	try {
-		const gainsSnapshot = await getDocs(collection(db, 'gains'));
+		const personId = auth.currentUser?.uid;
+		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
+		const gainsSnapshot = await getDocs(query(collection(db, 'gains'), where('personId', 'in', personIds)));
 		const gains = gainsSnapshot.docs.map(gainDoc => ({
 			id: gainDoc.id,
 			...gainDoc.data(),
@@ -285,11 +290,17 @@ interface GetLimitedGainsParams {
 // Função para obter um limite de ganhos registrados no Firestore, ordenados por data de criação (mais recentes primeiro)
 export async function getLimitedGainsFirebase({ limit, personId }: GetLimitedGainsParams) {
 	try {
-		const gainsCollection = collection(db, 'gains');
-
-		const gainsQuery = personId
-			? query(gainsCollection, where('personId', '==', personId), orderBy('createdAt', 'desc'), limitQuery(limit))
-			: query(gainsCollection, orderBy('createdAt', 'desc'), limitQuery(limit));
+		const scopedPersonId = personId ?? auth.currentUser?.uid;
+		if (!scopedPersonId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(scopedPersonId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([scopedPersonId, ...(Array.isArray(related.data) ? related.data : [])]));
+		const gainsQuery = query(
+			collection(db, 'gains'),
+			where('personId', 'in', personIds),
+			orderBy('createdAt', 'desc'),
+			limitQuery(limit),
+		);
 
 		const gainsSnapshot = await getDocs(gainsQuery);
 		const gains = gainsSnapshot.docs.map(gainDoc => ({

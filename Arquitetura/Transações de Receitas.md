@@ -69,6 +69,8 @@ sequenceDiagram
 
 ## Observações importantes
 
+- Consultas de ganhos no cliente são sempre escopadas por `personId` do usuário autenticado e pelos usuários relacionados. A fachada legada `getAllGainsFirebase()` não faz varredura global, pois as Firestore Rules não filtram resultados depois da consulta.
+
 - Receitas com flags de investimento/transferência são excluídas dos totais de entradas para evitar dupla contagem
 - Estrutura idêntica à de Despesas — seguem o mesmo padrão de campos no Firestore
 - Usuários relacionados compartilham visibilidade das receitas

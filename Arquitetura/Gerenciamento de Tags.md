@@ -3,7 +3,7 @@ tags: [tags, categorias, icones, organizacao]
 relacionado: [[Transações de Despesas]], [[Transações de Receitas]], [[Dashboard Home]], [[Análise por Categoria]], [[Despesas Fixas]], [[Receitas Fixas]], [[Hooks Customizados]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.5.0
+versao: 1.5.1
 ---
 
 # Gerenciamento de Tags
@@ -102,6 +102,8 @@ Cada tag salva:
 - `personId` — ID do usuário
 
 ## Observações importantes
+
+- `getAllTagsFirebase()` mantém a fachada pública legada, mas usa a consulta escopada por UID e usuários relacionados. Uma varredura sem filtro da coleção `tags` não é compatível com as Rules, pois elas avaliam `resource.data.personId` para cada documento potencial.
 
 - `pendingCreatedTag.ts` armazena temporariamente a última tag criada para seleção imediata após criação, sem necessidade de recarregar a lista
 - `AddRegisterTagScreen.tsx` recebe `placement` apenas na criação; na edição, deve sempre buscar o documento canônico pelo `tagId`, nunca depender de dados serializados pela tabela

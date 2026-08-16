@@ -83,6 +83,8 @@ sequenceDiagram
 
 ## Observações importantes
 
+- Consultas de despesas no cliente são sempre escopadas por `personId` do usuário autenticado e pelos usuários relacionados. A fachada legada `getAllExpensesFirebase()` não faz varredura global, pois as Firestore Rules não filtram resultados depois da consulta.
+
 - Despesas com flags de investimento/transferência são excluídas dos totais de gastos exibidos no dashboard para evitar dupla contagem
 - A tag é opcional mas recomendada para o gráfico de pizza funcionar corretamente
 - O campo `personId` liga a despesa ao usuário — usuários relacionados compartilham visibilidade

@@ -1,6 +1,6 @@
-import { app, db } from '@/FirebaseConfig';
+import { db, firebaseFunctions } from '@/FirebaseConfig';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 
 export type FinancialLedgerContext = {
   groupId: string;
@@ -31,7 +31,7 @@ export type TransferFundsInput = {
   kind?: 'transfer' | 'investment_deposit' | 'investment_redemption';
 };
 
-const financialFunctions = getFunctions(app, 'southamerica-east1');
+const financialFunctions = firebaseFunctions;
 
 function dataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)

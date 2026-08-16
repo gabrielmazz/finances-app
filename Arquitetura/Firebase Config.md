@@ -3,7 +3,7 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.3.0
+versao: 1.4.0
 ---
 
 # Firebase Config
@@ -49,6 +49,12 @@ DB --> CF["backend/ (callable Functions do razão)"]
 | Web | Primário (`auth`) | `inMemoryPersistence` | Sessão encerra ao recarregar/fechar a aba ou navegador |
 | Web | Secundário (`secondaryAuth`) | `inMemoryPersistence` | O cadastro não persiste credenciais secundárias no navegador |
 
+### Alvos isolados
+
+`utils/firebaseRuntime.ts` é o único resolvedor de ambiente. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions em `127.0.0.1` nas portas 9099, 8080 e 5001. Nenhuma credencial de produção é lida nesse modo.
+
+`development` e `preview` só aceitam `emulator`; `production` e `production-apk` só aceitam `production`, com o project ID `finances-app-e8685` e todas as credenciais. Combinações inválidas falham antes de inicializar o SDK. O alias padrão da CLI também é o demo project; deploys devem informar `--project production`.
+
 ### Variáveis de Ambiente
 ```
 EXPO_PUBLIC_FIREBASE_API_KEY
@@ -73,6 +79,7 @@ export const auth: Auth;                 // Auth memory-only
 export const db: Firestore;              // Firestore principal
 export const secondaryApp: FirebaseApp;  // App secundário
 export const secondaryAuth: Auth;        // Auth secundário (SecureStore nativo / memória Web)
+export const firebaseFunctions: Functions; // Functions já conectado ao alvo resolvido
 ```
 
 ## Arquivos principais

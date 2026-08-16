@@ -25,6 +25,7 @@ describe('compatibilidade Web', () => {
 		jest.dontMock('firebase/app');
 		jest.dontMock('firebase/auth');
 		jest.dontMock('firebase/firestore');
+		jest.dontMock('firebase/functions');
 		jest.dontMock('expo-print');
 		jest.dontMock('expo-sharing');
 		jest.dontMock('@/utils/pdfFileName');
@@ -51,8 +52,10 @@ describe('compatibilidade Web', () => {
 			getAuth: jest.fn(),
 			initializeAuth: mockInitializeAuth,
 			inMemoryPersistence: mockInMemoryPersistence,
+			connectAuthEmulator: jest.fn(),
 		}));
-		jest.doMock('firebase/firestore', () => ({ getFirestore: jest.fn(app => ({ app })) }));
+		jest.doMock('firebase/firestore', () => ({ getFirestore: jest.fn(app => ({ app })), connectFirestoreEmulator: jest.fn() }));
+		jest.doMock('firebase/functions', () => ({ getFunctions: jest.fn(app => ({ app })), connectFunctionsEmulator: jest.fn() }));
 		jest.doMock('expo/virtual/env', () => ({ env: process.env }));
 
 		const config = require('@/FirebaseConfig.web') as typeof import('@/FirebaseConfig.web');

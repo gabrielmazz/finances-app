@@ -7,7 +7,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { doc, setDoc } from 'firebase/firestore';
 
-const projectId = 'lumus-financial-rules-test';
+const projectId = 'demo-lumus-financas';
 let environment: RulesTestEnvironment | undefined;
 
 async function anonymousUser(name: string): Promise<User> {

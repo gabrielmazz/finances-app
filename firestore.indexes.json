@@ -1,6 +1,80 @@
 {
   "indexes": [
     {
+      "collectionGroup": "expenses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tagId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gains",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tagId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mandatoryExpenses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tagId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mandatoryGains",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tagId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "expenses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investmentId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gains",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investmentId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financeInvestmentSyncs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "investmentId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "monthlyBalances",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "bankId", "order": "ASCENDING" },
+        { "fieldPath": "personId", "order": "ASCENDING" },
+        { "fieldPath": "year", "order": "DESCENDING" },
+        { "fieldPath": "month", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financeMonthlySummaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "monthKey", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ledgerTransactions",
       "queryScope": "COLLECTION",
       "fields": [

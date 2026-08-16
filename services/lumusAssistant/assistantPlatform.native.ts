@@ -21,6 +21,7 @@ import {
 	buildReportNarrationInstruction,
 } from '@/services/lumusAssistant/assistantPrompt';
 import { canObtainAssistantAppCheckToken } from '@/utils/lumusAssistantAppCheck';
+import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
 import type { FirebaseAppCheckTypes } from '@react-native-firebase/app-check';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
@@ -53,6 +54,9 @@ const assertSupportedNativeRuntime = () => {
 	}
 	if (isExpoGoAssistantRuntime()) {
 		throw new Error('Ambiente não suportado: o Lumus IA no Android exige um development build e não funciona no Expo Go.');
+	}
+	if (isFirebaseEmulatorRuntime()) {
+		throw new Error('Lumus IA não está disponível no Firebase Emulator Suite.');
 	}
 };
 
@@ -127,11 +131,15 @@ const ensureNativeAppCheck = async () => {
 };
 
 const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig> => {
-	if (Platform.OS !== 'android') {
-		return normalizeAssistantAiConfig({ enabled: false });
-	}
 	if (isExpoGoAssistantRuntime()) {
 		return normalizeAssistantAiConfig({});
+	}
+	if (isFirebaseEmulatorRuntime()) {
+		remoteConfigLoaded = false;
+		return normalizeAssistantAiConfig({ enabled: false });
+	}
+	if (Platform.OS !== 'android') {
+		return normalizeAssistantAiConfig({ enabled: false });
 	}
 	if (!forceRefresh && configPromise) {
 		return configPromise;
@@ -200,6 +208,14 @@ const adapter: AssistantPlatformAdapter = {
 	async getAvailability(): Promise<AssistantAiAvailability> {
 		const platformSupported = Platform.OS === 'android';
 		const isExpoGo = platformSupported && isExpoGoAssistantRuntime();
+		if (isExpoGo) {
+			const config = normalizeAssistantAiConfig({ enabled: false });
+			return { available: false, platform: 'android', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'O Lumus IA no Android exige um development build. O restante do aplicativo pode ser testado no Expo Go.' };
+		}
+		if (isFirebaseEmulatorRuntime()) {
+			const config = normalizeAssistantAiConfig({ enabled: false });
+			return { available: false, platform: Platform.OS === 'android' ? 'android' : 'unsupported', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'Lumus IA não está disponível no Firebase Emulator Suite.' };
+		}
 		let nativeConfigured = false;
 		let appCheckConfigured = false;
 		if (platformSupported && !isExpoGo) {

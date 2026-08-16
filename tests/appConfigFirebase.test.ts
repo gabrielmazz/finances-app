@@ -9,6 +9,7 @@ const loadAppConfig = (existingFiles: string[]) => {
 };
 
 const ANDROID_EAS_BUILD_PROFILES = ['development', 'preview', 'production', 'production-apk'] as const;
+const ANDROID_PRODUCTION_BUILD_PROFILES = ['production', 'production-apk'] as const;
 
 describe('configuração nativa Firebase para builds EAS Android', () => {
 	afterEach(() => {
@@ -16,7 +17,7 @@ describe('configuração nativa Firebase para builds EAS Android', () => {
 		jest.dontMock('node:fs');
 	});
 
-	it.each(ANDROID_EAS_BUILD_PROFILES)(
+	it.each(ANDROID_PRODUCTION_BUILD_PROFILES)(
 		'recusa um build Android %s sem o arquivo Google Services',
 		(buildProfile) => {
 		process.env.EAS_BUILD_PROFILE = buildProfile;
@@ -29,7 +30,7 @@ describe('configuração nativa Firebase para builds EAS Android', () => {
 		},
 	);
 
-	it.each(ANDROID_EAS_BUILD_PROFILES)('inclui o arquivo e o plugin no build Android %s quando a variável de arquivo existe no EAS', (buildProfile) => {
+	it.each(ANDROID_PRODUCTION_BUILD_PROFILES)('inclui o arquivo e o plugin no build Android %s quando a variável de arquivo existe no EAS', (buildProfile) => {
 		process.env.EAS_BUILD_PROFILE = buildProfile;
 		process.env.EAS_BUILD_PLATFORM = 'android';
 		process.env.GOOGLE_SERVICES_JSON = '/tmp/google-services.json';
@@ -39,6 +40,14 @@ describe('configuração nativa Firebase para builds EAS Android', () => {
 
 		expect(config.android?.googleServicesFile).toBe('/tmp/google-services.json');
 		expect(config.plugins).toContain('@react-native-firebase/app');
+	});
+
+	it.each(['development', 'preview'] as const)('não exige nem inclui Firebase nativo no build Android %s', (buildProfile) => {
+		process.env.EAS_BUILD_PROFILE = buildProfile;
+		process.env.EAS_BUILD_PLATFORM = 'android';
+		const config = loadAppConfig([])({ config: {} });
+		expect(config.android?.googleServicesFile).toBeUndefined();
+		expect(config.plugins).not.toContain('@react-native-firebase/app');
 	});
 
 	it('associa cada perfil EAS ao ambiente que fornece o arquivo Firebase', () => {

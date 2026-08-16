@@ -62,13 +62,13 @@ import {
 } from '@/functions/RegisterUserFirebase';
 import {
 	addBankFirebase,
-	getAllBanksFirebase,
+	getBanksWithUsersByPersonFirebase,
 	deleteBankFirebase,
 	updateBankStatusFirebase,
 } from '@/functions/BankFirebase';
 import {
 	deleteTagFirebase,
-	getAllTagsFirebase,
+	getTagsWithUsersByPersonFirebase,
 	getTagReferenceSummary,
 	type TagReferenceSummary,
 } from '@/functions/TagFirebase';
@@ -98,6 +98,7 @@ import {
 	type CategoryAvailabilityPreset,
 } from '@/utils/categoryAvailability';
 import { hasTagReferences } from '@/utils/categoryReferenceSummary';
+import { useFinanceData } from '@/contexts/FinanceDataContext';
 import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/navigation';
 
 // Importação do SVG
@@ -914,9 +915,9 @@ export async function handleUpdateBankStatus(bankId: string, isActive: boolean) 
 	return result;
 }
 
-export async function fetchAllBanks() {
+export async function fetchAllBanks(personId: string) {
 
-	const result = await getAllBanksFirebase(true);
+	const result = await getBanksWithUsersByPersonFirebase(personId);
 
 	if (result.success) {
 
@@ -938,9 +939,9 @@ export async function handleDeleteTag(tagId: string) {
 	return result;
 }
 
-export async function fetchAllTags() {
+export async function fetchAllTags(personId: string) {
 
-	const result = await getAllTagsFirebase();
+	const result = await getTagsWithUsersByPersonFirebase(personId);
 
 	if (result.success) {
 
@@ -1062,6 +1063,7 @@ export default function ConfigurationsScreen() {
 	const [isCheckingTagUsageId, setIsCheckingTagUsageId] = React.useState<string | null>(null);
 	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
 	const [isCopyingUserId, setIsCopyingUserId] = React.useState(false);
+	const [openConfigurationSection, setOpenConfigurationSection] = React.useState<string | null>(null);
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
 		users: 1,
 		banks: 1,
@@ -1070,6 +1072,7 @@ export default function ConfigurationsScreen() {
 	});
 	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
 	const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
+	const { trustedDeviceCache, isCacheHydrated, setTrustedDeviceCache } = useFinanceData();
 
 	const handleToggleValueVisibility = React.useCallback(
 		(value: boolean) => {
@@ -1104,6 +1107,11 @@ export default function ConfigurationsScreen() {
 		: shouldHideValues
 			? 'Os valores financeiros estão ocultos.'
 			: 'Os valores financeiros estão visíveis.';
+	const trustedCacheStatusText = !isCacheHydrated
+		? 'Verificando a preferência deste dispositivo...'
+		: trustedDeviceCache?.enabled
+			? 'Dados financeiros poderão permanecer neste dispositivo por até 10 minutos.'
+			: 'Dados financeiros não serão gravados neste dispositivo.';
 
 	const filteredTags = React.useMemo(() => {
 		return tagData.filter(tag => {
@@ -1772,10 +1780,11 @@ export default function ConfigurationsScreen() {
 		React.useCallback(() => {
 
 			let isMounted = true;
+			const currentUserId = auth.currentUser?.uid;
 
-			if (!isAdminLoading && isAdmin) {
+			if (!isAdminLoading && isAdmin && currentUserId && openConfigurationSection) {
 
-				fetchAllUsers().then((users) => {
+				if (openConfigurationSection === 'item-1') fetchAllUsers().then((users) => {
 
 					if (isMounted && users) {
 						const formattedUsers = users.map((user: any) => ({
@@ -1787,7 +1796,7 @@ export default function ConfigurationsScreen() {
 					}
 				});
 
-				fetchAllBanks().then((banks) => {
+				if (openConfigurationSection === 'item-2') fetchAllBanks(currentUserId).then((banks) => {
 
 					if (isMounted && banks) {
 						const formattedBanks = banks.map((bank: any) => ({
@@ -1802,7 +1811,7 @@ export default function ConfigurationsScreen() {
 					}
 				});
 
-				fetchAllTags().then((tags) => {
+				if (openConfigurationSection === 'item-3') fetchAllTags(currentUserId).then((tags) => {
 
 					if (isMounted && tags) {
 						const formattedTags = tags.map((tag: any) => ({
@@ -1836,7 +1845,7 @@ export default function ConfigurationsScreen() {
 				isMounted = false;
 
 			};
-		}, [isAdmin, isAdminLoading]),
+		}, [isAdmin, isAdminLoading, openConfigurationSection]),
 	);
 
 	// ================================================================================================================= //
@@ -2064,7 +2073,7 @@ export default function ConfigurationsScreen() {
 									Configurações avançadas
 								</Heading>
 
-								<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
+								<Accordion size="md" variant="unfilled" type="single" isCollapsible value={openConfigurationSection ?? undefined} onValueChange={value => setOpenConfigurationSection(typeof value === 'string' ? value : null)} className="w-full">
 									{accordionItems.map(item => {
 										const requiresAdmin = item.actionRequiresAdmin !== false;
 										const canAccessSection = !requiresAdmin || isAdmin;
@@ -2527,6 +2536,28 @@ export default function ConfigurationsScreen() {
 																		value={shouldHideValues}
 																		onValueChange={handleToggleValueVisibility}
 																		isDisabled={isLoadingPreference}
+																		trackColor={switchTrackColor}
+																		thumbColor={switchThumbColor}
+																		ios_backgroundColor={switchIosBackgroundColor}
+																	/>
+																</HStack>
+															),
+														})
+													) : null}
+
+													{item.showValueVisibilitySwitch ? (
+														renderAccordionCard(item, {
+															children: (
+																<HStack className="items-center justify-between gap-4">
+																	<VStack className="min-w-0 flex-1 gap-1">
+																		<Text className="text-base font-semibold">Confiar neste dispositivo</Text>
+																		<Text className={`${bodyText} text-xs leading-5`}>{trustedCacheStatusText}</Text>
+																	</VStack>
+																	<Switch
+																		value={trustedDeviceCache?.enabled === true}
+																		onValueChange={value => void setTrustedDeviceCache(value)}
+																		isDisabled={!isCacheHydrated}
+																		accessibilityLabel="Confiar neste dispositivo para manter dados financeiros em cache"
 																		trackColor={switchTrackColor}
 																		thumbColor={switchThumbColor}
 																		ios_backgroundColor={switchIosBackgroundColor}

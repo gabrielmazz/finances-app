@@ -1,207 +1,627 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================================================
+    // AUTH / USER
+    // =========================================================
+
     function signedIn() {
       return request.auth != null;
     }
 
+    function currentUser() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      );
+    }
+
+    function relatedUsers() {
+      return currentUser().data.get('relatedIdUsers', []);
+    }
+
+    // =========================================================
+    // FINANCIAL GROUPS
+    // =========================================================
+
     function group(groupId) {
-      return get(/databases/$(database)/documents/financialGroups/$(groupId));
+      return get(
+        /databases/$(database)/documents/financialGroups/$(groupId)
+      );
     }
 
     function isMember(groupId) {
       return signedIn()
-        && group(groupId).data.status == 'active'
-        && group(groupId).data.members[request.auth.uid] in ['admin', 'member'];
+        && group(groupId).data.get('status', null) == 'active'
+        && group(groupId).data
+          .get('members', {})
+          .get(request.auth.uid, null) in ['admin', 'member'];
     }
 
     function isAdmin(groupId) {
-      return isMember(groupId) && group(groupId).data.members[request.auth.uid] == 'admin';
+      return isMember(groupId)
+        && group(groupId).data
+          .get('members', {})
+          .get(request.auth.uid, null) == 'admin';
     }
+
+    // =========================================================
+    // CUTOVER
+    // =========================================================
 
     function userHasCutOver() {
       return signedIn()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.financialGroupId is string;
+        && currentUser().data.get('financialGroupId', null) is string;
     }
 
+    // =========================================================
+    // LEGACY ACCESS
+    // =========================================================
+
+    /*
+     * IMPORTANTE:
+     *
+     * Dados legacy continuam LEGÍVEIS mesmo depois do cutover.
+     *
+     * Isso é necessário porque partes do aplicativo ainda consultam:
+     *
+     * expenses
+     * gains
+     * mandatoryExpenses
+     * mandatoryGains
+     * banks
+     * etc.
+     *
+     * O cutover bloqueia apenas CREATE / UPDATE / DELETE.
+     */
     function canReadLegacy(personId) {
-      return signedIn() && !userHasCutOver() && (
-        personId == request.auth.uid ||
-        personId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.relatedIdUsers
-      );
+      return signedIn()
+        && (
+          personId == request.auth.uid
+          || personId in relatedUsers()
+        );
     }
 
+    /*
+     * Novos documentos legacy só podem ser criados
+     * antes do usuário ser migrado.
+     */
     function canCreateLegacy() {
       return signedIn()
         && !userHasCutOver()
         && request.resource.data.personId == request.auth.uid;
     }
 
-    function canMutateLegacy() {
+    /*
+     * Update:
+     *
+     * - somente antes do cutover
+     * - somente o proprietário
+     * - personId não pode ser alterado
+     */
+    function canUpdateLegacy() {
+      return signedIn()
+        && !userHasCutOver()
+        && resource.data.personId == request.auth.uid
+        && request.resource.data.personId == resource.data.personId;
+    }
+
+    /*
+     * Delete:
+     *
+     * request.resource não existe em deletes,
+     * então usamos somente resource.
+     */
+    function canDeleteLegacy() {
       return signedIn()
         && !userHasCutOver()
         && resource.data.personId == request.auth.uid;
     }
+
+    // =========================================================
+    // VALIDATIONS
+    // =========================================================
 
     function isIntegerCents(value) {
       return value is int;
     }
 
     function hasValidInvestmentCents(data) {
-      return (isIntegerCents(data.initialValueInCents) || isIntegerCents(data.initialInvestedInCents))
-        && (isIntegerCents(data.currentValueInCents)
-          || isIntegerCents(data.lastManualSyncValueInCents)
-          || isIntegerCents(data.initialValueInCents)
-          || isIntegerCents(data.initialInvestedInCents));
+      return (
+        isIntegerCents(
+          data.get('initialValueInCents', null)
+        )
+        ||
+        isIntegerCents(
+          data.get('initialInvestedInCents', null)
+        )
+      )
+      &&
+      (
+        isIntegerCents(
+          data.get('currentValueInCents', null)
+        )
+        ||
+        isIntegerCents(
+          data.get('lastManualSyncValueInCents', null)
+        )
+        ||
+        isIntegerCents(
+          data.get('initialValueInCents', null)
+        )
+        ||
+        isIntegerCents(
+          data.get('initialInvestedInCents', null)
+        )
+      );
     }
 
+    // =========================================================
+    // USERS
+    // =========================================================
+
     match /users/{userId} {
-      allow read: if signedIn() && (
-        userId == request.auth.uid ||
-        userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.relatedIdUsers
-      );
+
+      allow read: if signedIn()
+        && (
+          userId == request.auth.uid
+          || userId in relatedUsers()
+        );
+
+      /*
+       * O cliente NÃO pode definir campos de autorização.
+       *
+       * relatedIdUsers pode existir no documento inicial,
+       * mas somente como [].
+       *
+       * Caso uma Cloud Function / Admin SDK precise adicionar
+       * relatedIdUsers posteriormente, ela consegue fazer isso
+       * porque Admin SDK não depende destas Rules.
+       */
       allow create: if signedIn()
         && userId == request.auth.uid
+
         && !request.resource.data.keys().hasAny([
           'financialGroupId',
           'financialGroupRole',
           'financialLegacyCutoverAt'
-        ]);
+        ])
+
+        && request.resource.data.get(
+          'relatedIdUsers',
+          []
+        ) == [];
+
+      /*
+       * Campos de autorização não podem ser alterados
+       * diretamente pelo cliente.
+       */
       allow update: if signedIn()
         && userId == request.auth.uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'financialGroupId',
-          'financialGroupRole',
-          'financialLegacyCutoverAt'
-        ]);
-      allow delete: if signedIn() && userId == request.auth.uid;
 
-      // Tokens Expo are private to their owner. Shared users can receive a
-      // notification through the trusted Function, but never read each other’s tokens.
+        && !request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasAny([
+            'financialGroupId',
+            'financialGroupRole',
+            'financialLegacyCutoverAt',
+            'relatedIdUsers'
+          ]);
+
+      allow delete: if signedIn()
+        && userId == request.auth.uid;
+
+
+      // =======================================================
+      // PUSH DEVICES
+      // =======================================================
+
       match /pushDevices/{deviceId} {
-        allow read: if signedIn() && userId == request.auth.uid;
+
+        allow read: if signedIn()
+          && userId == request.auth.uid;
+
         allow create, update: if signedIn()
           && userId == request.auth.uid
-          && request.resource.data.keys().hasOnly(['expoPushToken', 'platform', 'updatedAt'])
+
+          && request.resource.data.keys().hasOnly([
+            'expoPushToken',
+            'platform',
+            'updatedAt'
+          ])
+
           && request.resource.data.expoPushToken is string
-          && request.resource.data.platform in ['android', 'ios'];
-        allow delete: if signedIn() && userId == request.auth.uid;
+
+          && request.resource.data.platform in [
+            'android',
+            'ios'
+          ];
+
+        allow delete: if signedIn()
+          && userId == request.auth.uid;
       }
     }
+
+    // =========================================================
+    // FINANCIAL GROUP
+    // =========================================================
 
     match /financialGroups/{groupId} {
+
       allow read: if isMember(groupId);
+
+      // Escritas somente por backend / Admin SDK.
       allow write: if false;
+
+
+      // =======================================================
+      // OPERATIONS
+      // =======================================================
 
       match /operations/{operationId} {
+
         allow read: if isMember(groupId);
+
         allow write: if false;
       }
+
+
+      // =======================================================
+      // MIGRATION RUNS
+      // =======================================================
 
       match /migrationRuns/{runId} {
+
         allow read: if isAdmin(groupId);
+
         allow write: if false;
       }
     }
 
+    // =========================================================
+    // NEW FINANCIAL MODEL
+    // =========================================================
+
     match /financialAccounts/{accountId} {
-      allow read: if isMember(resource.data.groupId);
+
+      allow read: if isMember(
+        resource.data.groupId
+      );
+
       allow write: if false;
     }
+
 
     match /ledgerTransactions/{transactionId} {
-      allow read: if isMember(resource.data.groupId);
+
+      allow read: if isMember(
+        resource.data.groupId
+      );
+
       allow write: if false;
     }
+
 
     match /accountReconciliations/{reconciliationId} {
-      allow read: if isMember(resource.data.groupId);
+
+      allow read: if isMember(
+        resource.data.groupId
+      );
+
       allow write: if false;
     }
+
 
     match /financialAuditEvents/{eventId} {
-      allow read: if isAdmin(resource.data.groupId);
+
+      allow read: if isAdmin(
+        resource.data.groupId
+      );
+
       allow write: if false;
     }
+
 
     match /financialMigrationIssues/{issueId} {
-      allow read: if isAdmin(resource.data.groupId);
+
+      allow read: if isAdmin(
+        resource.data.groupId
+      );
+
       allow write: if false;
     }
 
-    // The old collection layout remains readable for compatibility. Once a user
-    // has a group cutover, direct legacy writes are denied; the migration never
-    // changes or deletes these documents.
+    // =========================================================
+    // LEGACY MODEL
+    // =========================================================
+
+    /*
+     * O modelo antigo permanece legível depois do cutover.
+     *
+     * Porém:
+     *
+     * CREATE
+     * UPDATE
+     * DELETE
+     *
+     * são bloqueados depois que financialGroupId existir.
+     */
+
+    // =========================================================
+    // BANKS
+    // =========================================================
+
     match /banks/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
       allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
+
+      allow update: if canUpdateLegacy();
+
+      allow delete: if canDeleteLegacy();
     }
+
+
+    // =========================================================
+    // EXPENSES
+    // =========================================================
+
     match /expenses/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /gains/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /bankTransfers/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /cashRescues/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /monthlyBalances/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /investments/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
-    }
-    match /financeInvestments/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && hasValidInvestmentCents(request.resource.data);
-      allow update: if canMutateLegacy() && hasValidInvestmentCents(request.resource.data);
-      allow delete: if canMutateLegacy();
-    }
-    match /tags/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy();
-      allow update, delete: if canMutateLegacy();
-    }
-    match /mandatoryExpenses/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /mandatoryGains/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
-      allow create: if canCreateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow update: if canMutateLegacy() && isIntegerCents(request.resource.data.valueInCents);
-      allow delete: if canMutateLegacy();
-    }
-    match /financeInvestmentSyncs/{id} {
-      allow read: if canReadLegacy(resource.data.personId);
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
       allow create: if canCreateLegacy()
-        && isIntegerCents(request.resource.data.previousValueInCents)
-        && isIntegerCents(request.resource.data.syncedValueInCents)
-        && isIntegerCents(request.resource.data.deltaInCents);
-      allow delete: if canMutateLegacy();
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // GAINS
+    // =========================================================
+
+    match /gains/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // BANK TRANSFERS
+    // =========================================================
+
+    match /bankTransfers/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // CASH RESCUES
+    // =========================================================
+
+    match /cashRescues/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // MONTHLY BALANCES
+    // =========================================================
+
+    match /monthlyBalances/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // INVESTMENTS
+    // =========================================================
+
+    match /investments/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy();
+
+      allow update: if canUpdateLegacy();
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // FINANCE INVESTMENTS
+    // =========================================================
+
+    match /financeInvestments/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && hasValidInvestmentCents(
+          request.resource.data
+        );
+
+      allow update: if canUpdateLegacy()
+        && hasValidInvestmentCents(
+          request.resource.data
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // TAGS
+    // =========================================================
+
+    match /tags/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy();
+
+      allow update: if canUpdateLegacy();
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // MANDATORY EXPENSES
+    // =========================================================
+
+    match /mandatoryExpenses/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // MANDATORY GAINS
+    // =========================================================
+
+    match /mandatoryGains/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow update: if canUpdateLegacy()
+        && isIntegerCents(
+          request.resource.data.valueInCents
+        );
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
+    // INVESTMENT SYNCS
+    // =========================================================
+
+    match /financeInvestmentSyncs/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+
+        && isIntegerCents(
+          request.resource.data.previousValueInCents
+        )
+
+        && isIntegerCents(
+          request.resource.data.syncedValueInCents
+        )
+
+        && isIntegerCents(
+          request.resource.data.deltaInCents
+        );
+
+      // Mantido propositalmente sem UPDATE.
+
+      allow delete: if canDeleteLegacy();
     }
   }
 }

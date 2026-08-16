@@ -1,7 +1,7 @@
 // O arquivo ExpenseFirebase.ts é responsável por gerenciar as operações relacionadas
 // às despesas registradas no aplicativo.
 
-import { db } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, getDoc, getDocs, limit as limitQuery, orderBy, query, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from './RegisterUserFirebase';
 import { isSafeIntegerCents } from '@/utils/monthlyBalance';
@@ -232,7 +232,12 @@ export async function deleteExpenseFirebase(expenseId: string) {
 // Função para obter todas as despesas registradas no Firestore
 export async function getAllExpensesFirebase() {
 	try {
-		const expensesSnapshot = await getDocs(collection(db, 'expenses'));
+		const personId = auth.currentUser?.uid;
+		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
+		const expensesSnapshot = await getDocs(query(collection(db, 'expenses'), where('personId', 'in', personIds)));
 		const expenses = expensesSnapshot.docs.map(expenseDoc => ({
 			id: expenseDoc.id,
 			...expenseDoc.data(),
@@ -269,11 +274,17 @@ interface GetLimitedExpensesParams {
 // Função para obter um limite de despesas registradas no Firestore, ordenadas por data de criação (mais recentes primeiro)
 export async function getLimitedExpensesFirebase({ limit, personId }: GetLimitedExpensesParams) {
 	try {
-		const expensesCollection = collection(db, 'expenses');
-
-		const expensesQuery = personId
-			? query(expensesCollection, where('personId', '==', personId), orderBy('createdAt', 'desc'), limitQuery(limit))
-			: query(expensesCollection, orderBy('createdAt', 'desc'), limitQuery(limit));
+		const scopedPersonId = personId ?? auth.currentUser?.uid;
+		if (!scopedPersonId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(scopedPersonId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([scopedPersonId, ...(Array.isArray(related.data) ? related.data : [])]));
+		const expensesQuery = query(
+			collection(db, 'expenses'),
+			where('personId', 'in', personIds),
+			orderBy('createdAt', 'desc'),
+			limitQuery(limit),
+		);
 
 		const expensesSnapshot = await getDocs(expensesQuery);
 

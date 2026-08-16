@@ -21,12 +21,14 @@ const resolveGoogleServicesFile = () => {
 
 export default ({ config }: ConfigContext): ExpoConfig => {
 	const base = appJson.expo as ExpoConfig;
+	const buildProfile = process.env.EAS_BUILD_PROFILE ?? '';
+	const requiresNativeFirebase = ['production', 'production-apk'].includes(buildProfile);
 	const googleServicesFile = resolveGoogleServicesFile();
 	const androidGoogleServicesFile = process.env.EAS_BUILD_PLATFORM === 'ios'
 		? undefined
 		: googleServicesFile;
 	const isAndroidEasBuild =
-		['development', 'preview', 'production', 'production-apk'].includes(process.env.EAS_BUILD_PROFILE ?? '') &&
+		requiresNativeFirebase &&
 		process.env.EAS_BUILD_PLATFORM === 'android';
 
 	// [[Firebase Config]]: qualquer build EAS Android sem esse arquivo excluiria
@@ -42,6 +44,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 		...base,
 		android: {
 			...base.android,
+			...(requiresNativeFirebase ? {} : { usesCleartextTraffic: true }),
 			...(androidGoogleServicesFile ? { googleServicesFile: androidGoogleServicesFile } : {}),
 		},
 		plugins: [

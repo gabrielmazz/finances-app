@@ -2,15 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, setDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 
-import { app, db } from '@/FirebaseConfig';
+import { db, firebaseFunctions } from '@/FirebaseConfig';
+import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import { ensureLocalNotificationPermission } from '@/utils/localNotifications';
 import { Notifications, isNotificationsRuntimeAvailable } from '@/utils/notificationsRuntime';
 import { platformCapabilities } from '@/utils/platformCapabilities';
 
 const PUSH_DEVICE_ID_STORAGE_KEY = '@lumusRemoteNotifications:device-id-v1';
-const functions = getFunctions(app, 'southamerica-east1');
+const functions = firebaseFunctions;
 
 type RemoteNotificationTestResponse = {
 	recipientCount: number;
@@ -44,6 +45,7 @@ export const registerRemoteNotificationDevice = async (
 	accountId: string,
 	{ requestPermission = false }: { requestPermission?: boolean } = {},
 ): Promise<RemoteNotificationRegistrationResult> => {
+	if (isFirebaseEmulatorRuntime()) return { registered: false, reason: 'unavailable' };
 	if (!platformCapabilities.supportsScheduledLocalNotifications || !isNotificationsRuntimeAvailable()) {
 		return { registered: false, reason: 'unavailable' };
 	}
@@ -82,6 +84,9 @@ export const registerRemoteNotificationDevice = async (
 };
 
 export const sendLinkedDevicesNotificationTest = async () => {
+	if (isFirebaseEmulatorRuntime()) {
+		throw new Error('Envio de push externo é bloqueado no Firebase Emulator.');
+	}
 	const callable = httpsCallable<undefined, RemoteNotificationTestResponse>(functions, 'sendLinkedDevicesNotificationTest');
 	return (await callable()).data;
 };

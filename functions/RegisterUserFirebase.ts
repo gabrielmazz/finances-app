@@ -230,45 +230,20 @@ export async function getUserNameByIdFirebase(userId: string) {
 export async function getAllUsersFirebase() {
 
     try {
-
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        const users = usersSnapshot.docs.map(userDoc => ({
-            id: userDoc.id,
-            ...userDoc.data(),
-        }));
-
         const currentUser = auth.currentUser;
-
-        if (currentUser) {
-            const isCurrentUserListed = users.some((user) => user.id === currentUser.uid);
-
-            if (!isCurrentUserListed) {
-                const currentUserDocRef = doc(db, 'users', currentUser.uid);
-                const currentUserDoc = await getDoc(currentUserDocRef);
-
-                if (currentUserDoc.exists()) {
-
-                    users.push({
-                        id: currentUserDoc.id,
-                        ...currentUserDoc.data(),
-                    });
-
-                } else {
-
-                    const fallbackUserData = {
-                        email: currentUser.email ?? '',
-                        createdAt: new Date(),
-                    };
-
-                    await setDoc(currentUserDocRef, fallbackUserData, { merge: true });
-
-                    users.push({
-                        id: currentUser.uid,
-                        ...fallbackUserData,
-                    });
-                }
-            }
+        if (!currentUser) {
+            return { success: false, error: 'Usuário não autenticado.' };
         }
+
+        // A regra de /users não permite uma coleção inteira no cliente.
+        // Retorne somente o usuário atual e os relacionados autorizados.
+        const currentUserDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const relatedResult = await getRelatedUsersFirebase(currentUser.uid);
+        if (!relatedResult.success) return relatedResult;
+        const users = [
+            ...(currentUserDoc.exists() ? [{ id: currentUserDoc.id, ...currentUserDoc.data() }] : []),
+            ...(Array.isArray(relatedResult.data) ? relatedResult.data : []),
+        ];
 
         return { success: true, data: users };
 

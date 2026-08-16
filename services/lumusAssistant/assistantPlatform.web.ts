@@ -1,4 +1,5 @@
 import { auth, app } from '@/FirebaseConfig';
+import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import type {
 	AssistantAiAvailability,
 	AssistantAiConfig,
@@ -70,6 +71,10 @@ const ensureWebAppCheck = () => {
 };
 
 const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig> => {
+	if (isFirebaseEmulatorRuntime()) {
+		remoteConfigLoaded = false;
+		return normalizeAssistantAiConfig({ enabled: false });
+	}
 	if (!forceRefresh && configPromise) {
 		return configPromise;
 	}
@@ -123,6 +128,10 @@ const toPlatformResponse = (result: Awaited<ReturnType<ReturnType<typeof getGene
 const adapter: AssistantPlatformAdapter = {
 	getConfig: readRemoteConfig,
 	async getAvailability(): Promise<AssistantAiAvailability> {
+		if (isFirebaseEmulatorRuntime()) {
+			const config = normalizeAssistantAiConfig({ enabled: false });
+			return { available: false, platform: 'web', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'Lumus IA não está disponível no Firebase Emulator Suite.' };
+		}
 		const config = await readRemoteConfig();
 		return {
 			available: Boolean(config.enabled && SITE_KEY && auth.currentUser),
@@ -140,6 +149,7 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async createChat(input) {
+		if (isFirebaseEmulatorRuntime()) throw new Error('Lumus IA não está disponível no Firebase Emulator Suite.');
 		ensureWebAppCheck();
 		if (!auth.currentUser) {
 			throw new Error('Usuário não autenticado.');
@@ -177,6 +187,7 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async transcribe(request: AssistantTranscriptionRequest) {
+		if (isFirebaseEmulatorRuntime()) throw new Error('Lumus IA não está disponível no Firebase Emulator Suite.');
 		ensureWebAppCheck();
 		if (!auth.currentUser) {
 			throw new Error('Usuário não autenticado.');
@@ -208,6 +219,7 @@ const adapter: AssistantPlatformAdapter = {
 		return parsed.transcript;
 	},
 	async narrateReport(request: AssistantReportNarrationRequest) {
+		if (isFirebaseEmulatorRuntime()) throw new Error('Lumus IA não está disponível no Firebase Emulator Suite.');
 		ensureWebAppCheck();
 		if (!auth.currentUser) {
 			throw new Error('Usuário não autenticado.');

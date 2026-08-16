@@ -270,6 +270,18 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Correção de consultas de bancos e categorias em 2026-08-16: `getAllBanksFirebase()` e `getAllTagsFirebase()` preservam as fachadas públicas, mas deixaram de fazer varreduras sem filtro. As duas funções agora usam o UID autenticado e usuários relacionados, alinhando as queries às Firestore Rules (`resource.data.personId`) e evitando `Property personId is undefined` no Emulator e em produção. Vault alinhado em [[Gerenciamento de Bancos]] e [[Gerenciamento de Tags]].
+- Atualizado em 2026-08-16.
+
+- Alinhamento de leituras legacy às Rules em 2026-08-16: despesas, ganhos, referências de categorias, investimentos e listagem de usuários deixaram de consultar coleções inteiras no cliente. As fachadas públicas preservadas usam o UID autenticado/relacionados; consultas com dois filtros ganharam índices compostos versionados. Nenhum deploy de Rules, índices ou código foi executado nesta etapa.
+- Atualizado em 2026-08-16.
+
+- Segunda etapa de leituras em 2026-08-15: previsão passou a limitar movimentos à janela histórica/horizonte e a atividade de investimentos à janela padrão de seis meses. O backend materializa `financeMonthlySummaries` na mesma transação do razão e expõe `rebuildFinancialReadModels` paginado, idempotente por mês e limitado ao grupo do administrador autenticado; regras, índice e teste de acesso do modelo foram preparados para Emulator Suite. Vault alinhado em [[Cache e Leituras Firebase]].
+- Atualizado em 2026-08-15.
+
+- Otimização de leituras Firebase em 2026-08-15: `FinanceDataProvider` cria um `QueryClient` isolado por UID, com TTL de 10 minutos, deduplicação, auditoria de reads e persistência serializada por AsyncStorage/localStorage. A Home deixou `useFocusEffect`, compartilhando uma única query entre Web e mobile; o switch **Confiar neste dispositivo** começa desligado e só persiste valores financeiros com consentimento, removendo-os no logout/desligamento. O saldo legado da Home agora busca um snapshot por banco e movimentos posteriores em lote, em vez de reler cinco coleções históricas para cada banco. Vault alinhado em [[Cache e Leituras Firebase]], [[Dashboard Home]] e [[Hooks Customizados]].
+- Atualizado em 2026-08-15.
+
 - Correção do carregamento do resumo da Home em 2026-08-14: `firestore.rules` passou a cobrir `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs` com o mesmo escopo de usuário/relacionamentos do legado. `loadUpcomingMandatoryItems()` agora trata compromissos como dados auxiliares, evitando que uma falha nessa leitura derrube saldos, totais, histórico e atividade. Vault alinhado em [[Dashboard Home]], [[Hooks Customizados]], [[Firebase Config]] e [[Versão Web]].
 - Atualizado em 2026-08-14.
 
