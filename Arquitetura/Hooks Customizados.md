@@ -38,11 +38,11 @@ type HomeSectionState<T> = {
 
 ### Como funciona
 1. Recebe `personId` do usuário autenticado
-2. Usa `useFocusEffect` do Expo Router — recarrega a cada foco da tela (não apenas na montagem)
-3. Chama `getHomeSnapshotFirebase(personId)` que retorna resultado setorizado por sucesso/falha
+2. Usa `useHomeQuery` (TanStack Query), com cache compartilhado por UID e TTL de 10 minutos; foco, reconexão e remount não refazem a consulta
+3. Chama `getHomeSnapshotFirebase(personId)` somente em cache miss, expiração ou `reload()` explícito
 4. Cada seção atualiza seu próprio estado de loading/error independentemente
 5. Se `personId` for null/undefined, reseta todas as seções com mensagem de erro
-6. Expõe `reload()` para telas acionarem recarregamento manual sem duplicar a lógica de busca
+6. Expõe `reload()` para pull-to-refresh/recarga manual, sem duplicar a lógica de busca
 
 `overview.data.upcomingMandatoryItems` contém os próximos ciclos pendentes de gastos e ganhos obrigatórios para a Home Web. A seleção é feita no agregador, mantendo a tela sem consultas Firebase próprias.
 

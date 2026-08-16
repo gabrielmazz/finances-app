@@ -8,7 +8,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-const projectId = 'lumus-financial-rules-test';
+const projectId = 'demo-lumus-financas';
 let environment: RulesTestEnvironment | undefined;
 
 async function seed(): Promise<void> {
@@ -30,6 +30,11 @@ async function seed(): Promise<void> {
     await setDoc(doc(firestore, 'ledgerTransactions', 'transaction-1'), {
       groupId: 'group-1',
       legs: [],
+    });
+    await setDoc(doc(firestore, 'financeMonthlySummaries', 'group-1-2026-08'), {
+      groupId: 'group-1',
+      monthKey: '2026-08',
+      transactionCount: 1,
     });
     await setDoc(doc(firestore, 'users', 'member'), {
       relatedIdUsers: ['admin'],
@@ -64,6 +69,11 @@ async function run(): Promise<void> {
   await assertFails(setDoc(doc(admin, 'ledgerTransactions', 'new-transaction'), {
     groupId: 'group-1',
     legs: [],
+  }));
+  await assertSucceeds(getDoc(doc(member, 'financeMonthlySummaries', 'group-1-2026-08')));
+  await assertFails(getDoc(doc(outsider, 'financeMonthlySummaries', 'group-1-2026-08')));
+  await assertFails(setDoc(doc(member, 'financeMonthlySummaries', 'group-1-2026-08'), {
+    groupId: 'group-1', monthKey: '2026-08', transactionCount: 0,
   }));
 
   const device = doc(member, 'users', 'member', 'pushDevices', 'device-1');

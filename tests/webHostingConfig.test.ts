@@ -21,13 +21,14 @@ describe('configuração da versão Web no Firebase Hosting', () => {
 			source: '**',
 			destination: '/index.html',
 		});
-		expect(firebaseProjectConfig.projects.default).toBe('finances-app-e8685');
+		expect(firebaseProjectConfig.projects.default).toBe('demo-lumus-financas');
+		expect(firebaseProjectConfig.projects.production).toBe('finances-app-e8685');
 	});
 
 	it('exporta, serve localmente e publica Hosting com o Firebase CLI', () => {
 		expect(packageConfig.scripts['web:export']).toBe('expo export --platform web');
-		expect(packageConfig.scripts['web:serve']).toContain('firebase-tools@latest emulators:start --only hosting');
-		expect(packageConfig.scripts['web:deploy']).toContain('firebase-tools@latest deploy --only hosting');
-		expect(packageConfig.scripts['web:deploy:preview']).toContain('firebase-tools@latest hosting:channel:deploy preview');
+		expect(packageConfig.scripts['web:serve']).toContain('firebase-tools@latest emulators:start --project emulator --only hosting');
+		expect(packageConfig.scripts['web:deploy']).toContain('firebase-tools@latest deploy --project production --only hosting');
+		expect(packageConfig.scripts['web:deploy:preview']).toContain('firebase-tools@latest hosting:channel:deploy preview --project production');
 	});
 });

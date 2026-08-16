@@ -1,8 +1,8 @@
 // O arquivo BankFirebase.ts é responsável por gerenciar as operações relacionadas às contas bancárias
 // registradas para uso no aplicativo
 
-import { db } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch } from 'firebase/firestore';
+import { auth, db } from '@/FirebaseConfig';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch, orderBy, limit } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { calculateLegacyBankBalanceInCents, isSafeIntegerCents } from '@/utils/monthlyBalance';
@@ -360,6 +360,50 @@ export async function getLegacyBankBalanceInCentsFirebase({
     }
 }
 
+/**
+ * Batch version used by the Home. It reads one opening snapshot per bank and
+ * each movement collection once after the oldest selected snapshot, instead of
+ * re-reading the full history for every bank card.
+ */
+export async function getLegacyBankBalancesInCentsFirebase({
+    personId,
+    bankIds,
+    allowedPersonIds,
+    asOfDate = new Date(),
+}: {
+    personId: string;
+    bankIds: string[];
+    allowedPersonIds?: string[];
+    asOfDate?: Date;
+}): Promise<{ success: true; data: Record<string, number | null> } | { success: false; error: unknown }> {
+    try {
+        const personIds = Array.from(new Set((allowedPersonIds?.length ? allowedPersonIds : [personId]).filter(Boolean)));
+        if (!personId || !bankIds.length || !personIds.length) return { success: true, data: {} };
+        const snapshotResults = await Promise.all(bankIds.map(async bankId => {
+            const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
+            return [bankId, result.docs.map(item => item.data())] as const;
+        }));
+        const snapshotsByBank = Object.fromEntries(snapshotResults);
+        const snapshotDates = Object.values(snapshotsByBank).flat().map((item: any) => new Date(Number(item.year), Math.max(0, Number(item.month) - 1), 1)).filter(date => !Number.isNaN(date.getTime()));
+        if (!snapshotDates.length) return { success: true, data: Object.fromEntries(bankIds.map(bankId => [bankId, null])) };
+        const start = new Date(Math.min(...snapshotDates.map(date => date.getTime())));
+        const load = async (collectionName: string, hasDate = true) => {
+            const constraints = [where('personId', 'in', personIds), ...(hasDate ? [where('date', '>=', start)] : [])];
+            const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
+            return snapshot.docs.map(document => document.data());
+        };
+        const [expenses, gains, cashRescues, investments] = await Promise.all([
+            load('expenses'), load('gains'), load('cashRescues'), load('financeInvestments', false),
+        ]);
+        return { success: true, data: Object.fromEntries(bankIds.map(bankId => [bankId, calculateLegacyBankBalanceInCents({
+            bankId, snapshots: snapshotsByBank[bankId] ?? [], expenses, gains, cashRescues, investments, asOfDate,
+        })])) };
+    } catch (error) {
+        console.error('Erro ao calcular saldos legados em lote:', error);
+        return { success: false, error };
+    }
+}
+
 export async function deleteCashRescueFirebase(cashRescueId: string) {
     try {
         await deleteDoc(doc(db, 'cashRescues', cashRescueId));
@@ -393,11 +437,19 @@ export async function getAllBanksFirebase(includeInactive = false) {
 
     try {
 
-        const banksSnapshot = await getDocs(collection(db, 'banks'));
-        const banks = banksSnapshot.docs.map(bankDoc => ({
-            id: bankDoc.id,
-            ...bankDoc.data(),
-        })).filter(bank => includeInactive || bank.isActive !== false);
+        const personId = auth.currentUser?.uid;
+        if (!personId) {
+            return { success: false, error: 'Usuário não autenticado.' };
+        }
+
+        // Firestore Rules are not filters: scope the query by the authenticated
+        // user and related users before evaluating resource.data.personId.
+        const scopedResult = await getBanksWithUsersByPersonFirebase(personId);
+        if (!scopedResult.success || !Array.isArray(scopedResult.data)) {
+            return scopedResult;
+        }
+
+        const banks = scopedResult.data.filter(bank => includeInactive || bank.isActive !== false);
 
         return { success: true, data: banks };
 

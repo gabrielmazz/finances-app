@@ -1,4 +1,4 @@
-import { db } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
 import {
 	collection,
 	doc,
@@ -302,11 +302,16 @@ export async function updateFinanceInvestmentFirebase({
 
 export async function deleteFinanceInvestmentFirebase(investmentId: string) {
 	try {
+		const personId = auth.currentUser?.uid;
+		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		const [depositSnapshot, redemptionSnapshot, syncSnapshot] = await Promise.all([
-			getDocs(query(collection(db, 'expenses'), where('investmentId', '==', investmentId))),
-			getDocs(query(collection(db, 'gains'), where('investmentId', '==', investmentId))),
-			getDocs(query(collection(db, SYNC_COLLECTION), where('investmentId', '==', investmentId))),
+			getDocs(query(collection(db, 'expenses'), where('investmentId', '==', investmentId), where('personId', 'in', personIds))),
+			getDocs(query(collection(db, 'gains'), where('investmentId', '==', investmentId), where('personId', 'in', personIds))),
+			getDocs(query(collection(db, SYNC_COLLECTION), where('investmentId', '==', investmentId), where('personId', 'in', personIds))),
 		]);
 
 		const hasInvestmentDeposits = depositSnapshot.docs.some(
@@ -807,7 +812,7 @@ export type FinanceInvestmentPortfolioActivity = {
 	syncs: InvestmentSync[];
 };
 
-export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase(personId: string) {
+export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase(personId: string, startDate?: Date) {
 	try {
 		const relatedResult = await getRelatedUsersIDsFirebase(personId);
 		if (!relatedResult.success) {
@@ -824,10 +829,19 @@ export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase
 			),
 		);
 
+		const defaultStart = new Date();
+		defaultStart.setMonth(defaultStart.getMonth() - 6);
+		const from = startDate && !Number.isNaN(startDate.getTime()) ? startDate : defaultStart;
+		const datedQuery = (collectionName: string) => query(
+			collection(db, collectionName),
+			where('personId', 'in', allowedIds),
+			where('date', '>=', from),
+			orderBy('date', 'desc'),
+		);
 		const [syncSnapshot, expensesSnapshot, gainsSnapshot] = await Promise.all([
-			getDocs(query(collection(db, SYNC_COLLECTION), where('personId', 'in', allowedIds))),
-			getDocs(query(collection(db, 'expenses'), where('personId', 'in', allowedIds))),
-			getDocs(query(collection(db, 'gains'), where('personId', 'in', allowedIds))),
+			getDocs(datedQuery(SYNC_COLLECTION)),
+			getDocs(datedQuery('expenses')),
+			getDocs(datedQuery('gains')),
 		]);
 
 		const syncs = syncSnapshot.docs

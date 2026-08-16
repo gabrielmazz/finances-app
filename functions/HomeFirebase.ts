@@ -2,7 +2,7 @@ import { db } from '@/FirebaseConfig';
 import { getInvestmentCdiRatesByPersonIdsFirebase } from '@/functions/InvestmentCdiRateFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
-import { getLegacyBankBalanceInCentsFirebase } from '@/functions/BankFirebase';
+import { getLegacyBankBalancesInCentsFirebase } from '@/functions/BankFirebase';
 import {
 	getFinancialLedgerAccountsFirebase,
 	getFinancialLedgerContextFirebase,
@@ -701,26 +701,17 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.map(docSnap => docSnap.data() as HomeMovementDocument)
 		.filter(item => !item.isBankTransfer || item.bankTransferDirection !== 'incoming')
 		.map(item => ({ date: parseToDate(item.date ?? item.createdAt) }));
-	const legacyBalanceResults = await Promise.all(
-		context.banks.map(async bank => {
-			const result = await getLegacyBankBalanceInCentsFirebase({
-				personId: context.personId,
-				bankId: bank.id,
-				asOfDate: context.asOfDate,
-			});
-			if (!result.success) {
-				throw result.error;
-			}
-			return { bank, balanceInCents: result.data };
-		}),
-	);
+	const legacyBalancesResult = await getLegacyBankBalancesInCentsFirebase({
+		personId: context.personId,
+		bankIds: context.bankIds,
+		allowedPersonIds: context.allowedPersonIds,
+		asOfDate: context.asOfDate,
+	});
+	if (!legacyBalancesResult.success) throw legacyBalancesResult.error;
 
 	return {
-		bankBalances: legacyBalanceResults.map(({ bank, balanceInCents }) => ({
-			id: bank.id,
-			name: bank.name,
-			balanceInCents,
-			colorHex: bank.colorHex,
+		bankBalances: context.banks.map(bank => ({
+			id: bank.id, name: bank.name, balanceInCents: legacyBalancesResult.data[bank.id] ?? null, colorHex: bank.colorHex,
 		})),
 		cashSummary: {
 			id: 'cash-transactions',

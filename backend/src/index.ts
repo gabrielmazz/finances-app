@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import {
   FieldValue,
+  FieldPath,
   getFirestore,
   Timestamp,
   type DocumentData,
@@ -26,10 +27,11 @@ import {
   type LedgerTransactionKind,
 } from '../../utils/financialLedger';
 import {
-  createLegacyMigrationPlan,
+	createLegacyMigrationPlan,
   type MigrationIssue,
   type LegacyMigrationInput,
 } from '../../utils/financialLedgerMigration';
+import type { FinanceMonthlySummaryV1 } from '../../utils/financeReadModels';
 
 if (getApps().length === 0) initializeApp();
 
@@ -395,6 +397,7 @@ async function persistLedgerTransaction(
   }
 
   firestoreTransaction.set(ledgerRef, toStoredTransaction(ledgerTransaction));
+  writeLedgerMonthlySummary(firestoreTransaction, ledgerTransaction);
   updatedBalances.forEach((currentBalanceInCents, accountId) => {
     firestoreTransaction.update(db.doc('financialAccounts/' + accountId), {
       currentBalanceInCents,
@@ -424,6 +427,64 @@ async function persistLedgerTransaction(
 
 function newLedgerId(prefix: string, clientActionId: string): string {
   return prefix + '-' + clientActionId;
+}
+
+function monthKeyFor(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+/** Stored in the same transaction as the ledger command; duplicate commands do not double-count. */
+function writeLedgerMonthlySummary(transaction: FirestoreTransaction, ledgerTransaction: LedgerTransaction) {
+  const monthKey = monthKeyFor(ledgerTransaction.effectiveAt);
+  const bankDeltaInCents: Record<string, number> = {};
+  ledgerTransaction.legs.forEach(leg => {
+    if (leg.accountId) bankDeltaInCents[leg.accountId] = (bankDeltaInCents[leg.accountId] ?? 0) + leg.deltaInCents;
+  });
+  const increments = Object.fromEntries(Object.entries(bankDeltaInCents).map(([accountId, delta]) => [
+    `bankDeltaInCents.${accountId}`, FieldValue.increment(delta),
+  ]));
+  transaction.set(db.doc(`financeMonthlySummaries/${ledgerTransaction.groupId}-${monthKey}`), {
+    version: 1,
+    scopeType: 'group',
+    scopeId: ledgerTransaction.groupId,
+    groupId: ledgerTransaction.groupId,
+    monthKey,
+    transactionCount: FieldValue.increment(1),
+    ...increments,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
+async function rebuildLedgerSummaryForMonth(groupId: string, monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const start = Timestamp.fromDate(new Date(Date.UTC(year, month - 1, 1)));
+  const end = Timestamp.fromDate(new Date(Date.UTC(year, month, 1)));
+  const snapshot = await db.collection('ledgerTransactions')
+    .where('groupId', '==', groupId)
+    .where('effectiveAt', '>=', start)
+    .where('effectiveAt', '<', end)
+    .get();
+  const bankDeltaInCents: Record<string, number> = {};
+  snapshot.docs.forEach(document => {
+    const legs = Array.isArray(document.data().legs) ? document.data().legs : [];
+    legs.forEach((leg: unknown) => {
+      const item = leg as { accountId?: unknown; deltaInCents?: unknown };
+      if (typeof item.accountId === 'string' && typeof item.deltaInCents === 'number' && Number.isSafeInteger(item.deltaInCents)) {
+        bankDeltaInCents[item.accountId] = (bankDeltaInCents[item.accountId] ?? 0) + item.deltaInCents;
+      }
+    });
+  });
+  await db.doc(`financeMonthlySummaries/${groupId}-${monthKey}`).set({
+    version: 1,
+    scopeType: 'group',
+    scopeId: groupId,
+    groupId,
+    monthKey,
+    transactionCount: snapshot.size,
+    bankDeltaInCents,
+    updatedAt: FieldValue.serverTimestamp(),
+  } satisfies FinanceMonthlySummaryV1, { merge: false });
+  return snapshot.size;
 }
 
 function ledgerTransactionFromMovement(data: JsonRecord, actorId: string): LedgerTransaction {
@@ -904,6 +965,42 @@ function migrationItems(plan: ReturnType<typeof createLegacyMigrationPlan>, grou
   });
   return items;
 }
+
+/**
+ * Backfills one cursor page at a time. Group is always derived from the caller's
+ * user document; callers cannot rebuild another account's data.
+ */
+export const rebuildFinancialReadModels = onCall(async (request) => {
+  const actorId = callableUserId(request);
+  const data = asRecord(request.data ?? {});
+  const dryRun = data.dryRun === true;
+  const pageSize = Math.min(200, Math.max(1, typeof data.pageSize === 'number' ? Math.trunc(data.pageSize) : 100));
+  const cursor = typeof data.cursor === 'string' && data.cursor.length > 0 ? data.cursor : null;
+  const user = await db.doc(`users/${actorId}`).get();
+  const groupId = typeof user.data()?.financialGroupId === 'string' ? user.data()!.financialGroupId : null;
+  if (!groupId) throw new HttpsError('failed-precondition', 'No financial group is configured for this account.');
+  const group = await db.doc(`financialGroups/${groupId}`).get();
+  if (group.data()?.members?.[actorId] !== 'admin') throw new HttpsError('permission-denied', 'Only group administrators can rebuild read models.');
+  let sourceQuery = db.collection('ledgerTransactions').where('groupId', '==', groupId).orderBy(FieldPath.documentId()).limit(pageSize);
+  if (cursor) sourceQuery = sourceQuery.startAfter(cursor);
+  const source = await sourceQuery.get();
+  const monthKeys = Array.from(new Set(source.docs.map(document => {
+    const date = timestampToDate(document.data().effectiveAt);
+    return Number.isNaN(date.valueOf()) ? null : monthKeyFor(date);
+  }).filter((value): value is string => value !== null)));
+  let rebuiltTransactionCount = 0;
+  if (!dryRun) {
+    for (const monthKey of monthKeys) rebuiltTransactionCount += await rebuildLedgerSummaryForMonth(groupId, monthKey);
+  }
+  return {
+    groupId,
+    dryRun,
+    scannedDocuments: source.size,
+    rebuiltMonths: monthKeys,
+    rebuiltTransactionCount,
+    nextCursor: source.size === pageSize ? source.docs[source.docs.length - 1].id : null,
+  };
+});
 
 export const migrateFinancialGroup = onCall(async (request) => {
   const actorId = callableUserId(request);

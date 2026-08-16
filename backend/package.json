@@ -10,7 +10,8 @@
     "serve": "npm run build && npx -y firebase-tools@latest emulators:start --config ../firebase.json --only functions,firestore",
     "test:rules": "tsx tests/firestore.rules.test.ts",
     "test:functions": "tsx tests/functions.emulator.test.ts",
-    "test:emulator": "npm run build && npx -y firebase-tools@latest emulators:exec --project lumus-financial-rules-test --config ../firebase.json --only auth,functions,firestore \"npm run test:rules && npm run test:functions\""
+    "seed": "tsx scripts/seed.ts",
+    "test:emulator": "npm run build && npx -y firebase-tools@latest emulators:exec --project demo-lumus-financas --config ../firebase.json --only auth,functions,firestore \"npm run test:rules && npm run test:functions\""
   },
   "dependencies": {
     "firebase-admin": "^13.0.1",

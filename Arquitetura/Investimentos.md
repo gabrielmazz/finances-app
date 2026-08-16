@@ -109,6 +109,8 @@ O gráfico é explicitamente estimado. A sincronização manual continua sendo o
 
 ## Observações importantes
 
+- Ao verificar referências de aportes, resgates e sincronizações, as consultas incluem o `personId` do usuário autenticado ou relacionado junto ao `investmentId`, mantendo a leitura compatível com as Firestore Rules e os índices versionados.
+
 - CDI anual de referência não é uma cotação oficial em tempo real. O usuário informa a taxa e a vigência conforme sua fonte de confiança.
 - O cálculo é para acompanhamento. Impostos, IOF, feriados bancários, marcação a mercado, índices de preço e eventos corporativos não são simulados.
 - A arquitetura futura não deve reutilizar o cálculo CDI para Tesouro, ações ou fundos. Cada `valuationMethod` precisa de uma fonte e regras próprias antes de ser habilitado na criação.

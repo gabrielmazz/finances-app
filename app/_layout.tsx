@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { FinanceDataProvider } from '@/contexts/FinanceDataContext';
 import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
 import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { bootstrapLocalNotifications } from '@/utils/localNotifications';
@@ -136,8 +137,10 @@ const LayoutWithTheme = () => {
 				<NotifierBoundary>
 					<WebNotifierAlertHost />
 					<AuthProvider>
-						<NotificationLifecycleBridge />
-						<AuthenticatedStack />
+						<FinanceDataProvider>
+							<NotificationLifecycleBridge />
+							<AuthenticatedStack />
+						</FinanceDataProvider>
 					</AuthProvider>
 				</NotifierBoundary>
 			</GluestackUIProvider>

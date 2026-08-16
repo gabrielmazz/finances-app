@@ -74,12 +74,13 @@ const chunkPersonIds = (personIds: string[]) =>
 		personIds.slice(index * FIRESTORE_IN_QUERY_LIMIT, (index + 1) * FIRESTORE_IN_QUERY_LIMIT),
 	);
 
-const getCollectionDocumentsForPeople = async (collectionName: string, personIds: string[]) => {
+const getCollectionDocumentsForPeople = async (collectionName: string, personIds: string[], dateRange?: { start: Date; end: Date }) => {
 	const chunks = chunkPersonIds(personIds);
 	const snapshots = await Promise.all(
-		chunks.map(personIdChunk =>
-			getDocs(query(collection(db, collectionName), where('personId', 'in', personIdChunk))),
-		),
+		chunks.map(personIdChunk => {
+			const constraints = [where('personId', 'in', personIdChunk), ...(dateRange ? [where('date', '>=', dateRange.start), where('date', '<=', dateRange.end)] : [])];
+			return getDocs(query(collection(db, collectionName), ...constraints));
+		}),
 	);
 
 	return snapshots.flatMap(snapshot =>
@@ -314,6 +315,10 @@ export const getFinancialForecastFirebase = async (
 		}
 
 		const allowedPersonIds = await getAllowedPersonIds(personId);
+		const asOfDate = new Date();
+		const historyStart = new Date(asOfDate.getFullYear(), asOfDate.getMonth() - 3, 1);
+		const horizonEnd = new Date(asOfDate.getFullYear(), asOfDate.getMonth() + periodInMonths + 1, 0, 23, 59, 59, 999);
+		const movementRange = { start: historyStart, end: horizonEnd };
 		const [
 			bankDocuments,
 			monthlyBalanceDocuments,
@@ -327,9 +332,9 @@ export const getFinancialForecastFirebase = async (
 		] = await Promise.all([
 			getCollectionDocumentsForPeople('banks', allowedPersonIds),
 			getCollectionDocumentsForPeople('monthlyBalances', allowedPersonIds),
-			getCollectionDocumentsForPeople('expenses', allowedPersonIds),
-			getCollectionDocumentsForPeople('gains', allowedPersonIds),
-			getCollectionDocumentsForPeople('cashRescues', allowedPersonIds),
+			getCollectionDocumentsForPeople('expenses', allowedPersonIds, movementRange),
+			getCollectionDocumentsForPeople('gains', allowedPersonIds, movementRange),
+			getCollectionDocumentsForPeople('cashRescues', allowedPersonIds, movementRange),
 			getCollectionDocumentsForPeople('mandatoryExpenses', allowedPersonIds),
 			getCollectionDocumentsForPeople('mandatoryGains', allowedPersonIds),
 			getCollectionDocumentsForPeople('financeInvestments', allowedPersonIds),
@@ -374,7 +379,6 @@ export const getFinancialForecastFirebase = async (
 		const cashRescues = cashRescueDocuments
 			.map(normalizeCashRescue)
 			.filter((rescue): rescue is FinancialForecastCashRescue => Boolean(rescue));
-		const asOfDate = new Date();
 		const opening = calculateFinancialForecastOpeningBalance({
 			asOfDate,
 			banks: buildBankSnapshots({ bankDocuments, monthlyBalanceDocuments, asOfDate }),

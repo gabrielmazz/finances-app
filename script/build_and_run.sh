@@ -58,18 +58,43 @@ run_doctor() {
 
 resolve_expo_cmd
 
+start_local_emulators() {
+  local emulator_log
+  emulator_log="${TMPDIR:-/tmp}/lumus-firebase-emulators.log"
+  npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions >"$emulator_log" 2>&1 &
+  EMULATOR_PID=$!
+  trap 'kill "$EMULATOR_PID" 2>/dev/null || true' EXIT INT TERM
+  for _ in {1..45}; do
+    if curl --fail --silent http://127.0.0.1:4400/emulators >/dev/null 2>&1; then
+      FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-lumus-financas npm --prefix backend run seed
+      if command -v adb >/dev/null 2>&1; then
+        adb reverse tcp:9099 tcp:9099 || true
+        adb reverse tcp:8080 tcp:8080 || true
+        adb reverse tcp:5001 tcp:5001 || true
+      fi
+      return
+    fi
+    sleep 1
+  done
+  cat "$emulator_log" >&2
+  exit 1
+}
+
 case "$MODE" in
   start|run)
-    exec "${EXPO_CMD[@]}" start
+    start_local_emulators
+    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1 "${EXPO_CMD[@]}" start
     ;;
   --ios|ios)
     exec "${EXPO_CMD[@]}" start --ios
     ;;
   --android|android)
-    exec "${EXPO_CMD[@]}" start --android
+    start_local_emulators
+    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1 "${EXPO_CMD[@]}" start --android
     ;;
   --web|web)
-    exec "${EXPO_CMD[@]}" start --web
+    start_local_emulators
+    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1 "${EXPO_CMD[@]}" start --web
     ;;
   --dev-client|dev-client)
     exec "${EXPO_CMD[@]}" start --dev-client

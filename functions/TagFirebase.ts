@@ -1,7 +1,7 @@
 // O arquivo TagFirebase.ts é responsável por gerenciar as operações relacionadas às tags
 // registradas para uso no aplicativo.
 
-import { db } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
 import {
 	collection,
 	deleteDoc,
@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { createTagReferenceSummary } from '@/utils/categoryReferenceSummary';
+import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import type { TagUsageType } from '@/utils/tagUsage';
 
 interface AddTagParams {
@@ -167,13 +168,19 @@ export async function deleteTagFirebase(tagId: string) {
 
 export async function getTagReferenceSummary(tagId: string) {
 	try {
+		const personId = auth.currentUser?.uid;
+		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
 		const collections = ['expenses', 'gains', 'mandatoryExpenses', 'mandatoryGains'] as const;
 		const counts = await Promise.all(
 			collections.map(async collectionName => {
-				const result = await getCountFromServer(
-					query(collection(db, collectionName), where('tagId', '==', tagId)),
-				);
-				return result.data().count;
+				const chunks = Array.from({ length: Math.ceil(personIds.length / 30) }, (_, index) => personIds.slice(index * 30, index * 30 + 30));
+				const results = await Promise.all(chunks.map(personIdChunk => getCountFromServer(
+					query(collection(db, collectionName), where('tagId', '==', tagId), where('personId', 'in', personIdChunk)),
+				)));
+				return results.reduce((total, result) => total + result.data().count, 0);
 			}),
 		);
 
@@ -197,15 +204,40 @@ export async function getTagReferenceSummary(tagId: string) {
 // Função para obter todas as tags registradas no Firestore
 export async function getAllTagsFirebase() {
 	try {
-		const tagsSnapshot = await getDocs(collection(db, 'tags'));
-		const tags = tagsSnapshot.docs.map(tagDoc => ({
-			id: tagDoc.id,
-			...tagDoc.data(),
-		}));
+		const personId = auth.currentUser?.uid;
+		if (!personId) {
+			return { success: false, error: 'Usuário não autenticado.' };
+		}
+
+		// Firestore Rules are not filters: use the same user/relationship scope
+		// as the tag rule before reading resource.data.personId.
+		const scopedResult = await getTagsWithUsersByPersonFirebase(personId);
+		if (!scopedResult.success || !Array.isArray(scopedResult.data)) {
+			return scopedResult;
+		}
+		const tags = scopedResult.data;
 
 		return { success: true, data: tags };
 	} catch (error) {
 		console.error('Erro ao obter todas as tags:', error);
+		return { success: false, error };
+	}
+}
+
+/** Scoped reference-data query. Use this in authenticated screens instead of a collection scan. */
+export async function getTagsWithUsersByPersonFirebase(personId: string) {
+	try {
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) return related;
+		const personIds = Array.from(new Set([personId, ...related.data]));
+		const snapshots = await Promise.all(
+			Array.from({ length: Math.ceil(personIds.length / 30) }, (_, index) =>
+				getDocs(query(collection(db, 'tags'), where('personId', 'in', personIds.slice(index * 30, index * 30 + 30)))),
+			),
+		);
+		return { success: true, data: snapshots.flatMap(snapshot => snapshot.docs.map(tagDoc => ({ id: tagDoc.id, ...tagDoc.data() }))) };
+	} catch (error) {
+		console.error('Erro ao obter categorias do grupo:', error);
 		return { success: false, error };
 	}
 }

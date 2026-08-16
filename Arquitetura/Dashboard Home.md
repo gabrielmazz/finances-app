@@ -33,7 +33,7 @@ graph TD
    - **movements** — timeline de movimentos recentes (despesas e receitas)
    - **investments** — portfólio com valores atuais calculados pela taxa CDI por vigência
 2. Cada seção tem seu próprio `loading` e `error`, permitindo carregamento parcial
-3. O hook usa `useFocusEffect` — dados recarregam a cada vez que a Home recebe foco — e expõe `reload()` para recarregamento manual por pull-to-refresh
+3. O hook usa cache compartilhado TanStack Query por UID com TTL de 10 minutos. Retornar à Home não consulta o Firebase dentro da janela; `reload()` é a recarga manual por pull-to-refresh.
 4. A implementação Android/iOS renderiza:
    - Carrossel de cartões bancários (`bank-card-surface.tsx`) com gradiente por cor do banco
    - Gráfico de pizza de distribuição de gastos por tag
@@ -46,7 +46,7 @@ graph TD
 9. A Home Web exibe um `Sparkline` compacto ao lado de cada total mensal. O card de ganhos usa os totais dos três últimos meses de entradas; o card de gastos usa os totais dos três últimos meses de saídas. O gráfico detalhado `Gastos por dia` permanece abaixo em um Expo DOM separado, com uma série por mês. O snapshot consulta o caminho do razão financeiro pós-corte ou as coleções legadas conforme o grupo, mantendo centavos/exclusões e substituindo as curvas compactas por uma linha neutra quando a privacidade está ativa.
 10. A Home Web também exibe `Atividade no ano`: um `Heatmap` Mantine do primeiro ao último dia do ano atual. Cada quadrado conta lançamentos financeiros confirmados naquele dia; no legado, a perna de entrada de uma transferência é ignorada para que uma transferência conte uma vez. No razão financeiro, cada `ledgerTransaction` é uma única ação.
 11. Acima de `Últimas Movimentações`, a Home Web exibe `Próximos compromissos` em duas colunas. Cada coluna mostra até três gastos e ganhos obrigatórios pendentes, priorizando o próximo ciclo não concluído, respeitando dia útil/feriado, parcelas ativas e privacidade de valores. O agregado usa a mesma leitura compartilhada da Home para grupos legados e migrados.
-12. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens.
+12. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens. Os saldos legados são consultados em lote com o último snapshot por banco e movimentos posteriores ao corte, sem reler todo o histórico para cada card.
 
 ## Container de Abas
 
