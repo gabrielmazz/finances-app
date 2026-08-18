@@ -57,6 +57,14 @@
       ]
     },
     {
+      "collectionGroup": "financeInvestments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "personId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "monthlyBalances",
       "queryScope": "COLLECTION",
       "fields": [

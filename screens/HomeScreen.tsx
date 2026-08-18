@@ -652,6 +652,8 @@ export default function HomeScreen() {
 	);
 
 	const investmentCountLabel = investmentPortfolio.investmentCount === 1 ? 'investimento' : 'investimentos';
+	const shouldShowInvestmentSection =
+		investments.loading || Boolean(investments.error) || investmentPortfolio.investmentCount > 0;
 	const investmentDistributionItems = React.useMemo(
 		() =>
 			[...investmentPortfolio.items]
@@ -1410,6 +1412,7 @@ export default function HomeScreen() {
 								)}
 							</View>
 
+								{shouldShowInvestmentSection ? (
 								<View
 									className="mb-6"
 									style={isDesktopWeb ? { flex: 1, minWidth: 0, marginTop: 16 } : undefined}
@@ -1458,9 +1461,11 @@ export default function HomeScreen() {
 									</HStack>
 								</VStack>
 
-								<View style={{ marginTop: 8 }}>
-									{investments.error ? (
-										<Text style={{ color: investmentPalette.subtitle }}>{investments.error}</Text>
+									<View style={{ marginTop: 8 }}>
+										{investments.error ? (
+											<Text accessibilityRole="alert" style={{ color: investmentPalette.subtitle }}>
+												{investments.error}
+											</Text>
 					) : investments.loading && investmentPortfolio.investmentCount === 0 ? (
 						<HomeInvestmentSkeleton
 							investmentChartContainerWidth={investmentChartContainerWidth}
@@ -1701,6 +1706,7 @@ export default function HomeScreen() {
 									)}
 									</View>
 								</View>
+								) : null}
 							</View>
 
 							<View className="mb-6">

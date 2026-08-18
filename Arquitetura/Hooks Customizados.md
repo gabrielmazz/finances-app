@@ -3,12 +3,14 @@ tags: [hooks, react, estilo, dados, home, tags, icones]
 relacionado: [[Dashboard Home]], [[Sistema de Temas]], [[Componentes UI]], [[Gerenciamento de Tags]]
 status: ativo
 tipo: componente
-versao: 1.5.0
+versao: 1.5.1
 ---
 
 # Hooks Customizados
 
 Hooks React personalizados do projeto. Existem hooks centrais para fetching de dados da home, centralização de estilos, resolução de ícones de tags e comportamento de teclado em formulários.
+
+As classes estruturais das composições Web ficam no `useScreenStyle.ts`: `WEB_DASHBOARD_CLASS_NAMES` atende a Home e `WEB_EXPENSE_CLASS_NAMES` atende o formulário Web de despesas. As telas apenas consomem os mapas retornados por `useScreenStyles()`.
 
 ---
 
@@ -95,6 +97,8 @@ Retorna constantes de estilo centralizadas que se adaptam ao modo dark/light. El
 | `infoCardStyle` | `ViewStyle` | Estilo memoizado para info cards |
 | `insets` | `Insets` | Safe area insets |
 | `webDashboardPalette` | `object` | Tokens de superfície, borda, texto e acento para o dashboard Web, adaptados ao tema |
+| `webDashboardClassNames` | `object` | Classes Tailwind estruturais compartilhadas pela `HomeScreen.web.tsx` |
+| `WEB_DASHBOARD_DOM_STYLES` | `object` | Dimensões fixas serializadas para os componentes Expo DOM dos gráficos da Home Web |
 
 ### Estilos de Tabelas Administrativas
 
@@ -252,6 +256,8 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 - O foco amarelo (`#FFE000` / `yellow-300`) é o padrão visual principal do sistema para estados ativos
 - Estados visuais de checkbox selecionado expõem `style` e classes juntos para garantir amarelo acima do estilo base do Gluestack
 - Quando uma tela repetir estruturas de tabela, paginação ou larguras utilitárias, a preferência é promover as classes para `useScreenStyles` em vez de duplicá-las
+- A Home Web mantém sua geometria fixa em `WEB_DASHBOARD_CLASS_NAMES` e as dimensões dos gráficos DOM em `WEB_DASHBOARD_DOM_STYLES`; `style` na tela fica reservado a valores calculados em runtime.
+- `WEB_DASHBOARD_CLASS_NAMES.screen`, `.fill` e `.hero` usam `w-screen` para representar `100vw` sem violar `StyleProp<ViewStyle>`; mantenha a largura de viewport nesse mapa compartilhado ao ajustar Home ou o cadastro Web de despesas.
 - `useHomeScreenData` centraliza o fetching para evitar lógica complexa dentro de `HomeScreen.tsx`
 - `useHomeScreenData` usa `useFocusEffect`, não `useEffect` — dados são recarregados a cada foco
 - Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais para estado

@@ -23,6 +23,7 @@ export type BankCardPalette = {
 type BankCardSurfaceProps = {
 	palette: BankCardPalette;
 	children: React.ReactNode;
+	className?: string;
 	style?: StyleProp<ViewStyle>;
 	contentContainerStyle?: StyleProp<ViewStyle>;
 };
@@ -190,10 +191,12 @@ const BankCardPattern = React.memo(({ palette }: { palette: BankCardPalette }) =
 export const BankCardSurface = ({
 	palette,
 	children,
+	className,
 	style,
 	contentContainerStyle,
 }: BankCardSurfaceProps) => (
 	<View
+		className={className}
 		style={[
 			styles.card,
 			{

@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '@/contexts/ThemeContext';
+import WebRouteTransition from '@/components/uiverse/web-route-transition';
 type WebAppShellProps = React.PropsWithChildren<{
 	isAuthenticated: boolean;
 }>;
@@ -24,6 +25,7 @@ export default function WebAppShell({ children, isAuthenticated }: WebAppShellPr
 			<View style={styles.workspace}>
 				<View style={styles.content}>{children}</View>
 			</View>
+			{usesWorkspaceBackground ? <WebRouteTransition /> : null}
 		</View>
 	);
 }

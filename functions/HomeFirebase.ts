@@ -216,6 +216,45 @@ export const createEmptyInvestmentPortfolio = (): HomeInvestmentPortfolio => ({
 	investmentCount: 0,
 });
 
+const buildLedgerInvestmentPortfolio = (accounts: FinancialLedgerAccount[]): HomeInvestmentPortfolio => {
+	// Grupos migrados não podem reler financeInvestments; a Home usa o saldo confirmado do razão.
+	const portfolioItems = accounts
+		.filter(account => account.kind === 'investment')
+		.map<HomeInvestmentItem>(account => ({
+			id: account.id,
+			name: account.name,
+			bankId: null,
+			bankNameSnapshot: null,
+			initialValueInCents: account.currentBalanceInCents,
+			currentBaseValueInCents: account.currentBalanceInCents,
+			simulatedValueInCents: account.currentBalanceInCents,
+			estimatedGainInCents: 0,
+			cdiPercentage: 0,
+			lastManualSyncValueInCents: null,
+			lastManualSyncAt: null,
+			createdAt: null,
+		}))
+		.sort((left, right) => right.currentBaseValueInCents - left.currentBaseValueInCents);
+
+	return {
+		items: portfolioItems,
+		totalCurrentBaseInCents: portfolioItems.reduce(
+			(accumulator, investment) => accumulator + investment.currentBaseValueInCents,
+			0,
+		),
+		totalInitialInCents: portfolioItems.reduce(
+			(accumulator, investment) => accumulator + investment.initialValueInCents,
+			0,
+		),
+		totalSimulatedInCents: portfolioItems.reduce(
+			(accumulator, investment) => accumulator + investment.simulatedValueInCents,
+			0,
+		),
+		totalEstimatedGainInCents: 0,
+		investmentCount: portfolioItems.length,
+	};
+};
+
 const normalizeTransferDirection = (value: unknown): 'incoming' | 'outgoing' | null => {
 	if (value === 'incoming' || value === 'outgoing') {
 		return value;
@@ -936,7 +975,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 
 const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeInvestmentsData> => {
 	if (context.financialLedgerAccounts) {
-		return { portfolio: createEmptyInvestmentPortfolio() };
+		return { portfolio: buildLedgerInvestmentPortfolio(context.financialLedgerAccounts) };
 	}
 	const investmentsQuery = query(
 		collection(db, 'financeInvestments'),

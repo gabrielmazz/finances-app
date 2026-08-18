@@ -59,6 +59,16 @@ interface TransferBetweenBanksParams {
     targetBankNameSnapshot?: string | null;
 }
 
+type BankStatusRecord = {
+    id: string;
+    name: string;
+    personId: string;
+    colorHex?: string | null;
+    iconKey?: string | null;
+    isActive?: boolean;
+    [key: string]: unknown;
+};
+
 
 // =========================================== Funções de Registro ================================================== //
 
@@ -449,7 +459,9 @@ export async function getAllBanksFirebase(includeInactive = false) {
             return scopedResult;
         }
 
-        const banks = scopedResult.data.filter(bank => includeInactive || bank.isActive !== false);
+        const banks = (scopedResult.data as BankStatusRecord[]).filter(
+            bank => includeInactive || bank.isActive !== false,
+        );
 
         return { success: true, data: banks };
 
@@ -498,10 +510,12 @@ export async function getBanksByPersonFirebase(personId: string) {
         );
 
         const banksSnapshot = await getDocs(banksQuery);
-        const banks = banksSnapshot.docs.map(bankDoc => ({
-            id: bankDoc.id,
-            ...bankDoc.data(),
-        })).filter(bank => bank.isActive !== false);
+        const banks = banksSnapshot.docs
+            .map(bankDoc => ({
+                id: bankDoc.id,
+                ...bankDoc.data(),
+            }) as BankStatusRecord)
+            .filter(bank => bank.isActive !== false);
 
         return { success: true, data: banks };
 
@@ -540,10 +554,12 @@ export async function getBanksWithUsersByPersonFirebase(personId: string) {
         );
 
         const banksSnapshot = await getDocs(banksQuery);
-        const banks = banksSnapshot.docs.map(bankDoc => ({
-            id: bankDoc.id,
-            ...bankDoc.data(),
-        })).filter(bank => bank.isActive !== false);
+        const banks = banksSnapshot.docs
+            .map(bankDoc => ({
+                id: bankDoc.id,
+                ...bankDoc.data(),
+            }) as BankStatusRecord)
+            .filter(bank => bank.isActive !== false);
 
         return { success: true, data: banks };
 

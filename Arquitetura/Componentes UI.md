@@ -3,7 +3,7 @@ tags: [componentes, ui, gluestack, nativewind, design-system, web, responsivo]
 relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]]
 status: ativo
 tipo: componente
-versao: 2.1.0
+versao: 2.1.2
 ---
 
 # Componentes UI
@@ -54,10 +54,11 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 |---|---|
 | `navigator.tsx` / `.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. As duas variantes compartilham grupos, atalhos contextuais, rotas de `utils/navigation.ts`, rótulos dinâmicos e logout seguro |
 | `web-app-shell.tsx` | Mantém o workspace autenticado no navegador sem alterar a hierarquia de rotas; não reserva uma coluna fixa enquanto o menu deslizante está fechado |
-| `web/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: um único painel desktop navy/amarelo, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo e variante de movimento reduzido |
+| `web-route-transition.web.tsx` | Feedback Web-only de troca de pathname com `motion/react`, renderizado em portal no `document.body`; revela a nova página com opacidade e `scaleX`, não captura ponteiros e respeita `prefers-reduced-motion` |
+| `web/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: um único painel desktop navy/amarelo, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo, posicionamento explícito conforme `position` e variante de movimento reduzido |
 | `web/AnimatedContent.jsx` | Wrapper React DOM baseado em GSAP/ScrollTrigger para revelar e ocultar conteúdo Web com deslocamento, opacidade e escala configuráveis; aceita `trigger="mount"`, `visible` e respeita movimento reduzido |
 | `web/StrokeText.jsx` / `.css` | Texto SVG desenhado por GSAP na montagem; usado no título do hero da Home Web para criar o efeito de entrada |
-| `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero e painéis expandidos |
+| `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
 | `screens/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
 | `bank-card-surface.tsx` | Cartão de banco com gradiente linear baseado na cor do banco |
@@ -111,6 +112,7 @@ graph LR
 - `components/uiverse/` — Componentes customizados do domínio
 - `components/uiverse/home-expense-chart.tsx` — Sparkline Mantine Web em Expo DOM para as tendências compactas dos cards de resumo da Home
 - `components/uiverse/web-app-shell.tsx` — Casca responsiva usada pelo layout autenticado no Web
+- `components/uiverse/web-route-transition.web.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
 - `components/ui/gluestack-ui-provider/index.tsx` — Configuração do provider de tema
 
 ## Integrações
@@ -140,6 +142,7 @@ graph LR
 - `nativewind@4.2.1`, `tailwindcss@3.4.18`, `@gluestack-ui/core@3.0.12`, `@gluestack-ui/utils@3.0.12`, `@react-stately/color@3.9.2` e `@react-stately/utils@3.10.8` ficam em versões exatas para conservar o toolchain já compatível com Expo 54
 - `annotation-markdown-editor.tsx` inicia com `'use dom'`, recebe dados serializáveis e usa um callback assíncrono para devolver Markdown à tela nativa. Ele usa o runtime `react-native-webview` já mantido pelos gráficos Expo DOM; não adicionar `react-native-enriched-markdown`, Tiptap ou um plugin próprio de editor rico.
 - Os componentes gerados usam `cssInterop()` do NativeWind 4. O patch de `react-native-css-interop@0.2.1` remove somente o mapeamento legado de `SafeAreaView` retirado do React Native 0.81 e é reaplicado no `postinstall`.
+- `nativewind-env.d.ts` complementa os tipos dos submódulos concretos do React Native 0.81 para que `className` continue tipado em telas Web que usam `View`, `Text`, `Image`, `ScrollView` e `KeyboardAvoidingView` diretamente. Assets SVG/PNG/JPG são referenciados pela mesma entrada global.
 - `@mantine/core`, `@mantine/hooks`, `@mantine/charts` e `recharts` — Dependências do gráfico web isolado
 - `home-expense-chart.tsx` recebe séries e agregados serializáveis; não deve importar Firebase nem buscar dados dentro do Expo DOM
 - `react-native-webview` — Runtime nativo do Expo DOM Component; mudanças nessa dependência exigem nova build instalada
@@ -170,9 +173,10 @@ graph LR
 - As preferências de [[Assistente Lumus]] são abertas pelo `drawer/` à direita, em vez de ocupar o histórico do chat. Use o `switch/` padrão com `switchTrackColor`, `switchThumbColor` e `switchIosBackgroundColor` de `useScreenStyles()` para toggles desse fluxo; o `popover/` concentra explicações auxiliares sem manter texto extra no card.
 - Os exemplos rápidos de [[Assistente Lumus]] são exibidos no `modal/`, acionado pelo botão de lâmpada no cabeçalho do chat. O estado vazio não deve repetir esses cards; a escolha fecha o modal e reutiliza o envio normal do compositor.
 - `navigator.tsx` e `.web.tsx` não devem importar `router` diretamente; novas opções de menu devem chamar os helpers centralizados de [[Navegação]]
-- `bank-card-surface.tsx` mistura a cor do banco com branco/preto para criar gradiente — cores muito claras ou escuras podem ter contraste ruim
-- `web/Grainient.jsx` é Web-only e deve ser montado somente quando o painel que o contém estiver visível; o conteúdo textual fica acima do canvas para preservar a leitura. Nos detalhes da timeline, o wrapper Web ocupa toda a largura disponível, o container/canvas usa `inset: 0` e o recorte arredondado contém o canvas nos quatro cantos.
+- `bank-card-surface.tsx` mistura a cor do banco com branco/preto para criar gradiente — cores muito claras ou escuras podem ter contraste ruim; a raiz aceita `className` para que a Home Web aplique layout Tailwind sem duplicar `StyleSheet` na tela
+- `web/Grainient.jsx` é Web-only e deve ser montado somente quando o painel que o contém estiver visível; o conteúdo textual fica acima do canvas para preservar a leitura. Nos detalhes da timeline, o wrapper Web ocupa toda a largura disponível, o container/canvas usa `inset: 0` e o recorte arredondado contém o canvas nos quatro cantos. O componente mantém um gradiente CSS sob o canvas para que a identidade visual não desapareça quando WebGL2 não estiver disponível; os shaders GLSL ES 3.00 não devem ser executados em WebGL1.
 - `web/AnimatedContent.jsx` é Web-only; além do disparo por `ScrollTrigger`, aceita `trigger="mount"` para entradas imediatas, `visible` para executar a saída antes do unmount e `disappearScale` para usos que precisam controlar o recorte durante o fechamento. Na timeline da Home, o wrapper recebe a chave do movimento, reinicia a abertura quando o detalhe é expandido, não escala a superfície do card e remove o card somente após a animação de fechamento.
+- `web-route-transition.web.tsx` é Web-only e reage apenas a mudanças de pathname autenticado; não deve controlar navegação, alterar o Stack ou capturar foco/interações. Mantenha a animação limitada a opacidade e transformações e preserve a saída imediata para `prefers-reduced-motion`.
 - Variantes `.web.tsx` existem apenas para incompatibilidades específicas de plataforma
 - Novos fluxos devem usar apenas `components/uiverse/navigator.tsx` e sua resolução `.web.tsx` como navegação do domínio: barra inferior em Android/iOS e rail/painel `StaggeredMenu` em Web desktop. Não duplicar os dois formatos na mesma viewport.
 - O breakpoint da casca Web é `1024px`. Em desktop, itens do painel devem manter foco visível, estado selecionado e área clicável de pelo menos 44px; em telas menores, a experiência mobile existente prevalece.
@@ -187,6 +191,8 @@ graph LR
 - `tag-actionsheet-selector.tsx` respeita `isDisabled` como bloqueio total de abertura do ActionSheet; a ação de criação interna não deve contornar as regras de liberação calculadas pela tela
 - Filtros de categoria em telas administrativas, como [[Configurações]], também devem reutilizar `tag-actionsheet-selector.tsx` quando abrirem uma lista de opções de categoria/tipo
 - `bank-actionsheet-selector.tsx` deve ser usado em fluxos de criação/edição operacional que selecionam banco, usando `iconKey`/`colorHex` quando existirem e fallback por iniciais quando o banco ainda não tem ícone configurado; seu trigger deve usar `fieldBankContainerClassName` para comportar ícone, nome e texto auxiliar sem comprimir o layout
+- No Web, `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` devem manter trigger, conteúdo e lista em largura total da superfície disponível; o ActionSheet não deve encolher ao tamanho intrínseco dos itens. Essa adaptação é exclusiva da apresentação Web e preserva o comportamento nativo.
+- `RadioGroup` mantém apenas o espaçamento base; cada tela deve definir o limite do próprio contêiner. Na composição Web de despesas, o grupo usa `w-full max-w-[1120px] self-center` para acompanhar a largura útil da superfície principal sem ocupar a viewport inteira.
 - Inputs editáveis em telas roláveis devem usar `useKeyboardAwareScroll()` de [[Hooks Customizados]] para permanecerem acima do teclado; inputs em modais/action sheets devem ficar dentro de `KeyboardAvoidingView` com área rolável própria quando houver risco de cobertura.
 - Modais operacionais usam `ModalContent` com limite de `max-w-[360px]`; telas com vários diálogos, como [[Investimentos]], devem preservar esse limite para não criar variantes visuais de largura.
 - Um arquivo Expo DOM deve iniciar com `'use dom'`, expor apenas o componente default e receber somente props serializáveis. Os gráficos permanecem nessa fronteira; o alerta Mantine é uma exceção Web-only renderizada por portal porque precisa compartilhar a árvore React Native com o disparo global. Telas nativas não importam Mantine.

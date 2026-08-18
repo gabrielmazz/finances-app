@@ -447,7 +447,12 @@ export const StaggeredMenu = ({
       data-open={open || undefined}
       data-collapsed-rail={collapsedRail || undefined}
     >
-      <div ref={preLayersRef} className="sm-prelayers" aria-hidden="true">
+      <div
+        ref={preLayersRef}
+        className="sm-prelayers"
+        aria-hidden="true"
+        style={position === 'left' ? { left: 0, right: 'auto' } : { left: 'auto', right: 0 }}
+      >
         {(() => {
           const raw = colors && colors.length ? colors.slice(0, 4) : ['#1e1e22', '#35353c'];
           let arr = [...raw];
@@ -484,7 +489,13 @@ export const StaggeredMenu = ({
         </button>
       </header>
 
-      <aside id="staggered-menu-panel" ref={panelRef} className="staggered-menu-panel" aria-hidden={!open && !collapsedRail}>
+      <aside
+        id="staggered-menu-panel"
+        ref={panelRef}
+        className="staggered-menu-panel"
+        aria-hidden={!open && !collapsedRail}
+        style={position === 'left' ? { left: 0, right: 'auto' } : { left: 'auto', right: 0 }}
+      >
         <div className="sm-panel-inner">
           <ul className="sm-panel-list" role="list" data-numbering={displayItemNumbering || undefined}>
             {items && items.length ? (

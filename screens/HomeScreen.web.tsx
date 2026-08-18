@@ -17,9 +17,7 @@ import {
 	Pressable,
 	RefreshControl,
 	ScrollView,
-	StyleSheet,
 	Text,
-	type ViewStyle,
 	useWindowDimensions,
 	View,
 } from "react-native";
@@ -71,7 +69,11 @@ import {
 } from "@/functions/HomeFirebase";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
-import { useScreenStyles } from "@/hooks/useScreenStyle";
+import {
+	useScreenStyles,
+	WEB_DASHBOARD_CLASS_NAMES,
+	WEB_DASHBOARD_DOM_STYLES,
+} from "@/hooks/useScreenStyle";
 import { getUserDataFirebase } from "@/functions/RegisterUserFirebase";
 import { APP_ROUTE_PATHS, navigateToRoute } from "@/utils/navigation";
 import LoginWallpaper from "../assets/Background/wallpaper01.png";
@@ -87,6 +89,8 @@ type WebDashboardPalette = {
 	secondaryText: string;
 	surfaceMuted: string;
 };
+
+const webStyles = WEB_DASHBOARD_CLASS_NAMES;
 
 const INVESTMENT_COLORS = [
 	"#FACC15",
@@ -155,50 +159,74 @@ const MandatoryScheduleColumn = ({
 
 	return (
 		<View
-			style={[
-				styles.mandatoryColumn,
-				{ backgroundColor: palette.surfaceMuted, borderColor: palette.border },
-			]}
+			className={webStyles.mandatoryColumn}
+			style={{ borderColor: palette.border }}
 		>
-			<View style={styles.mandatoryColumnHeader}>
-				<View style={[styles.mandatoryColumnIcon, { backgroundColor: `${accent}1A` }]}>
+			<View className={webStyles.mandatoryColumnHeader}>
+				<View
+					className={webStyles.mandatoryColumnIcon}
+					style={{ backgroundColor: `${accent}1A` }}
+				>
 					<Icon size={18} color={accent} />
 				</View>
-				<View style={styles.mandatoryColumnCopy}>
-					<Text accessibilityRole="header" style={[styles.mandatoryColumnTitle, { color: palette.primaryText }]}>
+				<View className={webStyles.mandatoryColumnCopy}>
+					<Text
+						accessibilityRole="header"
+						className={webStyles.mandatoryColumnTitle}
+						style={{ color: palette.primaryText }}
+					>
 						{isExpense ? "Gastos obrigatórios" : "Ganhos obrigatórios"}
 					</Text>
-					<Text style={[styles.mandatoryColumnHelper, { color: palette.secondaryText }]}>
+					<Text
+						className={webStyles.mandatoryColumnHelper}
+						style={{ color: palette.secondaryText }}
+					>
 						{isExpense ? "Próximas saídas" : "Próximas entradas"}
 					</Text>
 				</View>
 			</View>
 
 			{items.length === 0 ? (
-				<Text style={[styles.mandatoryEmptyText, { color: palette.secondaryText }]}>
+				<Text
+					className={webStyles.mandatoryEmptyText}
+					style={{ color: palette.secondaryText }}
+				>
 					Nenhum compromisso pendente.
 				</Text>
 			) : (
-				<View style={styles.mandatoryItems}>
+				<View className={webStyles.mandatoryItems}>
 					{items.map((item) => (
-						<View key={`${item.type}:${item.id}`} style={styles.mandatoryItem}>
-							<View style={[styles.mandatoryDateChip, { borderColor: `${accent}55` }]}>
-								<Text style={[styles.mandatoryDateText, { color: accent }]}>
+						<View key={`${item.type}:${item.id}`} className={webStyles.mandatoryItem}>
+							<View
+								className={webStyles.mandatoryDateChip}
+								style={{ borderColor: `${accent}55` }}
+							>
+								<Text
+									className={webStyles.mandatoryDateText}
+									style={{ color: accent }}
+								>
 									{formatMandatoryDueDate(item)}
 								</Text>
 							</View>
-							<View style={styles.mandatoryItemCopy}>
+							<View className={webStyles.mandatoryItemCopy}>
 								<Text
 									numberOfLines={1}
-									style={[styles.mandatoryItemName, { color: palette.primaryText }]}
+									className={`${webStyles.mandatoryItemName} truncate`}
+									style={{ color: palette.primaryText }}
 								>
 									{item.name}
 								</Text>
-								<View style={styles.mandatoryItemMeta}>
-									<Text style={[styles.mandatoryItemInstallment, { color: palette.secondaryText }]}>
+								<View className={webStyles.mandatoryItemMeta}>
+									<Text
+										className={webStyles.mandatoryItemInstallment}
+										style={{ color: palette.secondaryText }}
+									>
 										{item.installmentLabel ?? "Ciclo mensal"}
 									</Text>
-									<Text style={[styles.mandatoryItemAmount, { color: accent }]}>
+									<Text
+										className={webStyles.mandatoryItemAmount}
+										style={{ color: accent }}
+									>
 										{formatCurrency(item.valueInCents, hidden)}
 									</Text>
 								</View>
@@ -352,16 +380,16 @@ const InfoTip = ({
 				{...triggerProps}
 				accessibilityRole="button"
 				accessibilityLabel={label}
-				style={styles.infoButton}
+				className={webStyles.infoButton}
 			>
 				<Info size={14} color="#94A3B8" />
 			</Pressable>
 		)}
 	>
-		<PopoverBackdrop style={{ backgroundColor: "transparent" }} />
-		<PopoverContent style={styles.tooltip}>
+		<PopoverBackdrop className={webStyles.popoverBackdrop} />
+		<PopoverContent className={webStyles.tooltip}>
 			<PopoverBody>
-				<Text style={styles.tooltipText}>{children}</Text>
+				<Text className={webStyles.tooltipText}>{children}</Text>
 			</PopoverBody>
 		</PopoverContent>
 	</Popover>
@@ -396,53 +424,42 @@ const BankCard = ({
 			}
 			accessibilityRole="button"
 			accessibilityLabel={`Abrir ${item.name}`}
-			style={[styles.bankCardPressable, { width: "100%" }]}
+			className={webStyles.bankCardPressable}
 		>
-			<BankCardSurface palette={palette} style={styles.bankCard}>
-				<View style={styles.bankCardContent}>
+			<BankCardSurface palette={palette} className={webStyles.bankCard}>
+				<View className={webStyles.bankCardContent}>
 					<View>
-						<Text style={[styles.cardKicker, { color: palette.textSecondary }]}>
+						<Text className={webStyles.cardKicker} style={{ color: palette.textSecondary }}>
 							{item.kind === "cash" ? "Carteira" : "Banco"}
 						</Text>
-						<Text style={[styles.bankName, { color: palette.textPrimary }]}>
+						<Text className={webStyles.bankName} style={{ color: palette.textPrimary }}>
 							{item.name}
 						</Text>
 					</View>
 					<View>
-						<Text style={[styles.cardKicker, { color: palette.textSecondary }]}>
+						<Text className={webStyles.cardKicker} style={{ color: palette.textSecondary }}>
 							{item.kind === "cash" ? "Saldo no mês" : "Saldo atual"}
 						</Text>
-						<Text style={[styles.bankBalance, { color: palette.textPrimary }]}>
+						<Text className={webStyles.bankBalance} style={{ color: palette.textPrimary }}>
 							{item.balanceInCents === null
 								? "Saldo indisponível"
 								: formatCurrency(item.balanceInCents, hidden)}
 						</Text>
 					</View>
-					<View style={styles.bankCardFooter}>
+					<View className={webStyles.bankCardFooter}>
 						<View>
-							<Text
-								style={[styles.cardKicker, { color: palette.textSecondary }]}
-							>
+							<Text className={webStyles.cardKicker} style={{ color: palette.textSecondary }}>
 								Gastos
 							</Text>
-							<Text
-								style={[
-									styles.bankFooterValue,
-									{ color: palette.expenseColor },
-								]}
-							>
+							<Text className={webStyles.bankFooterValue} style={{ color: palette.expenseColor }}>
 								{formatCurrency(monthlyExpenses, hidden)}
 							</Text>
 						</View>
-						<View style={styles.bankFooterRight}>
-							<Text
-								style={[styles.cardKicker, { color: palette.textSecondary }]}
-							>
+						<View className={webStyles.bankFooterRight}>
+							<Text className={webStyles.cardKicker} style={{ color: palette.textSecondary }}>
 								Ganhos
 							</Text>
-							<Text
-								style={[styles.bankFooterValue, { color: palette.gainColor }]}
-							>
+							<Text className={webStyles.bankFooterValue} style={{ color: palette.gainColor }}>
 								{formatCurrency(monthlyGains, hidden)}
 							</Text>
 						</View>
@@ -465,9 +482,8 @@ export default function HomeScreen() {
 		skeletonBaseColor,
 		skeletonHighlightColor,
 		webDashboardPalette,
+		webDashboardClassNames,
 	} = useScreenStyles();
-	const bodyColor = isDarkMode ? "#CBD5E1" : "#334155";
-	const bodyText = bodyColor;
 	const cardBackground = surfaceBackground;
 	const currentUserId = user?.uid ?? null;
 	const [userName, setUserName] = React.useState<string | null>(null);
@@ -548,6 +564,8 @@ export default function HomeScreen() {
 			.sort()
 			.join("|") || null;
 	const portfolio = investments.data.portfolio;
+	const shouldShowInvestmentSection =
+		investments.loading || Boolean(investments.error) || portfolio.investmentCount > 0;
 	const distributionItems = React.useMemo(
 		() =>
 			portfolio.items
@@ -646,27 +664,35 @@ export default function HomeScreen() {
 		);
 		setExpandedMovements((current) => [...current, id]);
 	};
-	const contentWidth: ViewStyle | undefined = desktop
-		? { width: "100%", maxWidth: 1180, alignSelf: "center" as const }
-		: undefined;
-
 	return (
 		<SafeAreaView
-			className="flex-1"
+			className={webDashboardClassNames.screen}
 			style={{ backgroundColor: surfaceBackground }}
 			edges={["left", "right", "bottom"]}
 		>
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+			<View className={webDashboardClassNames.fill} style={{ backgroundColor: surfaceBackground }}>
 				<View
-					style={[styles.hero, { height: heroHeight, backgroundColor: surfaceBackground }]}
+					className={webDashboardClassNames.hero}
+					style={{ height: heroHeight, backgroundColor: surfaceBackground }}
 				>
 					<RNImage
 						source={LoginWallpaper}
 						accessibilityLabel="Background da tela inicial"
-					style={styles.heroImage}
+					className={webDashboardClassNames.heroImage}
+					style={{ width: "100%", height: "100%" }}
 						resizeMode="cover"
 					/>
-					<View pointerEvents="none" style={styles.heroGrainient}>
+					<View
+						pointerEvents="none"
+						style={{
+							position: "absolute",
+							top: 0,
+							left: 0,
+							width: "100%",
+							height: heroHeight,
+							opacity: 0.62,
+						}}
+					>
 						<Grainient
 							className="home-hero-grainient"
 							timeSpeed={0.12}
@@ -679,14 +705,17 @@ export default function HomeScreen() {
 							grainAmount={0.08}
 							grainScale={3}
 							grainAnimated
-							contrast={1.15}
+							contrast={1.08}
 							zoom={0.9}
 							color1={isDarkMode ? "#f8bd0c" : "#FFE58A"}
 							color2={isDarkMode ? "#facc15" : "#D97706"}
-							color3={isDarkMode ? "#fefe59" : "#7C2D12"}
+							color3={isDarkMode ? "#fefe59" : "#EAB308"}
 						/>
 					</View>
-					<View style={[styles.heroContent, { paddingTop: insets.top + 24 }]}>
+					<View
+						className={webDashboardClassNames.heroContent}
+						style={{ paddingTop: insets.top + 24 }}
+					>
 						<StrokeText
 							text={`Olá, ${firstName(userName)}! Esse é seu resumo financeiro.`}
 							strokeColor="#FFFFFF"
@@ -700,7 +729,7 @@ export default function HomeScreen() {
 							fontFamily={'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}
 							ease="power3.out"
 							trigger="mount"
-							style={styles.heroTitle}
+							className={webDashboardClassNames.heroTitle}
 						/>
 						<AnimatedContent
 							distance={100}
@@ -713,7 +742,7 @@ export default function HomeScreen() {
 							scale={1}
 							threshold={0.1}
 							delay={0}
-							style={styles.heroIllustrationAnimation}
+							className={webDashboardClassNames.heroIllustrationAnimation}
 						>
 							<HomeScreenIllustration
 								width="40%"
@@ -724,12 +753,12 @@ export default function HomeScreen() {
 					</View>
 				</View>
 				<View
-					className={`flex-1 rounded-tl-[28px] rounded-tr-[28px] px-8 pb-0.5 ${compact ? 'px-[18px]' : ''}`}
+					className={`${webDashboardClassNames.sheet} ${compact ? webDashboardClassNames.sheetCompact : ''}`}
 					style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
 				>
-					<View className="flex-1" style={contentWidth}>
+					<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
 						<ScrollView
-							contentContainerStyle={styles.scrollContent}
+							contentContainerClassName={webDashboardClassNames.scrollContent}
 							showsVerticalScrollIndicator={false}
 							refreshControl={
 								<RefreshControl
@@ -739,11 +768,15 @@ export default function HomeScreen() {
 								/>
 							}
 						>
-							<View style={[styles.topColumns, desktop && styles.topColumnsDesktop]}>
-								<View style={[styles.section, desktop && styles.columnSection, desktop && styles.bankSection]}>
-									<View style={styles.sectionHeading}>
+								<View
+									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
+								>
+									<View
+										className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''} ${desktop ? webStyles.bankSection : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.bankSectionCentered : ''}`}
+									>
+									<View className={webStyles.sectionHeading}>
 										<Text
-											style={[styles.sectionHeadingText, { color: bodyText }]}
+											className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 										>
 											Meus Bancos e Dinheiro
 										</Text>
@@ -760,11 +793,11 @@ export default function HomeScreen() {
 											highlight={skeletonHighlightColor}
 										/>
 									) : overview.error ? (
-										<Text style={[styles.inlineError, { color: "#F59E0B" }]}>
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
 											{overview.error}
 										</Text>
 									) : bankItems.length === 0 ? (
-										<Text style={[styles.emptyText, { color: bodyText }]}>
+										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
 											Nenhum dado disponível no momento.
 										</Text>
 									) : (
@@ -778,10 +811,11 @@ export default function HomeScreen() {
 										/>
 									)}
 								</View>
-								<View style={[styles.section, desktop && styles.columnSection]}>
-									<View style={styles.sectionHeading}>
+									{shouldShowInvestmentSection ? (
+									<View className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''}`}>
+									<View className={webStyles.sectionHeading}>
 										<Text
-											style={[styles.sectionHeadingText, { color: bodyText }]}
+											className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 										>
 											Investimentos
 										</Text>
@@ -791,23 +825,23 @@ export default function HomeScreen() {
 											ativo.
 										</InfoTip>
 									</View>
-									{investments.error ? (
-										<Text style={[styles.inlineError, { color: "#F59E0B" }]}>
+										{investments.error ? (
+										<Text accessibilityRole="alert" className={`${webStyles.inlineError} ${webStyles.errorText}`}>
 											{investments.error}
 										</Text>
 									) : investments.loading && portfolio.investmentCount === 0 ? (
 										<InvestmentSkeleton base={skeletonBaseColor} />
 									) : portfolio.investmentCount === 0 ? (
-										<Text style={[styles.emptyText, { color: bodyText }]}>
+										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
 											Nenhum investimento registrado até o momento.
 										</Text>
 									) : distributionData.length === 0 ? (
-										<Text style={[styles.emptyText, { color: bodyText }]}>
+										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
 											Os investimentos ainda não possuem valor atual/base para
 											exibir a distribuição.
 										</Text>
 									) : (
-										<View style={styles.investmentVisual}>
+										<View className={webStyles.investmentVisual}>
 											<PieChart
 												data={distributionData}
 												donut
@@ -817,19 +851,19 @@ export default function HomeScreen() {
 												strokeColor={surfaceBackground}
 												strokeWidth={5}
 												centerLabelComponent={() => (
-													<View style={styles.chartCenter}>
+													<View className={webStyles.chartCenter}>
 														<Text
-															style={[styles.chartLabel, { color: bodyText }]}
+															className={webStyles.chartLabel} style={{ color: webDashboardPalette.primaryText }}
 														>
 															ATIVOS
 														</Text>
 														<Text
-															style={[styles.chartCount, { color: bodyText }]}
+															className={webStyles.chartCount} style={{ color: webDashboardPalette.primaryText }}
 														>
 															{portfolio.investmentCount}
 														</Text>
 														<Text
-															style={[styles.chartCaption, { color: bodyText }]}
+															className={webStyles.chartCaption} style={{ color: webDashboardPalette.primaryText }}
 														>
 															{portfolio.investmentCount === 1
 																? "investimento"
@@ -838,15 +872,15 @@ export default function HomeScreen() {
 													</View>
 												)}
 											/>
-											<View style={styles.investmentTotals}>
+											<View className={webStyles.investmentTotals}>
 												<View>
 													<Text
-														style={[styles.totalLabel, { color: bodyText }]}
+														className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
 													>
 														Atual/base
 													</Text>
 													<Text
-														style={[styles.totalValue, { color: bodyText }]}
+														className={webStyles.totalValue} style={{ color: webDashboardPalette.primaryText }}
 													>
 														{formatCurrency(
 															portfolio.totalCurrentBaseInCents,
@@ -854,54 +888,44 @@ export default function HomeScreen() {
 														)}
 													</Text>
 												</View>
-												<View style={styles.totalRight}>
+												<View className={webStyles.totalRight}>
 													<Text
-														style={[styles.totalLabel, { color: bodyText }]}
+														className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
 													>
 														Simulado
 													</Text>
 													<Text
-														style={[styles.totalValue, { color: "#34D399" }]}
+														className={`${webStyles.totalValue} ${webStyles.simulatedValue}`}
 													>
 														{formatCurrency(
 															portfolio.totalSimulatedInCents,
-															shouldHideValues,
-														)}
-													</Text>
-												</View>
-											</View>
-										</View>
-									)}
-							</View>
-							</View>
+																shouldHideValues,
+															)}
+														</Text>
+									</View>
+									</View>
+									</View>
+										)}
+									</View>
+									) : null}
+								</View>
 
-							<View
-								style={[
-									styles.monthlySummaryCards,
-									compact && styles.monthlySummaryCardsCompact,
-								]}
+								<View
+								className={`${webStyles.monthlySummaryCards} ${compact ? webStyles.monthlySummaryCardsCompact : ''}`}
 							>
 								<View
-									style={[
-										styles.monthlySummaryCard,
-										{
-											borderColor: webDashboardPalette.border
-										},
-									]}
+									className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border }}
 								>
-									<View style={styles.monthlySummaryCardContent}>
-										<View style={styles.monthlySummaryCopy}>
-											<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
+									<View className={webStyles.monthlySummaryCardContent}>
+										<View className={webStyles.monthlySummaryCopy}>
+											<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
 												Total ganho
 											</Text>
-											<Text style={[styles.monthlySummaryValue, { color: "#10B981" }]}>
+											<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
 												{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
 											</Text>
 											<Text
-												style={[
-													styles.monthlySummaryHelper,
-													{ color: webDashboardPalette.secondaryText },
-												]}
+												className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
 											>
 												Entradas no mês atual
 											</Text>
@@ -914,33 +938,25 @@ export default function HomeScreen() {
 											dom={{
 												focusable: false,
 												scrollEnabled: false,
-												style: { width: 112, height: 52, backgroundColor: "transparent" },
+												style: WEB_DASHBOARD_DOM_STYLES.sparkline,
 											}}
 										/>
 									</View>
 								</View>
 
 								<View
-									style={[
-										styles.monthlySummaryCard,
-										{
-											borderColor: webDashboardPalette.border,
-										},
-									]}
+									className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border, }}
 								>
-									<View style={styles.monthlySummaryCardContent}>
-										<View style={styles.monthlySummaryCopy}>
-											<Text style={[styles.monthlySummaryLabel, { color: webDashboardPalette.primaryText }]}>
+									<View className={webStyles.monthlySummaryCardContent}>
+										<View className={webStyles.monthlySummaryCopy}>
+											<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
 												Total gasto
 											</Text>
-											<Text style={[styles.monthlySummaryValue, { color: "#EF4444" }]}>
+											<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
 												{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
 											</Text>
 											<Text
-												style={[
-													styles.monthlySummaryHelper,
-													{ color: webDashboardPalette.secondaryText },
-												]}
+												className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
 											>
 												Saídas no mês atual
 											</Text>
@@ -953,7 +969,7 @@ export default function HomeScreen() {
 											dom={{
 												focusable: false,
 												scrollEnabled: false,
-												style: { width: 112, height: 52, backgroundColor: "transparent" },
+												style: WEB_DASHBOARD_DOM_STYLES.sparkline,
 											}}
 										/>
 									</View>
@@ -963,30 +979,26 @@ export default function HomeScreen() {
 
 
 							<View
-								style={[
-									styles.expenseChartSection,
-									{ borderColor: webDashboardPalette.border },
-								]}
+								className={webStyles.expenseChartSection} style={{ borderColor: webDashboardPalette.border }}
 							>
-								<View style={styles.sectionHeading}>
-									<View style={styles.headingWithTip}>
-										<Text style={[styles.sectionHeadingText, { color: bodyText }]}>Gastos por dia</Text>
+								<View className={webStyles.sectionHeading}>
+									<View className={webStyles.headingWithTip}>
+										<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>Gastos por dia</Text>
 										<InfoTip label="Informações sobre gastos por dia">
 											Cada linha representa um dos últimos três meses. Os pontos aparecem somente nos dias que tiveram gastos.
 										</InfoTip>
 									</View>
 								</View>
-								<Text style={[styles.expenseChartHelper, { color: webDashboardPalette.secondaryText }]}>Últimos três meses · gastos agrupados por dia</Text>
 								{overview.loading && expenseHistory.length === 0 ? (
 									<Skeleton
-										style={styles.expenseChartSkeleton}
+										className={webStyles.expenseChartSkeleton}
 										baseColor={skeletonBaseColor}
 										highlightColor={skeletonHighlightColor}
 									/>
 								) : overview.error ? (
-									<Text style={[styles.inlineError, { color: "#F59E0B" }]}>{overview.error}</Text>
+									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
 								) : !hasExpenseHistory ? (
-									<Text style={[styles.emptyText, { color: bodyText }]}>Nenhum gasto registrado nos últimos três meses.</Text>
+									<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>Nenhum gasto registrado nos últimos três meses.</Text>
 								) : (
 									<HomeExpenseLineChart
 										months={expenseHistory}
@@ -995,21 +1007,18 @@ export default function HomeScreen() {
 										dom={{
 											focusable: false,
 											scrollEnabled: false,
-											style: { height: 326, width: "100%", backgroundColor: "transparent" },
+											style: WEB_DASHBOARD_DOM_STYLES.expenseLineChart,
 										}}
 									/>
 								)}
 							</View>
 
 							<View
-								style={[
-									styles.activityHeatmapSection,
-									{ borderColor: webDashboardPalette.border },
-								]}
+								className={webStyles.activityHeatmapSection} style={{ borderColor: webDashboardPalette.border }}
 							>
-								<View style={styles.sectionHeading}>
-									<View style={styles.headingWithTip}>
-										<Text style={[styles.sectionHeadingText, { color: bodyText }]}>
+								<View className={webStyles.sectionHeading}>
+									<View className={webStyles.headingWithTip}>
+										<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>
 											Atividade no ano
 										</Text>
 										<InfoTip label="Informações sobre atividade no ano">
@@ -1018,17 +1027,17 @@ export default function HomeScreen() {
 										</InfoTip>
 									</View>
 								</View>
-								<Text style={[styles.activityHeatmapHelper, { color: webDashboardPalette.secondaryText }]}>
+								<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
 									{activityHeatmap.totalActions} ações registradas em {new Date().getFullYear()}
 								</Text>
 								{overview.loading && activityHeatmap.totalActions === 0 ? (
 									<Skeleton
-										style={styles.activityHeatmapSkeleton}
+										className={webStyles.activityHeatmapSkeleton}
 										baseColor={skeletonBaseColor}
 										highlightColor={skeletonHighlightColor}
 									/>
 								) : overview.error ? (
-									<Text style={[styles.inlineError, { color: "#F59E0B" }]}>{overview.error}</Text>
+									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
 								) : (
 									<HomeActivityHeatmap
 										data={activityHeatmap.dailyActionCounts}
@@ -1038,23 +1047,20 @@ export default function HomeScreen() {
 										dom={{
 											focusable: false,
 											scrollEnabled: false,
-											style: { minHeight: 190, width: "100%", backgroundColor: "transparent" },
+											style: WEB_DASHBOARD_DOM_STYLES.activityHeatmap,
 										}}
 									/>
 								)}
 							</View>
 
 								<View
-									style={[
-										styles.mandatorySection,
-										{ borderColor: webDashboardPalette.border },
-									]}
+									className={webStyles.mandatorySection} style={{ borderColor: webDashboardPalette.border }}
 								>
-									<View style={styles.sectionHeading}>
-										<View style={styles.headingWithTip}>
+									<View className={webStyles.sectionHeading}>
+										<View className={webStyles.headingWithTip}>
 											<Text
 												accessibilityRole="header"
-												style={[styles.sectionHeadingText, { color: bodyText }]}
+												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 											>
 												Próximos compromissos
 											</Text>
@@ -1063,30 +1069,25 @@ export default function HomeScreen() {
 											</InfoTip>
 										</View>
 									</View>
-									<Text
-										style={[styles.mandatorySectionHelper, { color: webDashboardPalette.secondaryText }]}
-									>
-										O que entra e sai da sua conta em seguida.
-									</Text>
 									{overview.loading && upcomingMandatoryItems.length === 0 ? (
-										<View style={[styles.mandatoryColumns, compact && styles.mandatoryColumnsCompact]}>
+										<View className={`${webStyles.mandatoryColumns} ${compact ? webStyles.mandatoryColumnsCompact : ''}`}>
 											<Skeleton
-												style={styles.mandatorySkeleton}
+												className={webStyles.mandatorySkeleton}
 												baseColor={skeletonBaseColor}
 												highlightColor={skeletonHighlightColor}
 											/>
 											<Skeleton
-												style={styles.mandatorySkeleton}
+												className={webStyles.mandatorySkeleton}
 												baseColor={skeletonBaseColor}
 												highlightColor={skeletonHighlightColor}
 											/>
 										</View>
 									) : overview.error ? (
-										<Text style={[styles.inlineError, { color: "#F59E0B" }]}>
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
 											{overview.error}
 										</Text>
 									) : (
-										<View style={[styles.mandatoryColumns, compact && styles.mandatoryColumnsCompact]}>
+										<View className={`${webStyles.mandatoryColumns} ${compact ? webStyles.mandatoryColumnsCompact : ''}`}>
 											<MandatoryScheduleColumn
 												items={upcomingMandatoryExpenses}
 												type="expense"
@@ -1103,17 +1104,17 @@ export default function HomeScreen() {
 									)}
 								</View>
 
-								<View style={styles.section}>
+								<View className={webStyles.section}>
 								<Pressable
 									onPress={() => setIsMovementsExpanded((current) => !current)}
 									accessibilityRole="button"
 									accessibilityLabel="Expandir ou recolher últimas movimentações"
 									accessibilityState={{ expanded: isMovementsExpanded }}
 								>
-									<View style={styles.sectionHeading}>
-										<View style={styles.headingWithTip}>
+									<View className={webStyles.sectionHeading}>
+										<View className={webStyles.headingWithTip}>
 											<Text
-												style={[styles.sectionHeadingText, { color: bodyText }]}
+												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
 											>
 												Últimas Movimentações
 											</Text>
@@ -1136,17 +1137,14 @@ export default function HomeScreen() {
 										<TimelineSkeleton base={skeletonBaseColor} />
 									) : movements.data.timelineMovements.length === 0 ? (
 										<View
-											style={[
-												styles.emptyMovement,
-												{ borderColor: isDarkMode ? "#334155" : "#E2E8F0" },
-											]}
+															className={webStyles.emptyMovement} style={{ borderColor: webDashboardPalette.border }}
 										>
-											<Text style={{ color: bodyText }}>
+											<Text style={{ color: webDashboardPalette.primaryText }}>
 												Nenhuma transação recente encontrada.
 											</Text>
 										</View>
 									) : (
-										<View style={styles.timeline}>
+										<View className={webStyles.timeline}>
 											{movements.data.timelineMovements.map(
 												(movement, index) => {
 													const tone = movementTone(movement);
@@ -1154,38 +1152,29 @@ export default function HomeScreen() {
 													const expanded = expandedMovements.includes(key);
 													const icon = movementIcon(movement);
 													return (
-														<View key={key} style={styles.timelineRow}>
-															<View style={styles.timelineRail}>
+														<View key={key} className={webStyles.timelineRow}>
+															<View className={webStyles.timelineRail}>
 																<View
-																	style={[
-																		styles.timelineDot,
-																		{ backgroundColor: tone.accent },
-																	]}
+																	className={webStyles.timelineDot} style={{ backgroundColor: tone.accent }}
 																/>
 																{index <
 																	movements.data.timelineMovements.length - 1 ? (
 																	<View
-																		style={[
-																			styles.timelineLine,
-																			{ backgroundColor: `${tone.accent}55` },
-																		]}
+																		className={webStyles.timelineLine} style={{ backgroundColor: `${tone.accent}55` }}
 																	/>
 																) : null}
 															</View>
-															<View style={styles.timelineBody}>
+															<View className={webStyles.timelineBody}>
 																<Pressable
 																	onPress={() => toggleMovement(key)}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Detalhes de ${movement.name}`}
 																							accessibilityState={{ expanded }}
 																>
-																	<View style={styles.movementHeader}>
-																		<View style={styles.movementIdentity}>
+																	<View className={webStyles.movementHeader}>
+																		<View className={webStyles.movementIdentity}>
 																			<View
-																				style={[
-																					styles.movementIcon,
-																					{ backgroundColor: tone.gradient[0] },
-																				]}
+																				className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}
 																			>
 																				<TagIcon
 																					{...icon}
@@ -1193,33 +1182,24 @@ export default function HomeScreen() {
 																					color="#FFFFFF"
 																				/>
 																			</View>
-																			<View style={styles.movementCopy}>
+																			<View className={webStyles.movementCopy}>
 																				<Text
 																					numberOfLines={1}
-																					style={[
-																						styles.movementName,
-																						{ color: bodyText },
-																					]}
+																					className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}
 																				>
 																					{movement.name}
 																				</Text>
 																				<Text
 																					numberOfLines={1}
-																					style={[
-																						styles.movementSubtitle,
-																						{ color: bodyText },
-																					]}
+																					className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}
 																				>
 																					{movementSubtitle(movement)}
 																				</Text>
 																			</View>
 																		</View>
-																		<View style={styles.movementAmount}>
+																		<View className={webStyles.movementAmount}>
 																			<Text
-																				style={[
-																					styles.amount,
-																					{ color: tone.accent },
-																				]}
+																				className={webStyles.amount} style={{ color: tone.accent }}
 																			>
 																				{tone.prefix}
 																				{formatCurrency(
@@ -1227,12 +1207,12 @@ export default function HomeScreen() {
 																					shouldHideValues,
 																				)}
 																			</Text>
-																			<View style={styles.movementDate}>
+																			<View className={webStyles.movementDate}>
 																				<CalendarDays
 																					size={12}
 																					color="#94A3B8"
 																				/>
-																				<Text style={styles.dateText}>
+																				<Text className={webStyles.dateText}>
 																					{formatDate(movement.date)}
 																				</Text>
 																				{expanded ? (
@@ -1263,18 +1243,17 @@ export default function HomeScreen() {
 								initialOpacity={0}
 								animateOpacity
 								scale={1}
-								className="movement-detail-animation"
-								style={styles.movementDetailAnimation}
+								className={webStyles.movementDetailAnimation}
 								onDisappearanceComplete={() =>
 									setRenderedMovements((rendered) =>
 										rendered.filter((item) => item !== key),
 									)
 								}
 											>
-												<View style={styles.movementDetail}>
+												<View className={webStyles.movementDetail}>
 													<View
 														pointerEvents="none"
-														style={styles.movementDetailGrainient}
+														className={webStyles.movementDetailGrainient}
 													>
 															<Grainient
 																className="movement-detail-grainient"
@@ -1294,14 +1273,14 @@ export default function HomeScreen() {
 															color3={tone.gradient[1]}
 														/>
 													</View>
-													<View style={styles.movementDetailContent}>
-														<Text style={styles.detailLabel}>
+													<View className={webStyles.movementDetailContent}>
+														<Text className={webStyles.detailLabel}>
 														RESUMO
 													</Text>
-													<Text style={styles.detailText}>
+													<Text className={webStyles.detailText}>
 														{movementDetail(movement)}
 													</Text>
-													<View style={styles.detailGrid}>
+													<View className={webStyles.detailGrid}>
 														<DetailItem
 															label="Tipo"
 															value={movementLabel(movement)}
@@ -1343,7 +1322,7 @@ export default function HomeScreen() {
 									)
 								) : null}
 								{movements.error ? (
-									<Text style={[styles.inlineError, { color: "#F59E0B" }]}>
+									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
 										{movements.error}
 									</Text>
 								) : null}
@@ -1361,7 +1340,7 @@ export default function HomeScreen() {
 						<ModalCloseButton onPress={closeMonthlyBalance} />
 					</ModalHeader>
 					<ModalBody>
-						<Text style={{ color: bodyText }}>
+						<Text style={{ color: webDashboardPalette.primaryText }}>
 							Registre o saldo mensal de{" "}
 							{missingBanks.map((bank) => bank.name).join(", ")} para manter o
 							resumo confiável.
@@ -1387,9 +1366,9 @@ export default function HomeScreen() {
 }
 
 const DetailItem = ({ label, value }: { label: string; value: string }) => (
-	<View style={styles.detailItem}>
-		<Text style={styles.detailLabel}>{label.toUpperCase()}</Text>
-		<Text style={styles.detailText}>{value}</Text>
+	<View className={webStyles.detailItem}>
+		<Text className={webStyles.detailLabel}>{label.toUpperCase()}</Text>
+		<Text className={webStyles.detailText}>{value}</Text>
 	</View>
 );
 
@@ -1402,377 +1381,49 @@ const BankSkeleton = ({
 	base: string;
 	highlight: string;
 }) => (
-	<View style={styles.bankCard}>
-		<BankCardSurface palette={palette} style={{ flex: 1 }}>
-			<View style={styles.bankCardContent}>
+	<View className={webStyles.bankCard}>
+		<BankCardSurface palette={palette} className={webStyles.bankCard}>
+			<View className={webStyles.bankCardContent}>
 				<Skeleton
 					baseColor={base}
 					highlightColor={highlight}
-					style={styles.skeletonShort}
+					className={webStyles.skeletonShort}
 				/>
 				<Skeleton
 					baseColor={base}
 					highlightColor={highlight}
-					style={styles.skeletonLong}
+					className={webStyles.skeletonLong}
 				/>
 				<Skeleton
 					baseColor={base}
 					highlightColor={highlight}
-					style={styles.skeletonBalance}
+					className={webStyles.skeletonBalance}
 				/>
 			</View>
 		</BankCardSurface>
 	</View>
 );
 const InvestmentSkeleton = ({ base }: { base: string }) => (
-	<View style={styles.investmentSkeleton}>
+	<View className={webStyles.investmentSkeleton}>
 		<Skeleton
 			variant="circular"
-			style={styles.skeletonDonut}
+			className={webStyles.skeletonDonut}
 			baseColor={base}
 		/>
-		<Skeleton style={styles.skeletonShort} baseColor={base} />
+		<Skeleton className={webStyles.skeletonShort} baseColor={base} />
 	</View>
 );
 const TimelineSkeleton = ({ base }: { base: string }) => (
-	<View style={styles.timelineSkeleton}>
+	<View className={webStyles.timelineSkeleton}>
 		{[0, 1, 2].map((index) => (
-			<View key={index} style={styles.skeletonRow}>
+			<View key={index} className={webStyles.skeletonRow}>
 				<Skeleton
 					variant="circular"
-					style={styles.skeletonDot}
+					className={webStyles.skeletonDot}
 					baseColor={base}
 				/>
-				<Skeleton style={styles.skeletonText} baseColor={base} />
+				<Skeleton className={webStyles.skeletonText} baseColor={base} />
 			</View>
 		))}
 	</View>
 );
-
-const styles = StyleSheet.create({
-	screen: { flex: 1 },
-	fill: { flex: 1 },
-	hero: { position: "absolute", top: 0, left: 0, right: 0, overflow: "hidden" },
-	heroImage: {
-		...StyleSheet.absoluteFillObject,
-		width: "100%",
-		height: "100%",
-	},
-	heroGrainient: {
-		...StyleSheet.absoluteFillObject,
-		opacity: 0.62,
-	},
-	heroContent: {
-		flex: 1,
-		alignItems: "center",
-		justifyContent: "flex-start",
-		gap: 14,
-		paddingHorizontal: 24,
-	},
-	heroIllustrationAnimation: {
-		width: "100%",
-		height: "40%",
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "center",
-		justifyContent: "center",
-		alignSelf: "center",
-		marginLeft: "auto",
-		marginRight: "auto",
-		marginTop: 14,
-		flexShrink: 0,
-	},
-	heroTitle: {
-		color: "#FFFFFF",
-		fontSize: 25,
-		fontWeight: "800",
-		textAlign: "center",
-		maxWidth: 620,
-	},
-	sheet: {
-		flex: 1,
-		borderTopLeftRadius: 28,
-		borderTopRightRadius: 28,
-		paddingHorizontal: 32,
-		paddingBottom: 2,
-	},
-	sheetCompact: { paddingHorizontal: 18 },
-	sheetInner: { flex: 1 },
-	scrollContent: { paddingTop: 18, paddingBottom: 18, gap: 28 },
-	topColumns: { gap: 26 },
-	topColumnsDesktop: { flexDirection: "row", gap: 26 },
-	monthlySummaryCards: { flexDirection: "row", gap: 12 },
-	monthlySummaryCardsCompact: { flexDirection: "column" },
-	mandatorySection: {
-		width: "100%",
-		borderWidth: 1,
-		borderRadius: 20,
-		paddingHorizontal: 16,
-		paddingTop: 16,
-		paddingBottom: 16,
-	},
-	mandatorySectionHelper: { marginTop: -6, marginBottom: 14, fontSize: 12 },
-	mandatoryColumns: { flexDirection: "row", gap: 12 },
-	mandatoryColumnsCompact: { flexDirection: "column" },
-	mandatoryColumn: {
-		flex: 1,
-		minWidth: 0,
-		borderWidth: 1,
-		borderRadius: 16,
-		padding: 12,
-	},
-	mandatoryColumnHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-	mandatoryColumnIcon: {
-		width: 34,
-		height: 34,
-		borderRadius: 12,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	mandatoryColumnCopy: { flex: 1, minWidth: 0 },
-	mandatoryColumnTitle: { fontSize: 13, fontWeight: "800" },
-	mandatoryColumnHelper: { marginTop: 2, fontSize: 11 },
-	mandatoryItems: { marginTop: 14, gap: 10 },
-	mandatoryItem: { flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
-	mandatoryDateChip: {
-		minWidth: 58,
-		paddingHorizontal: 7,
-		paddingVertical: 6,
-		borderWidth: 1,
-		borderRadius: 9,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	mandatoryDateText: { fontSize: 10, fontWeight: "800", textAlign: "center" },
-	mandatoryItemCopy: { flex: 1, minWidth: 0 },
-	mandatoryItemName: { fontSize: 13, fontWeight: "700" },
-	mandatoryItemMeta: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		gap: 8,
-		marginTop: 3,
-	},
-	mandatoryItemInstallment: { flex: 1, minWidth: 0, fontSize: 10 },
-	mandatoryItemAmount: { fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
-	mandatoryEmptyText: { marginTop: 14, fontSize: 12 },
-	mandatorySkeleton: { flex: 1, height: 126, borderRadius: 16 },
-	monthlySummaryCard: {
-		flex: 1,
-		minHeight: 126,
-		borderWidth: 1,
-		borderRadius: 18,
-		paddingHorizontal: 18,
-		paddingVertical: 16,
-	},
-	monthlySummaryCardContent: {
-		flex: 1,
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-	},
-	monthlySummaryCopy: { flex: 1, minWidth: 0 },
-	monthlySummaryPeriod: {
-		fontSize: 10,
-		fontWeight: "800",
-		letterSpacing: 0.7,
-		textTransform: "uppercase",
-	},
-	monthlySummaryLabel: { marginTop: 10, fontSize: 13, fontWeight: "700" },
-	monthlySummaryValue: { marginTop: 4, fontSize: 21, fontWeight: "800" },
-	monthlySummaryHelper: { marginTop: 7, fontSize: 12 },
-	expenseChartSection: {
-		width: "100%",
-		borderWidth: 1,
-		borderRadius: 20,
-		paddingHorizontal: 12,
-		paddingTop: 16,
-		paddingBottom: 6,
-	},
-	expenseChartHelper: { marginTop: -5, marginBottom: 2, fontSize: 12 },
-	expenseChartSkeleton: {
-		width: "100%",
-		height: 290,
-		marginTop: 12,
-		borderRadius: 14,
-	},
-	activityHeatmapSection: {
-		width: "100%",
-		borderWidth: 1,
-		borderRadius: 20,
-		paddingHorizontal: 12,
-		paddingTop: 16,
-		paddingBottom: 12,
-	},
-	activityHeatmapHelper: { marginTop: -5, marginBottom: 10, fontSize: 12 },
-	activityHeatmapSkeleton: { width: "100%", height: 178, borderRadius: 14 },
-	section: { marginBottom: 4 },
-	columnSection: { flex: 1, minWidth: 0 },
-	bankSection: { flexDirection: "column" },
-	sectionHeading: {
-		minHeight: 34,
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 5,
-		marginBottom: 12,
-	},
-	headingWithTip: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 5,
-		flex: 1,
-	},
-	sectionHeadingText: {
-		fontSize: 17,
-		fontWeight: "800",
-		letterSpacing: 1.1,
-		textTransform: "uppercase",
-	},
-	infoButton: {
-		width: 24,
-		height: 24,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	tooltip: { maxWidth: 300, borderRadius: 12 },
-	tooltipText: { color: "#E2E8F0", fontSize: 12, lineHeight: 19 },
-	bankScroller: { gap: 12, paddingRight: 6 },
-	bankCardPressable: { width: 318, minHeight: 200, flex: 1 },
-	bankCard: { flex: 1, minHeight: 200 },
-	bankCardContent: { flex: 1, justifyContent: "space-between", padding: 18 },
-	cardKicker: {
-		fontSize: 10,
-		fontWeight: "700",
-		letterSpacing: 0.6,
-		textTransform: "uppercase",
-	},
-	bankName: { marginTop: 4, fontSize: 20, fontWeight: "800" },
-	bankBalance: { marginTop: 4, fontSize: 22, fontWeight: "800" },
-	bankCardFooter: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		gap: 18,
-	},
-	bankFooterRight: { alignItems: "flex-end" },
-	bankFooterValue: { marginTop: 3, fontSize: 13, fontWeight: "700" },
-	investmentVisual: { alignItems: "center" },
-	chartCenter: { alignItems: "center", justifyContent: "center" },
-	chartLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1 },
-	chartCount: { marginTop: 3, fontSize: 30, fontWeight: "800" },
-	chartCaption: { marginTop: 1, fontSize: 11 },
-	investmentTotals: {
-		width: "100%",
-		flexDirection: "row",
-		justifyContent: "space-between",
-		marginTop: 16,
-	},
-	totalRight: { alignItems: "flex-end" },
-	totalLabel: {
-		fontSize: 10,
-		fontWeight: "700",
-		letterSpacing: 0.6,
-		textTransform: "uppercase",
-	},
-	totalValue: { marginTop: 5, fontSize: 17, fontWeight: "800" },
-	timeline: { marginTop: 2 },
-	timelineRow: { flexDirection: "row", minHeight: 80 },
-	timelineRail: { width: 28, alignItems: "center", paddingTop: 8 },
-	timelineDot: {
-		width: 13,
-		height: 13,
-		borderRadius: 99,
-		borderWidth: 2,
-		borderColor: "#FFFFFF",
-	},
-	timelineLine: { width: 3, flex: 1, marginVertical: 2, borderRadius: 99 },
-	timelineBody: { flex: 1, paddingBottom: 14 },
-	movementHeader: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		gap: 12,
-	},
-	movementIdentity: {
-		flex: 1,
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-		minWidth: 0,
-	},
-	movementIcon: {
-		width: 44,
-		height: 44,
-		borderRadius: 15,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	movementCopy: { flex: 1, minWidth: 0 },
-	movementName: { fontSize: 15, fontWeight: "700" },
-	movementSubtitle: { marginTop: 2, fontSize: 12, opacity: 0.68 },
-	movementAmount: { alignItems: "flex-end" },
-	amount: { fontSize: 15, fontWeight: "700" },
-	movementDate: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 4,
-		marginTop: 4,
-	},
-	dateText: { color: "#94A3B8", fontSize: 11 },
-	movementDetailAnimation: {
-		width: "100%",
-		alignSelf: "stretch",
-		borderRadius: 18,
-		borderTopRightRadius: 18,
-		borderBottomRightRadius: 18,
-		overflow: "hidden",
-	},
-	movementDetail: {
-		position: "relative",
-		marginTop: 10,
-		width: "100%",
-		borderRadius: 18,
-		borderTopRightRadius: 18,
-		borderBottomRightRadius: 18,
-		overflow: "hidden",
-	},
-	movementDetailGrainient: {
-		...StyleSheet.absoluteFillObject,
-		width: "100%",
-		height: "100%",
-		opacity: 0.96,
-		borderRadius: 18,
-	},
-	movementDetailContent: {
-		position: "relative",
-		zIndex: 1,
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-	},
-	detailGrid: {
-		flexDirection: "row",
-		flexWrap: "wrap",
-		gap: 12,
-		marginTop: 14,
-	},
-	detailItem: { width: "45%", minWidth: 130 },
-	detailLabel: {
-		color: "rgba(255,255,255,0.7)",
-		fontSize: 10,
-		fontWeight: "700",
-		letterSpacing: 0.5,
-		textTransform: "uppercase",
-	},
-	detailText: { marginTop: 4, color: "#FFFFFF", fontSize: 13, lineHeight: 18 },
-	emptyText: { fontSize: 13, lineHeight: 20, paddingVertical: 16 },
-	emptyMovement: { padding: 18, borderWidth: 1, borderRadius: 16 },
-	inlineError: { marginTop: 8, fontSize: 13, lineHeight: 20 },
-	skeletonShort: { width: 110, height: 12 },
-	skeletonLong: { width: 180, height: 28, marginTop: 12 },
-	skeletonBalance: { width: 150, height: 34, marginTop: 40 },
-	investmentSkeleton: { alignItems: "center", gap: 18, paddingVertical: 20 },
-	skeletonDonut: { width: 190, height: 190 },
-	timelineSkeleton: { gap: 18 },
-	skeletonRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-	skeletonDot: { width: 42, height: 42 },
-	skeletonText: { flex: 1, height: 30 },
-});

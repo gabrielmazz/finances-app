@@ -36,7 +36,7 @@ sequenceDiagram
     S->>U: Aplica comportamento pós-registro configurado
 ```
 
-1. Usuário acessa `AddRegisterExpensesScreen.tsx`
+1. Usuário acessa `AddRegisterExpensesScreen.tsx` no Android/iOS ou `AddRegisterExpensesScreen.web.tsx` no navegador
 2. Preenche: descrição, valor, data, banco de origem e tag; banco e tag são escolhidos por ActionSheets customizados com ícone, nome e destaque da seleção atual, e a tag mantém a ação interna para criar uma nova categoria de despesa
 3. Em novos registros comuns do ciclo atual, antes de salvar, a tela consulta [[Despesas Fixas]] e usa `utils/mandatoryExpenseSuggestions.ts` para sugerir somente um candidato pendente, único e de alta confiança
 4. Despesas comuns são salvas por `ExpenseFirebase.ts`; pagamentos iniciados a partir de um template obrigatório usam `registerMandatoryExpensePaymentFirebase()` para criar a despesa real e concluir o ciclo na mesma transação Firestore. A quitação antecipada usa `settleMandatoryExpenseFirebase()` para lançar o valor efetivamente pago — que pode incluir desconto — e remover o template na mesma transação
@@ -58,6 +58,7 @@ sequenceDiagram
 ## Arquivos principais
 
 - `screens/AddRegisterExpensesScreen.tsx` — Formulário de registro
+- `screens/AddRegisterExpensesScreen.web.tsx` — Composição Web fullscreen do mesmo fluxo, seguindo o hero/sheet da Home com wallpaper, título e ilustração animados e grade de campos; não contém regras financeiras diferentes
 - `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria em ActionSheet
 - `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet
 - `functions/ExpenseFirebase.ts` — CRUD de despesas comuns no Firestore
@@ -80,6 +81,8 @@ sequenceDiagram
 
 - Valores armazenados em **centavos** (integer)
 - Data armazenada como timestamp Firestore
+- A variante Web pode reorganizar hero, sheet, tamanho, espaçamento e animação dos campos, mas chama as mesmas funções Firebase e o mesmo `usePostSubmitBehavior()` da tela nativa. Dentro do `ScrollView`, o hero mantém o wallpaper, `Grainient`, conteúdo e sheet em camadas explícitas.
+- O seed do emulador cria despesas de demonstração diretamente em `expenses`, com `name` e `valueInCents`, para que sejam lidas pelo mesmo fluxo das despesas registradas no app.
 
 ## Observações importantes
 
