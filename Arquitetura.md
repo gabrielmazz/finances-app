@@ -270,6 +270,9 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Conversão do cadastro de ganhos para Web em 2026-08-17: `screens/AddRegisterGainScreen.web.tsx` passou a reutilizar o shell hero/sheet, wallpaper, `Grainient`, `StrokeText`, `AnimatedContent`, rolagem única, grade responsiva e ActionSheets estabelecidos por `AddRegisterExpensesScreen.web.tsx`. A lógica nativa de ganhos permanece responsável por centavos, formatos de recebimento, categorias, templates/ganhos obrigatórios, resgates de investimento e comportamento pós-submit; Android/iOS continuam usando `AddRegisterGainScreen.tsx`. Vault alinhado em [[Versão Web]], [[Transações de Receitas]] e [[Componentes UI]].
+- Atualizado em 2026-08-17.
+
 - Tipagem da composição Web corrigida em 2026-08-17: `nativewind-env.d.ts` agora estende as interfaces concretas do React Native 0.81 para que `className` seja reconhecido em `View`, `Text`, `Image`, `ScrollView` e `KeyboardAvoidingView`, além de referenciar as declarações de assets SVG/PNG. `HomeScreen.web.tsx` e `AddRegisterExpensesScreen.web.tsx` deixaram de passar `100vw` em `StyleProp`; a mesma largura de viewport permanece via `w-screen` centralizado em `WEB_DASHBOARD_CLASS_NAMES`. O layout e os fluxos financeiros não mudaram. Vault alinhado em [[Versão Web]], [[Componentes UI]] e [[Hooks Customizados]].
 - Atualizado em 2026-08-17.
 

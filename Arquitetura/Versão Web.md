@@ -29,6 +29,7 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 15. `AddRegisterExpensesScreen.web.tsx` é a composição Web da tela de controle: segue o mesmo shell fullscreen da Home, com hero absoluto de largura `100vw`, wallpaper `wallpaper01.png`, camada `Grainient`, título `StrokeText`, ilustração em `AnimatedContent` e um formulário em sheet sobreposto. A superfície do formulário usa uma única rolagem de página e reorganiza a grade abaixo de 1024px. Campos, seletores e botões continuam sendo primitivas React Native/Gluestack existentes, com labels acessíveis, foco amarelo do tema e comportamento de teclado do navegador.
 16. Os seletores compartilhados de banco e categoria usam largura total no Web tanto no trigger quanto no ActionSheet aberto, incluindo a lista de opções. Na tela Web de despesas, o grupo de formato de pagamento usa `w-full max-w-[1120px] self-center`, acompanhando a largura útil da superfície principal sem ocupar a viewport inteira.
 17. `AddRegisterExpensesScreen.web.tsx` consome `WEB_EXPENSE_CLASS_NAMES` retornado por `useScreenStyles()`, mantendo as classes estruturais do formulário no hook compartilhado, no mesmo padrão de `WEB_DASHBOARD_CLASS_NAMES` usado pela Home.
+18. `AddRegisterGainScreen.web.tsx` reaproveita o mesmo shell hero/sheet, wallpaper, `Grainient`, `StrokeText`, `AnimatedContent`, rolagem única, grade responsiva e seletores Web da tela de despesas. A variante preserva a lógica nativa de ganhos: formatos de recebimento, categorias, templates/ganhos obrigatórios, resgates de investimento, valores em centavos e [[Comportamento Pós-Registro]].
 
 ## Arquivos principais
 
@@ -37,6 +38,7 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 - `components/uiverse/web-app-shell.tsx`, `components/uiverse/web-route-transition.web.tsx`, `components/uiverse/navigator.web.tsx` e `components/web/StaggeredMenu.jsx` — workspace, transição de rotas e navegação Web responsiva animada.
 - `screens/HomeScreen.web.tsx` — dashboard Web específico, com dados do mesmo `useHomeScreenData`, sparklines Mantine compactos nos cards de ganhos/gastos, atalhos e layout em grade sem duplicar consultas Firebase.
 - `screens/AddRegisterExpensesScreen.tsx` / `screens/AddRegisterExpensesScreen.web.tsx` — formulário de despesa por plataforma: lógica financeira preservada e composição Web fullscreen em hero/sheet com animação.
+- `screens/AddRegisterGainScreen.tsx` / `screens/AddRegisterGainScreen.web.tsx` — formulário de ganho por plataforma: lógica financeira preservada e composição Web fullscreen em hero/sheet com animação.
 - `screens/LoginScreen.tsx` / `screens/LoginScreen.web.tsx` — entrada pública por plataforma: a tela mobile histórica fica em `LoginScreen.tsx`; a variante Web concentra o painel de identidade em gradiente e o formulário responsivo.
 - `FirebaseConfig.web.ts` — Auth Web memory-only.
 - `utils/reportExport.web.ts` / `.native.ts` e `utils/pdfFileName.web.ts` / `.native.ts` — exportação de relatórios por plataforma.
@@ -72,6 +74,7 @@ npm run web:deploy
 - Quando a consulta concluída da Home retorna uma carteira de investimentos vazia, `HomeScreen.web.tsx` não monta a seção de investimentos e centraliza os cartões bancários no desktop.
 - A composição estrutural da Home Web usa classes Tailwind centralizadas em `hooks/useScreenStyle.ts`; não adicionar `StyleSheet.create()` nem duplicar geometria na tela. Valores de tema e dimensões calculadas continuam sendo fornecidos pelo hook em runtime.
 - A tela de registro de despesas Web compartilha a geometria do hero/sheet da Home por `webDashboardClassNames`; somente a grade e os espaçamentos internos do formulário permanecem locais. Os tokens claro/escuro continuam vindo de `useScreenStyles()`. Não mover regras financeiras para o layout Web nem introduzir persistência específica do navegador.
+- A tela de registro de ganhos Web segue a mesma geometria e `WEB_EXPENSE_CLASS_NAMES` da tela de despesas para manter paridade visual entre entradas e saídas; somente os textos, campos específicos e regras do formulário de ganhos diferem.
 
 - Não criar Expo API Routes para o Lumus: Firebase AI Logic Web já recebe o App Check e o usuário autenticado pelo SDK cliente.
 - As Functions existentes do razão financeiro permanecem inalteradas; esta entrega não cria API pública, modelo Firestore ou backend novo.

@@ -60,6 +60,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `web/StrokeText.jsx` / `.css` | Texto SVG desenhado por GSAP na montagem; usado no título do hero da Home Web para criar o efeito de entrada |
 | `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
 | `screens/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
+| `screens/AddRegisterGainScreen.web.tsx` | Composição Web do cadastro de ganhos, baseada no shell hero/sheet de despesas e usando `AnimatedContent`, `Grainient`, `StrokeText`, ActionSheets compartilhados e classes estruturais de `useScreenStyles()` |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
 | `bank-card-surface.tsx` | Cartão de banco com gradiente linear baseado na cor do banco |
 | `bank-actionsheet-selector.tsx` | Seletor ActionSheet de bancos com ícone/monograma, nome, helper contextual e estado selecionado |

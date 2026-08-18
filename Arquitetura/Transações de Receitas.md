@@ -47,6 +47,7 @@ sequenceDiagram
 ## Arquivos principais
 
 - `screens/AddRegisterGainScreen.tsx` — Formulário de registro
+- `screens/AddRegisterGainScreen.web.tsx` — Composição Web do formulário, baseada no shell responsivo de `AddRegisterExpensesScreen.web.tsx`
 - `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria em ActionSheet
 - `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet
 - `functions/GainFirebase.ts` — CRUD de receitas no Firestore
@@ -80,6 +81,7 @@ sequenceDiagram
 - A central opcional **Testes do aplicativo** pode abrir este formulário com `templateName`, `templateDescription` e `templateValueInCents=1` (R$ 0,01). Isso é apenas um rascunho de teste: nenhum documento é gravado até o usuário executar o submit normal.
 - O campo de categoria não deve voltar para o menu padrão do Android nem exibir botão externo desalinhado; o fluxo usa o ActionSheet compartilhado para selecionar e criar categorias
 - O campo de banco também usa ActionSheet compartilhado para exibir `iconKey`/`colorHex` dos bancos cadastrados e evitar regressão para o menu padrão do Android
+- Android/iOS usam `AddRegisterGainScreen.tsx`; o navegador resolve `AddRegisterGainScreen.web.tsx`, sem duplicar consultas ou regras financeiras. A variante Web mantém o hero/sheet de [[Versão Web]], uma única rolagem e a grade responsiva, com foco amarelo e labels acessíveis.
 
 ## Integração com o Assistente Lumus
 
