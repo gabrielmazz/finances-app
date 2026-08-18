@@ -183,10 +183,10 @@ export function useScreenStyles() {
 		'data-[focus=true]:border-[#FFE000] dark:data-[focus=true]:border-yellow-300';
 
 	const fieldBankContainerClassName = `min-h-[48px] rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const fieldContainerClassName = `pt-2 pb-2 h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const fieldContainerClassName = `pt-2 pb-2 h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName} web:h-12 web:rounded-2xl web:border web:bg-transparent web:px-1 web:focus-visible:ring-2 web:focus-visible:ring-yellow-300 web:data-[focus=true]:ring-0`;
 	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerCardClassName = `pt-2 pb-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
-	const textareaContainerClassName = `h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const textareaContainerClassName = `h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName} web:h-[112px] web:rounded-2xl web:border web:bg-transparent web:data-[focus=true]:ring-0`;
 	const sectionCardClassName = isDarkMode
 		? 'rounded-3xl border border-slate-800 bg-slate-950'
 		: 'rounded-3xl border border-slate-200 bg-white';

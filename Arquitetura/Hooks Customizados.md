@@ -82,9 +82,10 @@ Retorna constantes de estilo centralizadas que se adaptam ao modo dark/light. El
 | `helperText` | `string` | Classe de texto auxiliar |
 | `inputField` | `string` | Classe de texto + placeholder para inputs |
 | `labelText` | `string` | Classe de texto para labels |
-| `fieldContainerClassName` | `string` | Classe de container de campo (h-10, bordas, foco amarelo) |
+| `fieldContainerClassName` | `string` | Classe de container de campo (h-10 no nativo; h-12, fundo transparente, padding e foco amarelo no Web) |
 | `fieldBankContainerClassName` | `string` | Classe de container para seletores de banco com ícone e texto auxiliar, usando altura mínima maior que inputs simples |
 | `fieldContainerClassNameNotSpace` | `string` | Idem sem altura fixa |
+| `textareaContainerClassName` | `string` | Classe de textarea (h-24 no nativo; `h-[112px]`, fundo transparente e foco alinhado ao Web base) |
 | `sectionCardClassName` | `string` | Classe de card de seção (rounded-3xl) |
 | `tintedCardClassName` | `string` | Card com fundo sutil |
 | `modalContentClassName` | `string` | Classe do conteúdo de modais |

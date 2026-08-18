@@ -270,6 +270,27 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Separação das variantes Web em 2026-08-18: as nove telas administrativas e financeiras convertidas agora possuem implementação completa nos respectivos arquivos `.web.tsx`, resolvidos automaticamente pelo Expo para o navegador. As telas `.tsx` nativas voltaram a concentrar somente a composição Android/iOS; lógica Firebase, valores em centavos, navegação e comportamento pós-submit continuam compartilhados por plataforma. A auditoria confirmou que nenhum arquivo de `app/` está órfão: cada entrada é uma rota do `APP_ROUTE_PATHS`, do guard central ou uma compatibilidade legada documentada. Vault alinhado em [[Versão Web]] e [[Navegação]].
+
+- Correção do foco dos cadastros Web em 2026-08-18: `AddRegisterMonthlyBalanceScreen`, `AddRegisterUserScreen`, `AddRegisterBankScreen`, `AddRegisterTagScreen` e `AddUserRelationScreen` passaram a usar `ScreenDismissKeyboard`, que não monta `TouchableWithoutFeedback` no navegador. Assim o clique chega ao `TextInput` e o foco permanece ativo; Android/iOS continuam dispensando o teclado ao tocar fora do formulário. Vault alinhado em [[Versão Web]], [[Componentes UI]] e [[Hooks Customizados]].
+
+- Gráfico de distribuição de investimentos na Home Web em 2026-08-18: `HomeScreen.web.tsx` passou a usar `HomeInvestmentChart` em Expo DOM com `DonutChart` do Mantine, mantendo a carteira, cores e privacidade existentes e removendo a dependência do `react-native-gifted-charts` nessa variante. Android/iOS permanecem usando o gráfico nativo. Vault alinhado em [[Dashboard Home]], [[Componentes UI]] e [[Versão Web]].
+
+- Padronização dos inputs Web em 2026-08-18: `useScreenStyles()` passou a aplicar variantes Web de altura, raio, fundo, padding e foco amarelo em `fieldContainerClassName` e `textareaContainerClassName`. Assim os campos textuais/númericos e textareas das nove telas convertidas acompanham `AddRegisterExpensesScreen.web.tsx` e `AddRegisterGainScreen.web.tsx`, enquanto Android/iOS permanecem com a geometria mobile. Vault alinhado em [[Versão Web]], [[Hooks Customizados]] e [[Componentes UI]].
+- Atualizado em 2026-08-18.
+
+- Correção de foco dos inputs Web em 2026-08-18: os `ScrollView`s das nove telas convertidas passaram a declarar `web:relative web:z-[3]`, igualando o empilhamento do sheet de `AddRegisterExpensesScreen.web.tsx` e impedindo que o hero absoluto intercepte o primeiro clique dos campos. O comportamento nativo permanece inalterado. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-18.
+
+- Refinamento visual das telas Web em 2026-08-18: `components/uiverse/web-screen-hero.tsx` e sua variante Web centralizam wallpaper, `Grainient`, título `StrokeText` e entrada animada das ilustrações SVG nas nove telas convertidas. Android/iOS continuam usando o fallback nativo do mesmo componente; a borda externa adicionada à superfície dos formulários foi removida. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-18.
+
+- Padronização das ilustrações Web em 2026-08-18: `WebScreenHero.web.tsx` passou a reutilizar `WEB_DASHBOARD_CLASS_NAMES.heroIllustrationAnimation` e o mesmo dimensionamento das telas-base, com `width="40%"` e `height="100%"` para todas as ilustrações. Os overrides menores de configurações e categorias foram removidos; Android/iOS permanecem inalterados. Vault alinhado em [[Versão Web]], [[Dashboard Home]] e [[Componentes UI]].
+- Atualizado em 2026-08-18.
+
+- Conversão da sequência de telas administrativas e financeiras para Web em 2026-08-18: saldo mensal, transferência, saque, configurações, cadastros de usuário/banco/categoria, vínculo entre usuários e testes do aplicativo ganharam entradas `.web.tsx`. As telas canônicas passaram a aplicar somente no navegador a casca hero/sheet responsiva, com largura de viewport e conteúdo centralizado; persistência Firebase, valores em centavos, comportamento pós-submit e rotas permanecem compartilhados. A auditoria do diretório `app/` confirmou que todas as rotas físicas ainda estão registradas no caminho central, navigator ou guard, portanto nenhuma rota foi removida sem alterar funcionalidade. Vault alinhado em [[Versão Web]] e [[Navegação]].
+- Atualizado em 2026-08-18.
+
 - Conversão do cadastro de ganhos para Web em 2026-08-17: `screens/AddRegisterGainScreen.web.tsx` passou a reutilizar o shell hero/sheet, wallpaper, `Grainient`, `StrokeText`, `AnimatedContent`, rolagem única, grade responsiva e ActionSheets estabelecidos por `AddRegisterExpensesScreen.web.tsx`. A lógica nativa de ganhos permanece responsável por centavos, formatos de recebimento, categorias, templates/ganhos obrigatórios, resgates de investimento e comportamento pós-submit; Android/iOS continuam usando `AddRegisterGainScreen.tsx`. Vault alinhado em [[Versão Web]], [[Transações de Receitas]] e [[Componentes UI]].
 - Atualizado em 2026-08-17.
 
@@ -381,7 +402,7 @@ GOOGLE_SERVICES_JSON=
 > Atualizado em 2026-08-14.
 
 - Desativação reversível de bancos em 2026-08-14: `ConfigurationsScreen.tsx` agora carrega bancos ativos e inativos na tabela administrativa e oferece confirmação para desativar/reativar, preservando o documento e o histórico. `updateBankStatusFirebase()` mantém `isActive`; os seletores operacionais continuam filtrando bancos inativos. Vault alinhado em [[Gerenciamento de Bancos]] e [[Configurações]].
-- Largura dos seletores Web em 2026-08-17: `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` passaram a ocupar a largura total disponível no trigger, no conteúdo do ActionSheet e na lista de opções. O grupo de formato de pagamento de `AddRegisterExpensesScreen.web.tsx` usa limite responsivo de `1120px`, centralizado na superfície principal, sem alterar o componente base nativo. Vault alinhado em [[Componentes UI]] e [[Versão Web]].
+- Limite do ActionSheet Web em 2026-08-18: `components/ui/actionsheet/index.tsx` passou a limitar o `ActionsheetContent` a `1120px`, centralizado e fluido até esse limite, mantendo o backdrop em viewport inteira. Bancos, categorias e rádios permanecem fluidos dentro da superfície útil; Android/iOS não recebem essa regra. Vault alinhado em [[Componentes UI]] e [[Versão Web]].
 - Centralização dos estilos do cadastro Web em 2026-08-17: `AddRegisterExpensesScreen.web.tsx` deixou de declarar o mapa local `webStyles` e passou a consumir `WEB_EXPENSE_CLASS_NAMES` retornado por `useScreenStyles()`, seguindo o padrão já usado pela Home Web. A lógica e a composição nativa permanecem inalteradas. Vault alinhado em [[Versão Web]], [[Hooks Customizados]] e [[Sistema de Temas]].
 > Atualizado em 2026-08-14.
 
