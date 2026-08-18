@@ -711,7 +711,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 	if (isDesktopWeb) {
 		return (
 			<View
-				accessibilityRole="navigation"
+				role="navigation"
 				accessibilityLabel="Navegação principal"
 				style={{
 					...webFixedPositionStyle,

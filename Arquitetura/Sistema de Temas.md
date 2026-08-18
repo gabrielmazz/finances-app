@@ -3,7 +3,7 @@ tags: [tema, dark-mode, ui, contexto]
 relacionado: [[Configurações]], [[Componentes UI]], [[Hooks Customizados]], [[Privacidade de Valores]]
 status: ativo
 tipo: feature
-versao: 1.0.9
+versao: 1.0.10
 ---
 
 # Sistema de Temas
@@ -51,5 +51,6 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 - O app não declara `userInterfaceStyle` nativo nem instala `expo-system-ui`; a preferência visual é controlada pelo próprio `ThemeContext`/Gluestack, evitando uma configuração nativa redundante
 - NativeWind + Gluestack UI precisam estar sincronizados — mudança de tema reaplica classes Tailwind
 - Quando uma tela depender de classes retornadas por `useScreenStyle()`, as classes completas precisam aparecer literalmente em arquivos cobertos por `content` ou na `safelist` do Tailwind; concatenar fragmentos arbitrários impede sua geração.
+- A composição Web da Home mantém as classes Tailwind fixas em `WEB_DASHBOARD_CLASS_NAMES`, dentro de `hooks/useScreenStyle.ts`, e deixa na tela somente valores dinâmicos de tema ou layout; novos estilos estruturais do dashboard devem seguir esse mesmo ponto de centralização.
 - Os estados selecionados de checkbox que representam ação principal devem manter o amarelo padrão do sistema, mesmo quando o componente base do Gluestack usar a cor `primary` do tema
 - O toggle de tema em `Configurações` deve manter o mesmo alinhamento estrutural do toggle de privacidade, com label e popover no bloco esquerdo e `Switch` fixo à direita

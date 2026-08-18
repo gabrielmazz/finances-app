@@ -130,18 +130,29 @@ const Grainient = ({
   className = ''
 }) => {
   const containerRef = useRef(null);
+  const fallbackBackground = `linear-gradient(135deg, ${color1} 0%, ${color2} 52%, ${color3} 100%)`;
 
   // Effect 1: build WebGL context once, pause when offscreen / tab hidden
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new Renderer({
-      webgl: 2,
-      alpha: true,
-      antialias: false,
-      dpr: Math.min(window.devicePixelRatio || 1, 2)
-    });
+    let renderer;
+    try {
+      renderer = new Renderer({
+        webgl: 2,
+        alpha: true,
+        antialias: false,
+        dpr: Math.min(window.devicePixelRatio || 1, 2)
+      });
+    } catch (error) {
+      console.warn('[Grainient] WebGL2 indisponível; usando o fallback CSS.', error);
+      return;
+    }
+
+    // O shader usa GLSL ES 3.00. OGL tenta WebGL1 quando WebGL2 falha, mas
+    // WebGL1 não compila esse shader; mantenha a camada CSS visível nesse caso.
+    if (!renderer.isWebgl2) return;
 
     const gl = renderer.gl;
     const canvas = gl.canvas;
@@ -283,7 +294,13 @@ const Grainient = ({
   ]);
 
 
-  return <div ref={containerRef} className={`grainient-container ${className}`.trim()} />;
+  return (
+    <div
+      ref={containerRef}
+      className={`grainient-container ${className}`.trim()}
+      style={{ background: fallbackBackground }}
+    />
+  );
 };
 
 export default Grainient;

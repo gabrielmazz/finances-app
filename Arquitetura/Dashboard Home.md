@@ -3,7 +3,7 @@ tags: [dashboard, home, graficos, bancos, investimentos]
 relacionado: [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Monitoramento de Investimentos]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]]
 status: ativo
 tipo: feature
-versao: 1.5.0
+versao: 1.5.2
 ---
 
 # Dashboard Home
@@ -75,7 +75,7 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - `utils/homeActivityHeatmap.ts` — agregação pura de contagens diárias de atividade
 - `utils/homeMandatorySchedule.ts` — seleção pura dos próximos ciclos obrigatórios pendentes
 - `utils/homeExpenseHistory.ts` — Agregação pura dos valores de gasto por dia e mês
-- `components/web/Grainient.jsx` / `.css` — Fundo Web animado usado nos detalhes expandidos da timeline e no hero
+- `components/web/Grainient.jsx` / `.css` — Fundo Web animado usado nos detalhes expandidos da timeline e no hero, com fallback CSS quando WebGL2 não está disponível
 
 ## Integrações
 
@@ -98,7 +98,12 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 
 ## Observações importantes
 
+- A seção de investimentos da Home só aparece durante carregamento, em erro ou quando a carteira carregada possui investimentos. Quando a consulta termina com uma carteira vazia, a seção é omitida; na Web desktop, os cartões bancários são centralizados.
+- Em grupos migrados para o razão financeiro, a carteira da Home é montada a partir das contas `financialAccounts` com `kind: 'investment'`; ela exibe o saldo confirmado do razão sem inventar uma projeção CDI legada.
+
 - A Home Web está em migração gradual para Tailwind/NativeWind. A composição visual deve evitar novos blocos `StyleSheet.create()` e preservar `webDashboardPalette` para tokens dinâmicos de tema.
+- A geometria fixa da `HomeScreen.web.tsx` fica centralizada em `WEB_DASHBOARD_CLASS_NAMES` e `WEB_DASHBOARD_DOM_STYLES`, exportados por `hooks/useScreenStyle.ts`; a tela usa `className` Tailwind e mantém em `style` somente valores calculados em runtime, como paleta, altura do hero, safe area e cores por movimento.
+- O hero mantém o `Grainient` visível sobre o wallpaper: WebGL2 anima a camada quando disponível e o gradiente CSS subjacente evita revelar o fundo padrão em navegadores sem esse contexto.
 
 - Todos os valores são armazenados em centavos e convertidos para exibição
 - O saldo legado dos bancos usa o `MonthlyBalance` mais recente como ponto de partida e somente movimentos posteriores a ele; grupos migrados usam `financialAccounts.currentBalanceInCents`

@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.3
+versao: 1.6.4
 ---
 
 # Investimentos
@@ -108,6 +108,8 @@ O gráfico é explicitamente estimado. A sincronização manual continua sendo o
 - [[Componentes UI]] — Gráfico Mantine permanece em fronteira Expo DOM; as Tabs do período, a tela e os modais seguem Gluestack/NativeWind
 
 ## Observações importantes
+
+- Em grupos migrados para o razão financeiro, a Home lê contas `financialAccounts` com `kind: 'investment'` e exibe o saldo confirmado; como os metadados legados de CDI não são relidos após o corte, essa representação não inventa rendimento estimado.
 
 - Ao verificar referências de aportes, resgates e sincronizações, as consultas incluem o `personId` do usuário autenticado ou relacionado junto ao `investmentId`, mantendo a leitura compatível com as Firestore Rules e os índices versionados.
 

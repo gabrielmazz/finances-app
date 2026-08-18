@@ -5,6 +5,12 @@ import type { PostSubmitDestinationKey } from '@/contexts/PostSubmitBehaviorCont
 
 type RouterNavigationOptions = Parameters<typeof router.push>[1];
 
+const emitWebRouteTransition = () => {
+	if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+
+	window.dispatchEvent(new CustomEvent('lumus:web-route-transition'));
+};
+
 export const APP_ROUTE_PATHS = {
 	login: '/',
 	home: '/home',
@@ -196,6 +202,7 @@ const cancelPendingRedirect = () => {
 
 const replaceSafely = (href: Href, options?: RouterNavigationOptions) => {
 	try {
+		emitWebRouteTransition();
 		if (options) {
 			router.replace(href, options);
 			return;
@@ -237,6 +244,7 @@ export const navigateToRoute = (
 	const href = createAppHref(pathname, params);
 
 	try {
+		emitWebRouteTransition();
 		if (options) {
 			router.push(href, options);
 			return;
@@ -304,6 +312,7 @@ export const navigateBackOrRoute = (
 
 	try {
 		if (router.canGoBack()) {
+			emitWebRouteTransition();
 			router.back();
 			return;
 		}
@@ -324,6 +333,7 @@ export const redirectBackOrRoute = (
 	scheduleNavigation(() => {
 		try {
 			if (router.canGoBack()) {
+				emitWebRouteTransition();
 				router.back();
 				return;
 			}

@@ -61,23 +61,57 @@ resolve_expo_cmd
 start_local_emulators() {
   local emulator_log
   emulator_log="${TMPDIR:-/tmp}/lumus-firebase-emulators.log"
-  npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions >"$emulator_log" 2>&1 &
-  EMULATOR_PID=$!
-  trap 'kill "$EMULATOR_PID" 2>/dev/null || true' EXIT INT TERM
-  for _ in {1..45}; do
-    if curl --fail --silent http://127.0.0.1:4400/emulators >/dev/null 2>&1; then
-      FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-lumus-financas npm --prefix backend run seed
-      if command -v adb >/dev/null 2>&1; then
-        adb reverse tcp:9099 tcp:9099 || true
-        adb reverse tcp:8080 tcp:8080 || true
-        adb reverse tcp:5001 tcp:5001 || true
-      fi
-      return
+  EMULATOR_PID=""
+
+  port_ready() {
+    timeout 1 bash -c "</dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
+  }
+
+  emulators_ready() {
+    port_ready 4400 && port_ready 9099 && port_ready 8080 && port_ready 5001
+  }
+
+  # Reuse a healthy Suite instead of starting a second one and allowing the
+  # Firebase CLI to move ports (which would make the seed target the wrong DB).
+  if emulators_ready; then
+    echo "Firebase Emulator Suite já está disponível; reutilizando as portas 9099/8080/5001."
+  else
+    if port_ready 4400 || port_ready 9099 || port_ready 8080 || port_ready 5001; then
+      echo "Portas do Firebase Emulator parcialmente ocupadas. Encerre a Suite existente antes de tentar novamente." >&2
+      exit 1
     fi
-    sleep 1
-  done
-  cat "$emulator_log" >&2
-  exit 1
+
+    npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions >"$emulator_log" 2>&1 &
+    EMULATOR_PID=$!
+    cleanup_emulators() {
+      if [[ -n "$EMULATOR_PID" ]]; then
+        kill "$EMULATOR_PID" 2>/dev/null || true
+        wait "$EMULATOR_PID" 2>/dev/null || true
+      fi
+    }
+    trap cleanup_emulators EXIT INT TERM
+
+    for _ in {1..90}; do
+      if emulators_ready; then
+        break
+      fi
+      sleep 1
+    done
+    if ! emulators_ready; then
+      cat "$emulator_log" >&2
+      exit 1
+    fi
+  fi
+
+  # The Hub can be online before Firestore finishes binding. At this point all
+  # three service ports are reachable, so the reset/seed request is safe.
+  FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-lumus-financas npm --prefix backend run seed
+  if command -v adb >/dev/null 2>&1; then
+    adb reverse tcp:9099 tcp:9099 || true
+    adb reverse tcp:8080 tcp:8080 || true
+    adb reverse tcp:5001 tcp:5001 || true
+  fi
+  return
 }
 
 case "$MODE" in

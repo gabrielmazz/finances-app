@@ -160,14 +160,14 @@ export default function TagActionsheetSelector({
 	return (
 		<>
 			<HStack className="items-center gap-3">
-				<View className="flex-1">
+				<View className="w-full flex-1">
 					<Pressable
 						onPress={handleOpen}
 						disabled={!canOpenSheet}
 						accessibilityRole="button"
 						accessibilityLabel={accessibilityLabel}
 						accessibilityState={{ disabled: !canOpenSheet, expanded: isOpen }}
-						className={`${triggerClassName} px-4 py-3 ${!canOpenSheet ? 'opacity-60' : ''}`}
+						className={`w-full ${triggerClassName} px-4 py-3 ${!canOpenSheet ? 'opacity-60' : ''}`}
 					>
 						<HStack className="items-center justify-between gap-3">
 							<HStack className="min-w-0 flex-1 items-center gap-3">
@@ -207,7 +207,9 @@ export default function TagActionsheetSelector({
 				snapPoints={sheetSnapPoints}
 			>
 				<ActionsheetBackdrop />
-				<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
+				<ActionsheetContent
+					className={`w-full max-w-none self-stretch ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
+				>
 					<ActionsheetDragIndicatorWrapper>
 						<ActionsheetDragIndicator />
 					</ActionsheetDragIndicatorWrapper>
@@ -226,7 +228,7 @@ export default function TagActionsheetSelector({
 						keyboardShouldPersistTaps="handled"
 						contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
 					>
-						<VStack className="px-2 pb-2">
+						<VStack className="w-full px-2 pb-2">
 							{sortedOptions.length === 0 ? (
 								<VStack className="items-center px-4 py-8">
 									<Text className={`${bodyTextClassName} text-center text-sm`}>

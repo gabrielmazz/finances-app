@@ -229,7 +229,8 @@ export async function getTagsWithUsersByPersonFirebase(personId: string) {
 	try {
 		const related = await getRelatedUsersIDsFirebase(personId);
 		if (!related.success) return related;
-		const personIds = Array.from(new Set([personId, ...related.data]));
+		const relatedIds = Array.isArray(related.data) ? related.data : [];
+		const personIds = Array.from(new Set([personId, ...relatedIds]));
 		const snapshots = await Promise.all(
 			Array.from({ length: Math.ceil(personIds.length / 30) }, (_, index) =>
 				getDocs(query(collection(db, 'tags'), where('personId', 'in', personIds.slice(index * 30, index * 30 + 30)))),

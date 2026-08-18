@@ -90,7 +90,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 ### Navegação Web responsiva
 
-- `WebAppShell` envolve o `Stack` autenticado somente no navegador e preserva o fundo de workspace sem alterar o Stack, os guards ou os parâmetros de rota. Ele não reserva mais uma faixa permanente para navegação.
+- `WebAppShell` envolve o `Stack` autenticado somente no navegador e preserva o fundo de workspace sem alterar o Stack, os guards ou os parâmetros de rota. Ele não reserva mais uma faixa permanente para navegação. Os helpers de `utils/navigation.ts` emitem o evento Web antes de despachar `push`, `replace` ou `back`; `WebRouteTransition` escuta esse evento e usa Motion em um portal DOM para cobrir e revelar a página com um véu horizontal curto. A transição não captura ponteiros e é removida quando `prefers-reduced-motion` está ativo.
 - `components/uiverse/navigator.web.tsx` é a variante Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. O fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
 - Em telas menores, a variante Web preserva a barra inferior compacta; Android/iOS continuam usando `navigator.tsx` e o menu Gluestack existentes. Os dois formatos não aparecem juntos.
 - O painel mantém a opção contextual de movimentos bancários, os rótulos de formulários derivados, logout serializado e as rotas ocultáveis. Cada item tem estado selecionado, foco visível, fecha com Escape/clique externo e reduz a animação quando o sistema pede menos movimento.
@@ -101,6 +101,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - `index.ts` — Entry mínimo que carrega `expo-router/entry`
 - `app/_layout.tsx` — Root layout + `Stack.Protected` de autenticação + `AuthBootstrapScreen`
 - `components/uiverse/web-app-shell.tsx` — Reserva o workspace autenticado no navegador desktop sem modificar a hierarquia de rotas
+- `components/uiverse/web-route-transition.web.tsx` — Feedback de troca de rota Web com Motion, isolado do Stack React Native
 - `app/home.tsx` — Container de abas (renderização condicional por índice)
 - `app/app-tests.tsx` / `screens/AppTestsScreen.tsx` — Central manual de testes, sob visibilidade local, com diagnóstico não persistente e atalhos de rascunho
 - `app/category-analysis.tsx` — Rota da análise dinâmica por tag

@@ -270,6 +270,45 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Tipagem da composição Web corrigida em 2026-08-17: `nativewind-env.d.ts` agora estende as interfaces concretas do React Native 0.81 para que `className` seja reconhecido em `View`, `Text`, `Image`, `ScrollView` e `KeyboardAvoidingView`, além de referenciar as declarações de assets SVG/PNG. `HomeScreen.web.tsx` e `AddRegisterExpensesScreen.web.tsx` deixaram de passar `100vw` em `StyleProp`; a mesma largura de viewport permanece via `w-screen` centralizado em `WEB_DASHBOARD_CLASS_NAMES`. O layout e os fluxos financeiros não mudaram. Vault alinhado em [[Versão Web]], [[Componentes UI]] e [[Hooks Customizados]].
+- Atualizado em 2026-08-17.
+
+- Correção do wallpaper da tela de despesas Web em 2026-08-17: `AddRegisterExpensesScreen.web.tsx` passou a declarar o posicionamento relativo do canvas e as camadas do hero (`RNImage`, `Grainient`, conteúdo e sheet), além de alinhar a opacidade do `Grainient` ao hero da Home. O formulário e o fluxo financeiro permanecem inalterados. Vault alinhado em [[Versão Web]] e [[Transações de Despesas]].
+- Atualizado em 2026-08-17.
+
+- Correção da camada visual da Home Web em 2026-08-17: `Grainient` passou a preservar um gradiente CSS sob o canvas e a recusar o fallback incompatível para WebGL1 quando WebGL2 não está disponível; a opacidade do overlay do hero voltou a `0.62` para manter o efeito legível sobre o wallpaper. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-17.
+
+- Correção geral da tela de registro de despesas para Web em 2026-08-17: `screens/AddRegisterExpensesScreen.web.tsx` passou a seguir o mesmo padrão fullscreen da Home, com hero absoluto de largura `100vw`, wallpaper amarelo, Grainient, título `StrokeText`, ilustração em `AnimatedContent` e formulário em sheet sobreposto com uma única rolagem de página. A variante mantém a lógica nativa para cadastro/edição, valores em centavos, pagamento em dinheiro ou banco, categorias, templates, gastos obrigatórios, ajuste de investimento e [[Comportamento Pós-Registro]]. Android/iOS continuam usando `AddRegisterExpensesScreen.tsx`; vault alinhado em [[Versão Web]] e [[Transações de Despesas]].
+- Atualizado em 2026-08-17.
+
+- Correção do carregamento de investimentos da Home em 2026-08-16: a consulta legada ganhou o índice composto de `financeInvestments` (`personId` + `createdAt`) que faltava e fazia Web/Android exibirem “Não foi possível carregar os investimentos.”; grupos migrados passaram a montar a carteira a partir das contas `financialAccounts` com `kind: 'investment'`, usando o saldo confirmado sem projeção CDI legada. Vault alinhado em [[Dashboard Home]].
+
+- Correção da largura do wallpaper da Home Web em 2026-08-16: a imagem `RNImage` tinha dimensão intrínseca de 1600 px e deixava o fundo do shell visível à direita em viewports maiores. A casca, hero e imagem agora usam largura de viewport (`100vw`), enquanto o `Grainient` permanece sobre a área inteira do hero. A paleta clara substituiu o stop marrom por amarelo. `Grainient` nos detalhes expandidos da timeline permanece inalterado. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-16.
+
+- Correção da camada escura sobre o wallpaper Web em 2026-08-16: `StaggeredMenu` passou a fixar `left/right` inline no painel e nos prelayers conforme `position="left"`, evitando que a camada navy de largura do menu apareça no lado direito durante a montagem/retorno de rotas. O wallpaper permanece independente da navegação. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-16.
+
+- Correção do recorte lateral no wallpaper Web em 2026-08-16: o véu `WebRouteTransition` passou a usar `top/left` e `100vw/100vh` explícitos, evitando uma faixa escura residual por cálculo de `inset`/transform no DOM. O hero da Home Web também declara largura total (`w-full`) para manter imagem e Grainient alinhados à viewport. Vault alinhado em [[Versão Web]], [[Navegação]] e [[Componentes UI]].
+- Atualizado em 2026-08-16.
+
+- Seed do emulador corrigido em 2026-08-16: `backend/scripts/seed.ts` agora grava os dados de demonstração nas coleções reais `expenses` e `gains`, usando `name`/`valueInCents` e categorias `both`; antes gravava uma coleção legada `finances`, que não era lida pelas telas atuais. O comando continua restrito ao Firebase Emulator e valida as quantidades criadas.
+- As datas do seed usam o mês corrente no momento da execução, em vez de uma data fixa, para que despesas e ganhos apareçam nos filtros do mês atual.
+- O seed também cria dois `MonthlyBalance` do mês corrente e quatro templates em `mandatoryExpenses`/`mandatoryGains`: um mensal sem parcelas e um parcelado para cada tipo, sempre pendentes para o usuário testar o registro real pelo fluxo da lista.
+- O seed inclui ainda um investimento CDI, aporte excluído dos totais, transferência entre os dois bancos e saque para caixa físico em `cashRescues`; esses movimentos são demonstrativos e permanecem no mês corrente.
+- O seed cria 15 despesas obrigatórias pendentes, distribuídas em vários dias do mês corrente, incluindo vencimentos repetidos no mesmo dia para exercitar a listagem e o calendário.
+- Atualizado em 2026-08-16.
+
+- Transições de rota na Web em 2026-08-16: `WebAppShell` monta `WebRouteTransition` somente no workspace autenticado. A variante `.web.tsx` usa `motion/react` em portal DOM para revelar cada novo pathname com um véu horizontal de 320 ms, sem tocar no `Stack`, nos guards ou no histórico do Expo Router; respeita `prefers-reduced-motion` e não captura ponteiros. Vault alinhado em [[Navegação]], [[Versão Web]] e [[Componentes UI]].
+- Atualizado em 2026-08-16.
+
+- Centralização dos estilos estruturais da Home Web em 2026-08-16: `HomeScreen.web.tsx` removeu o `StyleSheet.create()` local e passou a consumir `WEB_DASHBOARD_CLASS_NAMES`/`WEB_DASHBOARD_DOM_STYLES` de `hooks/useScreenStyle.ts`, usando Tailwind para geometria fixa e preservando `webDashboardPalette`/dimensões calculadas somente como valores de runtime. `BankCardSurface` aceita `className` para o layout externo. Vault alinhado em [[Dashboard Home]], [[Hooks Customizados]], [[Componentes UI]], [[Sistema de Temas]] e [[Versão Web]].
+- Atualizado em 2026-08-16.
+
+- Ocultação da seção de investimentos na Home em 2026-08-16: `HomeScreen.tsx` e `HomeScreen.web.tsx` agora montam a seção somente durante carregamento, erro ou quando há investimentos confirmados. Quando a carteira carregada está vazia, a seção desaparece; na Web desktop, os cartões bancários ficam centralizados. Vault alinhado em [[Dashboard Home]] e [[Versão Web]].
+- Atualizado em 2026-08-16.
+
 - Correção de consultas de bancos e categorias em 2026-08-16: `getAllBanksFirebase()` e `getAllTagsFirebase()` preservam as fachadas públicas, mas deixaram de fazer varreduras sem filtro. As duas funções agora usam o UID autenticado e usuários relacionados, alinhando as queries às Firestore Rules (`resource.data.personId`) e evitando `Property personId is undefined` no Emulator e em produção. Vault alinhado em [[Gerenciamento de Bancos]] e [[Gerenciamento de Tags]].
 - Atualizado em 2026-08-16.
 
@@ -339,6 +378,8 @@ GOOGLE_SERVICES_JSON=
 > Atualizado em 2026-08-14.
 
 - Desativação reversível de bancos em 2026-08-14: `ConfigurationsScreen.tsx` agora carrega bancos ativos e inativos na tabela administrativa e oferece confirmação para desativar/reativar, preservando o documento e o histórico. `updateBankStatusFirebase()` mantém `isActive`; os seletores operacionais continuam filtrando bancos inativos. Vault alinhado em [[Gerenciamento de Bancos]] e [[Configurações]].
+- Largura dos seletores Web em 2026-08-17: `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` passaram a ocupar a largura total disponível no trigger, no conteúdo do ActionSheet e na lista de opções. O grupo de formato de pagamento de `AddRegisterExpensesScreen.web.tsx` usa limite responsivo de `1120px`, centralizado na superfície principal, sem alterar o componente base nativo. Vault alinhado em [[Componentes UI]] e [[Versão Web]].
+- Centralização dos estilos do cadastro Web em 2026-08-17: `AddRegisterExpensesScreen.web.tsx` deixou de declarar o mapa local `webStyles` e passou a consumir `WEB_EXPENSE_CLASS_NAMES` retornado por `useScreenStyles()`, seguindo o padrão já usado pela Home Web. A lógica e a composição nativa permanecem inalteradas. Vault alinhado em [[Versão Web]], [[Hooks Customizados]] e [[Sistema de Temas]].
 > Atualizado em 2026-08-14.
 
 - Migração visual parcial para Tailwind na Web em 2026-08-14: `LoginScreen.web.tsx` removeu o `StyleSheet.create()` da composição principal e passou a usar classes NativeWind para os layouts responsivo, painel de identidade e formulário; tokens de tema e dimensões medidas continuam em runtime. A lógica de autenticação e a composição nativa permanecem inalteradas.

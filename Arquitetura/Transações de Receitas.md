@@ -66,6 +66,7 @@ sequenceDiagram
 
 - Valores armazenados em **centavos** (integer)
 - Data armazenada como timestamp Firestore
+- O seed do emulador cria ganhos de demonstração diretamente em `gains`, com `name` e `valueInCents`, para que sejam lidos pelo mesmo fluxo das receitas registradas no app.
 
 ## Observações importantes
 
