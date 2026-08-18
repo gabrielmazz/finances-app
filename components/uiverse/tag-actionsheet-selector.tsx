@@ -207,9 +207,7 @@ export default function TagActionsheetSelector({
 				snapPoints={sheetSnapPoints}
 			>
 				<ActionsheetBackdrop />
-				<ActionsheetContent
-					className={`w-full max-w-none self-stretch ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}
-				>
+				<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
 					<ActionsheetDragIndicatorWrapper>
 						<ActionsheetDragIndicator />
 					</ActionsheetDragIndicatorWrapper>

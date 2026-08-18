@@ -217,6 +217,7 @@ const Grainient = ({
     let raf = 0;
     let isVisible = true;
     let isPageVisible = !document.hidden;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const t0 = performance.now();
 
     const loop = t => {
@@ -226,6 +227,10 @@ const Grainient = ({
     };
 
     const tryStart = () => {
+      if (prefersReducedMotion) {
+        renderer.render({ scene: mesh });
+        return;
+      }
       if (isVisible && isPageVisible && raf === 0) raf = requestAnimationFrame(loop);
     };
     const tryStop = () => {

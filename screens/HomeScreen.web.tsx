@@ -22,7 +22,6 @@ import {
 	View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { PieChart } from "react-native-gifted-charts";
 import Carousel from "@/components/web/Carousel";
 import AnimatedContent from "@/components/web/AnimatedContent";
 import Grainient from "@/components/web/Grainient";
@@ -30,6 +29,7 @@ import StrokeText from "@/components/web/StrokeText";
 import HomeExpenseChart from "@/components/uiverse/home-expense-chart";
 import HomeExpenseLineChart from "@/components/uiverse/home-expense-line-chart";
 import HomeActivityHeatmap from "@/components/uiverse/home-activity-heatmap";
+import HomeInvestmentChart from "@/components/uiverse/home-investment-chart";
 
 import Navigator from "@/components/uiverse/navigator";
 import {
@@ -573,15 +573,6 @@ export default function HomeScreen() {
 				.sort((a, b) => b.currentBaseValueInCents - a.currentBaseValueInCents),
 		[portfolio.items],
 	);
-	const distributionData = React.useMemo(
-		() =>
-			distributionItems.map((item, index) => ({
-				value: item.currentBaseValueInCents / 100,
-				color: INVESTMENT_COLORS[index % INVESTMENT_COLORS.length],
-				text: item.name,
-			})),
-		[distributionItems],
-	);
 	const expensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const gainsByBankId = overview.data.currentMonthGainsByBankId;
 	const monthlyTotals = React.useMemo(
@@ -670,6 +661,18 @@ export default function HomeScreen() {
 			style={{ backgroundColor: surfaceBackground }}
 			edges={["left", "right", "bottom"]}
 		>
+			<ScrollView
+				className={`${webDashboardClassNames.fill} h-screen overflow-y-auto`}
+				contentContainerStyle={{ flexGrow: 1 }}
+				showsVerticalScrollIndicator
+				refreshControl={
+					<RefreshControl
+						refreshing={isRefreshing}
+						onRefresh={handleRefresh}
+						tintColor="#FACC15"
+					/>
+				}
+			>
 			<View className={webDashboardClassNames.fill} style={{ backgroundColor: surfaceBackground }}>
 				<View
 					className={webDashboardClassNames.hero}
@@ -757,17 +760,7 @@ export default function HomeScreen() {
 					style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
 				>
 					<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
-						<ScrollView
-							contentContainerClassName={webDashboardClassNames.scrollContent}
-							showsVerticalScrollIndicator={false}
-							refreshControl={
-								<RefreshControl
-									refreshing={isRefreshing}
-									onRefresh={handleRefresh}
-									tintColor="#FACC15"
-								/>
-							}
-						>
+						<View className={webDashboardClassNames.scrollContent}>
 								<View
 									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
 								>
@@ -835,42 +828,22 @@ export default function HomeScreen() {
 										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
 											Nenhum investimento registrado até o momento.
 										</Text>
-									) : distributionData.length === 0 ? (
+									) : distributionItems.length === 0 ? (
 										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
 											Os investimentos ainda não possuem valor atual/base para
 											exibir a distribuição.
 										</Text>
 									) : (
 										<View className={webStyles.investmentVisual}>
-											<PieChart
-												data={distributionData}
-												donut
-												radius={compact ? 100 : 112}
-												innerRadius={compact ? 62 : 70}
-												innerCircleColor={cardBackground}
-												strokeColor={surfaceBackground}
-												strokeWidth={5}
-												centerLabelComponent={() => (
-													<View className={webStyles.chartCenter}>
-														<Text
-															className={webStyles.chartLabel} style={{ color: webDashboardPalette.primaryText }}
-														>
-															ATIVOS
-														</Text>
-														<Text
-															className={webStyles.chartCount} style={{ color: webDashboardPalette.primaryText }}
-														>
-															{portfolio.investmentCount}
-														</Text>
-														<Text
-															className={webStyles.chartCaption} style={{ color: webDashboardPalette.primaryText }}
-														>
-															{portfolio.investmentCount === 1
-																? "investimento"
-																: "investimentos"}
-														</Text>
-													</View>
-												)}
+											<HomeInvestmentChart
+												items={distributionItems.map((item, index) => ({
+													name: item.name,
+													valueInCents: item.currentBaseValueInCents,
+													color: INVESTMENT_COLORS[index % INVESTMENT_COLORS.length],
+												}))}
+												investmentCount={portfolio.investmentCount}
+												isDarkMode={isDarkMode}
+												shouldHideValues={shouldHideValues}
 											/>
 											<View className={webStyles.investmentTotals}>
 												<View>
@@ -1327,11 +1300,12 @@ export default function HomeScreen() {
 									</Text>
 								) : null}
 							</View>
-						</ScrollView>
+						</View>
 					</View>
 				</View>
-				<Navigator defaultValue={0} />
 			</View>
+			</ScrollView>
+			<Navigator defaultValue={0} />
 			<Modal isOpen={isMonthlyBalanceModalOpen} onClose={closeMonthlyBalance}>
 				<ModalBackdrop />
 				<ModalContent>
