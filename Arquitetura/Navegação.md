@@ -1,9 +1,9 @@
 ---
 tags: [navegacao, expo-router, rotas, autenticacao, web, responsivo]
-relacionado: [[Autenticação]], [[Dashboard Home]], [[Assistente Lumus]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]], [[Configurações]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Notificações]], [[Componentes UI]], [[Versão Web]]
+relacionado: [[Autenticação]], [[Dashboard Home]], [[Assistente Lumus]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]], [[Configurações]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Notificações]], [[Componentes UI]], [[Versão Web]], [[Organização do Código]]
 status: ativo
 tipo: arquitetura
-versao: 2.5.0
+versao: 2.6.0
 ---
 
 # Navegação
@@ -69,9 +69,9 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 ## Como funciona
 
-1. O entry ativo é `index.ts`, que apenas carrega `expo-router/entry` e monta `app/_layout.tsx`. O root layout envolve a app com providers na seguinte ordem: `ThemeProvider` → `ValueVisibilityProvider` → `PostSubmitBehaviorProvider` → `RouteVisibilityProvider` → `GestureHandlerRootView` → `GluestackUIProvider` → `NotifierWrapper` → `AuthProvider`
+1. O entry ativo é `index.ts`, que apenas carrega `expo-router/entry` e monta `app/_layout.tsx`. O layout mantém o bootstrap obrigatório mínimo e delega a composição global para `components/app/app-root.tsx`, onde os providers seguem a ordem: `ThemeProvider` → `ValueVisibilityProvider` → `PostSubmitBehaviorProvider` → `RouteVisibilityProvider` → `GestureHandlerRootView` → `GluestackUIProvider` → `NotifierWrapper` → `AuthProvider`
 2. `AuthenticatedStack` consome `useAuth()`, `useAppTheme()` e [[Visibilidade de Rotas]]. Depois do bootstrap, mantém o mesmo `Stack`: `index` fica disponível para visitantes e cada rota autenticada recebe seu próprio `Stack.Protected`. Rotas ocultas localmente permanecem protegidas mesmo por deep link ou navegação programática.
-3. `app/home.tsx` implementa o container de abas com renderização condicional (não Tab Navigator), e cada tela principal renderiza `components/uiverse/navigator.tsx`, cuja resolução `.web.tsx` assume a navegação no navegador
+3. `app/home.tsx` é somente o adaptador de rota para `screens/HomeTabsScreen.tsx`, que implementa o container de abas com renderização condicional (não Tab Navigator). Cada tela principal renderiza `components/uiverse/navigator.tsx`, cuja resolução `.web.tsx` assume a navegação no navegador
 4. Parâmetros de rota passados via `useLocalSearchParams()` do Expo Router
 5. `utils/navigation.ts` é o registro central de rotas (`APP_ROUTE_PATHS`), abas Home (`HOME_TAB_INDEX`) e helpers imperativos. Navegação manual para frente usa `push`, seleção/saída explícita usa um único `replace`, retorno inline conhecido usa `back` e redirect automático usa `redirectToRoute`/`redirectToHomeTab`
 6. O grupo Home de `components/uiverse/navigator.tsx` e `.web.tsx` contém o Dashboard, o atalho **Lumus IA**, a [[Análise por Categoria]], a [[Previsão de Fluxo de Caixa]] e [[Anotações Locais]], mantendo assistência, relatórios, planejamento e organização pessoal perto da tela inicial. Lumus e Anotações só aparecem quando sua preferência em [[Visibilidade de Rotas]] estiver ativa; Anotações começa oculta por estar em desenvolvimento. Quando a rota ativa é `/bank-movements`, o mesmo grupo insere a opção contextual **Movimentos do banco** entre **Início** e os demais destinos, deixando a tela atual marcada sem esconder o caminho de volta para a Home.
@@ -79,8 +79,8 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 8. Em `/home`, o navigator resolve o grupo ativo pelo parâmetro `tab` e pelo `defaultValue` da tela, não apenas pelo pathname. Assim `/home?tab=0`, `/home?tab=1` e `/home?tab=2` destacam Home, Controle e Config corretamente.
 9. Telas de cadastro/edição que concluem um registro financeiro ou administrativo aplicam [[Comportamento Pós-Registro]] após o feedback de sucesso; por padrão retornam para `/home?tab=0`, mas podem permanecer na rota atual e limpar ou manter campos conforme preferência. O redirect espera um `requestAnimationFrame` para o `finally` do formulário concluir e então despacha exatamente um `REPLACE`.
 10. `add-register-tag` preserva o retorno inline para a tela de origem quando recebe `returnAfterCreate`; as quatro telas de origem também enviam `placement` (`expense`, `mandatory-expense`, `gain` ou `mandatory-gain`) e `returnToRoute` para fallback determinístico quando não houver histórico válido. A criação normal pode receber `availabilityPreset` ou abrir o seletor completo de disponibilidade.
-11. `app/_layout.tsx` chama `bootstrapLocalNotifications()` no carregamento do módulo para preparar canais Android e o handler de foreground. Dentro do `AuthProvider`, `NotificationLifecycleBridge` ativa o UID, restaura os lembretes do Firestore após login e renova a janela ao voltar ao foreground. Não existe handler Notifee em `index.ts`.
-12. A ação **Sair** é serializada no navigator e vinculada ao UID que a iniciou. Antes de chamar Firebase `signOut`, ela exige a limpeza confirmada dos lembretes desse UID; respostas atrasadas não podem limpar nem deslogar uma conta posterior.
+11. `app/_layout.tsx` chama `bootstrapLocalNotifications()` no carregamento do módulo para preparar canais Android e o handler de foreground. Dentro de `components/app/app-root.tsx`, `NotificationLifecycleBridge` ativa o UID, restaura os lembretes do Firestore após login e renova a janela ao voltar ao foreground. Não existe handler Notifee em `index.ts`.
+12. A ação **Sair** é serializada em cada renderer do navigator, mas o fluxo seguro único fica em `utils/secureLogout.ts`. Ele é vinculado ao UID que iniciou a ação e exige a limpeza confirmada dos lembretes antes de `signOut`; respostas atrasadas não podem limpar nem deslogar uma conta posterior.
 13. No grupo Config do navigator, a rota `/add-register-tag` mantém o caminho técnico de tag, mas o rótulo visível deve usar "Nova categoria" para alinhar com a nomenclatura padrão da interface.
 14. A rota `/screen-settings` fica no grupo Config do navigator como **Config. das telas** e abre a UI de [[Comportamento Pós-Registro]].
 15. A rota `/app-tests` também pertence ao grupo Config, mas começa oculta pela preferência local `appTests`. Quando o switch **Mostrar no app** é ligado em `ScreenSettingsScreen.tsx`, a opção **Testes do app** aparece no navigator; quando desligado, `Stack.Protected` nega também o acesso direto. A central envia apenas uma notificação imediata pelo canal existente, consulta a disponibilidade/configuração do Lumus sem mensagem ao modelo e abre rascunhos de despesa/ganho; a persistência continua dependendo do submit explícito do formulário.
@@ -93,16 +93,18 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - `WebAppShell` envolve o `Stack` autenticado somente no navegador e preserva o fundo de workspace sem alterar o Stack, os guards ou os parâmetros de rota. Ele não reserva mais uma faixa permanente para navegação. Os helpers de `utils/navigation.ts` emitem o evento Web antes de despachar `push`, `replace` ou `back`; `WebRouteTransition` escuta esse evento e usa Motion em um portal DOM para cobrir e revelar a página com um véu horizontal curto. A transição não captura ponteiros e é removida quando `prefers-reduced-motion` está ativo.
 - `components/uiverse/navigator.web.tsx` é a variante Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. O fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
 - Em telas menores, a variante Web preserva a barra inferior compacta; Android/iOS continuam usando `navigator.tsx` e o menu Gluestack existentes. Os dois formatos não aparecem juntos.
+- `navigator.tsx` não contém mais uma sidebar desktop inatingível: a resolução de módulo sempre escolhe `navigator.web.tsx` no navegador. A variante nativa fica restrita à barra inferior e menus mobile; o logout seguro é compartilhado entre as duas variantes.
 - O painel mantém a opção contextual de movimentos bancários, os rótulos de formulários derivados, logout serializado e as rotas ocultáveis. Cada item tem estado selecionado, foco visível, fecha com Escape/clique externo e reduz a animação quando o sistema pede menos movimento.
 - O Firebase Hosting reescreve a navegação de cliente para `index.html`. Por isso, uma abertura direta de `/home`, `/financial-list` ou outra rota autenticada atravessa o mesmo `Stack.Protected` e não deve ganhar um guard ou registro de rota paralelo.
 
 ## Arquivos principais
 
 - `index.ts` — Entry mínimo que carrega `expo-router/entry`
-- `app/_layout.tsx` — Root layout + `Stack.Protected` de autenticação + `AuthBootstrapScreen`
+- `app/_layout.tsx` — Bootstrap mínimo de compatibilidade, estilos e notificações locais
+- `components/app/app-root.tsx` — Providers, `Stack.Protected`, loader de bootstrap e ciclo de vida de notificações autenticadas
 - `components/uiverse/web-app-shell.tsx` — Reserva o workspace autenticado no navegador desktop sem modificar a hierarquia de rotas
 - `components/uiverse/web-route-transition.web.tsx` — Feedback de troca de rota Web com Motion, isolado do Stack React Native
-- `app/home.tsx` — Container de abas (renderização condicional por índice)
+- `app/home.tsx` / `screens/HomeTabsScreen.tsx` — Adaptador de rota e container de abas (renderização condicional por índice)
 - `app/app-tests.tsx` / `screens/AppTestsScreen.tsx` — Central manual de testes, sob visibilidade local, com diagnóstico não persistente e atalhos de rascunho
 - `app/category-analysis.tsx` — Rota da análise dinâmica por tag
 - `app/financial-forecast.tsx` — Rota da previsão financeira
@@ -117,6 +119,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - `utils/navigation.ts` — Registro central de rotas, navegação manual e orquestração serializada dos redirects automáticos via `replace`
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza configurados após sucesso e ignora conclusão obsoleta quando a tela já perdeu o foco
 - `utils/localNotifications.ts` — Bootstrap de notificações usado pelo root layout
+- `utils/secureLogout.ts` — Limpeza segura de lembretes e encerramento de sessão compartilhados pelos navigators
 - `babel.config.js` — Preset Expo, NativeWind, aliases e plugin Worklets
 - `App.tsx` — Entry alternativo usado apenas se `index.ts` voltar a ser o main
 
@@ -145,6 +148,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 - Expo Router usa file-system routing — arquivos em `app/` viram rotas automaticamente
 - A resposta de `index.bundle?platform=android&dev=true` deve ser validada após mudanças em Babel, Metro, NativeWind ou arquivos de rota. O bundle de produção pode aceitar sintaxe que o pipeline de desenvolvimento rejeita; por isso, export de produção sozinho não encerra a validação da tela branca.
+- A configuração Firebase é avaliada antes de `expo-router/entry` montar o primeiro frame. Portanto, cada `EXPO_PUBLIC_*` usada no bootstrap deve aparecer como acesso direto no código-fonte e como valor incorporado no bundle release; deixar `process.env` inteiro para resolução em runtime mantém a splash nativa porque o Stack nunca chega a montar.
 - `home.tsx` usa parâmetro `tab` para controlar aba ativa (não é roteamento de stack dentro das abas)
 - Layout animation no Android desabilitado via `utils/reactNativeCompat.ts` (compatibilidade New Architecture)
 - `navigator.tsx` e `.web.tsx` são a única navegação do domínio `uiverse`: barra inferior/menu Gluestack em Android/iOS e painel `StaggeredMenu` no Web a partir de `1024px`

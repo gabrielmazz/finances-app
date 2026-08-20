@@ -1,14 +1,14 @@
 ---
 tags: [moc, arquitetura, expo, firebase, web, financas]
-relacionado: [[Versão Web]], [[Navegação]], [[Firebase Config]], [[Componentes UI]], [[Notificações]], [[Assistente Lumus]]
+relacionado: [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Firebase Config]], [[Componentes UI]], [[Notificações]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
-versao: 2.1.0
+versao: 2.2.0
 ---
 
 # MOC - Lumus Finanças
 
-> Map of Content principal do projeto **Lumus Finanças** (v2.1.0)  
+> Map of Content principal do projeto **Lumus Finanças** (v2.2.0)
 > Aplicação universal de controle financeiro pessoal/familiar, construída com Expo + Firebase para Android/iOS e navegador.
 
 ---
@@ -21,7 +21,8 @@ graph TD
     B --> C[Functions - Firebase Firestore]
     C --> D[Firebase Auth + Firestore]
     E[expo-router/entry] --> A
-    A --> F[app/_layout.tsx - Providers + notificações]
+    A --> F[app/_layout.tsx - bootstrap]
+    F --> G[components/app/app-root.tsx - Providers + guard]
     A --> W[Expo Web export - dist]
     W --> H[Firebase Hosting - SPA]
 ```
@@ -61,6 +62,7 @@ graph TD
 
 ### Sistema
 - [[Navegação]] — Expo Router, fluxo de autenticação, rotas
+- [[Organização do Código]] — Fronteiras entre rotas, composição global, telas, UI, hooks, Firebase e variantes de plataforma
 - [[Firebase Config]] — Configuração dual de apps Firebase, persistência de sessão
 - [[Sistema de Temas]] — Modo claro/escuro persistido via AsyncStorage
 - [[Privacidade de Valores]] — Toggle de visibilidade financeira
@@ -105,7 +107,7 @@ graph TD
 ```mermaid
 graph TD
     FA[Firebase Auth] --> AC[AuthContext]
-    AC --> RL["_layout.tsx (guard)"]
+    AC --> RL["app-root.tsx (guard)"]
     RL --> HS[HomeScreen]
     HS --> UH["useHomeScreenData(personId)"]
     UH --> HF["HomeFirebase.ts (agregação)"]

@@ -1,8 +1,8 @@
 import React from 'react';
-import { RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Pressable, RefreshControl, ScrollView, View, StatusBar, TouchableOpacity, Text as RNText } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -13,7 +13,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { AddIcon, CalendarDaysIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
+import { AddIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
 	ModalBackdrop,
@@ -25,6 +25,9 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
+import AnimatedContent from '@/components/web/AnimatedContent';
+import Grainient from '@/components/web/Grainient';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -259,24 +262,21 @@ type MandatoryItemTone = {
 	accentColor: string;
 	amountColor: string;
 	lineColor: string;
-	iconGradient: [string, string];
-	cardGradient: [string, string];
+	gradient: [string, string];
 };
 
 const MANDATORY_EXPENSE_PENDING_TONE: MandatoryItemTone = {
 	accentColor: '#F97316',
 	amountColor: '#D97706',
 	lineColor: 'rgba(249, 115, 22, 0.3)',
-	iconGradient: ['#B91C1C', '#FACC15'],
-	cardGradient: ['#991B1B', '#FACC15'],
+	gradient: ['#B91C1C', '#EF4444'],
 };
 
 const MANDATORY_EXPENSE_COMPLETED_TONE: MandatoryItemTone = {
 	accentColor: '#10B981',
 	amountColor: '#10B981',
 	lineColor: 'rgba(16, 185, 129, 0.28)',
-	iconGradient: ['#047857', '#34D399'],
-	cardGradient: ['#065F46', '#10B981'],
+	gradient: ['#047857', '#34D399'],
 };
 
 function MandatoryExpensesTimelineSkeleton({
@@ -347,7 +347,10 @@ export default function MandatoryExpensesListScreen() {
 		skeletonMutedHighlightColor,
 		submitButtonClassName,
 		submitButtonCancelClassName,
+		webDashboardPalette,
+		webDashboardClassNames,
 	} = useScreenStyles();
+	const webStyles = webDashboardClassNames;
 	const params = useLocalSearchParams<{
 		focusMandatoryExpenseId?: string | string[];
 	}>();
@@ -366,6 +369,7 @@ export default function MandatoryExpensesListScreen() {
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
+	const [renderedExpenseIds, setRenderedExpenseIds] = React.useState<string[]>([]);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const [hasLoadedData, setHasLoadedData] = React.useState(false);
 	const handledFocusedExpenseIdRef = React.useRef<string | null>(null);
@@ -413,14 +417,6 @@ export default function MandatoryExpensesListScreen() {
 				? 'text-emerald-600 dark:text-emerald-400'
 				: 'text-gray-500 dark:text-gray-400',
 		[],
-	);
-
-	const timelinePalette = React.useMemo(
-		() => ({
-			title: isDarkMode ? '#F8FAFC' : '#0F172A',
-			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-		}),
-		[isDarkMode],
 	);
 
 	const monthlySummaryPalette = React.useMemo(
@@ -471,6 +467,7 @@ export default function MandatoryExpensesListScreen() {
 	React.useEffect(() => {
 		const visibleIds = new Set(expenses.map(expense => expense.id));
 		setExpandedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
+		setRenderedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [expenses]);
 
 	React.useEffect(() => {
@@ -642,8 +639,8 @@ export default function MandatoryExpensesListScreen() {
 				});
 				const displayValueInCents =
 					isPaidForCurrentCycle &&
-					typeof expense.lastPaymentValueInCents === 'number' &&
-					!Number.isNaN(expense.lastPaymentValueInCents)
+						typeof expense.lastPaymentValueInCents === 'number' &&
+						!Number.isNaN(expense.lastPaymentValueInCents)
 						? expense.lastPaymentValueInCents
 						: expense.valueInCents;
 
@@ -1073,11 +1070,16 @@ export default function MandatoryExpensesListScreen() {
 		[],
 	);
 	const handleToggleExpenseCard = React.useCallback((expenseId: string) => {
-		setExpandedExpenseIds(previousState =>
-			previousState.includes(expenseId)
-				? previousState.filter(id => id !== expenseId)
-				: [...previousState, expenseId],
-		);
+		setExpandedExpenseIds(previousState => {
+			if (previousState.includes(expenseId)) {
+				return previousState.filter(id => id !== expenseId);
+			}
+
+			setRenderedExpenseIds(rendered =>
+				rendered.includes(expenseId) ? rendered : [...rendered, expenseId],
+			);
+			return [...previousState, expenseId];
+		});
 	}, []);
 
 	const actionModalCopy = React.useMemo(() => {
@@ -1156,280 +1158,258 @@ export default function MandatoryExpensesListScreen() {
 	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
+	// As telas Web com sheet sobreposto ocultam os 64 px finais do hero; a lista mantém a mesma altura visual.
+	const visibleHeroHeight = heroHeight - 64;
 
 	return (
-		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+					<View
+						className={webDashboardClassNames.hero}
+						style={{ height: visibleHeroHeight, backgroundColor: surfaceBackground }}
+					>
 						<Image
 							source={LoginWallpaper}
 							alt="Background da tela de gastos obrigatórios"
-							className="w-full h-full rounded-b-3xl absolute"
+							className={webDashboardClassNames.heroImage}
+							style={{
+								position: 'absolute',
+								top: 0,
+								left: 0,
+								right: 0,
+								bottom: 0,
+								width: '100%',
+								height: '100%',
+							}}
 							resizeMode="cover"
 						/>
-
-						<VStack
-							className="w-full h-full items-center justify-start px-6 gap-4"
-							style={{ paddingTop: insets.top + 24 }}
-						>
-							<Heading size="xl" className="text-white text-center">
-								Gastos obrigatórios
-							</Heading>
-							<MandatoryExpensesListIllustration width="38%" height="38%" className="opacity-90" />
-						</VStack>
+						<WebScreenHero
+							title="Gastos obrigatórios"
+							Illustration={MandatoryExpensesListIllustration}
+							isDarkMode={isDarkMode}
+							topPadding={insets.top + 24}
+						/>
 					</View>
 
-					<ScrollView
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
-						style={{ marginTop: heroHeight - 64 }}
-						contentContainerStyle={{ paddingBottom: 48 }}
-						refreshControl={
-							<RefreshControl
-								refreshing={isRefreshing}
-								onRefresh={() => void handleRefresh()}
-								tintColor="#FACC15"
-							/>
-						}
-					>
-						<VStack className="justify-between mt-4">
-
-							{isLoading ? (
-								<MandatoryExpensesTimelineSkeleton
-									compactCardClassName={compactCardClassName}
-									tintedCardClassName={tintedCardClassName}
-									skeletonBaseColor={skeletonBaseColor}
-									skeletonHighlightColor={skeletonHighlightColor}
-									skeletonMutedBaseColor={skeletonMutedBaseColor}
-									skeletonMutedHighlightColor={skeletonMutedHighlightColor}
+					<View style={{ flex: 1, marginTop: visibleHeroHeight + 16, position: 'relative', zIndex: 3 }}>
+						<ScrollView
+							keyboardShouldPersistTaps="handled"
+							keyboardDismissMode="on-drag"
+							className={`flex-1 rounded-t-3xl ${cardBackground} pb-1 web:w-full web:relative web:z-[3]`}
+							style={{ flex: 1 }}
+							contentContainerStyle={{ paddingBottom: 48 }}
+							showsVerticalScrollIndicator={false}
+							refreshControl={
+								<RefreshControl
+									refreshing={isRefreshing}
+									onRefresh={() => void handleRefresh()}
+									tintColor="#FACC15"
 								/>
-							) : (
-								<VStack className="mt-4 gap-4">
-									<DateCalendar
-										items={calendarExpenses}
-										tagsMap={tagsMap}
-										tagMetadataMap={tagMetadataMap}
-										formatCurrency={formatCurrencyBRL}
-										getStatusText={getExpenseStatusText}
-										getStatusClassName={getExpenseStatusClassName}
-										getDueDayColorClass={(dueDay: number, expense?: DateCalendarItem) =>
-											getDueDayColorClass(
-												dueDay,
-												(expense as MandatoryExpenseItem | undefined)?.isCompletedForCurrentCycle,
-											)}
-										onAction={handleCalendarAction}
-										valueLabel="Previsto"
-										dueLabel="Vencimento"
-										completedLabel="pagos"
-										pendingLabel="pend."
-										valueTone="expense"
+							}
+						>
+							<VStack className="justify-between web:w-full web:max-w-[1180px] web:self-center web:px-2 web:pb-8">
+
+								{isLoading ? (
+									<MandatoryExpensesTimelineSkeleton
+										compactCardClassName={compactCardClassName}
+										tintedCardClassName={tintedCardClassName}
+										skeletonBaseColor={skeletonBaseColor}
+										skeletonHighlightColor={skeletonHighlightColor}
+										skeletonMutedBaseColor={skeletonMutedBaseColor}
+										skeletonMutedHighlightColor={skeletonMutedHighlightColor}
 									/>
+								) : (
+									<VStack className="gap-4">
+										<DateCalendar
+											items={calendarExpenses}
+											tagsMap={tagsMap}
+											tagMetadataMap={tagMetadataMap}
+											formatCurrency={formatCurrencyBRL}
+											getStatusText={getExpenseStatusText}
+											getStatusClassName={getExpenseStatusClassName}
+											getDueDayColorClass={(dueDay: number, expense?: DateCalendarItem) =>
+												getDueDayColorClass(
+													dueDay,
+													(expense as MandatoryExpenseItem | undefined)?.isCompletedForCurrentCycle,
+												)}
+											onAction={handleCalendarAction}
+											valueLabel="Previsto"
+											dueLabel="Vencimento"
+											completedLabel="pagos"
+											pendingLabel="pend."
+											valueTone="expense"
+											modalSize="lg"
+										/>
 
-									<View className={`py-2`}>
-										<VStack className="gap-4">
-											<HStack className="items-start justify-between gap-4">
-												<VStack className="flex-1 gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: monthlySummaryPalette.subtitle }}
-													>
-														Resumo do mês
-													</Text>
-													<Heading size="lg" style={{ color: monthlySummaryPalette.title }}>
-														{referenceMonthLabel}
-													</Heading>
-												</VStack>
-
-												<VStack className="items-end gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: monthlySummaryPalette.subtitle }}
-													>
-														Total do mês
-													</Text>
-													<Heading size="md" style={{ color: monthlySummaryPalette.expenseText }}>
-														{formatCurrencyBRL(monthlySummary.totalReferenceInCents)}
-													</Heading>
-												</VStack>
-											</HStack>
-
-											<HStack className="gap-3">
-												<View
-													style={{
-														flex: 1,
-														minHeight: 96,
-														borderRadius: 22,
-														borderWidth: 1,
-														borderColor: monthlySummaryPalette.border,
-														paddingHorizontal: 14,
-														paddingVertical: 12,
-													}}
-												>
-													<VStack className="flex-1 justify-between">
+										<View className={`py-2`}>
+											<VStack className="gap-4">
+												<HStack className="items-start justify-between gap-4">
+													<VStack className="flex-1 gap-1">
 														<Text
 															className="text-xs uppercase tracking-wide"
 															style={{ color: monthlySummaryPalette.subtitle }}
 														>
-															Pago
+															Resumo do mês
 														</Text>
-														<Heading size="sm" style={{ color: monthlySummaryPalette.expenseText }}>
-															{formatCurrencyBRL(monthlySummary.paidTotalInCents)}
+														<Heading size="lg" style={{ color: monthlySummaryPalette.title }}>
+															{referenceMonthLabel}
 														</Heading>
-														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
-															{monthlySummary.paidItems.length} item(ns)
-														</Text>
 													</VStack>
-												</View>
 
-												<View
-													style={{
-														flex: 1,
-														minHeight: 96,
-														borderRadius: 22,
-														borderWidth: 1,
-														borderColor: monthlySummaryPalette.border,
-														paddingHorizontal: 14,
-														paddingVertical: 12,
-													}}
-												>
-													<VStack className="flex-1 justify-between">
+													<VStack className="items-end gap-1">
 														<Text
 															className="text-xs uppercase tracking-wide"
 															style={{ color: monthlySummaryPalette.subtitle }}
 														>
-															Pendente
+															Total do mês
 														</Text>
-														<Heading size="sm" style={{ color: monthlySummaryPalette.pendingText }}>
-															{formatCurrencyBRL(monthlySummary.pendingTotalInCents)}
+														<Heading size="md" style={{ color: monthlySummaryPalette.expenseText }}>
+															{formatCurrencyBRL(monthlySummary.totalReferenceInCents)}
 														</Heading>
-														<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
-															{monthlySummary.pendingItems.length} item(ns)
-														</Text>
 													</VStack>
-												</View>
-											</HStack>
+												</HStack>
 
-										</VStack>
-									</View>
-
-									<HStack className="gap-3">
-										<Button
-											className={`${submitButtonClassName} flex-1`}
-											onPress={() => {
-												void handleExportMonthlySummaryPdf();
-											}}
-											isDisabled={isLoading || isExportingPdf}
-										>
-											{isExportingPdf ? (
-												<>
-													<ButtonSpinner />
-													<ButtonText>Gerando PDF</ButtonText>
-												</>
-											) : (
-												<>
-													<ButtonIcon as={DownloadIcon} size="sm" />
-													<ButtonText>Baixar resumo em PDF</ButtonText>
-												</>
-											)}
-										</Button>
-
-										<Button
-											className={`${submitButtonClassName} flex-1`}
-											onPress={handleOpenCreate}
-										>
-											<ButtonIcon as={AddIcon} size="sm" />
-											<ButtonText>Adicionar gasto</ButtonText>
-											{isLoading && <ButtonSpinner />}
-										</Button>
-									</HStack>
-
-									{expenses.length === 0 ? (
-										<Box className={`${compactCardClassName} px-5 py-6`}>
-											<Text className={`text-center ${helperText}`}>
-												Nenhum gasto obrigatório cadastrado até o momento.
-											</Text>
-										</Box>
-									) : (
-										<VStack className="gap-2">
-											<View style={{ marginTop: 10 }}>
-												{expenses.map((expense, index) => {
-													const isExpanded = expandedExpenseIds.includes(expense.id);
-													const tagMetadata = tagMetadataMap[expense.tagId];
-													const isCompletedDisplay = expense.isPaidForCurrentCycle || expense.isInstallmentComplete;
-													const tone = isCompletedDisplay
-														? MANDATORY_EXPENSE_COMPLETED_TONE
-														: MANDATORY_EXPENSE_PENDING_TONE;
-													const summaryText = expense.isInstallmentComplete
-														? 'Parcelamento concluído.'
-														: expense.isPaidForCurrentCycle
-															? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
-															: expense.installmentLabel
-																? `Registre a ${expense.installmentLabel.toLowerCase()} para concluir este item.`
-																: 'Registre a despesa do mês para concluir este item.';
-
-													return (
-														<View key={expense.id} style={{ flexDirection: 'row' }}>
-															<View
-																style={{
-																	alignItems: 'center',
-																	width: '7%',
-																	paddingTop: 6,
-																}}
+												<HStack className="flex-wrap gap-3">
+													<View
+														style={{
+															flex: 1,
+															minHeight: 96,
+															borderRadius: 22,
+															borderWidth: 1,
+															borderColor: monthlySummaryPalette.border,
+															paddingHorizontal: 14,
+															paddingVertical: 12,
+														}}
+													>
+														<VStack className="flex-1 justify-between">
+															<Text
+																className="text-xs uppercase tracking-wide"
+																style={{ color: monthlySummaryPalette.subtitle }}
 															>
-																<View
-																	style={{
-																		width: 14,
-																		height: 14,
-																		borderRadius: 999,
-																		backgroundColor: tone.accentColor,
-																		borderWidth: 2,
-																		borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																		shadowColor: tone.accentColor,
-																		shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																		shadowRadius: 8,
-																		shadowOffset: { width: 0, height: 4 },
-																		elevation: 2,
-																	}}
-																/>
-																{index < expenses.length - 1 ? (
-																	<View
-																		style={{
-																			flex: 1,
-																			width: 3,
-																			borderRadius: 999,
-																			marginVertical: 2,
-																			backgroundColor: tone.lineColor,
-																		}}
-																	/>
-																) : (
-																	<View />
-																)}
-															</View>
+																Pago
+															</Text>
+															<Heading size="sm" style={{ color: monthlySummaryPalette.expenseText }}>
+																{formatCurrencyBRL(monthlySummary.paidTotalInCents)}
+															</Heading>
+															<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+																{monthlySummary.paidItems.length} item(ns)
+															</Text>
+														</VStack>
+													</View>
 
-															<View style={{ width: '93%', paddingBottom: 14 }}>
-																	<TouchableOpacity
-																	activeOpacity={0.85}
-																	onPress={() => handleToggleExpenseCard(expense.id)}
-																	style={{ width: '100%' }}
-																>
-																	<HStack className="items-center justify-between gap-3">
-																		<HStack className="items-center gap-3" style={{ flex: 1 }}>
-																			<LinearGradient
-																				colors={tone.iconGradient}
-																				start={{ x: 0, y: 0 }}
-																				end={{ x: 1, y: 1 }}
-																				style={{
-																					width: 44,
-																					height: 44,
-																					borderRadius: 16,
-																					alignItems: 'center',
-																					justifyContent: 'center',
-																					flexShrink: 0,
-																				}}
-																			>
+													<View
+														style={{
+															flex: 1,
+															minHeight: 96,
+															borderRadius: 22,
+															borderWidth: 1,
+															borderColor: monthlySummaryPalette.border,
+															paddingHorizontal: 14,
+															paddingVertical: 12,
+														}}
+													>
+														<VStack className="flex-1 justify-between">
+															<Text
+																className="text-xs uppercase tracking-wide"
+																style={{ color: monthlySummaryPalette.subtitle }}
+															>
+																Pendente
+															</Text>
+															<Heading size="sm" style={{ color: monthlySummaryPalette.pendingText }}>
+																{formatCurrencyBRL(monthlySummary.pendingTotalInCents)}
+															</Heading>
+															<Text className="text-xs" style={{ color: monthlySummaryPalette.subtitle }}>
+																{monthlySummary.pendingItems.length} item(ns)
+															</Text>
+														</VStack>
+													</View>
+												</HStack>
+
+											</VStack>
+										</View>
+
+										<HStack className="gap-3">
+											<Button
+												className={`${submitButtonClassName} flex-1`}
+												onPress={() => {
+													void handleExportMonthlySummaryPdf();
+												}}
+												isDisabled={isLoading || isExportingPdf}
+											>
+												{isExportingPdf ? (
+													<>
+														<ButtonSpinner />
+														<ButtonText>Gerando PDF</ButtonText>
+													</>
+												) : (
+													<>
+														<ButtonIcon as={DownloadIcon} size="sm" />
+														<ButtonText>Baixar resumo em PDF</ButtonText>
+													</>
+												)}
+											</Button>
+
+											<Button
+												className={`${submitButtonClassName} flex-1`}
+												onPress={handleOpenCreate}
+											>
+												<ButtonIcon as={AddIcon} size="sm" />
+												<ButtonText>Adicionar gasto</ButtonText>
+												{isLoading && <ButtonSpinner />}
+											</Button>
+										</HStack>
+
+										{expenses.length === 0 ? (
+											<Box className={`${compactCardClassName} px-5 py-6`}>
+												<Text className={`text-center ${helperText}`}>
+													Nenhum gasto obrigatório cadastrado até o momento.
+												</Text>
+											</Box>
+										) : (
+											<VStack className="gap-2">
+												<View className={webStyles.timeline}>
+													{expenses.map((expense, index) => {
+														const isExpanded = expandedExpenseIds.includes(expense.id);
+														const tagMetadata = tagMetadataMap[expense.tagId];
+														const isCompletedDisplay = expense.isPaidForCurrentCycle || expense.isInstallmentComplete;
+														const tone = isCompletedDisplay
+															? MANDATORY_EXPENSE_COMPLETED_TONE
+															: MANDATORY_EXPENSE_PENDING_TONE;
+														const summaryText = expense.isInstallmentComplete
+															? 'Parcelamento concluído.'
+															: expense.isPaidForCurrentCycle
+																? `Pagamento registrado em ${formatPaymentDate(expense.lastPaymentDate ?? null)}.`
+																: expense.installmentLabel
+																	? `Registre a ${expense.installmentLabel.toLowerCase()} para concluir este item.`
+																	: 'Registre a despesa do mês para concluir este item.';
+
+														return (
+															<View key={expense.id} className={webStyles.timelineRow}>
+																<View className={webStyles.timelineRail}>
+																	<View
+																		className={webStyles.timelineDot}
+																		style={{ backgroundColor: tone.accentColor }}
+																	/>
+																	{index < expenses.length - 1 ? (
+																		<View
+																			className={webStyles.timelineLine}
+																			style={{ backgroundColor: tone.lineColor }}
+																		/>
+																	) : null}
+																</View>
+
+																<View className={webStyles.timelineBody}>
+																	<Pressable
+																		onPress={() => handleToggleExpenseCard(expense.id)}
+																		accessibilityRole="button"
+																		accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${expense.name}`}
+																		accessibilityState={{ expanded: isExpanded }}
+																		className={`${webStyles.movementHeader} min-h-[44px]`}
+																	>
+																		<View className={webStyles.movementIdentity}>
+																			<View className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}>
 																				<TagIcon
 																					iconFamily={tagMetadata?.iconFamily}
 																					iconName={tagMetadata?.iconName}
@@ -1437,305 +1417,311 @@ export default function MandatoryExpensesListScreen() {
 																					size={18}
 																					color="#FFFFFF"
 																				/>
-																			</LinearGradient>
+																			</View>
 
-																			<View style={{ flex: 1 }}>
-																				<Text
+																			<View className={webStyles.movementCopy}>
+																				<RNText
 																					numberOfLines={1}
-																					style={{
-																						color: timelinePalette.title,
-																						fontSize: 15,
-																						fontWeight: '700',
-																					}}
+																					className={webStyles.movementName}
+																					style={{ color: webDashboardPalette.primaryText }}
 																				>
 																					{expense.name}
-																				</Text>
-																				<Text
+																				</RNText>
+																				<RNText
 																					numberOfLines={1}
-																					style={{
-																						marginTop: 2,
-																						color: timelinePalette.subtitle,
-																						fontSize: 12,
-																						lineHeight: 18,
-																					}}
+																					className={webStyles.movementSubtitle}
+																					style={{ color: webDashboardPalette.primaryText }}
 																				>
 																					{tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Tag não encontrada'}
-																				</Text>
+																				</RNText>
 																				{expense.installmentLabel ? (
-																					<Text
+																					<RNText
 																						numberOfLines={1}
-																						style={{
-																							marginTop: 1,
-																							color: tone.accentColor,
-																							fontSize: 11,
-																							lineHeight: 16,
-																							fontWeight: '700',
-																						}}
+																						className="mt-0.5 text-[11px] font-bold leading-4"
+																						style={{ color: tone.accentColor }}
 																					>
 																						{expense.installmentLabel}
-																					</Text>
+																					</RNText>
 																				) : null}
 																			</View>
-																		</HStack>
+																		</View>
 
-																		<HStack className="items-center gap-2">
-																			<VStack className="items-end">
-																				<Text
-																					style={{
-																						color: tone.amountColor,
-																						fontSize: 15,
-																						fontWeight: '700',
-																					}}
-																				>
-																					{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
-																				</Text>
-																				<HStack className="mt-1 items-center gap-1">
-																					<Icon
-																						as={CalendarDaysIcon}
-																						size="xs"
-																						className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
-																					/>
-																					<Text
-																					style={{
-																						color: timelinePalette.subtitle,
-																						fontSize: 11,
-																					}}
-																				>
+																		<View className={webStyles.movementAmount}>
+																			<RNText className={webStyles.amount} style={{ color: tone.amountColor }}>
+																				{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
+																			</RNText>
+																			<View className={webStyles.movementDate}>
+																				<CalendarDays size={12} color="#94A3B8" />
+																				<RNText className={webStyles.dateText}>
 																					{formatExpenseScheduleLabel(expense)}
-																				</Text>
-																			</HStack>
-																			</VStack>
-
-																			<Icon
-																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																				size="sm"
-																				className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-																			/>
-																		</HStack>
-																	</HStack>
-																</TouchableOpacity>
-
-																{isExpanded ? (
-																	<LinearGradient
-																		colors={tone.cardGradient}
-																		start={{ x: 0, y: 0 }}
-																		end={{ x: 1, y: 1 }}
-																		style={{
-																			marginTop: 10,
-																			marginRight: 16,
-																			borderRadius: 20,
-																			paddingHorizontal: 16,
-																			paddingVertical: 14,
-																		}}
-																	>
-																		<VStack className="gap-3">
-																			<HStack className="items-start justify-between gap-4">
-																				<VStack className="flex-1">
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Resumo
-																					</Text>
-																					<Text
-																						style={{
-																							fontSize: 13,
-																							lineHeight: 19,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{summaryText}
-																					</Text>
-																				</VStack>
-
-																				<VStack className="items-end">
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Valor
-																					</Text>
-																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																						{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
-																					</Heading>
-																				</VStack>
-																			</HStack>
-
-																			<View
-																				style={{
-																					flexDirection: 'row',
-																					flexWrap: 'wrap',
-																					columnGap: 14,
-																					rowGap: 10,
-																				}}
-																			>
-																	{[
-																		{ label: 'Tipo', value: 'Gasto obrigatório' },
-																		{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
-																		{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
-																		{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
-																		{ label: 'Lembrete', value: expense.reminderSummary ?? 'Desativado' },
-																					...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
-																					...(expense.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }] : []),
-																					...(expense.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }] : []),
-																				].map(item => (
-																					<View
-																						key={`${expense.id}-${item.label}`}
-																						style={{ width: '46%', minWidth: 128 }}
-																					>
-																						<Text
-																							style={{
-																								fontSize: 10,
-																								fontWeight: '700',
-																								letterSpacing: 0.4,
-																								color: 'rgba(255,255,255,0.72)',
-																								textTransform: 'uppercase',
-																							}}
-																						>
-																							{item.label}
-																						</Text>
-																						<Text
-																							style={{
-																								marginTop: 3,
-																								fontSize: 13,
-																								lineHeight: 18,
-																								color: '#FFFFFF',
-																							}}
-																						>
-																							{item.value}
-																						</Text>
-																					</View>
-																				))}
+																				</RNText>
+																				{isExpanded ? <ChevronUp size={14} color="#94A3B8" /> : <ChevronDown size={14} color="#94A3B8" />}
 																			</View>
+																		</View>
+																	</Pressable>
 
-																			{expense.description ? (
-																				<View style={{ paddingTop: 2 }}>
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.72)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Descrição
-																					</Text>
-																					<Text
-																						style={{
-																							marginTop: 6,
-																							fontSize: 13,
-																							lineHeight: 18,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{expense.description}
-																					</Text>
+																	{renderedExpenseIds.includes(expense.id) ? (
+																		<AnimatedContent
+																			key={`${expense.id}:detail`}
+																			trigger="mount"
+																			visible={isExpanded}
+																			distance={18}
+																			duration={0.36}
+																			disappearDuration={0.28}
+																			disappearScale={1}
+																			ease="power3.out"
+																			initialOpacity={0}
+																			animateOpacity
+																			scale={1}
+																			className={webStyles.movementDetailAnimation}
+																			onDisappearanceComplete={() =>
+																				setRenderedExpenseIds(rendered =>
+																					rendered.filter(item => item !== expense.id),
+																				)
+																			}
+																		>
+																			<View className={webStyles.movementDetail}>
+																				<View pointerEvents="none" className={webStyles.movementDetailGrainient}>
+																					<Grainient
+																						className="movement-detail-grainient"
+																						timeSpeed={0.1}
+																						warpStrength={0.8}
+																						warpFrequency={3.5}
+																						warpSpeed={1.6}
+																						warpAmplitude={90}
+																						blendSoftness={0.2}
+																						grainAmount={0.06}
+																						grainScale={3}
+																						grainAnimated
+																						contrast={1.12}
+																						zoom={1.05}
+																						color1={tone.gradient[0]}
+																						color2={tone.accentColor}
+																						color3={tone.gradient[1]}
+																					/>
 																				</View>
-																			) : null}
+																				<View className={webStyles.movementDetailContent}>
+																					<VStack className="gap-3">
+																						<HStack className="items-start justify-between gap-4">
+																							<VStack className="flex-1">
+																								<Text
+																									style={{
+																										fontSize: 10,
+																										fontWeight: '700',
+																										letterSpacing: 0.4,
+																										color: 'rgba(255,255,255,0.74)',
+																										textTransform: 'uppercase',
+																									}}
+																								>
+																									Resumo
+																								</Text>
+																								<Text
+																									style={{
+																										fontSize: 13,
+																										lineHeight: 19,
+																										color: '#FFFFFF',
+																									}}
+																								>
+																									{summaryText}
+																								</Text>
+																							</VStack>
 
-																			<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
-																				<TouchableOpacity
-																					activeOpacity={0.85}
-																					onPress={() => setPendingAction({ type: 'register', expense })}
-																					disabled={expense.isPaidForCurrentCycle || expense.isInstallmentComplete}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																						opacity: expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 0.45 : 1,
-																					}}
-																				>
-																					<Icon as={AddIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Registrar</Text>
-																				</TouchableOpacity>
+																							<VStack className="items-end">
+																								<Text
+																									style={{
+																										fontSize: 10,
+																										fontWeight: '700',
+																										letterSpacing: 0.4,
+																										color: 'rgba(255,255,255,0.74)',
+																										textTransform: 'uppercase',
+																									}}
+																								>
+																									Valor
+																								</Text>
+																								<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																									{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
+																								</Heading>
+																							</VStack>
+																						</HStack>
 
-																				<TouchableOpacity
-																					activeOpacity={0.85}
-																					onPress={() => setPendingAction({ type: 'edit', expense })}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																					}}
-																				>
-																					<Icon as={EditIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Editar</Text>
-																				</TouchableOpacity>
+																						<View
+																							style={{
+																								flexDirection: 'row',
+																								flexWrap: 'wrap',
+																								columnGap: 14,
+																								rowGap: 10,
+																							}}
+																						>
+																							{[
+																								{ label: 'Tipo', value: 'Gasto obrigatório' },
+																								{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
+																								{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
+																								{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
+																								{ label: 'Lembrete', value: expense.reminderSummary ?? 'Desativado' },
+																								...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
+																								...(expense.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }] : []),
+																								...(expense.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }] : []),
+																							].map(item => (
+																								<View
+																									key={`${expense.id}-${item.label}`}
+																									style={{ width: '46%', minWidth: 128 }}
+																								>
+																									<Text
+																										style={{
+																											fontSize: 10,
+																											fontWeight: '700',
+																											letterSpacing: 0.4,
+																											color: 'rgba(255,255,255,0.72)',
+																											textTransform: 'uppercase',
+																										}}
+																									>
+																										{item.label}
+																									</Text>
+																									<Text
+																										style={{
+																											marginTop: 3,
+																											fontSize: 13,
+																											lineHeight: 18,
+																											color: '#FFFFFF',
+																										}}
+																									>
+																										{item.value}
+																									</Text>
+																								</View>
+																							))}
+																						</View>
 
-																				{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() => setPendingAction({ type: 'settle', expense })}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																						}}
-																					>
-																						<Icon as={CheckCircleIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
-																					</TouchableOpacity>
-																				) : null}
+																						{expense.description ? (
+																							<View style={{ paddingTop: 2 }}>
+																								<Text
+																									style={{
+																										fontSize: 10,
+																										fontWeight: '700',
+																										letterSpacing: 0.4,
+																										color: 'rgba(255,255,255,0.72)',
+																										textTransform: 'uppercase',
+																									}}
+																								>
+																									Descrição
+																								</Text>
+																								<Text
+																									style={{
+																										marginTop: 6,
+																										fontSize: 13,
+																										lineHeight: 18,
+																										color: '#FFFFFF',
+																									}}
+																								>
+																									{expense.description}
+																								</Text>
+																							</View>
+																						) : null}
 
-																				{expense.isPaidForCurrentCycle ? (
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() => setPendingAction({ type: 'reclaim', expense })}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																						}}
-																					>
-																						<Icon as={RepeatIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">Reivindicar</Text>
-																					</TouchableOpacity>
-																				) : null}
+																						<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
+																							<TouchableOpacity
+																								activeOpacity={0.85}
+																								onPress={() => setPendingAction({ type: 'register', expense })}
+																								disabled={expense.isPaidForCurrentCycle || expense.isInstallmentComplete}
+																								accessibilityRole="button"
+																								accessibilityLabel={`Registrar pagamento de ${expense.name}`}
+																								style={{
+																									flexDirection: 'row',
+																									alignItems: 'center',
+																									gap: 8,
+																									paddingVertical: 8,
+																									opacity: expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 0.45 : 1,
+																								}}
+																							>
+																								<Icon as={AddIcon} size="sm" className="text-white" />
+																								<Text className="text-xs font-semibold text-white">Registrar</Text>
+																							</TouchableOpacity>
 
-																				<TouchableOpacity
-																					activeOpacity={0.85}
-																					onPress={() => setPendingAction({ type: 'delete', expense })}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																					}}
-																				>
-																					<Icon as={TrashIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Excluir</Text>
-																				</TouchableOpacity>
-																			</HStack>
-																		</VStack>
-																	</LinearGradient>
-																) : null}
+																							<TouchableOpacity
+																								activeOpacity={0.85}
+																								onPress={() => setPendingAction({ type: 'edit', expense })}
+																								accessibilityRole="button"
+																								accessibilityLabel={`Editar ${expense.name}`}
+																								style={{
+																									flexDirection: 'row',
+																									alignItems: 'center',
+																									gap: 8,
+																									paddingVertical: 8,
+																								}}
+																							>
+																								<Icon as={EditIcon} size="sm" className="text-white" />
+																								<Text className="text-xs font-semibold text-white">Editar</Text>
+																							</TouchableOpacity>
+
+																							{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
+																								<TouchableOpacity
+																									activeOpacity={0.85}
+																									onPress={() => setPendingAction({ type: 'settle', expense })}
+																									accessibilityRole="button"
+																									accessibilityLabel={`Quitar parcelas restantes de ${expense.name}`}
+																									style={{
+																										flexDirection: 'row',
+																										alignItems: 'center',
+																										gap: 8,
+																										paddingVertical: 8,
+																									}}
+																								>
+																									<Icon as={CheckCircleIcon} size="sm" className="text-white" />
+																									<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
+																								</TouchableOpacity>
+																							) : null}
+
+																							{expense.isPaidForCurrentCycle ? (
+																								<TouchableOpacity
+																									activeOpacity={0.85}
+																									onPress={() => setPendingAction({ type: 'reclaim', expense })}
+																									accessibilityRole="button"
+																									accessibilityLabel={`Desfazer pagamento de ${expense.name}`}
+																									style={{
+																										flexDirection: 'row',
+																										alignItems: 'center',
+																										gap: 8,
+																										paddingVertical: 8,
+																									}}
+																								>
+																									<Icon as={RepeatIcon} size="sm" className="text-white" />
+																									<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																								</TouchableOpacity>
+																							) : null}
+
+																							<TouchableOpacity
+																								activeOpacity={0.85}
+																								onPress={() => setPendingAction({ type: 'delete', expense })}
+																								accessibilityRole="button"
+																								accessibilityLabel={`Excluir ${expense.name}`}
+																								style={{
+																									flexDirection: 'row',
+																									alignItems: 'center',
+																									gap: 8,
+																									paddingVertical: 8,
+																								}}
+																							>
+																								<Icon as={TrashIcon} size="sm" className="text-white" />
+																								<Text className="text-xs font-semibold text-white">Excluir</Text>
+																							</TouchableOpacity>
+																						</HStack>
+																					</VStack>
+																				</View>
+																			</View>
+																		</AnimatedContent>
+																	) : null}
+																</View>
 															</View>
-														</View>
-													);
-												})}
-											</View>
+														);
+													})}
+												</View>
 
-										</VStack>
-									)}
-								</VStack>
-							)}
-						</VStack>
-					</ScrollView>
+											</VStack>
+										)}
+									</VStack>
+								)}
+							</VStack>
+						</ScrollView>
+					</View>
 				</View>
 
 				<View
@@ -1748,12 +1734,15 @@ export default function MandatoryExpensesListScreen() {
 					<Navigator defaultValue={1} />
 				</View>
 
-				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+				<Modal size="lg" isOpen={isModalOpen} onClose={handleCloseActionModal}>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={`web:w-[calc(100%-32px)] ${modalContentClassName}`}>
 						<ModalHeader>
 							<ModalTitle>{actionModalCopy.title}</ModalTitle>
-							<ModalCloseButton onPress={handleCloseActionModal} />
+							<ModalCloseButton
+								accessibilityLabel={`Fechar ${actionModalCopy.title}`}
+								onPress={handleCloseActionModal}
+							/>
 						</ModalHeader>
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>

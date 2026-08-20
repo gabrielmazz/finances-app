@@ -3,7 +3,7 @@ tags: [despesas-fixas, recorrencia, notificacoes, financeiro]
 relacionado: [[Transações de Despesas]], [[Notificações]], [[Receitas Fixas]], [[Previsão de Fluxo de Caixa]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 3.5.0
+versao: 3.6.0
 ---
 
 # Despesas Fixas
@@ -37,9 +37,10 @@ graph TD
 8. Enquanto a despesa fixa estiver pendente no ciclo atual, o calendário e a timeline exibem o valor previsto do template; após o registro do mês, passam a mostrar o valor efetivamente salvo na despesa real vinculada via `lastPaymentExpenseId`
 9. Quando o parcelamento está ativo, o template mantém `installmentTotal`, `installmentsCompleted`, `installmentStartDate` e `installmentEndDate`; cada pagamento mensal registrado avança uma parcela e a listagem exibe `Parcela X de Y`
 10. `MandatoryExpensesListScreen.tsx` exibe um resumo do mês corrente com total do ciclo, valores pagos, valores pendentes, parcelamentos concluídos fora do ciclo e botão para baixar o resumo em PDF via `expo-print`/`expo-sharing`; as ações de baixar PDF e adicionar gasto ficam lado a lado em um `HStack`
-11. A lista pode ser recarregada manualmente por pull-to-refresh; esse recarregamento também reconcilia os lembretes locais com os templates do UID autenticado
+11. A lista pode ser recarregada manualmente por pull-to-refresh; na Web, não há botão dedicado de atualizar. Esse recarregamento também reconcilia os lembretes locais com os templates do UID autenticado
 12. Quando um usuário tenta registrar uma despesa comum do ciclo atual que parece corresponder a um template obrigatório pendente, `AddRegisterExpensesScreen.tsx` mostra um modal conservador. Ao aceitar, a navegação abre `MandatoryExpensesListScreen.tsx` já na confirmação de registro do template identificado
 13. Depois de cada criação, edição ou exclusão confirmada no Firestore, a Function confiável de [[Notificações]] envia um push aos aparelhos registrados do dono e de seus usuários relacionados. A lista continua responsável apenas pela reconciliação de seus lembretes locais.
+14. O navegador possui composições independentes em `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx`: o cadastro usa o calendário modal customizado para início/fim das parcelas, `input type="time"` para o horário e um painel de controle mensal; a lista usa calendário mensal, resumo, timeline expansível, confirmação em modal, recarregamento por pull-to-refresh e impressão do resumo em PDF. Os modais de confirmação e resumo diário da lista Web usam superfície responsiva `lg`, com margem de viewport e rolagem contida; no resumo diário, o corpo se ajusta ao conteúdo e só rola quando necessário, evitando espaços verticais artificiais entre itens. Os diálogos nativos mantêm seus limites compactos. O hero da lista preserva a mesma altura visual das telas Web com sheet sobreposto, ocultando os 64 px finais do `heroHeight` e mantendo 16 px até o calendário. A lógica Firebase e as regras em centavos permanecem as mesmas das telas nativas.
 
 ## Chave de Ciclo
 
@@ -79,6 +80,8 @@ graph TD
 
 - `screens/AddMandatoryExpensesScreen.tsx` — Formulário de criação/edição
 - `screens/MandatoryExpensesListScreen.tsx` — Lista, timeline e controle de pagamento
+- `screens/AddMandatoryExpensesScreen.web.tsx` — Composição Web responsiva do cadastro, com calendário/modal e controle mensal
+- `screens/MandatoryExpensesListScreen.web.tsx` — Composição Web responsiva da lista, calendário, timeline, modais e resumo imprimível
 - `functions/MandatoryExpenseFirebase.ts` — CRUD, validação do vínculo com despesa real e transação atômica de pagamento no Firestore
 - `utils/mandatoryExpenses.ts` — Lógica de chave de ciclo
 - `utils/mandatoryExpenseSuggestions.ts` — Detecção conservadora de templates obrigatórios em registros comuns
@@ -93,6 +96,7 @@ graph TD
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar templates
 - `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
 - `components/uiverse/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
+- `components/uiverse/date-picker.tsx` e `components/uiverse/date-calendar.tsx` — Calendários customizados usados pelo cadastro e pela listagem em todas as plataformas
 
 ## Integrações
 
@@ -114,6 +118,7 @@ graph TD
 ## Observações importantes
 
 - Despesas fixas **não debitam automaticamente** — o usuário precisa marcar como paga
+- No navegador, lembretes continuam sendo salvos no template, mas não são agendados; a própria composição Web informa que a entrega ocorre somente no aplicativo instalado. O calendário e os modais são componentes da aplicação, sem depender do date picker nativo do sistema.
 - A [[Previsão de Fluxo de Caixa]] apenas lê os templates pendentes como compromissos estimados; ela nunca efetiva o pagamento nem altera `lastPaymentCycle`
 - A lista de gastos obrigatórios é o fluxo correto para efetivar o ciclo. Lançamentos comuns do ciclo atual que batem com qualquer template pendente podem ser interceptados antes de salvar; um nome principal canônico e único (como `Fatura do Aluguel`/`Aluguel`, `Pagamento da Internet Residencial`/`Internet Residencial` ou `Mensalidade da Academia`/`Academia`) basta mesmo quando a categoria e o valor variam. `Luz`, `Conta de Luz` e `Energia Elétrica` são apenas outro exemplo. Para nome apenas parecido, a sugestão exige valor compatível com o template/último pagamento mais categoria igual ou vencimento em até sete dias
 - Nomes de marca ou serviço semanticamente distintos, sem palavras em comum com o template, não são inferidos por suposição para não abrir o modal no gasto errado

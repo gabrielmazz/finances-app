@@ -17,7 +17,7 @@ Modes:
                    Start Expo and open Android
   --web, web        Start Expo for web
   --dev-client, dev-client
-                   Start Expo in development-client mode
+                   Start the local emulators and Expo in development-client mode
   --tunnel, tunnel Start Expo using tunnel transport
   --export-web, export-web
                    Export the web build locally
@@ -131,7 +131,8 @@ case "$MODE" in
     EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1 "${EXPO_CMD[@]}" start --web
     ;;
   --dev-client|dev-client)
-    exec "${EXPO_CMD[@]}" start --dev-client
+    start_local_emulators
+    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST=127.0.0.1 "${EXPO_CMD[@]}" start --dev-client
     ;;
   --tunnel|tunnel)
     exec "${EXPO_CMD[@]}" start --tunnel

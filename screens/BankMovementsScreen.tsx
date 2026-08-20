@@ -2544,7 +2544,7 @@ export default function BankMovementsScreen() {
 
 				if (!result.success) {
 					throw new Error(
-						typeof result.error === 'string'
+						'error' in result && typeof result.error === 'string'
 							? result.error
 							: 'Não foi possível excluir este investimento agora.',
 					);

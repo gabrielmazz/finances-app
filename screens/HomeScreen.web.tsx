@@ -64,9 +64,9 @@ import {
 import {
 	type HomeBankBalanceCard,
 	type HomeCashSummary,
-	type HomeMandatoryItem,
 	type HomeTimelineMovement,
 } from "@/functions/HomeFirebase";
+import { type HomeMandatoryItem } from "@/utils/homeMandatorySchedule";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
 import {

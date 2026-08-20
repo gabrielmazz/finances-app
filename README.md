@@ -2,7 +2,7 @@
 <p align="center" style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
     <img src="https://img.shields.io/badge/Expo-54.0-000000?style=for-the-badge&logo=expo&logoColor=white" alt="Expo Badge" />
     <img src="https://img.shields.io/badge/React%20Native-0.81.5-61DAFB?style=for-the-badge&logo=react&logoColor=20232A" alt="React Native Badge" />
-    <img src="https://img.shields.io/badge/TypeScript-5.2-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript Badge" />
+    <img src="https://img.shields.io/badge/TypeScript-5.9-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript Badge" />
     <img src="https://img.shields.io/badge/Firebase-Auth%20%7C%20Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=000" alt="Firebase Badge" />
 </p>
 <p align="center" style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
@@ -84,8 +84,9 @@ cd finances-app
 npm install
 ```
 
--   Certifique-se de ter Node.js LTS, Expo CLI (`npm install -g expo-cli` se preferir) e um emulador Android/iOS ou Expo Go.
--   Caso utilize o EAS Build, configure as credenciais no `eas.json` antes de prosseguir.
+- Use Node.js 20 ou superior e o npm do projeto. O Expo CLI é executado localmente por `npx`/scripts; não é necessário instalar `expo-cli` globalmente.
+- Para Android com recursos nativos (Firebase AI, App Check e áudio), use um development build. Expo Go não cobre todos esses módulos.
+- Antes de um build EAS, configure as variáveis e credenciais descritas em `Arquitetura/Firebase Config.md`.
 
 <h2 align="center">Rodando o projeto</h2>
 
@@ -94,14 +95,19 @@ npm install
 </p>
 
 ```bash
-# Versão Metro bundler + Expo Go
+# Metro com a configuração atual de ambiente, sem reset automático
 npm run start
 
-# Build local em dev
-npm run android   # ou npm run ios / npm run web
+# Ambiente local Android: inicia/semeia o Emulator demo e prepara o device
+npm run dev:local
+
+# Execução por plataforma
+npm run android
+npm run ios
+npm run web
 ```
 
-O aplicativo necessitta de um projeto Firebase, ou seja, crie um em [Firebase Console](https://console.firebase.google.com/) e configure corretamente todas as informações necessárias para um projeto simples no Firebase rodar em conjunto com a aplicação.
+`npm run dev:local` prepara dados de demonstração e pode apagar o estado local do Emulator. Use `npm run start` quando não quiser esse reset e confirme o alvo Firebase configurado no ambiente. O aplicativo usa Firebase; veja a configuração completa em [Arquitetura/Firebase Config.md](Arquitetura/Firebase%20Config.md).
 
 <h2 align="center">Criação das variáveis de ambientes</h2>
 
@@ -121,9 +127,37 @@ EXPO_PUBLIC_FIREBASE_APP_ID=1:000000000000:web:xxxxxxxxxxxxxx
 EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
--   Não versionar essas chaves em `app.json`, `app.config.ts` ou qualquer outro arquivo público do repositório.
--   Para builds EAS, defina os mesmos valores no painel de Secrets ou usando `eas secret:create`.
--   Nunca commit suas chaves de produção; mantenha arquivos `.env` no `.gitignore`.
+-   Variáveis `EXPO_PUBLIC_*` são incorporadas no cliente e não podem conter segredos. Use-as somente para a configuração pública do Firebase.
+-   Para builds EAS, defina os valores no ambiente EAS correspondente. `GOOGLE_SERVICES_JSON` é um arquivo de credencial nativa e deve permanecer fora do repositório.
+-   Nunca faça commit de arquivos `.env` de produção, `google-services.json` ou `GoogleService-Info.plist`.
+
+<h2 align="center">Estrutura do projeto</h2>
+
+```text
+app/               adaptadores de rota do Expo Router
+components/app/    providers, guard autenticado e ciclo de vida global
+screens/           orquestração das telas por domínio
+components/uiverse componentes visuais e interações reutilizáveis do produto
+components/ui/     primitivas geradas pelo Gluestack
+contexts/          estado transversal (sessão, tema, privacidade e preferências)
+functions/         persistência e operações Firebase
+hooks/             estado e efeitos reutilizáveis
+utils/             helpers, navegação e adaptadores de plataforma
+Arquitetura/       vault de decisões e contratos do sistema
+```
+
+Os limites detalhados, incluindo quando criar uma variante `.web.tsx`, estão em [Arquitetura/Organização do Código.md](Arquitetura/Organiza%C3%A7%C3%A3o%20do%20C%C3%B3digo.md).
+
+<h2 align="center">Validação</h2>
+
+```bash
+npm run test -- --runInBand
+npm run typecheck
+npm run typecheck:backend
+npm run web:export
+```
+
+Para mudanças de layout nativo, gere também o bundle Android com `npx expo export --platform android` ou execute o development build.
 
 <h2 align="center">Autor</h2>
 

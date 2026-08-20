@@ -30,9 +30,24 @@ export function useHomeScreenData(personId: string | null | undefined) {
 	const loading = query.isLoading || query.isFetching;
 	const message = !personId ? 'Nenhum usuário autenticado foi identificado.' : query.error ? 'Não foi possível carregar os dados da Home.' : null;
 	const reload = React.useCallback(async () => { await query.refetch({ cancelRefetch: false }); }, [query]);
-	const overview = { data: snapshot?.overview.success ? snapshot.overview.data : EMPTY_HOME_OVERVIEW_DATA, loading, error: snapshot?.overview.success ? null : snapshot?.overview.error ?? message };
-	const movements = { data: snapshot?.movements.success ? snapshot.movements.data : EMPTY_HOME_MOVEMENTS_DATA, loading, error: snapshot?.movements.success ? null : snapshot?.movements.error ?? message };
-	const investments = { data: snapshot?.investments.success ? snapshot.investments.data : EMPTY_INVESTMENTS_DATA, loading, error: snapshot?.investments.success ? null : snapshot?.investments.error ?? message };
+	const overviewResult = snapshot?.overview;
+	const movementsResult = snapshot?.movements;
+	const investmentsResult = snapshot?.investments;
+	const overview = {
+		data: overviewResult?.success ? overviewResult.data : EMPTY_HOME_OVERVIEW_DATA,
+		loading,
+		error: overviewResult ? (overviewResult.success ? null : overviewResult.error) : message,
+	};
+	const movements = {
+		data: movementsResult?.success ? movementsResult.data : EMPTY_HOME_MOVEMENTS_DATA,
+		loading,
+		error: movementsResult ? (movementsResult.success ? null : movementsResult.error) : message,
+	};
+	const investments = {
+		data: investmentsResult?.success ? investmentsResult.data : EMPTY_INVESTMENTS_DATA,
+		loading,
+		error: investmentsResult ? (investmentsResult.success ? null : investmentsResult.error) : message,
+	};
 
 	return {
 		overview,

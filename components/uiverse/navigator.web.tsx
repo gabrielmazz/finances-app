@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocalSearchParams, usePathname } from 'expo-router';
-import { signOut } from 'firebase/auth';
 import {
 	ArrowLeftRight,
 	BadgeDollarSign,
@@ -12,6 +11,7 @@ import {
 	ClipboardList,
 	FileText,
 	Home,
+	Landmark,
 	LogOut,
 	NotebookPen,
 	PiggyBank,
@@ -25,17 +25,10 @@ import {
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import StaggeredMenu from '@/components/web/StaggeredMenu';
-import { auth } from '@/FirebaseConfig';
 import { useAuth } from '@/contexts/AuthContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import {
-	clearMandatoryReminderAccount,
-	finalizeMandatoryReminderAccountCleanup,
-} from '@/utils/mandatoryReminderNotifications';
-import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
 import {
 	APP_ROUTE_PATHS,
 	HOME_TAB_INDEX,
@@ -45,6 +38,7 @@ import {
 	normalizeHomeTabIndex,
 	type AppRoutePath,
 } from '@/utils/navigation';
+import { logoutCurrentUser } from '@/utils/secureLogout';
 import { isWebDesktopLayout } from '@/utils/webLayout';
 
 export type NavigatorProps = {
@@ -82,77 +76,6 @@ const getWebLink = (option: NavigatorOption) => {
 	if (option.id === 'home-start') return '/home?tab=0';
 	if (option.id === 'settings') return '/home?tab=2';
 	return option.matchPaths?.[0] ?? '/home?tab=0';
-};
-
-// Segue o fluxo de logout de [[Navegação]]: somente encerra a sessão depois de
-// limpar os lembretes vinculados à conta que iniciou a ação.
-const logoutUser = async (isDarkMode: boolean, userId?: string | null, displayName?: string | null) => {
-	const accountId = userId?.trim();
-	if (!accountId || auth.currentUser?.uid !== accountId) return;
-
-	let userName = displayName?.trim() || null;
-	try {
-		const result = await getUserDataFirebase(accountId);
-		const storedName = result.success ? (result.data as { name?: unknown }).name : null;
-		if (typeof storedName === 'string' && storedName.trim()) {
-			userName = storedName.trim().split(/\s+/)[0] ?? userName;
-		}
-	} catch {
-		// O nome exibido é somente um detalhe do feedback de saída.
-	}
-
-	const restoreCurrentAccountReminders = async () => {
-		if (auth.currentUser?.uid !== accountId) return false;
-		try {
-			return (await synchronizeMandatoryReminderAccount(accountId)).complete;
-		} catch {
-			return false;
-		}
-	};
-
-	let remindersCleared = false;
-	try {
-		remindersCleared = await clearMandatoryReminderAccount(accountId);
-	} catch {
-		remindersCleared = false;
-	}
-
-	if (!remindersCleared) {
-		const restored = await restoreCurrentAccountReminders();
-		showNotifierAlert({
-			description: restored
-				? 'Não foi possível concluir a limpeza. A sessão e os lembretes foram restaurados; tente sair novamente.'
-				: 'Não foi possível limpar os lembretes deste dispositivo. Por segurança, a sessão continua ativa; verifique a conexão e tente novamente.',
-			type: 'error',
-			isDarkMode,
-		});
-		return;
-	}
-
-	if (auth.currentUser?.uid !== accountId) return;
-
-	try {
-		await signOut(auth);
-		try {
-			await finalizeMandatoryReminderAccountCleanup(accountId);
-		} catch {
-			// O estado local é finalizado por melhor esforço depois do signOut.
-		}
-		showNotifierAlert({
-			description: userName ? `Até mais, ${userName}!` : 'Até mais!',
-			type: 'info',
-			isDarkMode,
-		});
-	} catch {
-		const restored = await restoreCurrentAccountReminders();
-		showNotifierAlert({
-			description: restored
-				? 'Não foi possível encerrar a sessão. Os lembretes foram restaurados; tente sair novamente.'
-				: 'Não foi possível encerrar a sessão nem restaurar os lembretes agora. Verifique a conexão e tente novamente.',
-			type: 'error',
-			isDarkMode,
-		});
-	}
 };
 
 const createGroups = (): NavigatorGroup[] => [
@@ -304,7 +227,11 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 			if (option.id === 'logout') {
 				if (logoutInFlightRef.current) return;
 				logoutInFlightRef.current = true;
-				void logoutUser(isDarkMode, user?.uid, user?.displayName).finally(() => {
+				void logoutCurrentUser({
+					isDarkMode,
+					userId: user?.uid,
+					displayName: user?.displayName,
+				}).finally(() => {
 					logoutInFlightRef.current = false;
 				});
 				return;
@@ -340,8 +267,6 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 				accentColor="#facc15"
 				menuButtonColor="#e2e8f0"
 				openMenuButtonColor="#fef08a"
-				brandName="Lumus"
-				brandSubtitle="Finanças"
 				profile={{
 					name: profileName || user?.email?.split('@')[0] || 'Usuário',
 					subtitle: user?.email || '',
@@ -358,7 +283,7 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 
 	const activeMobileGroup = resolvedGroups.find(group => group.value === openMobileGroup) ?? null;
 	return (
-		<View accessibilityRole="navigation" accessibilityLabel="Navegação principal" style={{ backgroundColor: '#030617' }}>
+		<View role="navigation" accessibilityLabel="Navegação principal" style={{ backgroundColor: '#030617' }}>
 			{activeMobileGroup ? (
 				<View style={{ borderTopWidth: 1, borderTopColor: '#1e293b', padding: 10, gap: 4 }}>
 					{activeMobileGroup.options.map(option => (

@@ -32,7 +32,7 @@ export default function WebScreenHero({
 					opacity: 0.62,
 					zIndex: 1,
 				}}
-				aria-hidden="true"
+				aria-hidden
 			>
 				<Grainient
 					className="web-screen-hero-grainient"
@@ -90,7 +90,7 @@ export default function WebScreenHero({
 						width="40%"
 						height="100%"
 						className="opacity-90"
-						aria-hidden="true"
+						aria-hidden
 					/>
 				</AnimatedContent>
 			</div>

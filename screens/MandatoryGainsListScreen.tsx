@@ -331,6 +331,9 @@ export default function MandatoryGainsListScreen() {
 		() =>
 			gains.map(gain => ({
 				...gain,
+				// A quitação antecipada é exclusiva de despesas; manter nulo aqui evita
+				// expor a ação genérica do calendário para um ganho parcelado.
+				installmentTotal: null,
 				isCompletedForCurrentCycle: gain.isReceivedForCurrentCycle || gain.isInstallmentComplete,
 				canReclaimCurrentCycle: gain.isReceivedForCurrentCycle,
 				lastStatusDate: gain.lastReceiptDate ?? null,
@@ -907,7 +910,13 @@ export default function MandatoryGainsListScreen() {
 	}, []);
 
 	const handleCalendarAction = React.useCallback(
-		(action: PendingGainAction['type'], gain: MandatoryGainItem) => {
+		(
+			action: 'register' | 'settle' | 'edit' | 'delete' | 'reclaim',
+			gain: DateCalendarItem,
+		) => {
+			if (action === 'settle') {
+				return;
+			}
 			setPendingAction({ type: action, gain });
 		},
 		[],

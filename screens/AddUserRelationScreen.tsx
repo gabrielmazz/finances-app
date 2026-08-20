@@ -1,7 +1,6 @@
 import React from 'react';
 import {
 	Keyboard,
-	TouchableWithoutFeedback,
 	View,
 	StatusBar,
 	ScrollView,
@@ -12,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
@@ -28,6 +26,7 @@ import {
 
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -38,6 +37,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
 
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 
@@ -205,9 +205,9 @@ export default function AddUserRelationScreen() {
 	const screenTitle = 'Vincular usuário';
 
 	return (
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+		<ScreenDismissKeyboard>
 		<SafeAreaView
-			className="flex-1"
+			className="flex-1 web:w-screen"
 			edges={['left', 'right', 'bottom']}
 			style={{ backgroundColor: surfaceBackground }}
 		>
@@ -216,15 +216,15 @@ export default function AddUserRelationScreen() {
 				backgroundColor="transparent"
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
-		<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+		<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 			<KeyboardAvoidingView
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 				className="flex-1"
 			>
-				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 					<View
-						className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+						className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
 						style={{ height: heroHeight }}
 					>
 						<Image
@@ -234,28 +234,25 @@ export default function AddUserRelationScreen() {
 							resizeMode="cover"
 						/>
 
-						<VStack
-							className="w-full h-full items-center justify-start px-6 gap-4"
-							style={{ paddingTop: insets.top + 24 }}
-						>
-							<Heading size="xl" className="text-white text-center">
-								{screenTitle}
-							</Heading>
-							<AddUserRelationScreenIllustration width="40%" height="40%" className="opacity-90" />
-						</VStack>
+						<WebScreenHero
+					title={screenTitle}
+					Illustration={AddUserRelationScreenIllustration}
+					isDarkMode={isDarkMode}
+					topPadding={insets.top + 24}
+				/>
 					</View>
 
 					<ScrollView
 						ref={scrollViewRef}
 						keyboardShouldPersistTaps="handled"
 						keyboardDismissMode="on-drag"
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
 						style={{ marginTop: heroHeight - 64 }}
 						contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 						onScroll={handleScroll}
 						scrollEventThrottle={scrollEventThrottle}
 					>
-						<VStack className="justify-between mt-4">
+						<VStack className="justify-between mt-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
 
 							<VStack className="mb-4">
 								<HStack className="mb-1 ml-1 gap-1">
@@ -307,7 +304,7 @@ export default function AddUserRelationScreen() {
 							</VStack>
 
 							<Button
-								className={submitButtonClassName}
+								className={`${submitButtonClassName} web:mt-2 web:h-12`}
 								onPress={handleLinkUsers}
 								isDisabled={isSubmitting || !relatedUserId.trim()}
 							>
@@ -329,6 +326,6 @@ export default function AddUserRelationScreen() {
 			</View>
 		</View>
 		</SafeAreaView>
-		</TouchableWithoutFeedback>
+		</ScreenDismissKeyboard>
 	);
 }

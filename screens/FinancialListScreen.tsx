@@ -1089,7 +1089,7 @@ export default function FinancialListScreen() {
 			);
 			if (!result.success) {
 				throw new Error(
-					typeof result.error === 'string'
+					'error' in result && typeof result.error === 'string'
 						? result.error
 						: 'Erro ao excluir investimento.',
 				);

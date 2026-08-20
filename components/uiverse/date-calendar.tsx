@@ -79,6 +79,7 @@ type DateCalendarProps = {
 	completedLabel?: string;
 	pendingLabel?: string;
 	valueTone?: 'expense' | 'gain';
+	modalSize?: 'md' | 'lg';
 };
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
@@ -304,6 +305,7 @@ function DateCalendar({
 	completedLabel = 'pagos',
 	pendingLabel = 'pend.',
 	valueTone = 'expense',
+	modalSize = 'md',
 }: DateCalendarProps) {
 	const {
 		isDarkMode,
@@ -466,6 +468,8 @@ function DateCalendar({
 		() => Math.max(windowHeight - (insets.top ?? 0) - (insets.bottom ?? 0) - 40, 320),
 		[insets.bottom, insets.top, windowHeight],
 	);
+	const modalWidthClassName =
+		modalSize === 'lg' ? 'web:w-[calc(100%-32px)] web:max-w-[640px]' : 'max-w-[430px]';
 
 	return (
 		<>
@@ -594,10 +598,14 @@ function DateCalendar({
 				</View>
 			</Box>
 
-			<Modal isOpen={Boolean(selectedDayItems)} onClose={handleCloseDayModal}>
+			<Modal
+				size={modalSize}
+				isOpen={Boolean(selectedDayItems)}
+				onClose={handleCloseDayModal}
+			>
 				<ModalBackdrop />
 				<ModalContent
-					className={`max-w-[430px] ${modalContentClassName}`}
+					className={`${modalWidthClassName} web:h-auto ${modalContentClassName}`}
 					style={{ maxHeight: modalMaxHeight }}
 				>
 					<ModalHeader>
@@ -609,12 +617,15 @@ function DateCalendar({
 							</Heading>
 							<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{selectedDayLabel}</Text>
 						</VStack>
-						<ModalCloseButton onPress={handleCloseDayModal} />
+						<ModalCloseButton
+							accessibilityLabel="Fechar resumo diário"
+							onPress={handleCloseDayModal}
+						/>
 					</ModalHeader>
 					<ModalBody
-						className="pb-6"
+						className="pb-6 web:flex-none web:max-h-[calc(100vh-180px)]"
 						showsVerticalScrollIndicator={false}
-						contentContainerStyle={{ paddingBottom: 24 }}
+						contentContainerStyle={{ paddingBottom: 24, flexGrow: 0 }}
 					>
 						<VStack className="gap-3">
 							<HStack className="flex-wrap gap-2">

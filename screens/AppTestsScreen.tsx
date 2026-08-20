@@ -10,6 +10,7 @@ import { Image } from '@/components/ui/image';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { assistantAiGateway } from '@/services/lumusAssistant/assistantPlatform';
@@ -164,10 +165,10 @@ export default function AppTestsScreen() {
 	}, []);
 
 	return (
-		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
+			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+				<View className={`absolute left-0 right-0 top-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
 					<Image
 						source={LoginWallpaper}
 						alt="Background da tela de testes do aplicativo"
@@ -175,12 +176,12 @@ export default function AppTestsScreen() {
 						resizeMode="cover"
 					/>
 
-					<VStack className="h-full w-full items-center justify-start gap-4 px-6" style={{ paddingTop: insets.top + 24 }}>
-						<Heading size="xl" className="text-center text-white">
-							Testes do aplicativo
-						</Heading>
-						<TestsScreenIllustration width="40%" height="40%" className="opacity-90" />
-					</VStack>
+					<WebScreenHero
+					title="Testes do aplicativo"
+					Illustration={TestsScreenIllustration}
+					isDarkMode={isDarkMode}
+					topPadding={insets.top + 24}
+				/>
 				</View>
 
 				<ScrollView
@@ -188,11 +189,11 @@ export default function AppTestsScreen() {
 					keyboardShouldPersistTaps="handled"
 					keyboardDismissMode="on-drag"
 					showsVerticalScrollIndicator={false}
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
 					style={{ marginTop: heroHeight - 64 }}
 					contentContainerStyle={{ paddingBottom: 48 }}
 				>
-					<VStack className="mt-4 gap-4">
+					<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
 						<Box className={`${notTintedCardClassName} px-4 py-4`}>
 							<VStack className="gap-3">
 								<ShieldCheck size={24} color={isDarkMode ? '#E2E8F0' : '#334155'} />

@@ -53,22 +53,23 @@ export const buildHomeExpenseHistory = (
 		field: 'totalExpensesInCents' | 'totalGainsInCents',
 	) => {
 		for (const source of sources) {
+			const date = source.date;
 			if (
-				!isValidDate(source.date) ||
-				source.date.getTime() > referenceDate.getTime() ||
+				!isValidDate(date) ||
+				date.getTime() > referenceDate.getTime() ||
 				!Number.isSafeInteger(source.valueInCents) ||
 				source.valueInCents <= 0
 			) {
 				continue;
 			}
 
-			const month = months.find((candidate) => candidate.key === getMonthKey(source.date));
+			const month = months.find((candidate) => candidate.key === getMonthKey(date));
 			if (!month) {
 				continue;
 			}
 
 			if (field === 'totalExpensesInCents') {
-				const dayKey = String(source.date.getDate());
+				const dayKey = String(date.getDate());
 				month.dailyExpensesInCents[dayKey] =
 					(month.dailyExpensesInCents[dayKey] ?? 0) + source.valueInCents;
 			}

@@ -46,6 +46,7 @@ function parseFinancialAccount(id: string, value: unknown): FinancialLedgerAccou
     typeof data.groupId !== 'string' ||
     (data.kind !== 'bank' && data.kind !== 'cash' && data.kind !== 'investment') ||
     typeof data.name !== 'string' ||
+    typeof currentBalanceInCents !== 'number' ||
     !Number.isSafeInteger(currentBalanceInCents)
   ) {
     return null;
