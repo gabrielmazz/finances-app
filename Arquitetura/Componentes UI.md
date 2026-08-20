@@ -1,9 +1,9 @@
 ---
 tags: [componentes, ui, gluestack, nativewind, design-system, web, responsivo]
-relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]]
+relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]], [[Organização do Código]]
 status: ativo
 tipo: componente
-versao: 2.1.2
+versao: 2.2.0
 ---
 
 # Componentes UI
@@ -52,7 +52,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 
 | Componente | Descrição |
 |---|---|
-| `navigator.tsx` / `.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. As duas variantes compartilham grupos, atalhos contextuais, rotas de `utils/navigation.ts`, rótulos dinâmicos e logout seguro |
+| `navigator.tsx` / `.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. Ambas usam os helpers de `utils/navigation.ts`, aplicam os mesmos guards visuais e delegam o logout seguro para `utils/secureLogout.ts`; a variante nativa não contém layout desktop inatingível |
 | `web-app-shell.tsx` | Mantém o workspace autenticado no navegador sem alterar a hierarquia de rotas; não reserva uma coluna fixa enquanto o menu deslizante está fechado |
 | `web-route-transition.web.tsx` | Feedback Web-only de troca de pathname com `motion/react`, renderizado em portal no `document.body`; revela a nova página com opacidade e `scaleX`, não captura ponteiros e respeita `prefers-reduced-motion` |
 | `web/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: um único painel desktop navy/amarelo, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo, posicionamento explícito conforme `position` e variante de movimento reduzido |
@@ -61,6 +61,8 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
 | `screens/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
 | `screens/AddRegisterGainScreen.web.tsx` | Composição Web do cadastro de ganhos, baseada no shell hero/sheet de despesas e usando `AnimatedContent`, `Grainient`, `StrokeText`, ActionSheets compartilhados e classes estruturais de `useScreenStyles()` |
+| `screens/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, `input type="time"`, controle mensal e lembrete informado como indisponível para agendamento no navegador |
+| `screens/MandatoryExpensesListScreen.web.tsx` | Composição Web da listagem de gastos obrigatórios, com `date-calendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e exportação para impressão/PDF |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
 | `bank-card-surface.tsx` | Cartão de banco com gradiente linear baseado na cor do banco |
 | `bank-actionsheet-selector.tsx` | Seletor ActionSheet de bancos com ícone/monograma, nome, helper contextual e estado selecionado |
@@ -72,7 +74,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `home-expense-line-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine para os gastos diários dos últimos três meses, com dados serializáveis, fundo transparente e tooltip/eixos protegidos pela privacidade |
 | `home-activity-heatmap.tsx` | Expo DOM Component que encapsula `Heatmap` Mantine para as contagens diárias de lançamentos financeiros no ano atual, com meses, dias da semana e tooltip em português |
 | `investment-evolution-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine/Recharts para comparar capital líquido e patrimônio estimado somente pelas linhas, com pontos, grade e eixos no padrão visual do gráfico de previsão, fundo transparente, sem contorno de foco e rolagem horizontal para séries longas |
-| `date-calendar.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para valor previsto/real e `reminderSummary` para a configuração versionada do lembrete |
+| `date-calendar.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para valor previsto/real, `reminderSummary` para a configuração versionada do lembrete e `modalSize` para a largura responsiva do resumo diário Web |
 | `notifier-alert.tsx` / `.web.tsx` | Canal único de feedback in-app; Android/iOS usam `react-native-notifier` e o Web usa `Alert` do Mantine fixo no canto superior direito via portal no `document.body`, com entrada horizontal por `AnimatedContent` |
 | `screens/LoginScreen.tsx` / `.web.tsx` | Tela de Login completa por plataforma: a Web usa painel de identidade em gradiente; Android/iOS preservam o wallpaper, logo adaptado ao tema e cartão sobreposto da tela mobile original, sem `ogl`, WebGL ou WebView |
 | `loader.tsx` | Spinner de carregamento animado |
@@ -84,7 +86,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 ```mermaid
 graph LR
     NAV[navigator.tsx] --> HOME[HomeScreen]
-    LAYOUT["_layout.tsx"] --> WSH[web-app-shell.tsx]
+    LAYOUT["app-root.tsx"] --> WSH[web-app-shell.tsx]
     WSH --> NAV
     NAV --> CTRL[AddRegisterExpensesScreen]
     NAV --> CFG[ConfigurationsScreen]
@@ -123,6 +125,7 @@ graph LR
 - [[Notificações]] — `notifier-alert` exibe avisos in-app e `date-calendar` apresenta o resumo dos lembretes locais
 - [[Gerenciamento de Bancos]] — `bank-card-surface` exibe cards de bancos no carrossel
 - [[Navegação]] — `navigator.tsx`/`.web.tsx` usam `APP_ROUTE_PATHS`/helpers de `utils/navigation.ts`; Web tem painel deslizante e Android/iOS usam menus nativos, sem criar rotas paralelas
+- [[Organização do Código]] — `components/app/app-root.tsx` concentra a composição global; tela, UI, persistência e utilitários mantêm fronteiras explícitas
 - [[Versão Web]] — `web-app-shell.tsx`, `navigator.web.tsx`, `StaggeredMenu` e `HomeScreen.web.tsx` preservam a identidade visual e os guards do app no Firebase Hosting
 - [[Anotações Locais]] — Usa o editor visual em Expo DOM no `uiverse`; a tela mantém a persistência local por UID em Markdown e os controles nativos Gluestack ao redor do editor
 - [[Hooks Customizados]] — `useTagIcons` fornece `<TagIcon />` para renderização de ícones
@@ -174,6 +177,7 @@ graph LR
 - As preferências de [[Assistente Lumus]] são abertas pelo `drawer/` à direita, em vez de ocupar o histórico do chat. Use o `switch/` padrão com `switchTrackColor`, `switchThumbColor` e `switchIosBackgroundColor` de `useScreenStyles()` para toggles desse fluxo; o `popover/` concentra explicações auxiliares sem manter texto extra no card.
 - Os exemplos rápidos de [[Assistente Lumus]] são exibidos no `modal/`, acionado pelo botão de lâmpada no cabeçalho do chat. O estado vazio não deve repetir esses cards; a escolha fecha o modal e reutiliza o envio normal do compositor.
 - `navigator.tsx` e `.web.tsx` não devem importar `router` diretamente; novas opções de menu devem chamar os helpers centralizados de [[Navegação]]
+- O fluxo de saída é único em `utils/secureLogout.ts`; renderers do navigator apenas o disparam e não repetem limpeza de lembretes ou `signOut`.
 - `bank-card-surface.tsx` mistura a cor do banco com branco/preto para criar gradiente — cores muito claras ou escuras podem ter contraste ruim; a raiz aceita `className` para que a Home Web aplique layout Tailwind sem duplicar `StyleSheet` na tela
 - `web/Grainient.jsx` é Web-only e deve ser montado somente quando o painel que o contém estiver visível; o conteúdo textual fica acima do canvas para preservar a leitura. Nos detalhes da timeline, o wrapper Web ocupa toda a largura disponível, o container/canvas usa `inset: 0` e o recorte arredondado contém o canvas nos quatro cantos. O componente mantém um gradiente CSS sob o canvas para que a identidade visual não desapareça quando WebGL2 não estiver disponível; os shaders GLSL ES 3.00 não devem ser executados em WebGL1.
 - `web/AnimatedContent.jsx` é Web-only; além do disparo por `ScrollTrigger`, aceita `trigger="mount"` para entradas imediatas, `visible` para executar a saída antes do unmount e `disappearScale` para usos que precisam controlar o recorte durante o fechamento. Na timeline da Home, o wrapper recebe a chave do movimento, reinicia a abertura quando o detalhe é expandido, não escala a superfície do card e remove o card somente após a animação de fechamento.
@@ -186,6 +190,7 @@ graph LR
 - O modal interno de `date-picker.tsx` reaproveita os tokens de `useScreenStyles()` para container, input e ações de rodapé, evitando variantes paralelas ao padrão visual das telas
 - `date-calendar.tsx` suporta `displayValueInCents` para mostrar o valor previsto antes da efetivação e o valor real após o registro do ciclo nas telas recorrentes
 - `date-calendar.tsx` aceita `reminderSummary?: string`; quando informado, o card exibe o texto completo calculado pelo domínio, como `3 dias seguidos antes + no vencimento • 09:00`
+- `date-calendar.tsx` aceita `modalSize="lg"` para o resumo diário Web ocupar uma superfície fluida até 640 px; o padrão `md` preserva os diálogos compactos das telas nativas. Na Web, esse resumo usa `flex-none` no `ModalBody` para ajustar a altura ao conteúdo e rolar apenas quando necessário
 - Se `reminderSummary` não existir, `date-calendar.tsx` só exibe `Ativado` quando `reminderEnabled === true`; campo ausente resulta em `Desativado`, e as telas devem normalizar configurações legadas com `isMandatoryReminderConfigured()` antes de montar o item
 - `tag-actionsheet-selector.tsx` aceita `description` opcional nas opções para telas que precisam explicar o tipo/uso da categoria sem criar um seletor paralelo
 - `tag-actionsheet-selector.tsx` aceita ação de criação opcional para manter o atalho de nova categoria dentro do próprio ActionSheet, inclusive quando a lista de categorias está vazia
@@ -198,6 +203,6 @@ graph LR
 - `useScreenStyles()` mantém as variantes Web de `fieldContainerClassName` e `textareaContainerClassName`; inputs textuais/númericos e textareas das telas convertidas seguem a mesma geometria, fundo e foco amarelo de `AddRegisterExpensesScreen.web.tsx` e `AddRegisterGainScreen.web.tsx`, sem alterar o estilo nativo.
 - O sheet Web das telas convertidas deve permanecer em `web:relative web:z-[3]`, acima do hero absoluto; sem essa camada, a sobreposição visual pode capturar o primeiro clique dos campos.
 - Inputs editáveis em telas roláveis devem usar `useKeyboardAwareScroll()` de [[Hooks Customizados]] para permanecerem acima do teclado; inputs em modais/action sheets devem ficar dentro de `KeyboardAvoidingView` com área rolável própria quando houver risco de cobertura.
-- Modais operacionais usam `ModalContent` com limite de `max-w-[360px]`; telas com vários diálogos, como [[Investimentos]], devem preservar esse limite para não criar variantes visuais de largura.
+- O `Modal` compartilhado usa `lg` como tamanho padrão; diálogos operacionais compactos devem declarar `size="sm"`/`md` e um limite explícito como `max-w-[360px]`. Composições Web que exibem listas ou mensagens longas podem declarar `size="lg"` com largura fluida, como os modais da listagem de [[Despesas Fixas]], sem alterar os limites nativos.
 - Um arquivo Expo DOM deve iniciar com `'use dom'`, expor apenas o componente default e receber somente props serializáveis. Os gráficos permanecem nessa fronteira; o alerta Mantine é uma exceção Web-only renderizada por portal porque precisa compartilhar a árvore React Native com o disparo global. Telas nativas não importam Mantine.
 - Cards do assistente nunca renderizam HTML/código do modelo. Referências como banco, categoria e investimento devem ser editáveis por escolhas locais, e a ação de escrita exige o segundo estágio explícito **Confirmar agora**.

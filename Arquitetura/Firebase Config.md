@@ -3,7 +3,7 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.4.0
+versao: 1.4.1
 ---
 
 # Firebase Config
@@ -53,11 +53,16 @@ DB --> CF["backend/ (callable Functions do razão)"]
 
 `utils/firebaseRuntime.ts` é o único resolvedor de ambiente. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions em `127.0.0.1` nas portas 9099, 8080 e 5001. Nenhuma credencial de produção é lida nesse modo.
 
-`development` e `preview` só aceitam `emulator`; `production` e `production-apk` só aceitam `production`, com o project ID `finances-app-e8685` e todas as credenciais. Combinações inválidas falham antes de inicializar o SDK. O alias padrão da CLI também é o demo project; deploys devem informar `--project production`.
+`development` só aceita `emulator`. Os perfis instaláveis `preview`, `production` e `production-apk` só aceitam `production`, com o project ID `finances-app-e8685` e todas as credenciais; assim, um APK de preview não aponta para `127.0.0.1` no próprio aparelho. O preview usa App Check `debug`, enquanto produção e `production-apk` usam Play Integrity. Combinações inválidas falham antes de inicializar o SDK. O alias padrão da CLI continua sendo o demo project; deploys devem informar `--project production`.
+
+O snapshot de ambiente usado no cliente acessa cada `process.env.EXPO_PUBLIC_*` diretamente antes de chamar o resolvedor. Esse formato é obrigatório para o Metro incorporar os valores no bundle. Uma release local sem `TARGET` explícito usa produção somente quando todas as credenciais obrigatórias existem e o project ID é o canônico; Metro em desenvolvimento continua escolhendo o Emulator. Não voltar a passar `process.env` inteiro ou a ler essas chaves apenas por índice dinâmico, pois o bundle instalado ficaria sem configuração e falharia antes de substituir a splash nativa.
 
 ### Variáveis de Ambiente
 ```
 EXPO_PUBLIC_FIREBASE_API_KEY
+EXPO_PUBLIC_APP_ENV
+EXPO_PUBLIC_FIREBASE_TARGET
+EXPO_PUBLIC_FIREBASE_EMULATOR_HOST
 EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
 EXPO_PUBLIC_FIREBASE_PROJECT_ID
 EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
@@ -69,7 +74,7 @@ EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER
 EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN
 ```
 
-As variáveis são validadas em runtime via `getEnvVar()` — se alguma estiver faltando, o app lança erro imediatamente.
+As credenciais de produção são validadas pelo resolvedor antes da inicialização do SDK. O modo Emulator usa somente a configuração sintética e o host local.
 
 ## Exports
 
@@ -129,7 +134,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 ## Configuração Expo nativa
 
 - `app.config.ts` preserva a base de `app.json` e mantém somente as decisões dinâmicas: configura `expo-audio` e resolve o arquivo Android do Firebase. O próprio plugin de áudio materializa `RECORD_AUDIO` e `MODIFY_AUDIO_SETTINGS`; `expo-asset` é dependência peer direta, não plugin de configuração.
-- `android.googleServicesFile` usa `GOOGLE_SERVICES_JSON` quando fornecido pelo EAS ou `./google-services.json` local. `@react-native-firebase/app` entra na lista de plugins somente quando um desses caminhos existe, evitando que o prebuild do app-base falhe por um arquivo ausente. Nos perfis EAS Android `development`, `preview`, `production` e `production-apk`, a ausência do arquivo interrompe o build com erro explícito: qualquer um desses artefatos excluiria Firebase AI/App Check/Remote Config e não serve para testar ou distribuir o Lumus IA.
+- `android.googleServicesFile` usa `GOOGLE_SERVICES_JSON` quando fornecido pelo EAS ou `./google-services.json` local. `@react-native-firebase/app` entra na lista de plugins somente quando um desses caminhos existe. Os perfis EAS Android `preview`, `production` e `production-apk` recusam o build sem o arquivo, pois todos apontam para produção e precisam conter Firebase AI/App Check/Remote Config. O perfil `development` permanece isolado no Emulator, onde o Lumus IA é indisponível, e não exige o arquivo nativo.
 - `google-services.json` e `GoogleService-Info.plist` ficam no `.gitignore`.
 - Esta entrega nativa do assistente é Android. `app.config.ts` não habilita o plugin durante `EAS_BUILD_PLATFORM=ios`; um futuro build iOS com React Native Firebase também deverá fornecer `ios.googleServicesFile` antes de remover essa proteção.
 - Qualquer alteração de `expo-audio` ou React Native Firebase requer novo development build; Expo Go não suporta o adaptador Android.
@@ -148,7 +153,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 
 - Variáveis via `EXPO_PUBLIC_*` (acessíveis no bundle client-side)
 - `firebase` versão exata 12.16.0 (modular SDK); módulos React Native Firebase na versão exata 25.1.0
-- Os perfis EAS `development`, `preview` e `production` usam, respectivamente, os ambientes EAS de mesmo nome e declaram a configuração pública obrigatória para que `FirebaseConfig.ts` não falhe antes da Login; cada ambiente também precisa fornecer `GOOGLE_SERVICES_JSON` como variável de arquivo externa ao repositório. O perfil `production-apk` estende `production`, usa o ambiente EAS `production` e gera um APK interno para validar a mesma configuração de Firebase/Play Integrity sem alterar o artefato AAB destinado à Play Store.
+- O perfil EAS `development` usa somente o Emulator e deve ser aberto pelo script local, que inicia/semeia a Suite e aplica `adb reverse`. O `preview` herda as credenciais públicas de `production`, usa o ambiente EAS `preview`, exige `GOOGLE_SERVICES_JSON` nesse ambiente e gera APK com App Check `debug`. `production-apk` estende `production`, usa o ambiente EAS `production` e gera um APK interno com Play Integrity para validar a mesma configuração do AAB destinado à Play Store.
 - Projeto EAS: `faae4c50-3b7d-456a-9bfb-e778efd29638`
 
 ## Observações importantes

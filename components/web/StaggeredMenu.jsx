@@ -2,16 +2,60 @@ import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import './StaggeredMenu.css';
 
+/**
+ * @typedef {object} StaggeredMenuItem
+ * @property {string} label
+ * @property {string} [type]
+ * @property {React.ReactNode} [icon]
+ * @property {string} [link]
+ * @property {string} [ariaLabel]
+ * @property {boolean} [isActive]
+ * @property {boolean} [disabled]
+ * @property {() => void} [onSelect]
+ */
+
+/**
+ * @typedef {object} StaggeredMenuSocialItem
+ * @property {string} label
+ * @property {string} link
+ */
+
+/**
+ * @typedef {object} StaggeredMenuProps
+ * @property {'left' | 'right'} [position]
+ * @property {string[]} [colors]
+ * @property {StaggeredMenuItem[]} [items]
+ * @property {StaggeredMenuSocialItem[]} [socialItems]
+ * @property {boolean} [displaySocials]
+ * @property {boolean} [displayItemNumbering]
+ * @property {boolean} [collapsedRail]
+ * @property {{ name: string, subtitle?: string, imageUrl?: string, initials: string }} [profile]
+ * @property {string} [className]
+ * @property {string} [navigationLabel]
+ * @property {string} [menuButtonColor]
+ * @property {string} [openMenuButtonColor]
+ * @property {string} [accentColor]
+ * @property {boolean} [changeMenuColorOnOpen]
+ * @property {boolean} [isFixed]
+ * @property {boolean} [closeOnClickAway]
+ * @property {() => void} [onMenuOpen]
+ * @property {() => void} [onMenuClose]
+ */
+
+/** @type {StaggeredMenuItem[]} */
+const DEFAULT_ITEMS = [];
+
 // O Navigator Web é remontado quando o Expo Router troca de tela. Mantemos
 // somente o estado visual da rail entre essas remontagens para que navegar não
 // force o menu aberto a voltar para o estado fechado.
 let collapsedRailOpen = false;
 let activeMenuInstance = null;
 
+/** @param {StaggeredMenuProps} props */
 export const StaggeredMenu = ({
   position = 'right',
   colors = ['#B497CF', '#5227FF'],
-  items = [],
+  items = DEFAULT_ITEMS,
   socialItems = [],
   displaySocials = true,
   displayItemNumbering = true,

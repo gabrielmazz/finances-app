@@ -48,6 +48,7 @@ import { auth } from '@/FirebaseConfig';
 // Componentes do Uiverse
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 import CategoryAvailabilitySelector from '@/components/uiverse/category-availability-selector';
 import TagActionsheetSelector from '@/components/uiverse/tag-actionsheet-selector';
 import type { TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
@@ -279,6 +280,23 @@ const getTagReferenceMessage = (references: TagReferenceSummary) => {
 
 	return items.join(', ');
 };
+
+function isTagReferenceSummary(value: unknown): value is TagReferenceSummary {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'expenses' in value &&
+		typeof value.expenses === 'number' &&
+		'gains' in value &&
+		typeof value.gains === 'number' &&
+		'mandatoryExpenses' in value &&
+		typeof value.mandatoryExpenses === 'number' &&
+		'mandatoryGains' in value &&
+		typeof value.mandatoryGains === 'number' &&
+		'total' in value &&
+		typeof value.total === 'number'
+	);
+}
 
 function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTableResult<T> {
 	const totalItems = items.length;
@@ -949,7 +967,7 @@ export async function fetchAllTags(personId: string) {
 
 	} else {
 
-		console.error('Erro ao buscar todas as tags:', result.error);
+		console.error('Erro ao buscar todas as tags:', 'error' in result ? result.error : undefined);
 		return null;
 	}
 }
@@ -1372,7 +1390,7 @@ export default function ConfigurationsScreen() {
 	const handleTagRemoval = React.useCallback(
 		async (tagId: string, tagName: string) => {
 			const referencesResult = await getTagReferenceSummary(tagId);
-			if (!referencesResult.success || !referencesResult.data) {
+			if (!referencesResult.success || !isTagReferenceSummary(referencesResult.data)) {
 				showConfigurationAlert({
 					title: 'Não foi possível verificar a categoria',
 					description: 'A categoria não foi excluída para preservar seus lançamentos.',
@@ -1419,7 +1437,7 @@ export default function ConfigurationsScreen() {
 			setIsCheckingTagUsageId(tagId);
 			try {
 				const result = await getTagReferenceSummary(tagId);
-				if (!result.success || !result.data) {
+				if (!result.success || !isTagReferenceSummary(result.data)) {
 					showConfigurationAlert({
 						title: 'Não foi possível verificar a categoria',
 						description: 'Tente novamente antes de excluir.',
@@ -1947,11 +1965,11 @@ export default function ConfigurationsScreen() {
 	const managedRecordsCount = userData.length + bankData.length + tagData.length;
 
 	return (
-		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-					<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
+			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+					<View className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
 						<Image
 							source={LoginWallpaper}
 							alt="Background da tela de configurações"
@@ -1959,15 +1977,14 @@ export default function ConfigurationsScreen() {
 							resizeMode="cover"
 						/>
 
-						<VStack
-							className="h-full w-full items-center justify-start gap-4 px-6"
-							style={{ paddingTop: insets.top + 24 }}
-						>
-							<Heading size="xl" className="text-center text-white">
-								Menu de Configurações
-							</Heading>
-							<ConfigurationIllustration width="38%" height="38%" className="opacity-90" />
-						</VStack>
+						<WebScreenHero
+					title="Menu de Configurações"
+					Illustration={ConfigurationIllustration}
+					isDarkMode={isDarkMode}
+					topPadding={insets.top + 24}
+					illustrationWidth="38%"
+					illustrationHeight="38%"
+				/>
 					</View>
 
 					<ScrollView
@@ -1976,7 +1993,7 @@ export default function ConfigurationsScreen() {
 						contentContainerStyle={{ paddingBottom: 48 }}
 						nestedScrollEnabled
 						showsVerticalScrollIndicator={false}
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
 						style={{ marginTop: heroHeight - 64 }}
 					>
 						{isInitialLoading ? (
@@ -1993,7 +2010,7 @@ export default function ConfigurationsScreen() {
 							/>
 						) : (
 
-							<VStack className="mt-4 gap-4">
+							<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
 
 								<Heading
 									className="text-lg uppercase tracking-widest "
@@ -2037,7 +2054,7 @@ export default function ConfigurationsScreen() {
 										<HStack className="items-end gap-3">
 											<VStack className="flex-1 gap-2">
 												<Text className={`${bodyText} ml-1 text-sm`}>ID do usuário</Text>
-												<View className="flex-1">
+														<View className="flex-1">
 													<Input className={fieldContainerClassName} isDisabled>
 														<InputField
 															placeholder="ID do usuário"
@@ -2073,7 +2090,15 @@ export default function ConfigurationsScreen() {
 									Configurações avançadas
 								</Heading>
 
-								<Accordion size="md" variant="unfilled" type="single" isCollapsible value={openConfigurationSection ?? undefined} onValueChange={value => setOpenConfigurationSection(typeof value === 'string' ? value : null)} className="w-full">
+								<Accordion
+									size="md"
+									variant="unfilled"
+									type="single"
+									isCollapsible
+									value={openConfigurationSection ? [openConfigurationSection] : []}
+									onValueChange={value => setOpenConfigurationSection(value[0] ?? null)}
+									className="w-full"
+								>
 									{accordionItems.map(item => {
 										const requiresAdmin = item.actionRequiresAdmin !== false;
 										const canAccessSection = !requiresAdmin || isAdmin;

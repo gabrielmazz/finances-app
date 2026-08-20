@@ -12,7 +12,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
@@ -21,6 +20,7 @@ import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
 import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
 import { navigateToHomeDashboard } from '@/utils/navigation';
@@ -560,7 +560,7 @@ export default function AddRescueScreen() {
 
 	return (
 		<SafeAreaView
-			className="flex-1"
+			className="flex-1 web:w-screen"
 			edges={['left', 'right', 'bottom']}
 			style={{ backgroundColor: surfaceBackground }}
 		>
@@ -570,15 +570,15 @@ export default function AddRescueScreen() {
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 					className="flex-1"
 				>
-					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+					<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 						<View
-							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+							className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
 							style={{ height: heroHeight }}
 						>
 							<Image
@@ -588,28 +588,25 @@ export default function AddRescueScreen() {
 								resizeMode="cover"
 							/>
 
-							<VStack
-								className="w-full h-full items-center justify-start px-6 gap-4"
-								style={{ paddingTop: insets.top + 24 }}
-							>
-								<Heading size="xl" className="text-white text-center">
-									Saque em dinheiro
-								</Heading>
-								<AddRescueIllustration width="40%" height="40%" className="opacity-90" />
-							</VStack>
+							<WebScreenHero
+					title="Saque em dinheiro"
+					Illustration={AddRescueIllustration}
+					isDarkMode={isDarkMode}
+					topPadding={insets.top + 24}
+				/>
 						</View>
 
 						<ScrollView
 							ref={scrollViewRef}
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
-							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 							onScroll={handleScroll}
 							scrollEventThrottle={scrollEventThrottle}
 						>
-							<VStack className="justify-between mt-4">
+							<VStack className="justify-between mt-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
 								<VStack className="mb-4">
 									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
 									<BankActionsheetSelector
@@ -709,7 +706,7 @@ export default function AddRescueScreen() {
 								</VStack>
 
 								<Button
-									className={submitButtonClassName}
+									className={`${submitButtonClassName} web:mt-2 web:h-12`}
 									onPress={handleSubmit}
 									isDisabled={isSubmitDisabled}
 								>

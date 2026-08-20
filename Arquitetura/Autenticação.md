@@ -3,7 +3,7 @@ tags: [autenticacao, firebase, seguranca, contexto]
 relacionado: [[Segurança de Login]], [[Navegação]], [[Gerenciamento de Usuários]], [[Firebase Config]]
 status: ativo
 tipo: feature
-versao: 1.3.9
+versao: 1.4.0
 ---
 
 # Autenticação
@@ -78,6 +78,7 @@ type AuthContextValue = {
 ## Configuração
 
 - Firebase Auth configurado em `FirebaseConfig.ts`
+- Antes de o `AuthProvider` montar, [[Firebase Config]] resolve o alvo a partir de variáveis `EXPO_PUBLIC_*` incorporadas diretamente pelo Metro. Development usa o Emulator; preview e releases usam produção. Uma release local com credenciais completas também infere produção, evitando exceção de bootstrap antes da Login e permanência na splash nativa.
 - **App primário usa persistência memory-only** — ao fechar o app, a sessão é encerrada e o usuário volta para a tela de login
 - O `user=null` inicial de uma abertura fria não é tratado como logout explícito pelo motor de notificações; isso preserva os alarmes locais do último UID enquanto a sessão precisa ser refeita
 - O botão **Sair** bloqueia toques concorrentes, confirma que o UID originador ainda é o usuário do Firebase e chama `clearMandatoryReminderAccount(uid)` antes de `signOut(auth)`. A limpeza é recusada se outra conta já tiver assumido a sessão; ao entrar com outro UID, a ponte de `_layout.tsx` também limpa qualquer agenda anterior

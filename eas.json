@@ -15,13 +15,15 @@
       }
     },
     "preview": {
+      "extends": "production",
       "distribution": "internal",
       "environment": "preview",
+      "autoIncrement": false,
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "preview",
-        "EXPO_PUBLIC_FIREBASE_TARGET": "emulator",
-        "EXPO_PUBLIC_FIREBASE_EMULATOR_HOST": "127.0.0.1"
+        "EXPO_PUBLIC_FIREBASE_TARGET": "production",
+        "EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER": "debug"
       }
     },
     "production": {

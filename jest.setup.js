@@ -26,6 +26,10 @@ global.__resetNotificationMockState = () => {
 	mockNotificationState.notificationHandler = null;
 };
 
+// babel-preset-expo rewrites direct EXPO_PUBLIC_* accesses to this virtual
+// module. Jest runs the same resolver without Metro, so expose its process env.
+jest.mock('expo/virtual/env', () => ({ env: process.env }));
+
 jest.mock('react-native', () => ({
 	__esModule: true,
 	Keyboard: {

@@ -16,7 +16,13 @@
     "dev:local": "./script/build_and_run.sh start",
     "test:integration": "npm --prefix backend run test:emulator",
     "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "typecheck:backend": "tsc --noEmit -p backend/tsconfig.json",
+    "check": "npm run typecheck && npm run typecheck:backend && npm run test -- --runInBand",
     "postinstall": "patch-package"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

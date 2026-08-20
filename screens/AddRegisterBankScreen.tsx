@@ -1,7 +1,5 @@
 import React from 'react';
 import {
-	Keyboard,
-	TouchableWithoutFeedback,
 	View,
 	StatusBar,
 	ScrollView,
@@ -44,6 +42,7 @@ import {
 
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 import { BankIcon, BANK_ICON_OPTIONS } from '@/hooks/useBankIcons';
 
 import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
@@ -57,6 +56,7 @@ import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankS
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
 import { Check, ChevronDown } from 'lucide-react-native';
 
 const presetBankColors = [
@@ -376,9 +376,9 @@ export default function AddRegisterBankScreen() {
     const screenTitle = isEditing ? 'Editar banco' : 'Adição de um novo banco';
 
     return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ScreenDismissKeyboard>
         <SafeAreaView
-            className="flex-1"
+            className="flex-1 web:w-screen"
             edges={['left', 'right', 'bottom']}
             style={{ backgroundColor: surfaceBackground }}
         >
@@ -387,15 +387,15 @@ export default function AddRegisterBankScreen() {
                 backgroundColor="transparent"
                 barStyle={isDarkMode ? 'light-content' : 'dark-content'}
             />
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 				<KeyboardAvoidingView
 					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 					keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 					className="flex-1"
 				>
-                    <View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+                    <View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
                         <View
-                            className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+                            className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
                             style={{ height: heroHeight }}
                         >
                             <Image
@@ -405,28 +405,25 @@ export default function AddRegisterBankScreen() {
                                 resizeMode="cover"
                             />
 
-                            <VStack
-                                className="w-full h-full items-center justify-start px-6 gap-4"
-                                style={{ paddingTop: insets.top + 24 }}
-                            >
-                                <Heading size="xl" className="text-white text-center">
-                                    {screenTitle}
-                                </Heading>
-                                <AddRegisterBankScreenIllustration width="40%" height="40%" className="opacity-90" />
-                            </VStack>
+                            <WebScreenHero
+					title={screenTitle}
+					Illustration={AddRegisterBankScreenIllustration}
+					isDarkMode={isDarkMode}
+					topPadding={insets.top + 24}
+				/>
                         </View>
 
                         <ScrollView
                             ref={scrollViewRef}
                             keyboardShouldPersistTaps="handled"
                             keyboardDismissMode="on-drag"
-                            className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+                            className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
                             style={{ marginTop: heroHeight - 64 }}
                             contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
                             onScroll={handleScroll}
                             scrollEventThrottle={scrollEventThrottle}
                         >
-                            <VStack className="justify-between mt-4">
+                            <VStack className="justify-between mt-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
                                 <VStack className="mb-4">
                                     <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome do banco</Text>
                                     <Input className={fieldContainerClassName}>
@@ -506,7 +503,7 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <Button
-                                    className={submitButtonClassName}
+                                    className={`${submitButtonClassName} web:mt-2 web:h-12`}
                                     onPress={registerBank}
                                     isDisabled={
                                         isSubmitting ||
@@ -600,6 +597,6 @@ export default function AddRegisterBankScreen() {
                 </ActionsheetContent>
             </Actionsheet>
 		</SafeAreaView>
-        </TouchableWithoutFeedback>
+        </ScreenDismissKeyboard>
     );
 }

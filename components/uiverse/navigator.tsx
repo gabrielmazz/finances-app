@@ -1,35 +1,13 @@
 import React from 'react';
 import { useLocalSearchParams, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { signOut } from 'firebase/auth';
-import {
-	BackHandler,
-	Platform,
-	Pressable,
-	ScrollView,
-	type ViewStyle,
-	useWindowDimensions,
-	View,
-} from 'react-native';
+import { BackHandler, Pressable, View } from 'react-native';
 
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { Text } from '@/components/ui/text';
-import { auth } from '@/FirebaseConfig';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import {
-	clearMandatoryReminderAccount,
-	finalizeMandatoryReminderAccountCleanup,
-} from '@/utils/mandatoryReminderNotifications';
-import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
-import {
-	isWebDesktopLayout,
-	WEB_SIDEBAR_GUTTER,
-	WEB_SIDEBAR_WIDTH,
-} from '@/utils/webLayout';
 import {
 	APP_ROUTE_PATHS,
 	HOME_TAB_INDEX,
@@ -40,6 +18,7 @@ import {
 	navigateToRoute,
 	normalizeHomeTabIndex,
 } from '@/utils/navigation';
+import { logoutCurrentUser } from '@/utils/secureLogout';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -88,160 +67,6 @@ type NavigatorPalette = {
 	menuItemActive: string;
 	menuIcon: string;
 	menuIconActive: string;
-	sidebarSurface: string;
-	sidebarBorder: string;
-	sidebarText: string;
-	sidebarMutedText: string;
-	focusRing: string;
-};
-
-type DesktopSidebarOptionProps = {
-	option: NavigatorOption;
-	isActive: boolean;
-	palette: NavigatorPalette;
-	onSelect: () => void;
-};
-
-// React Native Web suporta `fixed`, mas o tipo compartilhado do React Native
-// ainda expõe somente relative/absolute/static.
-const webFixedPositionStyle: ViewStyle = {
-	position: 'fixed' as unknown as ViewStyle['position'],
-};
-
-const DesktopSidebarOption = ({ option, isActive, palette, onSelect }: DesktopSidebarOptionProps) => {
-	const [isFocused, setIsFocused] = React.useState(false);
-
-	return (
-		<Pressable
-			onPress={onSelect}
-			onFocus={() => setIsFocused(true)}
-			onBlur={() => setIsFocused(false)}
-			accessibilityRole="button"
-			accessibilityLabel={option.label}
-			accessibilityHint={option.id === 'logout' ? 'Encerra a sessão atual' : `Abre ${option.label}`}
-			accessibilityState={{ selected: isActive }}
-			style={({ pressed }) => ({
-				minHeight: 44,
-				flexDirection: 'row',
-				alignItems: 'center',
-				gap: 12,
-				paddingHorizontal: 12,
-				paddingVertical: 10,
-				borderRadius: 14,
-				borderWidth: 1,
-				borderColor: isFocused ? palette.focusRing : 'transparent',
-				backgroundColor: isActive ? palette.activeSurface : 'transparent',
-				opacity: pressed ? 0.78 : 1,
-			})}
-		>
-			<Ionicons
-				name={option.icon}
-				size={19}
-				color={isActive ? palette.activeColor : palette.inactiveColor}
-			/>
-			<Text
-				numberOfLines={1}
-				style={{
-					flex: 1,
-					fontSize: 14,
-					fontWeight: isActive ? '700' : '600',
-					color: isActive ? palette.activeColor : palette.sidebarText,
-				}}
-			>
-				{option.label}
-			</Text>
-		</Pressable>
-	);
-};
-
-// Logout dispara onAuthStateChanged → AuthContext atualiza → _layout.tsx redireciona para '/' automaticamente.
-// Conforme documentado em [[Autenticação]] e [[Navegação]].
-const logoutUser = async (isDarkMode = false, userId?: string | null, displayName?: string | null) => {
-	const accountId = userId?.trim();
-	if (!accountId || auth.currentUser?.uid !== accountId) {
-		return;
-	}
-
-	// Busca o nome no Firestore (fonte primária) com fallback para displayName do Auth
-	let userName = displayName?.trim() || null;
-	try {
-		const userData = await getUserDataFirebase(accountId);
-		if (userData.success) {
-			const storedName = (userData.data as { name?: unknown })?.name;
-			if (typeof storedName === 'string' && storedName.trim()) {
-				userName = storedName.trim().split(/\s+/)[0] ?? userName;
-			}
-		}
-	} catch {
-		// Fallback silencioso para displayName do Auth
-	}
-
-	if (auth.currentUser?.uid !== accountId) {
-		return;
-	}
-
-	const restoreCurrentAccountReminders = async () => {
-		if (auth.currentUser?.uid !== accountId) {
-			return false;
-		}
-
-		try {
-			const result = await synchronizeMandatoryReminderAccount(accountId);
-			return result.complete;
-		} catch (restoreError) {
-			console.error('Erro ao restaurar lembretes após falha no logout:', restoreError);
-			return false;
-		}
-	};
-
-	let remindersCleared = false;
-	try {
-		remindersCleared = await clearMandatoryReminderAccount(accountId);
-	} catch (error) {
-		console.error('Erro ao limpar lembretes locais durante o logout:', error);
-	}
-
-	if (!remindersCleared) {
-		if (auth.currentUser?.uid === accountId) {
-			const remindersRestored = await restoreCurrentAccountReminders();
-			showNotifierAlert({
-				description: remindersRestored
-					? 'Não foi possível concluir a limpeza. A sessão e os lembretes foram restaurados; tente sair novamente.'
-					: 'Não foi possível limpar os lembretes deste dispositivo. Por segurança, a sessão continua ativa; verifique a conexão e tente novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-		}
-		return;
-	}
-
-	if (auth.currentUser?.uid !== accountId) {
-		return;
-	}
-
-	try {
-		await signOut(auth);
-		try {
-			await finalizeMandatoryReminderAccountCleanup(accountId);
-		} catch (finalizeError) {
-			console.error('Erro ao finalizar a limpeza local após logout:', finalizeError);
-		}
-		showNotifierAlert({
-			description: userName ? `Até mais, ${userName}!` : 'Até mais!',
-			type: 'info',
-			isDarkMode,
-		});
-	} catch (error) {
-		console.error('Erro ao deslogar usuário:', error);
-		const remindersRestored = await restoreCurrentAccountReminders();
-		showNotifierAlert({
-			description: remindersRestored
-				? 'Não foi possível encerrar a sessão. Os lembretes foram restaurados; tente sair novamente.'
-				: 'Não foi possível encerrar a sessão nem restaurar os lembretes agora. Verifique a conexão e tente novamente.',
-			type: 'error',
-			isDarkMode,
-		});
-	}
 };
 
 const NAV_GROUPS: NavigatorGroup[] = [
@@ -517,7 +342,6 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 	const { isRouteVisible } = useRouteVisibility();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
-	const { width: windowWidth } = useWindowDimensions();
 	const logoutInFlightRef = React.useRef(false);
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
@@ -614,7 +438,6 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 	const activeValue = activeRoute?.groupValue ?? normalizedDefault;
 	const activeOptionId = activeRoute?.optionId ?? getDefaultOption(activeValue, resolvedGroups)?.id ?? null;
 	const navigationItemWidth: `${number}%` = `${100 / resolvedGroups.length}%`;
-	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 
 	const palette = React.useMemo<NavigatorPalette>(
 		() => ({
@@ -656,11 +479,6 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 			menuItemActive: isDarkMode ? 'text-yellow-300' : 'text-slate-900',
 			menuIcon: isDarkMode ? '#cbd5e1' : '#64748b',
 			menuIconActive: isDarkMode ? '#fde047' : '#f59e0b',
-			sidebarSurface: isDarkMode ? '#030417' : '#FFFFFF',
-			sidebarBorder: isDarkMode ? '#1e293b' : '#e2e8f0',
-			sidebarText: isDarkMode ? '#e2e8f0' : '#334155',
-			sidebarMutedText: isDarkMode ? '#94a3b8' : '#64748b',
-			focusRing: isDarkMode ? '#fde047' : '#ca8a04',
 		}),
 		[isDarkMode],
 	);
@@ -673,7 +491,11 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 					return;
 				}
 				logoutInFlightRef.current = true;
-				void logoutUser(isDarkMode, user?.uid, user?.displayName).finally(() => {
+				void logoutCurrentUser({
+					isDarkMode,
+					userId: user?.uid,
+					displayName: user?.displayName,
+				}).finally(() => {
 					logoutInFlightRef.current = false;
 				});
 				return;
@@ -707,98 +529,6 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 			backHandler.remove();
 		};
 	}, [onHardwareBack]);
-
-	if (isDesktopWeb) {
-		return (
-			<View
-				role="navigation"
-				accessibilityLabel="Navegação principal"
-				style={{
-					...webFixedPositionStyle,
-					zIndex: 40,
-					left: WEB_SIDEBAR_GUTTER,
-					top: WEB_SIDEBAR_GUTTER,
-					bottom: WEB_SIDEBAR_GUTTER,
-					width: WEB_SIDEBAR_WIDTH,
-					borderRadius: 24,
-					borderWidth: 1,
-					borderColor: palette.sidebarBorder,
-					backgroundColor: palette.sidebarSurface,
-					boxShadow: isDarkMode
-						? '0 18px 44px rgba(2, 6, 23, 0.38)'
-						: '0 18px 44px rgba(15, 23, 42, 0.10)',
-					overflow: 'hidden',
-				}}
-			>
-				<View
-					style={{
-						flexDirection: 'row',
-						alignItems: 'center',
-						gap: 12,
-						paddingHorizontal: 18,
-						paddingVertical: 18,
-						borderBottomWidth: 1,
-						borderBottomColor: palette.sidebarBorder,
-					}}
-				>
-					<View
-						style={{
-							width: 36,
-							height: 36,
-							alignItems: 'center',
-							justifyContent: 'center',
-							borderRadius: 12,
-							backgroundColor: '#facc15',
-						}}
-					>
-						<Ionicons name="wallet-outline" size={20} color="#0f172a" />
-					</View>
-					<View>
-						<Text style={{ color: palette.sidebarText, fontSize: 16, fontWeight: '800' }}>
-							Lumus
-						</Text>
-						<Text style={{ color: palette.sidebarMutedText, fontSize: 12, fontWeight: '600' }}>
-							Finanças
-						</Text>
-					</View>
-				</View>
-
-				<ScrollView
-					style={{ flex: 1 }}
-					contentContainerStyle={{ padding: 12, gap: 22 }}
-					showsVerticalScrollIndicator
-				>
-					{resolvedGroups.map(group => (
-						<View key={group.value} style={{ gap: 4 }}>
-							<Text
-								accessibilityRole="header"
-								style={{
-									paddingHorizontal: 12,
-									paddingBottom: 4,
-									color: palette.sidebarMutedText,
-									fontSize: 11,
-									fontWeight: '800',
-									letterSpacing: 0.8,
-									textTransform: 'uppercase',
-								}}
-							>
-								{group.label}
-							</Text>
-							{group.options.map(option => (
-								<DesktopSidebarOption
-									key={option.id}
-									option={option}
-									isActive={activeOptionId === option.id}
-									palette={palette}
-									onSelect={() => handleSelect(option)}
-								/>
-							))}
-						</View>
-					))}
-				</ScrollView>
-			</View>
-		);
-	}
 
 	return (
 		<View

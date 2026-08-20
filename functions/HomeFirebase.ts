@@ -66,7 +66,7 @@ export type HomeBankBalanceCard = {
 
 export type HomeCashSummary = {
 	id: 'cash-transactions';
-	name: 'Dinheiro';
+	name: string;
 	balanceInCents: number;
 	currentMonthExpensesInCents: number;
 	currentMonthGainsInCents: number;

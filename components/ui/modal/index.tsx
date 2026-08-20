@@ -76,7 +76,7 @@ const modalContentStyle = tva({
 });
 
 const modalBodyStyle = tva({
-  base: 'w-full px-6 pt-4',
+  base: 'w-full px-6 pt-4 web:overscroll-contain',
 });
 
 const modalCloseButtonStyle = tva({
@@ -125,7 +125,7 @@ function ModalTitle({ className, size = 'lg', ...props }: IModalTitleProps) {
 }
 
 const Modal = React.forwardRef<React.ComponentRef<typeof UIModal>, IModalProps>(
-  ({ className, size = 'md', ...props }, ref) => (
+  ({ className, size = 'lg', ...props }, ref) => (
     <UIModal
       ref={ref}
       {...props}

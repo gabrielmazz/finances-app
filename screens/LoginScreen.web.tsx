@@ -420,10 +420,9 @@ export default function LoginScreen() {
 								</View>
 							</View>
 
-							<View
-								className={cardBackground}
-								className={`flex-[0.86] justify-center px-8 py-[42px] ${!isSplitLayout ? '-mt-7 rounded-tl-[32px] rounded-tr-[32px] pt-12' : ''}`}
-							>
+								<View
+									className={`${cardBackground} flex-[0.86] justify-center px-8 py-[42px] ${!isSplitLayout ? '-mt-7 rounded-tl-[32px] rounded-tr-[32px] pt-12' : ''}`}
+								>
 								<View className="w-full max-w-[420px] flex-1 self-center">
 									<View className="flex-1 justify-center">
 										<VStack className="mb-10 gap-2">

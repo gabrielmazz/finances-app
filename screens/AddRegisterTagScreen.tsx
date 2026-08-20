@@ -1,18 +1,17 @@
 import React from 'react';
 import {
-	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
 	Pressable,
 	ScrollView,
 	StatusBar,
 	TextInput,
-	TouchableWithoutFeedback,
 	View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 
+import { Heading } from '@/components/ui/heading';
 import {
 	Actionsheet,
 	ActionsheetBackdrop,
@@ -24,7 +23,6 @@ import {
 	ActionsheetScrollView,
 } from '@/components/ui/actionsheet';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { Heading } from '@/components/ui/heading';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
@@ -32,6 +30,7 @@ import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import CategoryAvailabilitySelector from '@/components/uiverse/category-availability-selector';
 import Navigator from '@/components/uiverse/navigator';
+import WebScreenHero from '@/components/uiverse/web-screen-hero';
 import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -42,6 +41,7 @@ import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
 import {
 	getCategoryAvailabilityFields,
 	getCategoryAvailabilityPreset,
@@ -479,39 +479,41 @@ export default function AddRegisterTagScreen() {
 		(isEditing || Boolean(creationFields));
 
 	return (
-		<TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-			<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+		<ScreenDismissKeyboard>
+			<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 				<StatusBar
 					translucent
 					backgroundColor="transparent"
 					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 				/>
 
-				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
 						className="flex-1"
 					>
-						<View className="flex-1">
-							<View className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
+						<View className="flex-1 web:w-screen">
+							<View className={`absolute left-0 right-0 top-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
 								<Image
 									source={LoginWallpaper}
 									alt="Cabeçalho da categoria"
 									className="absolute h-full w-full rounded-b-3xl"
 									resizeMode="cover"
 								/>
-								<VStack className="h-full w-full items-center px-6 gap-3" style={{ paddingTop: insets.top + 24 }}>
-									<Heading size="xl" className="text-center text-white">
-										{screenTitle}
-									</Heading>
-									<AddRegisterTagScreenIllustration width="36%" height="36%" className="opacity-90" />
-								</VStack>
+								<WebScreenHero
+					title={screenTitle}
+					Illustration={AddRegisterTagScreenIllustration}
+					isDarkMode={isDarkMode}
+									topPadding={insets.top + 24}
+									illustrationWidth="36%"
+									illustrationHeight="36%"
+								/>
 							</View>
 
 							<ScrollView
 								ref={scrollViewRef}
-								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
 								style={{ marginTop: heroHeight - 64 }}
 								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 								keyboardShouldPersistTaps="handled"
@@ -519,7 +521,7 @@ export default function AddRegisterTagScreen() {
 								onScroll={handleScroll}
 								scrollEventThrottle={scrollEventThrottle}
 							>
-								<VStack className="mt-4 gap-4">
+								<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
 									{isLoadingExisting ? (
 										<VStack className={`${fieldContainerCardClassName} px-4 py-5`}>
 											<Text className={`${helperText} text-sm`}>Carregando a categoria…</Text>
@@ -620,7 +622,7 @@ export default function AddRegisterTagScreen() {
 												</Pressable>
 											</VStack>
 
-											<Button className={submitButtonClassName} onPress={saveCategory} isDisabled={!canSave}>
+											<Button className={`${submitButtonClassName} web:mt-2 web:h-12`} onPress={saveCategory} isDisabled={!canSave}>
 												{isSubmitting ? <ButtonSpinner /> : <ButtonText className={submitButtonTextClassName}>{isEditing ? 'Salvar alterações' : 'Salvar categoria'}</ButtonText>}
 											</Button>
 										</>
@@ -717,6 +719,6 @@ export default function AddRegisterTagScreen() {
 					</View>
 				</View>
 			</SafeAreaView>
-		</TouchableWithoutFeedback>
+		</ScreenDismissKeyboard>
 	);
 }
