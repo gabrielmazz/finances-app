@@ -68,8 +68,8 @@ export const resolveFirebaseRuntimeConfig = (
 		}
 
 		const emulatorHost = environment.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST ?? '127.0.0.1';
-		if (emulatorHost !== '127.0.0.1' && emulatorHost !== 'localhost') {
-			throw new Error('Firebase Emulator host must be a local host.');
+		if (!/^(127\.0\.0\.1|localhost|10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(emulatorHost)) {
+			throw new Error('Firebase Emulator host must be localhost or a private LAN address.');
 		}
 
 		return Object.freeze({
