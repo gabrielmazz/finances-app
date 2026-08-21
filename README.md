@@ -98,16 +98,23 @@ npm install
 # Metro com a configuração atual de ambiente, sem reset automático
 npm run start
 
-# Ambiente local Android: inicia/semeia o Emulator demo e prepara o device
+# Ambiente local: inicia/semeia o Emulator demo e abre no Expo Go pela LAN
 npm run dev:local
 
 # Execução por plataforma
 npm run android
 npm run ios
 npm run web
+
+# Ambiente local no navegador, com Emulator Suite
+npm run dev:local:web
 ```
 
 `npm run dev:local` prepara dados de demonstração e pode apagar o estado local do Emulator. Use `npm run start` quando não quiser esse reset e confirme o alvo Firebase configurado no ambiente. O aplicativo usa Firebase; veja a configuração completa em [Arquitetura/Firebase Config.md](Arquitetura/Firebase%20Config.md).
+
+Se a Suite Firebase já estiver aberta de uma execução anterior, encerre-a com `Ctrl+C` antes de executar `npm run dev:local` novamente. O fluxo padrão usa Expo Go; o assistente de IA no Android continua exigindo um development build.
+
+O seed local exibe no terminal as credenciais da conta demo `usuario@demo.lumus.local` / `lumus-demo-123`. Elas existem somente no Firebase Emulator e não são credenciais de produção.
 
 <h2 align="center">Criação das variáveis de ambientes</h2>
 

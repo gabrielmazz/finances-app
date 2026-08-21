@@ -1430,15 +1430,6 @@ export default function AddRegisterGainScreen() {
 							}}
 						>
 							<View className={webDashboardClassNames.sheetInner + ' max-w-[1180px] w-full self-center'}>
-								<AnimatedContent
-									trigger="mount"
-									distance={18}
-									duration={0.55}
-									delay={0.08}
-									ease="power3.out"
-									className="w-full"
-									style={{ display: 'flex' }}
-								>
 									<View
 										className={webExpenseClassNames.formSurface + ' ' + cardBackground + ' rounded-[28px]'}
 										style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
@@ -1827,7 +1818,6 @@ export default function AddRegisterGainScreen() {
 											</View>
 										</View>
 									</View>
-								</AnimatedContent>
 							</View>
 						</View>
 					</View>
@@ -1837,4 +1827,3 @@ export default function AddRegisterGainScreen() {
 		</SafeAreaView>
 	);
 }
-

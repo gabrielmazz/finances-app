@@ -14,6 +14,7 @@
     "emulators:start": "npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions",
     "emulators:seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-lumus-financas npm --prefix backend run seed",
     "dev:local": "./script/build_and_run.sh start",
+    "dev:local:web": "./script/build_and_run.sh --web",
     "test:integration": "npm --prefix backend run test:emulator",
     "test": "jest",
     "typecheck": "tsc --noEmit",
