@@ -26,7 +26,7 @@ Toggle de privacidade que oculta todos os valores financeiros na interface, úti
 - `screens/HomeScreen.tsx` — Principal consumidor (oculta saldos e valores)
 - `screens/BankMovementsScreen.tsx` — Oculta valores na tela e no PDF de resumo do período
 - `screens/ConfigurationsScreen.tsx` — Toggle de visibilidade nas configurações
-- `components/uiverse/lumus-assistant/assistant-cards.tsx` — Máscara de mensagens, cartões, relatórios e gráficos
+- `components/uiverse/assistant/assistant-cards.tsx` — Máscara de mensagens, cartões, relatórios e gráficos
 - `contexts/LumusAssistantContext.tsx` — Máscara o texto antes da leitura por voz
 
 ## Integrações

@@ -1,6 +1,6 @@
 ---
 tags: [moc, arquitetura, expo, firebase, web, financas]
-relacionado: [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Firebase Config]], [[Componentes UI]], [[Notificações]], [[Assistente Lumus]]
+relacionado: [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
 versao: 2.2.0
@@ -69,7 +69,8 @@ graph TD
 - [[Comportamento Pós-Registro]] — Preferências por tela para retorno e limpeza de campos após salvar formulários
 - [[Visibilidade de Rotas]] — Preferência local que oculta telas e bloqueia suas rotas neste aparelho
 - [[Notificações]] — Push notifications locais e alertas in-app via `notifier-alert`
-- [[Componentes UI]] — Gluestack UI + componentes customizados (uiverse)
+- [[Componentes UI]] — Gluestack UI + contratos dos componentes customizados
+- [[Componentes por Sistema]] — Mapa físico dos componentes de domínio e da infraestrutura Web
 - [[Versão Web]] — Export estático, Firebase Hosting, shell responsivo e adaptadores Web
 - [[Hooks Customizados]] — useHomeScreenData, useScreenStyles, useTagIcons
 - [[Configurações]] — Tela de configurações do app com tabelas administrativas

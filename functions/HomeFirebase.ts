@@ -987,10 +987,12 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 		getDocs(investmentsQuery),
 		getInvestmentCdiRatesByPersonIdsFirebase(context.allowedPersonIds),
 	]);
-	if (!cdiRatesResult.success || !Array.isArray(cdiRatesResult.data)) {
-		throw new Error('Erro ao carregar a taxa CDI configurada.');
+	if (!cdiRatesResult.success) {
+		// A taxa é opcional para a Home: sem ela, a projeção conserva o valor confirmado.
+		console.warn('Não foi possível carregar o histórico de CDI da Home; usando valores-base.', cdiRatesResult.error);
 	}
-	const cdiRates: InvestmentCdiRate[] = cdiRatesResult.data;
+	const cdiRates: InvestmentCdiRate[] =
+		cdiRatesResult.success && Array.isArray(cdiRatesResult.data) ? cdiRatesResult.data : [];
 	const normalizedInvestments: NormalizedInvestmentSummary[] = investmentsSnapshot.docs.map(docSnap => {
 		const investment = docSnap.data() as HomeInvestmentDocument;
 		const initialValueInCents =

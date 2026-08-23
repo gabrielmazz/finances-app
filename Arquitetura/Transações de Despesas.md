@@ -59,8 +59,8 @@ sequenceDiagram
 
 - `screens/AddRegisterExpensesScreen.tsx` — Formulário de registro
 - `screens/AddRegisterExpensesScreen.web.tsx` — Composição Web fullscreen do mesmo fluxo, seguindo o hero/sheet da Home com wallpaper, título e ilustração animados e grade de campos; não contém regras financeiras diferentes
-- `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria em ActionSheet
-- `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet
+- `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor de categoria em ActionSheet
+- `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet
 - `functions/ExpenseFirebase.ts` — CRUD de despesas comuns no Firestore
 - `functions/MandatoryExpenseFirebase.ts` — Consulta de templates e transação atômica de pagamento obrigatório
 - `utils/mandatoryExpenseSuggestions.ts` — Match conservador e resolução do alvo de sugestão antes de salvar despesa comum

@@ -40,11 +40,11 @@ import {
 } from '@/components/ui/checkbox';
 import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import Navigator from '@/components/uiverse/navigator';
-import DatePickerField from '@/components/uiverse/date-picker';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';

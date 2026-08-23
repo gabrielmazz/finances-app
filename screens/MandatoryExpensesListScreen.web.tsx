@@ -12,7 +12,7 @@ import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { AddIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
@@ -24,10 +24,10 @@ import {
 	ModalHeader,
 	ModalTitle,
 } from '@/components/ui/modal';
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
-import AnimatedContent from '@/components/web/AnimatedContent';
-import Grainient from '@/components/web/Grainient';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -64,7 +64,8 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 // Importação do SVG
 import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpensesListScreen.svg';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
+import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
+import MandatoryExpensePaymentBulletChart from '@/components/uiverse/recurring/mandatory-expense-payment-bullet-chart';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -1326,6 +1327,19 @@ export default function MandatoryExpensesListScreen() {
 														</VStack>
 													</View>
 												</HStack>
+
+												{monthlySummary.totalReferenceInCents > 0 ? (
+													<View className={`${compactCardClassName} px-4 py-4`}>
+									<VStack className="gap-3">
+										<MandatoryExpensePaymentBulletChart
+																valueInCents={shouldHideValues ? 0 : monthlySummary.paidTotalInCents}
+																targetInCents={shouldHideValues ? 1 : monthlySummary.totalReferenceInCents}
+																isDarkMode={isDarkMode}
+																	shouldHideValues={shouldHideValues}
+															/>
+														</VStack>
+													</View>
+												) : null}
 
 											</VStack>
 										</View>

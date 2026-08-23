@@ -22,8 +22,8 @@ import {
 } from 'lucide-react-native';
 
 import { auth } from '@/FirebaseConfig';
-import FinancialForecastChart from '@/components/uiverse/financial-forecast-chart';
-import Navigator from '@/components/uiverse/navigator';
+import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';

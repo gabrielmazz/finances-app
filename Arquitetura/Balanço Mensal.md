@@ -76,7 +76,7 @@ Filtra movimentos que **não** devem entrar nos totais de ganhos/despesas reais:
 ## Arquivos principais
 
 - `screens/AddRegisterMonthlyBalanceScreen.tsx` — Formulário de registro de snapshot
-- `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco do snapshot mensal
+- `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco do snapshot mensal
 - `functions/MonthlyBalanceFirebase.ts` — CRUD de snapshots no Firestore
 - `utils/monthlyBalance.ts` — `calculateLegacyBankBalanceInCents()`, `shouldIncludeMovementInGainExpenseTotals()` e types
 - `functions/BankFirebase.ts` — leitura centralizada do saldo legado para Home, transferência, saque, investimento e Assistente Lumus

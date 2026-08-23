@@ -31,14 +31,14 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 import { CircleIcon } from '@/components/ui/icon';
-import DatePickerField from '@/components/uiverse/date-picker';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
-import Navigator from '@/components/uiverse/navigator';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import AnimatedContent from '@/components/web/AnimatedContent';
-import Grainient from '@/components/web/Grainient';
-import StrokeText from '@/components/web/StrokeText';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
+import StrokeText from '@/components/web/visuals/StrokeText';
 import AddExpenseIllustration from '../assets/UnDraw/addRegisterExpanseScreen.svg';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react';

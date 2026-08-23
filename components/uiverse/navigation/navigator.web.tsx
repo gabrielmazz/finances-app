@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
-import StaggeredMenu from '@/components/web/StaggeredMenu';
+import StaggeredMenu from '@/components/web/navigation/StaggeredMenu';
 import { useAuth } from '@/contexts/AuthContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';

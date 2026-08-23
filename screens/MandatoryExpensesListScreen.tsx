@@ -12,7 +12,7 @@ import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { AddIcon, CalendarDaysIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
 import {
 	Modal,
@@ -24,7 +24,7 @@ import {
 	ModalHeader,
 	ModalTitle,
 } from '@/components/ui/modal';
-import Navigator from '@/components/uiverse/navigator';
+import Navigator from '@/components/uiverse/navigation/navigator';
 
 import { auth } from '@/FirebaseConfig';
 import {
@@ -61,7 +61,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 // Importação do SVG
 import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpensesListScreen.svg';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import DateCalendar, { DateCalendarItem } from '@/components/uiverse/date-calendar';
+import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';

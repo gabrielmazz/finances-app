@@ -86,8 +86,8 @@ Usa a mesma lógica de `utils/mandatoryExpenses.ts`:
 - `app/mandatory-gains.tsx` — Rota da lista
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar templates
-- `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
-- `components/uiverse/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
+- `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
+- `components/uiverse/recurring/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
 
 ## Integrações
 
@@ -120,7 +120,7 @@ Usa a mesma lógica de `utils/mandatoryExpenses.ts`:
 - Em formulários novos, o switch de lembrete começa desligado e fica desabilitado até nome, valor, dia e categoria serem preenchidos
 - Quando a categoria é criada inline, a tela de tags abre com tipo `gain` e obrigatoriedade pré-selecionados, mas editáveis; ao salvar uma categoria compatível, ela retorna já selecionada
 - O seletor de categoria obrigatória deve permanecer no ActionSheet compartilhado com `<TagIcon />` e ação interna de criação, sem regressão para o menu padrão do Android ou botão externo ao campo
-- O valor no ciclo atual usa `displayValueInCents` do `date-calendar.tsx`: antes da efetivação mostra o template, após mostra o `valueInCents` da receita real apontada por `lastReceiptGainId`
+- O valor no ciclo atual usa `displayValueInCents` dos pares `date-calendar.native.tsx` / `.web.tsx`: antes da efetivação mostra o template, após mostra o `valueInCents` da receita real apontada por `lastReceiptGainId`
 - Salvar ou editar um template obrigatório deve passar por [[Comportamento Pós-Registro]]
 - Ao criar um novo template obrigatório, a limpeza dos campos é controlada pela preferência da tela quando o retorno automático está desligado; o submit usa trava síncrona enquanto salva e agenda/cancela lembrete para impedir duplo registro
 - Receitas parceladas permanecem no calendário/lista até a conclusão, mas deixam de aceitar novos registros depois da última parcela

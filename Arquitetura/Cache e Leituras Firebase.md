@@ -20,6 +20,7 @@
 
 - Listagens extensas devem usar `limit` e cursor (`startAfter`), nunca offset.
 - A Home calcula saldos legados em lote: carrega o último `MonthlyBalance` por banco e movimentos posteriores ao menor corte necessário, não o histórico inteiro por banco.
+- A consulta otimizada de `monthlyBalances` exige o índice composto versionado em `firestore.indexes.json`; o gateway mantém fallback escopado por `personId` durante o rollout do índice para que a Home não falhe por uma defasagem temporária da infraestrutura.
 - Previsão consulta movimentos somente dos três meses anteriores e do horizonte selecionado. A atividade de investimentos começa em seis meses e não relê todo o histórico.
 - `financeMonthlySummaries/{groupId-YYYY-MM}` é atualizado dentro da transação que cria a `ledgerTransaction`; o callable `rebuildFinancialReadModels` reconstrói páginas idempotentemente por mês, aceita `dryRun`, cursor e tamanho de página, e deriva o grupo do administrador autenticado.
 - O rollout permanece dual-read: regras/índices e functions, dry-run/backfill, comparação em centavos, depois remoção do fallback. Nenhum deploy é feito automaticamente.

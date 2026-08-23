@@ -58,8 +58,8 @@ O catálogo completo com ~170 ícones é mantido em `hooks/useTagIcons.tsx` e é
 ## Arquivos principais
 
 - `screens/AddRegisterTagScreen.tsx` — Criação contextual e edição por objetivo de disponibilidade
-- `components/uiverse/tag-actionsheet-selector.tsx` — Seletor reutilizável de categoria em ActionSheet, com descrição opcional abaixo do nome da opção e ação interna opcional para criar categoria
-- `components/uiverse/category-availability-selector.tsx` — Seletor reutilizável dos quatro contextos e dos presets de disponibilidade
+- `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor reutilizável de categoria em ActionSheet, com descrição opcional abaixo do nome da opção e ação interna opcional para criar categoria
+- `components/uiverse/categories/category-availability-selector.tsx` — Seletor reutilizável dos quatro contextos e dos presets de disponibilidade
 - `utils/categoryAvailability.ts` — Contextos, presets, mapeamentos Firestore e resumos legíveis
 - `utils/categoryReferenceSummary.ts` — Soma e decisão pura para exclusão segura
 - `functions/TagFirebase.ts` — CRUD e consulta de referências de categorias no Firestore

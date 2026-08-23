@@ -40,11 +40,11 @@ import {
 	CheckboxLabel,
 } from '@/components/ui/checkbox';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import Navigator from '@/components/uiverse/navigator';
-import DatePickerField from '@/components/uiverse/date-picker';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
@@ -67,9 +67,9 @@ import { Info } from 'lucide-react';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
-import AnimatedContent from '@/components/web/AnimatedContent';
-import Grainient from '@/components/web/Grainient';
-import StrokeText from '@/components/web/StrokeText';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
+import StrokeText from '@/components/web/visuals/StrokeText';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';

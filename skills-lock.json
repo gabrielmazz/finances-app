@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "automation-scripts": {
+      "source": "miles990/claude-software-skills",
+      "sourceType": "github",
+      "skillPath": "tools-integrations/automation-scripts/SKILL.md",
+      "computedHash": "1a26b0a8430ef4a57c70526e0331a5492025fe8c3d769f62c784888068896b93"
+    },
     "expo-dom": {
       "source": "expo/skills",
       "sourceType": "github",
@@ -54,6 +60,24 @@
       "sourceType": "github",
       "skillPath": "skills/hyperframes-animation/SKILL.md",
       "computedHash": "dcb152706e225699c3a954e434c094fa8ae23a9061d62d49b0798b20a60b297e"
+    },
+    "mantine-combobox": {
+      "source": "mantinedev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-combobox/SKILL.md",
+      "computedHash": "fb3002c7bb704a111b1f4c596573aa9905e1b8dd728ad15dbba8cdf7a53ed98a"
+    },
+    "mantine-custom-components": {
+      "source": "mantinedev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-custom-components/SKILL.md",
+      "computedHash": "16f771d471da17b76a803ace40211177283ad3adcf319e8e3b4bd1a1ddeb74c1"
+    },
+    "mantine-form": {
+      "source": "mantinedev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mantine-form/SKILL.md",
+      "computedHash": "1bf98bd02676810bf420019b501ffaaba61774869b2b758dd5518620311ef518"
     },
     "mobile-android-design": {
       "source": "wshobson/agents",

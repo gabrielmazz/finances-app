@@ -3,7 +3,7 @@ tags: [despesas-fixas, recorrencia, notificacoes, financeiro]
 relacionado: [[Transações de Despesas]], [[Notificações]], [[Receitas Fixas]], [[Previsão de Fluxo de Caixa]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 3.6.0
+versao: 3.7.0
 ---
 
 # Despesas Fixas
@@ -40,7 +40,9 @@ graph TD
 11. A lista pode ser recarregada manualmente por pull-to-refresh; na Web, não há botão dedicado de atualizar. Esse recarregamento também reconcilia os lembretes locais com os templates do UID autenticado
 12. Quando um usuário tenta registrar uma despesa comum do ciclo atual que parece corresponder a um template obrigatório pendente, `AddRegisterExpensesScreen.tsx` mostra um modal conservador. Ao aceitar, a navegação abre `MandatoryExpensesListScreen.tsx` já na confirmação de registro do template identificado
 13. Depois de cada criação, edição ou exclusão confirmada no Firestore, a Function confiável de [[Notificações]] envia um push aos aparelhos registrados do dono e de seus usuários relacionados. A lista continua responsável apenas pela reconciliação de seus lembretes locais.
-14. O navegador possui composições independentes em `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx`: o cadastro usa o calendário modal customizado para início/fim das parcelas, `input type="time"` para o horário e um painel de controle mensal; a lista usa calendário mensal, resumo, timeline expansível, confirmação em modal, recarregamento por pull-to-refresh e impressão do resumo em PDF. Os modais de confirmação e resumo diário da lista Web usam superfície responsiva `lg`, com margem de viewport e rolagem contida; no resumo diário, o corpo se ajusta ao conteúdo e só rola quando necessário, evitando espaços verticais artificiais entre itens. Os diálogos nativos mantêm seus limites compactos. O hero da lista preserva a mesma altura visual das telas Web com sheet sobreposto, ocultando os 64 px finais do `heroHeight` e mantendo 16 px até o calendário. A lógica Firebase e as regras em centavos permanecem as mesmas das telas nativas.
+14. O navegador possui composições independentes em `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx`: o cadastro usa o calendário modal customizado para início/fim das parcelas, `input type="time"` para o horário e um painel de controle mensal; a lista usa calendário mensal, resumo, timeline expansível, confirmação em modal, recarregamento por pull-to-refresh e impressão do resumo em PDF. Os modais de confirmação e resumo diário da lista Web usam superfície responsiva `lg`, com margem de viewport e rolagem contida; no resumo diário, o corpo e o card expandido mantêm crescimento flexível desabilitado, ajustam-se ao conteúdo e só rolam quando necessário, evitando espaços verticais artificiais entre itens. Cada movimento Web reutiliza a mesma linha compacta de Android/iOS — ícone, nome/categoria à esquerda, valor/data e seta à direita — sem trilho ou marcador próprio. O hero da lista preserva a mesma altura visual das telas Web com sheet sobreposto, ocultando os 64 px finais do `heroHeight` e mantendo 16 px até o calendário. A lógica Firebase e as regras em centavos permanecem as mesmas das telas nativas.
+15. Abaixo do resumo mensal, `MandatoryExpensesListScreen.web.tsx` exibe um bullet de progresso dos pagamentos: o limite do trilho é o `totalReferenceInCents` do ciclo e o preenchimento é o `paidTotalInCents`, portanto R$ 2.000 pagos em um total de R$ 5.000 ocupam 40% do gráfico. O componente Web recebe apenas props serializáveis e troca a escala por valores neutros quando a privacidade está ativa.
+16. No resumo diário de `date-calendar.tsx`, cada movimento mostra o nome da despesa obrigatória ao lado do ícone, a categoria como subtítulo e o valor/data em uma coluna independente nas plataformas. O nome é normalizado para suportar truncamento sem deslocar o valor e possui fallback acessível somente quando o dado vier vazio.
 
 ## Chave de Ciclo
 
@@ -82,6 +84,7 @@ graph TD
 - `screens/MandatoryExpensesListScreen.tsx` — Lista, timeline e controle de pagamento
 - `screens/AddMandatoryExpensesScreen.web.tsx` — Composição Web responsiva do cadastro, com calendário/modal e controle mensal
 - `screens/MandatoryExpensesListScreen.web.tsx` — Composição Web responsiva da lista, calendário, timeline, modais e resumo imprimível
+- `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — `BulletChart` oficial de Mantine em Expo DOM, Web-only, com escala pelo total do ciclo e preenchimento pelo valor pago
 - `functions/MandatoryExpenseFirebase.ts` — CRUD, validação do vínculo com despesa real e transação atômica de pagamento no Firestore
 - `utils/mandatoryExpenses.ts` — Lógica de chave de ciclo
 - `utils/mandatoryExpenseSuggestions.ts` — Detecção conservadora de templates obrigatórios em registros comuns
@@ -94,9 +97,9 @@ graph TD
 - `app/mandatory-expenses.tsx` — Rota da lista
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar templates
-- `components/uiverse/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
-- `components/uiverse/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
-- `components/uiverse/date-picker.tsx` e `components/uiverse/date-calendar.tsx` — Calendários customizados usados pelo cadastro e pela listagem em todas as plataformas
+- `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
+- `components/uiverse/recurring/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
+- `components/uiverse/shared/date-picker.native.tsx` / `.web.tsx` e `components/uiverse/recurring/date-calendar.native.tsx` / `.web.tsx` — Calendários customizados separados por plataforma, usados pelo cadastro e pela listagem com o mesmo contrato de data e valores
 
 ## Integrações
 
@@ -141,6 +144,7 @@ graph TD
 - A quitação antecipada encerra o template e mantém no razão as parcelas já pagas e uma despesa real com o valor agregado das parcelas restantes; não é uma exclusão silenciosa do histórico financeiro
 - Templates parcelados criados antes de `installmentStartDate` continuam compatíveis; ao editar, o formulário sugere hoje como início e recalcula o fim pela quantidade atual até o usuário salvar a nova configuração
 - O resumo mensal inclui itens pagos no ciclo atual e pendentes do mês; parcelamentos concluídos em ciclos anteriores aparecem como contagem separada e não entram no total financeiro do mês
+- Na Web, o bullet de progresso aparece sozinho abaixo do resumo mensal: usa o total mensal de referência como limite real e o total efetivamente pago como valor avançado, sem repetir título, contagem ou soma paga/total já exibidos acima. Ele não cria consulta ou persistência própria e desaparece quando o total do ciclo é zero
 - O PDF é gerado localmente no dispositivo, compartilhado com nome contextual `Lumus-Financas-Despesas-Fixas-[mes]-[data].pdf` e usa os mesmos valores exibidos na tela, incluindo valores ocultos quando a privacidade está ativa
 
 ## Integração com o Assistente Lumus

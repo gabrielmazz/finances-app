@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import '@mantine/core/styles.css';
 import { Alert, MantineProvider } from '@mantine/core';
 import { CheckCircleIcon, InfoIcon, WarningCircleIcon, XCircleIcon } from '@phosphor-icons/react';
-import AnimatedContent from '@/components/web/AnimatedContent';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
 
 export type NotifierAlertType = 'error' | 'warn' | 'info' | 'success';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, ClipPath, Defs, G, Line, Polygon, Rect } from 'react-native-svg';
 
@@ -7,14 +7,7 @@ import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
-import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalHeader,
-} from '@/components/ui/modal';
+import { Modal, ModalBackdrop, ModalBody, ModalCloseButton, ModalContent, ModalHeader } from '@/components/ui/modal';
 import {
 	AddIcon,
 	CalendarDaysIcon,
@@ -35,7 +28,7 @@ import {
 	formatResolvedMonthDayLabel,
 	getBrazilNationalHolidaysForMonth,
 } from '@/utils/businessCalendar';
-import { Heading } from '../ui/heading';
+import { Heading } from '@/components/ui/heading';
 
 export type DateCalendarItem = {
 	id: string;
@@ -90,6 +83,89 @@ const HOLIDAY_PURPLE_DARK = '#8B5CF6';
 const DAY_CIRCLE_SIZE = 48;
 const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
 
+const daySummaryStyles = StyleSheet.create({
+	modalContent: {
+		flexGrow: 0,
+		flexShrink: 1,
+		flexBasis: 'auto',
+		height: 'auto',
+		minHeight: 0,
+	},
+	modalBody: {
+		flexGrow: 0,
+		flexShrink: 1,
+		flexBasis: 'auto',
+		minHeight: 0,
+	},
+	modalBodyContent: {
+		alignItems: 'stretch',
+		flexGrow: 0,
+		flexShrink: 0,
+		flexBasis: 'auto',
+		paddingBottom: 24,
+	},
+	items: {
+		width: '100%',
+		flexGrow: 0,
+		flexShrink: 0,
+	},
+	itemTrigger: {
+		width: '100%',
+		minHeight: 52,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		columnGap: 12,
+		paddingVertical: 8,
+	},
+	itemIdentity: {
+		minWidth: 0,
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		columnGap: 12,
+	},
+	itemCopy: {
+		minWidth: 0,
+		flex: 1,
+	},
+	itemValue: {
+		flexShrink: 0,
+		alignItems: 'flex-end',
+	},
+	itemSchedule: {
+		maxWidth: '100%',
+		flexDirection: 'row',
+		alignItems: 'center',
+		columnGap: 4,
+	},
+	expandedCard: {
+		width: '100%',
+		flexGrow: 0,
+		flexShrink: 0,
+		alignSelf: 'stretch',
+	},
+	metaRows: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		columnGap: 16,
+		rowGap: 12,
+	},
+	metaItem: {
+		minWidth: 128,
+		flexGrow: 1,
+		flexShrink: 1,
+		flexBasis: 0,
+	},
+	actions: {
+		flexDirection: 'row',
+		flexWrap: 'wrap',
+		columnGap: 16,
+		rowGap: 8,
+		paddingTop: 2,
+	},
+});
+
 const buildCalendarDays = (reference: Date) => {
 	const firstDay = new Date(reference.getFullYear(), reference.getMonth(), 1);
 	const totalDays = new Date(reference.getFullYear(), reference.getMonth() + 1, 0).getDate();
@@ -99,7 +175,10 @@ const buildCalendarDays = (reference: Date) => {
 	const days: Array<{ day: number; date: Date }> = [];
 	for (let i = 0; i < totalDays; i += 1) {
 		const dayNumber = i + 1;
-		days.push({ day: dayNumber, date: new Date(reference.getFullYear(), reference.getMonth(), dayNumber) });
+		days.push({
+			day: dayNumber,
+			date: new Date(reference.getFullYear(), reference.getMonth(), dayNumber),
+		});
 	}
 
 	const prevPlaceholders = Array.from({ length: startOffset }).map((_, index) => ({
@@ -198,14 +277,7 @@ function CalendarDayCircle({
 					<G clipPath={`url(#${splitId})`}>
 						<Rect width={DAY_CIRCLE_SIZE} height={DAY_CIRCLE_SIZE} fill={holidayColor} />
 						<Polygon points={`0,0 ${DAY_CIRCLE_SIZE},0 0,${DAY_CIRCLE_SIZE}`} fill={activeColor} />
-						<Line
-							x1={DAY_CIRCLE_SIZE}
-							y1={0}
-							x2={0}
-							y2={DAY_CIRCLE_SIZE}
-							stroke={borderColor}
-							strokeWidth={2.5}
-						/>
+						<Line x1={DAY_CIRCLE_SIZE} y1={0} x2={0} y2={DAY_CIRCLE_SIZE} stroke={borderColor} strokeWidth={2.5} />
 					</G>
 					<Circle
 						cx={DAY_CIRCLE_RADIUS}
@@ -307,14 +379,8 @@ function DateCalendar({
 	valueTone = 'expense',
 	modalSize = 'md',
 }: DateCalendarProps) {
-	const {
-		isDarkMode,
-		helperText,
-		compactCardClassName,
-		subtleCardClassName,
-		modalContentClassName,
-		insets,
-	} = useScreenStyles();
+	const { isDarkMode, helperText, compactCardClassName, subtleCardClassName, modalContentClassName, insets } =
+		useScreenStyles();
 	const { height: windowHeight } = useWindowDimensions();
 	const visibleMonth = React.useMemo(() => new Date(), []);
 	const visibleMonthLabel = React.useMemo(
@@ -350,8 +416,8 @@ function DateCalendar({
 			const resolvedDate = item.resolvedDueDate ?? null;
 			const safeDay =
 				resolvedDate &&
-				resolvedDate.getFullYear() === visibleMonth.getFullYear() &&
-				resolvedDate.getMonth() === visibleMonth.getMonth()
+					resolvedDate.getFullYear() === visibleMonth.getFullYear() &&
+					resolvedDate.getMonth() === visibleMonth.getMonth()
 					? cappedDay(resolvedDate.getDate())
 					: cappedDay(item.dueDay);
 			const list = grouped[safeDay] ?? [];
@@ -382,9 +448,7 @@ function DateCalendar({
 
 	const handleToggleDayItemCard = React.useCallback((itemId: string) => {
 		setExpandedDayItemIds(previousState =>
-			previousState.includes(itemId)
-				? previousState.filter(id => id !== itemId)
-				: [...previousState, itemId],
+			previousState.includes(itemId) ? previousState.filter(id => id !== itemId) : [...previousState, itemId],
 		);
 	}, []);
 
@@ -468,19 +532,14 @@ function DateCalendar({
 		() => Math.max(windowHeight - (insets.top ?? 0) - (insets.bottom ?? 0) - 40, 320),
 		[insets.bottom, insets.top, windowHeight],
 	);
-	const modalWidthClassName =
-		modalSize === 'lg' ? 'web:w-[calc(100%-32px)] web:max-w-[640px]' : 'max-w-[430px]';
+	const modalWidthClassName = modalSize === 'lg' ? 'web:w-[calc(100%-32px)] web:max-w-[640px]' : 'max-w-[430px]';
 
 	return (
 		<>
 			<Box className={`${compactCardClassName} overflow-hidden px-2`}>
 				<HStack className="justify-between items-start gap-3 mb-4">
 					<VStack className="flex-1">
-						<Heading
-							className="text-lg uppercase tracking-widest "
-						>
-							Calendário de Vencimentos
-						</Heading>
+						<Heading className="text-lg uppercase tracking-widest ">Calendário de Vencimentos</Heading>
 						<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{visibleMonthLabel}</Text>
 					</VStack>
 				</HStack>
@@ -493,9 +552,7 @@ function DateCalendar({
 								className="items-center justify-center"
 								style={{ width: CELL_PERCENT, height: 25 }}
 							>
-								<Text className={`text-center font-semibold uppercase ${helperText}`}>
-									{labelItem}
-								</Text>
+								<Text className={`text-center font-semibold uppercase ${helperText}`}>{labelItem}</Text>
 							</View>
 						))}
 					</View>
@@ -562,7 +619,10 @@ function DateCalendar({
 									<View className="h-7 items-center justify-center">
 										{hasItems ? (
 											<View className={`px-2 py-1 rounded-full ${badgeBg}`}>
-												<Text className="text-[10px] text-center font-semibold text-gray-800 dark:text-gray-100" numberOfLines={1}>
+												<Text
+													className="text-[10px] text-center font-semibold text-gray-800 dark:text-gray-100"
+													numberOfLines={1}
+												>
 													{pendingCount === 0
 														? `${dayItems.length} ${completedLabel}`
 														: `${pendingCount}/${dayItems.length} ${pendingLabel}`}
@@ -570,7 +630,10 @@ function DateCalendar({
 											</View>
 										) : hasHoliday ? (
 											<View className={`px-2 py-1 rounded-full ${holidayBadgeClassName}`}>
-												<Text className={`text-[10px] text-center font-semibold ${holidayBadgeTextClassName}`} numberOfLines={1}>
+												<Text
+													className={`text-[10px] text-center font-semibold ${holidayBadgeTextClassName}`}
+													numberOfLines={1}
+												>
 													Feriado
 												</Text>
 											</View>
@@ -598,36 +661,25 @@ function DateCalendar({
 				</View>
 			</Box>
 
-			<Modal
-				size={modalSize}
-				isOpen={Boolean(selectedDayItems)}
-				onClose={handleCloseDayModal}
-			>
+			<Modal size={modalSize} isOpen={Boolean(selectedDayItems)} onClose={handleCloseDayModal}>
 				<ModalBackdrop />
 				<ModalContent
-					className={`${modalWidthClassName} web:h-auto ${modalContentClassName}`}
+					className={`${modalWidthClassName} web:h-auto web:flex-none ${modalContentClassName}`}
 					style={{ maxHeight: modalMaxHeight }}
 				>
 					<ModalHeader>
 						<VStack className="flex-1">
-							<Heading
-								className="text-lg uppercase tracking-widest "
-							>
-								Resumo diário
-							</Heading>
+							<Heading className="text-lg uppercase tracking-widest ">Resumo diário</Heading>
 							<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{selectedDayLabel}</Text>
 						</VStack>
-						<ModalCloseButton
-							accessibilityLabel="Fechar resumo diário"
-							onPress={handleCloseDayModal}
-						/>
+						<ModalCloseButton accessibilityLabel="Fechar resumo diário" onPress={handleCloseDayModal} />
 					</ModalHeader>
-					<ModalBody
-						className="pb-6 web:flex-none web:max-h-[calc(100vh-180px)]"
-						showsVerticalScrollIndicator={false}
-						contentContainerStyle={{ paddingBottom: 24, flexGrow: 0 }}
+				<ModalBody
+					className="pb-6 web:flex-none web:min-h-0 web:max-h-[calc(100vh-180px)] web:pb-0"
+					showsVerticalScrollIndicator={false}
+						contentContainerStyle={daySummaryStyles.modalBodyContent}
 					>
-						<VStack className="gap-3">
+						<VStack className="gap-3" style={{ width: '100%', flexGrow: 0, flexShrink: 0 }}>
 							<HStack className="flex-wrap gap-2">
 								{selectedDayCount > 0 ? (
 									<View className={`px-3 py-1 rounded-full ${modalSummaryBadgeClassName}`}>
@@ -648,6 +700,9 @@ function DateCalendar({
 								const tonePalette = getItemTonePalette(item);
 								const tagMetadata = tagMetadataMap?.[item.tagId];
 								const itemTagLabel = tagMetadata?.name ?? tagsMap[item.tagId] ?? 'Tag não encontrada';
+								const itemName = typeof item.name === 'string' ? item.name.trim() : '';
+								const itemNameLabel =
+									itemName || (valueTone === 'gain' ? 'Ganho obrigatório sem nome' : 'Gasto obrigatório sem nome');
 								const summaryText = getStatusText(item);
 								const itemTypeLabel = valueTone === 'gain' ? 'Ganho obrigatório' : 'Gasto obrigatório';
 								const reminderLabel =
@@ -655,13 +710,18 @@ function DateCalendar({
 								const isExpanded = expandedDayItemIds.includes(item.id);
 
 								return (
-									<VStack key={`selected-${item.id}`} className="gap-2">
-										<Pressable
-											onPress={() => handleToggleDayItemCard(item.id)}
-											style={{ paddingVertical: 4 }}
-										>
-											<HStack className="items-center justify-between gap-3">
-												<HStack className="items-center gap-3" style={{ flex: 1 }}>
+									<VStack key={`selected-${item.id}`} className="gap-2" style={daySummaryStyles.items}>
+										<VStack className="gap-2">
+											<Pressable
+												onPress={() => handleToggleDayItemCard(item.id)}
+												accessibilityRole="button"
+												accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${itemNameLabel}`}
+												accessibilityState={{ expanded: isExpanded }}
+													style={daySummaryStyles.itemTrigger}
+											>
+												<View
+														style={daySummaryStyles.itemIdentity}
+												>
 													<LinearGradient
 														colors={tonePalette.iconGradient}
 														start={{ x: 0, y: 0 }}
@@ -683,63 +743,69 @@ function DateCalendar({
 														/>
 													</LinearGradient>
 
-													<View style={{ flex: 1 }}>
+													<View style={daySummaryStyles.itemCopy}>
 														<Text
+															className="web:block web:truncate"
 															numberOfLines={1}
 															style={{
+																minWidth: 0,
+																flexShrink: 1,
 																color: timelinePalette.title,
 																fontSize: 15,
+																lineHeight: 20,
 																fontWeight: '700',
 															}}
 														>
-															{item.name}
+															{itemNameLabel}
 														</Text>
-													<Text
-														numberOfLines={1}
-														style={{
-															marginTop: 2,
-															color: timelinePalette.subtitle,
+														<Text
+															numberOfLines={1}
+															style={{
+																marginTop: 2,
+																color: timelinePalette.subtitle,
 																fontSize: 12,
 																lineHeight: 18,
 															}}
+														>
+															{itemTagLabel}
+														</Text>
+														{item.installmentLabel ? (
+															<Text
+																numberOfLines={1}
+																style={{
+																	marginTop: 1,
+																	color: tonePalette.accentColor,
+																	fontSize: 11,
+																	lineHeight: 16,
+																	fontWeight: '700',
+																}}
+															>
+																{item.installmentLabel}
+															</Text>
+														) : null}
+													</View>
+												</View>
+
+												<View
+														style={daySummaryStyles.itemValue}
+												>
+													<Text
+														style={{
+															color: tonePalette.amountColor,
+															fontSize: 15,
+															fontWeight: '700',
+														}}
 													>
-														{itemTagLabel}
+														{formatCurrency(getDisplayValueInCents(item))}
 													</Text>
-													{item.installmentLabel ? (
+													<View style={daySummaryStyles.itemSchedule}>
+														<Icon
+															as={CalendarDaysIcon}
+															size="xs"
+															className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
+														/>
 														<Text
 															numberOfLines={1}
-															style={{
-																marginTop: 1,
-																color: tonePalette.accentColor,
-																fontSize: 11,
-																lineHeight: 16,
-																fontWeight: '700',
-															}}
-														>
-															{item.installmentLabel}
-														</Text>
-													) : null}
-												</View>
-												</HStack>
-
-												<HStack className="items-center gap-2">
-													<VStack className="items-end">
-														<Text
-															style={{
-																color: tonePalette.amountColor,
-																fontSize: 15,
-																fontWeight: '700',
-															}}
-														>
-															{formatCurrency(getDisplayValueInCents(item))}
-														</Text>
-														<HStack className="mt-1 items-center gap-1">
-															<Icon
-																as={CalendarDaysIcon}
-																size="xs"
-																className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
-															/>
-															<Text
 															style={{
 																color: timelinePalette.subtitle,
 																fontSize: 11,
@@ -747,162 +813,194 @@ function DateCalendar({
 														>
 															{formatCalendarItemScheduleLabel(item)}
 														</Text>
-														</HStack>
-													</VStack>
+													</View>
+												</View>
 
-													<Icon
-														as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-														size="sm"
-														className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-													/>
-												</HStack>
-											</HStack>
-										</Pressable>
+												<Icon
+													as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+													size="sm"
+													className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+												/>
+											</Pressable>
 
-										{isExpanded ? (
-											<LinearGradient
-												colors={tonePalette.cardGradient}
-												start={{ x: 0, y: 0 }}
-												end={{ x: 1, y: 1 }}
-												style={{
-													borderRadius: 20,
-													paddingHorizontal: 16,
-													paddingVertical: 14,
-												}}
-											>
-												<VStack className="gap-3">
-													<HStack className="items-start justify-between gap-4">
-														<VStack className="flex-1">
-															<Text
-																style={{
-																	fontSize: 10,
-																	fontWeight: '700',
-																	letterSpacing: 0.4,
-																	color: 'rgba(255,255,255,0.74)',
-																	textTransform: 'uppercase',
-																}}
-															>
-																Resumo
-															</Text>
-															<Text
-																style={{
-																	fontSize: 13,
-																	lineHeight: 19,
-																	color: '#FFFFFF',
-																}}
-															>
-																{summaryText}
-															</Text>
-														</VStack>
-
-														<VStack className="items-end">
-															<Text
-																style={{
-																	fontSize: 10,
-																	fontWeight: '700',
-																	letterSpacing: 0.4,
-																	color: 'rgba(255,255,255,0.74)',
-																	textTransform: 'uppercase',
-																}}
-															>
-																Valor
-															</Text>
-															<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																{formatCurrency(getDisplayValueInCents(item))}
-															</Heading>
-														</VStack>
-													</HStack>
-
+											{isExpanded ? (
+												<LinearGradient
+													colors={tonePalette.cardGradient}
+													start={{ x: 0, y: 0 }}
+													end={{ x: 1, y: 1 }}
+													style={{
+														borderRadius: 20,
+														paddingHorizontal: 16,
+														paddingVertical: 14,
+														...daySummaryStyles.expandedCard,
+													}}
+												>
 													<VStack className="gap-3">
-														{[
-															[
-																{ label: 'Tipo', value: itemTypeLabel },
-																{ label: dueLabel, value: formatConfiguredMonthlyDueLabel(item.dueDay, item.usesBusinessDays) },
-															],
-															[
-																{ label: 'Neste mês', value: formatCalendarItemResolvedDateLabel(item) },
-																{ label: 'Tag', value: itemTagLabel },
-															],
-															[
-																{ label: 'Lembrete', value: reminderLabel },
-																...(item.installmentLabel ? [{ label: 'Parcelas', value: item.installmentLabel }] : []),
-															],
-														].map((metaRow, rowIndex) => (
-															<HStack key={`${item.id}-meta-row-${rowIndex}`} className="gap-4">
-																{metaRow.map(metaItem => (
-																	<VStack key={`${item.id}-${metaItem.label}`} className="flex-1">
-																		<Text
-																			style={{
-																				fontSize: 10,
-																				fontWeight: '700',
-																				letterSpacing: 0.4,
-																				color: 'rgba(255,255,255,0.72)',
-																				textTransform: 'uppercase',
-																			}}
-																		>
-																			{metaItem.label}
-																		</Text>
-																		<Text
-																			style={{
-																				marginTop: 3,
-																				fontSize: 13,
-																				lineHeight: 18,
-																				color: '#FFFFFF',
-																			}}
-																		>
-																			{metaItem.value}
-																		</Text>
-																	</VStack>
-																))}
-															</HStack>
-														))}
-													</VStack>
+														<HStack className="items-start justify-between gap-4">
+															<VStack className="flex-1">
+																<Text
+																	style={{
+																		fontSize: 10,
+																		fontWeight: '700',
+																		letterSpacing: 0.4,
+																		color: 'rgba(255,255,255,0.74)',
+																		textTransform: 'uppercase',
+																	}}
+																>
+																	Resumo
+																</Text>
+																<Text
+																	style={{
+																		fontSize: 13,
+																		lineHeight: 19,
+																		color: '#FFFFFF',
+																	}}
+																>
+																	{summaryText}
+																</Text>
+															</VStack>
 
-													{item.description ? (
-														<VStack style={{ paddingTop: 2 }}>
-															<Text
-																style={{
-																	fontSize: 10,
-																	fontWeight: '700',
-																	letterSpacing: 0.4,
-																	color: 'rgba(255,255,255,0.72)',
-																	textTransform: 'uppercase',
-																}}
-															>
-																Descrição
-															</Text>
-															<Text
-																style={{
-																	marginTop: 6,
-																	fontSize: 13,
-																	lineHeight: 18,
-																	color: '#FFFFFF',
-																}}
-															>
-																{item.description}
-															</Text>
+															<VStack className="items-end">
+																<Text
+																	style={{
+																		fontSize: 10,
+																		fontWeight: '700',
+																		letterSpacing: 0.4,
+																		color: 'rgba(255,255,255,0.74)',
+																		textTransform: 'uppercase',
+																	}}
+																>
+																	Valor
+																</Text>
+																<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																	{formatCurrency(getDisplayValueInCents(item))}
+																</Heading>
+															</VStack>
+														</HStack>
+
+														<VStack className="gap-3">
+															{[
+																[
+																	{ label: 'Tipo', value: itemTypeLabel },
+																	{
+																		label: dueLabel,
+																		value: formatConfiguredMonthlyDueLabel(item.dueDay, item.usesBusinessDays),
+																	},
+																],
+																[
+																	{
+																		label: 'Neste mês',
+																		value: formatCalendarItemResolvedDateLabel(item),
+																	},
+																	{ label: 'Tag', value: itemTagLabel },
+																],
+																[
+																	{ label: 'Lembrete', value: reminderLabel },
+																	...(item.installmentLabel
+																		? [
+																			{
+																				label: 'Parcelas',
+																				value: item.installmentLabel,
+																			},
+																		]
+																		: []),
+																],
+															].map((metaRow, rowIndex) => (
+																<View key={`${item.id}-meta-row-${rowIndex}`} style={daySummaryStyles.metaRows}>
+																	{metaRow.map(metaItem => (
+																		<VStack key={`${item.id}-${metaItem.label}`} style={daySummaryStyles.metaItem}>
+																			<Text
+																				style={{
+																					fontSize: 10,
+																					fontWeight: '700',
+																					letterSpacing: 0.4,
+																					color: 'rgba(255,255,255,0.72)',
+																					textTransform: 'uppercase',
+																				}}
+																			>
+																				{metaItem.label}
+																			</Text>
+																			<Text
+																				style={{
+																					marginTop: 3,
+																					fontSize: 13,
+																					lineHeight: 18,
+																					color: '#FFFFFF',
+																				}}
+																			>
+																				{metaItem.value}
+																			</Text>
+																		</VStack>
+																	))}
+																</View>
+															))}
 														</VStack>
-													) : null}
 
-													<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
-														<Pressable
-															onPress={() => handleDayAction('register', item)}
-															disabled={item.isCompletedForCurrentCycle}
-															style={{
-																flexDirection: 'row',
-																alignItems: 'center',
-																gap: 8,
-																paddingVertical: 8,
-																opacity: item.isCompletedForCurrentCycle ? 0.45 : 1,
-															}}
-														>
-															<Icon as={AddIcon} size="sm" className="text-white" />
-															<Text className="text-xs font-semibold text-white">Registrar</Text>
-														</Pressable>
+														{item.description ? (
+															<VStack style={{ paddingTop: 2 }}>
+																<Text
+																	style={{
+																		fontSize: 10,
+																		fontWeight: '700',
+																		letterSpacing: 0.4,
+																		color: 'rgba(255,255,255,0.72)',
+																		textTransform: 'uppercase',
+																	}}
+																>
+																	Descrição
+																</Text>
+																<Text
+																	style={{
+																		marginTop: 6,
+																		fontSize: 13,
+																		lineHeight: 18,
+																		color: '#FFFFFF',
+																	}}
+																>
+																	{item.description}
+																</Text>
+															</VStack>
+														) : null}
 
-														{typeof item.installmentTotal === 'number' && !item.isInstallmentComplete ? (
+														<View style={daySummaryStyles.actions}>
 															<Pressable
-																onPress={() => handleDayAction('settle', item)}
+																onPress={() => handleDayAction('register', item)}
+																disabled={item.isCompletedForCurrentCycle}
+																accessibilityRole="button"
+																accessibilityLabel={`Registrar pagamento de ${item.name}`}
+																style={{
+																	flexDirection: 'row',
+																	alignItems: 'center',
+																	gap: 8,
+																	paddingVertical: 8,
+																	opacity: item.isCompletedForCurrentCycle ? 0.45 : 1,
+																}}
+															>
+																<Icon as={AddIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">Registrar</Text>
+															</Pressable>
+
+															{typeof item.installmentTotal === 'number' && !item.isInstallmentComplete ? (
+																<Pressable
+																	onPress={() => handleDayAction('settle', item)}
+																	accessibilityRole="button"
+																	accessibilityLabel={`Quitar parcelas restantes de ${item.name}`}
+																	style={{
+																		flexDirection: 'row',
+																		alignItems: 'center',
+																		gap: 8,
+																		paddingVertical: 8,
+																	}}
+																>
+																	<Icon as={CheckCircleIcon} size="sm" className="text-white" />
+																	<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
+																</Pressable>
+															) : null}
+
+															<Pressable
+																onPress={() => handleDayAction('edit', item)}
+																accessibilityRole="button"
+																accessibilityLabel={`Editar ${item.name}`}
 																style={{
 																	flexDirection: 'row',
 																	alignItems: 'center',
@@ -910,27 +1008,31 @@ function DateCalendar({
 																	paddingVertical: 8,
 																}}
 															>
-																<Icon as={CheckCircleIcon} size="sm" className="text-white" />
-																<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
+																<Icon as={EditIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">Editar</Text>
 															</Pressable>
-														) : null}
 
-														<Pressable
-															onPress={() => handleDayAction('edit', item)}
-															style={{
-																flexDirection: 'row',
-																alignItems: 'center',
-																gap: 8,
-																paddingVertical: 8,
-															}}
-														>
-															<Icon as={EditIcon} size="sm" className="text-white" />
-															<Text className="text-xs font-semibold text-white">Editar</Text>
-														</Pressable>
+															{item.isCompletedForCurrentCycle && item.canReclaimCurrentCycle !== false ? (
+																<Pressable
+																	onPress={() => handleDayAction('reclaim', item)}
+																	accessibilityRole="button"
+																	accessibilityLabel={`Desfazer pagamento de ${item.name}`}
+																	style={{
+																		flexDirection: 'row',
+																		alignItems: 'center',
+																		gap: 8,
+																		paddingVertical: 8,
+																	}}
+																>
+																	<Icon as={RepeatIcon} size="sm" className="text-white" />
+																	<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																</Pressable>
+															) : null}
 
-														{item.isCompletedForCurrentCycle && item.canReclaimCurrentCycle !== false ? (
 															<Pressable
-																onPress={() => handleDayAction('reclaim', item)}
+																onPress={() => handleDayAction('delete', item)}
+																accessibilityRole="button"
+																accessibilityLabel={`Excluir ${item.name}`}
 																style={{
 																	flexDirection: 'row',
 																	alignItems: 'center',
@@ -938,27 +1040,14 @@ function DateCalendar({
 																	paddingVertical: 8,
 																}}
 															>
-																<Icon as={RepeatIcon} size="sm" className="text-white" />
-																<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																<Icon as={TrashIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">Excluir</Text>
 															</Pressable>
-														) : null}
-
-														<Pressable
-															onPress={() => handleDayAction('delete', item)}
-															style={{
-																flexDirection: 'row',
-																alignItems: 'center',
-																gap: 8,
-																paddingVertical: 8,
-															}}
-														>
-															<Icon as={TrashIcon} size="sm" className="text-white" />
-															<Text className="text-xs font-semibold text-white">Excluir</Text>
-														</Pressable>
-													</HStack>
-												</VStack>
-											</LinearGradient>
-										) : null}
+														</View>
+													</VStack>
+												</LinearGradient>
+											) : null}
+										</VStack>
 									</VStack>
 								);
 							})}

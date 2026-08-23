@@ -4,7 +4,7 @@ import path from 'node:path';
 describe('transição de rotas Web', () => {
 	it('usa Motion em um portal DOM sem alterar o Stack do Expo Router', () => {
 		const source = fs.readFileSync(
-			path.join(process.cwd(), 'components/uiverse/web-route-transition.web.tsx'),
+			path.join(process.cwd(), 'components/uiverse/navigation/web-route-transition.web.tsx'),
 			'utf8',
 		);
 
@@ -18,7 +18,7 @@ describe('transição de rotas Web', () => {
 
 	it('monta a transição apenas no shell autenticado da Web', () => {
 		const source = fs.readFileSync(
-			path.join(process.cwd(), 'components/uiverse/web-app-shell.tsx'),
+			path.join(process.cwd(), 'components/uiverse/navigation/web-app-shell.web.tsx'),
 			'utf8',
 		);
 

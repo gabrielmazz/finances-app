@@ -41,7 +41,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import Navigator from '@/components/uiverse/navigator';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import {
 	POST_SUBMIT_DESTINATION_OPTIONS,
 	type PostSubmitBehaviorMode,

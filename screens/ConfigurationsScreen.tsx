@@ -46,12 +46,12 @@ import { useFocusEffect } from 'expo-router';
 import { auth } from '@/FirebaseConfig';
 
 // Componentes do Uiverse
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
-import CategoryAvailabilitySelector from '@/components/uiverse/category-availability-selector';
-import TagActionsheetSelector from '@/components/uiverse/tag-actionsheet-selector';
-import type { TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
+import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
+import type { TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 
 // Importação das funções relacionadas a adição de usuário ao Firebase
 import {
@@ -153,7 +153,7 @@ const accordionItems: AccordionItem[] = [
 		cardTitle: 'Bancos cadastrados',
 		Illustration: AddRegisterBankScreenIllustration,
 		showBanksTable: true,
-		actionRequiresAdmin: true,
+		actionRequiresAdmin: false,
 		action: {
 			route: APP_ROUTE_PATHS.addRegisterBank,
 			label: 'Adicionar Banco',
@@ -167,7 +167,7 @@ const accordionItems: AccordionItem[] = [
 		cardTitle: 'Categorias do aplicativo',
 		Illustration: AddRegisterTagScreenIllustration,
 		showTagsTable: true,
-		actionRequiresAdmin: true,
+		actionRequiresAdmin: false,
 		action: {
 			route: APP_ROUTE_PATHS.addRegisterTag,
 			label: 'Adicionar Categoria',
@@ -1800,9 +1800,9 @@ export default function ConfigurationsScreen() {
 			let isMounted = true;
 			const currentUserId = auth.currentUser?.uid;
 
-			if (!isAdminLoading && isAdmin && currentUserId && openConfigurationSection) {
+			if (!isAdminLoading && currentUserId && openConfigurationSection) {
 
-				if (openConfigurationSection === 'item-1') fetchAllUsers().then((users) => {
+				if (openConfigurationSection === 'item-1' && isAdmin) fetchAllUsers().then((users) => {
 
 					if (isMounted && users) {
 						const formattedUsers = users.map((user: any) => ({
@@ -2099,7 +2099,9 @@ export default function ConfigurationsScreen() {
 									onValueChange={value => setOpenConfigurationSection(value[0] ?? null)}
 									className="w-full"
 								>
-									{accordionItems.map(item => {
+									{accordionItems
+										.filter(item => item.actionRequiresAdmin !== true || isAdmin)
+										.map(item => {
 										const requiresAdmin = item.actionRequiresAdmin !== false;
 										const canAccessSection = !requiresAdmin || isAdmin;
 
@@ -2517,80 +2519,75 @@ export default function ConfigurationsScreen() {
 														})
 													) : null}
 
-													{item.showValueVisibilitySwitch ? (
-														renderAccordionCard(item, {
-															children: (
-																<HStack className="items-center justify-between gap-4">
-																	<VStack className="min-w-0 flex-1 gap-1">
-																		<HStack className="min-w-0 items-center gap-1">
-																			<Text className="text-base font-semibold">Ocultar valores</Text>
-																			<Popover
-																				placement="bottom"
-																				size="md"
-																				offset={0}
-																				shouldFlip
-																				focusScope={false}
-																				trapFocus={false}
-																				trigger={triggerProps => (
-																					<Pressable
-																						{...triggerProps}
-																						hitSlop={8}
-																						accessibilityRole="button"
-																						accessibilityLabel="Informações sobre a ocultação de valores"
-																					>
-																						<Info
-																							size={14}
-																							color={isDarkMode ? '#94A3B8' : '#64748B'}
-																							style={{ marginLeft: 4 }}
-																						/>
-																					</Pressable>
-																				)}
+											{item.showValueVisibilitySwitch ? (
+												renderAccordionCard(item, {
+													children: (
+														<VStack className="gap-4">
+															<HStack className="items-center justify-between gap-4">
+																<VStack className="min-w-0 flex-1 gap-1">
+																	<HStack className="min-w-0 items-center gap-1">
+																		<Text className="text-base font-semibold">Ocultar valores</Text>
+																		<Popover
+																			placement="bottom"
+																			size="md"
+																			offset={0}
+																			shouldFlip
+																			focusScope={false}
+																			trapFocus={false}
+																			trigger={triggerProps => (
+																				<Pressable
+																				{...triggerProps}
+																				hitSlop={8}
+																				accessibilityRole="button"
+																				accessibilityLabel="Informações sobre a ocultação de valores"
 																			>
-																				<PopoverBackdrop className="bg-transparent" />
-																				<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																					<PopoverBody className="px-3 py-3">
-																						<Text className={`${bodyText} text-xs leading-5`}>
-																							{valueVisibilityPopoverText}
-																						</Text>
-																					</PopoverBody>
-																				</PopoverContent>
-																			</Popover>
-																		</HStack>
-																	</VStack>
-																	<Switch
-																		value={shouldHideValues}
-																		onValueChange={handleToggleValueVisibility}
-																		isDisabled={isLoadingPreference}
-																		trackColor={switchTrackColor}
-																		thumbColor={switchThumbColor}
-																		ios_backgroundColor={switchIosBackgroundColor}
-																	/>
-																</HStack>
-															),
-														})
-													) : null}
-
-													{item.showValueVisibilitySwitch ? (
-														renderAccordionCard(item, {
-															children: (
-																<HStack className="items-center justify-between gap-4">
-																	<VStack className="min-w-0 flex-1 gap-1">
-																		<Text className="text-base font-semibold">Confiar neste dispositivo</Text>
-																		<Text className={`${bodyText} text-xs leading-5`}>{trustedCacheStatusText}</Text>
-																	</VStack>
-																	<Switch
-																		value={trustedDeviceCache?.enabled === true}
-																		onValueChange={value => void setTrustedDeviceCache(value)}
-																		isDisabled={!isCacheHydrated}
-																		accessibilityLabel="Confiar neste dispositivo para manter dados financeiros em cache"
-																		trackColor={switchTrackColor}
-																		thumbColor={switchThumbColor}
-																		ios_backgroundColor={switchIosBackgroundColor}
-																	/>
-																</HStack>
-															),
-														})
-													) : null}
+																				<Info
+																					size={14}
+																				color={isDarkMode ? '#94A3B8' : '#64748B'}
+																				style={{ marginLeft: 4 }}
+																				/>
+																			</Pressable>
+																	)}
+																	>
+																	<PopoverBackdrop className="bg-transparent" />
+																	<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																		<PopoverBody className="px-3 py-3">
+																			<Text className={`${bodyText} text-xs leading-5`}>
+																				{valueVisibilityPopoverText}
+																			</Text>
+																		</PopoverBody>
+																	</PopoverContent>
+																</Popover>
+																	</HStack>
+																</VStack>
+																<Switch
+																	value={shouldHideValues}
+																	onValueChange={handleToggleValueVisibility}
+																	isDisabled={isLoadingPreference}
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	ios_backgroundColor={switchIosBackgroundColor}
+																/>
+															</HStack>
+															<HStack className="items-center justify-between gap-4">
+																<VStack className="min-w-0 flex-1 gap-1">
+																	<Text className="text-base font-semibold">Confiar neste dispositivo</Text>
+																	<Text className={`${bodyText} text-xs leading-5`}>{trustedCacheStatusText}</Text>
+																</VStack>
+																<Switch
+																	value={trustedDeviceCache?.enabled === true}
+																	onValueChange={value => void setTrustedDeviceCache(value)}
+																	isDisabled={!isCacheHydrated}
+																	accessibilityLabel="Confiar neste dispositivo para manter dados financeiros em cache"
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	ios_backgroundColor={switchIosBackgroundColor}
+																/>
+															</HStack>
+														</VStack>
+													),
+												})
+											) : null}
 
 													{item.showThemeSwitch ? (
 														renderAccordionCard(item, {

@@ -20,10 +20,10 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
@@ -40,7 +40,7 @@ import AddRegisterMonthlyBalanceScreenIllustration from '../assets/UnDraw/addReg
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {

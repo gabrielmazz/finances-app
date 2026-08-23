@@ -27,9 +27,9 @@ graph TD
     REPORT --> UI["cards, barras mensais, gráfico por banco e lista recente"]
 ```
 
-1. A opção **Análise por Categoria** fica no grupo Home do `components/uiverse/navigator.tsx` e abre `/category-analysis`
+1. A opção **Análise por Categoria** fica no grupo Home do `components/uiverse/navigation/navigator.tsx` e abre `/category-analysis`
 2. `CategoryAnalysisScreen.tsx` carrega uma vez por foco via `useFocusEffect` e mantém todos os relatórios por tag em memória local
-3. A categoria é escolhida por `components/uiverse/tag-actionsheet-selector.tsx`, reaproveitando o mesmo ActionSheet das telas de registro; dentro da lista, cada tag mostra um label de uso (`Despesa`, `Ganho`, `Despesa obrigatória`, `Ganho obrigatório` ou combinações) abaixo do nome
+3. A categoria é escolhida por `components/uiverse/categories/tag-actionsheet-selector.tsx`, reaproveitando o mesmo ActionSheet das telas de registro; dentro da lista, cada tag mostra um label de uso (`Despesa`, `Ganho`, `Despesa obrigatória`, `Ganho obrigatório` ou combinações) abaixo do nome
 4. O relatório compara o mês atual contra a média dos 3 meses fechados anteriores
 5. A tela permite alternar entre **Gastos** e **Ganhos** pelas Tabs controladas de `components/ui/tabs` quando a tag suporta os dois usos. O controle fica em um card `notTintedCardClassName`, o indicador amarelo mantém contraste escuro para texto/ícone ativos, a opção sem suporte permanece desabilitada e a alternância reutiliza o relatório já carregado
 6. O status pode ser:
@@ -54,8 +54,8 @@ graph TD
 - `functions/CategoryAnalysisFirebase.ts` — Agregação Firestore e cálculo dos relatórios
 - `utils/categoryAnalysisPdf.ts` — HTML do relatório PDF da análise
 - `app/category-analysis.tsx` — Rota Expo Router
-- `components/uiverse/navigator.tsx` — Entrada da tela no grupo Home
-- `components/uiverse/tag-actionsheet-selector.tsx` — Seletor ActionSheet de categorias reaproveitado na tela
+- `components/uiverse/navigation/navigator.tsx` — Entrada da tela no grupo Home
+- `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor ActionSheet de categorias reaproveitado na tela
 - `components/ui/tabs/index.tsx` — Alternância controlada entre gastos e ganhos
 - `assets/UnDraw/analyzeGainExpensesTag.svg` — Ilustração da tela
 

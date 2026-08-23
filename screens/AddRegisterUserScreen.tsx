@@ -25,10 +25,10 @@ import { EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 
 import { registerUserFirebase } from '@/functions/RegisterUserFirebase';
 
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
@@ -37,7 +37,7 @@ import AddRegisterUserScreenIllustration from '../assets/UnDraw/addRegisterUserS
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
 

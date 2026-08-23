@@ -39,7 +39,7 @@ sequenceDiagram
 
 - `screens/AddRescueScreen.tsx` — Formulário de resgate
 - `functions/BankFirebase.ts` — Operação de resgate
-- `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco de origem
+- `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco de origem
 - `app/add-rescue.tsx` — Rota
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar

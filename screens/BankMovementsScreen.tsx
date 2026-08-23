@@ -61,8 +61,8 @@ import {
 	TrashIcon,
 } from '@/components/ui/icon';
 
-import Navigator from '@/components/uiverse/navigator';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { auth } from '@/FirebaseConfig';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -91,12 +91,12 @@ import {
 	revertFinanceInvestmentSyncFirebase,
 	updateFinanceInvestmentFirebase,
 } from '@/functions/FinancesFirebase';
-import DatePickerField from '@/components/uiverse/date-picker';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 import {
 	BankCardSurface,
 	CASH_CARD_COLOR,
 	buildBankCardPalette,
-} from '@/components/uiverse/bank-card-surface';
+} from '@/components/uiverse/banks/bank-card-surface';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
