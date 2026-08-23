@@ -36,11 +36,11 @@ import {
 	ModalHeader,
 	ModalTitle,
 } from '@/components/ui/modal';
-import DatePickerField from '@/components/uiverse/date-picker';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { useAppTheme } from '@/contexts/ThemeContext';

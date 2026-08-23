@@ -1,8 +1,8 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useAppTheme } from '@/contexts/ThemeContext';
-import WebRouteTransition from '@/components/uiverse/web-route-transition';
+import WebRouteTransition from '@/components/uiverse/navigation/web-route-transition';
 type WebAppShellProps = React.PropsWithChildren<{
 	isAuthenticated: boolean;
 }>;
@@ -13,7 +13,7 @@ type WebAppShellProps = React.PropsWithChildren<{
  */
 export default function WebAppShell({ children, isAuthenticated }: WebAppShellProps) {
 	const { isDarkMode } = useAppTheme();
-	const usesWorkspaceBackground = isAuthenticated && Platform.OS === 'web';
+	const usesWorkspaceBackground = isAuthenticated;
 
 	return (
 		<View

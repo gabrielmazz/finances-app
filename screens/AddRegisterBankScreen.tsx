@@ -40,9 +40,9 @@ import {
     ActionsheetScrollView,
 } from '@/components/ui/actionsheet';
 
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { BankIcon, BANK_ICON_OPTIONS } from '@/hooks/useBankIcons';
 
 import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
@@ -56,7 +56,7 @@ import AddRegisterBankScreenIllustration from '../assets/UnDraw/addRegisterBankS
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 import { Check, ChevronDown } from 'lucide-react-native';
 
 const presetBankColors = [

@@ -22,22 +22,22 @@ import {
 	View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Carousel from "@/components/web/Carousel";
-import AnimatedContent from "@/components/web/AnimatedContent";
-import Grainient from "@/components/web/Grainient";
-import StrokeText from "@/components/web/StrokeText";
-import HomeExpenseChart from "@/components/uiverse/home-expense-chart";
-import HomeExpenseLineChart from "@/components/uiverse/home-expense-line-chart";
-import HomeActivityHeatmap from "@/components/uiverse/home-activity-heatmap";
-import HomeInvestmentChart from "@/components/uiverse/home-investment-chart";
+import Carousel from "@/components/web/visuals/Carousel";
+import AnimatedContent from "@/components/web/motion/AnimatedContent";
+import Grainient from "@/components/web/visuals/Grainient";
+import StrokeText from "@/components/web/visuals/StrokeText";
+import HomeExpenseChart from "@/components/uiverse/dashboard/home-expense-chart";
+import HomeExpenseLineChart from "@/components/uiverse/dashboard/home-expense-line-chart";
+import HomeActivityHeatmap from "@/components/uiverse/dashboard/home-activity-heatmap";
+import HomeInvestmentChart from "@/components/uiverse/dashboard/home-investment-chart";
 
-import Navigator from "@/components/uiverse/navigator";
+import Navigator from "@/components/uiverse/navigation/navigator";
 import {
 	BankCardSurface,
 	CASH_CARD_COLOR,
 	buildBankCardPalette,
 	type BankCardPalette,
-} from "@/components/uiverse/bank-card-surface";
+} from "@/components/uiverse/banks/bank-card-surface";
 import {
 	Popover,
 	PopoverBackdrop,

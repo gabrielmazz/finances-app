@@ -21,10 +21,10 @@ import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
 import { HStack } from '@/components/ui/hstack';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
@@ -35,7 +35,7 @@ import {
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import DatePickerField from '@/components/uiverse/date-picker';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 
 import TransferIllustration from '../assets/UnDraw/transferScreen.svg';
 

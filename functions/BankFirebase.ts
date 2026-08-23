@@ -5,7 +5,11 @@ import { auth, db } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch, orderBy, limit } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
-import { calculateLegacyBankBalanceInCents, isSafeIntegerCents } from '@/utils/monthlyBalance';
+import {
+    calculateLegacyBankBalanceInCents,
+    isSafeIntegerCents,
+    type LegacyMonthlyBalanceSnapshot,
+} from '@/utils/monthlyBalance';
 
 // Define os parâmetros necessários para adicionar um banco
 interface AddBankParams {
@@ -389,11 +393,32 @@ export async function getLegacyBankBalancesInCentsFirebase({
     try {
         const personIds = Array.from(new Set((allowedPersonIds?.length ? allowedPersonIds : [personId]).filter(Boolean)));
         if (!personId || !bankIds.length || !personIds.length) return { success: true, data: {} };
-        const snapshotResults = await Promise.all(bankIds.map(async bankId => {
-            const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
-            return [bankId, result.docs.map(item => item.data())] as const;
-        }));
-        const snapshotsByBank = Object.fromEntries(snapshotResults);
+        const loadSnapshotsByBank = async (): Promise<Record<string, LegacyMonthlyBalanceSnapshot[]>> => {
+            try {
+                const snapshotResults = await Promise.all(bankIds.map(async bankId => {
+                    const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
+                    return [bankId, result.docs.map(item => item.data() as LegacyMonthlyBalanceSnapshot)] as const;
+                }));
+                return Object.fromEntries(snapshotResults);
+            } catch (error) {
+                console.warn('O índice de saldos mensais ainda não está disponível; usando leitura compatível.', error);
+                const result = await getDocs(query(
+                    collection(db, 'monthlyBalances'),
+                    where('personId', 'in', personIds),
+                ));
+                const snapshotsByBank: Record<string, LegacyMonthlyBalanceSnapshot[]> = Object.fromEntries(
+                    bankIds.map(bankId => [bankId, []]),
+                );
+                result.docs.forEach(document => {
+                    const snapshot = document.data() as LegacyMonthlyBalanceSnapshot;
+                    if (typeof snapshot.bankId === 'string' && snapshotsByBank[snapshot.bankId]) {
+                        snapshotsByBank[snapshot.bankId].push(snapshot);
+                    }
+                });
+                return snapshotsByBank;
+            }
+        };
+        const snapshotsByBank = await loadSnapshotsByBank();
         const snapshotDates = Object.values(snapshotsByBank).flat().map((item: any) => new Date(Number(item.year), Math.max(0, Number(item.month) - 1), 1)).filter(date => !Number.isNaN(date.getTime()));
         if (!snapshotDates.length) return { success: true, data: Object.fromEntries(bankIds.map(bankId => [bankId, null])) };
         const start = new Date(Math.min(...snapshotDates.map(date => date.getTime())));

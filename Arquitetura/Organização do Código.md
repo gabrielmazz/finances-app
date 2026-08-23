@@ -1,14 +1,14 @@
 ---
 tags: [arquitetura, organizacao, expo, react-native, manutencao]
-relacionado: [[MOC - Lumus Finanças]], [[Navegação]], [[Componentes UI]], [[Versão Web]], [[Comportamento Pós-Registro]], [[Firebase Config]]
+relacionado: [[MOC - Lumus Finanças]], [[Navegação]], [[Componentes UI]], [[Componentes por Sistema]], [[Versão Web]], [[Comportamento Pós-Registro]], [[Firebase Config]]
 status: ativo
 tipo: arquitetura
-versao: 1.0.0
+versao: 1.1.0
 ---
 
 # Organização do Código
 
-Este documento define as fronteiras de responsabilidade do Lumus Finanças. O objetivo é tornar uma mudança local fácil de localizar, sem mover regras financeiras entre camadas nem criar variantes de plataforma por conveniência visual.
+Este documento define as fronteiras de responsabilidade do Lumus Finanças. O objetivo é tornar uma mudança local fácil de localizar, sem mover regras financeiras entre camadas nem misturar dependências de Web e mobile no mesmo componente.
 
 ## Mapa de responsabilidades
 
@@ -17,8 +17,8 @@ Este documento define as fronteiras de responsabilidade do Lumus Finanças. O ob
 | `app/` | Entradas do Expo Router, redirects e delegação para a tela correspondente | regras de negócio, acesso Firebase ou composição extensa de interface |
 | `components/app/` | Composição global: providers, guard autenticado e ciclos de vida do aplicativo | telas de domínio ou cálculos financeiros |
 | `screens/` | Orquestração de uma tela, estados locais e composição de componentes | registro manual de rotas, providers globais ou duplicação de persistência |
-| `components/uiverse/` | Componentes visuais e interações reutilizáveis do produto | consultas Firestore específicas de uma tela |
-| `components/ui/` | Primitivas geradas pelo Gluestack | alterações manuais sem uma atualização coordenada do design system |
+| `components/uiverse/<sistema>/` | Componentes visuais e interações reutilizáveis do produto, separados por domínio | consultas Firestore específicas de uma tela |
+| `components/ui/` | Primitivas geradas pelo Gluestack | componentes de domínio ou alterações manuais sem uma atualização coordenada do design system |
 | `contexts/` | Estado transversal de sessão, tema, privacidade e preferências | operações de interface específicas de uma tela |
 | `functions/` | Leitura e escrita Firebase e transformação do domínio junto da persistência | JSX ou navegação |
 | `hooks/` | Estado e efeitos reutilizáveis de uma tela/domínio | renderização de layout grande |
@@ -34,9 +34,9 @@ Arquivos em `app/` são adaptadores de rota. Por exemplo, `app/home.tsx` apenas 
 
 ## Variantes por plataforma
 
-Use o arquivo canônico `.tsx` quando lógica e composição são as mesmas. Ajustes puramente responsivos pertencem a classes `web:` ou a componentes com resolução de plataforma, como `WebScreenHero` e `ScreenDismissKeyboard`.
+Use um arquivo canônico `.tsx` quando lógica e composição forem realmente iguais nas duas plataformas. Quando uma API, evento, animação ou primitiva divergir, mantenha o contrato no mesmo caminho lógico e separe a implementação em `.native.tsx` e `.web.tsx`; o base pode apenas reexportar o fallback nativo. Componentes reutilizáveis devem ser colocados na pasta do sistema descrita em [[Componentes por Sistema]], sem criar uma cópia para cada tela.
 
-Crie `.web.tsx` somente quando a experiência realmente divergir — por exemplo, Home, Login, cadastros principais de despesas/ganhos e o fluxo Web de despesas obrigatórias. A variante deve preservar o contrato da tela: valores em centavos, helpers de navegação, comportamento pós-submit e persistência continuam compartilhados.
+Crie `.web.tsx` somente quando a experiência ou dependência realmente divergir — por exemplo, Home, Login, cadastros principais de despesas/ganhos, o fluxo Web de despesas obrigatórias e os componentes de entrada/seleção listados em [[Componentes UI]]. A variante deve preservar o contrato da tela: valores em centavos, helpers de navegação, comportamento pós-submit e persistência continuam compartilhados.
 
 As nove telas administrativas e financeiras de menor divergência (`AddRegisterMonthlyBalance`, `Transfer`, `AddRescue`, `Configurations`, cadastros de usuário/banco/categoria, vínculo e testes) usam agora a implementação canônica. Isso remove cópias quase idênticas e deixa a resolução de plataforma restrita aos componentes que de fato precisam dela.
 

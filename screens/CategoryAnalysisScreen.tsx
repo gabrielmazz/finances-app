@@ -15,8 +15,8 @@ import { PieChart } from 'react-native-gifted-charts';
 import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
 
 import { auth } from '@/FirebaseConfig';
-import Navigator from '@/components/uiverse/navigator';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
@@ -40,7 +40,7 @@ import {
 } from '@/functions/CategoryAnalysisFirebase';
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { isWebDesktopLayout } from '@/utils/webLayout';
 import {
 	type CategoryAnalysisPdfMetric,

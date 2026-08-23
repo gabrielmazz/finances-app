@@ -5,7 +5,7 @@ describe('rota do Assistente Lumus', () => {
 
 	afterEach(() => {
 		jest.dontMock('react-native-css-interop/jsx-runtime');
-		jest.dontMock('@/components/uiverse/assistant-route-boundary');
+		jest.dontMock('@/components/uiverse/assistant/assistant-route-boundary');
 		jest.dontMock('@/contexts/LumusAssistantContext');
 		jest.dontMock('@/screens/LumusAssistantScreen');
 	});
@@ -16,7 +16,7 @@ describe('rota do Assistente Lumus', () => {
 		const LumusAssistantScreen = () => null;
 
 		jest.doMock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
-		jest.doMock('@/components/uiverse/assistant-route-boundary', () => ({
+		jest.doMock('@/components/uiverse/assistant/assistant-route-boundary', () => ({
 			__esModule: true,
 			AssistantRouteBoundary,
 		}));

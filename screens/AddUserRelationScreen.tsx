@@ -24,9 +24,9 @@ import {
 	PopoverContent,
 } from '@/components/ui/popover';
 
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import WebScreenHero from '@/components/uiverse/web-screen-hero';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 
 import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -37,7 +37,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { ScreenDismissKeyboard } from '@/components/uiverse/screen-dismiss-keyboard';
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 
 import AddUserRelationScreenIllustration from '../assets/UnDraw/addUserRelationScreen.svg';
 

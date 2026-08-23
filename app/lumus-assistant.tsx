@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { AssistantRouteBoundary } from '@/components/uiverse/assistant-route-boundary';
+import { AssistantRouteBoundary } from '@/components/uiverse/assistant/assistant-route-boundary';
 import { LumusAssistantProvider } from '@/contexts/LumusAssistantContext';
 import LumusAssistantScreen from '@/screens/LumusAssistantScreen';
 

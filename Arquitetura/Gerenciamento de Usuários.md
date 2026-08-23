@@ -72,6 +72,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 ## Configuração
 
 - Flag `isAdmin` no Firestore controla permissões (cadastro de outros usuários, etc.)
+- O seed do Firebase Emulator cria a conta `usuario@demo.lumus.local` com `adminUser: true`, permitindo testar os fluxos administrativos localmente.
 - Relacionamento é bidirecional no Firestore
 
 ## Observações importantes

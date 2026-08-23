@@ -3,7 +3,7 @@ tags: [configuracoes, tema, usuario, settings]
 relacionado: [[Sistema de Temas]], [[Privacidade de Valores]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Autenticação]], [[Gerenciamento de Usuários]], [[Gerenciamento de Tags]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.9.0
+versao: 1.10.0
 ---
 
 # Configurações
@@ -17,12 +17,12 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
    - **Aparência**: Toggle de tema claro/escuro
    - **Privacidade**: Toggle de visibilidade de valores financeiros
    - **Conta**: Informações do usuário logado
-   - **Cadastros e vínculos**: Tabelas administrativas e relacionamentos com ações inline de edição, exclusão e navegação
+   - **Cadastros e vínculos**: A seção de usuários do aplicativo aparece somente para administradores; bancos, categorias e vínculos permanecem disponíveis para usuários padrão, com ações inline de edição, exclusão e navegação
 3. As ações principais de cadastro usam `Button` do Gluestack no mesmo padrão visual das telas de registro, reaproveitando tokens de `useScreenStyle()` e ocupando a largura inteira disponível dentro do accordion
 4. As tabelas administrativas reservam uma coluna fixa de ações à direita, com botões compactos por ícone centralizados e sem depender de rolagem horizontal para acessar as ações
 5. Os classnames compartilhados das tabelas desta tela são centralizados em `useScreenStyle.ts` para evitar duplicação na screen
 6. Quando uma listagem ultrapassa 5 registros, a tabela passa a exibir paginação numérica abaixo da listagem
-7. Todo feedback in-app desta tela usa `components/uiverse/notifier-alert.tsx`, incluindo cópia de ID, erros operacionais e confirmações de exclusão/desvínculo
+7. Todo feedback in-app desta tela usa `components/uiverse/feedback/notifier-alert.tsx`, incluindo cópia de ID, erros operacionais e confirmações de exclusão/desvínculo
 8. A tela usa modais de confirmação para ações destrutivas; a edição de categorias abre diretamente o formulário canônico pelo `tagId`
 9. Os cards de tema e privacidade mantêm o popover inline ao lado do título, helper contextual abaixo do label e o switch alinhado à direita para seguir o mesmo padrão de toggles usado nas telas de cadastro
 10. Ações que abrem formulários de cadastro/edição usam rotas de `APP_ROUTE_PATHS`; o destino depois de salvar é definido por [[Comportamento Pós-Registro]]
@@ -84,6 +84,8 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 - O campo **Tela de retorno** deve abrir um `Actionsheet` próprio, no padrão da escolha de ícone de [[Gerenciamento de Tags]], com busca, ilustração contextual, descrição de cada destino e destaque da opção selecionada; não usar o seletor nativo do Android nem numeração como identificador visual nesse fluxo
 - Configurações de edição não devem expor controle de limpeza: podem escolher o mesmo destino alternativo dos cadastros e, ao permanecer, conservam os valores editados
 - O switch **Mostrar no app** é uma preferência deste aparelho, começa habilitado salvo as exceções deliberadas **Anotações** e **Testes do aplicativo**; deve ocultar o destino do navigator e bloquear a rota, sem ser persistido no perfil Firebase do usuário.
+- O accordion de **Usuários do aplicativo** e sua tabela são renderizados somente quando o usuário autenticado possui `adminUser`; usuários padrão não veem essa seção nem o aviso de acesso restrito.
+- Usuários padrão podem abrir os accordions de bancos, categorias e vínculos para executar seus cadastros e gerenciar os dados que a tela já disponibiliza para o grupo relacionado.
 - Os toggles "Modo escuro" e "Ocultar valores" devem manter o switch preso ao extremo direito da linha mesmo quando houver texto auxiliar
 - O toggle "Modo escuro" deve explicar no popover que a preferência altera toda a interface e persiste entre sessões
 - O toggle "Ocultar valores" deve explicitar no popover que a ocultação é apenas visual

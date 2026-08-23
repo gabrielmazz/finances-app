@@ -37,7 +37,7 @@ async function seed() {
 	const batch = database.batch();
 	const put = (path: string, data: Record<string, unknown>) => batch.set(database.doc(path), data);
 	put('users/demo-user', {
-		name: 'Usuário Demo', email: 'usuario@demo.lumus.local', relatedIdUsers: [],
+		name: 'Usuário Demo', email: 'usuario@demo.lumus.local', relatedIdUsers: [], adminUser: true,
 		// Null keeps the user in the legacy layout while satisfying rules that inspect the field.
 		financialGroupId: null, financialGroupRole: null, createdAt: now,
 	});

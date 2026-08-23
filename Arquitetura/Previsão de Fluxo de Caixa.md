@@ -29,7 +29,7 @@ graph TD
 2. A tela sempre lê os dados novamente ao receber foco e também aceita pull-to-refresh.
 3. O usuário seleciona um horizonte de 3, 6 ou 12 meses pelo `Tabs` de `components/ui/tabs`. Os três gatilhos dividem toda a largura disponível dentro de um card `notTintedCardClassName`; o indicador animado amarelo acompanha o período ativo e a seleção somente recalcula/redesenha o cenário.
 4. A tela mostra saldo de hoje, saldo projetado no fim do horizonte, variação estimada, linha de evolução e detalhamento expansível por mês.
-5. O gráfico é `LineChart` de `@mantine/charts`, isolado em `components/uiverse/financial-forecast-chart.tsx` como Expo DOM Component. Com mais de sete pontos — caso do horizonte de 12 meses, que inclui Hoje — a curva recebe largura por período e pode ser arrastada horizontalmente para não sobrepor rótulos. A UI restante continua React Native/Gluestack.
+5. O gráfico é `LineChart` de `@mantine/charts`, isolado em `components/uiverse/reports/financial-forecast-chart.tsx` como Expo DOM Component. Com mais de sete pontos — caso do horizonte de 12 meses, que inclui Hoje — a curva recebe largura por período e pode ser arrastada horizontalmente para não sobrepor rótulos. A UI restante continua React Native/Gluestack.
 
 ## Regras de cálculo
 
@@ -68,7 +68,7 @@ graph TD
 - `screens/FinancialForecastScreen.tsx` — Tela nativa, períodos, estados e detalhamento
 - `functions/FinancialForecastFirebase.ts` — Leitura agregada e normalização de Firestore
 - `utils/financialForecast.ts` — Cálculo puro do saldo de abertura e da projeção
-- `components/uiverse/financial-forecast-chart.tsx` — LineChart Mantine em Expo DOM
+- `components/uiverse/reports/financial-forecast-chart.tsx` — LineChart Mantine em Expo DOM
 - `components/ui/tabs/index.tsx` — Tabs controladas e indicador animado reutilizados pelo seletor de horizonte
 - `tests/financialForecast.test.ts` — Cobertura de recorrências, médias, investimentos e saldo-base
 - `assets/UnDraw/financialForecast.svg` — Ilustração da tela

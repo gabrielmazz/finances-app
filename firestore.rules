@@ -530,6 +530,30 @@ service cloud.firestore {
 
 
     // =========================================================
+    // INVESTMENT CDI RATES
+    // =========================================================
+
+    match /investmentCdiRates/{id} {
+
+      allow read: if canReadLegacy(
+        resource.data.personId
+      );
+
+      allow create: if canCreateLegacy()
+        && request.resource.data.annualRateInBasisPoints is int
+        && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.effectiveFrom is timestamp;
+
+      allow update: if canUpdateLegacy()
+        && request.resource.data.annualRateInBasisPoints is int
+        && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.effectiveFrom is timestamp;
+
+      allow delete: if canDeleteLegacy();
+    }
+
+
+    // =========================================================
     // TAGS
     // =========================================================
 

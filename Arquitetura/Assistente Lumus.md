@@ -136,9 +136,9 @@ Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não e
 ## Arquivos principais
 
 - `screens/LumusAssistantScreen.tsx` e `app/lumus-assistant.tsx` — chat e rota com montagem direta; o painel da tela informa a preparação assíncrona sem bloquear a navegação.
-- `components/uiverse/assistant-route-boundary.tsx` — recuperação para erro inesperado de renderização, sem loading normal da rota.
+- `components/uiverse/assistant/assistant-route-boundary.tsx` — recuperação para erro inesperado de renderização, sem loading normal da rota.
 - `contexts/LumusAssistantContext.tsx` — sessão, consentimento, perguntas, confirmação, TTS e `refreshAvailability()` para repetir a resolução de Remote Config/preflight sem descartar a conversa.
-- `components/uiverse/lumus-assistant/assistant-cards.tsx` — perguntas, revisão e relatórios.
+- `components/uiverse/assistant/assistant-cards.native.tsx` / `.web.tsx` — perguntas, revisão e relatórios; os gráficos usam gifted-charts no mobile e Mantine no navegador, mantendo o mesmo contrato de dados e privacidade.
 - `services/lumusAssistant/assistantPlatform.web.ts` / `.native.ts` — Firebase AI, App Check e Remote Config.
 - `services/lumusAssistant/assistantGatewayCore.ts` — limites, exclusão mútua e loop de function calling.
 - `services/lumusAssistant/assistantCatalogService.ts` — handles opacos e fingerprints.

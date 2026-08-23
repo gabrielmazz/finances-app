@@ -8,7 +8,7 @@ versao: 3.4.0
 
 # Notificações
 
-Sistema de avisos do Lumus Finanças com três frentes: lembretes locais de vencimentos/recebimentos via `expo-notifications`, push remoto para alterações de recorrências compartilhadas e alertas in-app padronizados com `components/uiverse/notifier-alert.tsx`. O navegador não recebe nem registra push.
+Sistema de avisos do Lumus Finanças com três frentes: lembretes locais de vencimentos/recebimentos via `expo-notifications`, push remoto para alterações de recorrências compartilhadas e alertas in-app padronizados com `components/uiverse/feedback/notifier-alert.tsx`. O navegador não recebe nem registra push.
 
 ## Push remoto para dispositivos vinculados
 
@@ -109,7 +109,7 @@ Os testes Jest validam as regras e chamadas do serviço, mas não substituem a m
 
 ## Alertas in-app
 
-1. `components/uiverse/notifier-alert.tsx` centraliza a API de feedback in-app. Android/iOS usam `react-native-notifier`; o Web resolve `notifier-alert.web.tsx` e apresenta `Alert` do Mantine em um portal anexado ao `document.body`.
+1. `components/uiverse/feedback/notifier-alert.native.tsx` e `.web.tsx` centralizam a API de feedback in-app por plataforma. Android/iOS usam `react-native-notifier`; o Web apresenta `Alert` do Mantine em um portal anexado ao `document.body`.
 2. A API pública é `showNotifierAlert({ title?, description, type, duration?, isDarkMode?, ... })`.
 3. Tipos suportados: `error`, `warn`, `info`, `success`.
 4. No Web, o alerta aparece fixo no canto superior direito, entra horizontalmente pela direita com `AnimatedContent`, retorna para a direita ao fim da duração configurada e só então é removido. Android/iOS continuam sob `notifier-boundary.tsx`; `notifier-boundary.web.tsx` não monta o wrapper nativo, evitando o visual padrão no navegador.
@@ -127,10 +127,10 @@ Os testes Jest validam as regras e chamadas do serviço, mas não substituem a m
 - `utils/remoteNotifications.ts` — Registro privado de Expo Push Token e chamada do teste remoto.
 - `backend/src/index.ts` — Callable de teste e gatilhos confiáveis de alteração das recorrências.
 - `app/_layout.tsx` — Bootstrap e ponte de autenticação/foreground.
-- `components/uiverse/navigator.tsx` — Limpeza síncrona da autoridade do UID antes do logout explícito.
-- `components/uiverse/notifier-alert.tsx` — Feedback in-app.
-- `components/uiverse/notifier-alert.web.tsx` — Ponte Web e apresentação Mantine do feedback in-app.
-- `components/uiverse/notifier-boundary.tsx` / `.web.tsx` — Mantém o wrapper nativo fora do navegador.
+- `components/uiverse/navigation/navigator.tsx` — Limpeza síncrona da autoridade do UID antes do logout explícito.
+- `components/uiverse/feedback/notifier-alert.tsx` — Feedback in-app.
+- `components/uiverse/feedback/notifier-alert.web.tsx` — Ponte Web e apresentação Mantine do feedback in-app.
+- `components/uiverse/feedback/notifier-boundary.tsx` / `.web.tsx` — Mantém o wrapper nativo fora do navegador.
 - `tests/mandatoryReminderConfig.test.ts` / `tests/mandatoryReminderNotifications.test.ts` — Cobertura automatizada.
 
 ## Integrações

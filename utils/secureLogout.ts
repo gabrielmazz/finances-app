@@ -1,7 +1,7 @@
 import { signOut } from 'firebase/auth';
 
 import { auth } from '@/FirebaseConfig';
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import {
 	clearMandatoryReminderAccount,

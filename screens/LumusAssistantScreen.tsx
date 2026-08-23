@@ -77,13 +77,13 @@ import {
 	PromptInputTextarea,
 	PromptInputTools,
 } from '@/components/ui/chatAi';
-import Navigator from '@/components/uiverse/navigator';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import {
 	AssistantDraftCard,
 	AssistantQuestionCard,
 	AssistantReportCard,
 	AssistantTextBubble,
-} from '@/components/uiverse/lumus-assistant/assistant-cards';
+} from '@/components/uiverse/assistant/assistant-cards';
 import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useScreenStyles } from '@/hooks/useScreenStyle';

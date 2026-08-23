@@ -47,7 +47,7 @@ graph TD
 - `utils/investmentPortfolio.ts`
 - `screens/FinancialListScreen.tsx`
 - `components/ui/tabs/index.tsx`
-- `components/uiverse/investment-evolution-chart.tsx`
+- `components/uiverse/investments/investment-evolution-chart.tsx`
 
 ## Integrações
 

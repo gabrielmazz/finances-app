@@ -4,10 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-import { WebNotifierAlertHost } from '@/components/uiverse/notifier-alert';
-import NotifierBoundary from '@/components/uiverse/notifier-boundary';
-import Loader from '@/components/uiverse/loader';
-import WebAppShell from '@/components/uiverse/web-app-shell';
+import { WebNotifierAlertHost } from '@/components/uiverse/feedback/notifier-alert';
+import NotifierBoundary from '@/components/uiverse/feedback/notifier-boundary';
+import Loader from '@/components/uiverse/shared/loader';
+import WebAppShell from '@/components/uiverse/navigation/web-app-shell';
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { FinanceDataProvider } from '@/contexts/FinanceDataContext';

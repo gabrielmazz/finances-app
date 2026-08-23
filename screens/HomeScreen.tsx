@@ -23,7 +23,7 @@ import {
 } from '@/functions/HomeFirebase';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
-import Navigator from '@/components/uiverse/navigator';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
@@ -51,7 +51,7 @@ import {
 	mixHexColors,
 	normalizeHexColor,
 	type BankCardPalette,
-} from '@/components/uiverse/bank-card-surface';
+} from '@/components/uiverse/banks/bank-card-surface';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { PieChart } from 'react-native-gifted-charts';
 

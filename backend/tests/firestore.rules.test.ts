@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 
 const projectId = 'demo-lumus-financas';
 let environment: RulesTestEnvironment | undefined;
@@ -36,6 +36,13 @@ async function seed(): Promise<void> {
       monthKey: '2026-08',
       transactionCount: 1,
     });
+    await setDoc(doc(firestore, 'investmentCdiRates', 'admin_20260801'), {
+      personId: 'admin',
+      annualRateInBasisPoints: 1_250,
+      effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
     await setDoc(doc(firestore, 'users', 'member'), {
       relatedIdUsers: ['admin'],
     });
@@ -57,6 +64,28 @@ async function run(): Promise<void> {
   const member = environment.authenticatedContext('member').firestore();
   const admin = environment.authenticatedContext('admin').firestore();
   const outsider = environment.authenticatedContext('outsider').firestore();
+
+  await assertSucceeds(getDoc(doc(member, 'investmentCdiRates', 'admin_20260801')));
+  await assertSucceeds(getDocs(query(
+    collection(member, 'investmentCdiRates'),
+    where('personId', 'in', ['member', 'admin']),
+  )));
+  await assertFails(getDoc(doc(outsider, 'investmentCdiRates', 'admin_20260801')));
+  await assertSucceeds(setDoc(doc(member, 'investmentCdiRates', 'member_20260821'), {
+    personId: 'member',
+    annualRateInBasisPoints: 1_300,
+    effectiveFrom: new Date('2026-08-21T00:00:00.000Z'),
+    createdAt: new Date('2026-08-21T00:00:00.000Z'),
+    updatedAt: new Date('2026-08-21T00:00:00.000Z'),
+  }));
+  await assertSucceeds(setDoc(doc(member, 'investmentCdiRates', 'member_20260821'), {
+    annualRateInBasisPoints: 1_350,
+  }, { merge: true }));
+  await assertFails(setDoc(doc(outsider, 'investmentCdiRates', 'outsider_20260821'), {
+    personId: 'outsider',
+    annualRateInBasisPoints: 1_300,
+    effectiveFrom: new Date('2026-08-21T00:00:00.000Z'),
+  }));
 
   await assertSucceeds(getDoc(doc(member, 'financialAccounts', 'bank-1')));
   await assertSucceeds(getDoc(doc(admin, 'ledgerTransactions', 'transaction-1')));

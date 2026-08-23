@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.4
+versao: 1.6.5
 ---
 
 # Investimentos
@@ -47,6 +47,7 @@ graph LR
 - Há um registro por pessoa e dia de vigência. Salvar novamente a mesma data corrige aquela vigência; adicionar outra data preserva o histórico anterior.
 - A tela de investimentos permite cadastrar a taxa anual e consultar o histórico da pessoa autenticada. Taxas de usuários relacionados são lidas para calcular seus investimentos compartilhados, sem abrir a configuração deles para edição.
 - Sem taxa vigente, a projeção não inventa um CDI padrão: conserva o último valor confirmado e explica o motivo na interface.
+- As Firestore Rules permitem leitura para a pessoa e usuários relacionados, mas criação/edição/exclusão somente para o proprietário antes do cutover; a Home trata a leitura da taxa como opcional e mantém o valor-base se ela estiver indisponível.
 
 ### Cálculo de projeção e rentabilidade
 
@@ -94,7 +95,7 @@ O gráfico é explicitamente estimado. A sincronização manual continua sendo o
 - `functions/InvestmentCdiRateFirebase.ts` — Persistência e leitura compartilhada do histórico de CDI
 - `utils/investmentPortfolio.ts` — Tipos de ativos, projeção em ponto fixo, indicadores e série do gráfico
 - `functions/HomeFirebase.ts` — Portfólio reduzido da Home usando o histórico CDI configurado
-- `components/uiverse/investment-evolution-chart.tsx` — `AreaChart` Mantine isolado em Expo DOM
+- `components/uiverse/investments/investment-evolution-chart.tsx` — `AreaChart` Mantine isolado em Expo DOM
 - `tests/investmentPortfolio.test.ts` — Cobertura de vigências, falta de taxa, ativos futuros e fluxos de aporte/resgate
 
 ## Integrações

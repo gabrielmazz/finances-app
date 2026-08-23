@@ -1,9 +1,9 @@
 import React from 'react';
 import { View } from 'react-native';
 
-import AnimatedContent from '@/components/web/AnimatedContent';
-import Grainient from '@/components/web/Grainient';
-import StrokeText from '@/components/web/StrokeText';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
+import StrokeText from '@/components/web/visuals/StrokeText';
 import { WEB_DASHBOARD_CLASS_NAMES } from '@/hooks/useScreenStyle';
 
 type WebScreenHeroProps = {

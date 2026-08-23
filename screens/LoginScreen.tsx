@@ -50,7 +50,7 @@ import {
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 // Canal padronizado de alertas in-app conforme [[Notificações]]
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type FocusableInputKey = 'email' | 'password';
@@ -492,7 +492,7 @@ export default function LoginScreen() {
 											Desenvolvido por Gabriel Mazzuco
 										</Text>
 
-										<Text className={`${mutedText} text-center text-xs`}>Versão 2.2.1</Text>
+										<Text className={`${mutedText} text-center text-xs`}>Versão 2.2.2</Text>
 									</VStack>
 								</VStack>
 							</View>

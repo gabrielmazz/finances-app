@@ -3,7 +3,7 @@ tags: [web, expo, firebase-hosting, responsivo, arquitetura, relatorios]
 relacionado: [[Navegação]], [[Organização do Código]], [[Firebase Config]], [[Notificações]], [[Componentes UI]], [[Assistente Lumus]], [[Autenticação]]
 status: ativo
 tipo: arquitetura
-versao: 1.5.0
+versao: 1.6.0
 ---
 
 # Versão Web
@@ -35,31 +35,38 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 20. Os inputs de texto/número e textareas dessas telas reaproveitam `fieldContainerClassName` e `textareaContainerClassName` com variantes Web centralizadas em `useScreenStyles()`, igualando altura, raio, fundo transparente, padding e foco amarelo ao padrão de `AddRegisterExpensesScreen.web.tsx` e `AddRegisterGainScreen.web.tsx`, sem alterar o comportamento nativo.
 21. Os `ScrollView`s que formam o sheet dessas nove telas recebem `web:relative web:z-[3]`, mantendo o formulário acima do hero absoluto e garantindo que o primeiro clique nos inputs chegue ao campo, como no sheet Web das telas-base.
 22. As telas canônicas de saldo mensal, cadastro de usuário, banco, categoria e vínculo entre usuários usam `ScreenDismissKeyboard`: o wrapper vira `Fragment` no navegador para não disparar `Keyboard.dismiss()` no clique do `TextInput`; Android/iOS mantêm o dismiss nativo ao tocar fora.
-23. `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx` são composições Web independentes das telas nativas de despesas obrigatórias. O cadastro mantém todos os campos financeiros, oferece calendário modal customizado para as parcelas, `input type="time"` para o lembrete e controle do ciclo; a listagem combina `DateCalendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e impressão do resumo em PDF. Na listagem Web, a confirmação de ação e o resumo diário usam `Modal size="lg"` com largura fluida até 640 px, margem de 16 px e overscroll contido; o corpo do resumo diário usa crescimento automático e rolagem apenas quando necessário para não distribuir vazios entre os itens. Os componentes nativos continuam com suas dimensões próprias. A Web não cria agenda local de lembretes e mantém a configuração persistida para o aplicativo instalado.
+23. `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx` são composições Web independentes das telas nativas de despesas obrigatórias. O cadastro mantém todos os campos financeiros, oferece calendário modal customizado para as parcelas, `input type="time"` para o lembrete e controle do ciclo; a listagem combina `DateCalendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e impressão do resumo em PDF. Na listagem Web, a confirmação de ação e o resumo diário usam `Modal size="lg"` com largura fluida até 640 px, margem de 16 px e overscroll contido; o corpo do resumo diário e o card expandido mantêm altura intrínseca, com rolagem apenas quando necessário, para não distribuir vazios entre os itens. Cada movimento do resumo diário Web reutiliza a composição mobile: ícone, nome da despesa e categoria à esquerda, valor/data e seta à direita, sem trilho ou marcador exclusivo. A Web não cria agenda local de lembretes e mantém a configuração persistida para o aplicativo instalado.
+24. Abaixo do resumo mensal, `MandatoryExpensesListScreen.web.tsx` monta `mandatory-expense-payment-bullet-chart.tsx`: o limite real é o total do ciclo e o valor preenchido é o total pago, mantendo a leitura proporcional do progresso sem adicionar consulta Firebase. A composição envia apenas valores neutros quando a preferência de privacidade oculta os valores.
+25. Os componentes reutilizados pelas telas canônicas usam resolução automática por plataforma no mesmo caminho lógico. `date-picker.web.tsx`, `date-calendar.web.tsx`, os seletores Web de bancos/categorias, `bank-card-surface.web.tsx`, `screen-dismiss-keyboard.web.tsx`, `loader.web.tsx` e `web-app-shell.web.tsx` não carregam handlers, animações ou dependências nativas; os arquivos `.native.tsx` preservam as interações Android/iOS. O contrato de callbacks, datas brasileiras, estados de seleção, máscaras e ações financeiras permanece igual.
+26. O `assistant-cards.web.tsx` mantém os cartões de pergunta/revisão/relatório e a privacidade do assistente, mas desenha os gráficos com Mantine no navegador. `assistant-cards.native.tsx` continua usando `react-native-gifted-charts`; nenhuma variante recebe ferramenta de escrita no Firestore e a confirmação individual continua obrigatória.
 
 ## Arquivos principais
 
 - `app.json` — declaração explícita de UI automática e output Web single.
 - `firebase.json` e `.firebaserc` — Hosting, Functions, Firestore e projeto padrão.
-- `components/uiverse/web-app-shell.tsx`, `components/uiverse/web-route-transition.web.tsx`, `components/uiverse/navigator.web.tsx` e `components/web/StaggeredMenu.jsx` — workspace, transição de rotas e navegação Web responsiva animada.
+- `components/uiverse/navigation/web-app-shell.web.tsx` / `.native.tsx`, `components/uiverse/navigation/web-route-transition.web.tsx`, `components/uiverse/navigation/navigator.web.tsx` e `components/web/navigation/StaggeredMenu.jsx` — workspace, transição de rotas e navegação Web responsiva animada.
 - `screens/HomeScreen.web.tsx` — dashboard Web específico, com dados do mesmo `useHomeScreenData`, sparklines Mantine compactos nos cards de ganhos/gastos, atalhos e layout em grade sem duplicar consultas Firebase.
 - `screens/AddRegisterExpensesScreen.tsx` / `screens/AddRegisterExpensesScreen.web.tsx` — formulário de despesa por plataforma: lógica financeira preservada e composição Web fullscreen em hero/sheet com animação.
-- `components/uiverse/screen-dismiss-keyboard.tsx` — wrapper de dismiss que preserva o foco dos inputs na Web e o comportamento de teclado nativo nas demais plataformas.
+- `components/uiverse/shared/screen-dismiss-keyboard.tsx` — wrapper de dismiss que preserva o foco dos inputs na Web e o comportamento de teclado nativo nas demais plataformas.
 - `screens/AddRegisterGainScreen.tsx` / `screens/AddRegisterGainScreen.web.tsx` — formulário de ganho por plataforma: lógica financeira preservada e composição Web fullscreen em hero/sheet com animação.
 - `screens/AddMandatoryExpensesScreen.tsx` / `screens/AddMandatoryExpensesScreen.web.tsx` — cadastro de gasto obrigatório por plataforma, com calendário de parcelas, lembrete e controle mensal.
 - `screens/MandatoryExpensesListScreen.tsx` / `screens/MandatoryExpensesListScreen.web.tsx` — lista de gastos obrigatórios por plataforma, com calendário, resumo, timeline e modais de ação.
 - `screens/AddRegisterMonthlyBalanceScreen.tsx`, `TransferScreen.tsx`, `AddRescueScreen.tsx`, `ConfigurationsScreen.tsx`, `AddRegisterUserScreen.tsx`, `AddRegisterBankScreen.tsx`, `AddRegisterTagScreen.tsx`, `AddUserRelationScreen.tsx` e `AppTestsScreen.tsx` — telas canônicas com geometria Web responsiva via componentes resolvidos por plataforma e classes `web:`, sem uma segunda implementação do fluxo.
 - `screens/LoginScreen.tsx` / `screens/LoginScreen.web.tsx` — entrada pública por plataforma: a tela mobile histórica fica em `LoginScreen.tsx`; a variante Web concentra o painel de identidade em gradiente e o formulário responsivo.
+- `script/update_app_version.js` — sincroniza a versão exibida nas telas de login com `app.json` e `package.json` por `npm run version:set -- <versão>`.
 - `FirebaseConfig.web.ts` — Auth Web memory-only.
 - `utils/reportExport.web.ts` / `.native.ts` e `utils/pdfFileName.web.ts` / `.native.ts` — exportação de relatórios por plataforma.
 - `utils/platformCapabilities.ts` e `utils/notificationsRuntime.web.ts` — contrato explícito de lembretes indisponíveis no navegador.
-- `components/uiverse/notifier-alert.web.tsx` — feedback in-app Web via Mantine em portal no `document.body`.
-- `components/uiverse/notifier-boundary.web.tsx` — impede a montagem do wrapper nativo de notificações no navegador.
-- `components/uiverse/web-screen-hero.tsx` / `.web.tsx` — cabeçalho compartilhado das telas Web: fallback nativo, wallpaper com `Grainient`, título `StrokeText` e animação da ilustração SVG com respeito a `prefers-reduced-motion` pelos componentes de animação existentes.
-- `components/uiverse/home-expense-chart.tsx` — sparklines Web de tendências mensais em Expo DOM
-- `components/uiverse/home-investment-chart.tsx` — donut Mantine Web da distribuição de investimentos em Expo DOM
-- `components/uiverse/home-expense-line-chart.tsx` — gráfico Web de gastos diários em Expo DOM
-- `components/uiverse/home-activity-heatmap.tsx` — heatmap Web de atividade financeira anual em Expo DOM
+- `components/uiverse/feedback/notifier-alert.web.tsx` — feedback in-app Web via Mantine em portal no `document.body`.
+- `components/uiverse/feedback/notifier-boundary.web.tsx` — impede a montagem do wrapper nativo de notificações no navegador.
+- `components/uiverse/shared/date-picker.web.tsx`, `components/uiverse/recurring/date-calendar.web.tsx` e os pares Web de `banks/` e `categories/` — entradas e seletores separados por plataforma, sempre importados pelo caminho lógico sem extensão.
+- `components/uiverse/assistant/assistant-cards.web.tsx` — cards do assistente com gráficos Mantine somente no navegador; o mobile não importa essa dependência.
+- `components/uiverse/navigation/web-screen-hero.tsx` / `.web.tsx` — cabeçalho compartilhado das telas Web: fallback nativo, wallpaper com `Grainient`, título `StrokeText` e animação da ilustração SVG com respeito a `prefers-reduced-motion` pelos componentes de animação existentes.
+- `components/uiverse/dashboard/home-expense-chart.tsx` — sparklines Web de tendências mensais em Expo DOM
+- `components/uiverse/dashboard/home-investment-chart.tsx` — donut Mantine Web da distribuição de investimentos em Expo DOM
+- `components/uiverse/dashboard/home-expense-line-chart.tsx` — gráfico Web de gastos diários em Expo DOM
+- `components/uiverse/dashboard/home-activity-heatmap.tsx` — heatmap Web de atividade financeira anual em Expo DOM
+- `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — `BulletChart` oficial de Mantine em Expo DOM para progresso de pagamentos obrigatórios, com escala pelo total mensal e privacidade neutra
 
 ## Configuração externa obrigatória
 

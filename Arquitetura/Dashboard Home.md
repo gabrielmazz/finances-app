@@ -3,7 +3,7 @@ tags: [dashboard, home, graficos, bancos, investimentos]
 relacionado: [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Monitoramento de Investimentos]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]]
 status: ativo
 tipo: feature
-versao: 1.5.2
+versao: 1.5.3
 ---
 
 # Dashboard Home
@@ -68,14 +68,14 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - `hooks/useHomeScreenData.ts` — Hook de fetching setorizado
 - `functions/HomeFirebase.ts` — Agregação de dados do Firestore
 - `app/home.tsx` — Rota e container de abas (Home, Control, Settings)
-- `components/uiverse/bank-card-surface.tsx` — Card do banco com gradiente
-- `components/uiverse/home-expense-chart.tsx` — `Sparkline` Mantine em Expo DOM para tendências compactas de ganhos e gastos
-- `components/uiverse/home-expense-line-chart.tsx` — `LineChart` Mantine em Expo DOM para gastos diários dos últimos três meses
-- `components/uiverse/home-activity-heatmap.tsx` — `Heatmap` Mantine em Expo DOM para atividade financeira diária no ano
+- `components/uiverse/banks/bank-card-surface.tsx` — Card do banco com gradiente
+- `components/uiverse/dashboard/home-expense-chart.tsx` — `Sparkline` Mantine em Expo DOM para tendências compactas de ganhos e gastos
+- `components/uiverse/dashboard/home-expense-line-chart.tsx` — `LineChart` Mantine em Expo DOM para gastos diários dos últimos três meses
+- `components/uiverse/dashboard/home-activity-heatmap.tsx` — `Heatmap` Mantine em Expo DOM para atividade financeira diária no ano
 - `utils/homeActivityHeatmap.ts` — agregação pura de contagens diárias de atividade
 - `utils/homeMandatorySchedule.ts` — seleção pura dos próximos ciclos obrigatórios pendentes
 - `utils/homeExpenseHistory.ts` — Agregação pura dos valores de gasto por dia e mês
-- `components/web/Grainient.jsx` / `.css` — Fundo Web animado usado nos detalhes expandidos da timeline e no hero, com fallback CSS quando WebGL2 não está disponível
+- `components/web/visuals/Grainient.jsx` / `.css` — Fundo Web animado usado nos detalhes expandidos da timeline e no hero, com fallback CSS quando WebGL2 não está disponível
 
 ## Integrações
 
@@ -94,7 +94,8 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 
 - `personId` e o nome exibido no hero vêm do `user` do [[Autenticação|AuthContext]]; o nome persistido é lido de `users/{uid}.name`, com fallback para `displayName`
 - Cores dos gráficos de pizza definidas em paleta CDI (8 cores) dentro de `HomeFirebase.ts`
-- `investmentCdiRates` é lida junto dos investimentos para simular somente intervalos com taxa configurada
+- `investmentCdiRates` é lida junto dos investimentos para simular somente intervalos com taxa configurada; se a leitura falhar, a Home mantém os investimentos e usa a base confirmada, sem transformar a falha opcional do CDI em erro do gráfico
+- A leitura otimizada do último `MonthlyBalance` por banco depende do índice composto publicado em `firestore.indexes.json` (`bankId`, `personId`, `year`, `month`). Durante a criação ou ausência desse índice, `functions/BankFirebase.ts` usa uma leitura compatível escopada pelos usuários autorizados e resolve o snapshot localmente, preservando o saldo sem bloquear o resumo.
 
 ## Observações importantes
 
@@ -113,10 +114,11 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - As consultas legadas auxiliares da Home são protegidas por regras específicas no `firestore.rules`; usuários em grupos já cortados continuam sem acesso direto às coleções legadas
 - Bancos sem snapshot ainda aparecem como saldo indisponível e acionam o modal de lembrete da Home
 - A função `HomeFirebase.ts` é a mais complexa do projeto — agrega dados de múltiplas coleções
-- O carrossel de bancos usa `react-native-reanimated-carousel` no Android/iOS e o `components/web/Carousel.jsx` baseado no React Bits na versão Web; ambos exibem a mesma coleção de bancos e Dinheiro e preservam a navegação para os movimentos da conta
+- O carrossel de bancos usa `react-native-reanimated-carousel` no Android/iOS e o `components/web/visuals/Carousel.jsx` baseado no React Bits na versão Web; ambos exibem a mesma coleção de bancos e Dinheiro e preservam a navegação para os movimentos da conta
 - Gráficos usam `react-native-gifted-charts`
 - O gráfico Web de gastos usa `@mantine/charts` e mostra somente dias com lançamentos; ele não cria previsões nem persiste agregados novos
 - O heatmap Web usa `@mantine/charts`, não registra telemetria e somente resume lançamentos financeiros já confirmados no Firestore
 - Sem uma taxa CDI vigente, o card da Home conserva o valor-base/sincronizado do investimento em vez de inventar rendimento
+- A leitura do histórico CDI tem regra própria em `firestore.rules`, com acesso por `personId`; a falta de permissão ou de uma taxa vigente não impede a carteira de investimentos de carregar
 - O container de abas não usa navegação stack interna — é apenas renderização condicional de componentes
 - O botão físico na rota Home deve encerrar o app; retornos para formulários antigos são proibidos após conclusão de cadastro

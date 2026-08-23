@@ -39,9 +39,9 @@ import {
 	SelectTrigger,
 } from '@/components/ui/select';
 
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/bank-actionsheet-selector';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
 
 import AddFinancialIllustration from '../assets/UnDraw/addFinancialScreen.svg';
 
@@ -54,7 +54,7 @@ import {
 	getLegacyBankBalanceInCentsFirebase,
 } from '@/functions/BankFirebase';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import DatePickerField from '@/components/uiverse/date-picker';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';

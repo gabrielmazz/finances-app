@@ -70,10 +70,10 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/notifier-alert';
-import DatePickerField from '@/components/uiverse/date-picker';
-import InvestmentEvolutionChart from '@/components/uiverse/investment-evolution-chart';
-import Navigator from '@/components/uiverse/navigator';
+import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import InvestmentEvolutionChart from '@/components/uiverse/investments/investment-evolution-chart';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import {
 	useValueVisibility,
 	HIDDEN_VALUE_PLACEHOLDER,

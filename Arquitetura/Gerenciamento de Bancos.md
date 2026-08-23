@@ -53,7 +53,7 @@ graph TD
 7. A lista pode ser recarregada manualmente por pull-to-refresh, preservando o período, o banco/dinheiro e os filtros locais
 8. Cada movimento exibe: data, descrição, tag com ícone (via `<TagIcon />`), valor (entrada/saída colorido); despesas obrigatórias usam a paleta visual vermelha de despesa também no ícone, linha, card expandido e valor monetário
 9. Edições acionadas pela timeline devem permanecer na tela atual após sucesso; movimentos comuns abrem `AddRegisterGainScreen.tsx`/`AddRegisterExpensesScreen.tsx`, e edição de investimento no modal local segue a mesma regra de permanência
-10. Enquanto `BankMovementsScreen.tsx` está aberta, o grupo Home do `components/uiverse/navigator.tsx` exibe uma opção contextual **Movimentos do banco** entre **Início** e **Análise por Categoria**, permitindo reconhecer a tela atual e voltar para o Dashboard pela opção **Início**
+10. Enquanto `BankMovementsScreen.tsx` está aberta, o grupo Home do `components/uiverse/navigation/navigator.tsx` exibe uma opção contextual **Movimentos do banco** entre **Início** e **Análise por Categoria**, permitindo reconhecer a tela atual e voltar para o Dashboard pela opção **Início**
 11. Transferências bancárias são incluídas no extrato tanto pela associação direta `bankId` quanto pelos metadados `bankTransferSourceBankId`/`bankTransferTargetBankId`, garantindo que o banco de origem veja a saída e o banco de destino veja a entrada
 
 ### Saldo Calculado
@@ -74,7 +74,7 @@ graph TD
 
 - `screens/AddRegisterBankScreen.tsx` — Formulário de cadastro
 - `screens/ConfigurationsScreen.tsx` — Tabela administrativa com edição, exclusão e ativação/desativação reversível
-- `components/uiverse/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
+- `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
 - `hooks/useBankIcons.tsx` — Catálogo de ícones/monogramas para bancos brasileiros
 - `screens/BankMovementsScreen.tsx` — Listagem de movimentos por período
 - `functions/BankFirebase.ts` — CRUD de bancos e busca de movimentos
@@ -82,7 +82,7 @@ graph TD
 - `app/add-register-bank.tsx` — Rota de cadastro
 - `app/bank-movements.tsx` — Rota de movimentos
 - `app/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
-- `components/uiverse/navigator.tsx` — Mostra a opção contextual **Movimentos do banco** no grupo Home apenas em `/bank-movements`
+- `components/uiverse/navigation/navigator.tsx` — Mostra a opção contextual **Movimentos do banco** no grupo Home apenas em `/bank-movements`
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar nos formulários de bancos, transferências, saques e saldos
 

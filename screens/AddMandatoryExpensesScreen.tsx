@@ -35,11 +35,11 @@ import {
 	SelectTrigger,
 } from '@/components/ui/select';
 
-import { showNotifierAlert } from '@/components/uiverse/notifier-alert';
-import Navigator from '@/components/uiverse/navigator';
-import DatePickerField from '@/components/uiverse/date-picker';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/tag-actionsheet-selector';
-import TimePickerField from '@/components/uiverse/time-picker-field';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
+import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
 
 import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
