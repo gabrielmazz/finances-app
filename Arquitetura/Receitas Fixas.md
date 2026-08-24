@@ -39,6 +39,7 @@ graph TD
 10. `MandatoryGainsListScreen.tsx` exibe um resumo do mês corrente com total do ciclo, valores recebidos, valores pendentes, parcelamentos concluídos fora do ciclo e botão para baixar o resumo em PDF via `expo-print`/`expo-sharing`; as ações de baixar PDF e adicionar ganho ficam lado a lado em um `HStack`
 11. A lista reconcilia a agenda local com os templates do UID autenticado ao carregar ou atualizar por pull-to-refresh
 12. Criações, edições e exclusões confirmadas no Firestore acionam a Function de [[Notificações]], que envia push aos aparelhos registrados do dono e de seus `relatedIdUsers`; a lista mantém somente a responsabilidade de reconciliar a agenda local.
+13. No resumo diário Web, os itens do mesmo dia aparecem com pendentes antes dos recebidos e, dentro de cada estado, em ordem alfabética pelo nome. O detalhe é compacto e preserva registrar, editar, reivindicar e excluir; a ação de quitar parcelas não é exibida para ganhos.
 
 ## Chave de Ciclo
 
