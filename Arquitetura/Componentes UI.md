@@ -27,7 +27,7 @@ Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira del
 | `uiverse/feedback/` | Feedback in-app | `notifier-alert`, `notifier-boundary` |
 | `uiverse/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` |
 | `uiverse/categories/` | Categorias e disponibilidade | `tag-actionsheet-selector`, `category-availability-selector` |
-| `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart` |
+| `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart`, `mandatory-expenses-radar-chart`, `mandatory-expenses-scatter-chart` |
 | `uiverse/dashboard/` | Dashboard Home | gráficos de resumo e atividade da Home |
 | `uiverse/reports/` | Relatórios financeiros | `financial-forecast-chart` |
 | `uiverse/investments/` | Monitoramento de investimentos | `investment-evolution-chart` |
@@ -90,6 +90,8 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `screens/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, `input type="time"`, controle mensal e lembrete informado como indisponível para agendamento no navegador |
 | `screens/MandatoryExpensesListScreen.web.tsx` | Composição Web da listagem de gastos obrigatórios, com `date-calendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e exportação para impressão/PDF |
 | `mandatory-expense-payment-bullet-chart.tsx` | Expo DOM Component Web-only que exibe o progresso dos pagamentos obrigatórios: total do ciclo como limite e total pago como preenchimento, sem consulta própria |
+| `mandatory-expenses-radar-chart.tsx` | Expo DOM Component que encapsula `RadarChart` de Mantine para somar os valores exibidos por categoria; recebe dados serializáveis e neutraliza a escala no modo de privacidade |
+| `mandatory-expenses-scatter-chart.tsx` | Expo DOM Component que encapsula `ScatterChart` de Mantine para cruzar dia da semana e dia do mês dos vencimentos do ciclo atual; separa pendentes de pagos/concluídos |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
 | `bank-card-surface.native.tsx` / `.web.tsx` | Cartão de banco com gradiente linear baseado na cor do banco; utilitários de paleta e contrato de conteúdo são iguais, a superfície pode evoluir por plataforma |
 | `bank-actionsheet-selector.native.tsx` / `.web.tsx` | Seletor de bancos com ícone/monograma, nome, helper contextual e estado selecionado; dados e callback são iguais |
@@ -131,6 +133,8 @@ graph LR
     IEC[investment-evolution-chart.tsx] --> FLS[FinancialListScreen]
     DC[date-calendar.tsx] --> MAN[Telas de recorrências]
     PEBC[mandatory-expense-payment-bullet-chart.tsx] --> MEL[MandatoryExpensesListScreen.web.tsx]
+    PERC[mandatory-expenses-radar-chart.tsx] --> MEL
+    PESC[mandatory-expenses-scatter-chart.tsx] --> MEL
     NA[notifier-alert.tsx] --> ALL[Todas as telas]
     LOG[LoginScreen.tsx / LoginScreen.web.tsx]
     LDR[loader.tsx] --> LAYOUT["_layout.tsx"]

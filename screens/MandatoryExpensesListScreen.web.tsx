@@ -66,6 +66,8 @@ import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpense
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import MandatoryExpensePaymentBulletChart from '@/components/uiverse/recurring/mandatory-expense-payment-bullet-chart';
+import MandatoryExpensesRadarChart from '@/components/uiverse/recurring/mandatory-expenses-radar-chart';
+import MandatoryExpensesScatterChart from '@/components/uiverse/recurring/mandatory-expenses-scatter-chart';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -463,6 +465,48 @@ export default function MandatoryExpensesListScreen() {
 			paidTotalInCents,
 			pendingTotalInCents,
 		};
+	}, [expenses]);
+
+	const mandatoryExpensesRadarData = React.useMemo(() => {
+		const totalsByCategory = new Map<string, number>();
+
+		expenses.forEach(expense => {
+			const category = tagMetadataMap[expense.tagId]?.name ?? tagsMap[expense.tagId] ?? 'Sem categoria';
+			const currentTotal = totalsByCategory.get(category) ?? 0;
+			const valueInCents = Math.max(0, getMandatoryDisplayValueInCents(expense));
+			totalsByCategory.set(category, currentTotal + valueInCents);
+		});
+
+		return Array.from(totalsByCategory.entries())
+			.sort(([, firstValue], [, secondValue]) => secondValue - firstValue)
+			.map(([category, valueInCents]) => ({
+				category: category.length > 18 ? `${category.slice(0, 17)}…` : category,
+				valueInCents,
+			}));
+	}, [expenses, tagMetadataMap, tagsMap]);
+
+	const mandatoryExpensesScatterData = React.useMemo(() => {
+		const series = new Map<string, { name: string; color: string; data: Array<{ weekday: number; dayOfMonth: number }> }>([
+			['pending', { name: 'Pendentes', color: '#F59E0B', data: [] }],
+			['completed', { name: 'Pagos/concluídos', color: '#10B981', data: [] }],
+		]);
+
+		expenses.forEach(expense => {
+			const dueDate = expense.resolvedDueDate ?? null;
+			if (!dueDate || Number.isNaN(dueDate.getTime())) {
+				return;
+			}
+
+			const duePoint = {
+				weekday: dueDate.getDay(),
+				dayOfMonth: dueDate.getDate(),
+			};
+
+			const status = expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 'completed' : 'pending';
+			series.get(status)?.data.push(duePoint);
+		});
+
+		return Array.from(series.values());
 	}, [expenses]);
 
 	React.useEffect(() => {
@@ -1339,6 +1383,51 @@ export default function MandatoryExpensesListScreen() {
 															/>
 														</VStack>
 													</View>
+												) : null}
+
+												{expenses.length > 0 ? (
+													<HStack className="gap-4 web:flex-row web:flex-wrap">
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+															<VStack className="gap-2">
+																<VStack className="gap-1">
+																	<Text
+																		className="text-slate-500 dark:text-slate-400 uppercase mt-1"
+																		style={{ color: monthlySummaryPalette.subtitle }}
+																	>
+																		Gastos por categoria
+																	</Text>
+																</VStack>
+																<View style={{ height: 300 }}>
+																	<MandatoryExpensesRadarChart
+																		data={mandatoryExpensesRadarData}
+																		isDarkMode={isDarkMode}
+																		shouldHideValues={shouldHideValues}
+																		dom={{ focusable: false, scrollEnabled: false, style: { height: 300, backgroundColor: 'transparent' } }}
+																		/>
+																</View>
+															</VStack>
+														</View>
+
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+															<VStack className="gap-2">
+																<VStack className="gap-1">
+																	<Text
+																		className="text-slate-500 dark:text-slate-400 uppercase mt-1"
+																		style={{ color: monthlySummaryPalette.subtitle }}
+																	>
+																		Dias de vencimento
+																	</Text>
+																</VStack>
+																<View style={{ height: 320 }}>
+																	<MandatoryExpensesScatterChart
+																		data={mandatoryExpensesScatterData}
+																		isDarkMode={isDarkMode}
+																		dom={{ focusable: false, scrollEnabled: false, style: { height: 320, backgroundColor: 'transparent' } }}
+																		/>
+																</View>
+															</VStack>
+														</View>
+													</HStack>
 												) : null}
 
 											</VStack>
