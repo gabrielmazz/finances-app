@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, graficos, firebase]
 relacionado: [[Investimentos]], [[Dashboard Home]], [[Transações de Despesas]], [[Transações de Receitas]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.0.2
+versao: 1.0.3
 ---
 
 # Monitoramento de Investimentos
@@ -29,6 +29,7 @@ graph TD
 3. A tela usa Tabs controladas para escolher 30 dias, 6 meses, 12 meses ou histórico total. Os quatro gatilhos ocupam igualmente a largura disponível dentro de um card `notTintedCardClassName`, centralizam seus rótulos e recebem um indicador amarelo quando ativos; o período só altera cálculo e visualização local.
 4. O modal de CDI grava somente a taxa de referência e a vigência; não toca nos investimentos, bancos ou transações.
 5. O gráfico compara `netAppliedInCents` com `projectedValueInCents`, mostrando a diferença entre capital líquido e patrimônio estimado pelas linhas, sem preenchimento de área ao fundo. Mantém pontos sempre visíveis e o mesmo padrão de tamanho, grade e eixos do gráfico de previsão, preservando a legenda das duas séries. Segue a superfície transparente e o comportamento sem foco do gráfico de previsão; em séries com mais de sete pontos, o usuário pode arrastá-lo horizontalmente para consultar os períodos sem comprimir os rótulos.
+6. A data de cada sincronização é a data civil escolhida no fluxo operacional, e não necessariamente o dia em que o formulário foi aberto. A data dos aportes e resgates segue a escolha própria da movimentação; ambas entram na linha do tempo em `financeInvestmentSyncs.date`, `expenses.date` ou `gains.date`. Hoje e datas anteriores são aceitos; datas futuras são rejeitadas.
 
 ## Dados persistidos
 
