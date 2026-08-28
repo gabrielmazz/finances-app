@@ -37,7 +37,7 @@ sequenceDiagram
 
 ## Arquivos principais
 
-- `screens/AddRescueScreen.tsx` — Formulário de resgate
+- `screens/AddRescueScreen.tsx` / `screens/AddRescueScreen.web.tsx` — Formulário de resgate por plataforma, com labels e campos alinhados ao padrão Web de despesas
 - `functions/BankFirebase.ts` — Operação de resgate
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco de origem
 - `app/add-rescue.tsx` — Rota

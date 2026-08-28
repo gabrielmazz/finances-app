@@ -99,6 +99,8 @@ Retorna constantes de estilo centralizadas que se adaptam ao modo dark/light. El
 | `insets` | `Insets` | Safe area insets |
 | `webDashboardPalette` | `object` | Tokens de superfície, borda, texto e acento para o dashboard Web, adaptados ao tema |
 | `webDashboardClassNames` | `object` | Classes Tailwind estruturais compartilhadas pela `HomeScreen.web.tsx` |
+| `webSelectClassNames` | `object` | Tokens de classes do select Web reutilizável: trigger, valor, placeholder, seta, menu, opção, seleção e estado desabilitado |
+| `webTimePickerClassNames` | `object` | Tokens do campo Web de horário: trigger, seta, menu, colunas, títulos, lista rolável, opção e seleção; reaproveita a base do select |
 | `WEB_DASHBOARD_DOM_STYLES` | `object` | Dimensões fixas serializadas para os componentes Expo DOM dos gráficos da Home Web |
 
 ### Estilos de Tabelas Administrativas
@@ -134,6 +136,7 @@ Classes compartilhadas para tabelas da [[Configurações]] e outras telas:
 | `switchRadioIndicatorClassName` | Indicador radio checked |
 | `switchTrackColor` | Cores do track do Switch |
 | `switchThumbColor` | Cor do thumb do Switch |
+| `switchActiveThumbColor` | Cor exclusiva da bolinha quando o Switch está ativo |
 
 ### Estilos de Skeleton
 
@@ -259,6 +262,8 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 - Quando uma tela repetir estruturas de tabela, paginação ou larguras utilitárias, a preferência é promover as classes para `useScreenStyles` em vez de duplicá-las
 - A Home Web mantém sua geometria fixa em `WEB_DASHBOARD_CLASS_NAMES` e as dimensões dos gráficos DOM em `WEB_DASHBOARD_DOM_STYLES`; `style` na tela fica reservado a valores calculados em runtime.
 - `WEB_DASHBOARD_CLASS_NAMES.screen`, `.fill` e `.hero` usam `w-screen` para representar `100vw` sem violar `StyleProp<ViewStyle>`; mantenha a largura de viewport nesse mapa compartilhado ao ajustar Home ou o cadastro Web de despesas.
+- `webSelectClassNames` deve permanecer no hook para que selects Web reutilizados compartilhem altura, contorno, padding, foco amarelo, hover, seleção e contraste claro/escuro; o componente `web-select-field.tsx` não deve duplicar esses tokens na tela.
+- `webTimePickerClassNames` deve permanecer no hook e reaproveitar a base de `webSelectClassNames`; assim, `time-picker-field.web.tsx` mantém o mesmo trigger, seta, padding, menu e estados visuais do select sem espalhar classes específicas pela tela.
 - `useHomeScreenData` centraliza o fetching para evitar lógica complexa dentro de `HomeScreen.tsx`
 - `useHomeScreenData` usa `useFocusEffect`, não `useEffect` — dados são recarregados a cada foco
 - Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais para estado

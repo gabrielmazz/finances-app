@@ -1500,8 +1500,8 @@ export default function AddRegisterGainScreen() {
 													</VStack>
 
 													<VStack className={webExpenseClassNames.fieldFull}>
-														<View className={webExpenseClassNames.sectionLabel}>
-															<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>
+									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+										<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
 																Observação
 															</Text>
 															<Popover
@@ -1555,8 +1555,8 @@ export default function AddRegisterGainScreen() {
 
 													{shouldShowPaymentFormatSelection ? (
 														<VStack className={webExpenseClassNames.fieldFull}>
-															<View className={webExpenseClassNames.sectionLabel}>
-																<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>
+										<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+										<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
 																	Formato do ganho
 																</Text>
 																<Popover
@@ -1646,8 +1646,8 @@ export default function AddRegisterGainScreen() {
 													) : null}
 
 													<VStack className={webExpenseClassNames.fieldFull}>
-														<View className={webExpenseClassNames.sectionLabel}>
-															<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>
+								<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+									<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
 																Formato de recebimento
 															</Text>
 															<Popover

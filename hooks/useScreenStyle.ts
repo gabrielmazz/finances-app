@@ -186,6 +186,34 @@ export function useScreenStyles() {
 	const fieldContainerClassName = `pt-2 pb-2 h-10 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName} web:h-12 web:rounded-2xl web:border web:bg-transparent web:px-1 web:focus-visible:ring-2 web:focus-visible:ring-yellow-300 web:data-[focus=true]:ring-0`;
 	const fieldContainerClassNameNotSpace = `rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
 	const fieldContainerCardClassName = `pt-2 pb-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName}`;
+	const webSelectClassNames = {
+		trigger: `${fieldContainerClassName} ${WEB_EXPENSE_CLASS_NAMES.fieldInput} flex-row items-center justify-between overflow-hidden px-3`,
+		triggerStyle: { paddingLeft: 16, paddingRight: 16 },
+		value: `${inputField} min-w-0 flex-1`,
+		placeholder: `${helperText} min-w-0 flex-1`,
+		icon: `${helperText} h-4 w-4 flex-none`,
+		iconStyle: { width: 16, height: 16, flexGrow: 0, flexShrink: 0, marginLeft: 12 },
+		menu: `mt-1 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-2xl dark:border-slate-800 dark:bg-slate-950`,
+		option: 'min-h-10 flex-row items-center rounded-xl px-3 py-2.5 web:transition-colors web:duration-150 web:hover:bg-slate-100 dark:web:hover:bg-slate-800',
+		optionSelected: 'bg-slate-100 dark:bg-slate-800',
+		optionDisabled: 'opacity-50',
+		optionText: inputField,
+	};
+	const webTimePickerClassNames = {
+		trigger: webSelectClassNames.trigger,
+		triggerStyle: webSelectClassNames.triggerStyle,
+		value: webSelectClassNames.value,
+		placeholder: webSelectClassNames.placeholder,
+		icon: webSelectClassNames.icon,
+		iconStyle: webSelectClassNames.iconStyle,
+		menu: `${webSelectClassNames.menu} flex-row gap-2`,
+		column: 'min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900',
+		columnTitle: `${helperText} px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.7px]`,
+		columnScroll: 'h-[224px] max-h-[224px]',
+		option: 'min-h-9 flex-row items-center justify-center rounded-xl px-2 py-2 web:transition-colors web:duration-150 web:hover:bg-slate-100 dark:web:hover:bg-slate-800',
+		optionSelected: webSelectClassNames.optionSelected,
+		optionText: `${inputField} text-center tabular-nums`,
+	};
 	const textareaContainerClassName = `h-24 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 ${focusFieldClassName} web:h-[112px] web:rounded-2xl web:border web:bg-transparent web:data-[focus=true]:ring-0`;
 	const sectionCardClassName = isDarkMode
 		? 'rounded-3xl border border-slate-800 bg-slate-950'
@@ -338,6 +366,7 @@ export function useScreenStyles() {
 		[],
 	);
 	const switchThumbColor = '#FFFFFF';
+	const switchActiveThumbColor = '#EAB308';
 	const switchIosBackgroundColor = '#CBD5E1';
 	// Tokens da composição Web do Dashboard. Mantidos aqui para que telas não
 	// decidam a paleta claro/escuro localmente, conforme [[Sistema de Temas]].
@@ -439,9 +468,12 @@ export function useScreenStyles() {
 		switchTrack,
 		switchTrackColor,
 		switchThumbColor,
+		switchActiveThumbColor,
 		switchIosBackgroundColor,
 		webDashboardPalette,
 		webDashboardClassNames: WEB_DASHBOARD_CLASS_NAMES,
 		webExpenseClassNames: WEB_EXPENSE_CLASS_NAMES,
+		webSelectClassNames,
+		webTimePickerClassNames,
 	};
 }
