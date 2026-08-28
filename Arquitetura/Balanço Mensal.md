@@ -75,7 +75,7 @@ Filtra movimentos que **não** devem entrar nos totais de ganhos/despesas reais:
 
 ## Arquivos principais
 
-- `screens/AddRegisterMonthlyBalanceScreen.tsx` — Formulário de registro de snapshot
+- `screens/AddRegisterMonthlyBalanceScreen.tsx` / `screens/AddRegisterMonthlyBalanceScreen.web.tsx` — Formulário de registro de snapshot por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco do snapshot mensal
 - `functions/MonthlyBalanceFirebase.ts` — CRUD de snapshots no Firestore
 - `utils/monthlyBalance.ts` — `calculateLegacyBankBalanceInCents()`, `shouldIncludeMovementInGainExpenseTotals()` e types

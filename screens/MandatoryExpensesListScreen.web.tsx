@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, View, StatusBar, TouchableOpacity, Text as RNText } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View, StatusBar, Text as RNText } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
@@ -66,6 +66,8 @@ import MandatoryExpensesListIllustration from '../assets/UnDraw/mandatoryExpense
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import MandatoryExpensePaymentBulletChart from '@/components/uiverse/recurring/mandatory-expense-payment-bullet-chart';
+import MandatoryExpensesRadarChart from '@/components/uiverse/recurring/mandatory-expenses-radar-chart';
+import MandatoryExpensesScatterChart from '@/components/uiverse/recurring/mandatory-expenses-scatter-chart';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -270,7 +272,7 @@ const MANDATORY_EXPENSE_PENDING_TONE: MandatoryItemTone = {
 	accentColor: '#F97316',
 	amountColor: '#D97706',
 	lineColor: 'rgba(249, 115, 22, 0.3)',
-	gradient: ['#B91C1C', '#EF4444'],
+	gradient: ['#B45309', '#FACC15'],
 };
 
 const MANDATORY_EXPENSE_COMPLETED_TONE: MandatoryItemTone = {
@@ -463,6 +465,48 @@ export default function MandatoryExpensesListScreen() {
 			paidTotalInCents,
 			pendingTotalInCents,
 		};
+	}, [expenses]);
+
+	const mandatoryExpensesRadarData = React.useMemo(() => {
+		const totalsByCategory = new Map<string, number>();
+
+		expenses.forEach(expense => {
+			const category = tagMetadataMap[expense.tagId]?.name ?? tagsMap[expense.tagId] ?? 'Sem categoria';
+			const currentTotal = totalsByCategory.get(category) ?? 0;
+			const valueInCents = Math.max(0, getMandatoryDisplayValueInCents(expense));
+			totalsByCategory.set(category, currentTotal + valueInCents);
+		});
+
+		return Array.from(totalsByCategory.entries())
+			.sort(([, firstValue], [, secondValue]) => secondValue - firstValue)
+			.map(([category, valueInCents]) => ({
+				category: category.length > 18 ? `${category.slice(0, 17)}…` : category,
+				valueInCents,
+			}));
+	}, [expenses, tagMetadataMap, tagsMap]);
+
+	const mandatoryExpensesScatterData = React.useMemo(() => {
+		const series = new Map<string, { name: string; color: string; data: Array<{ weekday: number; dayOfMonth: number }> }>([
+			['pending', { name: 'Pendentes', color: '#F59E0B', data: [] }],
+			['completed', { name: 'Pagos/concluídos', color: '#10B981', data: [] }],
+		]);
+
+		expenses.forEach(expense => {
+			const dueDate = expense.resolvedDueDate ?? null;
+			if (!dueDate || Number.isNaN(dueDate.getTime())) {
+				return;
+			}
+
+			const duePoint = {
+				weekday: dueDate.getDay(),
+				dayOfMonth: dueDate.getDate(),
+			};
+
+			const status = expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 'completed' : 'pending';
+			series.get(status)?.data.push(duePoint);
+		});
+
+		return Array.from(series.values());
 	}, [expenses]);
 
 	React.useEffect(() => {
@@ -1330,15 +1374,60 @@ export default function MandatoryExpensesListScreen() {
 
 												{monthlySummary.totalReferenceInCents > 0 ? (
 													<View className={`${compactCardClassName} px-4 py-4`}>
-									<VStack className="gap-3">
-										<MandatoryExpensePaymentBulletChart
+														<VStack className="gap-3">
+															<MandatoryExpensePaymentBulletChart
 																valueInCents={shouldHideValues ? 0 : monthlySummary.paidTotalInCents}
 																targetInCents={shouldHideValues ? 1 : monthlySummary.totalReferenceInCents}
 																isDarkMode={isDarkMode}
-																	shouldHideValues={shouldHideValues}
+																shouldHideValues={shouldHideValues}
 															/>
 														</VStack>
 													</View>
+												) : null}
+
+												{expenses.length > 0 ? (
+													<HStack className="gap-4 web:flex-row web:flex-wrap">
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+															<VStack className="gap-2">
+																<VStack className="gap-1">
+																	<Text
+																		className="text-slate-500 dark:text-slate-400 uppercase mt-1"
+																		style={{ color: monthlySummaryPalette.subtitle }}
+																	>
+																		Gastos por categoria
+																	</Text>
+																</VStack>
+																<View style={{ height: 300 }}>
+																	<MandatoryExpensesRadarChart
+																		data={mandatoryExpensesRadarData}
+																		isDarkMode={isDarkMode}
+																		shouldHideValues={shouldHideValues}
+																		dom={{ focusable: false, scrollEnabled: false, style: { height: 300, backgroundColor: 'transparent' } }}
+																		/>
+																</View>
+															</VStack>
+														</View>
+
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+															<VStack className="gap-2">
+																<VStack className="gap-1">
+																	<Text
+																		className="text-slate-500 dark:text-slate-400 uppercase mt-1"
+																		style={{ color: monthlySummaryPalette.subtitle }}
+																	>
+																		Dias de vencimento
+																	</Text>
+																</VStack>
+																<View style={{ height: 320 }}>
+																	<MandatoryExpensesScatterChart
+																		data={mandatoryExpensesScatterData}
+																		isDarkMode={isDarkMode}
+																		dom={{ focusable: false, scrollEnabled: false, style: { height: 320, backgroundColor: 'transparent' } }}
+																		/>
+																</View>
+															</VStack>
+														</View>
+													</HStack>
 												) : null}
 
 											</VStack>
@@ -1398,6 +1487,8 @@ export default function MandatoryExpensesListScreen() {
 																: expense.installmentLabel
 																	? `Registre a ${expense.installmentLabel.toLowerCase()} para concluir este item.`
 																	: 'Registre a despesa do mês para concluir este item.';
+														const tagLabel = tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Tag não encontrada';
+														const isExpenseCompleted = expense.isPaidForCurrentCycle || expense.isInstallmentComplete;
 
 														return (
 															<View key={expense.id} className={webStyles.timelineRow}>
@@ -1420,10 +1511,13 @@ export default function MandatoryExpensesListScreen() {
 																		accessibilityRole="button"
 																		accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${expense.name}`}
 																		accessibilityState={{ expanded: isExpanded }}
-																		className={`${webStyles.movementHeader} min-h-[44px]`}
+																		className={`${webStyles.movementHeader} min-h-[52px] cursor-pointer rounded-2xl py-1 focus-visible:ring-2 focus-visible:ring-yellow-300`}
 																	>
 																		<View className={webStyles.movementIdentity}>
-																			<View className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}>
+																			<View
+																				className={`${webStyles.movementIcon} border border-white/10`}
+																				style={{ backgroundColor: tone.gradient[0] }}
+																			>
 																				<TagIcon
 																					iconFamily={tagMetadata?.iconFamily}
 																					iconName={tagMetadata?.iconName}
@@ -1446,7 +1540,7 @@ export default function MandatoryExpensesListScreen() {
 																					className={webStyles.movementSubtitle}
 																					style={{ color: webDashboardPalette.primaryText }}
 																				>
-																					{tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Tag não encontrada'}
+																					{tagLabel}
 																				</RNText>
 																				{expense.installmentLabel ? (
 																					<RNText
@@ -1461,15 +1555,22 @@ export default function MandatoryExpensesListScreen() {
 																		</View>
 
 																		<View className={webStyles.movementAmount}>
-																			<RNText className={webStyles.amount} style={{ color: tone.amountColor }}>
+																			<RNText
+																				className={`${webStyles.amount} tabular-nums`}
+																				style={{ color: tone.amountColor }}
+																			>
 																				{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
 																			</RNText>
 																			<View className={webStyles.movementDate}>
 																				<CalendarDays size={12} color="#94A3B8" />
-																				<RNText className={webStyles.dateText}>
+																				<RNText numberOfLines={1} className={webStyles.dateText}>
 																					{formatExpenseScheduleLabel(expense)}
 																				</RNText>
-																				{isExpanded ? <ChevronUp size={14} color="#94A3B8" /> : <ChevronDown size={14} color="#94A3B8" />}
+																				{isExpanded ? (
+																					<ChevronUp size={14} color="#94A3B8" />
+																				) : (
+																					<ChevronDown size={14} color="#94A3B8" />
+																				)}
 																			</View>
 																		</View>
 																	</Pressable>
@@ -1495,7 +1596,10 @@ export default function MandatoryExpensesListScreen() {
 																			}
 																		>
 																			<View className={webStyles.movementDetail}>
-																				<View pointerEvents="none" className={webStyles.movementDetailGrainient}>
+																				<View
+																					pointerEvents="none"
+																					className={webStyles.movementDetailGrainient}
+																				>
 																					<Grainient
 																						className="movement-detail-grainient"
 																						timeSpeed={0.1}
@@ -1515,210 +1619,96 @@ export default function MandatoryExpensesListScreen() {
 																					/>
 																				</View>
 																				<View className={webStyles.movementDetailContent}>
-																					<VStack className="gap-3">
-																						<HStack className="items-start justify-between gap-4">
-																							<VStack className="flex-1">
-																								<Text
-																									style={{
-																										fontSize: 10,
-																										fontWeight: '700',
-																										letterSpacing: 0.4,
-																										color: 'rgba(255,255,255,0.74)',
-																										textTransform: 'uppercase',
-																									}}
-																								>
-																									Resumo
-																								</Text>
-																								<Text
-																									style={{
-																										fontSize: 13,
-																										lineHeight: 19,
-																										color: '#FFFFFF',
-																									}}
-																								>
-																									{summaryText}
-																								</Text>
-																							</VStack>
-
-																							<VStack className="items-end">
-																								<Text
-																									style={{
-																										fontSize: 10,
-																										fontWeight: '700',
-																										letterSpacing: 0.4,
-																										color: 'rgba(255,255,255,0.74)',
-																										textTransform: 'uppercase',
-																									}}
-																								>
-																									Valor
-																								</Text>
-																								<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																									{formatCurrencyBRL(expense.displayValueInCents ?? expense.valueInCents)}
-																								</Heading>
-																							</VStack>
-																						</HStack>
-
-																						<View
-																							style={{
-																								flexDirection: 'row',
-																								flexWrap: 'wrap',
-																								columnGap: 14,
-																								rowGap: 10,
-																							}}
-																						>
-																							{[
-																								{ label: 'Tipo', value: 'Gasto obrigatório' },
-																								{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
-																								{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
-																								{ label: 'Tag', value: tagMetadata?.name ?? tagsMap[expense.tagId] ?? 'Sem tag' },
-																								{ label: 'Lembrete', value: expense.reminderSummary ?? 'Desativado' },
-																								...(expense.installmentLabel ? [{ label: 'Parcelas', value: expense.installmentLabel }] : []),
-																								...(expense.installmentLabel ? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }] : []),
-																								...(expense.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }] : []),
-																							].map(item => (
-																								<View
-																									key={`${expense.id}-${item.label}`}
-																									style={{ width: '46%', minWidth: 128 }}
-																								>
-																									<Text
-																										style={{
-																											fontSize: 10,
-																											fontWeight: '700',
-																											letterSpacing: 0.4,
-																											color: 'rgba(255,255,255,0.72)',
-																											textTransform: 'uppercase',
-																										}}
-																									>
-																										{item.label}
-																									</Text>
-																									<Text
-																										style={{
-																											marginTop: 3,
-																											fontSize: 13,
-																											lineHeight: 18,
-																											color: '#FFFFFF',
-																										}}
-																									>
-																										{item.value}
-																									</Text>
-																								</View>
-																							))}
-																						</View>
-
-																						{expense.description ? (
-																							<View style={{ paddingTop: 2 }}>
-																								<Text
-																									style={{
-																										fontSize: 10,
-																										fontWeight: '700',
-																										letterSpacing: 0.4,
-																										color: 'rgba(255,255,255,0.72)',
-																										textTransform: 'uppercase',
-																									}}
-																								>
-																									Descrição
-																								</Text>
-																								<Text
-																									style={{
-																										marginTop: 6,
-																										fontSize: 13,
-																										lineHeight: 18,
-																										color: '#FFFFFF',
-																									}}
-																								>
-																									{expense.description}
-																								</Text>
+																					<RNText className={webStyles.detailLabel}>RESUMO</RNText>
+																					<RNText className={webStyles.detailText}>{summaryText}</RNText>
+																					<View className={webStyles.detailGrid}>
+																						{[
+																							{ label: 'Tipo', value: 'Gasto obrigatório' },
+																							{ label: 'Vencimento', value: formatConfiguredMonthlyDueLabel(expense.dueDay, expense.usesBusinessDays) },
+																							{ label: 'Neste mês', value: formatExpenseResolvedDateLabel(expense) },
+																							{ label: 'Tag', value: tagLabel },
+																							{ label: 'Lembrete', value: expense.reminderSummary ?? 'Desativado' },
+																							...(expense.installmentLabel
+																								? [{ label: 'Parcelas', value: expense.installmentLabel }]
+																								: []),
+																							...(expense.installmentLabel
+																								? [{ label: 'Início', value: formatMandatoryInstallmentDateLabel(expense.installmentStartDate ?? null) }]
+																								: []),
+																							...(expense.installmentLabel
+																								? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(expense.installmentEndDate ?? null) }]
+																								: []),
+																						].map(detail => (
+																							<View key={`${expense.id}-${detail.label}`} className={webStyles.detailItem}>
+																								<RNText className={webStyles.detailLabel}>{detail.label}</RNText>
+																								<RNText className={webStyles.detailText}>{detail.value}</RNText>
 																							</View>
+																						))}
+																					</View>
+
+																					{expense.description ? (
+																						<View className="mt-3">
+																							<RNText className={webStyles.detailLabel}>DESCRIÇÃO</RNText>
+																							<RNText className={webStyles.detailText}>{expense.description}</RNText>
+																						</View>
+																					) : null}
+
+																					<View className="mt-3 flex-row flex-wrap gap-4">
+																						<Pressable
+																							onPress={() => setPendingAction({ type: 'register', expense })}
+																							disabled={isExpenseCompleted}
+																							accessibilityRole="button"
+																							accessibilityLabel={`Registrar pagamento de ${expense.name}`}
+																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							style={{ opacity: isExpenseCompleted ? 0.45 : 1 }}
+																						>
+																							<Icon as={AddIcon} size="sm" className="text-white" />
+																							<RNText className="text-xs font-semibold text-white">Registrar</RNText>
+																						</Pressable>
+
+																						<Pressable
+																							onPress={() => setPendingAction({ type: 'edit', expense })}
+																							accessibilityRole="button"
+																							accessibilityLabel={`Editar ${expense.name}`}
+																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																						>
+																							<Icon as={EditIcon} size="sm" className="text-white" />
+																							<RNText className="text-xs font-semibold text-white">Editar</RNText>
+																						</Pressable>
+
+																						{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
+																							<Pressable
+																								onPress={() => setPendingAction({ type: 'settle', expense })}
+																								accessibilityRole="button"
+																								accessibilityLabel={`Quitar parcelas restantes de ${expense.name}`}
+																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							>
+																								<Icon as={CheckCircleIcon} size="sm" className="text-white" />
+																								<RNText className="text-xs font-semibold text-white">Quitar parcelas</RNText>
+																							</Pressable>
 																						) : null}
 
-																						<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
-																							<TouchableOpacity
-																								activeOpacity={0.85}
-																								onPress={() => setPendingAction({ type: 'register', expense })}
-																								disabled={expense.isPaidForCurrentCycle || expense.isInstallmentComplete}
+																						{expense.isPaidForCurrentCycle ? (
+																							<Pressable
+																								onPress={() => setPendingAction({ type: 'reclaim', expense })}
 																								accessibilityRole="button"
-																								accessibilityLabel={`Registrar pagamento de ${expense.name}`}
-																								style={{
-																									flexDirection: 'row',
-																									alignItems: 'center',
-																									gap: 8,
-																									paddingVertical: 8,
-																									opacity: expense.isPaidForCurrentCycle || expense.isInstallmentComplete ? 0.45 : 1,
-																								}}
+																								accessibilityLabel={`Desfazer pagamento de ${expense.name}`}
+																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							>
-																								<Icon as={AddIcon} size="sm" className="text-white" />
-																								<Text className="text-xs font-semibold text-white">Registrar</Text>
-																							</TouchableOpacity>
+																								<Icon as={RepeatIcon} size="sm" className="text-white" />
+																								<RNText className="text-xs font-semibold text-white">Reivindicar</RNText>
+																							</Pressable>
+																						) : null}
 
-																							<TouchableOpacity
-																								activeOpacity={0.85}
-																								onPress={() => setPendingAction({ type: 'edit', expense })}
-																								accessibilityRole="button"
-																								accessibilityLabel={`Editar ${expense.name}`}
-																								style={{
-																									flexDirection: 'row',
-																									alignItems: 'center',
-																									gap: 8,
-																									paddingVertical: 8,
-																								}}
-																							>
-																								<Icon as={EditIcon} size="sm" className="text-white" />
-																								<Text className="text-xs font-semibold text-white">Editar</Text>
-																							</TouchableOpacity>
-
-																							{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
-																								<TouchableOpacity
-																									activeOpacity={0.85}
-																									onPress={() => setPendingAction({ type: 'settle', expense })}
-																									accessibilityRole="button"
-																									accessibilityLabel={`Quitar parcelas restantes de ${expense.name}`}
-																									style={{
-																										flexDirection: 'row',
-																										alignItems: 'center',
-																										gap: 8,
-																										paddingVertical: 8,
-																									}}
-																								>
-																									<Icon as={CheckCircleIcon} size="sm" className="text-white" />
-																									<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
-																								</TouchableOpacity>
-																							) : null}
-
-																							{expense.isPaidForCurrentCycle ? (
-																								<TouchableOpacity
-																									activeOpacity={0.85}
-																									onPress={() => setPendingAction({ type: 'reclaim', expense })}
-																									accessibilityRole="button"
-																									accessibilityLabel={`Desfazer pagamento de ${expense.name}`}
-																									style={{
-																										flexDirection: 'row',
-																										alignItems: 'center',
-																										gap: 8,
-																										paddingVertical: 8,
-																									}}
-																								>
-																									<Icon as={RepeatIcon} size="sm" className="text-white" />
-																									<Text className="text-xs font-semibold text-white">Reivindicar</Text>
-																								</TouchableOpacity>
-																							) : null}
-
-																							<TouchableOpacity
-																								activeOpacity={0.85}
-																								onPress={() => setPendingAction({ type: 'delete', expense })}
-																								accessibilityRole="button"
-																								accessibilityLabel={`Excluir ${expense.name}`}
-																								style={{
-																									flexDirection: 'row',
-																									alignItems: 'center',
-																									gap: 8,
-																									paddingVertical: 8,
-																								}}
-																							>
-																								<Icon as={TrashIcon} size="sm" className="text-white" />
-																								<Text className="text-xs font-semibold text-white">Excluir</Text>
-																							</TouchableOpacity>
-																						</HStack>
-																					</VStack>
+																						<Pressable
+																							onPress={() => setPendingAction({ type: 'delete', expense })}
+																							accessibilityRole="button"
+																							accessibilityLabel={`Excluir ${expense.name}`}
+																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
+																						>
+																							<Icon as={TrashIcon} size="sm" className="text-white" />
+																							<RNText className="text-xs font-semibold text-white">Excluir</RNText>
+																						</Pressable>
+																					</View>
 																				</View>
 																			</View>
 																		</AnimatedContent>

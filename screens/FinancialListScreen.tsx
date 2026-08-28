@@ -282,12 +282,31 @@ const parseDateFromBR = (value: string) => {
 	}
 
 	const parsedDate = new Date(parsedYear, parsedMonth - 1, parsedDay);
-	return
-		parsedDate.getDate() === parsedDay &&
+	return parsedDate.getDate() === parsedDay &&
 		parsedDate.getMonth() + 1 === parsedMonth &&
 		parsedDate.getFullYear() === parsedYear
 			? parsedDate
 			: null;
+};
+
+// Mantém a data civil escolhida pelo usuário e usa o horário atual, conforme o fluxo de datas de [[Investimentos]].
+const mergeDateWithCurrentTime = (date: Date) => {
+	const now = new Date();
+	const dateWithCurrentTime = new Date(date);
+	dateWithCurrentTime.setHours(
+		now.getHours(),
+		now.getMinutes(),
+		now.getSeconds(),
+		now.getMilliseconds(),
+	);
+	return dateWithCurrentTime;
+};
+
+const isDateTodayOrEarlier = (date: Date) => {
+	const now = new Date();
+	const selectedDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	return selectedDay.getTime() <= today.getTime();
 };
 
 const resolveBaseValueInCents = (investment: FinanceInvestment) => {
@@ -516,25 +535,30 @@ export default function FinancialListScreen() {
 	const [investmentForWithdrawalSync, setInvestmentForWithdrawalSync] =
 		React.useState<FinanceInvestment | null>(null);
 	const [withdrawSyncInput, setWithdrawSyncInput] = React.useState('');
+	const [withdrawSyncDate, setWithdrawSyncDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingWithdrawalSync, setIsSavingWithdrawalSync] =
 		React.useState(false);
 	const [syncedWithdrawalValueInCents, setSyncedWithdrawalValueInCents] =
 		React.useState<number | null>(null);
 	const [withdrawInput, setWithdrawInput] = React.useState('');
+	const [withdrawalDate, setWithdrawalDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingWithdrawal, setIsSavingWithdrawal] = React.useState(false);
 	const [investmentForDeposit, setInvestmentForDeposit] =
 		React.useState<FinanceInvestment | null>(null);
 	const [investmentForDepositSync, setInvestmentForDepositSync] =
 		React.useState<FinanceInvestment | null>(null);
 	const [depositSyncInput, setDepositSyncInput] = React.useState('');
+	const [depositSyncDate, setDepositSyncDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingDepositSync, setIsSavingDepositSync] = React.useState(false);
 	const [syncedDepositValueInCents, setSyncedDepositValueInCents] =
 		React.useState<number | null>(null);
 	const [depositInput, setDepositInput] = React.useState('');
+	const [depositDate, setDepositDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingDeposit, setIsSavingDeposit] = React.useState(false);
 	const [investmentForSync, setInvestmentForSync] =
 		React.useState<FinanceInvestment | null>(null);
 	const [syncInput, setSyncInput] = React.useState('');
+	const [syncDate, setSyncDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingSync, setIsSavingSync] = React.useState(false);
 	const [expandedInvestmentIds, setExpandedInvestmentIds] = React.useState<
 		string[]
@@ -1117,6 +1141,8 @@ export default function FinancialListScreen() {
 			setDepositInput('');
 			setInvestmentForDepositSync(investment);
 			setDepositSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
+			setDepositSyncDate(formatDateInput(new Date()));
+			setDepositDate(formatDateInput(new Date()));
 		},
 		[],
 	);
@@ -1144,7 +1170,7 @@ export default function FinancialListScreen() {
 			return;
 		}
 		if (syncedDepositValueInCents === null) {
-			showScreenAlert('Sincronize o valor de hoje antes de adicionar.', 'warn');
+			showScreenAlert('Sincronize o valor da data informada antes de adicionar.', 'warn');
 			return;
 		}
 
@@ -1153,6 +1179,16 @@ export default function FinancialListScreen() {
 			showScreenAlert('Informe um valor válido para adicionar.', 'warn');
 			return;
 		}
+		const parsedDepositDate = parseDateFromBR(depositDate);
+		if (!parsedDepositDate) {
+			showScreenAlert('Informe uma data válida para o aporte.', 'warn');
+			return;
+		}
+		if (!isDateTodayOrEarlier(parsedDepositDate)) {
+			showScreenAlert('A data do aporte deve ser hoje ou uma data anterior.', 'warn');
+			return;
+		}
+		const depositDateWithCurrentTime = mergeDateWithCurrentTime(parsedDepositDate);
 
 		const targetInvestment = investmentForDeposit;
 		const personId = auth.currentUser?.uid;
@@ -1180,7 +1216,7 @@ export default function FinancialListScreen() {
 				valueInCents: parsedCents,
 				tagId: tagInfo.id,
 				bankId: targetInvestment.bankId || null,
-				date: new Date(),
+				date: depositDateWithCurrentTime,
 				personId,
 				explanation: `Aporte automático para ${targetInvestment?.name ?? 'investimento'}.`,
 				isInvestmentDeposit: true,
@@ -1209,6 +1245,7 @@ export default function FinancialListScreen() {
 		ensureInvestmentTag,
 		investmentForDeposit,
 		loadData,
+		depositDate,
 		showScreenAlert,
 		syncedDepositValueInCents,
 	]);
@@ -1223,6 +1260,16 @@ export default function FinancialListScreen() {
 			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
+		const parsedDepositSyncDate = parseDateFromBR(depositSyncDate);
+		if (!parsedDepositSyncDate) {
+			showScreenAlert('Informe uma data válida para a sincronização.', 'warn');
+			return;
+		}
+		if (!isDateTodayOrEarlier(parsedDepositSyncDate)) {
+			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			return;
+		}
+		const depositSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedDepositSyncDate);
 
 		setIsSavingDepositSync(true);
 		try {
@@ -1235,7 +1282,7 @@ export default function FinancialListScreen() {
 				investmentNameSnapshot: investmentForDepositSync.name,
 				bankNameSnapshot: banksMap[investmentForDepositSync.bankId]?.name ?? null,
 				reason: 'deposit',
-				date: new Date(),
+				date: depositSyncDateWithCurrentTime,
 			});
 
 			if (!result.success) {
@@ -1254,7 +1301,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingDepositSync(false);
 		}
-	}, [banksMap, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
+	}, [banksMap, depositSyncDate, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
 
 	const handleOpenWithdrawalModal = React.useCallback(
 		(investment: FinanceInvestment) => {
@@ -1266,6 +1313,8 @@ export default function FinancialListScreen() {
 			setWithdrawSyncInput(
 				baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '',
 			);
+			setWithdrawSyncDate(formatDateInput(new Date()));
+			setWithdrawalDate(formatDateInput(new Date()));
 		},
 		[],
 	);
@@ -1300,6 +1349,16 @@ export default function FinancialListScreen() {
 			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
+		const parsedWithdrawSyncDate = parseDateFromBR(withdrawSyncDate);
+		if (!parsedWithdrawSyncDate) {
+			showScreenAlert('Informe uma data válida para a sincronização.', 'warn');
+			return;
+		}
+		if (!isDateTodayOrEarlier(parsedWithdrawSyncDate)) {
+			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			return;
+		}
+		const withdrawSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedWithdrawSyncDate);
 
 		setIsSavingWithdrawalSync(true);
 		try {
@@ -1313,7 +1372,7 @@ export default function FinancialListScreen() {
 				investmentNameSnapshot: investmentForWithdrawalSync.name,
 				bankNameSnapshot: banksMap[investmentForWithdrawalSync.bankId]?.name ?? null,
 				reason: 'withdrawal',
-				date: new Date(),
+				date: withdrawSyncDateWithCurrentTime,
 			});
 
 			if (!result.success) {
@@ -1332,7 +1391,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingWithdrawalSync(false);
 		}
-	}, [banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncInput]);
+	}, [banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncDate, withdrawSyncInput]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
@@ -1344,9 +1403,19 @@ export default function FinancialListScreen() {
 			showScreenAlert('Informe um valor válido para resgatar.', 'warn');
 			return;
 		}
+		const parsedWithdrawalDate = parseDateFromBR(withdrawalDate);
+		if (!parsedWithdrawalDate) {
+			showScreenAlert('Informe uma data válida para o resgate.', 'warn');
+			return;
+		}
+		if (!isDateTodayOrEarlier(parsedWithdrawalDate)) {
+			showScreenAlert('A data do resgate deve ser hoje ou uma data anterior.', 'warn');
+			return;
+		}
+		const withdrawalDateWithCurrentTime = mergeDateWithCurrentTime(parsedWithdrawalDate);
 
 		if (syncedWithdrawalValueInCents === null) {
-			showScreenAlert('Sincronize o valor de hoje antes de continuar o resgate.', 'warn');
+			showScreenAlert('Sincronize o valor da data informada antes de continuar o resgate.', 'warn');
 			return;
 		}
 
@@ -1385,7 +1454,7 @@ export default function FinancialListScreen() {
 				valueInCents: withdrawCents,
 				tagId: tagInfo.id,
 				bankId: targetInvestment.bankId || null,
-				date: new Date(),
+				date: withdrawalDateWithCurrentTime,
 				personId,
 				isInvestmentRedemption: true,
 				investmentId: targetInvestment.id,
@@ -1414,6 +1483,7 @@ export default function FinancialListScreen() {
 		loadData,
 		showScreenAlert,
 		syncedWithdrawalValueInCents,
+		withdrawalDate,
 		withdrawInput,
 	]);
 
@@ -1422,6 +1492,7 @@ export default function FinancialListScreen() {
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForSync(investment);
 			setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
+			setSyncDate(formatDateInput(new Date()));
 		},
 		[],
 	);
@@ -1444,6 +1515,16 @@ export default function FinancialListScreen() {
 			showScreenAlert('Informe um valor válido para sincronizar.', 'warn');
 			return;
 		}
+		const parsedSyncDate = parseDateFromBR(syncDate);
+		if (!parsedSyncDate) {
+			showScreenAlert('Informe uma data válida para a sincronização.', 'warn');
+			return;
+		}
+		if (!isDateTodayOrEarlier(parsedSyncDate)) {
+			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			return;
+		}
+		const syncDateWithCurrentTime = mergeDateWithCurrentTime(parsedSyncDate);
 
 		setIsSavingSync(true);
 		try {
@@ -1456,7 +1537,7 @@ export default function FinancialListScreen() {
 				investmentNameSnapshot: investmentForSync.name,
 				bankNameSnapshot: banksMap[investmentForSync.bankId]?.name ?? null,
 				reason: 'manual',
-				date: new Date(),
+				date: syncDateWithCurrentTime,
 			});
 
 			if (!result.success) {
@@ -1471,7 +1552,7 @@ export default function FinancialListScreen() {
 		} finally {
 			setIsSavingSync(false);
 		}
-	}, [banksMap, investmentForSync, loadData, showScreenAlert, syncInput]);
+	}, [banksMap, investmentForSync, loadData, showScreenAlert, syncDate, syncInput]);
 
 	const isInitialLoading = isLoading && investments.length === 0;
 
@@ -2562,20 +2643,32 @@ export default function FinancialListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={`${bodyText} mb-4 text-sm`}>
-								Confirme o valor disponível hoje em{' '}
+								Confirme o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
 									{investmentForDepositSync?.name ?? 'seu investimento'}
 								</Text>
 								.
 							</Text>
 							{renderStandardizedInput({
-								label: 'Valor disponível hoje',
+								label: 'Valor disponível na data informada',
 								value: depositSyncInput,
 								onChangeText: handleDepositSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.000,00',
 								isDisabled: isSavingDepositSync,
 							})}
+							<VStack className="mb-4">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<DatePickerField
+									accessibilityLabel="Selecionar data da sincronização do aporte"
+									value={depositSyncDate}
+									onChange={setDepositSyncDate}
+									triggerClassName={fieldContainerClassName}
+									inputClassName={inputField}
+									placeholder="Selecione a data da sincronização"
+									isDisabled={isSavingDepositSync}
+								/>
+							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -2642,6 +2735,18 @@ export default function FinancialListScreen() {
 								placeholder: 'Ex: 500,00',
 								isDisabled: isSavingDeposit,
 							})}
+							<VStack className="mb-4">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do aporte</Text>
+								<DatePickerField
+									accessibilityLabel="Selecionar data do aporte"
+									value={depositDate}
+									onChange={setDepositDate}
+									triggerClassName={fieldContainerClassName}
+									inputClassName={inputField}
+									placeholder="Selecione a data do aporte"
+									isDisabled={isSavingDeposit}
+								/>
+							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -2682,20 +2787,32 @@ export default function FinancialListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={`${bodyText} mb-4 text-sm`}>
-								Confirme o valor disponível hoje em{' '}
+								Confirme o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
 									{investmentForWithdrawalSync?.name ?? 'seu investimento'}
 								</Text>
 								.
 							</Text>
 							{renderStandardizedInput({
-								label: 'Valor disponível hoje',
+								label: 'Valor disponível na data informada',
 								value: withdrawSyncInput,
 								onChangeText: handleWithdrawSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.000,00',
 								isDisabled: isSavingWithdrawalSync,
 							})}
+							<VStack className="mb-4">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<DatePickerField
+									accessibilityLabel="Selecionar data da sincronização do resgate"
+									value={withdrawSyncDate}
+									onChange={setWithdrawSyncDate}
+									triggerClassName={fieldContainerClassName}
+									inputClassName={inputField}
+									placeholder="Selecione a data da sincronização"
+									isDisabled={isSavingWithdrawalSync}
+								/>
+							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -2762,6 +2879,18 @@ export default function FinancialListScreen() {
 								placeholder: 'Ex: 250,00',
 								isDisabled: isSavingWithdrawal,
 							})}
+							<VStack className="mb-4">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do resgate</Text>
+								<DatePickerField
+									accessibilityLabel="Selecionar data do resgate"
+									value={withdrawalDate}
+									onChange={setWithdrawalDate}
+									triggerClassName={fieldContainerClassName}
+									inputClassName={inputField}
+									placeholder="Selecione a data do resgate"
+									isDisabled={isSavingWithdrawal}
+								/>
+							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -2802,20 +2931,32 @@ export default function FinancialListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={`${bodyText} mb-4 text-sm`}>
-								Informe o valor atual disponível em{' '}
+								Informe o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
 									{investmentForSync?.name ?? 'seu investimento'}
 								</Text>
 								.
 							</Text>
 							{renderStandardizedInput({
-								label: 'Valor atual disponível',
+								label: 'Valor disponível na data informada',
 								value: syncInput,
 								onChangeText: handleManualSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.250,45',
 								isDisabled: isSavingSync,
 							})}
+							<VStack className="mb-4">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<DatePickerField
+									accessibilityLabel="Selecionar data da sincronização manual"
+									value={syncDate}
+									onChange={setSyncDate}
+									triggerClassName={fieldContainerClassName}
+									inputClassName={inputField}
+									placeholder="Selecione a data da sincronização"
+									isDisabled={isSavingSync}
+								/>
+							</VStack>
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button

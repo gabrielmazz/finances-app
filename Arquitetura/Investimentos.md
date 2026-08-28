@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.5
+versao: 1.6.6
 ---
 
 # Investimentos
@@ -86,6 +86,13 @@ O gráfico é explicitamente estimado. A sincronização manual continua sendo o
 2. `Resgatar` exige sincronização prévia e cria uma [[Transações de Receitas|receita]] com `isInvestmentRedemption`.
 3. Os dois tipos de movimentação e `financeInvestmentSyncs` alimentam a rentabilidade, mas permanecem excluídos dos totais comuns por `shouldIncludeMovementInGainExpenseTotals()`.
 4. Nenhuma taxa, gráfico, histórico ou previsão cria aporte, resgate, receita ou despesa automaticamente.
+
+Cada operação permite informar duas datas civis independentes, no formato `DD/MM/AAAA`:
+
+- **Data da sincronização:** registra em `financeInvestmentSyncs.date` o dia em que o valor confirmado foi observado antes do aporte/resgate.
+- **Data do aporte/resgate:** registra em `expenses.date` ou `gains.date` o dia efetivo da movimentação financeira.
+
+As duas datas começam preenchidas com o dia atual, mas o usuário deve confirmar ou alterar cada uma antes de salvar. Hoje e qualquer data anterior são válidos; amanhã e qualquer data futura são rejeitados. A sincronização manual comum segue a mesma regra de data. Ao persistir, a tela mantém o dia escolhido e combina-o com o horário atual; valores continuam sendo enviados em centavos inteiros. A data da sincronização nunca substitui a data efetiva do aporte ou resgate.
 
 ## Arquivos principais
 

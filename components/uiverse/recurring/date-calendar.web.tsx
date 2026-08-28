@@ -1,6 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Pressable, StyleSheet, Text as NativeText, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, G, Line, Polygon, Rect } from 'react-native-svg';
 
 import { Box } from '@/components/ui/box';
@@ -29,6 +28,8 @@ import {
 	getBrazilNationalHolidaysForMonth,
 } from '@/utils/businessCalendar';
 import { Heading } from '@/components/ui/heading';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
 
 export type DateCalendarItem = {
 	id: string;
@@ -104,59 +105,6 @@ const daySummaryStyles = StyleSheet.create({
 		flexBasis: 'auto',
 		paddingBottom: 24,
 	},
-	items: {
-		width: '100%',
-		flexGrow: 0,
-		flexShrink: 0,
-	},
-	itemTrigger: {
-		width: '100%',
-		minHeight: 52,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		columnGap: 12,
-		paddingVertical: 8,
-	},
-	itemIdentity: {
-		minWidth: 0,
-		flex: 1,
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 12,
-	},
-	itemCopy: {
-		minWidth: 0,
-		flex: 1,
-	},
-	itemValue: {
-		flexShrink: 0,
-		alignItems: 'flex-end',
-	},
-	itemSchedule: {
-		maxWidth: '100%',
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 4,
-	},
-	expandedCard: {
-		width: '100%',
-		flexGrow: 0,
-		flexShrink: 0,
-		alignSelf: 'stretch',
-	},
-	metaRows: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		columnGap: 16,
-		rowGap: 12,
-	},
-	metaItem: {
-		minWidth: 128,
-		flexGrow: 1,
-		flexShrink: 1,
-		flexBasis: 0,
-	},
 	actions: {
 		flexDirection: 'row',
 		flexWrap: 'wrap',
@@ -201,11 +149,19 @@ const formatLongDate = (value: Date) =>
 		year: 'numeric',
 	}).format(value);
 
+const compareDateCalendarItems = (left: DateCalendarItem, right: DateCalendarItem) => {
+	const completionOrder = Number(Boolean(left.isCompletedForCurrentCycle)) - Number(Boolean(right.isCompletedForCurrentCycle));
+	if (completionOrder !== 0) {
+		return completionOrder;
+	}
+
+	return left.name.trim().localeCompare(right.name.trim(), 'pt-BR', { sensitivity: 'base' });
+};
+
 type DateCalendarTonePalette = {
 	accentColor: string;
 	amountColor: string;
 	iconGradient: [string, string];
-	cardGradient: [string, string];
 };
 
 const DATE_CALENDAR_TONES: Record<
@@ -217,13 +173,11 @@ const DATE_CALENDAR_TONES: Record<
 			accentColor: '#0EA5E9',
 			amountColor: '#34D399',
 			iconGradient: ['#0C4A6E', '#38BDF8'],
-			cardGradient: ['#075985', '#67E8F9'],
 		},
 		completed: {
 			accentColor: '#10B981',
 			amountColor: '#34D399',
 			iconGradient: ['#047857', '#34D399'],
-			cardGradient: ['#065F46', '#10B981'],
 		},
 	},
 	expense: {
@@ -231,13 +185,11 @@ const DATE_CALENDAR_TONES: Record<
 			accentColor: '#F59E0B',
 			amountColor: '#F59E0B',
 			iconGradient: ['#B45309', '#FACC15'],
-			cardGradient: ['#991B1B', '#FACC15'],
 		},
 		completed: {
 			accentColor: '#10B981',
 			amountColor: '#34D399',
 			iconGradient: ['#047857', '#34D399'],
-			cardGradient: ['#065F46', '#10B981'],
 		},
 	},
 };
@@ -372,6 +324,7 @@ function DateCalendar({
 	tagMetadataMap,
 	formatCurrency,
 	getStatusText,
+	getStatusClassName,
 	onAction,
 	dueLabel = 'Vencimento',
 	completedLabel = 'pagos',
@@ -379,7 +332,15 @@ function DateCalendar({
 	valueTone = 'expense',
 	modalSize = 'md',
 }: DateCalendarProps) {
-	const { isDarkMode, helperText, compactCardClassName, subtleCardClassName, modalContentClassName, insets } =
+	const {
+		isDarkMode,
+		helperText,
+		compactCardClassName,
+		subtleCardClassName,
+		modalContentClassName,
+		insets,
+		webDashboardClassNames,
+	} =
 		useScreenStyles();
 	const { height: windowHeight } = useWindowDimensions();
 	const visibleMonth = React.useMemo(() => new Date(), []);
@@ -398,6 +359,7 @@ function DateCalendar({
 		holidayName?: string | null;
 	} | null>(null);
 	const [expandedDayItemIds, setExpandedDayItemIds] = React.useState<string[]>([]);
+	const [renderedDayItemIds, setRenderedDayItemIds] = React.useState<string[]>([]);
 
 	const calendarData = React.useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth]);
 	const holidaysByDay = React.useMemo(
@@ -425,6 +387,8 @@ function DateCalendar({
 			grouped[safeDay] = list;
 		});
 
+		Object.values(grouped).forEach(dayItems => dayItems.sort(compareDateCalendarItems));
+
 		return grouped;
 	}, [calendarData.totalDays, items, visibleMonth]);
 
@@ -436,6 +400,7 @@ function DateCalendar({
 				return;
 			}
 			setExpandedDayItemIds([]);
+			setRenderedDayItemIds([]);
 			setSelectedDayItems({ date, items: dayItems, holidayName });
 		},
 		[holidaysByDay, itemsByDay],
@@ -443,18 +408,25 @@ function DateCalendar({
 
 	const handleCloseDayModal = React.useCallback(() => {
 		setExpandedDayItemIds([]);
+		setRenderedDayItemIds([]);
 		setSelectedDayItems(null);
 	}, []);
 
 	const handleToggleDayItemCard = React.useCallback((itemId: string) => {
-		setExpandedDayItemIds(previousState =>
-			previousState.includes(itemId) ? previousState.filter(id => id !== itemId) : [...previousState, itemId],
-		);
+		setExpandedDayItemIds(previousState => {
+			if (previousState.includes(itemId)) {
+				return previousState.filter(id => id !== itemId);
+			}
+
+			setRenderedDayItemIds(rendered => (rendered.includes(itemId) ? rendered : [...rendered, itemId]));
+			return [...previousState, itemId];
+		});
 	}, []);
 
 	const handleDayAction = React.useCallback(
 		(action: 'register' | 'settle' | 'edit' | 'delete' | 'reclaim', item: DateCalendarItem) => {
 			setExpandedDayItemIds([]);
+			setRenderedDayItemIds([]);
 			setSelectedDayItems(null);
 			onAction(action, item);
 		},
@@ -667,20 +639,20 @@ function DateCalendar({
 					className={`${modalWidthClassName} web:h-auto web:flex-none ${modalContentClassName}`}
 					style={{ maxHeight: modalMaxHeight, ...daySummaryStyles.modalContent }}
 				>
-					<ModalHeader>
+					<ModalHeader className="pt-5">
 						<VStack className="flex-1">
 							<Heading className="text-lg uppercase tracking-widest ">Resumo diário</Heading>
 							<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{selectedDayLabel}</Text>
 						</VStack>
 						<ModalCloseButton accessibilityLabel="Fechar resumo diário" onPress={handleCloseDayModal} />
 					</ModalHeader>
-				<ModalBody
-					className="pb-6 web:flex-none web:min-h-0 web:max-h-[calc(100vh-180px)] web:pb-0"
-					style={daySummaryStyles.modalBody}
+					<ModalBody
+						className="px-6 pt-3 pb-4 web:flex-none web:min-h-0 web:max-h-[calc(100vh-180px)] web:overscroll-contain"
+						style={daySummaryStyles.modalBody}
 						showsVerticalScrollIndicator={false}
 						contentContainerStyle={daySummaryStyles.modalBodyContent}
 					>
-						<VStack className="gap-3" style={{ width: '100%', flexGrow: 0, flexShrink: 0 }}>
+						<VStack className="w-full gap-2">
 							<HStack className="flex-wrap gap-2">
 								{selectedDayCount > 0 ? (
 									<View className={`px-3 py-1 rounded-full ${modalSummaryBadgeClassName}`}>
@@ -697,43 +669,38 @@ function DateCalendar({
 									</View>
 								) : null}
 							</HStack>
-							{selectedDayItems?.items.map(item => {
-								const tonePalette = getItemTonePalette(item);
-								const tagMetadata = tagMetadataMap?.[item.tagId];
-								const itemTagLabel = tagMetadata?.name ?? tagsMap[item.tagId] ?? 'Tag não encontrada';
-								const itemName = typeof item.name === 'string' ? item.name.trim() : '';
-								const itemNameLabel =
-									itemName || (valueTone === 'gain' ? 'Ganho obrigatório sem nome' : 'Gasto obrigatório sem nome');
-								const summaryText = getStatusText(item);
-								const itemTypeLabel = valueTone === 'gain' ? 'Ganho obrigatório' : 'Gasto obrigatório';
-								const reminderLabel =
-									item.reminderSummary ?? (item.reminderEnabled === true ? 'Ativado' : 'Desativado');
-								const isExpanded = expandedDayItemIds.includes(item.id);
+							<View className="w-full">
+								{selectedDayItems?.items.map(item => {
+									const tonePalette = getItemTonePalette(item);
+									const tagMetadata = tagMetadataMap?.[item.tagId];
+									const itemTagLabel = tagMetadata?.name ?? tagsMap[item.tagId] ?? 'Tag não encontrada';
+									const itemName = typeof item.name === 'string' ? item.name.trim() : '';
+									const itemNameLabel =
+										itemName || (valueTone === 'gain' ? 'Ganho obrigatório sem nome' : 'Gasto obrigatório sem nome');
+									const summaryText = getStatusText(item);
+									const itemTypeLabel = valueTone === 'gain' ? 'Ganho obrigatório' : 'Gasto obrigatório';
+									const reminderLabel =
+										item.reminderSummary ?? (item.reminderEnabled === true ? 'Ativado' : 'Desativado');
+									const isExpanded = expandedDayItemIds.includes(item.id);
+									const actionTextClassName = 'text-white';
+									const actionIconClassName = 'text-white';
 
-								return (
-									<VStack key={`selected-${item.id}`} className="gap-2" style={daySummaryStyles.items}>
-										<VStack className="gap-2">
+									return (
+										<View
+											key={`selected-${item.id}`}
+											className="w-full pb-3 mb-3 last:mb-0"
+										>
 											<Pressable
 												onPress={() => handleToggleDayItemCard(item.id)}
 												accessibilityRole="button"
 												accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${itemNameLabel}`}
 												accessibilityState={{ expanded: isExpanded }}
-													style={daySummaryStyles.itemTrigger}
+												className={`${webDashboardClassNames.movementHeader} min-h-[52px] cursor-pointer rounded-2xl py-1 focus-visible:ring-2 focus-visible:ring-yellow-300`}
 											>
-												<View
-														style={daySummaryStyles.itemIdentity}
-												>
-													<LinearGradient
-														colors={tonePalette.iconGradient}
-														start={{ x: 0, y: 0 }}
-														end={{ x: 1, y: 1 }}
-														style={{
-															width: 44,
-															height: 44,
-															borderRadius: 16,
-															alignItems: 'center',
-															justifyContent: 'center',
-														}}
+												<View className={webDashboardClassNames.movementIdentity}>
+													<View
+														className={`${webDashboardClassNames.movementIcon} border border-white/10`}
+														style={{ backgroundColor: tonePalette.iconGradient[0] }}
 													>
 														<TagIcon
 															iconFamily={tagMetadata?.iconFamily}
@@ -742,319 +709,243 @@ function DateCalendar({
 															size={18}
 															color="#FFFFFF"
 														/>
-													</LinearGradient>
+													</View>
 
-													<View style={daySummaryStyles.itemCopy}>
-														<Text
-															className="web:block web:truncate"
+													<View className={webDashboardClassNames.movementCopy}>
+														<NativeText
 															numberOfLines={1}
-															style={{
-																minWidth: 0,
-																flexShrink: 1,
-																color: timelinePalette.title,
-																fontSize: 15,
-																lineHeight: 20,
-																fontWeight: '700',
-															}}
+															className={webDashboardClassNames.movementName}
+															style={{ color: timelinePalette.title }}
 														>
 															{itemNameLabel}
-														</Text>
-														<Text
+														</NativeText>
+														<NativeText
 															numberOfLines={1}
-															style={{
-																marginTop: 2,
-																color: timelinePalette.subtitle,
-																fontSize: 12,
-																lineHeight: 18,
-															}}
+															className={webDashboardClassNames.movementSubtitle}
+															style={{ color: timelinePalette.subtitle }}
 														>
 															{itemTagLabel}
-														</Text>
+														</NativeText>
 														{item.installmentLabel ? (
-															<Text
+															<NativeText
 																numberOfLines={1}
-																style={{
-																	marginTop: 1,
-																	color: tonePalette.accentColor,
-																	fontSize: 11,
-																	lineHeight: 16,
-																	fontWeight: '700',
-																}}
+																className="mt-0.5 text-[11px] font-bold leading-4"
+																style={{ color: tonePalette.accentColor }}
 															>
 																{item.installmentLabel}
-															</Text>
+															</NativeText>
 														) : null}
 													</View>
 												</View>
 
-												<View
-														style={daySummaryStyles.itemValue}
-												>
-													<Text
-														style={{
-															color: tonePalette.amountColor,
-															fontSize: 15,
-															fontWeight: '700',
-														}}
+												<View className={webDashboardClassNames.movementAmount}>
+													<NativeText
+														className={`${webDashboardClassNames.amount} tabular-nums`}
+														style={{ color: tonePalette.amountColor }}
 													>
 														{formatCurrency(getDisplayValueInCents(item))}
-													</Text>
-													<View style={daySummaryStyles.itemSchedule}>
+													</NativeText>
+													<View className={webDashboardClassNames.movementDate}>
 														<Icon
 															as={CalendarDaysIcon}
 															size="xs"
 															className={isDarkMode ? 'text-slate-500' : 'text-slate-400'}
 														/>
-														<Text
-															numberOfLines={1}
-															style={{
-																color: timelinePalette.subtitle,
-																fontSize: 11,
-															}}
-														>
+														<NativeText numberOfLines={1} className={webDashboardClassNames.dateText}>
 															{formatCalendarItemScheduleLabel(item)}
-														</Text>
+														</NativeText>
+														{isExpanded ? (
+															<Icon
+																as={ChevronUpIcon}
+																size="xs"
+																className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+															/>
+														) : (
+															<Icon
+																as={ChevronDownIcon}
+																size="xs"
+																className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+															/>
+														)}
 													</View>
 												</View>
-
-												<Icon
-													as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-													size="sm"
-													className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-												/>
 											</Pressable>
 
-											{isExpanded ? (
-												<LinearGradient
-													colors={tonePalette.cardGradient}
-													start={{ x: 0, y: 0 }}
-													end={{ x: 1, y: 1 }}
-													style={{
-														borderRadius: 20,
-														paddingHorizontal: 16,
-														paddingVertical: 14,
-														...daySummaryStyles.expandedCard,
-													}}
+											{renderedDayItemIds.includes(item.id) ? (
+												<AnimatedContent
+													key={`${item.id}:detail`}
+													trigger="mount"
+													visible={isExpanded}
+													distance={18}
+													duration={0.36}
+													disappearDuration={0.28}
+													disappearScale={1}
+													ease="power3.out"
+													initialOpacity={0}
+													animateOpacity
+													scale={1}
+													className={webDashboardClassNames.movementDetailAnimation}
+													onDisappearanceComplete={() =>
+														setRenderedDayItemIds(rendered => rendered.filter(id => id !== item.id))
+													}
 												>
-													<VStack className="gap-3">
-														<HStack className="items-start justify-between gap-4">
-															<VStack className="flex-1">
-																<Text
-																	style={{
-																		fontSize: 10,
-																		fontWeight: '700',
-																		letterSpacing: 0.4,
-																		color: 'rgba(255,255,255,0.74)',
-																		textTransform: 'uppercase',
-																	}}
-																>
-																	Resumo
-																</Text>
-																<Text
-																	style={{
-																		fontSize: 13,
-																		lineHeight: 19,
-																		color: '#FFFFFF',
-																	}}
-																>
-																	{summaryText}
-																</Text>
-															</VStack>
+													<View className={webDashboardClassNames.movementDetail}>
+														<View
+															pointerEvents="none"
+															className={webDashboardClassNames.movementDetailGrainient}
+														>
+															<Grainient
+																className="movement-detail-grainient"
+																timeSpeed={0.1}
+																warpStrength={0.8}
+																warpFrequency={3.5}
+																warpSpeed={1.6}
+																warpAmplitude={90}
+																blendSoftness={0.2}
+																grainAmount={0.06}
+																grainScale={3}
+																grainAnimated
+																contrast={1.12}
+																zoom={1.05}
+																color1={tonePalette.iconGradient[0]}
+																color2={tonePalette.accentColor}
+																color3={tonePalette.iconGradient[1]}
+															/>
+														</View>
+														<View className={webDashboardClassNames.movementDetailContent}>
+															<View className="flex-row items-start">
+																<View className="min-w-0 flex-1">
+																	<NativeText
+																		className="text-[10px] font-bold uppercase tracking-[0.5px]"
+																		style={{ color: 'rgba(255,255,255,0.7)' }}
+																	>
+																		Status
+																	</NativeText>
+																	<NativeText
+																		className={`mt-1 text-[13px] leading-5 ${getStatusClassName(item)}`}
+																		style={{ color: '#FFFFFF' }}
+																	>
+																		{summaryText}
+																	</NativeText>
+																</View>
+															</View>
 
-															<VStack className="items-end">
-																<Text
-																	style={{
-																		fontSize: 10,
-																		fontWeight: '700',
-																		letterSpacing: 0.4,
-																		color: 'rgba(255,255,255,0.74)',
-																		textTransform: 'uppercase',
-																	}}
-																>
-																	Valor
-																</Text>
-																<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																	{formatCurrency(getDisplayValueInCents(item))}
-																</Heading>
-															</VStack>
-														</HStack>
-
-														<VStack className="gap-3">
-															{[
-																[
+															<View className="mt-3.5 flex-row flex-wrap gap-3">
+																{[
 																	{ label: 'Tipo', value: itemTypeLabel },
 																	{
 																		label: dueLabel,
 																		value: formatConfiguredMonthlyDueLabel(item.dueDay, item.usesBusinessDays),
 																	},
-																],
-																[
-																	{
-																		label: 'Neste mês',
-																		value: formatCalendarItemResolvedDateLabel(item),
-																	},
+																	{ label: 'Neste mês', value: formatCalendarItemResolvedDateLabel(item) },
 																	{ label: 'Tag', value: itemTagLabel },
-																],
-																[
 																	{ label: 'Lembrete', value: reminderLabel },
 																	...(item.installmentLabel
-																		? [
-																			{
-																				label: 'Parcelas',
-																				value: item.installmentLabel,
-																			},
-																		]
+																		? [{ label: 'Parcelas', value: item.installmentLabel }]
 																		: []),
-																],
-															].map((metaRow, rowIndex) => (
-																<View key={`${item.id}-meta-row-${rowIndex}`} style={daySummaryStyles.metaRows}>
-																	{metaRow.map(metaItem => (
-																		<VStack key={`${item.id}-${metaItem.label}`} style={daySummaryStyles.metaItem}>
-																			<Text
-																				style={{
-																					fontSize: 10,
-																					fontWeight: '700',
-																					letterSpacing: 0.4,
-																					color: 'rgba(255,255,255,0.72)',
-																					textTransform: 'uppercase',
-																				}}
-																			>
-																				{metaItem.label}
-																			</Text>
-																			<Text
-																				style={{
-																					marginTop: 3,
-																					fontSize: 13,
-																					lineHeight: 18,
-																					color: '#FFFFFF',
-																				}}
-																			>
-																				{metaItem.value}
-																			</Text>
-																		</VStack>
-																	))}
+																].map(metaItem => (
+																	<View key={`${item.id}-${metaItem.label}`} className="min-w-[128px] flex-1">
+																		<NativeText
+																			className="text-[10px] font-bold uppercase tracking-[0.5px]"
+																			style={{ color: 'rgba(255,255,255,0.7)' }}
+																		>
+																			{metaItem.label}
+																		</NativeText>
+																		<NativeText
+																			className="mt-1 text-[13px] leading-[18px]"
+																			style={{ color: '#FFFFFF' }}
+																		>
+																			{metaItem.value}
+																		</NativeText>
+																	</View>
+																))}
+															</View>
+
+															{item.description ? (
+																<View className="mt-3">
+																	<NativeText
+																		className="text-[10px] font-bold uppercase tracking-[0.5px]"
+																		style={{ color: 'rgba(255,255,255,0.7)' }}
+																	>
+																		Descrição
+																	</NativeText>
+																	<NativeText
+																		className="mt-1 text-[13px] leading-[18px]"
+																		style={{ color: '#FFFFFF' }}
+																	>
+																		{item.description}
+																	</NativeText>
 																</View>
-															))}
-														</VStack>
-
-														{item.description ? (
-															<VStack style={{ paddingTop: 2 }}>
-																<Text
-																	style={{
-																		fontSize: 10,
-																		fontWeight: '700',
-																		letterSpacing: 0.4,
-																		color: 'rgba(255,255,255,0.72)',
-																		textTransform: 'uppercase',
-																	}}
-																>
-																	Descrição
-																</Text>
-																<Text
-																	style={{
-																		marginTop: 6,
-																		fontSize: 13,
-																		lineHeight: 18,
-																		color: '#FFFFFF',
-																	}}
-																>
-																	{item.description}
-																</Text>
-															</VStack>
-														) : null}
-
-														<View style={daySummaryStyles.actions}>
-															<Pressable
-																onPress={() => handleDayAction('register', item)}
-																disabled={item.isCompletedForCurrentCycle}
-																accessibilityRole="button"
-																accessibilityLabel={`Registrar pagamento de ${item.name}`}
-																style={{
-																	flexDirection: 'row',
-																	alignItems: 'center',
-																	gap: 8,
-																	paddingVertical: 8,
-																	opacity: item.isCompletedForCurrentCycle ? 0.45 : 1,
-																}}
-															>
-																<Icon as={AddIcon} size="sm" className="text-white" />
-																<Text className="text-xs font-semibold text-white">Registrar</Text>
-															</Pressable>
-
-															{typeof item.installmentTotal === 'number' && !item.isInstallmentComplete ? (
-																<Pressable
-																	onPress={() => handleDayAction('settle', item)}
-																	accessibilityRole="button"
-																	accessibilityLabel={`Quitar parcelas restantes de ${item.name}`}
-																	style={{
-																		flexDirection: 'row',
-																		alignItems: 'center',
-																		gap: 8,
-																		paddingVertical: 8,
-																	}}
-																>
-																	<Icon as={CheckCircleIcon} size="sm" className="text-white" />
-																	<Text className="text-xs font-semibold text-white">Quitar parcelas</Text>
-																</Pressable>
 															) : null}
 
-															<Pressable
-																onPress={() => handleDayAction('edit', item)}
-																accessibilityRole="button"
-																accessibilityLabel={`Editar ${item.name}`}
-																style={{
-																	flexDirection: 'row',
-																	alignItems: 'center',
-																	gap: 8,
-																	paddingVertical: 8,
-																}}
-															>
-																<Icon as={EditIcon} size="sm" className="text-white" />
-																<Text className="text-xs font-semibold text-white">Editar</Text>
-															</Pressable>
-
-															{item.isCompletedForCurrentCycle && item.canReclaimCurrentCycle !== false ? (
+															<View style={daySummaryStyles.actions}>
 																<Pressable
-																	onPress={() => handleDayAction('reclaim', item)}
+																	onPress={() => handleDayAction('register', item)}
+																	disabled={item.isCompletedForCurrentCycle}
 																	accessibilityRole="button"
-																	accessibilityLabel={`Desfazer pagamento de ${item.name}`}
-																	style={{
-																		flexDirection: 'row',
-																		alignItems: 'center',
-																		gap: 8,
-																		paddingVertical: 8,
-																	}}
+																	accessibilityLabel={`Registrar pagamento de ${itemNameLabel}`}
+																	className={`min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-yellow-300 ${actionTextClassName}`}
+																	style={{ opacity: item.isCompletedForCurrentCycle ? 0.45 : 1 }}
 																>
-																	<Icon as={RepeatIcon} size="sm" className="text-white" />
-																	<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																	<Icon as={AddIcon} size="sm" className={actionIconClassName} />
+																	<NativeText className={`text-xs font-semibold ${actionTextClassName}`}>Registrar</NativeText>
 																</Pressable>
-															) : null}
 
-															<Pressable
-																onPress={() => handleDayAction('delete', item)}
-																accessibilityRole="button"
-																accessibilityLabel={`Excluir ${item.name}`}
-																style={{
-																	flexDirection: 'row',
-																	alignItems: 'center',
-																	gap: 8,
-																	paddingVertical: 8,
-																}}
-															>
-																<Icon as={TrashIcon} size="sm" className="text-white" />
-																<Text className="text-xs font-semibold text-white">Excluir</Text>
-															</Pressable>
+																{valueTone === 'expense' && typeof item.installmentTotal === 'number' && !item.isInstallmentComplete ? (
+																	<Pressable
+																		onPress={() => handleDayAction('settle', item)}
+																		accessibilityRole="button"
+																		accessibilityLabel={`Quitar parcelas restantes de ${itemNameLabel}`}
+																		className={`min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-yellow-300 ${actionTextClassName}`}
+																	>
+																		<Icon as={CheckCircleIcon} size="sm" className={actionIconClassName} />
+																		<NativeText className={`text-xs font-semibold ${actionTextClassName}`}>Quitar parcelas</NativeText>
+																	</Pressable>
+																) : null}
+
+																<Pressable
+																	onPress={() => handleDayAction('edit', item)}
+																	accessibilityRole="button"
+																	accessibilityLabel={`Editar ${itemNameLabel}`}
+																	className={`min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-yellow-300 ${actionTextClassName}`}
+																>
+																	<Icon as={EditIcon} size="sm" className={actionIconClassName} />
+																	<NativeText className={`text-xs font-semibold ${actionTextClassName}`}>Editar</NativeText>
+																</Pressable>
+
+																{item.isCompletedForCurrentCycle && item.canReclaimCurrentCycle !== false ? (
+																	<Pressable
+																		onPress={() => handleDayAction('reclaim', item)}
+																		accessibilityRole="button"
+																		accessibilityLabel={`Desfazer pagamento de ${itemNameLabel}`}
+																		className={`min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-yellow-300 ${actionTextClassName}`}
+																	>
+																		<Icon as={RepeatIcon} size="sm" className={actionIconClassName} />
+																		<NativeText className={`text-xs font-semibold ${actionTextClassName}`}>Reivindicar</NativeText>
+																	</Pressable>
+																) : null}
+
+																<Pressable
+																	onPress={() => handleDayAction('delete', item)}
+																	accessibilityRole="button"
+																	accessibilityLabel={`Excluir ${itemNameLabel}`}
+															className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
+														>
+															<Icon as={TrashIcon} size="sm" className="text-white" />
+															<NativeText className="text-xs font-semibold text-white">Excluir</NativeText>
+																</Pressable>
+															</View>
 														</View>
-													</VStack>
-												</LinearGradient>
+													</View>
+												</AnimatedContent>
 											) : null}
-										</VStack>
-									</VStack>
-								);
-							})}
+										</View>
+									);
+								})}
+							</View>
 						</VStack>
 						{selectedDayCount === 0 ? (
-							<Text className={`text-center mt-8 ${helperText}`}>Nenhum item encontrado para este dia.</Text>
+							<Text className={`text-center mt-3 ${helperText}`}>Nenhum item encontrado para este dia.</Text>
 						) : null}
 					</ModalBody>
 				</ModalContent>

@@ -23,6 +23,7 @@ const switchStyle = tva({
 });
 
 type ISwitchProps = React.ComponentProps<typeof UISwitch> &
+  { activeThumbColor?: string } &
   VariantProps<typeof switchStyle>;
 const Switch = React.forwardRef<
   React.ComponentRef<typeof UISwitch>,

@@ -1,43 +1,42 @@
 import React from 'react';
 import {
 	ScrollView,
+	Image as RNImage,
 	View,
 	StatusBar,
 	KeyboardAvoidingView,
 	Platform,
 	TextInput,
 	Pressable,
+	Text,
+	useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import '@mantine/core/styles.css';
+import { Divider, MantineProvider, NumberInput } from '@mantine/core';
 
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
-import { Heading } from '@/components/ui/heading';
-import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
+import {
+	Accordion,
+	AccordionContent,
+	AccordionHeader,
+	AccordionIcon,
+	AccordionItem,
+	AccordionTitleText,
+	AccordionTrigger,
+} from '@/components/ui/accordion';
+import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
 import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { VStack } from '@/components/ui/vstack';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { HStack } from '@/components/ui/hstack';
 import { Switch } from '@/components/ui/switch';
-import { Box } from '@/components/ui/box';
-import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
-} from '@/components/ui/select';
-
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import WebSelectField from '@/components/uiverse/shared/web-select-field';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
 
@@ -192,6 +191,8 @@ const normalizeDateValue = (value: unknown): Date | null => {
 };
 
 export default function AddMandatoryExpensesScreen() {
+	const { width } = useWindowDimensions();
+	const compact = width < 720;
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -206,13 +207,13 @@ export default function AddMandatoryExpensesScreen() {
 		submitButtonCancelClassName,
 		heroHeight,
 		insets,
-		compactCardClassName,
-		notTintedCardClassName,
-		topSummaryCardClassName,
 		infoCardStyle,
 		switchTrackColor,
 		switchThumbColor,
+		switchActiveThumbColor,
 		switchIosBackgroundColor,
+		webDashboardClassNames,
+		webExpenseClassNames,
 	} = useScreenStyles();
 	const params = useLocalSearchParams<{ expenseId?: string | string[] }>();
 	const editingExpenseId = React.useMemo(() => {
@@ -241,6 +242,8 @@ export default function AddMandatoryExpensesScreen() {
 	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
 	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<1 | 2 | 3>(1);
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
+	const [openDueSection, setOpenDueSection] = React.useState<string | null>(null);
+	const [openOptionalSection, setOpenOptionalSection] = React.useState<string | null>(null);
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
@@ -300,6 +303,7 @@ export default function AddMandatoryExpensesScreen() {
 	}, [installmentStartDate]);
 
 	const handleInstallmentsToggle = React.useCallback((value: boolean) => {
+		setOpenOptionalSection('optional');
 		setInstallmentsEnabled(value);
 		if (value) {
 			const todayLabel = formatDateToBR(new Date());
@@ -406,6 +410,7 @@ export default function AddMandatoryExpensesScreen() {
 		setReminderTime(currentValue =>
 			parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
 		);
+		setOpenOptionalSection('optional');
 		setReminderEnabled(true);
 		showNotifierAlert({
 			title: 'Lembrete salvo no cadastro',
@@ -508,7 +513,7 @@ export default function AddMandatoryExpensesScreen() {
 	const isInstallmentFieldDisabled = !isCoreTemplateReady || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
-	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
+	const isDescriptionDisabled = !isCoreTemplateReady || isFormBusy;
 	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
 	const hasPendingTemplateChanges = React.useMemo(() => {
 		if (!selectedExpenseId || !persistedFormSnapshot) {
@@ -549,11 +554,11 @@ export default function AddMandatoryExpensesScreen() {
 		? `Informe um dia útil válido entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
 		: 'Informe um dia válido entre 1 e 31.';
 	const dueDayHelperMessage = usesBusinessDays
-		? 'Use a posição do dia útil no mês. Ex.: 5 = quinto dia útil. Fins de semana e feriados nacionais do Brasil não contam.'
-		: 'Use um dia fixo do mês. Se a data coincidir com feriado nacional, o calendário destacará esse dia em roxo.';
+		? 'Informe a posição do dia útil no mês.'
+		: 'Informe o dia fixo do mês.';
 	const businessDayToggleHelperMessage = usesBusinessDays
-		? `Esta despesa será tratada como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
-		: 'Ative quando o vencimento seguir um dia útil do mês, como uma cobrança no 5º dia útil.';
+		? `${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Fins de semana e feriados não contam.`
+		: 'Ative quando o vencimento seguir a contagem de dias úteis.';
 	const isInstallmentPlanCompleted = React.useMemo(
 		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, resolvedSettledInstallmentsCount),
 		[normalizedInstallmentTotal, resolvedSettledInstallmentsCount],
@@ -610,6 +615,8 @@ export default function AddMandatoryExpensesScreen() {
 		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
 		setReminderDaysBefore(1);
 		setReminderOnDueDate(false);
+		setOpenDueSection(null);
+		setOpenOptionalSection(null);
 		setSelectedTagId(current => {
 			if (options?.keepTag && current) {
 				return current;
@@ -813,7 +820,7 @@ export default function AddMandatoryExpensesScreen() {
 				const installmentEndDateValue =
 					installmentTotalValue !== null
 						? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
-							getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
+						getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
 						: null;
 				const hasCurrentReminderConfig =
 					data.reminderConfigVersion === MANDATORY_REMINDER_CONFIG_VERSION;
@@ -859,6 +866,7 @@ export default function AddMandatoryExpensesScreen() {
 				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
 				setReminderDaysBefore(reminderDaysBeforeValue);
 				setReminderOnDueDate(reminderOnDueDateValue);
+				setOpenOptionalSection(installmentTotalValue !== null || reminderFlag ? 'optional' : null);
 				setCurrentPaymentInfo({
 					expenseId: lastPaymentExpenseId,
 					cycleKey: lastPaymentCycle,
@@ -1315,40 +1323,71 @@ export default function AddMandatoryExpensesScreen() {
 		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
-	const screenTitle = isEditingMode ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
+	const screenTitle = isEditingMode ? 'Atualize seu gasto obrigatório' : 'Registro de gasto obrigatório';
 	const monthlyControlMessage = isPrefilling && isEditingMode
 		? 'Carregando os dados do gasto obrigatório salvo.'
 		: !selectedExpenseId
 			? 'Salve este template para liberar o registro do ciclo atual.'
 			: hasPendingTemplateChanges
 				? 'Salve as alterações para usar os dados atualizados ao registrar o pagamento deste mês.'
-			: isPaidForCurrentCycle
-				? `Pagamento registrado em ${currentPaymentInfo?.paidAt ? formatDateToBR(currentPaymentInfo.paidAt) : 'data não disponível'}.`
-				: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
-
+				: isPaidForCurrentCycle
+					? `Pagamento registrado em ${currentPaymentInfo?.paidAt ? formatDateToBR(currentPaymentInfo.paidAt) : 'data não disponível'}.`
+					: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
+	const dueDayOptionsSummary = usesBusinessDays
+		? 'Contagem pelo dia útil ativa'
+		: 'Contagem pelo dia do mês';
+	const inputClassName = `${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`;
+	const cardClassName = `${fieldContainerCardClassName} ${webExpenseClassNames.fieldCard}`;
 	return (
 		<ScreenDismissKeyboard>
 			<SafeAreaView
-				className="flex-1 web:w-screen"
-				edges={['left', 'right', 'bottom']}
+				className={webDashboardClassNames.screen}
 				style={{ backgroundColor: surfaceBackground }}
+				edges={['left', 'right', 'bottom']}
 			>
 				<StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
-				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-					<KeyboardAvoidingView
-						className="flex-1 web:w-screen"
-						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-						keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+				<KeyboardAvoidingView className={webDashboardClassNames.fill} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+					<ScrollView
+						ref={scrollViewRef}
+						className={webDashboardClassNames.fill}
+						contentContainerStyle={{
+							flexGrow: 1,
+							paddingBottom: Math.max(110, contentBottomPadding),
+						}}
+						showsVerticalScrollIndicator={false}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode="on-drag"
+						onScroll={handleScroll}
+						scrollEventThrottle={scrollEventThrottle}
 					>
-						<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+						<View
+							className={webDashboardClassNames.fill}
+							style={{
+								backgroundColor: surfaceBackground,
+								position: 'relative',
+							}}
+						>
 							<View
-								className={"absolute top-0 left-0 right-0 web:w-screen " + cardBackground}
-								style={{ height: heroHeight }}
+								className={webDashboardClassNames.hero}
+								style={{
+									height: heroHeight,
+									backgroundColor: surfaceBackground,
+								}}
 							>
-								<Image
+								<RNImage
 									source={LoginWallpaper}
-									alt="Background da tela de gasto obrigatório"
-									className="w-full h-full rounded-b-3xl absolute"
+									accessibilityLabel="Background da tela de gasto obrigatório"
+									className={webDashboardClassNames.heroImage}
+									style={{
+										position: 'absolute',
+										top: 0,
+										left: 0,
+										right: 0,
+										bottom: 0,
+										width: '100%',
+										height: '100%',
+										zIndex: 0,
+									}}
 									resizeMode="cover"
 								/>
 								<WebScreenHero
@@ -1358,201 +1397,470 @@ export default function AddMandatoryExpensesScreen() {
 									topPadding={insets.top + 24}
 								/>
 							</View>
-
-							<ScrollView
-								ref={scrollViewRef}
-								keyboardShouldPersistTaps="handled"
-								keyboardDismissMode="on-drag"
-								className={"flex-1 rounded-t-3xl " + cardBackground + " px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]"}
-								style={{ marginTop: heroHeight - 64 }}
-								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
-								onScroll={handleScroll}
-								scrollEventThrottle={scrollEventThrottle}
-								showsVerticalScrollIndicator={false}
+							<View
+								className={`${webDashboardClassNames.sheet} ${compact ? webDashboardClassNames.sheetCompact : ''}`}
+								style={{
+									marginTop: heroHeight - 64,
+									backgroundColor: surfaceBackground,
+									position: 'relative',
+									zIndex: 3,
+								}}
 							>
-								<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:px-2 web:py-8">
-									<Text className={helperText + " ml-1 text-xs uppercase tracking-[0.7px]"}>
-										{isEditingMode ? 'Cadastro salvo · edite os dados e mantenha o ciclo sob controle' : 'Novo compromisso mensal · configure os dados antes de salvar'}
-									</Text>
-
-									<VStack className="gap-4 web:flex-row web:flex-wrap">
-										<VStack className="gap-2 web:w-[calc(50%-8px)] web:min-w-[320px]">
-											<Text accessibilityRole="text" className={bodyText + " ml-1 text-sm"}>Nome da despesa</Text>
-											<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
-												<InputField accessibilityLabel="Nome da despesa" ref={expenseNameInputRef} placeholder="Ex.: Aluguel, luz ou internet…" autoComplete="off" value={expenseName} onChangeText={setExpenseName} autoCapitalize="sentences" returnKeyType="next" className={inputField} onFocus={() => handleInputFocus('expense-name')} onSubmitEditing={() => expenseValueInputRef.current?.focus?.()} />
-											</Input>
-										</VStack>
-
-										<VStack className="gap-2 web:w-[calc(50%-8px)] web:min-w-[320px]">
-											<Text className={bodyText + " ml-1 text-sm"}>Valor mensal</Text>
-											<Input className={fieldContainerClassName} isDisabled={isValueFieldDisabled}>
-												<InputField accessibilityLabel="Valor mensal" ref={expenseValueInputRef} placeholder="Ex.: R$ 700,00…" value={valueDisplay} onChangeText={handleValueChange} keyboardType="numeric" inputMode="numeric" returnKeyType="next" className={inputField} onFocus={() => handleInputFocus('expense-value')} onSubmitEditing={() => dueDayInputRef.current?.focus?.()} />
-											</Input>
-										</VStack>
-
-										<VStack className="gap-2 web:w-[calc(50%-8px)] web:min-w-[320px]">
-											<Text className={bodyText + " ml-1 text-sm"}>{dueDayFieldLabel}</Text>
-											<Input className={fieldContainerClassName} isDisabled={isDueDayFieldDisabled}>
-												<InputField accessibilityLabel={dueDayFieldLabel} ref={dueDayInputRef} placeholder={dueDayPlaceholder + '…'} value={dueDay} onChangeText={handleDueDayChange} keyboardType="numeric" inputMode="numeric" returnKeyType="done" className={inputField} onFocus={() => handleInputFocus('due-day')} />
-											</Input>
-											{dueDay.length > 0 && !isDueDayValid ? <Text accessibilityRole="alert" className="ml-1 text-sm text-red-500 dark:text-red-400">{dueDayErrorMessage}</Text> : null}
-											<Text className={helperText + " ml-1 text-xs leading-5"}>{dueDayHelperMessage}</Text>
-										</VStack>
-
-										<Box className={"px-4 py-3 web:w-[calc(50%-8px)] web:min-w-[320px] " + notTintedCardClassName}>
-											<HStack className="items-center justify-between gap-4">
-												<VStack className="flex-1 gap-1">
-													<Text className="font-semibold">Contar por dia útil</Text>
-													<Text className={helperText + " text-xs leading-5"}>{businessDayToggleHelperMessage}</Text>
-												</VStack>
-												<Switch value={usesBusinessDays} onValueChange={setUsesBusinessDays} disabled={isFormBusy} trackColor={switchTrackColor} thumbColor={switchThumbColor} ios_backgroundColor={switchIosBackgroundColor} accessibilityLabel="Contar vencimento por dia útil" />
-											</HStack>
-										</Box>
-									</VStack>
-
-									<Box className={"px-4 py-4 " + notTintedCardClassName}>
-										<VStack className="gap-3">
-											<HStack className="items-center justify-between gap-4">
-												<VStack className="flex-1 gap-1">
-													<Text className="font-semibold">Parcelar por quantidade</Text>
-													<Text className={helperText + " text-xs leading-5"}>{installmentHelperMessage}</Text>
-												</VStack>
-												<Switch value={installmentsEnabled} onValueChange={handleInstallmentsToggle} disabled={!isCoreTemplateReady || isFormBusy} trackColor={switchTrackColor} thumbColor={switchThumbColor} ios_backgroundColor={switchIosBackgroundColor} accessibilityLabel="Ativar parcelamento" />
-											</HStack>
-											{installmentsEnabled ? (
-												<VStack className="gap-3 web:max-w-[760px]">
-													<Text className={bodyText + " ml-1 text-sm"}>Quantidade de parcelas</Text>
-													<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
-														<InputField accessibilityLabel="Quantidade de parcelas" ref={installmentsInputRef} placeholder="Ex.: 12…" value={installmentTotal} onChangeText={handleInstallmentTotalChange} keyboardType="numeric" inputMode="numeric" returnKeyType="done" className={inputField} onFocus={() => handleInputFocus('installments')} />
-													</Input>
-													<HStack className="gap-3 web:flex-row">
-														<VStack className="flex-1 gap-2">
-															<Text className={bodyText + " ml-1 text-sm"}>Início das parcelas</Text>
-															<DatePickerField value={installmentStartDate} onChange={handleInstallmentStartDateChange} triggerClassName={fieldContainerClassName} inputClassName={inputField} placeholder="Data inicial…" isDisabled={isInstallmentFieldDisabled} accessibilityLabel="Selecionar início das parcelas" />
+								<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
+									<View
+										className={`${webExpenseClassNames.formSurface} ${cardBackground} rounded-[28px]`}
+										style={{
+											display: 'flex',
+											flex: 1,
+											flexDirection: 'column',
+										}}
+									>
+										<View className={webExpenseClassNames.formScroll}>
+											<View className="w-full">
+												<VStack className="gap-5">
+													<View className={webExpenseClassNames.fieldGrid}>
+														<VStack className={webExpenseClassNames.fieldHalf}>
+															<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome da despesa</Text>
+															<Input className={inputClassName} isDisabled={isFormBusy}>
+																<InputField
+																	accessibilityLabel="Nome da despesa"
+																	ref={expenseNameInputRef}
+																	placeholder="Ex.: Aluguel, luz ou internet…"
+																	autoComplete="off"
+																	value={expenseName}
+																	onChangeText={setExpenseName}
+																	autoCapitalize="sentences"
+																	returnKeyType="next"
+																	className={inputField}
+																	onFocus={() => handleInputFocus('expense-name')}
+																	onSubmitEditing={() => expenseValueInputRef.current?.focus?.()}
+																/>
+															</Input>
 														</VStack>
-														<VStack className="flex-1 gap-2">
-															<Text className={bodyText + " ml-1 text-sm"}>Final das parcelas</Text>
-															<DatePickerField value={installmentEndDate} onChange={handleInstallmentEndDateChange} triggerClassName={fieldContainerClassName} inputClassName={inputField} placeholder={isInstallmentEndDateUnlocked ? 'Data final…' : 'Informe a quantidade primeiro…'} isDisabled={!isInstallmentEndDateUnlocked || isInstallmentFieldDisabled} accessibilityLabel="Selecionar final das parcelas" />
+
+														<VStack className={webExpenseClassNames.fieldHalf}>
+															<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Valor mensal</Text>
+															<Input className={inputClassName} isDisabled={isValueFieldDisabled}>
+																<InputField
+																	accessibilityLabel="Valor mensal"
+																	ref={expenseValueInputRef}
+																	placeholder="Ex.: R$ 700,00…"
+																	value={valueDisplay}
+																	onChangeText={handleValueChange}
+																	keyboardType="numeric"
+																	inputMode="numeric"
+																	returnKeyType="next"
+																	className={inputField}
+																	onFocus={() => handleInputFocus('expense-value')}
+																	onSubmitEditing={() => setOpenDueSection('due')}
+																/>
+															</Input>
 														</VStack>
-													</HStack>
-												</VStack>
-											) : null}
-										</VStack>
-									</Box>
+													</View>
 
-									<VStack className="gap-2">
-										<Text className={bodyText + " ml-1 text-sm"}>Observações</Text>
-										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
-											<TextareaInput accessibilityLabel="Observações do gasto obrigatório" ref={descriptionInputRef} placeholder="Adicione um contexto rápido para este gasto…" multiline value={description} onChangeText={setDescription} className={inputField + " pt-2"} onFocus={() => handleInputFocus('description')} editable={!isDescriptionDisabled} />
-										</Textarea>
-									</VStack>
-
-									<VStack className="gap-2">
-										<Text className={bodyText + " ml-1 text-sm"}>Categoria obrigatória</Text>
-										<TagActionsheetSelector options={tagOptions} selectedId={selectedTagId} selectedLabel={selectedTagLabel} onSelect={handleSelectTag} isDisabled={isTagSelectDisabled} isDarkMode={isDarkMode} bodyTextClassName={bodyText} helperTextClassName={helperText} triggerClassName={fieldContainerCardClassName} placeholder="Selecione a categoria da despesa…" sheetTitle="Escolha a categoria obrigatória" emptyMessage="Nenhuma categoria obrigatória de despesa disponível." triggerHint={tagHelperMessage} disabledHint={tagHelperMessage} accessibilityLabel="Escolher categoria obrigatória de despesa" onCreatePress={handleOpenAddTagScreen} createActionLabel="Adicionar categoria obrigatória de despesa" isCreateDisabled={isAddTagButtonDisabled} />
-									</VStack>
-
-									<Box className={"px-4 py-4 " + notTintedCardClassName}>
-										<VStack className="gap-3">
-											<HStack className="items-center justify-between gap-4">
-												<VStack className="flex-1 gap-1">
-													<Text className="font-semibold">Lembrete do vencimento</Text>
-													<Text className={helperText + " text-xs leading-5"}>No navegador, a configuração fica salva; o aviso é agendado apenas no aplicativo instalado.</Text>
-												</VStack>
-												<Switch value={reminderEnabled} onValueChange={handleReminderToggle} disabled={!isTemplateReady || isFormBusy} trackColor={switchTrackColor} thumbColor={switchThumbColor} ios_backgroundColor={switchIosBackgroundColor} accessibilityLabel="Ativar lembrete do vencimento" />
-											</HStack>
-											{reminderEnabled ? (
-												<VStack className="gap-4">
-													<VStack className="gap-2">
-														<Text className={bodyText + " ml-1 text-sm"}>Começar a lembrar</Text>
-														<Select selectedValue={String(reminderDaysBefore)} onValueChange={handleReminderDaysBeforeChange} isDisabled={isFormBusy}>
-															<SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-															<SelectInput accessibilityLabel="Antecedência do lembrete" placeholder="Escolha quando começar…" value={MANDATORY_REMINDER_DAY_OPTIONS.find(option => option.value === String(reminderDaysBefore))?.label} className={inputField} />
-															<SelectIcon />
-														</SelectTrigger>
-														<SelectPortal>
-															<SelectBackdrop />
-															<SelectContent>
-																<SelectDragIndicatorWrapper><SelectDragIndicator /></SelectDragIndicatorWrapper>
-																{MANDATORY_REMINDER_DAY_OPTIONS.map(option => <SelectItem key={option.value} label={option.label} value={option.value} />)}
-															</SelectContent>
-														</SelectPortal>
-														</Select>
-														<Text className={helperText + " ml-1 text-xs leading-5"}>A opção é cumulativa: 3 dias gera avisos em 3, 2 e 1 dia antes do vencimento.</Text>
+													<VStack className={webExpenseClassNames.fieldFull}>
+														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>{dueDayFieldLabel}</Text>
+														<Input className={inputClassName} isDisabled={isDueDayFieldDisabled}>
+															<InputField
+																accessibilityLabel={dueDayFieldLabel}
+																ref={dueDayInputRef}
+																placeholder={`${dueDayPlaceholder}…`}
+																value={dueDay}
+																onChangeText={handleDueDayChange}
+																keyboardType="numeric"
+																inputMode="numeric"
+																returnKeyType="done"
+																className={inputField}
+																onFocus={() => handleInputFocus('due-day')}
+															/>
+														</Input>
+														{dueDay.length > 0 && !isDueDayValid ? (
+															<Text accessibilityRole="alert" className="mt-2 text-sm text-red-500 dark:text-red-400">
+																{dueDayErrorMessage}
+															</Text>
+														) : null}
 													</VStack>
 
-													<HStack className="items-center justify-between gap-4 px-1">
-														<VStack className="flex-1 gap-1 py-1">
-															<Text className={bodyText + " text-sm font-semibold"}>Avisar também no vencimento</Text>
-															<Text className={helperText + " text-xs leading-5"}>Envia um aviso final no próprio dia, além dos lembretes anteriores.</Text>
-														</VStack>
-														<Switch value={reminderOnDueDate} onValueChange={setReminderOnDueDate} disabled={isFormBusy} trackColor={switchTrackColor} thumbColor={switchThumbColor} ios_backgroundColor={switchIosBackgroundColor} accessibilityLabel="Avisar também no vencimento" />
-													</HStack>
+													<Accordion
+														size="md"
+														variant="unfilled"
+														type="single"
+														isCollapsible
+														value={openDueSection ? [openDueSection] : []}
+														onValueChange={value => setOpenDueSection(value[0] ?? null)}
+														className="w-full"
+													>
+														<AccordionItem value="due" className={`${cardClassName} overflow-hidden !p-0`}>
+															<AccordionHeader>
+																<AccordionTrigger className="px-4 py-3">
+																	{({ isExpanded }: { isExpanded: boolean }) => (
+																		<View className="relative w-full">
+																			<AccordionTitleText className={`${helperText} self-center text-xs`}>
+																				Mais opções do vencimento
+																			</AccordionTitleText>
+																			<AccordionIcon
+																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																				className={`${helperText} absolute right-0 top-0`}
+																			/>
+																		</View>
+																	)}
+																</AccordionTrigger>
+															</AccordionHeader>
+															<AccordionContent className="px-4 pb-3 pt-2">
+																<HStack className="items-center justify-between gap-4">
+																	<VStack className="min-w-0 flex-1 gap-1">
+																		<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} mb-0 ml-0`}>
+																			Contar por dia útil
+																		</Text>
+																	</VStack>
+							<Switch
+								value={usesBusinessDays}
+																		onValueChange={setUsesBusinessDays}
+																		disabled={isFormBusy}
+									trackColor={switchTrackColor}
+									thumbColor={switchThumbColor}
+									activeThumbColor={switchActiveThumbColor}
+																		ios_backgroundColor={switchIosBackgroundColor}
+																		accessibilityLabel="Contar vencimento por dia útil"
+																	/>
+																</HStack>
+															</AccordionContent>
+														</AccordionItem>
+													</Accordion>
 
-													<VStack className="gap-2 web:max-w-[360px]">
-														<HStack className="items-center gap-1">
-															<Text className={bodyText + " ml-1 text-sm"}>Horário preferido</Text>
-															<Popover placement="bottom" size="md" offset={0} shouldFlip focusScope={false} trapFocus={false} trigger={triggerProps => (
-																<Pressable {...triggerProps} hitSlop={8} accessibilityRole="button" accessibilityLabel="Informações sobre o horário preferido do lembrete">
-																	<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} style={{ marginLeft: 4 }} />
-																</Pressable>
-															)}
+													<VStack className={webExpenseClassNames.fieldFull}>
+																	<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+																		<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Observações</Text>
+															<Popover
+																placement="bottom"
+																size="md"
+																offset={4}
+																shouldFlip
+																focusScope={false}
+																trapFocus={false}
+																trigger={(triggerProps) => (
+																	<Pressable
+																		{...triggerProps}
+																		accessibilityRole="button"
+																		accessibilityLabel="Informações sobre as observações"
+																	>
+																		<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+																	</Pressable>
+																)}
 															>
 																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-																	<PopoverBody className="px-3 py-3"><Text className={bodyText + " text-xs leading-5"}>Use o padrão 24h. O navegador guarda a preferência; a entrega acontece no aplicativo instalado.</Text></PopoverBody>
+																<PopoverContent className="max-w-[280px]" style={infoCardStyle}>
+																	<PopoverBody className="px-3 py-3">
+																		<Text className={`${bodyText} text-xs leading-5`}>
+																			Campo opcional. Use para explicar o contexto desse compromisso mensal.
+																		</Text>
+																	</PopoverBody>
 																</PopoverContent>
 															</Popover>
-														</HStack>
-														<TimePickerField value={reminderTime} onChange={setReminderTime} isDisabled={isReminderTimeFieldDisabled} triggerClassName={fieldContainerClassName} inputClassName={inputField} accessibilityLabel="Selecionar horário preferido do lembrete de vencimento" />
-														<Text className={helperText + " ml-1 text-xs leading-5"}>O navegador mantém HH:MM como preferência para o aplicativo instalado.</Text>
-														{!isReminderTimeValid ? <Text accessibilityRole="alert" className="ml-1 text-sm text-red-500 dark:text-red-400">Informe um horário válido entre 00:00 e 23:59.</Text> : null}
+														</View>
+														<Textarea
+															className={`${textareaContainerClassName} ${webExpenseClassNames.fieldTextarea}`}
+															isDisabled={isDescriptionDisabled}
+														>
+															<TextareaInput
+																accessibilityLabel="Observações do gasto obrigatório"
+																ref={descriptionInputRef}
+																placeholder="Adicione um contexto rápido para este gasto…"
+																multiline
+																value={description}
+																onChangeText={setDescription}
+																className={inputField + ' pt-2'}
+																onFocus={() => handleInputFocus('description')}
+																editable={!isDescriptionDisabled}
+															/>
+														</Textarea>
 													</VStack>
+
+													<VStack className={webExpenseClassNames.fieldFull}>
+														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Categoria obrigatória</Text>
+														<TagActionsheetSelector
+															options={tagOptions}
+															selectedId={selectedTagId}
+															selectedLabel={selectedTagLabel}
+															onSelect={handleSelectTag}
+															isDisabled={isTagSelectDisabled}
+															isDarkMode={isDarkMode}
+															bodyTextClassName={bodyText}
+															helperTextClassName={helperText}
+															triggerClassName={fieldContainerCardClassName}
+															placeholder="Selecione a categoria da despesa…"
+															sheetTitle="Escolha a categoria obrigatória"
+															emptyMessage="Nenhuma categoria obrigatória de despesa disponível."
+															triggerHint={tagHelperMessage}
+															disabledHint={tagHelperMessage}
+															accessibilityLabel="Escolher categoria obrigatória de despesa"
+															onCreatePress={handleOpenAddTagScreen}
+															createActionLabel="Adicionar categoria obrigatória de despesa"
+															isCreateDisabled={isAddTagButtonDisabled}
+														/>
+													</VStack>
+
+													<Accordion
+														size="md"
+														variant="unfilled"
+														type="single"
+														isCollapsible
+														value={openOptionalSection ? [openOptionalSection] : []}
+														onValueChange={value => setOpenOptionalSection(value[0] ?? null)}
+														className="w-full"
+													>
+														<AccordionItem value="optional" className={`${cardClassName} overflow-hidden !p-0`}>
+															<AccordionHeader>
+																<AccordionTrigger className="px-4 py-3">
+																	{({ isExpanded }: { isExpanded: boolean }) => (
+																		<View className="relative w-full">
+																			<AccordionTitleText className={`${helperText} self-center text-xs`}>
+																				Mais opções
+																			</AccordionTitleText>
+																			<AccordionIcon
+																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																				className={`${helperText} absolute right-0 top-0`}
+																			/>
+																		</View>
+																	)}
+																</AccordionTrigger>
+															</AccordionHeader>
+															<AccordionContent className="px-4 pb-4 pt-2">
+																<VStack className="gap-5">
+																	<VStack className="gap-3">
+																		<HStack className="items-center justify-between gap-4">
+																			<VStack className="min-w-0 flex-1 gap-1">
+																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} mb-0 ml-0`}>
+																					Parcelamento
+																				</Text>
+																			</VStack>
+								<Switch
+									value={installmentsEnabled}
+																				onValueChange={handleInstallmentsToggle}
+																				disabled={!isCoreTemplateReady || isFormBusy}
+										trackColor={switchTrackColor}
+										thumbColor={switchThumbColor}
+										activeThumbColor={switchActiveThumbColor}
+																				ios_backgroundColor={switchIosBackgroundColor}
+																				accessibilityLabel="Ativar parcelamento"
+																			/>
+																		</HStack>
+																		{installmentsEnabled ? (
+																			<VStack className="w-full gap-2">
+																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Quantidade de parcelas</Text>
+																				<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+																					<NumberInput
+																						value={installmentTotal === '' ? '' : Number(installmentTotal)}
+																						onChange={value => handleInstallmentTotalChange(String(value))}
+																						min={1}
+																						max={MAX_MANDATORY_INSTALLMENTS}
+																						allowDecimal={false}
+																						allowNegative={false}
+																						clampBehavior="strict"
+																						disabled={isInstallmentFieldDisabled}
+																						aria-label="Quantidade de parcelas"
+																						classNames={{
+																							root: 'w-full !m-0',
+																							input: `${inputClassName} ${inputField} !pl-4 !pr-11 !text-base`,
+																							controls:
+																								'my-1 mr-2 w-7 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800',
+																							control:
+																								'border-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-200',
+																						}}
+																						styles={{ root: { margin: 0 }, input: { paddingLeft: 16, paddingRight: 44 } }}
+																						onFocus={() => handleInputFocus('installments')}
+																					/>
+																				</MantineProvider>
+																				<HStack className="w-full gap-3 web:flex-row">
+																					<VStack className="min-w-0 flex-1 gap-2">
+																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Início</Text>
+																						<DatePickerField
+																							value={installmentStartDate}
+																							onChange={handleInstallmentStartDateChange}
+																							triggerClassName={inputClassName}
+																							inputClassName={inputField}
+																							placeholder="Data inicial…"
+																							isDisabled={isInstallmentFieldDisabled}
+																							accessibilityLabel="Selecionar início das parcelas"
+																						/>
+																					</VStack>
+																					<VStack className="min-w-0 flex-1 gap-2">
+																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Fim</Text>
+																						<DatePickerField
+																							value={installmentEndDate}
+																							onChange={handleInstallmentEndDateChange}
+																							triggerClassName={inputClassName}
+																							inputClassName={inputField}
+																							placeholder={isInstallmentEndDateUnlocked ? 'Data final…' : 'Informe a quantidade primeiro…'}
+																							isDisabled={!isInstallmentEndDateUnlocked || isInstallmentFieldDisabled}
+																							accessibilityLabel="Selecionar final das parcelas"
+																						/>
+																					</VStack>
+																				</HStack>
+																			</VStack>
+																		) : null}
+																	</VStack>
+
+																	<VStack className="gap-3">
+																		<HStack className="items-center justify-between gap-4">
+																			<VStack className="min-w-0 flex-1 gap-1">
+																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} mb-0 ml-0`}>
+																					Lembrete do vencimento
+																				</Text>
+																			</VStack>
+								<Switch
+									value={reminderEnabled}
+																				onValueChange={handleReminderToggle}
+																				disabled={!isTemplateReady || isFormBusy}
+										trackColor={switchTrackColor}
+										thumbColor={switchThumbColor}
+										activeThumbColor={switchActiveThumbColor}
+																				ios_backgroundColor={switchIosBackgroundColor}
+																				accessibilityLabel="Ativar lembrete do vencimento"
+																			/>
+																		</HStack>
+																		{reminderEnabled ? (
+																			<VStack className="gap-4">
+																				<VStack className="gap-2">
+																					<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Começar a lembrar</Text>
+																	<WebSelectField
+																		options={MANDATORY_REMINDER_DAY_OPTIONS}
+																		value={String(reminderDaysBefore)}
+																		onChange={handleReminderDaysBeforeChange}
+																		isDisabled={isFormBusy}
+																		placeholder="Escolha quando começar…"
+																		accessibilityLabel="Antecedência do lembrete"
+																	/>
+																				</VStack>
+
+																				<HStack className="items-center justify-between gap-4">
+																					<VStack className="min-w-0 flex-1 gap-1">
+																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} mb-0 ml-0`}>
+																							Avisar também no vencimento
+																						</Text>
+																					</VStack>
+									<Switch
+										value={reminderOnDueDate}
+																						onValueChange={setReminderOnDueDate}
+																						disabled={isFormBusy}
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	activeThumbColor={switchActiveThumbColor}
+																						ios_backgroundColor={switchIosBackgroundColor}
+																						accessibilityLabel="Avisar também no vencimento"
+																					/>
+																				</HStack>
+
+																				<VStack className="w-full gap-2">
+																					<HStack className="items-center gap-1">
+																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Horário preferido</Text>
+																						<Popover
+																							placement="bottom"
+																							size="md"
+																							offset={0}
+																							shouldFlip
+																							focusScope={false}
+																							trapFocus={false}
+																							trigger={(triggerProps) => (
+																								<Pressable
+																									{...triggerProps}
+																									hitSlop={8}
+																									accessibilityRole="button"
+																									accessibilityLabel="Informações sobre o horário preferido do lembrete"
+																								>
+																									<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} style={{ marginLeft: 4 }} />
+																								</Pressable>
+																							)}
+																						>
+																							<PopoverBackdrop className="bg-transparent" />
+																							<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																								<PopoverBody className="px-3 py-3">
+																									<Text className={bodyText + ' text-xs leading-5'}>
+																										Use o padrão 24h. O navegador guarda a preferência; a entrega acontece no aplicativo
+																										instalado.
+																									</Text>
+																								</PopoverBody>
+																							</PopoverContent>
+																						</Popover>
+																					</HStack>
+																					<TimePickerField
+																						value={reminderTime}
+																						onChange={setReminderTime}
+																						isDisabled={isReminderTimeFieldDisabled}
+																						triggerClassName={inputClassName}
+																						inputClassName={inputField}
+																						accessibilityLabel="Selecionar horário preferido do lembrete de vencimento"
+																					/>
+																					{!isReminderTimeValid ? (
+																						<Text accessibilityRole="alert" className="ml-1 text-sm text-red-500 dark:text-red-400">
+																							Informe um horário válido entre 00:00 e 23:59.
+																						</Text>
+																					) : null}
+																				</VStack>
+																			</VStack>
+																		) : null}
+																	</VStack>
+																</VStack>
+															</AccordionContent>
+														</AccordionItem>
+													</Accordion>
+
+													{selectedExpenseId ? (
+														<View className={cardClassName}>
+															<VStack className="gap-3">
+																<Text className="font-semibold">Controle mensal</Text>
+																<Text className={helperText + ' text-sm leading-5'}>{monthlyControlMessage}</Text>
+																<HStack className="flex-wrap gap-3">
+																	{selectedExpenseId && !isPaidForCurrentCycle && !isInstallmentPlanCompleted ? (
+																		<Button
+																			className={submitButtonClassName}
+																			onPress={handleRegisterPaymentNavigation}
+																			isDisabled={!isTemplateReady || hasPendingTemplateChanges || isPaymentActionLoading}
+																		>
+																			{isPaymentActionLoading ? <ButtonSpinner /> : null}
+																			<ButtonText>Registrar pagamento</ButtonText>
+																		</Button>
+																	) : null}
+																	{selectedExpenseId && isPaidForCurrentCycle ? (
+																		<Button
+																			variant="outline"
+																			className={submitButtonCancelClassName}
+																			onPress={handleReclaimPayment}
+																			isDisabled={isPaymentActionLoading}
+																		>
+																			{isPaymentActionLoading ? <ButtonSpinner /> : null}
+																			<ButtonText>Desfazer pagamento</ButtonText>
+																		</Button>
+																	) : null}
+																</HStack>
+															</VStack>
+														</View>
+													) : null}
+
+													<Button
+														className={submitButtonClassName + ' web:h-12 web:rounded-2xl'}
+														onPress={handleSubmit}
+														isDisabled={isSaveDisabled}
+													>
+														{isSubmitting ? (
+															<>
+																<ButtonSpinner />
+																<ButtonText>{isEditingMode ? 'Atualizando…' : 'Registrando…'}</ButtonText>
+															</>
+														) : (
+															<ButtonText>{isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
+														)}
+													</Button>
 												</VStack>
-											) : null}
-										</VStack>
-									</Box>
-
-									<Box className={"px-4 py-4 " + notTintedCardClassName}>
-										<VStack className="gap-3">
-											<Text className="font-semibold">Controle mensal</Text>
-											<Text className={helperText + " text-sm leading-5"}>{monthlyControlMessage}</Text>
-											<HStack className="flex-wrap gap-3">
-												{selectedExpenseId && !isPaidForCurrentCycle && !isInstallmentPlanCompleted ? (
-													<Button className={submitButtonClassName} onPress={handleRegisterPaymentNavigation} isDisabled={!isTemplateReady || hasPendingTemplateChanges || isPaymentActionLoading}>
-														{isPaymentActionLoading ? <ButtonSpinner /> : null}
-														<ButtonText>Registrar pagamento</ButtonText>
-													</Button>
-												) : null}
-												{selectedExpenseId && isPaidForCurrentCycle ? (
-													<Button variant="outline" className={submitButtonCancelClassName} onPress={handleReclaimPayment} isDisabled={isPaymentActionLoading}>
-														{isPaymentActionLoading ? <ButtonSpinner /> : null}
-														<ButtonText>Desfazer pagamento</ButtonText>
-													</Button>
-												) : null}
-											</HStack>
-									</VStack>
-								</Box>
-
-								<Button className={submitButtonClassName + " web:h-12 web:rounded-2xl"} onPress={handleSubmit} isDisabled={isSaveDisabled}>
-									{isSubmitting ? (
-										<>
-											<ButtonSpinner />
-												<ButtonText>{isEditingMode ? 'Atualizando…' : 'Registrando…'}</ButtonText>
-										</>
-									) : (
-										<ButtonText>{isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
-									)}
-								</Button>
-							</VStack>
-							</ScrollView>
+											</View>
+										</View>
+									</View>
+								</View>
+							</View>
 						</View>
-					</KeyboardAvoidingView>
-
-					<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
-						<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
-					</View>
-				</View>
+					</ScrollView>
+					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
+				</KeyboardAvoidingView>
 			</SafeAreaView>
 		</ScreenDismissKeyboard>
 	);

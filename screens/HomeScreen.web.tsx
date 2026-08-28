@@ -147,7 +147,7 @@ const MandatoryScheduleColumn = ({
 	type,
 	palette,
 	hidden,
-	}: {
+}: {
 	items: HomeMandatoryItem[];
 	type: HomeMandatoryItem["type"];
 	palette: WebDashboardPalette;
@@ -673,358 +673,358 @@ export default function HomeScreen() {
 					/>
 				}
 			>
-			<View className={webDashboardClassNames.fill} style={{ backgroundColor: surfaceBackground }}>
-				<View
-					className={webDashboardClassNames.hero}
-					style={{ height: heroHeight, backgroundColor: surfaceBackground }}
-				>
-					<RNImage
-						source={LoginWallpaper}
-						accessibilityLabel="Background da tela inicial"
-					className={webDashboardClassNames.heroImage}
-					style={{ width: "100%", height: "100%" }}
-						resizeMode="cover"
-					/>
+				<View className={webDashboardClassNames.fill} style={{ backgroundColor: surfaceBackground }}>
 					<View
-						pointerEvents="none"
-						style={{
-							position: "absolute",
-							top: 0,
-							left: 0,
-							width: "100%",
-							height: heroHeight,
-							opacity: 0.62,
-						}}
+						className={webDashboardClassNames.hero}
+						style={{ height: heroHeight, backgroundColor: surfaceBackground }}
 					>
-						<Grainient
-							className="home-hero-grainient"
-							timeSpeed={0.12}
-							colorBalance={isDarkMode ? 0.08 : -0.12}
-							warpStrength={0.8}
-							warpFrequency={3.5}
-							warpSpeed={1.8}
-							warpAmplitude={100}
-							blendSoftness={0.18}
-							grainAmount={0.08}
-							grainScale={3}
-							grainAnimated
-							contrast={1.08}
-							zoom={0.9}
-							color1={isDarkMode ? "#f8bd0c" : "#FFE58A"}
-							color2={isDarkMode ? "#facc15" : "#D97706"}
-							color3={isDarkMode ? "#fefe59" : "#EAB308"}
+						<RNImage
+							source={LoginWallpaper}
+							accessibilityLabel="Background da tela inicial"
+							className={webDashboardClassNames.heroImage}
+							style={{ width: "100%", height: "100%" }}
+							resizeMode="cover"
 						/>
-					</View>
-					<View
-						className={webDashboardClassNames.heroContent}
-						style={{ paddingTop: insets.top + 24 }}
-					>
-						<StrokeText
-							text={`Olá, ${firstName(userName)}! Esse é seu resumo financeiro.`}
-							strokeColor="#FFFFFF"
-							fillColor="#FFFFFF"
-							strokeWidth={1.5}
-							drawDuration={2}
-							fillDelay={1}
-							fontSize={40}
-							fontWeight={600}
-							letterSpacing={-0.5}
-							fontFamily={'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}
-							ease="power3.out"
-							trigger="mount"
-							className={webDashboardClassNames.heroTitle}
-						/>
-						<AnimatedContent
-							distance={100}
-							direction="vertical"
-							reverse={false}
-							duration={2}
-							ease="power3.out"
-							initialOpacity={0}
-							animateOpacity
-							scale={1}
-							threshold={0.1}
-							delay={0}
-							className={webDashboardClassNames.heroIllustrationAnimation}
+						<View
+							pointerEvents="none"
+							style={{
+								position: "absolute",
+								top: 0,
+								left: 0,
+								width: "100%",
+								height: heroHeight,
+								opacity: 0.62,
+							}}
 						>
-							<HomeScreenIllustration
-								width="40%"
-								height="100%"
-								className="opacity-90"
+							<Grainient
+								className="home-hero-grainient"
+								timeSpeed={0.12}
+								colorBalance={isDarkMode ? 0.08 : -0.12}
+								warpStrength={0.8}
+								warpFrequency={3.5}
+								warpSpeed={1.8}
+								warpAmplitude={100}
+								blendSoftness={0.18}
+								grainAmount={0.08}
+								grainScale={3}
+								grainAnimated
+								contrast={1.08}
+								zoom={0.9}
+								color1={isDarkMode ? "#f8bd0c" : "#FFE58A"}
+								color2={isDarkMode ? "#facc15" : "#D97706"}
+								color3={isDarkMode ? "#fefe59" : "#EAB308"}
 							/>
-						</AnimatedContent>
+						</View>
+						<View
+							className={webDashboardClassNames.heroContent}
+							style={{ paddingTop: insets.top + 24 }}
+						>
+							<StrokeText
+								text={`Olá, ${firstName(userName)}! Esse é seu resumo financeiro.`}
+								strokeColor="#FFFFFF"
+								fillColor="#FFFFFF"
+								strokeWidth={1.5}
+								drawDuration={2}
+								fillDelay={1}
+								fontSize={40}
+								fontWeight={600}
+								letterSpacing={-0.5}
+								fontFamily={'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}
+								ease="power3.out"
+								trigger="mount"
+								className={webDashboardClassNames.heroTitle}
+							/>
+							<AnimatedContent
+								distance={100}
+								direction="vertical"
+								reverse={false}
+								duration={2}
+								ease="power3.out"
+								initialOpacity={0}
+								animateOpacity
+								scale={1}
+								threshold={0.1}
+								delay={0}
+								className={webDashboardClassNames.heroIllustrationAnimation}
+							>
+								<HomeScreenIllustration
+									width="40%"
+									height="100%"
+									className="opacity-90"
+								/>
+							</AnimatedContent>
+						</View>
 					</View>
-				</View>
-				<View
-					className={`${webDashboardClassNames.sheet} ${compact ? webDashboardClassNames.sheetCompact : ''}`}
-					style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
-				>
-					<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
-						<View className={webDashboardClassNames.scrollContent}>
+					<View
+						className={`${webDashboardClassNames.sheet} ${compact ? webDashboardClassNames.sheetCompact : ''}`}
+						style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
+					>
+						<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
+							<View className={webDashboardClassNames.scrollContent}>
 								<View
 									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
 								>
 									<View
 										className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''} ${desktop ? webStyles.bankSection : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.bankSectionCentered : ''}`}
 									>
-									<View className={webStyles.sectionHeading}>
-										<Text
-											className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
-										>
-											Meus Bancos e Dinheiro
-										</Text>
-										<InfoTip label="Informações sobre bancos e dinheiro">
-											Exibimos um resumo dos seus bancos e do dinheiro em
-											espécie registrado. Toque em cada cartão para ver detalhes
-											e movimentações.
-										</InfoTip>
-									</View>
-									{overview.loading && bankItems.length === 0 ? (
-										<BankSkeleton
-											palette={buildBankCardPalette("#334155", isDarkMode)}
-											base={skeletonBaseColor}
-											highlight={skeletonHighlightColor}
-										/>
-									) : overview.error ? (
-										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-											{overview.error}
-										</Text>
-									) : bankItems.length === 0 ? (
-										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
-											Nenhum dado disponível no momento.
-										</Text>
-									) : (
-										<Carousel
+										<View className={webStyles.sectionHeading}>
+											<Text
+												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
+											>
+												Meus Bancos e Dinheiro
+											</Text>
+											<InfoTip label="Informações sobre bancos e dinheiro">
+												Exibimos um resumo dos seus bancos e do dinheiro em
+												espécie registrado. Toque em cada cartão para ver detalhes
+												e movimentações.
+											</InfoTip>
+										</View>
+										{overview.loading && bankItems.length === 0 ? (
+											<BankSkeleton
+												palette={buildBankCardPalette("#334155", isDarkMode)}
+												base={skeletonBaseColor}
+												highlight={skeletonHighlightColor}
+											/>
+										) : overview.error ? (
+											<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
+												{overview.error}
+											</Text>
+										) : bankItems.length === 0 ? (
+											<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
+												Nenhum dado disponível no momento.
+											</Text>
+										) : (
+											<Carousel
 												items={bankItems}
 												baseWidth={compact ? width : 610}
 												className="bank-carousel"
 												autoplay={false}
 												loop={bankItems.length > 1}
 												renderItem={renderBankCard}
-										/>
-									)}
-								</View>
-									{shouldShowInvestmentSection ? (
-									<View className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''}`}>
-									<View className={webStyles.sectionHeading}>
-										<Text
-											className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
-										>
-											Investimentos
-										</Text>
-										<InfoTip label="Informações sobre investimentos">
-											O gráfico mostra a distribuição pelo valor atual/base dos
-											investimentos registrados. Clique em uma fatia para ver o
-											ativo.
-										</InfoTip>
-									</View>
-										{investments.error ? (
-										<Text accessibilityRole="alert" className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-											{investments.error}
-										</Text>
-									) : investments.loading && portfolio.investmentCount === 0 ? (
-										<InvestmentSkeleton base={skeletonBaseColor} />
-									) : portfolio.investmentCount === 0 ? (
-										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
-											Nenhum investimento registrado até o momento.
-										</Text>
-									) : distributionItems.length === 0 ? (
-										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
-											Os investimentos ainda não possuem valor atual/base para
-											exibir a distribuição.
-										</Text>
-									) : (
-										<View className={webStyles.investmentVisual}>
-											<HomeInvestmentChart
-												items={distributionItems.map((item, index) => ({
-													name: item.name,
-													valueInCents: item.currentBaseValueInCents,
-													color: INVESTMENT_COLORS[index % INVESTMENT_COLORS.length],
-												}))}
-												investmentCount={portfolio.investmentCount}
-												isDarkMode={isDarkMode}
-												shouldHideValues={shouldHideValues}
 											/>
-											<View className={webStyles.investmentTotals}>
-												<View>
-													<Text
-														className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
-													>
-														Atual/base
-													</Text>
-													<Text
-														className={webStyles.totalValue} style={{ color: webDashboardPalette.primaryText }}
-													>
-														{formatCurrency(
-															portfolio.totalCurrentBaseInCents,
-															shouldHideValues,
-														)}
-													</Text>
-												</View>
-												<View className={webStyles.totalRight}>
-													<Text
-														className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
-													>
-														Simulado
-													</Text>
-													<Text
-														className={`${webStyles.totalValue} ${webStyles.simulatedValue}`}
-													>
-														{formatCurrency(
-															portfolio.totalSimulatedInCents,
-																shouldHideValues,
-															)}
-														</Text>
-									</View>
-									</View>
-									</View>
 										)}
 									</View>
+									{shouldShowInvestmentSection ? (
+										<View className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''}`}>
+											<View className={webStyles.sectionHeading}>
+												<Text
+													className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
+												>
+													Investimentos
+												</Text>
+												<InfoTip label="Informações sobre investimentos">
+													O gráfico mostra a distribuição pelo valor atual/base dos
+													investimentos registrados. Clique em uma fatia para ver o
+													ativo.
+												</InfoTip>
+											</View>
+											{investments.error ? (
+												<Text accessibilityRole="alert" className={`${webStyles.inlineError} ${webStyles.errorText}`}>
+													{investments.error}
+												</Text>
+											) : investments.loading && portfolio.investmentCount === 0 ? (
+												<InvestmentSkeleton base={skeletonBaseColor} />
+											) : portfolio.investmentCount === 0 ? (
+												<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
+													Nenhum investimento registrado até o momento.
+												</Text>
+											) : distributionItems.length === 0 ? (
+												<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>
+													Os investimentos ainda não possuem valor atual/base para
+													exibir a distribuição.
+												</Text>
+											) : (
+												<View className={webStyles.investmentVisual}>
+													<HomeInvestmentChart
+														items={distributionItems.map((item, index) => ({
+															name: item.name,
+															valueInCents: item.currentBaseValueInCents,
+															color: INVESTMENT_COLORS[index % INVESTMENT_COLORS.length],
+														}))}
+														investmentCount={portfolio.investmentCount}
+														isDarkMode={isDarkMode}
+														shouldHideValues={shouldHideValues}
+													/>
+													<View className={webStyles.investmentTotals}>
+														<View>
+															<Text
+																className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
+															>
+																Atual/base
+															</Text>
+															<Text
+																className={webStyles.totalValue} style={{ color: webDashboardPalette.primaryText }}
+															>
+																{formatCurrency(
+																	portfolio.totalCurrentBaseInCents,
+																	shouldHideValues,
+																)}
+															</Text>
+														</View>
+														<View className={webStyles.totalRight}>
+															<Text
+																className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
+															>
+																Simulado
+															</Text>
+															<Text
+																className={`${webStyles.totalValue} ${webStyles.simulatedValue}`}
+															>
+																{formatCurrency(
+																	portfolio.totalSimulatedInCents,
+																	shouldHideValues,
+																)}
+															</Text>
+														</View>
+													</View>
+												</View>
+											)}
+										</View>
 									) : null}
 								</View>
 
 								<View
-								className={`${webStyles.monthlySummaryCards} ${compact ? webStyles.monthlySummaryCardsCompact : ''}`}
-							>
-								<View
-									className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border }}
+									className={`${webStyles.monthlySummaryCards} ${compact ? webStyles.monthlySummaryCardsCompact : ''}`}
 								>
-									<View className={webStyles.monthlySummaryCardContent}>
-										<View className={webStyles.monthlySummaryCopy}>
-											<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
-												Total ganho
-											</Text>
-											<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
-												{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
-											</Text>
-											<Text
-												className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
-											>
-												Entradas no mês atual
-											</Text>
+									<View
+										className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border }}
+									>
+										<View className={webStyles.monthlySummaryCardContent}>
+											<View className={webStyles.monthlySummaryCopy}>
+												<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
+													Total ganho
+												</Text>
+												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
+													{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
+												</Text>
+												<Text
+													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
+												>
+													Entradas no mês atual
+												</Text>
+											</View>
+											<HomeExpenseChart
+												data={shouldHideValues ? neutralTrendData : gainTrendData}
+												label="Tendência de ganhos nos últimos três meses"
+												color="#10B981"
+												isDarkMode={isDarkMode}
+												dom={{
+													focusable: false,
+													scrollEnabled: false,
+													style: WEB_DASHBOARD_DOM_STYLES.sparkline,
+												}}
+											/>
 										</View>
-										<HomeExpenseChart
-											data={shouldHideValues ? neutralTrendData : gainTrendData}
-											label="Tendência de ganhos nos últimos três meses"
-											color="#10B981"
+									</View>
+
+									<View
+										className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border, }}
+									>
+										<View className={webStyles.monthlySummaryCardContent}>
+											<View className={webStyles.monthlySummaryCopy}>
+												<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
+													Total gasto
+												</Text>
+												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
+													{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
+												</Text>
+												<Text
+													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
+												>
+													Saídas no mês atual
+												</Text>
+											</View>
+											<HomeExpenseChart
+												data={shouldHideValues ? neutralTrendData : expenseTrendData}
+												label="Tendência de gastos nos últimos três meses"
+												color="#EF4444"
+												isDarkMode={isDarkMode}
+												dom={{
+													focusable: false,
+													scrollEnabled: false,
+													style: WEB_DASHBOARD_DOM_STYLES.sparkline,
+												}}
+											/>
+										</View>
+									</View>
+								</View>
+
+
+
+								<View
+									className={webStyles.expenseChartSection} style={{ borderColor: webDashboardPalette.border }}
+								>
+									<View className={webStyles.sectionHeading}>
+										<View className={webStyles.headingWithTip}>
+											<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>Gastos por dia</Text>
+											<InfoTip label="Informações sobre gastos por dia">
+												Cada linha representa um dos últimos três meses. Os pontos aparecem somente nos dias que tiveram gastos.
+											</InfoTip>
+										</View>
+									</View>
+									{overview.loading && expenseHistory.length === 0 ? (
+										<Skeleton
+											className={webStyles.expenseChartSkeleton}
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+									) : overview.error ? (
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
+									) : !hasExpenseHistory ? (
+										<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>Nenhum gasto registrado nos últimos três meses.</Text>
+									) : (
+										<HomeExpenseLineChart
+											months={expenseHistory}
+											isDarkMode={isDarkMode}
+											shouldHideValues={shouldHideValues}
+											dom={{
+												focusable: false,
+												scrollEnabled: false,
+												style: WEB_DASHBOARD_DOM_STYLES.expenseLineChart,
+											}}
+										/>
+									)}
+								</View>
+
+								<View
+									className={webStyles.activityHeatmapSection} style={{ borderColor: webDashboardPalette.border }}
+								>
+									<View className={webStyles.sectionHeading}>
+										<View className={webStyles.headingWithTip}>
+											<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>
+												Atividade no ano
+											</Text>
+											<InfoTip label="Informações sobre atividade no ano">
+												Cada bloco representa um dia. A intensidade mostra quantos
+												lançamentos financeiros confirmados foram feitos nele.
+											</InfoTip>
+										</View>
+									</View>
+									<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
+										{activityHeatmap.totalActions} ações registradas em {new Date().getFullYear()}
+									</Text>
+									{overview.loading && activityHeatmap.totalActions === 0 ? (
+										<Skeleton
+											className={webStyles.activityHeatmapSkeleton}
+											baseColor={skeletonBaseColor}
+											highlightColor={skeletonHighlightColor}
+										/>
+									) : overview.error ? (
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
+									) : (
+										<HomeActivityHeatmap
+											data={activityHeatmap.dailyActionCounts}
+											startDate={activityHeatmap.startDate}
+											endDate={activityHeatmap.endDate}
 											isDarkMode={isDarkMode}
 											dom={{
 												focusable: false,
 												scrollEnabled: false,
-												style: WEB_DASHBOARD_DOM_STYLES.sparkline,
+												style: WEB_DASHBOARD_DOM_STYLES.activityHeatmap,
 											}}
 										/>
-									</View>
+									)}
 								</View>
-
-								<View
-									className={webStyles.monthlySummaryCard} style={{ borderColor: webDashboardPalette.border, }}
-								>
-									<View className={webStyles.monthlySummaryCardContent}>
-										<View className={webStyles.monthlySummaryCopy}>
-											<Text className={webStyles.monthlySummaryLabel} style={{ color: webDashboardPalette.primaryText }}>
-												Total gasto
-											</Text>
-											<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
-												{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
-											</Text>
-											<Text
-												className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
-											>
-												Saídas no mês atual
-											</Text>
-										</View>
-										<HomeExpenseChart
-											data={shouldHideValues ? neutralTrendData : expenseTrendData}
-											label="Tendência de gastos nos últimos três meses"
-											color="#EF4444"
-											isDarkMode={isDarkMode}
-											dom={{
-												focusable: false,
-												scrollEnabled: false,
-												style: WEB_DASHBOARD_DOM_STYLES.sparkline,
-											}}
-										/>
-									</View>
-								</View>
-							</View>
-
-
-
-							<View
-								className={webStyles.expenseChartSection} style={{ borderColor: webDashboardPalette.border }}
-							>
-								<View className={webStyles.sectionHeading}>
-									<View className={webStyles.headingWithTip}>
-										<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>Gastos por dia</Text>
-										<InfoTip label="Informações sobre gastos por dia">
-											Cada linha representa um dos últimos três meses. Os pontos aparecem somente nos dias que tiveram gastos.
-										</InfoTip>
-									</View>
-								</View>
-								{overview.loading && expenseHistory.length === 0 ? (
-									<Skeleton
-										className={webStyles.expenseChartSkeleton}
-										baseColor={skeletonBaseColor}
-										highlightColor={skeletonHighlightColor}
-									/>
-								) : overview.error ? (
-									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
-								) : !hasExpenseHistory ? (
-									<Text className={webStyles.emptyText} style={{ color: webDashboardPalette.primaryText }}>Nenhum gasto registrado nos últimos três meses.</Text>
-								) : (
-									<HomeExpenseLineChart
-										months={expenseHistory}
-										isDarkMode={isDarkMode}
-										shouldHideValues={shouldHideValues}
-										dom={{
-											focusable: false,
-											scrollEnabled: false,
-											style: WEB_DASHBOARD_DOM_STYLES.expenseLineChart,
-										}}
-									/>
-								)}
-							</View>
-
-							<View
-								className={webStyles.activityHeatmapSection} style={{ borderColor: webDashboardPalette.border }}
-							>
-								<View className={webStyles.sectionHeading}>
-									<View className={webStyles.headingWithTip}>
-										<Text className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}>
-											Atividade no ano
-										</Text>
-										<InfoTip label="Informações sobre atividade no ano">
-											Cada bloco representa um dia. A intensidade mostra quantos
-											lançamentos financeiros confirmados foram feitos nele.
-										</InfoTip>
-									</View>
-								</View>
-								<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
-									{activityHeatmap.totalActions} ações registradas em {new Date().getFullYear()}
-								</Text>
-								{overview.loading && activityHeatmap.totalActions === 0 ? (
-									<Skeleton
-										className={webStyles.activityHeatmapSkeleton}
-										baseColor={skeletonBaseColor}
-										highlightColor={skeletonHighlightColor}
-									/>
-								) : overview.error ? (
-									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>{overview.error}</Text>
-								) : (
-									<HomeActivityHeatmap
-										data={activityHeatmap.dailyActionCounts}
-										startDate={activityHeatmap.startDate}
-										endDate={activityHeatmap.endDate}
-										isDarkMode={isDarkMode}
-										dom={{
-											focusable: false,
-											scrollEnabled: false,
-											style: WEB_DASHBOARD_DOM_STYLES.activityHeatmap,
-										}}
-									/>
-								)}
-							</View>
 
 								<View
 									className={webStyles.mandatorySection} style={{ borderColor: webDashboardPalette.border }}
@@ -1078,232 +1078,232 @@ export default function HomeScreen() {
 								</View>
 
 								<View className={webStyles.section}>
-								<Pressable
-									onPress={() => setIsMovementsExpanded((current) => !current)}
-									accessibilityRole="button"
-									accessibilityLabel="Expandir ou recolher últimas movimentações"
-									accessibilityState={{ expanded: isMovementsExpanded }}
-								>
-									<View className={webStyles.sectionHeading}>
-										<View className={webStyles.headingWithTip}>
-											<Text
-												className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
-											>
-												Últimas Movimentações
-											</Text>
-											<InfoTip label="Informações sobre últimas movimentações">
-												Resumo de despesas, ganhos, transferências e
-												sincronizações de investimento. Clique em uma
-												movimentação para ver detalhes.
-											</InfoTip>
-										</View>
-										{isMovementsExpanded ? (
-											<ChevronUp size={19} color="#94A3B8" />
-										) : (
-											<ChevronDown size={19} color="#94A3B8" />
-										)}
-									</View>
-								</Pressable>
-								{isMovementsExpanded ? (
-									movements.loading &&
-										movements.data.timelineMovements.length === 0 ? (
-										<TimelineSkeleton base={skeletonBaseColor} />
-									) : movements.data.timelineMovements.length === 0 ? (
-										<View
-															className={webStyles.emptyMovement} style={{ borderColor: webDashboardPalette.border }}
-										>
-											<Text style={{ color: webDashboardPalette.primaryText }}>
-												Nenhuma transação recente encontrada.
-											</Text>
-										</View>
-									) : (
-										<View className={webStyles.timeline}>
-											{movements.data.timelineMovements.map(
-												(movement, index) => {
-													const tone = movementTone(movement);
-													const key = `${movement.type}:${movement.id}`;
-													const expanded = expandedMovements.includes(key);
-													const icon = movementIcon(movement);
-													return (
-														<View key={key} className={webStyles.timelineRow}>
-															<View className={webStyles.timelineRail}>
-																<View
-																	className={webStyles.timelineDot} style={{ backgroundColor: tone.accent }}
-																/>
-																{index <
-																	movements.data.timelineMovements.length - 1 ? (
-																	<View
-																		className={webStyles.timelineLine} style={{ backgroundColor: `${tone.accent}55` }}
-																	/>
-																) : null}
-															</View>
-															<View className={webStyles.timelineBody}>
-																<Pressable
-																	onPress={() => toggleMovement(key)}
-																							accessibilityRole="button"
-																							accessibilityLabel={`Detalhes de ${movement.name}`}
-																							accessibilityState={{ expanded }}
-																>
-																	<View className={webStyles.movementHeader}>
-																		<View className={webStyles.movementIdentity}>
-																			<View
-																				className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}
-																			>
-																				<TagIcon
-																					{...icon}
-																					size={18}
-																					color="#FFFFFF"
-																				/>
-																			</View>
-																			<View className={webStyles.movementCopy}>
-																				<Text
-																					numberOfLines={1}
-																					className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}
-																				>
-																					{movement.name}
-																				</Text>
-																				<Text
-																					numberOfLines={1}
-																					className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}
-																				>
-																					{movementSubtitle(movement)}
-																				</Text>
-																			</View>
-																		</View>
-																		<View className={webStyles.movementAmount}>
-																			<Text
-																				className={webStyles.amount} style={{ color: tone.accent }}
-																			>
-																				{tone.prefix}
-																				{formatCurrency(
-																					movement.valueInCents,
-																					shouldHideValues,
-																				)}
-																			</Text>
-																			<View className={webStyles.movementDate}>
-																				<CalendarDays
-																					size={12}
-																					color="#94A3B8"
-																				/>
-																				<Text className={webStyles.dateText}>
-																					{formatDate(movement.date)}
-																				</Text>
-																				{expanded ? (
-																					<ChevronUp
-																						size={14}
-																						color="#94A3B8"
-																					/>
-																				) : (
-																					<ChevronDown
-																						size={14}
-																						color="#94A3B8"
-																					/>
-																				)}
-																			</View>
-																		</View>
-																	</View>
-																</Pressable>
-						{renderedMovements.includes(key) ? (
-							<AnimatedContent
-								key={`${key}:detail`}
-								trigger="mount"
-								visible={expanded}
-								distance={18}
-								duration={0.36}
-								disappearDuration={0.28}
-								disappearScale={1}
-								ease="power3.out"
-								initialOpacity={0}
-								animateOpacity
-								scale={1}
-								className={webStyles.movementDetailAnimation}
-								onDisappearanceComplete={() =>
-									setRenderedMovements((rendered) =>
-										rendered.filter((item) => item !== key),
-									)
-								}
-											>
-												<View className={webStyles.movementDetail}>
-													<View
-														pointerEvents="none"
-														className={webStyles.movementDetailGrainient}
-													>
-															<Grainient
-																className="movement-detail-grainient"
-																timeSpeed={0.1}
-															warpStrength={0.8}
-															warpFrequency={3.5}
-															warpSpeed={1.6}
-															warpAmplitude={90}
-															blendSoftness={0.2}
-															grainAmount={0.06}
-															grainScale={3}
-															grainAnimated
-															contrast={1.12}
-															zoom={1.05}
-															color1={tone.gradient[0]}
-															color2={tone.accent}
-															color3={tone.gradient[1]}
-														/>
-													</View>
-													<View className={webStyles.movementDetailContent}>
-														<Text className={webStyles.detailLabel}>
-														RESUMO
-													</Text>
-													<Text className={webStyles.detailText}>
-														{movementDetail(movement)}
-													</Text>
-													<View className={webStyles.detailGrid}>
-														<DetailItem
-															label="Tipo"
-															value={movementLabel(movement)}
-														/>
-														<DetailItem
-															label={
-																movement.isBankTransfer
-																	? "Origem"
-																	: "Conta"
-															}
-															value={
-																movement.bankName ||
-																(movement.moneyFormat
-																	? "Dinheiro em espécie"
-																	: "Sem banco vinculado")
-															}
-														/>
-														<DetailItem
-															label="Data"
-															value={formatDate(movement.date)}
-														/>
-														{movement.tagName ? (
-															<DetailItem
-																label="Tag"
-																value={movement.tagName}
-															/>
-														) : null}
-													</View>
-																							</View>
-																						</View>
-																				</AnimatedContent>
-										) : null}
-															</View>
-														</View>
-													);
-												},
+									<Pressable
+										onPress={() => setIsMovementsExpanded((current) => !current)}
+										accessibilityRole="button"
+										accessibilityLabel="Expandir ou recolher últimas movimentações"
+										accessibilityState={{ expanded: isMovementsExpanded }}
+									>
+										<View className={webStyles.sectionHeading}>
+											<View className={webStyles.headingWithTip}>
+												<Text
+													className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
+												>
+													Últimas Movimentações
+												</Text>
+												<InfoTip label="Informações sobre últimas movimentações">
+													Resumo de despesas, ganhos, transferências e
+													sincronizações de investimento. Clique em uma
+													movimentação para ver detalhes.
+												</InfoTip>
+											</View>
+											{isMovementsExpanded ? (
+												<ChevronUp size={19} color="#94A3B8" />
+											) : (
+												<ChevronDown size={19} color="#94A3B8" />
 											)}
 										</View>
-									)
-								) : null}
-								{movements.error ? (
-									<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-										{movements.error}
-									</Text>
-								) : null}
+									</Pressable>
+									{isMovementsExpanded ? (
+										movements.loading &&
+											movements.data.timelineMovements.length === 0 ? (
+											<TimelineSkeleton base={skeletonBaseColor} />
+										) : movements.data.timelineMovements.length === 0 ? (
+											<View
+												className={webStyles.emptyMovement} style={{ borderColor: webDashboardPalette.border }}
+											>
+												<Text style={{ color: webDashboardPalette.primaryText }}>
+													Nenhuma transação recente encontrada.
+												</Text>
+											</View>
+										) : (
+											<View className={webStyles.timeline}>
+												{movements.data.timelineMovements.map(
+													(movement, index) => {
+														const tone = movementTone(movement);
+														const key = `${movement.type}:${movement.id}`;
+														const expanded = expandedMovements.includes(key);
+														const icon = movementIcon(movement);
+														return (
+															<View key={key} className={webStyles.timelineRow}>
+																<View className={webStyles.timelineRail}>
+																	<View
+																		className={webStyles.timelineDot} style={{ backgroundColor: tone.accent }}
+																	/>
+																	{index <
+																		movements.data.timelineMovements.length - 1 ? (
+																		<View
+																			className={webStyles.timelineLine} style={{ backgroundColor: `${tone.accent}55` }}
+																		/>
+																	) : null}
+																</View>
+																<View className={webStyles.timelineBody}>
+																	<Pressable
+																		onPress={() => toggleMovement(key)}
+																		accessibilityRole="button"
+																		accessibilityLabel={`Detalhes de ${movement.name}`}
+																		accessibilityState={{ expanded }}
+																	>
+																		<View className={webStyles.movementHeader}>
+																			<View className={webStyles.movementIdentity}>
+																				<View
+																					className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}
+																				>
+																					<TagIcon
+																						{...icon}
+																						size={18}
+																						color="#FFFFFF"
+																					/>
+																				</View>
+																				<View className={webStyles.movementCopy}>
+																					<Text
+																						numberOfLines={1}
+																						className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}
+																					>
+																						{movement.name}
+																					</Text>
+																					<Text
+																						numberOfLines={1}
+																						className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}
+																					>
+																						{movementSubtitle(movement)}
+																					</Text>
+																				</View>
+																			</View>
+																			<View className={webStyles.movementAmount}>
+																				<Text
+																					className={webStyles.amount} style={{ color: tone.accent }}
+																				>
+																					{tone.prefix}
+																					{formatCurrency(
+																						movement.valueInCents,
+																						shouldHideValues,
+																					)}
+																				</Text>
+																				<View className={webStyles.movementDate}>
+																					<CalendarDays
+																						size={12}
+																						color="#94A3B8"
+																					/>
+																					<Text className={webStyles.dateText}>
+																						{formatDate(movement.date)}
+																					</Text>
+																					{expanded ? (
+																						<ChevronUp
+																							size={14}
+																							color="#94A3B8"
+																						/>
+																					) : (
+																						<ChevronDown
+																							size={14}
+																							color="#94A3B8"
+																						/>
+																					)}
+																				</View>
+																			</View>
+																		</View>
+																	</Pressable>
+																	{renderedMovements.includes(key) ? (
+																		<AnimatedContent
+																			key={`${key}:detail`}
+																			trigger="mount"
+																			visible={expanded}
+																			distance={18}
+																			duration={0.36}
+																			disappearDuration={0.28}
+																			disappearScale={1}
+																			ease="power3.out"
+																			initialOpacity={0}
+																			animateOpacity
+																			scale={1}
+																			className={webStyles.movementDetailAnimation}
+																			onDisappearanceComplete={() =>
+																				setRenderedMovements((rendered) =>
+																					rendered.filter((item) => item !== key),
+																				)
+																			}
+																		>
+																			<View className={webStyles.movementDetail}>
+																				<View
+																					pointerEvents="none"
+																					className={webStyles.movementDetailGrainient}
+																				>
+																					<Grainient
+																						className="movement-detail-grainient"
+																						timeSpeed={0.1}
+																						warpStrength={0.8}
+																						warpFrequency={3.5}
+																						warpSpeed={1.6}
+																						warpAmplitude={90}
+																						blendSoftness={0.2}
+																						grainAmount={0.06}
+																						grainScale={3}
+																						grainAnimated
+																						contrast={1.12}
+																						zoom={1.05}
+																						color1={tone.gradient[0]}
+																						color2={tone.accent}
+																						color3={tone.gradient[1]}
+																					/>
+																				</View>
+																				<View className={webStyles.movementDetailContent}>
+																					<Text className={webStyles.detailLabel}>
+																						RESUMO
+																					</Text>
+																					<Text className={webStyles.detailText}>
+																						{movementDetail(movement)}
+																					</Text>
+																					<View className={webStyles.detailGrid}>
+																						<DetailItem
+																							label="Tipo"
+																							value={movementLabel(movement)}
+																						/>
+																						<DetailItem
+																							label={
+																								movement.isBankTransfer
+																									? "Origem"
+																									: "Conta"
+																							}
+																							value={
+																								movement.bankName ||
+																								(movement.moneyFormat
+																									? "Dinheiro em espécie"
+																									: "Sem banco vinculado")
+																							}
+																						/>
+																						<DetailItem
+																							label="Data"
+																							value={formatDate(movement.date)}
+																						/>
+																						{movement.tagName ? (
+																							<DetailItem
+																								label="Tag"
+																								value={movement.tagName}
+																							/>
+																						) : null}
+																					</View>
+																				</View>
+																			</View>
+																		</AnimatedContent>
+																	) : null}
+																</View>
+															</View>
+														);
+													},
+												)}
+											</View>
+										)
+									) : null}
+									{movements.error ? (
+										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
+											{movements.error}
+										</Text>
+									) : null}
+								</View>
 							</View>
 						</View>
 					</View>
 				</View>
-			</View>
 			</ScrollView>
 			<Navigator defaultValue={0} />
 			<Modal isOpen={isMonthlyBalanceModalOpen} onClose={closeMonthlyBalance}>

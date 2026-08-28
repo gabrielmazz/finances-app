@@ -1072,8 +1072,8 @@ export default function AddRegisterExpensesScreen() {
 														/>
 													</VStack>
 													<VStack className={webExpenseClassNames.fieldFull}>
-														<View className={webExpenseClassNames.sectionLabel}>
-															<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Observação</Text>
+									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Observação</Text>
 															<Popover
 																placement="bottom"
 																size="md"
@@ -1120,8 +1120,8 @@ export default function AddRegisterExpensesScreen() {
 													</VStack>
 
 													<VStack className={webExpenseClassNames.fieldFull}>
-														<View className={webExpenseClassNames.sectionLabel}>
-															<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Formato de pagamento</Text>
+									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Formato de pagamento</Text>
 															<Popover
 																placement="bottom"
 																size="md"

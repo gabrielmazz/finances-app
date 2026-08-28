@@ -27,7 +27,7 @@ Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira del
 | `uiverse/feedback/` | Feedback in-app | `notifier-alert`, `notifier-boundary` |
 | `uiverse/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` |
 | `uiverse/categories/` | Categorias e disponibilidade | `tag-actionsheet-selector`, `category-availability-selector` |
-| `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart` |
+| `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart`, `mandatory-expenses-radar-chart`, `mandatory-expenses-scatter-chart` |
 | `uiverse/dashboard/` | Dashboard Home | gráficos de resumo e atividade da Home |
 | `uiverse/reports/` | Relatórios financeiros | `financial-forecast-chart` |
 | `uiverse/investments/` | Monitoramento de investimentos | `investment-evolution-chart` |
@@ -87,16 +87,19 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
 | `screens/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
 | `screens/AddRegisterGainScreen.web.tsx` | Composição Web do cadastro de ganhos, baseada no shell hero/sheet de despesas e usando `AnimatedContent`, `Grainient`, `StrokeText`, ActionSheets compartilhados e classes estruturais de `useScreenStyles()` |
-| `screens/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, `input type="time"`, controle mensal e lembrete informado como indisponível para agendamento no navegador |
+| `screens/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, seletor visual de hora/minuto, controle mensal e lembrete informado como indisponível para agendamento no navegador |
+| `web-select-field.tsx` | Select Web reutilizável com trigger no padrão dos campos, valor selecionado visível, seta contextual, hover, seleção, foco de teclado e menu no fluxo vertical; usa os tokens de `useScreenStyles()` |
 | `screens/MandatoryExpensesListScreen.web.tsx` | Composição Web da listagem de gastos obrigatórios, com `date-calendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e exportação para impressão/PDF |
 | `mandatory-expense-payment-bullet-chart.tsx` | Expo DOM Component Web-only que exibe o progresso dos pagamentos obrigatórios: total do ciclo como limite e total pago como preenchimento, sem consulta própria |
+| `mandatory-expenses-radar-chart.tsx` | Expo DOM Component que encapsula `RadarChart` de Mantine para somar os valores exibidos por categoria; recebe dados serializáveis e neutraliza a escala no modo de privacidade |
+| `mandatory-expenses-scatter-chart.tsx` | Expo DOM Component que encapsula `ScatterChart` de Mantine para cruzar dia da semana e dia do mês dos vencimentos do ciclo atual; separa pendentes de pagos/concluídos |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
 | `bank-card-surface.native.tsx` / `.web.tsx` | Cartão de banco com gradiente linear baseado na cor do banco; utilitários de paleta e contrato de conteúdo são iguais, a superfície pode evoluir por plataforma |
 | `bank-actionsheet-selector.native.tsx` / `.web.tsx` | Seletor de bancos com ícone/monograma, nome, helper contextual e estado selecionado; dados e callback são iguais |
 | `tag-actionsheet-selector.native.tsx` / `.web.tsx` | Seletor de categorias com ícone, nome, estado selecionado, descrição opcional por opção, uso em filtros administrativos e ação interna opcional para criar categoria |
 | `category-availability-selector.native.tsx` / `.web.tsx` | Seletor dos contextos de uso e presets de disponibilidade com a mesma seleção e fechamento |
 | `date-picker.native.tsx` / `.web.tsx` | Modal de seleção de data no formato DD/MM/YYYY (brasileiro), com `accessibilityLabel`, navegação mensal e rodapé `Cancelar`/`Hoje`; cada plataforma possui seu próprio arquivo e o mesmo callback `(formattedValue, date)` |
-| `time-picker-field.native.tsx` / `.web.tsx` | Campo reutilizável para horários: abre o seletor nativo Android/iOS e mantém fallback input type=time no web, sempre retornando HH:MM |
+| `time-picker-field.native.tsx` / `.web.tsx` | Campo reutilizável para horários: abre o seletor nativo Android/iOS e, no Web, oferece menu visual rolável de horas/minutos no mesmo padrão dos selects, sempre retornando HH:MM |
 | `financial-forecast-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine/Recharts para a previsão de caixa, recebendo somente props serializáveis, mantendo o fundo transparente nos dois temas, sem contorno de foco ao toque e com rolagem horizontal para séries longas |
 | `home-expense-chart.tsx` | Expo DOM Component que encapsula `Sparkline` de Mantine para tendências compactas de ganhos/gastos, com dados serializáveis, fundo transparente e sem interação |
 | `home-expense-line-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine para os gastos diários dos últimos três meses, com dados serializáveis, fundo transparente e tooltip/eixos protegidos pela privacidade |
@@ -131,6 +134,8 @@ graph LR
     IEC[investment-evolution-chart.tsx] --> FLS[FinancialListScreen]
     DC[date-calendar.tsx] --> MAN[Telas de recorrências]
     PEBC[mandatory-expense-payment-bullet-chart.tsx] --> MEL[MandatoryExpensesListScreen.web.tsx]
+    PERC[mandatory-expenses-radar-chart.tsx] --> MEL
+    PESC[mandatory-expenses-scatter-chart.tsx] --> MEL
     NA[notifier-alert.tsx] --> ALL[Todas as telas]
     LOG[LoginScreen.tsx / LoginScreen.web.tsx]
     LDR[loader.tsx] --> LAYOUT["_layout.tsx"]
@@ -148,6 +153,7 @@ graph LR
 - `components/uiverse/navigation/web-app-shell.web.tsx` / `.native.tsx` — Cascas independentes do layout autenticado por plataforma
 - `components/uiverse/navigation/web-route-transition.web.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
 - `components/ui/gluestack-ui-provider/index.tsx` — Configuração do provider de tema
+- `screens/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterUserScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
 
 ## Integrações
 
@@ -206,7 +212,7 @@ graph LR
 - O compositor de [[Assistente Lumus]] reaproveita `fieldContainerClassNameNotSpace`, `inputField` e `submitButtonClassName` de `useScreenStyles()`: texto, áudio e envio usam o módulo `h-10`, com os controles de ícone em `w-10 rounded-2xl`. Prefira classes NativeWind; valores calculados de hero, insets ou teclado são as únicas exceções para `style`.
 - No chat do [[Assistente Lumus]], Android usa `softwareKeyboardLayoutMode: "resize"` para redimensionar a janela; não adicionar um segundo `KeyboardAvoidingView` de altura nessa plataforma. O iOS mantém o `KeyboardAvoidingView`. A altura real do hero vem de `onLayout`, enquanto `Conversation` é a única região rolável e compositor/navigator permanecem no fluxo inferior que recebe a altura redimensionada.
 - O aviso de indisponibilidade Android do [[Assistente Lumus]] pode conter a ação **Tentar novamente**. Ela permanece no próprio card de diagnóstico, mostra **Verificando…** e fica desabilitada durante a nova checagem para não multiplicar preflights de App Check.
-- As preferências de [[Assistente Lumus]] são abertas pelo `drawer/` à direita, em vez de ocupar o histórico do chat. Use o `switch/` padrão com `switchTrackColor`, `switchThumbColor` e `switchIosBackgroundColor` de `useScreenStyles()` para toggles desse fluxo; o `popover/` concentra explicações auxiliares sem manter texto extra no card.
+- As preferências de [[Assistente Lumus]] são abertas pelo `drawer/` à direita, em vez de ocupar o histórico do chat. Use o `switch/` padrão com `switchTrackColor`, `switchThumbColor` e `switchIosBackgroundColor` de `useScreenStyles()` para toggles desse fluxo; em variantes Web que precisam personalizar somente a bolinha ativa, use também `switchActiveThumbColor`/`activeThumbColor`; o `popover/` concentra explicações auxiliares sem manter texto extra no card.
 - Os exemplos rápidos de [[Assistente Lumus]] são exibidos no `modal/`, acionado pelo botão de lâmpada no cabeçalho do chat. O estado vazio não deve repetir esses cards; a escolha fecha o modal e reutiliza o envio normal do compositor.
 - `navigator.tsx` e `.web.tsx` não devem importar `router` diretamente; novas opções de menu devem chamar os helpers centralizados de [[Navegação]]
 - O fluxo de saída é único em `utils/secureLogout.ts`; renderers do navigator apenas o disparam e não repetem limpeza de lembretes ou `signOut`.
@@ -224,6 +230,14 @@ graph LR
 - `date-calendar.tsx` aceita `reminderSummary?: string`; quando informado, o card exibe o texto completo calculado pelo domínio, como `3 dias seguidos antes + no vencimento • 09:00`
 - `date-calendar.tsx` aceita `modalSize="lg"` para o resumo diário Web ocupar uma superfície fluida até 640 px; o padrão `md` preserva os diálogos compactos das telas nativas. Na Web, esse resumo mantém `ModalContent`, `ModalBody`, o content container e o card expandido com crescimento flexível desabilitado para ajustar a altura ao conteúdo e rolar apenas quando necessário
 - No resumo diário de `date-calendar.tsx`, Web, Android e iOS usam a mesma linha de item: ícone, nome/categoria à esquerda, valor/data e seta à direita. Não há trilho ou marcador exclusivo do navegador; o estado expandido permanece associado ao item
+- No resumo diário Web, os itens do dia são ordenados com pendentes antes dos concluídos/recebidos e depois por nome; o detalhe usa uma superfície intrínseca, com rolagem somente no corpo do modal quando necessário, e mantém foco visível nas ações
+- O detalhe expandido do resumo diário Web reutiliza `Grainient` como fundo contextual, com stops derivados do tom do item e conteúdo em camada superior; a montagem ocorre apenas enquanto o item está aberto e mantém o fallback CSS do componente para ambientes sem WebGL2
+- Os itens consecutivos do resumo diário Web mantêm espaçamento próprio, sem divisor/borda entre gastos ou ganhos; as bordas da navegação mensal do `date-picker.web.tsx` não fazem parte dessa regra
+- Os botões de ação e a linha clicável do resumo diário Web não exibem estado visual de hover por enquanto; o foco visível permanece disponível
+- No detalhe expandido do resumo diário Web, o valor previsto/real não é repetido dentro do card Grainient; ele permanece na linha principal do item, enquanto o detalhe concentra status e metadados
+- O detalhe expandido do resumo diário Web usa `AnimatedContent` com `trigger="mount"`, deslocamento/opacidade curtos e saída antes do unmount, mantendo o comportamento de movimento reduzido do componente compartilhado
+- A linha compacta do resumo diário Web não aplica padding horizontal interno antes do ícone; o alinhamento inicial fica sob responsabilidade do container do modal
+- A ação **Excluir** do resumo diário Web usa ícone e texto brancos para permanecer coerente com a superfície Grainient; o foco continua explícito
 - A identidade do resumo diário mostra o nome da despesa obrigatória ao lado do ícone, mantém a categoria como subtítulo e usa truncamento seguro para não invadir a coluna de valor/data; nomes vazios recebem fallback acessível
 - Se `reminderSummary` não existir, `date-calendar.tsx` só exibe `Ativado` quando `reminderEnabled === true`; campo ausente resulta em `Desativado`, e as telas devem normalizar configurações legadas com `isMandatoryReminderConfigured()` antes de montar o item
 - `tag-actionsheet-selector.tsx` aceita `description` opcional nas opções para telas que precisam explicar o tipo/uso da categoria sem criar um seletor paralelo
@@ -234,6 +248,8 @@ graph LR
 - No Web, `components/ui/actionsheet/index.tsx` limita o `ActionsheetContent` a `1120px`, centralizado e com `w-full` até esse limite; backdrop permanece em viewport inteira. `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` devem manter trigger e lista fluidos dentro dessa superfície. Essa adaptação é exclusiva da apresentação Web e preserva o comportamento nativo.
 - `RadioGroup` mantém apenas o espaçamento base; cada tela deve definir o limite do próprio contêiner. Na composição Web de despesas, o grupo usa `w-full max-w-[1120px] self-center` para acompanhar a largura útil da superfície principal sem ocupar a viewport inteira.
 - `web-screen-hero.tsx` / `.web.tsx` centraliza o cabeçalho animado das telas convertidas para Web. A variante Web combina wallpaper, `Grainient`, `StrokeText` e `AnimatedContent`; a variante nativa mantém o cabeçalho Gluestack estático. A superfície externa do formulário não deve receber uma borda adicional apenas para a composição Web.
+- Os labels dos campos em formulários Web devem usar `WEB_EXPENSE_CLASS_NAMES.fieldLabel` (`text-xs`, caixa alta, peso forte, tracking e `mb-2`). Quando o título divide a linha com um `Popover`, o contêiner deve usar `sectionLabel mb-2`, o label deve neutralizar sua margem com `!mb-0` e o espaçamento deve permanecer na linha; isso mantém o texto e o ícone no mesmo eixo sem colar o campo abaixo.
+- Telas Web de cadastro com formulário recorrente, incluindo `AddMandatoryExpensesScreen.web.tsx`, devem reutilizar `webDashboardClassNames`, `WEB_EXPENSE_CLASS_NAMES` e o shell visual de `AddRegisterExpensesScreen.web.tsx`; campos específicos podem variar, mas hero, sheet, grid, labels, foco e espaçamento permanecem compartilhados. Na despesa obrigatória, o dia fica em input fixo e o switch de dias úteis expande para baixo dentro da mesma superfície do `Accordion` **Mais opções do vencimento**; os títulos centralizados usam a tipografia auxiliar. Parcelamento e lembrete também expandem para baixo dentro da mesma superfície do `Accordion` **Mais opções**; a quantidade de parcelas usa `NumberInput` do Mantine com os limites já validados pela tela e a mesma superfície do `Select` compartilhado (altura, contorno, foco, preenchimento e controles). O seletor de antecedência do lembrete usa uma lista Web própria no fluxo do formulário para evitar o menu nativo cinza do navegador; Android/iOS preservam o seletor nativo. Ações de ciclo dependem de um template persistido.
 - `useScreenStyles()` mantém as variantes Web de `fieldContainerClassName` e `textareaContainerClassName`; inputs textuais/númericos e textareas das telas convertidas seguem a mesma geometria, fundo e foco amarelo de `AddRegisterExpensesScreen.web.tsx` e `AddRegisterGainScreen.web.tsx`, sem alterar o estilo nativo.
 - O sheet Web das telas convertidas deve permanecer em `web:relative web:z-[3]`, acima do hero absoluto; sem essa camada, a sobreposição visual pode capturar o primeiro clique dos campos.
 - Inputs editáveis em telas roláveis devem usar `useKeyboardAwareScroll()` de [[Hooks Customizados]] para permanecerem acima do teclado; inputs em modais/action sheets devem ficar dentro de `KeyboardAvoidingView` com área rolável própria quando houver risco de cobertura.
