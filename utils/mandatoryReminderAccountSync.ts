@@ -100,8 +100,8 @@ export const buildMandatoryGainReminderSyncItems = (
 				typeof source.reminderMinute === 'number'
 					? source.reminderMinute
 					: DEFAULT_MANDATORY_REMINDER_MINUTE,
-			reminderDaysBefore: 0,
-			reminderOnDueDate: true,
+			reminderDaysBefore: normalizeMandatoryReminderDaysBefore(source.reminderDaysBefore),
+			reminderOnDueDate: source.reminderOnDueDate === true,
 			description: typeof source.description === 'string' ? source.description : null,
 			lastCompletedCycle:
 				typeof source.lastReceiptCycle === 'string' ? source.lastReceiptCycle : undefined,

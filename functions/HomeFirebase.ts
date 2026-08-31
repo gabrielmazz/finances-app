@@ -657,29 +657,43 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
 	);
 
-	const [
-		monthlyExpensesSnapshot,
-		monthlyGainsSnapshot,
-		cashRescuesSnapshot,
-		expenseHistorySnapshot,
-		cashRescueHistorySnapshot,
-		gainHistorySnapshot,
-		activityExpensesSnapshot,
-		activityGainsSnapshot,
-		activityCashRescuesSnapshot,
-		activityInvestmentSyncsSnapshot,
-	] = await Promise.all([
+	const legacyBalancesPromise = getLegacyBankBalancesInCentsFirebase({
+		personId: context.personId,
+		bankIds: context.bankIds,
+		allowedPersonIds: context.allowedPersonIds,
+		asOfDate: context.asOfDate,
+	});
+	const coreSnapshotsPromise = Promise.all([
 		getDocs(monthlyExpensesQuery),
 		getDocs(monthlyGainsQuery),
 		getDocs(cashRescuesQuery),
+	]);
+	const historySnapshotsPromise = Promise.allSettled([
 		getDocs(expenseHistoryQuery),
 		getDocs(cashRescueHistoryQuery),
 		getDocs(gainHistoryQuery),
+	]);
+	const activitySnapshotsPromise = Promise.allSettled([
 		getDocs(activityExpensesQuery),
 		getDocs(activityGainsQuery),
 		getDocs(activityCashRescuesQuery),
 		getDocs(activityInvestmentSyncsQuery),
 	]);
+	const [monthlyExpensesSnapshot, monthlyGainsSnapshot, cashRescuesSnapshot] = await coreSnapshotsPromise;
+	const historySnapshotResults = await historySnapshotsPromise;
+	const activitySnapshotResults = await activitySnapshotsPromise;
+	const [expenseHistorySnapshot, cashRescueHistorySnapshot, gainHistorySnapshot] = historySnapshotResults.map(result =>
+		result.status === 'fulfilled' ? result.value : null,
+	);
+	const [activityExpensesSnapshot, activityGainsSnapshot, activityCashRescuesSnapshot, activityInvestmentSyncsSnapshot] =
+		activitySnapshotResults.map(result => result.status === 'fulfilled' ? result.value : null);
+
+	if (historySnapshotResults.some(result => result.status === 'rejected')) {
+		console.warn('Não foi possível carregar o histórico da Home; mantendo o resumo dos bancos disponível.');
+	}
+	if (activitySnapshotResults.some(result => result.status === 'rejected')) {
+		console.warn('Não foi possível carregar o heatmap da Home; mantendo o resumo dos bancos disponível.');
+	}
 	const normalizedCashRescues = cashRescuesSnapshot.docs.map<HomeMovementDocument>(docSnap => ({
 		id: docSnap.id,
 		...(docSnap.data() as HomeMovementDocument),
@@ -710,11 +724,11 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.filter(item => item?.bankId == null);
 	const cashGainsWithRescues = [...cashGains, ...normalizedCashRescues];
 	const expenseHistorySources = [
-		...expenseHistorySnapshot.docs.map<HomeMovementDocument>(docSnap => ({
+		...(expenseHistorySnapshot?.docs ?? []).map<HomeMovementDocument>(docSnap => ({
 			id: docSnap.id,
 			...(docSnap.data() as HomeMovementDocument),
 		})),
-		...cashRescueHistorySnapshot.docs.map<HomeMovementDocument>(docSnap => ({
+		...(cashRescueHistorySnapshot?.docs ?? []).map<HomeMovementDocument>(docSnap => ({
 			id: docSnap.id,
 			...(docSnap.data() as HomeMovementDocument),
 			isCashRescue: true,
@@ -722,7 +736,7 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 	]
 		.map(toExpenseHistorySource)
 		.filter((source): source is HomeExpenseHistorySource => Boolean(source));
-	const gainHistorySources = gainHistorySnapshot.docs
+	const gainHistorySources = (gainHistorySnapshot?.docs ?? [])
 		.map<HomeMovementDocument>(docSnap => ({
 			id: docSnap.id,
 			...(docSnap.data() as HomeMovementDocument),
@@ -730,22 +744,17 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.map(toExpenseHistorySource)
 		.filter((source): source is HomeExpenseHistorySource => Boolean(source));
 	const activityHeatmapSources = [
-		...activityExpensesSnapshot.docs,
-		...activityGainsSnapshot.docs,
-		...activityCashRescuesSnapshot.docs,
-		...activityInvestmentSyncsSnapshot.docs.filter(
+		...(activityExpensesSnapshot?.docs ?? []),
+		...(activityGainsSnapshot?.docs ?? []),
+		...(activityCashRescuesSnapshot?.docs ?? []),
+		...(activityInvestmentSyncsSnapshot?.docs ?? []).filter(
 			document => (document.data() as HomeMovementDocument).reason === 'manual',
 		),
 	]
 		.map(docSnap => docSnap.data() as HomeMovementDocument)
 		.filter(item => !item.isBankTransfer || item.bankTransferDirection !== 'incoming')
 		.map(item => ({ date: parseToDate(item.date ?? item.createdAt) }));
-	const legacyBalancesResult = await getLegacyBankBalancesInCentsFirebase({
-		personId: context.personId,
-		bankIds: context.bankIds,
-		allowedPersonIds: context.allowedPersonIds,
-		asOfDate: context.asOfDate,
-	});
+	const legacyBalancesResult = await legacyBalancesPromise;
 	if (!legacyBalancesResult.success) throw legacyBalancesResult.error;
 
 	return {

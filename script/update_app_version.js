@@ -14,8 +14,8 @@ if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test
 const files = {
   app: path.join(projectRoot, 'app.json'),
   package: path.join(projectRoot, 'package.json'),
-  login: path.join(projectRoot, 'screens', 'LoginScreen.tsx'),
-  loginWeb: path.join(projectRoot, 'screens', 'LoginScreen.web.tsx'),
+  login: path.join(projectRoot, 'screens', 'mobile', 'LoginScreen.tsx'),
+  loginWeb: path.join(projectRoot, 'screens', 'web', 'LoginScreen.web.tsx'),
 };
 
 const original = new Map(Object.entries(files).map(([name, file]) => [name, fs.readFileSync(file, 'utf8')]));
@@ -43,4 +43,4 @@ for (const [name, content] of updated) {
   fs.writeFileSync(files[name], content);
 }
 
-console.log(`Versão da aplicação atualizada para ${version}: app.json, package.json, LoginScreen.tsx e LoginScreen.web.tsx.`);
+console.log(`Versão da aplicação atualizada para ${version}: app.json, package.json, screens/mobile/LoginScreen.tsx e screens/web/LoginScreen.web.tsx.`);

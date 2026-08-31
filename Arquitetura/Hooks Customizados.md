@@ -48,7 +48,7 @@ type HomeSectionState<T> = {
 
 `overview.data.upcomingMandatoryItems` contém os próximos ciclos pendentes de gastos e ganhos obrigatórios para a Home Web. A seleção é feita no agregador, mantendo a tela sem consultas Firebase próprias.
 
-No caminho legado, o agregador também consulta tags e sincronizações de investimentos para montar a timeline e o heatmap. A consulta dos compromissos obrigatórios é tolerante a falha e retorna uma lista vazia sem invalidar o restante do `overview`.
+No caminho legado, o agregador também consulta tags e sincronizações de investimentos para montar a timeline e o heatmap. Consultas auxiliares de compromissos, histórico e heatmap são tolerantes a falha e retornam listas vazias sem invalidar bancos, saldos e totais mensais do `overview`.
 
 ### Arquivo
 - `hooks/useHomeScreenData.ts`

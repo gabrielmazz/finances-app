@@ -3,7 +3,7 @@ tags: [arquitetura, organizacao, expo, react-native, manutencao]
 relacionado: [[MOC - Lumus Finanças]], [[Navegação]], [[Componentes UI]], [[Componentes por Sistema]], [[Versão Web]], [[Comportamento Pós-Registro]], [[Firebase Config]]
 status: ativo
 tipo: arquitetura
-versao: 1.1.0
+versao: 1.2.0
 ---
 
 # Organização do Código
@@ -16,7 +16,10 @@ Este documento define as fronteiras de responsabilidade do Lumus Finanças. O ob
 |---|---|---|
 | `app/` | Entradas do Expo Router, redirects e delegação para a tela correspondente | regras de negócio, acesso Firebase ou composição extensa de interface |
 | `components/app/` | Composição global: providers, guard autenticado e ciclos de vida do aplicativo | telas de domínio ou cálculos financeiros |
-| `screens/` | Orquestração de uma tela, estados locais e composição de componentes | registro manual de rotas, providers globais ou duplicação de persistência |
+| `components/web/` | Implementações exclusivas do navegador, separadas por sistema funcional | APIs nativas, regras financeiras ou acesso Firebase |
+| `components/mobile/` | Implementações exclusivas de Android/iOS, separadas por sistema funcional | APIs DOM, regras financeiras ou acesso Firebase |
+| `screens/mobile/` | Telas canônicas para Android/iOS, fluxos compartilhados e composição de estados | registro manual de rotas, providers globais ou duplicação de persistência |
+| `screens/web/` | Composições Web que divergem por layout, dependência ou interação | regras financeiras novas, registro manual de rotas ou persistência específica do navegador |
 | `components/uiverse/<sistema>/` | Componentes visuais e interações reutilizáveis do produto, separados por domínio | consultas Firestore específicas de uma tela |
 | `components/ui/` | Primitivas geradas pelo Gluestack | componentes de domínio ou alterações manuais sem uma atualização coordenada do design system |
 | `contexts/` | Estado transversal de sessão, tema, privacidade e preferências | operações de interface específicas de uma tela |
@@ -30,15 +33,17 @@ Este documento define as fronteiras de responsabilidade do Lumus Finanças. O ob
 
 `AppRoot` concentra a ordem dos providers, `AuthenticatedStack`, o guard de visibilidade de rotas e a ponte de ciclo de vida das notificações. Dessa forma, mudanças de sessão, tema ou notificações não precisam procurar lógica espalhada nas rotas físicas.
 
-Arquivos em `app/` são adaptadores de rota. Por exemplo, `app/home.tsx` apenas expõe `screens/HomeTabsScreen.tsx`; a escolha entre Dashboard, Controle e Configurações pertence à tela, não ao registro do Expo Router. Novas rotas continuam sendo cadastradas primeiro em `APP_ROUTE_PATHS` de [[Navegação]].
+Arquivos em `app/` são adaptadores de rota. `app/mobile/home.native.tsx` expõe `screens/mobile/HomeTabsScreen.tsx` em `/mobile/home`, enquanto `app/web/home.web.tsx` expõe `screens/web/HomeTabsScreen.web.tsx` em `/web/home`; a escolha entre Dashboard, Controle e Configurações pertence ao container da plataforma. Novas rotas continuam sendo cadastradas primeiro em `APP_ROUTE_PATHS` de [[Navegação]].
+
+`app/` agora separa fisicamente as rotas em `app/web/` e `app/mobile/`. Como essas pastas são segmentos públicos do Expo Router, a separação também define `/web/...` e `/mobile/...`. Dentro de cada diretório, os pares `<rota>.web.tsx`/`<rota>.tsx` e `<rota>.native.tsx`/`<rota>.tsx` mantêm os fallbacks exigidos pelo Router. O inventário e as regras de manutenção ficam em `app/README.md`.
 
 ## Variantes por plataforma
 
-Use um arquivo canônico `.tsx` quando lógica e composição forem realmente iguais nas duas plataformas. Quando uma API, evento, animação ou primitiva divergir, mantenha o contrato no mesmo caminho lógico e separe a implementação em `.native.tsx` e `.web.tsx`; o base pode apenas reexportar o fallback nativo. Componentes reutilizáveis devem ser colocados na pasta do sistema descrita em [[Componentes por Sistema]], sem criar uma cópia para cada tela.
+Use um arquivo canônico em `screens/mobile/` quando lógica e composição forem realmente iguais nas duas plataformas ou quando a tela Web puder usar a adaptação responsiva já existente. Quando uma API, evento, animação ou primitiva divergir, mantenha o contrato e coloque a implementação Web em `screens/web/` e a canônica em `screens/mobile/`; os adaptadores de `app/` fazem a seleção explícita. Componentes reutilizáveis com divergência de plataforma ficam em `components/web/<sistema>/` e `components/mobile/<sistema>/`, enquanto `components/uiverse/<sistema>/` mantém somente os adaptadores lógicos.
 
-Crie `.web.tsx` somente quando a experiência ou dependência realmente divergir — por exemplo, Home, Login, cadastros principais de despesas/ganhos, o fluxo Web de despesas obrigatórias e os componentes de entrada/seleção listados em [[Componentes UI]]. A variante deve preservar o contrato da tela: valores em centavos, helpers de navegação, comportamento pós-submit e persistência continuam compartilhados.
+Crie uma composição `.web.tsx` em `screens/web/` somente quando a experiência ou dependência realmente divergir — por exemplo, Home, Login, cadastros principais de despesas/ganhos e o fluxo Web de despesas obrigatórias. A tela canônica correspondente fica em `screens/mobile/`. A variante deve preservar o contrato da tela: valores em centavos, helpers de navegação, comportamento pós-submit e persistência continuam compartilhados.
 
-As nove telas administrativas e financeiras de menor divergência (`AddRegisterMonthlyBalance`, `Transfer`, `AddRescue`, `Configurations`, cadastros de usuário/banco/categoria, vínculo e testes) usam agora a implementação canônica. Isso remove cópias quase idênticas e deixa a resolução de plataforma restrita aos componentes que de fato precisam dela.
+As telas administrativas e financeiras de menor divergência (`AddRegisterMonthlyBalance`, `Transfer`, `AddRescue`, `Configurations`, cadastros de usuário/banco/categoria, vínculo e testes) usam a implementação canônica em `screens/mobile/`. Isso remove cópias quase idênticas e deixa a resolução de plataforma restrita às telas e componentes que de fato precisam dela.
 
 ## Fluxos transversais
 

@@ -7,7 +7,10 @@ import {
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
-import { MANDATORY_REMINDER_CONFIG_VERSION } from '@/utils/mandatoryReminderConfig';
+import {
+	MANDATORY_REMINDER_CONFIG_VERSION,
+	normalizeMandatoryReminderDaysBefore,
+} from '@/utils/mandatoryReminderConfig';
 
 interface AddMandatoryGainParams {
 	name: string;
@@ -95,6 +98,8 @@ export async function addMandatoryGainFirebase({
 	reminderEnabled = false,
 	reminderHour = 9,
 	reminderMinute = 0,
+	reminderDaysBefore = 1,
+	reminderOnDueDate = false,
 	installmentTotal = null,
 	installmentsCompleted = 0,
 	installmentStartDate = null,
@@ -108,6 +113,7 @@ export async function addMandatoryGainFirebase({
 			installmentStartDate,
 			installmentEndDate,
 		);
+		const normalizedReminderDaysBefore = normalizeMandatoryReminderDaysBefore(reminderDaysBefore);
 
 		await setDoc(mandatoryGainRef, {
 			name,
@@ -121,8 +127,8 @@ export async function addMandatoryGainFirebase({
 			reminderHour,
 			reminderMinute,
 			reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
-			reminderDaysBefore: 0,
-			reminderOnDueDate: true,
+			reminderDaysBefore: normalizedReminderDaysBefore,
+			reminderOnDueDate,
 			...installmentFields,
 			lastReceiptGainId: null,
 			lastReceiptCycle: null,
@@ -172,8 +178,8 @@ export async function updateMandatoryGainFirebase({
 			reminderMinute !== undefined
 		) {
 			updates.reminderConfigVersion = MANDATORY_REMINDER_CONFIG_VERSION;
-			updates.reminderDaysBefore = 0;
-			updates.reminderOnDueDate = true;
+			updates.reminderDaysBefore = normalizeMandatoryReminderDaysBefore(reminderDaysBefore);
+			updates.reminderOnDueDate = reminderOnDueDate === true;
 		}
 
 		if (typeof name === 'string') {

@@ -32,7 +32,7 @@ Implementa proteção contra força bruta no login via throttling com backoff ex
 
 - `utils/loginSecurity.ts` — Lógica de throttle e contagem de falhas
 - `utils/firebaseAuthStorage.ts` — Persistência dual SecureStore/AsyncStorage
-- `screens/LoginScreen.tsx` — Aplica throttle antes de cada tentativa
+- `screens/mobile/LoginScreen.tsx` — Aplica throttle antes de cada tentativa
 
 ## Integrações
 

@@ -75,3 +75,4 @@ git-revert.sh
 .agents/
 .claude/
 .codex/
+.impeccable/

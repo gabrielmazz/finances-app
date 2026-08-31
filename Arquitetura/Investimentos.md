@@ -96,8 +96,8 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 
 ## Arquivos principais
 
-- `screens/AddFinanceScreen.tsx` — Cadastro de renda fixa CDI com percentual em pontos-base
-- `screens/FinancialListScreen.tsx` — Painel, taxa CDI, timeline e ações operacionais
+- `screens/mobile/AddFinanceScreen.tsx` — Cadastro de renda fixa CDI com percentual em pontos-base
+- `screens/mobile/FinancialListScreen.tsx` — Painel, taxa CDI, timeline e ações operacionais
 - `functions/FinancesFirebase.ts` — CRUD, sincronizações e leitura de aportes/resgates/sincronizações da carteira
 - `functions/InvestmentCdiRateFirebase.ts` — Persistência e leitura compartilhada do histórico de CDI
 - `utils/investmentPortfolio.ts` — Tipos de ativos, projeção em ponto fixo, indicadores e série do gráfico

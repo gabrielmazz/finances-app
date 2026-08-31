@@ -15,6 +15,8 @@ type MandatoryExpensesRadarChartProps = {
 	data: MandatoryExpensesRadarDatum[];
 	isDarkMode: boolean;
 	shouldHideValues: boolean;
+	subjectLabel?: string;
+	valueLabel?: string;
 	dom?: DOMProps;
 };
 
@@ -32,6 +34,8 @@ export default function MandatoryExpensesRadarChart({
 	data,
 	isDarkMode,
 	shouldHideValues,
+	subjectLabel = 'gastos obrigatórios',
+	valueLabel = 'Gasto obrigatório',
 }: MandatoryExpensesRadarChartProps) {
 	const textColor = isDarkMode ? '#CBD5E1' : '#475569';
 	const gridColor = isDarkMode ? '#334155' : '#CBD5E1';
@@ -47,8 +51,8 @@ export default function MandatoryExpensesRadarChart({
 				role="img"
 				aria-label={
 					shouldHideValues
-						? 'Distribuição dos gastos obrigatórios por categoria. Valores ocultos.'
-						: 'Distribuição dos gastos obrigatórios por categoria.'
+						? `Distribuição dos ${subjectLabel} por categoria. Valores ocultos.`
+						: `Distribuição dos ${subjectLabel} por categoria.`
 				}
 				style={{
 					height: 300,
@@ -69,7 +73,7 @@ export default function MandatoryExpensesRadarChart({
 						withTooltip={!shouldHideValues}
 						series={[{
 							name: 'valueInReais',
-							label: 'Gasto obrigatório',
+							label: valueLabel,
 							color: '#F97316',
 							strokeColor: '#EA580C',
 							opacity: 0.24,

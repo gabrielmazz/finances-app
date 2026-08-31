@@ -395,11 +395,18 @@ export async function getLegacyBankBalancesInCentsFirebase({
         if (!personId || !bankIds.length || !personIds.length) return { success: true, data: {} };
         const loadSnapshotsByBank = async (): Promise<Record<string, LegacyMonthlyBalanceSnapshot[]>> => {
             try {
-                const snapshotResults = await Promise.all(bankIds.map(async bankId => {
-                    const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
-                    return [bankId, result.docs.map(item => item.data() as LegacyMonthlyBalanceSnapshot)] as const;
-                }));
-                return Object.fromEntries(snapshotResults);
+                // A Home já faz leituras paralelas para seus resumos. Limitar os
+                // snapshots evita saturar a fila HTTP do SDK JS em Android/iOS.
+                const snapshotsByBank: Record<string, LegacyMonthlyBalanceSnapshot[]> = {};
+                const batchSize = 3;
+                for (let index = 0; index < bankIds.length; index += batchSize) {
+                    const snapshotResults = await Promise.all(bankIds.slice(index, index + batchSize).map(async bankId => {
+                        const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
+                        return [bankId, result.docs.map(item => item.data() as LegacyMonthlyBalanceSnapshot)] as const;
+                    }));
+                    Object.assign(snapshotsByBank, Object.fromEntries(snapshotResults));
+                }
+                return snapshotsByBank;
             } catch (error) {
                 console.warn('O índice de saldos mensais ainda não está disponível; usando leitura compatível.', error);
                 const result = await getDocs(query(

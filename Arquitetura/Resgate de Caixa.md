@@ -37,10 +37,10 @@ sequenceDiagram
 
 ## Arquivos principais
 
-- `screens/AddRescueScreen.tsx` / `screens/AddRescueScreen.web.tsx` — Formulário de resgate por plataforma, com labels e campos alinhados ao padrão Web de despesas
+- `screens/mobile/AddRescueScreen.tsx` / `screens/web/AddRescueScreen.web.tsx` — Formulário de resgate por plataforma, com labels e campos alinhados ao padrão Web de despesas
 - `functions/BankFirebase.ts` — Operação de resgate
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco de origem
-- `app/add-rescue.tsx` — Rota
+- `app/mobile/add-rescue.tsx` — Rota
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar
 

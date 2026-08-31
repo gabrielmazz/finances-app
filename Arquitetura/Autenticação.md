@@ -25,7 +25,7 @@ sequenceDiagram
     AC->>FA: onAuthStateChanged(listener)
     FA-->>AC: user = null (primeira carga)
     AC->>AC: isAuthReady = true
-    Layout->>Layout: Stack.Protected libera somente "/" (login)
+    Layout->>Layout: Stack.Protected libera o entrypoint e o login da plataforma atual
     LS->>FA: signInWithEmailAndPassword
     FA-->>AC: onAuthStateChanged(user)
     AC->>AC: candidate.reload() + classifica falha + setUser
@@ -37,8 +37,8 @@ sequenceDiagram
 2. Quando um usuário é detectado por uma mudança de autenticação, chama `candidate.reload()` antes de propagar. Cada callback recebe uma versão monotônica; somente a resolução mais recente e cujo UID ainda coincide com `auth.currentUser` pode atualizar o contexto. Erros de token expirado/inválido, usuário desabilitado ou inexistente limpam a sessão; falhas transitórias de rede/serviço preservam o usuário atual para não transformar uma oscilação em logout
 3. Atualiza `user` (Firebase User completo) e marca `isAuthReady = true`
 4. `_layout.tsx` (Expo Router 6) consome `useAuth()` e mantém um único `Stack` com guards declarativos:
-   - `Stack.Protected guard={!isAuthenticated}` contém somente `index` (`/`)
-   - `Stack.Protected guard={isAuthenticated}` contém todas as demais rotas registradas em `APP_ROUTE_PATHS`, com `home` primeiro
+   - `Stack.Protected guard={!isAuthenticated}` contém `index` (`/`) e o login da plataforma atual (`/web` ou `/mobile`)
+   - `Stack.Protected guard={isAuthenticated}` contém as rotas da plataforma atual registradas em `APP_ROUTE_PATHS`, com `home` primeiro
    - Quando o guard muda, rotas agora protegidas são retiradas do histórico pelo próprio Router; não há `Redirect` ou ação imperativa concorrendo com a desmontagem
 5. Durante a inicialização (`!isAuthReady || isLoadingTheme`), exibe o `AuthBootstrapScreen` com `<Loader />`
 6. `LoginScreen.tsx` chama `signInWithEmailAndPassword` com proteção de throttle via [[Segurança de Login]]
@@ -61,9 +61,10 @@ type AuthContextValue = {
 
 - `contexts/AuthContext.tsx` — Provider e hook `useAuth()`
 - `app/_layout.tsx` — Root layout com `Stack.Protected` e `AuthBootstrapScreen`
-- `screens/LoginScreen.tsx` — Interface mobile histórica para Android e iOS, com wallpaper, logo adaptado ao tema e cartão de formulário sobreposto
-- `screens/LoginScreen.web.tsx` — Interface de login e painel de identidade responsivo do navegador
-- `app/index.tsx` — Rota `/` mapeada para LoginScreen
+- `screens/mobile/LoginScreen.tsx` — Interface mobile histórica para Android e iOS, com wallpaper, logo adaptado ao tema e cartão de formulário sobreposto
+- `screens/web/LoginScreen.web.tsx` — Interface de login e painel de identidade responsivo do navegador
+- `app/index.tsx` — Entry `/` que redireciona para o login da plataforma atual
+- `app/web/index.web.tsx` / `app/mobile/index.native.tsx` — Login Web e Android/iOS
 - `utils/authSession.ts` — Classifica os códigos definitivos do Firebase Auth que exigem encerrar a sessão local
 - `utils/firebaseAuthStorage.ts` — Persistência segura para o app secundário
 

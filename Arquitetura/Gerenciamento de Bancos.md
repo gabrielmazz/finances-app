@@ -61,6 +61,7 @@ graph TD
 - A função `computeMonthlyBankBalances()` em `utils/monthlyBalance.ts` agrega despesas, receitas e investimentos por banco
 - `shouldIncludeMovementInGainExpenseTotals()` filtra movimentos internos para evitar dupla contagem
 - A [[Análise por Categoria]] usa os bancos como dimensão de distribuição mensal da tag selecionada; movimentos sem `bankId` aparecem como **Dinheiro**
+- Na Home, a leitura indexada do último snapshot é processada em grupos de até três bancos. Isso evita sobrecarregar a fila de rede em Android/iOS e mantém o fallback compatível, escopado aos `personId` autorizados, se o índice ainda estiver indisponível.
 
 ## Arquivos principais
 
@@ -72,16 +73,16 @@ graph TD
 - Banco pode ficar negativo com justificativa; Caixa nunca pode ficar negativo.
 
 
-- `screens/AddRegisterBankScreen.tsx` — Formulário de cadastro
-- `screens/ConfigurationsScreen.tsx` — Tabela administrativa com edição, exclusão e ativação/desativação reversível
+- `screens/mobile/AddRegisterBankScreen.tsx` — Formulário de cadastro
+- `screens/mobile/ConfigurationsScreen.tsx` — Tabela administrativa com edição, exclusão e ativação/desativação reversível
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
 - `hooks/useBankIcons.tsx` — Catálogo de ícones/monogramas para bancos brasileiros
-- `screens/BankMovementsScreen.tsx` — Listagem de movimentos por período
+- `screens/mobile/BankMovementsScreen.tsx` — Listagem de movimentos por período
 - `functions/BankFirebase.ts` — CRUD de bancos e busca de movimentos
 - `utils/monthlyBalance.ts` — `computeMonthlyBankBalances()` + filtros de movimentos
-- `app/add-register-bank.tsx` — Rota de cadastro
-- `app/bank-movements.tsx` — Rota de movimentos
-- `app/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
+- `app/mobile/add-register-bank.tsx` — Rota de cadastro
+- `app/mobile/bank-movements.tsx` — Rota de movimentos
+- `app/mobile/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
 - `components/uiverse/navigation/navigator.tsx` — Mostra a opção contextual **Movimentos do banco** no grupo Home apenas em `/bank-movements`
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar nos formulários de bancos, transferências, saques e saldos

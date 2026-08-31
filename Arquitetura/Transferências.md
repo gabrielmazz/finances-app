@@ -44,10 +44,10 @@ Na busca do extrato bancário, `getBankMovementsByPeriodFirebase()` considera ta
 
 ## Arquivos principais
 
-- `screens/TransferScreen.tsx` / `screens/TransferScreen.web.tsx` — Formulário de transferência por plataforma, com labels, popover de origem e campos alinhados ao padrão Web de despesas
+- `screens/mobile/TransferScreen.tsx` / `screens/web/TransferScreen.web.tsx` — Formulário de transferência por plataforma, com labels, popover de origem e campos alinhados ao padrão Web de despesas
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletores de origem e destino
 - `functions/BankFirebase.ts` — Criação dos dois movimentos
-- `app/transfer-screen.tsx` — Rota
+- `app/mobile/transfer-screen.tsx` — Rota
 - `utils/monthlyBalance.ts` — Filtra movimentos de transferência dos totais
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar

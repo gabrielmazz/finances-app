@@ -3,7 +3,7 @@ tags: [navegacao, expo-router, rotas, autenticacao, web, responsivo]
 relacionado: [[Autenticação]], [[Dashboard Home]], [[Assistente Lumus]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]], [[Configurações]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Notificações]], [[Componentes UI]], [[Versão Web]], [[Organização do Código]]
 status: ativo
 tipo: arquitetura
-versao: 2.6.0
+versao: 2.7.0
 ---
 
 # Navegação
@@ -13,45 +13,52 @@ Sistema de navegação baseado em arquivos usando Expo Router. Cada arquivo em `
 ## Estrutura de Rotas
 
 ```
-/ (index.tsx)           → LoginScreen
-/home (home.tsx)        → Container de abas
+/ (index.tsx)           → Redireciona para `/web` ou `/mobile`
+/web (web/index.web.tsx) → LoginScreen Web
+/mobile (mobile/index.native.tsx) → LoginScreen Android/iOS
+/web/home (web/home.web.tsx) → Container de abas Web
+/mobile/home (mobile/home.native.tsx) → Container de abas Android/iOS
   tab=0                 → HomeScreen (Dashboard)
   tab=1                 → AddRegisterExpensesScreen (Controle)
   tab=2                 → ConfigurationsScreen (Configurações)
 
 Rotas do grupo Home:
-/category-analysis        → CategoryAnalysisScreen
-/financial-forecast      → FinancialForecastScreen
-/annotations             → LocalAnnotationsScreen (lista e editor local)
+/web/category-analysis e /mobile/category-analysis → CategoryAnalysisScreen
+/web/financial-forecast e /mobile/financial-forecast → FinancialForecastScreen
+/web/annotations e /mobile/annotations → LocalAnnotationsScreen (lista e editor local)
 
 Rota direta do navegador:
-/lumus-assistant         → LumusAssistantScreen
-/app-tests               → AppTestsScreen (central manual segura, oculta por padrão)
+/web/lumus-assistant e /mobile/lumus-assistant → LumusAssistantScreen
+/web/app-tests e /mobile/app-tests → AppTestsScreen (central manual segura, oculta por padrão)
 
 Rotas de cadastro:
-/add-register-bank        → AddRegisterBankScreen
-/add-register-user        → AddRegisterUserScreen
-/add-register-expenses    → AddRegisterExpensesScreen
-/add-register-gain        → AddRegisterGainScreen
-/add-register-tag         → AddRegisterTagScreen
-/add-mandatory-expenses   → AddMandatoryExpensesScreen
-/add-mandatory-gains      → AddMandatoryGainsScreen
-/add-finance              → AddFinanceScreen
-/add-rescue               → AddRescueScreen
-/add-user-relation        → AddUserRelationScreen
-/screen-settings          → ScreenSettingsScreen
-/register-monthly-balance → AddRegisterMonthlyBalanceScreen
+/web/add-register-bank e /mobile/add-register-bank → AddRegisterBankScreen
+/web/add-register-user e /mobile/add-register-user → AddRegisterUserScreen
+/web/add-register-expenses e /mobile/add-register-expenses → AddRegisterExpensesScreen
+/web/add-register-gain e /mobile/add-register-gain → AddRegisterGainScreen
+/web/add-register-tag e /mobile/add-register-tag → AddRegisterTagScreen
+/web/add-mandatory-expenses e /mobile/add-mandatory-expenses → AddMandatoryExpensesScreen
+/web/add-mandatory-gains e /mobile/add-mandatory-gains → AddMandatoryGainsScreen
+/web/add-finance e /mobile/add-finance → AddFinanceScreen
+/web/add-rescue e /mobile/add-rescue → AddRescueScreen
+/web/add-user-relation e /mobile/add-user-relation → AddUserRelationScreen
+/web/screen-settings e /mobile/screen-settings → ScreenSettingsScreen
+/web/register-monthly-balance e /mobile/register-monthly-balance → AddRegisterMonthlyBalanceScreen
 
 Rotas de listagem:
-/bank-movements           → BankMovementsScreen
-/bank-summary             → Redirect para /home?tab=0 (não é uma tela real)
-/financial-list           → FinancialListScreen
-/mandatory-expenses       → MandatoryExpensesListScreen (`focusMandatoryExpenseId` abre o pagamento pendente indicado)
-/mandatory-gains          → MandatoryGainsListScreen
-/transfer-screen          → TransferScreen
+/web/bank-movements e /mobile/bank-movements → BankMovementsScreen
+/web/bank-summary e /mobile/bank-summary → Redirect para a Home da plataforma (não é uma tela real)
+/web/financial-list e /mobile/financial-list → FinancialListScreen
+/web/mandatory-expenses e /mobile/mandatory-expenses → MandatoryExpensesListScreen (`focusMandatoryExpenseId` abre o pagamento pendente indicado)
+/web/mandatory-gains e /mobile/mandatory-gains → MandatoryGainsListScreen
+/web/transfer-screen e /mobile/transfer-screen → TransferScreen
 ```
 
 > **Nota:** `/bank-summary` é apenas um `<Redirect>` para home — não renderiza tela própria.
+
+## Convenção dos adaptadores de plataforma
+
+`app/` separa fisicamente os adaptadores em `app/web/` e `app/mobile/`. Como essas pastas são segmentos públicos do Expo Router, os caminhos também usam `/web/...` e `/mobile/...`. Dentro de cada diretório, os pares `<rota>.web.tsx`/`<rota>.tsx` e `<rota>.native.tsx`/`<rota>.tsx` mantêm os fallbacks exigidos pelo Router. O guia curto para manutenção está em `app/README.md`.
 
 ## Fluxo de Autenticação
 
@@ -61,7 +68,7 @@ graph TD
     CHECK -->|Não| BOOT["AuthBootstrapScreen (Loader)"]
     CHECK -->|Sim| STACK["Stack permanece montado"]
     STACK --> AUTH{isAuthenticated?}
-    AUTH -->|Não| LOGIN["Stack.Protected libera somente / (LoginScreen)"]
+    AUTH -->|Não| LOGIN["Stack.Protected libera / e o login da plataforma atual"]
     AUTH -->|Sim| HOME["Stack.Protected libera rotas autenticadas; Home é a primeira"]
 ```
 
@@ -71,13 +78,13 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 1. O entry ativo é `index.ts`, que apenas carrega `expo-router/entry` e monta `app/_layout.tsx`. O layout mantém o bootstrap obrigatório mínimo e delega a composição global para `components/app/app-root.tsx`, onde os providers seguem a ordem: `ThemeProvider` → `ValueVisibilityProvider` → `PostSubmitBehaviorProvider` → `RouteVisibilityProvider` → `GestureHandlerRootView` → `GluestackUIProvider` → `NotifierWrapper` → `AuthProvider`
 2. `AuthenticatedStack` consome `useAuth()`, `useAppTheme()` e [[Visibilidade de Rotas]]. Depois do bootstrap, mantém o mesmo `Stack`: `index` fica disponível para visitantes e cada rota autenticada recebe seu próprio `Stack.Protected`. Rotas ocultas localmente permanecem protegidas mesmo por deep link ou navegação programática.
-3. `app/home.tsx` é somente o adaptador de rota para `screens/HomeTabsScreen.tsx`, que implementa o container de abas com renderização condicional (não Tab Navigator). Cada tela principal renderiza `components/uiverse/navigation/navigator.tsx`, cuja resolução `.web.tsx` assume a navegação no navegador
+3. `app/mobile/home.tsx` é somente o adaptador de rota para `screens/mobile/HomeTabsScreen.tsx`; `app/web/home.web.tsx` aponta para `screens/web/HomeTabsScreen.web.tsx`. Cada container implementa as mesmas abas com renderização condicional (não Tab Navigator) e seleciona a composição correta de Home/Controle por plataforma. Cada tela principal renderiza `components/uiverse/navigation/navigator.tsx`, cuja resolução `.web.tsx` assume a navegação no navegador
 4. Parâmetros de rota passados via `useLocalSearchParams()` do Expo Router
 5. `utils/navigation.ts` é o registro central de rotas (`APP_ROUTE_PATHS`), abas Home (`HOME_TAB_INDEX`) e helpers imperativos. Navegação manual para frente usa `push`, seleção/saída explícita usa um único `replace`, retorno inline conhecido usa `back` e redirect automático usa `redirectToRoute`/`redirectToHomeTab`
-6. O grupo Home de `components/uiverse/navigation/navigator.tsx` e `.web.tsx` contém o Dashboard, o atalho **Lumus IA**, a [[Análise por Categoria]], a [[Previsão de Fluxo de Caixa]] e [[Anotações Locais]], mantendo assistência, relatórios, planejamento e organização pessoal perto da tela inicial. Lumus e Anotações só aparecem quando sua preferência em [[Visibilidade de Rotas]] estiver ativa; Anotações começa oculta por estar em desenvolvimento. Quando a rota ativa é `/bank-movements`, o mesmo grupo insere a opção contextual **Movimentos do banco** entre **Início** e os demais destinos, deixando a tela atual marcada sem esconder o caminho de volta para a Home.
+6. O grupo Home de `components/uiverse/navigation/navigator.tsx` e `.web.tsx` contém o Dashboard, o atalho **Lumus IA**, a [[Análise por Categoria]], a [[Previsão de Fluxo de Caixa]] e [[Anotações Locais]], mantendo assistência, relatórios, planejamento e organização pessoal perto da tela inicial. Lumus e Anotações só aparecem quando sua preferência em [[Visibilidade de Rotas]] estiver ativa; Anotações começa oculta por estar em desenvolvimento. Quando a rota ativa é a correspondente `/web/bank-movements` ou `/mobile/bank-movements`, o mesmo grupo insere a opção contextual **Movimentos do banco** entre **Início** e os demais destinos, deixando a tela atual marcada sem esconder o caminho de volta para a Home.
 7. As duas variantes do navigator podem sobrescrever temporariamente o rótulo de uma opção quando a rota ativa representa um fluxo de cadastro derivado da lista. Isso já acontece em `add-mandatory-expenses`, `add-mandatory-gains` e `add-finance`, para que o item ativo deixe explícito no navigator que o usuário está em um registro novo e não na listagem.
-8. Em `/home`, o navigator resolve o grupo ativo pelo parâmetro `tab` e pelo `defaultValue` da tela, não apenas pelo pathname. Assim `/home?tab=0`, `/home?tab=1` e `/home?tab=2` destacam Home, Controle e Config corretamente.
-9. Telas de cadastro/edição que concluem um registro financeiro ou administrativo aplicam [[Comportamento Pós-Registro]] após o feedback de sucesso; por padrão retornam para `/home?tab=0`, mas podem permanecer na rota atual e limpar ou manter campos conforme preferência. O redirect espera um `requestAnimationFrame` para o `finally` do formulário concluir e então despacha exatamente um `REPLACE`.
+8. Em `/web/home` ou `/mobile/home`, o navigator resolve o grupo ativo pelo parâmetro `tab` e pelo `defaultValue` da tela, não apenas pelo pathname. Assim os parâmetros `tab=0`, `tab=1` e `tab=2` destacam Home, Controle e Config corretamente.
+9. Telas de cadastro/edição que concluem um registro financeiro ou administrativo aplicam [[Comportamento Pós-Registro]] após o feedback de sucesso; por padrão retornam para a Home da plataforma (`/web/home?tab=0` ou `/mobile/home?tab=0`), mas podem permanecer na rota atual e limpar ou manter campos conforme preferência. O redirect espera um `requestAnimationFrame` para o `finally` do formulário concluir e então despacha exatamente um `REPLACE`.
 10. `add-register-tag` preserva o retorno inline para a tela de origem quando recebe `returnAfterCreate`; as quatro telas de origem também enviam `placement` (`expense`, `mandatory-expense`, `gain` ou `mandatory-gain`) e `returnToRoute` para fallback determinístico quando não houver histórico válido. A criação normal pode receber `availabilityPreset` ou abrir o seletor completo de disponibilidade.
 11. `app/_layout.tsx` chama `bootstrapLocalNotifications()` no carregamento do módulo para preparar canais Android e o handler de foreground. Dentro de `components/app/app-root.tsx`, `NotificationLifecycleBridge` ativa o UID, restaura os lembretes do Firestore após login e renova a janela ao voltar ao foreground. Não existe handler Notifee em `index.ts`.
 12. A ação **Sair** é serializada em cada renderer do navigator, mas o fluxo seguro único fica em `utils/secureLogout.ts`. Ele é vinculado ao UID que iniciou a ação e exige a limpeza confirmada dos lembretes antes de `signOut`; respostas atrasadas não podem limpar nem deslogar uma conta posterior.
@@ -90,30 +97,31 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 ### Navegação Web responsiva
 
+- As rotas com uma composição de tela independente mantêm adaptadores explícitos em `app/web/<rota>.web.tsx` e `app/mobile/<rota>.native.tsx`, cada um acompanhado pelo fallback `<rota>.tsx` no seu diretório. O navegador usa `/web/<rota>` e seleciona a tela em `screens/web/`; Android/iOS usam `/mobile/<rota>` e selecionam a tela em `screens/mobile/`. Rotas sem composição dedicada continuam apontando para a implementação canônica responsiva. `/web/home` usa `screens/web/HomeTabsScreen.web.tsx` e `/mobile/home` usa `screens/mobile/HomeTabsScreen.tsx`, mantendo a mesma navegação e selecionando os filhos da plataforma.
 - `WebAppShell` envolve o `Stack` autenticado somente no navegador e preserva o fundo de workspace sem alterar o Stack, os guards ou os parâmetros de rota. Ele não reserva mais uma faixa permanente para navegação. Os helpers de `utils/navigation.ts` emitem o evento Web antes de despachar `push`, `replace` ou `back`; `WebRouteTransition` escuta esse evento e usa Motion em um portal DOM para cobrir e revelar a página com um véu horizontal curto. A transição não captura ponteiros e é removida quando `prefers-reduced-motion` está ativo.
-- `components/uiverse/navigation/navigator.web.tsx` é a variante Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. O fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
+- `components/web/navigation/navigator.web.tsx` é a implementação Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. O fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
 - Em telas menores, a variante Web preserva a barra inferior compacta; Android/iOS continuam usando `navigator.tsx` e o menu Gluestack existentes. Os dois formatos não aparecem juntos.
 - `navigator.tsx` não contém mais uma sidebar desktop inatingível: a resolução de módulo sempre escolhe `navigator.web.tsx` no navegador. A variante nativa fica restrita à barra inferior e menus mobile; o logout seguro é compartilhado entre as duas variantes.
 - O painel mantém a opção contextual de movimentos bancários, os rótulos de formulários derivados, logout serializado e as rotas ocultáveis. Cada item tem estado selecionado, foco visível, fecha com Escape/clique externo e reduz a animação quando o sistema pede menos movimento.
-- O Firebase Hosting reescreve a navegação de cliente para `index.html`. Por isso, uma abertura direta de `/home`, `/financial-list` ou outra rota autenticada atravessa o mesmo `Stack.Protected` e não deve ganhar um guard ou registro de rota paralelo.
+- O Firebase Hosting reescreve a navegação de cliente para `index.html`. Por isso, uma abertura direta de `/web/home`, `/web/financial-list` ou outra rota Web autenticada atravessa o mesmo `Stack.Protected` e não deve ganhar um guard ou registro de rota paralelo.
 
 ## Arquivos principais
 
 - `index.ts` — Entry mínimo que carrega `expo-router/entry`
 - `app/_layout.tsx` — Bootstrap mínimo de compatibilidade, estilos e notificações locais
 - `components/app/app-root.tsx` — Providers, `Stack.Protected`, loader de bootstrap e ciclo de vida de notificações autenticadas
-- `components/uiverse/navigation/web-app-shell.tsx` — Reserva o workspace autenticado no navegador desktop sem modificar a hierarquia de rotas
-- `components/uiverse/navigation/web-route-transition.web.tsx` — Feedback de troca de rota Web com Motion, isolado do Stack React Native
-- `app/home.tsx` / `screens/HomeTabsScreen.tsx` — Adaptador de rota e container de abas (renderização condicional por índice)
-- `app/app-tests.tsx` / `screens/AppTestsScreen.tsx` — Central manual de testes, sob visibilidade local, com diagnóstico não persistente e atalhos de rascunho
-- `app/category-analysis.tsx` — Rota da análise dinâmica por tag
-- `app/financial-forecast.tsx` — Rota da previsão financeira
-- `app/annotations.tsx` — Rota protegida das anotações locais
-- `app/lumus-assistant.tsx` — Rota protegida do [[Assistente Lumus]]
+- `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — workspace autenticado por plataforma sem modificar a hierarquia de rotas
+- `components/web/navigation/web-route-transition.web.tsx` / `components/mobile/navigation/web-route-transition.native.tsx` — feedback de troca de rota Web e fallback nativo isolado do Stack React Native
+- `app/mobile/home.native.tsx` / `app/web/home.web.tsx` / `screens/mobile/HomeTabsScreen.tsx` / `screens/web/HomeTabsScreen.web.tsx` — Adaptadores de rota e containers de abas por plataforma (renderização condicional por índice)
+- `app/mobile/app-tests.tsx` / `screens/mobile/AppTestsScreen.tsx` — Central manual de testes, sob visibilidade local, com diagnóstico não persistente e atalhos de rascunho
+- `app/mobile/category-analysis.tsx` — Rota da análise dinâmica por tag
+- `app/mobile/financial-forecast.tsx` — Rota da previsão financeira
+- `app/mobile/annotations.tsx` — Rota protegida das anotações locais
+- `app/mobile/lumus-assistant.tsx` — Rota protegida do [[Assistente Lumus]]
 - `components/uiverse/assistant/assistant-route-boundary.tsx` — Recuperação de erro inesperado da rota do assistente
-- `app/screen-settings.tsx` — Rota de configurações por tela
-- `app/index.tsx` — Rota raiz (login)
-- `app/bank-summary.tsx` — Redirect para home (rota legada)
+- `app/mobile/screen-settings.tsx` — Rota de configurações por tela
+- `app/index.tsx` — Entry raiz que encaminha para o login Web ou mobile
+- `app/mobile/bank-summary.tsx` — Redirect para home (rota legada)
 - `components/uiverse/navigation/navigator.tsx` / `.web.tsx` — Navegação padrão do app, com implementação específica por plataforma
 - `contexts/RouteVisibilityContext.tsx` — Preferência local e defaults de visibilidade das rotas
 - `utils/navigation.ts` — Registro central de rotas, navegação manual e orquestração serializada dos redirects automáticos via `replace`

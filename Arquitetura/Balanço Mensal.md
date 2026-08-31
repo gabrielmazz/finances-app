@@ -75,12 +75,12 @@ Filtra movimentos que **não** devem entrar nos totais de ganhos/despesas reais:
 
 ## Arquivos principais
 
-- `screens/AddRegisterMonthlyBalanceScreen.tsx` / `screens/AddRegisterMonthlyBalanceScreen.web.tsx` — Formulário de registro de snapshot por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
+- `screens/mobile/AddRegisterMonthlyBalanceScreen.tsx` / `screens/web/AddRegisterMonthlyBalanceScreen.web.tsx` — Formulário de registro de snapshot por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco do snapshot mensal
 - `functions/MonthlyBalanceFirebase.ts` — CRUD de snapshots no Firestore
 - `utils/monthlyBalance.ts` — `calculateLegacyBankBalanceInCents()`, `shouldIncludeMovementInGainExpenseTotals()` e types
 - `functions/BankFirebase.ts` — leitura centralizada do saldo legado para Home, transferência, saque, investimento e Assistente Lumus
-- `app/register-monthly-balance.tsx` — Rota
+- `app/mobile/register-monthly-balance.tsx` — Rota
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar
 
@@ -119,6 +119,7 @@ export type LegacyMonthlyBalanceSnapshot = {
 - Ao cadastrar um banco, deve-se registrar o saldo inicial como um `MonthlyBalance`
 - Após salvar um saldo mensal, banco, mês, valor e estado de saldo existente só são limpos quando a preferência da tela manda permanecer e limpar; o submit usa trava síncrona para impedir toques repetidos durante o upsert
 - A [[Dashboard Home]] usa o último snapshot disponível; o lembrete mensal continua incentivando o registro do saldo de abertura atual
+- Para manter o resumo utilizável em redes móveis, a Home consulta os snapshots indexados em lotes pequenos e mantém a leitura compatível escopada pelos usuários autorizados quando o índice composto estiver ausente ou em criação.
 - Bancos sem movimentação no período ainda aparecem no resumo com saldo base preservado
 - A resolução do valor de investimento segue prioridade: `currentValueInCents` → `lastManualSyncValueInCents` → `valueInCents` → `initialValueInCents` → 0
 - A [[Previsão de Fluxo de Caixa]] não deve supor saldo zero como dado real para banco sem snapshot. Ela pode calcular compromissos futuros, mas precisa sinalizar que o saldo de abertura global está incompleto.

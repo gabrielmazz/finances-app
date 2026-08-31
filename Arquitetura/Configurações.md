@@ -36,11 +36,11 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 
 ## Arquivos principais
 
-- `screens/ConfigurationsScreen.tsx` — Componente principal
-- `screens/ScreenSettingsScreen.tsx` — Configuração de comportamento pós-registro e visibilidade de rotas por tela
-- `app/home.tsx` — Container de abas que inclui Configurações como tab 2
-- `app/screen-settings.tsx` — Rota da tela de configurações das telas
-- `app/app-tests.tsx` / `screens/AppTestsScreen.tsx` — Central manual opcional, protegida pela visibilidade local
+- `screens/mobile/ConfigurationsScreen.tsx` — Componente principal
+- `screens/mobile/ScreenSettingsScreen.tsx` — Configuração de comportamento pós-registro e visibilidade de rotas por tela
+- `app/mobile/home.tsx` — Container de abas que inclui Configurações como tab 2
+- `app/mobile/screen-settings.tsx` — Rota da tela de configurações das telas
+- `app/mobile/app-tests.tsx` / `screens/mobile/AppTestsScreen.tsx` — Central manual opcional, protegida pela visibilidade local
 - `hooks/useScreenStyle.ts` — Estilos da tela
 - `utils/navigation.ts` — Registro central de rotas e saída explícita para Home após formulários derivados
 

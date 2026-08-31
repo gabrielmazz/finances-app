@@ -7,7 +7,7 @@ describe('rota do Assistente Lumus', () => {
 		jest.dontMock('react-native-css-interop/jsx-runtime');
 		jest.dontMock('@/components/uiverse/assistant/assistant-route-boundary');
 		jest.dontMock('@/contexts/LumusAssistantContext');
-		jest.dontMock('@/screens/LumusAssistantScreen');
+		jest.dontMock('@/screens/mobile/LumusAssistantScreen');
 	});
 
 	it('monta provider e tela diretamente, sem Suspense na entrada da rota', () => {
@@ -24,12 +24,12 @@ describe('rota do Assistente Lumus', () => {
 			__esModule: true,
 			LumusAssistantProvider,
 		}));
-		jest.doMock('@/screens/LumusAssistantScreen', () => ({
+		jest.doMock('@/screens/mobile/LumusAssistantScreen', () => ({
 			__esModule: true,
 			default: LumusAssistantScreen,
 		}));
 
-		const LumusAssistantRoute = require('@/app/lumus-assistant').default;
+		const LumusAssistantRoute = require('@/app/mobile/lumus-assistant').default;
 		const routeElement = LumusAssistantRoute();
 		const providerElement = routeElement.props.children;
 

@@ -11,6 +11,7 @@ type MandatoryExpensePaymentBulletChartProps = {
 	targetInCents: number;
 	isDarkMode: boolean;
 	shouldHideValues: boolean;
+	subjectLabel?: string;
 	dom?: DOMProps;
 };
 
@@ -29,6 +30,7 @@ export default function MandatoryExpensePaymentBulletChart({
 	targetInCents,
 	isDarkMode,
 	shouldHideValues,
+	subjectLabel = 'pagamentos de despesas obrigatórias',
 }: MandatoryExpensePaymentBulletChartProps) {
 	const target = Math.max(1, finiteOrZero(targetInCents));
 	const value = Math.min(Math.max(finiteOrZero(valueInCents), 0), target);
@@ -37,8 +39,8 @@ export default function MandatoryExpensePaymentBulletChart({
 	const markerColor = isDarkMode ? '#FEF08A' : '#7C3AED';
 	const ranges = [{ value: target, color: trackColor }];
 	const accessibilityLabel = shouldHideValues
-		? 'Progresso dos pagamentos de despesas obrigatórias. Valores ocultos.'
-		: `Progresso dos pagamentos de despesas obrigatórias: ${formatCurrency(value)} de ${formatCurrency(target)}.`;
+		? `Progresso dos ${subjectLabel}. Valores ocultos.`
+		: `Progresso dos ${subjectLabel}: ${formatCurrency(value)} de ${formatCurrency(target)}.`;
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
