@@ -57,7 +57,7 @@ O catálogo completo com ~170 ícones é mantido em `hooks/useTagIcons.tsx` e é
 
 ## Arquivos principais
 
-- `screens/AddRegisterTagScreen.tsx` / `screens/AddRegisterTagScreen.web.tsx` — Criação contextual e edição por objetivo de disponibilidade, com labels e campos alinhados ao padrão Web de despesas
+- `screens/mobile/AddRegisterTagScreen.tsx` / `screens/web/AddRegisterTagScreen.web.tsx` — Criação contextual e edição por objetivo de disponibilidade, com labels e campos alinhados ao padrão Web de despesas
 - `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor reutilizável de categoria em ActionSheet, com descrição opcional abaixo do nome da opção e ação interna opcional para criar categoria
 - `components/uiverse/categories/category-availability-selector.tsx` — Seletor reutilizável dos quatro contextos e dos presets de disponibilidade
 - `utils/categoryAvailability.ts` — Contextos, presets, mapeamentos Firestore e resumos legíveis
@@ -67,7 +67,7 @@ O catálogo completo com ~170 ícones é mantido em `hooks/useTagIcons.tsx` e é
 - `utils/pendingCreatedTag.ts` — Estado temporário para tag recém-criada (seleção imediata)
 - `utils/navigation.ts` — Saída explícita para Home e fallback dos fluxos inline
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza nos fluxos não-inline
-- `app/add-register-tag.tsx` — Rota
+- `app/mobile/add-register-tag.tsx` — Rota
 
 ## Integrações
 

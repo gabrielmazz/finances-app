@@ -18,6 +18,7 @@ import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminderNotifications';
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
 import {
+	APP_PLATFORM_GROUP,
 	APP_ROUTE_PATHS,
 	getRouteVisibilityKeyForPath,
 	type AppRoutePath,
@@ -27,6 +28,7 @@ import { registerRemoteNotificationDevice } from '@/utils/remoteNotifications';
 const AUTHENTICATED_ROUTE_NAMES = Object.values(APP_ROUTE_PATHS)
 	.filter(pathname => pathname !== APP_ROUTE_PATHS.login)
 	.map(pathname => pathname.slice(1));
+const PLATFORM_LOGIN_ROUTE_NAME = `${APP_PLATFORM_GROUP}/index`;
 
 const AuthBootstrapScreen = () => {
 	const { isDarkMode } = useAppTheme();
@@ -104,6 +106,7 @@ const AuthenticatedStack = () => {
 			<Stack screenOptions={{ headerShown: false }}>
 				<Stack.Protected guard={!isAuthenticated}>
 					<Stack.Screen name="index" />
+					<Stack.Screen name={PLATFORM_LOGIN_ROUTE_NAME} />
 				</Stack.Protected>
 
 				{AUTHENTICATED_ROUTE_NAMES.map(routeName => {

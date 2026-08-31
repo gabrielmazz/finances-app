@@ -22,8 +22,8 @@ Espaço pessoal para textos livres, listas e checklists. As páginas pertencem �
 
 ## Arquivos principais
 
-- `app/annotations.tsx` — rota protegida
-- `screens/LocalAnnotationsScreen.tsx` — lista e editor no mesmo fluxo de tela
+- `app/mobile/annotations.tsx` — rota protegida
+- `screens/mobile/LocalAnnotationsScreen.tsx` — lista e editor no mesmo fluxo de tela
 - `components/uiverse/annotations/annotation-markdown-editor.tsx` — componente Expo DOM do editor visual com toolbar e conversão de volta para Markdown
 - `utils/annotationRichText.ts` — conversão segura de Markdown armazenado para a estrutura HTML visual inicial
 - `utils/localAnnotations.ts` — persistência versionada e helpers de prévia

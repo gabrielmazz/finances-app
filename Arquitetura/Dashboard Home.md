@@ -50,7 +50,7 @@ graph TD
 
 ## Container de Abas
 
-`app/home.tsx` é o container de abas. Renderiza diretamente o componente da aba ativa baseado no parâmetro `tab`:
+`app/mobile/home.tsx` é o container de abas. Renderiza diretamente o componente da aba ativa baseado no parâmetro `tab`:
 
 | tab | Componente | Tela |
 |---|---|---|
@@ -64,10 +64,10 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 
 ## Arquivos principais
 
-- `screens/HomeScreen.tsx` / `.web.tsx` — Dashboard por plataforma, ambos usando a mesma fonte de dados
+- `screens/mobile/HomeScreen.tsx` / `.web.tsx` — Dashboard por plataforma, ambos usando a mesma fonte de dados
 - `hooks/useHomeScreenData.ts` — Hook de fetching setorizado
 - `functions/HomeFirebase.ts` — Agregação de dados do Firestore
-- `app/home.tsx` — Rota e container de abas (Home, Control, Settings)
+- `app/mobile/home.tsx` — Rota e container de abas (Home, Control, Settings)
 - `components/uiverse/banks/bank-card-surface.tsx` — Card do banco com gradiente
 - `components/uiverse/dashboard/home-expense-chart.tsx` — `Sparkline` Mantine em Expo DOM para tendências compactas de ganhos e gastos
 - `components/uiverse/dashboard/home-expense-line-chart.tsx` — `LineChart` Mantine em Expo DOM para gastos diários dos últimos três meses
@@ -96,6 +96,7 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - Cores dos gráficos de pizza definidas em paleta CDI (8 cores) dentro de `HomeFirebase.ts`
 - `investmentCdiRates` é lida junto dos investimentos para simular somente intervalos com taxa configurada; se a leitura falhar, a Home mantém os investimentos e usa a base confirmada, sem transformar a falha opcional do CDI em erro do gráfico
 - A leitura otimizada do último `MonthlyBalance` por banco depende do índice composto publicado em `firestore.indexes.json` (`bankId`, `personId`, `year`, `month`). Durante a criação ou ausência desse índice, `functions/BankFirebase.ts` usa uma leitura compatível escopada pelos usuários autorizados e resolve o snapshot localmente, preservando o saldo sem bloquear o resumo.
+- Histórico trimestral e heatmap anual são complementares ao resumo. Se uma dessas leituras falhar, a Home exibe esses gráficos vazios e mantém os bancos, saldos, totais mensais e Dinheiro disponíveis; somente uma falha das leituras centrais de saldo ou movimento mensal pode invalidar o resumo de bancos.
 
 ## Observações importantes
 

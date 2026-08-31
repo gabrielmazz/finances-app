@@ -46,12 +46,12 @@ sequenceDiagram
 
 ## Arquivos principais
 
-- `screens/AddRegisterGainScreen.tsx` — Formulário de registro
-- `screens/AddRegisterGainScreen.web.tsx` — Composição Web do formulário, baseada no shell responsivo de `AddRegisterExpensesScreen.web.tsx`
+- `screens/mobile/AddRegisterGainScreen.tsx` — Formulário de registro
+- `screens/web/AddRegisterGainScreen.web.tsx` — Composição Web do formulário, baseada no shell responsivo de `AddRegisterExpensesScreen.web.tsx`
 - `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor de categoria em ActionSheet
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet
 - `functions/GainFirebase.ts` — CRUD de receitas no Firestore
-- `app/add-register-gain.tsx` — Rota
+- `app/mobile/add-register-gain.tsx` — Rota
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar
 
 ## Integrações

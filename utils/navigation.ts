@@ -1,4 +1,4 @@
-import { Keyboard } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 import { router, type Href, type UnknownInputParams } from 'expo-router';
 import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
 import type { PostSubmitDestinationKey } from '@/contexts/PostSubmitBehaviorContext';
@@ -11,32 +11,37 @@ const emitWebRouteTransition = () => {
 	window.dispatchEvent(new CustomEvent('lumus:web-route-transition'));
 };
 
+export const APP_PLATFORM_GROUP = Platform.OS === 'web' ? 'web' : 'mobile';
+export const APP_PLATFORM_PREFIX = `/${APP_PLATFORM_GROUP}`;
+
+const platformRoute = (path: string) => `${APP_PLATFORM_PREFIX}${path}`;
+
 export const APP_ROUTE_PATHS = {
-	login: '/',
-	home: '/home',
-	lumusAssistant: '/lumus-assistant',
-	categoryAnalysis: '/category-analysis',
-	financialForecast: '/financial-forecast',
-	annotations: '/annotations',
-	addRegisterBank: '/add-register-bank',
-	addRegisterUser: '/add-register-user',
-	addRegisterExpenses: '/add-register-expenses',
-	addRegisterGain: '/add-register-gain',
-	addRegisterTag: '/add-register-tag',
-	addMandatoryExpenses: '/add-mandatory-expenses',
-	addMandatoryGains: '/add-mandatory-gains',
-	addFinance: '/add-finance',
-	addRescue: '/add-rescue',
-	addUserRelation: '/add-user-relation',
-	appTests: '/app-tests',
-	screenSettings: '/screen-settings',
-	registerMonthlyBalance: '/register-monthly-balance',
-	bankMovements: '/bank-movements',
-	bankSummary: '/bank-summary',
-	financialList: '/financial-list',
-	mandatoryExpenses: '/mandatory-expenses',
-	mandatoryGains: '/mandatory-gains',
-	transferScreen: '/transfer-screen',
+	login: platformRoute(''),
+	home: platformRoute('/home'),
+	lumusAssistant: platformRoute('/lumus-assistant'),
+	categoryAnalysis: platformRoute('/category-analysis'),
+	financialForecast: platformRoute('/financial-forecast'),
+	annotations: platformRoute('/annotations'),
+	addRegisterBank: platformRoute('/add-register-bank'),
+	addRegisterUser: platformRoute('/add-register-user'),
+	addRegisterExpenses: platformRoute('/add-register-expenses'),
+	addRegisterGain: platformRoute('/add-register-gain'),
+	addRegisterTag: platformRoute('/add-register-tag'),
+	addMandatoryExpenses: platformRoute('/add-mandatory-expenses'),
+	addMandatoryGains: platformRoute('/add-mandatory-gains'),
+	addFinance: platformRoute('/add-finance'),
+	addRescue: platformRoute('/add-rescue'),
+	addUserRelation: platformRoute('/add-user-relation'),
+	appTests: platformRoute('/app-tests'),
+	screenSettings: platformRoute('/screen-settings'),
+	registerMonthlyBalance: platformRoute('/register-monthly-balance'),
+	bankMovements: platformRoute('/bank-movements'),
+	bankSummary: platformRoute('/bank-summary'),
+	financialList: platformRoute('/financial-list'),
+	mandatoryExpenses: platformRoute('/mandatory-expenses'),
+	mandatoryGains: platformRoute('/mandatory-gains'),
+	transferScreen: platformRoute('/transfer-screen'),
 } as const;
 
 export type AppRouteKey = keyof typeof APP_ROUTE_PATHS;

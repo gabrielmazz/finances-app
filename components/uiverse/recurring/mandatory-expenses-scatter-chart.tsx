@@ -20,6 +20,7 @@ type MandatoryExpensesScatterSeries = {
 type MandatoryExpensesScatterChartProps = {
 	data: MandatoryExpensesScatterSeries[];
 	isDarkMode: boolean;
+	subjectLabel?: string;
 	dom?: DOMProps;
 };
 
@@ -28,6 +29,7 @@ const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 export default function MandatoryExpensesScatterChart({
 	data,
 	isDarkMode,
+	subjectLabel = 'vencimentos de gastos obrigatórios',
 }: MandatoryExpensesScatterChartProps) {
 	const textColor = isDarkMode ? '#CBD5E1' : '#475569';
 	const gridColor = isDarkMode ? '#334155' : '#CBD5E1';
@@ -38,7 +40,7 @@ export default function MandatoryExpensesScatterChart({
 			<style>{'html, body { background-color: transparent !important; }'}</style>
 			<div
 				role="img"
-				aria-label="Concentração dos vencimentos de gastos obrigatórios por dia da semana e dia do mês."
+				aria-label={`Concentração dos ${subjectLabel} por dia da semana e dia do mês.`}
 				style={{
 					height: 320,
 					width: '100%',

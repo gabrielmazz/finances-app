@@ -51,12 +51,12 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 
 ## Arquivos principais
 
-- `screens/AddRegisterUserScreen.tsx` / `screens/AddRegisterUserScreen.web.tsx` — Formulário de cadastro por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
-- `screens/AddUserRelationScreen.tsx` / `screens/AddUserRelationScreen.web.tsx` — Vinculação de usuários por plataforma, com label, popover e campo alinhados ao padrão Web de despesas
+- `screens/mobile/AddRegisterUserScreen.tsx` / `screens/web/AddRegisterUserScreen.web.tsx` — Formulário de cadastro por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
+- `screens/mobile/AddUserRelationScreen.tsx` / `screens/web/AddUserRelationScreen.web.tsx` — Vinculação de usuários por plataforma, com label, popover e campo alinhados ao padrão Web de despesas
 - `functions/RegisterUserFirebase.ts` — CRUD de usuários e relacionamentos
 - `FirebaseConfig.ts` — Instância secundária do Firebase (`secondaryApp`, `secondaryAuth`)
-- `app/add-register-user.tsx` — Rota de cadastro
-- `app/add-user-relation.tsx` — Rota de relacionamento
+- `app/mobile/add-register-user.tsx` — Rota de cadastro
+- `app/mobile/add-user-relation.tsx` — Rota de relacionamento
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar usuário ou vínculo
 

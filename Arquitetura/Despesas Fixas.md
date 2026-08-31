@@ -83,10 +83,10 @@ graph TD
 
 ## Arquivos principais
 
-- `screens/AddMandatoryExpensesScreen.tsx` — Formulário de criação/edição
-- `screens/MandatoryExpensesListScreen.tsx` — Lista, timeline e controle de pagamento
-- `screens/AddMandatoryExpensesScreen.web.tsx` — Composição Web responsiva do cadastro, com calendário/modal e controle mensal
-- `screens/MandatoryExpensesListScreen.web.tsx` — Composição Web responsiva da lista, calendário, timeline, modais e resumo imprimível
+- `screens/mobile/AddMandatoryExpensesScreen.tsx` — Formulário de criação/edição
+- `screens/mobile/MandatoryExpensesListScreen.tsx` — Lista, timeline e controle de pagamento
+- `screens/web/AddMandatoryExpensesScreen.web.tsx` — Composição Web responsiva do cadastro, com calendário/modal e controle mensal
+- `screens/web/MandatoryExpensesListScreen.web.tsx` — Composição Web responsiva da lista, calendário, timeline, modais e resumo imprimível
 - `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — `BulletChart` oficial de Mantine em Expo DOM, Web-only, com escala pelo total do ciclo e preenchimento pelo valor pago
 - `components/uiverse/recurring/mandatory-expenses-radar-chart.tsx` — `RadarChart` oficial de Mantine em Expo DOM para concentração de gastos por categoria
 - `components/uiverse/recurring/mandatory-expenses-scatter-chart.tsx` — `ScatterChart` oficial de Mantine em Expo DOM para concentração dos dias de vencimento do ciclo atual
@@ -98,13 +98,13 @@ graph TD
 - `utils/mandatoryReminderNotifications.ts` — Serviço compartilhado de lembretes obrigatórios
 - `utils/mandatoryReminderConfig.ts` — Schema v1, offsets cumulativos e resumo do lembrete
 - `utils/mandatoryExpenseNotifications.ts` — Agendamento de notificações (wrapper fino)
-- `app/add-mandatory-expenses.tsx` — Rota de criação
-- `app/mandatory-expenses.tsx` — Rota da lista
+- `app/mobile/add-mandatory-expenses.tsx` — Rota de criação
+- `app/mobile/mandatory-expenses.tsx` — Rota da lista
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar templates
 - `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor de categoria obrigatória em ActionSheet
-- `components/uiverse/recurring/time-picker-field.native.tsx` / `.web.tsx` — Seletor reutilizável de horário do lembrete
-- `components/uiverse/shared/date-picker.native.tsx` / `.web.tsx` e `components/uiverse/recurring/date-calendar.native.tsx` / `.web.tsx` — Calendários customizados separados por plataforma, usados pelo cadastro e pela listagem com o mesmo contrato de data e valores
+- `components/mobile/recurring/time-picker-field.native.tsx` / `components/web/recurring/time-picker-field.web.tsx` — Seletor reutilizável de horário do lembrete
+- `components/mobile/shared/date-picker.native.tsx` / `components/web/shared/date-picker.web.tsx` e `components/mobile/recurring/date-calendar.native.tsx` / `components/web/recurring/date-calendar.web.tsx` — Calendários customizados separados por plataforma, usados pelo cadastro e pela listagem com o mesmo contrato de data e valores
 
 ## Integrações
 

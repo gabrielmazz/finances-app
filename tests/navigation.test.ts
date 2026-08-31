@@ -78,7 +78,7 @@ describe('navigation helpers', () => {
 
 		expect(Keyboard.dismiss).toHaveBeenCalledTimes(1);
 		expect(router.replace).toHaveBeenCalledWith({
-			pathname: '/home',
+			pathname: navigation.APP_ROUTE_PATHS.home,
 			params: { tab: '0' },
 		});
 		expect(router.dismissTo).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe('navigation helpers', () => {
 
 		expect(router.replace).toHaveBeenCalledTimes(1);
 		expect(router.replace).toHaveBeenCalledWith({
-			pathname: '/home',
+			pathname: navigation.APP_ROUTE_PATHS.home,
 			params: { tab: '0' },
 		});
 		expect(router.dismissTo).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe('navigation helpers', () => {
 
 		expect(router.replace).toHaveBeenCalledTimes(1);
 		expect(router.replace).toHaveBeenCalledWith({
-			pathname: '/add-register-gain',
+			pathname: navigation.APP_ROUTE_PATHS.addRegisterGain,
 		});
 	});
 
@@ -126,7 +126,7 @@ describe('navigation helpers', () => {
 
 		expect(router.push).toHaveBeenCalledTimes(1);
 		expect(router.push).toHaveBeenCalledWith({
-			pathname: '/category-analysis',
+			pathname: navigation.APP_ROUTE_PATHS.categoryAnalysis,
 		});
 		expect(router.replace).not.toHaveBeenCalled();
 	});
@@ -139,7 +139,7 @@ describe('navigation helpers', () => {
 		});
 
 		expect(router.push).toHaveBeenCalledWith({
-			pathname: '/mandatory-expenses',
+			pathname: navigation.APP_ROUTE_PATHS.mandatoryExpenses,
 			params: { focusMandatoryExpenseId: 'rent' },
 		});
 	});
@@ -202,16 +202,18 @@ describe('navigation helpers', () => {
 		expect(router.replace).not.toHaveBeenCalled();
 	});
 
-	it('keeps the protected-route registry aligned with every flat route file', () => {
+	it('keeps the protected-route registry aligned with the active platform route directory', () => {
 		const { readdirSync } = require('node:fs');
 		const { join } = require('node:path');
 		const { navigation } = loadNavigationModule();
 		const registeredPaths = Object.values(navigation.APP_ROUTE_PATHS).sort();
-		const filePaths = readdirSync(join(process.cwd(), 'app'))
-			.filter((fileName: string) => fileName.endsWith('.tsx') && fileName !== '_layout.tsx')
+		const filePaths = readdirSync(join(process.cwd(), 'app', navigation.APP_PLATFORM_GROUP))
+			.filter((fileName: string) => fileName.endsWith('.tsx') && !fileName.match(/\.(web|native)\.tsx$/))
 			.map((fileName: string) => {
 				const routeName = fileName.slice(0, -4);
-				return routeName === 'index' ? '/' : `/${routeName}`;
+				return routeName === 'index'
+					? navigation.APP_ROUTE_PATHS.login
+					: `${navigation.APP_PLATFORM_PREFIX}/${routeName}`;
 			})
 			.sort();
 

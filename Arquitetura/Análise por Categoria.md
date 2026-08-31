@@ -50,10 +50,10 @@ graph TD
 
 ## Arquivos principais
 
-- `screens/CategoryAnalysisScreen.tsx` — Tela de relatório e interação por tag
+- `screens/mobile/CategoryAnalysisScreen.tsx` — Tela de relatório e interação por tag
 - `functions/CategoryAnalysisFirebase.ts` — Agregação Firestore e cálculo dos relatórios
 - `utils/categoryAnalysisPdf.ts` — HTML do relatório PDF da análise
-- `app/category-analysis.tsx` — Rota Expo Router
+- `app/mobile/category-analysis.tsx` — Rota Expo Router
 - `components/uiverse/navigation/navigator.tsx` — Entrada da tela no grupo Home
 - `components/uiverse/categories/tag-actionsheet-selector.tsx` — Seletor ActionSheet de categorias reaproveitado na tela
 - `components/ui/tabs/index.tsx` — Alternância controlada entre gastos e ganhos

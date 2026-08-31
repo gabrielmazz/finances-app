@@ -143,7 +143,8 @@ EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 ```text
 app/               adaptadores de rota do Expo Router
 components/app/    providers, guard autenticado e ciclo de vida global
-screens/           orquestração das telas por domínio
+screens/mobile/    telas canônicas para Android/iOS e fluxos compartilhados
+screens/web/       composições específicas do navegador
 components/uiverse componentes visuais e interações reutilizáveis do produto
 components/ui/     primitivas geradas pelo Gluestack
 contexts/          estado transversal (sessão, tema, privacidade e preferências)

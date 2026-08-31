@@ -46,7 +46,7 @@ graph TD
 - `functions/InvestmentCdiRateFirebase.ts`
 - `functions/FinancesFirebase.ts`
 - `utils/investmentPortfolio.ts`
-- `screens/FinancialListScreen.tsx`
+- `screens/mobile/FinancialListScreen.tsx`
 - `components/ui/tabs/index.tsx`
 - `components/uiverse/investments/investment-evolution-chart.tsx`
 

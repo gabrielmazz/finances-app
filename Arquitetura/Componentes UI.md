@@ -8,13 +8,13 @@ versao: 2.4.0
 
 # Componentes UI
 
-Design system do app composto por dois grupos: componentes base do **Gluestack UI** estilizados com **NativeWind** e componentes customizados (**uiverse**) para funcionalidades específicas do domínio. Os componentes customizados ficam separados por sistema dentro de `components/uiverse/`; quando Web e mobile precisam de APIs diferentes, cada sistema mantém variantes `.web.tsx` e `.native.tsx` no mesmo diretório.
+Design system do app composto por dois grupos: componentes base do **Gluestack UI** estilizados com **NativeWind** e componentes customizados (**uiverse**) para funcionalidades específicas do domínio. Os contratos lógicos continuam em `components/uiverse/`; as implementações exclusivas de plataforma ficam organizadas em `components/web/` e `components/mobile/`, separadas por sistema funcional.
 
 ## Resolução por plataforma
 
-As telas importam o caminho lógico sem extensão. O Expo escolhe automaticamente o arquivo `.web.tsx` no navegador e `.native.tsx` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport nativo para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.
+As telas importam o caminho lógico sem extensão. Os adaptadores em `components/uiverse/` encaminham automaticamente para `components/web/` no navegador e `components/mobile/` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport mobile para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.
 
-Os componentes com variantes independentes preservam os mesmos tipos públicos, callbacks e regras de privacidade: `date-picker`, `date-calendar`, `bank-actionsheet-selector`, `bank-card-surface`, `tag-actionsheet-selector`, `category-availability-selector`, `loader`, `screen-dismiss-keyboard`, `web-app-shell`, `assistant-cards` e `assistant-route-boundary`. O Web pode usar controles DOM/Mantine ou comportamento de foco próprio; o mobile mantém suas interações nativas. Nenhuma dessas variantes acessa Firebase ou altera cálculos financeiros.
+Os componentes com variantes independentes preservam os mesmos tipos públicos, callbacks e regras de privacidade: `date-picker`, `date-calendar`, `bank-actionsheet-selector`, `bank-card-surface`, `tag-actionsheet-selector`, `category-availability-selector`, `loader`, `screen-dismiss-keyboard`, `web-app-shell`, `assistant-cards` e `assistant-route-boundary`. O Web pode usar controles DOM/Mantine ou comportamento de foco próprio em `components/web/`; o mobile mantém suas interações nativas em `components/mobile/`. Os arquivos homônimos de `components/uiverse/` são adaptadores de resolução e não acessam Firebase nem alteram cálculos financeiros.
 
 Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira deliberada de Expo DOM. Eles recebem props serializáveis e executam a mesma implementação em Web e WebView nativo; criar uma cópia nativa desses módulos reduziria a paridade documentada sem resolver uma incompatibilidade de API.
 
@@ -78,40 +78,35 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 
 | Componente | Descrição |
 |---|---|
-| `navigator.native.tsx` / `.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. Ambas usam os helpers de `utils/navigation.ts`, aplicam os mesmos guards visuais e delegam o logout seguro para `utils/secureLogout.ts`; a variante nativa não contém layout desktop inatingível |
-| `web-app-shell.native.tsx` / `.web.tsx` | Mantém o workspace autenticado; o nativo monta somente o frame dos filhos e o Web adiciona fundo, transição DOM e nenhuma coluna fixa enquanto o menu deslizante está fechado |
-| `web-route-transition.native.tsx` / `.web.tsx` | O nativo não monta feedback; o Web usa `motion/react` em portal no `document.body`, revela a nova página com opacidade e `scaleX`, não captura ponteiros e respeita `prefers-reduced-motion` |
-| `web/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: um único painel desktop navy/amarelo, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo, posicionamento explícito conforme `position` e variante de movimento reduzido |
-| `web/AnimatedContent.jsx` | Wrapper React DOM baseado em GSAP/ScrollTrigger para revelar e ocultar conteúdo Web com deslocamento, opacidade e escala configuráveis; aceita `trigger="mount"`, `visible` e respeita movimento reduzido |
-| `web/StrokeText.jsx` / `.css` | Texto SVG desenhado por GSAP na montagem; usado no título do hero da Home Web para criar o efeito de entrada |
-| `web/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
-| `screens/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
-| `screens/AddRegisterGainScreen.web.tsx` | Composição Web do cadastro de ganhos, baseada no shell hero/sheet de despesas e usando `AnimatedContent`, `Grainient`, `StrokeText`, ActionSheets compartilhados e classes estruturais de `useScreenStyles()` |
-| `screens/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, seletor visual de hora/minuto, controle mensal e lembrete informado como indisponível para agendamento no navegador |
-| `web-select-field.tsx` | Select Web reutilizável com trigger no padrão dos campos, valor selecionado visível, seta contextual, hover, seleção, foco de teclado e menu no fluxo vertical; usa os tokens de `useScreenStyles()` |
-| `screens/MandatoryExpensesListScreen.web.tsx` | Composição Web da listagem de gastos obrigatórios, com `date-calendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e exportação para impressão/PDF |
+| `components/mobile/navigation/navigator.native.tsx` / `components/web/navigation/navigator.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. Ambas usam os helpers de `utils/navigation.ts`, aplicam os mesmos guards visuais e delegam o logout seguro para `utils/secureLogout.ts` |
+| `components/mobile/navigation/web-app-shell.native.tsx` / `components/web/navigation/web-app-shell.web.tsx` | Mantém o workspace autenticado; o nativo monta somente o frame dos filhos e o Web adiciona fundo, transição DOM e nenhuma coluna fixa enquanto o menu deslizante está fechado |
+| `components/mobile/navigation/web-route-transition.native.tsx` / `components/web/navigation/web-route-transition.web.tsx` | O nativo não monta feedback; o Web usa `motion/react` em portal no `document.body`, revela a nova página com opacidade e `scaleX`, não captura ponteiros e respeita `prefers-reduced-motion` |
+| `components/web/navigation/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: um único painel desktop navy/amarelo, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo, posicionamento explícito conforme `position` e variante de movimento reduzido |
+| `components/web/motion/AnimatedContent.jsx` | Wrapper React DOM baseado em GSAP/ScrollTrigger para revelar e ocultar conteúdo Web com deslocamento, opacidade e escala configuráveis; aceita `trigger="mount"`, `visible` e respeita movimento reduzido |
+| `components/web/visuals/StrokeText.jsx` / `.css` | Texto SVG desenhado por GSAP na montagem; usado no título do hero da Home Web para criar o efeito de entrada |
+| `components/web/visuals/Grainient.jsx` / `.css` | Fundo Web em WebGL com stops de cor dinâmicos para o hero da Home e painéis expandidos da timeline |
+| `screens/web/HomeScreen.web.tsx` | Dashboard Web responsivo que reutiliza `useHomeScreenData`, `useValueVisibility` e as regras de saldo, mostrando resumo, ações rápidas, contas, lançamentos e investimentos |
+| `screens/web/AddRegisterGainScreen.web.tsx` | Composição Web do cadastro de ganhos, baseada no shell hero/sheet de despesas e usando `AnimatedContent`, `Grainient`, `StrokeText`, ActionSheets compartilhados e classes estruturais de `useScreenStyles()` |
+| `screens/web/AddMandatoryExpensesScreen.web.tsx` | Composição Web do cadastro de gastos obrigatórios, com formulário completo, calendário modal de parcelas, seletor visual de hora/minuto, controle mensal e lembrete informado como indisponível para agendamento no navegador |
+| `components/web/shared/web-select-field.tsx` | Select Web reutilizável com trigger no padrão dos campos, valor selecionado visível, seta contextual, hover, seleção, foco de teclado e menu no fluxo vertical; usa os tokens de `useScreenStyles()` |
+| `screens/web/MandatoryExpensesListScreen.web.tsx` | Composição Web da listagem de gastos obrigatórios, com `date-calendar`, resumo mensal, timeline expansível, atualização manual, modais de confirmação e exportação para impressão/PDF |
 | `mandatory-expense-payment-bullet-chart.tsx` | Expo DOM Component Web-only que exibe o progresso dos pagamentos obrigatórios: total do ciclo como limite e total pago como preenchimento, sem consulta própria |
 | `mandatory-expenses-radar-chart.tsx` | Expo DOM Component que encapsula `RadarChart` de Mantine para somar os valores exibidos por categoria; recebe dados serializáveis e neutraliza a escala no modo de privacidade |
 | `mandatory-expenses-scatter-chart.tsx` | Expo DOM Component que encapsula `ScatterChart` de Mantine para cruzar dia da semana e dia do mês dos vencimentos do ciclo atual; separa pendentes de pagos/concluídos |
 | `annotation-markdown-editor.tsx` | Expo DOM Component do editor visual de anotações: toolbar funcional para H1/H2/H3, negrito, itálico, sublinhado, tópicos e checklist, com aparência rica durante a escrita e Markdown portátil devolvido à tela |
-| `bank-card-surface.native.tsx` / `.web.tsx` | Cartão de banco com gradiente linear baseado na cor do banco; utilitários de paleta e contrato de conteúdo são iguais, a superfície pode evoluir por plataforma |
-| `bank-actionsheet-selector.native.tsx` / `.web.tsx` | Seletor de bancos com ícone/monograma, nome, helper contextual e estado selecionado; dados e callback são iguais |
-| `tag-actionsheet-selector.native.tsx` / `.web.tsx` | Seletor de categorias com ícone, nome, estado selecionado, descrição opcional por opção, uso em filtros administrativos e ação interna opcional para criar categoria |
-| `category-availability-selector.native.tsx` / `.web.tsx` | Seletor dos contextos de uso e presets de disponibilidade com a mesma seleção e fechamento |
-| `date-picker.native.tsx` / `.web.tsx` | Modal de seleção de data no formato DD/MM/YYYY (brasileiro), com `accessibilityLabel`, navegação mensal e rodapé `Cancelar`/`Hoje`; cada plataforma possui seu próprio arquivo e o mesmo callback `(formattedValue, date)` |
-| `time-picker-field.native.tsx` / `.web.tsx` | Campo reutilizável para horários: abre o seletor nativo Android/iOS e, no Web, oferece menu visual rolável de horas/minutos no mesmo padrão dos selects, sempre retornando HH:MM |
+| `components/mobile/{banks,categories,recurring,shared}/` / `components/web/{banks,categories,recurring,shared}/` | Seletores de banco/categoria, calendário, data, horário, loader e dismiss de teclado ficam separados por plataforma, mantendo os mesmos contratos públicos |
 | `financial-forecast-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine/Recharts para a previsão de caixa, recebendo somente props serializáveis, mantendo o fundo transparente nos dois temas, sem contorno de foco ao toque e com rolagem horizontal para séries longas |
 | `home-expense-chart.tsx` | Expo DOM Component que encapsula `Sparkline` de Mantine para tendências compactas de ganhos/gastos, com dados serializáveis, fundo transparente e sem interação |
 | `home-expense-line-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine para os gastos diários dos últimos três meses, com dados serializáveis, fundo transparente e tooltip/eixos protegidos pela privacidade |
 | `home-activity-heatmap.tsx` | Expo DOM Component que encapsula `Heatmap` Mantine para as contagens diárias de lançamentos financeiros no ano atual, com meses, dias da semana e tooltip em português |
 | `investment-evolution-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine/Recharts para comparar capital líquido e patrimônio estimado somente pelas linhas, com pontos, grade e eixos no padrão visual do gráfico de previsão, fundo transparente, sem contorno de foco e rolagem horizontal para séries longas |
-| `date-calendar.native.tsx` / `.web.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para valor previsto/real, `reminderSummary` para a configuração versionada do lembrete e `modalSize` para a largura responsiva do resumo diário Web; os itens reutilizam nas plataformas a linha compacta com ícone, identidade, valor/data e seta |
-| `notifier-alert.native.tsx` / `.web.tsx` | Canal único de feedback in-app; Android/iOS usam `react-native-notifier` e o Web usa `Alert` do Mantine fixo no canto superior direito via portal no `document.body`, com entrada horizontal por `AnimatedContent` |
-| `web-screen-hero.native.tsx` / `.web.tsx` | Cabeçalho das telas: o nativo usa Gluestack e a Web usa wallpaper, Grainient, StrokeText e animação DOM sem alterar o contrato da tela |
-| `screens/LoginScreen.tsx` / `.web.tsx` | Tela de Login completa por plataforma: a Web usa painel de identidade em gradiente; Android/iOS preservam o wallpaper, logo adaptado ao tema e cartão sobreposto da tela mobile original, sem `ogl`, WebGL ou WebView |
-| `loader.native.tsx` / `.web.tsx` | Spinner de carregamento; o mobile preserva o SVG animado e o Web usa o indicador acessível do navegador |
-| `assistant/assistant-cards.native.tsx` / `.web.tsx` | Cartões de pergunta, revisão individual, mensagens, métricas e gráficos controlados do [[Assistente Lumus]]; gifted-charts fica no mobile e Mantine no Web |
-| `assistant/assistant-route-boundary.native.tsx` / `.web.tsx` | Recovery boundary independente por plataforma para erro inesperado ao renderizar o assistente; não é um loading gate da rota |
+| `components/mobile/recurring/date-calendar.native.tsx` / `components/web/recurring/date-calendar.web.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para mostrar valor previsto/real, `reminderSummary` para a configuração versionada do lembrete e `modalSize` para a largura responsiva do resumo diário Web |
+| `components/mobile/feedback/notifier-alert.native.tsx` / `components/web/feedback/notifier-alert.web.tsx` | Canal único de feedback in-app; Android/iOS usam `react-native-notifier` e o Web usa `Alert` do Mantine fixo no canto superior direito via portal no `document.body`, com entrada horizontal por `AnimatedContent` |
+| `components/mobile/navigation/web-screen-hero.native.tsx` / `components/web/navigation/web-screen-hero.web.tsx` | Cabeçalho das telas: o nativo usa Gluestack e a Web usa wallpaper, Grainient, StrokeText e animação DOM sem alterar o contrato da tela |
+| `screens/mobile/LoginScreen.tsx` / `.web.tsx` | Tela de Login completa por plataforma: a Web usa painel de identidade em gradiente; Android/iOS preservam o wallpaper, logo adaptado ao tema e cartão sobreposto da tela mobile original, sem `ogl`, WebGL ou WebView |
+| `components/mobile/shared/loader.native.tsx` / `components/web/shared/loader.web.tsx` | Spinner de carregamento; o mobile preserva o SVG animado e o Web usa o indicador acessível do navegador |
+| `components/mobile/assistant/assistant-cards.native.tsx` / `components/web/assistant/assistant-cards.web.tsx` | Cartões de pergunta, revisão individual, mensagens, métricas e gráficos controlados do [[Assistente Lumus]]; gifted-charts fica no mobile e Mantine no Web |
+| `components/mobile/assistant/assistant-route-boundary.native.tsx` / `components/web/assistant/assistant-route-boundary.web.tsx` | Recovery boundary independente por plataforma para erro inesperado ao renderizar o assistente; não é um loading gate da rota |
 
 ### Relação entre componentes uiverse
 
@@ -140,7 +135,7 @@ graph LR
     LOG[LoginScreen.tsx / LoginScreen.web.tsx]
     LDR[loader.tsx] --> LAYOUT["_layout.tsx"]
     LAC[assistant-cards.tsx] --> LAS[LumusAssistantScreen]
-    ARB[assistant-route-boundary.tsx] --> LAR[app/lumus-assistant.tsx]
+    ARB[assistant-route-boundary.tsx] --> LAR[app/mobile/lumus-assistant.tsx]
     LAR --> LAS
 ```
 
@@ -150,10 +145,10 @@ graph LR
 - `components/uiverse/` — Componentes customizados do domínio
 - `components/uiverse/dashboard/home-expense-chart.tsx` — Sparkline Mantine Web em Expo DOM para as tendências compactas dos cards de resumo da Home
 - `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — Bullet de pagamentos obrigatórios em Expo DOM, com faixa de 0 ao total do ciclo e preenchimento pelo valor efetivamente pago
-- `components/uiverse/navigation/web-app-shell.web.tsx` / `.native.tsx` — Cascas independentes do layout autenticado por plataforma
-- `components/uiverse/navigation/web-route-transition.web.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
+- `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — Cascas independentes do layout autenticado por plataforma
+- `components/web/navigation/web-route-transition.web.tsx` / `components/mobile/navigation/web-route-transition.native.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
 - `components/ui/gluestack-ui-provider/index.tsx` — Configuração do provider de tema
-- `screens/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterUserScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
+- `screens/web/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterUserScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
 
 ## Integrações
 
@@ -220,7 +215,7 @@ graph LR
 - `web/Grainient.jsx` é Web-only e deve ser montado somente quando o painel que o contém estiver visível; o conteúdo textual fica acima do canvas para preservar a leitura. Nos detalhes da timeline, o wrapper Web ocupa toda a largura disponível, o container/canvas usa `inset: 0` e o recorte arredondado contém o canvas nos quatro cantos. O componente mantém um gradiente CSS sob o canvas para que a identidade visual não desapareça quando WebGL2 não estiver disponível; os shaders GLSL ES 3.00 não devem ser executados em WebGL1.
 - `web/AnimatedContent.jsx` é Web-only; além do disparo por `ScrollTrigger`, aceita `trigger="mount"` para entradas imediatas, `visible` para executar a saída antes do unmount e `disappearScale` para usos que precisam controlar o recorte durante o fechamento. Na timeline da Home, o wrapper recebe a chave do movimento, reinicia a abertura quando o detalhe é expandido, não escala a superfície do card e remove o card somente após a animação de fechamento.
 - `web-route-transition.web.tsx` é Web-only e reage apenas a mudanças de pathname autenticado; não deve controlar navegação, alterar o Stack ou capturar foco/interações. Mantenha a animação limitada a opacidade e transformações e preserve a saída imediata para `prefers-reduced-motion`.
-- Variantes `.web.tsx` e `.native.tsx` existem para incompatibilidades de API, evento, foco, animação ou dependência. Não importar uma variante diretamente: use o caminho lógico sem extensão para que o Expo escolha a plataforma correta.
+- Variantes `.web.tsx` e `.native.tsx` existem para incompatibilidades de API, evento, foco, animação ou dependência. Dentro de telas e componentes, use o caminho lógico sem extensão para que o Expo escolha a plataforma correta. A única exceção são os adaptadores de rota em `app/`, que podem importar explicitamente a composição `.web.tsx` no navegador e `.tsx`/`.native.tsx` no Android/iOS para garantir a seleção da tela inteira.
 - Novos fluxos devem usar apenas `components/uiverse/navigation/navigator.tsx` e sua resolução `.web.tsx` como navegação do domínio: barra inferior em Android/iOS e rail/painel `StaggeredMenu` em Web desktop. Não duplicar os dois formatos na mesma viewport.
 - O breakpoint da casca Web é `1024px`. Em desktop, itens do painel devem manter foco visível, estado selecionado e área clicável de pelo menos 44px; em telas menores, a experiência mobile existente prevalece.
 - Feedback in-app deve passar por `components/uiverse/feedback/notifier-alert.tsx`; a resolução Web usa o `Alert` Mantine global e não deve recriar viewport local ou utilitário alternativo

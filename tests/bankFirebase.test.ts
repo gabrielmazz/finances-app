@@ -59,4 +59,42 @@ describe('legacy bank balance production compatibility', () => {
 			asOfDate: new Date(2026, 7, 21),
 		})).resolves.toEqual({ success: true, data: { 'bank-1': 10000 } });
 	});
+
+	it('limits concurrent indexed snapshot reads for mobile reliability', async () => {
+		let activeSnapshotReads = 0;
+		let peakSnapshotReads = 0;
+		mockGetDocs.mockImplementation(async (request: { collectionName: string; constraints: Array<{ type?: string }> }) => {
+			if (
+				request.collectionName === 'monthlyBalances' &&
+				request.constraints.some(constraint => constraint.type === 'orderBy')
+			) {
+				activeSnapshotReads += 1;
+				peakSnapshotReads = Math.max(peakSnapshotReads, activeSnapshotReads);
+				await new Promise(resolve => setTimeout(resolve, 1));
+				activeSnapshotReads -= 1;
+				return { docs: [] };
+			}
+
+			return { docs: [] };
+		});
+
+		await expect(getLegacyBankBalancesInCentsFirebase({
+			personId: 'user-1',
+			bankIds: ['bank-1', 'bank-2', 'bank-3', 'bank-4', 'bank-5', 'bank-6', 'bank-7'],
+			asOfDate: new Date(2026, 7, 21),
+		})).resolves.toEqual({
+			success: true,
+			data: {
+				'bank-1': null,
+				'bank-2': null,
+				'bank-3': null,
+				'bank-4': null,
+				'bank-5': null,
+				'bank-6': null,
+				'bank-7': null,
+			},
+		});
+
+		expect(peakSnapshotReads).toBeLessThanOrEqual(3);
+	});
 });

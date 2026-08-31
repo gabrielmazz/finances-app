@@ -154,10 +154,10 @@ describe('compatibilidade Web', () => {
 
 	it('não deixa telas de relatório importarem módulos nativos diretamente', () => {
 		const reportScreens = [
-			'screens/CategoryAnalysisScreen.tsx',
-			'screens/MandatoryExpensesListScreen.tsx',
-			'screens/MandatoryGainsListScreen.tsx',
-			'screens/BankMovementsScreen.tsx',
+			'screens/mobile/CategoryAnalysisScreen.tsx',
+			'screens/mobile/MandatoryExpensesListScreen.tsx',
+			'screens/mobile/MandatoryGainsListScreen.tsx',
+			'screens/mobile/BankMovementsScreen.tsx',
 		];
 
 		for (const screenPath of reportScreens) {

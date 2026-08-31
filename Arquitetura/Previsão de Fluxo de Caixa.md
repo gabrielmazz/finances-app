@@ -64,8 +64,8 @@ graph TD
 
 ## Arquivos principais
 
-- `app/financial-forecast.tsx` — Rota fina Expo Router
-- `screens/FinancialForecastScreen.tsx` — Tela nativa, períodos, estados e detalhamento
+- `app/mobile/financial-forecast.tsx` — Rota fina Expo Router
+- `screens/mobile/FinancialForecastScreen.tsx` — Tela nativa, períodos, estados e detalhamento
 - `functions/FinancialForecastFirebase.ts` — Leitura agregada e normalização de Firestore
 - `utils/financialForecast.ts` — Cálculo puro do saldo de abertura e da projeção
 - `components/uiverse/reports/financial-forecast-chart.tsx` — LineChart Mantine em Expo DOM
