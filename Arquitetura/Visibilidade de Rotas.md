@@ -23,7 +23,7 @@ Preferência local que permite ocultar telas configuráveis neste aparelho. Toda
 ## Arquivos principais
 
 - `contexts/RouteVisibilityContext.tsx` — Estado, defaults e persistência local.
-- `screens/mobile/ScreenSettingsScreen.tsx` — Switches da configuração por tela, do Lumus, das Anotações e dos Testes do aplicativo.
+- `screens/mobile/ScreenSettingsScreen.tsx` / `screens/web/ScreenSettingsScreen.web.tsx` — Switches da configuração por tela, do Lumus, das Anotações e dos Testes do aplicativo.
 - `components/uiverse/navigation/navigator.tsx` — Filtra destinos ocultos nos menus.
 - `app/_layout.tsx` — Guard de acesso real por `Stack.Protected`.
 - `app/mobile/home.tsx` — Protege o atalho inline de Controle.

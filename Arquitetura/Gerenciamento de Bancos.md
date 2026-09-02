@@ -3,7 +3,7 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.1
+versao: 1.7.2
 ---
 
 # Gerenciamento de Bancos
@@ -53,7 +53,7 @@ graph TD
 7. A lista pode ser recarregada manualmente por pull-to-refresh, preservando o período, o banco/dinheiro e os filtros locais
 8. Cada movimento exibe: data, descrição, tag com ícone (via `<TagIcon />`), valor (entrada/saída colorido); despesas obrigatórias usam a paleta visual vermelha de despesa também no ícone, linha, card expandido e valor monetário
 9. Edições acionadas pela timeline devem permanecer na tela atual após sucesso; movimentos comuns abrem `AddRegisterGainScreen.tsx`/`AddRegisterExpensesScreen.tsx`, e edição de investimento no modal local segue a mesma regra de permanência
-10. Enquanto `BankMovementsScreen.tsx` está aberta, o grupo Home do `components/uiverse/navigation/navigator.tsx` exibe uma opção contextual **Movimentos do banco** entre **Início** e **Análise por Categoria**, permitindo reconhecer a tela atual e voltar para o Dashboard pela opção **Início**
+10. O grupo Home do `components/uiverse/navigation/navigator.tsx` e do navigator Web oferece permanentemente a opção **Movimentos do banco**, permitindo abrir o extrato sem passar pelo cartão da Home; quando `BankMovementsScreen.tsx` está aberta, essa opção fica marcada e **Início** continua levando ao Dashboard
 11. Transferências bancárias são incluídas no extrato tanto pela associação direta `bankId` quanto pelos metadados `bankTransferSourceBankId`/`bankTransferTargetBankId`, garantindo que o banco de origem veja a saída e o banco de destino veja a entrada
 
 ### Saldo Calculado
@@ -83,7 +83,7 @@ graph TD
 - `app/mobile/add-register-bank.tsx` — Rota de cadastro
 - `app/mobile/bank-movements.tsx` — Rota de movimentos
 - `app/mobile/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
-- `components/uiverse/navigation/navigator.tsx` — Mostra a opção contextual **Movimentos do banco** no grupo Home apenas em `/bank-movements`
+- `components/uiverse/navigation/navigator.tsx` / `components/web/navigation/navigator.web.tsx` — Oferecem **Movimentos do banco** no grupo Home e marcam a opção quando `/bank-movements` está aberta
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar nos formulários de bancos, transferências, saques e saldos
 
@@ -120,7 +120,7 @@ graph TD
 - O resumo filtrado do período muda com os filtros locais, mas o card superior continua exibindo os totais gerais do período consultado
 - O PDF segue o mesmo escopo do resumo filtrado: tipo/tag ativos, período selecionado e valores mascarados quando a [[Privacidade de Valores]] está ativa
 - `BankMovementsScreen.tsx` intercepta o retorno físico pelo `Navigator` para cair em `/home?tab=0` sem depender de `router.back()`
-- A opção **Movimentos do banco** no navigator é contextual e não deve aparecer em outras telas do grupo Home
+- A opção **Movimentos do banco** permanece visível no grupo Home para abrir o extrato diretamente; ela só recebe estado ativo quando a rota de movimentos está aberta
 
 ## Integração com o Assistente Lumus
 

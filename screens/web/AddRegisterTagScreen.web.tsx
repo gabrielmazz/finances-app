@@ -95,6 +95,7 @@ const getBooleanParam = (value: string | string[] | undefined) => {
 
 export default function AddRegisterTagScreen() {
 	const {
+		webDashboardClassNames,
 		webExpenseClassNames,
 		isDarkMode,
 		surfaceBackground,
@@ -513,7 +514,7 @@ export default function AddRegisterTagScreen() {
 
 							<ScrollView
 								ref={scrollViewRef}
-								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
+								className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
 								style={{ marginTop: heroHeight - 64 }}
 								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 								keyboardShouldPersistTaps="handled"
@@ -521,7 +522,7 @@ export default function AddRegisterTagScreen() {
 								onScroll={handleScroll}
 								scrollEventThrottle={scrollEventThrottle}
 							>
-								<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
+								<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4 gap-4`}>
 									{isLoadingExisting ? (
 										<VStack className={`${fieldContainerCardClassName} px-4 py-5`}>
 											<Text className={`${helperText} text-sm`}>Carregando a categoria…</Text>

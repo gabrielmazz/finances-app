@@ -33,8 +33,8 @@ Preferência global que define o que cada formulário faz depois de salvar com s
 - `contexts/PostSubmitBehaviorContext.tsx` — Estado global, defaults, opções de telas/destinos, modos de cadastro/edição e persistência compatível com a preferência legada.
 - `hooks/usePostSubmitBehavior.ts` — Aplica a navegação ou limpeza configurada após sucesso e impede limpeza em edição.
 - `contexts/RouteVisibilityContext.tsx` — Informa se o destino selecionado ainda pode ser acessado localmente.
-- `screens/mobile/ScreenSettingsScreen.tsx` — UI de configuração por tela.
-- `app/mobile/screen-settings.tsx` — Rota Expo Router da tela.
+- `screens/mobile/ScreenSettingsScreen.tsx` / `screens/web/ScreenSettingsScreen.web.tsx` — UI de configuração por tela, independente por plataforma.
+- `app/mobile/screen-settings.tsx` / `app/web/screen-settings.tsx` — Rotas Expo Router da tela.
 - `screens/mobile/ConfigurationsScreen.tsx` — Atalho em Configurações avançadas.
 - `components/uiverse/navigation/navigator.tsx` — Item "Config. das telas" no grupo Config.
 - `utils/navigation.ts` — Registro da rota `/screen-settings` e helpers serializados `redirectToRoute()`/`redirectToHomeTab()` usados pelo hook.

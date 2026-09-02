@@ -106,6 +106,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		infoCardStyle,
 		insets,
 		labelText,
+		webDashboardClassNames,
 
 	} = useScreenStyles();
 
@@ -588,7 +589,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								ref={scrollViewRef}
 								keyboardShouldPersistTaps="handled"
 								keyboardDismissMode="on-drag"
-								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
+								className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 								style={{ marginTop: heroHeight - 64 }}
 								contentContainerStyle={{
 									paddingBottom: Math.max(32, contentBottomPadding - 108),
@@ -596,7 +597,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								onScroll={handleScroll}
 								scrollEventThrottle={scrollEventThrottle}
 							>
-								<VStack className="justify-between mt-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
+								<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 									<VStack className="mb-4">
 
 										<HStack className="mb-1 ml-1 gap-2">

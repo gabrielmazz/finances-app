@@ -25,10 +25,15 @@ export const WEB_DASHBOARD_CLASS_NAMES = {
 	heroIllustrationAnimation:
 		'mx-auto mt-[14px] flex h-[40%] w-full shrink-0 flex-col items-center justify-center',
 	heroTitle: 'block w-full max-w-[620px] text-center text-[25px] font-extrabold text-white',
-	sheet: 'flex-1 w-full rounded-tl-[28px] rounded-tr-[28px] px-8 pb-0.5',
+	sheet: 'flex-1 w-full rounded-tl-[28px] rounded-tr-[28px] px-6 pb-0.5 lg:px-8',
 	sheetCompact: 'px-[18px]',
-	sheetInner: 'flex-1',
-	scrollContent: 'gap-7 pb-[18px] pt-[18px]',
+	sheetInner: 'flex-1 w-full max-w-[1180px] self-center',
+	contentFrame: 'w-full max-w-[1180px] self-center',
+	contentPadding: 'px-6 lg:px-8',
+	webSheet: 'web:w-full web:rounded-tl-[28px] web:rounded-tr-[28px] web:px-6 web:pb-0.5 web:relative web:z-[3] web:lg:px-8',
+	webContentFrame: 'web:w-full web:max-w-[1180px] web:self-center',
+	webContentPadding: 'web:px-6 web:lg:px-8',
+	scrollContent: 'gap-7 px-6 pb-[18px] pt-[18px] lg:px-8',
 	topColumns: 'gap-[26px]',
 	topColumnsDesktop: 'flex-row',
 	topColumnsDesktopCentered: 'justify-center',
@@ -143,7 +148,7 @@ export const WEB_DASHBOARD_CLASS_NAMES = {
 // Mantidas aqui para que a tela siga o mesmo contrato de estilos da Home Web.
 export const WEB_EXPENSE_CLASS_NAMES = {
 	formSurface: 'min-w-0 flex-1',
-	formScroll: 'px-5 pb-8 pt-7 sm:px-8 lg:px-10',
+	formScroll: 'px-6 pb-8 pt-7 lg:px-8',
 	fieldGrid: 'gap-4 lg:flex-row lg:flex-wrap',
 	fieldHalf: 'lg:w-[calc(50%-8px)]',
 	fieldFull: 'w-full',

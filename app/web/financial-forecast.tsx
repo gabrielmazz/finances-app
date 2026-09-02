@@ -1,1 +1,1 @@
-export { default } from '@/screens/mobile/FinancialForecastScreen';
+export { default } from '@/screens/web/FinancialForecastScreen.web';

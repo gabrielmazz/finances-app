@@ -111,6 +111,7 @@ const mergeDateWithCurrentTime = (date: Date) => {
 
 export default function AddRescueScreen() {
 	const {
+		webDashboardClassNames,
 		webExpenseClassNames,
 		isDarkMode,
 		surfaceBackground,
@@ -587,13 +588,13 @@ export default function AddRescueScreen() {
 							ref={scrollViewRef}
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
-							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
+							className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
 							onScroll={handleScroll}
 							scrollEventThrottle={scrollEventThrottle}
 						>
-							<VStack className="justify-between mt-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
+							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} justify-between mt-4`}>
 								<VStack className="mb-4">
 									<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco de origem</Text>
 									<BankActionsheetSelector

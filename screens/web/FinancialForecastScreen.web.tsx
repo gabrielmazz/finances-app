@@ -1,5 +1,7 @@
+// Implementação Web independente da previsão financeira.
 import React from 'react';
 import {
+	Image as RNImage,
 	Platform,
 	Pressable,
 	RefreshControl,
@@ -24,11 +26,11 @@ import {
 import { auth } from '@/FirebaseConfig';
 import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
 import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerText } from '@/components/ui/tabs';
@@ -121,7 +123,7 @@ const FinancialForecastSkeleton = () => (
 	</VStack>
 );
 
-export default function FinancialForecastScreen() {
+export default function FinancialForecastScreenWeb() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
@@ -289,32 +291,26 @@ export default function FinancialForecastScreen() {
 					className={`absolute top-0 left-0 right-0 ${cardBackground}`}
 					style={{ height: heroHeight }}
 				>
-					<Image
+					<RNImage
 						source={LoginWallpaper}
-						alt="Background da previsão financeira"
-						className="w-full h-full rounded-b-3xl absolute"
+						accessibilityLabel="Background da previsão financeira"
+						style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
 						resizeMode="cover"
 					/>
-
-					<VStack
-						className="w-full h-full items-center justify-start px-6 gap-4"
-						style={{ paddingTop: insets.top + 24 }}
-					>
-						<Heading size="xl" className="text-white text-center">
-							Previsão Financeira
-						</Heading>
-						<FinancialForecastIllustration width="42%" height="42%" className="opacity-95" />
-					</VStack>
+					<WebScreenHero
+						title="Previsão financeira"
+						Illustration={FinancialForecastIllustration}
+						isDarkMode={isDarkMode}
+						topPadding={insets.top + 24}
+					/>
 				</View>
 
 				<View
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
-					style={{
-						marginTop: heroHeight - 64,
-					}}
+					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+					style={{ marginTop: heroHeight - 64 }}
 				>
 					<View
-						className={`flex-1 w-full ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}
+						className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} flex-1`}
 					>
 						<ScrollView
 							className="flex-1 w-full"

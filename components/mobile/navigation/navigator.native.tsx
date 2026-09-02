@@ -85,6 +85,14 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => navigateToHomeDashboard(),
 			},
 			{
+				id: 'bank-movements',
+				label: 'Movimentos do banco',
+				value: 0,
+				icon: 'list-outline',
+				matchPaths: [APP_ROUTE_PATHS.bankMovements],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.bankMovements),
+			},
+			{
 				id: 'lumus-assistant',
 				label: 'Lumus IA',
 				value: 0,
@@ -381,32 +389,11 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 			onSelect: () => {},
 		};
 	}, [normalizedPathname]);
-	const bankMovementsOption = React.useMemo<NavigatorOption | null>(() => {
-		if (normalizedPathname !== APP_ROUTE_PATHS.bankMovements) {
-			return null;
-		}
-
-		return {
-			id: 'bank-movements',
-			label: 'Movimentos do banco',
-			value: 0,
-			icon: 'list-outline',
-			matchPaths: [APP_ROUTE_PATHS.bankMovements],
-			onSelect: () => {},
-		};
-	}, [normalizedPathname]);
 	// Mantém o estado ativo do navigator alinhado com a rota corrente, conforme o fluxo documentado em Arquitetura/Navegação.md, Arquitetura/Gerenciamento de Bancos.md e Arquitetura/Investimentos.md.
 	const resolvedGroups = React.useMemo(
 		() =>
 			NAV_GROUPS.map((group) => {
-				const groupOptions =
-					group.value === HOME_TAB_INDEX.dashboard && bankMovementsOption
-						? [group.options[0], bankMovementsOption, ...group.options.slice(1)].filter(
-								(option): option is NavigatorOption => Boolean(option),
-							)
-						: group.options;
-
-				const optionsWithCurrentState = groupOptions.map((option) => {
+				const optionsWithCurrentState = group.options.map((option) => {
 					if (option.id === 'mandatory-expenses' && mandatoryExpensesState) {
 						return { ...option, ...mandatoryExpensesState };
 					}
@@ -429,7 +416,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 					),
 				};
 			}),
-		[bankMovementsOption, financialListState, isRouteVisible, mandatoryExpensesState, mandatoryGainsState],
+		[financialListState, isRouteVisible, mandatoryExpensesState, mandatoryGainsState],
 	);
 	const activeRoute = React.useMemo(
 		() => getActiveRoute(normalizedPathname, resolvedGroups, normalizedDefault, routeParams.tab),

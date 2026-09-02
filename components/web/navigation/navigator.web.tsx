@@ -84,6 +84,7 @@ const createGroups = (): NavigatorGroup[] => [
 		value: HOME_TAB_INDEX.dashboard,
 		options: [
 			{ id: 'home-start', label: 'Início', icon: <Home size={18} />, matchPaths: [APP_ROUTE_PATHS.home], onSelect: navigateToHomeDashboard },
+			{ id: 'bank-movements', label: 'Movimentos do banco', icon: <Landmark size={18} />, matchPaths: [APP_ROUTE_PATHS.bankMovements], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.bankMovements) },
 			{ id: 'lumus-assistant', label: 'Lumus IA', icon: <Sparkles size={18} />, visibilityKey: 'lumusAssistant', matchPaths: [APP_ROUTE_PATHS.lumusAssistant], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.lumusAssistant) },
 			{ id: 'category-analysis', label: 'Análise por categoria', icon: <BarChart3 size={18} />, matchPaths: [APP_ROUTE_PATHS.categoryAnalysis], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.categoryAnalysis) },
 			{ id: 'financial-forecast', label: 'Previsão financeira', icon: <TrendingUp size={18} />, matchPaths: [APP_ROUTE_PATHS.financialForecast], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialForecast) },
@@ -159,27 +160,8 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 			options: group.options.filter(option => !option.visibilityKey || isRouteVisible(option.visibilityKey)),
 		}));
 
-		if (pathname !== APP_ROUTE_PATHS.bankMovements) return visibleGroups;
-
-		return visibleGroups.map(group =>
-			group.value === HOME_TAB_INDEX.dashboard
-				? {
-						...group,
-						options: [
-							group.options[0],
-							{
-								id: 'bank-movements',
-								label: 'Movimentos do banco',
-								icon: <Landmark size={18} />,
-								matchPaths: [APP_ROUTE_PATHS.bankMovements],
-								onSelect: () => {},
-							},
-							...group.options.slice(1),
-						].filter((option): option is NavigatorOption => Boolean(option)),
-					}
-				: group,
-		);
-	}, [isRouteVisible, pathname]);
+		return visibleGroups;
+	}, [isRouteVisible]);
 	const resolvedGroups = React.useMemo(
 		() =>
 			groups.map(group => ({
@@ -263,10 +245,11 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 				className="finance-menu"
 				position="left"
 				isFixed
-				colors={['#1f1808', '#8a6a0a', '#facc15']}
-				accentColor="#facc15"
-				menuButtonColor="#e2e8f0"
-				openMenuButtonColor="#fef08a"
+				themeMode={isDarkMode ? 'dark' : 'light'}
+				colors={isDarkMode ? ['#1f1808', '#8a6a0a', '#facc15'] : ['#fff7cc', '#fde68a', '#facc15']}
+				accentColor={isDarkMode ? '#facc15' : '#a16207'}
+				menuButtonColor={isDarkMode ? '#e2e8f0' : '#a16207'}
+				openMenuButtonColor={isDarkMode ? '#fef08a' : '#854d0e'}
 				profile={{
 					name: profileName || user?.email?.split('@')[0] || 'Usuário',
 					subtitle: user?.email || '',

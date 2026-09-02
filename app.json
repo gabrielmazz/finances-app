@@ -29,7 +29,7 @@
       "package": "com.gabrielmazz.lumusfinances"
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/Logo/Icon.png",
       "output": "single"
     },
     "plugins": [

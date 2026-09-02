@@ -1,6 +1,9 @@
+// Implementação Web independente da carteira. Mantém a paridade com o fluxo
+// nativo e permite recursos exclusivos do navegador sem afetar Android/iOS.
 import React from 'react';
 import {
 	KeyboardAvoidingView,
+	Image as RNImage,
 	Platform,
 	RefreshControl,
 	ScrollView,
@@ -18,7 +21,6 @@ import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
 import {
 	Tabs,
 	TabsIndicator,
@@ -74,6 +76,7 @@ import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/
 import DatePickerField from '@/components/uiverse/shared/date-picker';
 import InvestmentEvolutionChart from '@/components/uiverse/investments/investment-evolution-chart';
 import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import {
 	useValueVisibility,
 	HIDDEN_VALUE_PLACEHOLDER,
@@ -463,7 +466,7 @@ function FinancialListSkeleton({
 	);
 }
 
-export default function FinancialListScreen() {
+export default function FinancialListScreenWeb() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const {
@@ -1574,34 +1577,24 @@ export default function FinancialListScreen() {
 						className={`absolute top-0 left-0 right-0 ${cardBackground}`}
 						style={{ height: heroHeight }}
 					>
-						<Image
+						<RNImage
 							source={LoginWallpaper}
-							alt="Background da lista de investimentos"
-							className="absolute h-full w-full rounded-b-3xl"
+							accessibilityLabel="Background da lista de investimentos"
+							style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
 							resizeMode="cover"
 						/>
-
-						<VStack
-							className="h-full w-full items-center justify-start gap-4 px-6"
-							style={{ paddingTop: insets.top + 24 }}
-						>
-							<Heading size="xl" className="text-center text-white">
-								Meus investimentos
-							</Heading>
-							<FinancialListIllustration
-								width="38%"
-								height="38%"
-								className="opacity-90"
-							/>
-						</VStack>
+						<WebScreenHero
+							title="Meus investimentos"
+							Illustration={FinancialListIllustration}
+							isDarkMode={isDarkMode}
+							topPadding={insets.top + 24}
+						/>
 					</View>
 
 					<ScrollView
 						keyboardShouldPersistTaps="handled"
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
-						style={{
-							marginTop: heroHeight - 64,
-						}}
+						className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+						style={{ marginTop: heroHeight - 64 }}
 						contentContainerStyle={{ paddingBottom: 48 }}
 						refreshControl={
 							<RefreshControl
@@ -1611,9 +1604,7 @@ export default function FinancialListScreen() {
 							/>
 						}
 					>
-						<VStack
-							className={`mt-4 gap-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}
-						>
+						<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4 gap-4`}>
 							<Heading
 								className="text-lg uppercase tracking-widest "
 								size="lg"
