@@ -1415,7 +1415,7 @@ export default function AddRegisterGainScreen() {
 								zIndex: 3,
 							}}
 						>
-							<View className={webDashboardClassNames.sheetInner + ' max-w-[1180px] w-full self-center'}>
+							<View className={webDashboardClassNames.sheetInner}>
 									<View
 										className={webExpenseClassNames.formSurface + ' ' + cardBackground + ' rounded-[28px]'}
 										style={{ display: 'flex', flex: 1, flexDirection: 'column' }}

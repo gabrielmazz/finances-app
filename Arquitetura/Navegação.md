@@ -3,7 +3,7 @@ tags: [navegacao, expo-router, rotas, autenticacao, web, responsivo]
 relacionado: [[Autenticação]], [[Dashboard Home]], [[Assistente Lumus]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]], [[Configurações]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Notificações]], [[Componentes UI]], [[Versão Web]], [[Organização do Código]]
 status: ativo
 tipo: arquitetura
-versao: 2.7.0
+versao: 2.7.3
 ---
 
 # Navegação
@@ -23,8 +23,8 @@ Sistema de navegação baseado em arquivos usando Expo Router. Cada arquivo em `
   tab=2                 → ConfigurationsScreen (Configurações)
 
 Rotas do grupo Home:
-/web/category-analysis e /mobile/category-analysis → CategoryAnalysisScreen
-/web/financial-forecast e /mobile/financial-forecast → FinancialForecastScreen
+/web/category-analysis → CategoryAnalysisScreen.web; /mobile/category-analysis → CategoryAnalysisScreen
+/web/financial-forecast → FinancialForecastScreen.web; /mobile/financial-forecast → FinancialForecastScreen
 /web/annotations e /mobile/annotations → LocalAnnotationsScreen (lista e editor local)
 
 Rota direta do navegador:
@@ -42,13 +42,13 @@ Rotas de cadastro:
 /web/add-finance e /mobile/add-finance → AddFinanceScreen
 /web/add-rescue e /mobile/add-rescue → AddRescueScreen
 /web/add-user-relation e /mobile/add-user-relation → AddUserRelationScreen
-/web/screen-settings e /mobile/screen-settings → ScreenSettingsScreen
+/web/screen-settings → ScreenSettingsScreen.web; /mobile/screen-settings → ScreenSettingsScreen
 /web/register-monthly-balance e /mobile/register-monthly-balance → AddRegisterMonthlyBalanceScreen
 
 Rotas de listagem:
 /web/bank-movements e /mobile/bank-movements → BankMovementsScreen
 /web/bank-summary e /mobile/bank-summary → Redirect para a Home da plataforma (não é uma tela real)
-/web/financial-list e /mobile/financial-list → FinancialListScreen
+/web/financial-list → FinancialListScreen.web; /mobile/financial-list → FinancialListScreen
 /web/mandatory-expenses e /mobile/mandatory-expenses → MandatoryExpensesListScreen (`focusMandatoryExpenseId` abre o pagamento pendente indicado)
 /web/mandatory-gains e /mobile/mandatory-gains → MandatoryGainsListScreen
 /web/transfer-screen e /mobile/transfer-screen → TransferScreen
@@ -81,7 +81,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 3. `app/mobile/home.tsx` é somente o adaptador de rota para `screens/mobile/HomeTabsScreen.tsx`; `app/web/home.web.tsx` aponta para `screens/web/HomeTabsScreen.web.tsx`. Cada container implementa as mesmas abas com renderização condicional (não Tab Navigator) e seleciona a composição correta de Home/Controle por plataforma. Cada tela principal renderiza `components/uiverse/navigation/navigator.tsx`, cuja resolução `.web.tsx` assume a navegação no navegador
 4. Parâmetros de rota passados via `useLocalSearchParams()` do Expo Router
 5. `utils/navigation.ts` é o registro central de rotas (`APP_ROUTE_PATHS`), abas Home (`HOME_TAB_INDEX`) e helpers imperativos. Navegação manual para frente usa `push`, seleção/saída explícita usa um único `replace`, retorno inline conhecido usa `back` e redirect automático usa `redirectToRoute`/`redirectToHomeTab`
-6. O grupo Home de `components/uiverse/navigation/navigator.tsx` e `.web.tsx` contém o Dashboard, o atalho **Lumus IA**, a [[Análise por Categoria]], a [[Previsão de Fluxo de Caixa]] e [[Anotações Locais]], mantendo assistência, relatórios, planejamento e organização pessoal perto da tela inicial. Lumus e Anotações só aparecem quando sua preferência em [[Visibilidade de Rotas]] estiver ativa; Anotações começa oculta por estar em desenvolvimento. Quando a rota ativa é a correspondente `/web/bank-movements` ou `/mobile/bank-movements`, o mesmo grupo insere a opção contextual **Movimentos do banco** entre **Início** e os demais destinos, deixando a tela atual marcada sem esconder o caminho de volta para a Home.
+6. O grupo Home de `components/uiverse/navigation/navigator.tsx` e `.web.tsx` contém o Dashboard, **Movimentos do banco**, o atalho **Lumus IA**, a [[Análise por Categoria]], a [[Previsão de Fluxo de Caixa]] e [[Anotações Locais]], mantendo acesso direto ao extrato, assistência, relatórios, planejamento e organização pessoal perto da tela inicial. Lumus e Anotações só aparecem quando sua preferência em [[Visibilidade de Rotas]] estiver ativa; Anotações começa oculta por estar em desenvolvimento. A opção **Movimentos do banco** permanece disponível no grupo Home e fica marcada quando a rota correspondente `/web/bank-movements` ou `/mobile/bank-movements` está aberta.
 7. As duas variantes do navigator podem sobrescrever temporariamente o rótulo de uma opção quando a rota ativa representa um fluxo de cadastro derivado da lista. Isso já acontece em `add-mandatory-expenses`, `add-mandatory-gains` e `add-finance`, para que o item ativo deixe explícito no navigator que o usuário está em um registro novo e não na listagem.
 8. Em `/web/home` ou `/mobile/home`, o navigator resolve o grupo ativo pelo parâmetro `tab` e pelo `defaultValue` da tela, não apenas pelo pathname. Assim os parâmetros `tab=0`, `tab=1` e `tab=2` destacam Home, Controle e Config corretamente.
 9. Telas de cadastro/edição que concluem um registro financeiro ou administrativo aplicam [[Comportamento Pós-Registro]] após o feedback de sucesso; por padrão retornam para a Home da plataforma (`/web/home?tab=0` ou `/mobile/home?tab=0`), mas podem permanecer na rota atual e limpar ou manter campos conforme preferência. O redirect espera um `requestAnimationFrame` para o `finally` do formulário concluir e então despacha exatamente um `REPLACE`.
@@ -97,12 +97,13 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 
 ### Navegação Web responsiva
 
+- Carteira, análise por categoria, previsão e configurações por tela usam implementações independentes em `screens/web/`. A paridade é preservada pelos mesmos contratos de contexto/Firebase e utilitários financeiros, sem importar as telas mobile.
 - As rotas com uma composição de tela independente mantêm adaptadores explícitos em `app/web/<rota>.web.tsx` e `app/mobile/<rota>.native.tsx`, cada um acompanhado pelo fallback `<rota>.tsx` no seu diretório. O navegador usa `/web/<rota>` e seleciona a tela em `screens/web/`; Android/iOS usam `/mobile/<rota>` e selecionam a tela em `screens/mobile/`. Rotas sem composição dedicada continuam apontando para a implementação canônica responsiva. `/web/home` usa `screens/web/HomeTabsScreen.web.tsx` e `/mobile/home` usa `screens/mobile/HomeTabsScreen.tsx`, mantendo a mesma navegação e selecionando os filhos da plataforma.
 - `WebAppShell` envolve o `Stack` autenticado somente no navegador e preserva o fundo de workspace sem alterar o Stack, os guards ou os parâmetros de rota. Ele não reserva mais uma faixa permanente para navegação. Os helpers de `utils/navigation.ts` emitem o evento Web antes de despachar `push`, `replace` ou `back`; `WebRouteTransition` escuta esse evento e usa Motion em um portal DOM para cobrir e revelar a página com um véu horizontal curto. A transição não captura ponteiros e é removida quando `prefers-reduced-motion` está ativo.
-- `components/web/navigation/navigator.web.tsx` é a implementação Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. O fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
+- `components/web/navigation/navigator.web.tsx` é a implementação Web do registro visual das opções. A partir de `1024px`, ela mantém o `StaggeredMenu` fixo pela borda esquerda, agrupando todas as rotas em Home, Controle e Config. Fechado, o próprio painel é recortado a 68px e mostra somente os ícones e o avatar do usuário autenticado; ao abrir, essa mesma superfície revela a largura completa, seus rótulos e o nome/e-mail do usuário no rodapé, sem trocar ou sobrepor outro componente, preservando a sequência escalonada das camadas de abertura atrás do painel. A superfície usa navy/amarelo no dark mode e white/slate com camadas amarelo suave no light mode, seguindo `themeMode`; o fechamento reproduz essa sequência de forma espelhada. Links reais mantêm abrir em nova aba/Cmd+clique. A ação Sair continua um botão, pois executa o fluxo seguro de logout.
 - Em telas menores, a variante Web preserva a barra inferior compacta; Android/iOS continuam usando `navigator.tsx` e o menu Gluestack existentes. Os dois formatos não aparecem juntos.
 - `navigator.tsx` não contém mais uma sidebar desktop inatingível: a resolução de módulo sempre escolhe `navigator.web.tsx` no navegador. A variante nativa fica restrita à barra inferior e menus mobile; o logout seguro é compartilhado entre as duas variantes.
-- O painel mantém a opção contextual de movimentos bancários, os rótulos de formulários derivados, logout serializado e as rotas ocultáveis. Cada item tem estado selecionado, foco visível, fecha com Escape/clique externo e reduz a animação quando o sistema pede menos movimento.
+- O painel mantém a opção permanente de movimentos bancários, os rótulos de formulários derivados, logout serializado e as rotas ocultáveis. Cada item tem estado selecionado, foco visível, fecha com Escape/clique externo e reduz a animação quando o sistema pede menos movimento.
 - O Firebase Hosting reescreve a navegação de cliente para `index.html`. Por isso, uma abertura direta de `/web/home`, `/web/financial-list` ou outra rota Web autenticada atravessa o mesmo `Stack.Protected` e não deve ganhar um guard ou registro de rota paralelo.
 
 ## Arquivos principais
@@ -161,13 +162,13 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - Layout animation no Android desabilitado via `utils/reactNativeCompat.ts` (compatibilidade New Architecture)
 - `navigator.tsx` e `.web.tsx` são a única navegação do domínio `uiverse`: barra inferior/menu Gluestack em Android/iOS e painel `StaggeredMenu` no Web a partir de `1024px`
 - O navigator preserva o grupo ativo de `Controle` ao entrar em rotas filhas de cadastro e adapta o texto do item correspondente para refletir o contexto atual do fluxo
-- Em `/bank-movements`, o grupo Home do navigator deve exibir **Início**, **Movimentos do banco** e **Análise por Categoria**; a opção contextual só aparece nessa rota e fica ativa enquanto a tela de movimentos está aberta
+- O grupo Home do navigator deve exibir **Movimentos do banco** como destino permanente entre **Início** e os demais relatórios; a opção fica ativa somente enquanto a tela `/bank-movements` está aberta
 - A rota `/financial-forecast` deve ser tratada como destino do grupo Home, usando `APP_ROUTE_PATHS.financialForecast` e `navigateToRoute()`; ela não é uma nova aba do container `/home`
 - A rota `/annotations` deve ser tratada como destino do grupo Home, usando `APP_ROUTE_PATHS.annotations` e `navigateToRoute()`; não criar uma quarta aba fixa para as anotações. Quando ocultada em [[Visibilidade de Rotas]], ela sai do navigator e `Stack.Protected` bloqueia o acesso direto.
 - A rota `/app-tests` deve ser tratada como destino opcional do grupo Config, usando `APP_ROUTE_PATHS.appTests` e `navigateToRoute()`. Ela começa oculta; a notificação manual usa somente o canal financeiro existente e os testes de lançamentos devem abrir formulários com rascunho, nunca escrever no Firestore diretamente.
 - O atalho **Lumus IA** usa `APP_ROUTE_PATHS.lumusAssistant` no menu do grupo Home quando sua visibilidade local estiver ativa; não criar uma quarta ação fixa na barra inferior.
 - A barra inferior mantém `16px` de padding horizontal no contêiner externo e limita o conteúdo a `280px`; assim, Home, Controle e Config permanecem com a mesma largura em todas as telas, sem encostar nas bordas.
-- No Web desktop, a rail compacta do `StaggeredMenu` permanece fixa e o painel expandido é fixo somente enquanto está visível; `WebAppShell` não reserva largura para nenhum deles. Não introduzir uma segunda barra inferior, rotas duplicadas ou um segundo registro de rotas exclusivo do navegador.
+- No Web desktop, a rail compacta do `StaggeredMenu` permanece fixa e o painel expandido é fixo somente enquanto está visível; `WebAppShell` não reserva largura para nenhum deles. A variante visual acompanha o `themeMode` atual e mantém contraste, foco visível e área clicável mínima de 44px nos dois temas. Não introduzir uma segunda barra inferior, rotas duplicadas ou um segundo registro de rotas exclusivo do navegador.
 - O item de cadastro de categorias no grupo `Config` deve exibir "Nova categoria", mesmo que a rota continue sendo `/add-register-tag`
 - Submits de criação/edição em telas de formulário devem aplicar `usePostSubmitBehavior()` após salvar; não chamar `router.back()` nem strings de rota soltas como retorno pós-submit
 - `router.dismissTo()`, `router.dismissAll()` e `withAnchor` são proibidos nos redirects automáticos deste app. No Expo Router 6, `dismissTo` enfileira `POP_TO`; falhas no despacho não chegam a um `try/catch` síncrono e podem deixar o NativeStack Android sem conteúdo em release.

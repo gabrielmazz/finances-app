@@ -1,1 +1,1 @@
-export { default } from '@/screens/mobile/ScreenSettingsScreen';
+export { default } from '@/screens/web/ScreenSettingsScreen.web';

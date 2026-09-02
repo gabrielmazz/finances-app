@@ -3,7 +3,7 @@ tags: [web, expo, firebase-hosting, responsivo, arquitetura, relatorios]
 relacionado: [[Navegação]], [[Organização do Código]], [[Firebase Config]], [[Notificações]], [[Componentes UI]], [[Assistente Lumus]], [[Autenticação]]
 status: ativo
 tipo: arquitetura
-versao: 1.7.0
+versao: 1.7.3
 ---
 
 # Versão Web
@@ -50,6 +50,9 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 
 31. A seleção da tela inteira também é explícita nas rotas que possuem composição dedicada: `app/web/<rota>.web.tsx` e `app/mobile/<rota>.native.tsx` cobrem Login, Home, cadastros, resgates, transferências e listagens de despesas/ganhos obrigatórios. Cada adaptador Web importa sua tela em `screens/web/`; cada adaptador nativo importa a tela canônica em `screens/mobile/`. O arquivo `<rota>.tsx` permanece como fallback dentro do diretório da plataforma. `/web/home` usa `screens/web/HomeTabsScreen.web.tsx` e `/mobile/home` usa `screens/mobile/HomeTabsScreen.tsx`, que selecionam os filhos da plataforma; configurações, cadastro de banco e testes continuam canônicos em `screens/mobile/` e usam componentes/classes responsivos. Assim, Web e Android/iOS possuem diretórios de rota explícitos e não misturam suas composições.
 
+32. `FinancialListScreen.web.tsx`, `CategoryAnalysisScreen.web.tsx` e `FinancialForecastScreen.web.tsx` são implementações Web independentes para carteira e relatórios. Elas preservam loaders Firebase, cálculos em centavos, privacidade, gráficos e ações da variante nativa, mas possuem código próprio para futuras funcionalidades exclusivas do navegador. As rotas `/web/financial-list`, `/web/category-analysis` e `/web/financial-forecast` apontam somente para esses arquivos; as variantes `/mobile/*` continuam apontando para `screens/mobile/`. Cada uma usa `WebScreenHero`: wallpaper em tela cheia com `Image` do React Native, camada animada `Grainient`, título `StrokeText` e ilustração SVG com `AnimatedContent`, sobrepostos por um sheet responsivo de conteúdo.
+33. `ScreenSettingsScreen.web.tsx` é a implementação Web independente das configurações por tela. Ela preserva as preferências locais de pós-registro e visibilidade de rotas e centraliza o conteúdo em uma superfície de relatório no desktop, sem compartilhar composição com Android/iOS. A tela também usa `WebScreenHero` e mantém o sheet acima das camadas animadas para que pesquisa, accordions e switches continuem interativos.
+
 ## Arquivos principais
 
 - `app.json` — declaração explícita de UI automática e output Web single.
@@ -67,6 +70,7 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 - `screens/mobile/AddRegisterMonthlyBalanceScreen.tsx` / `.web.tsx`, `TransferScreen.tsx` / `.web.tsx`, `AddRescueScreen.tsx` / `.web.tsx`, `AddRegisterUserScreen.tsx` / `.web.tsx`, `AddRegisterTagScreen.tsx` / `.web.tsx` e `AddUserRelationScreen.tsx` / `.web.tsx` — formulários por plataforma, com a mesma lógica e composição Web de hero/sheet, labels e campos alinhados ao padrão de despesas.
 - `screens/mobile/ConfigurationsScreen.tsx`, `screens/mobile/AddRegisterBankScreen.tsx` e `screens/mobile/AppTestsScreen.tsx` — telas canônicas com geometria Web responsiva via classes `web:` e componentes resolvidos por plataforma.
 - `screens/mobile/LoginScreen.tsx` / `screens/web/LoginScreen.web.tsx` — entrada pública por plataforma: a tela mobile histórica fica em `LoginScreen.tsx`; a variante Web concentra o painel de identidade em gradiente e o formulário responsivo.
+- `screens/mobile/FinancialListScreen.tsx` / `screens/web/FinancialListScreen.web.tsx`, `screens/mobile/CategoryAnalysisScreen.tsx` / `screens/web/CategoryAnalysisScreen.web.tsx`, `screens/mobile/FinancialForecastScreen.tsx` / `screens/web/FinancialForecastScreen.web.tsx` e `screens/mobile/ScreenSettingsScreen.tsx` / `screens/web/ScreenSettingsScreen.web.tsx` — implementações independentes por plataforma, com contratos de domínio equivalentes.
 - `script/update_app_version.js` — sincroniza a versão exibida nas telas de login com `app.json` e `package.json` por `npm run version:set -- <versão>`.
 - `FirebaseConfig.web.ts` — Auth Web memory-only.
 - `utils/reportExport.web.ts` / `.native.ts` e `utils/pdfFileName.web.ts` / `.native.ts` — exportação de relatórios por plataforma.
@@ -107,6 +111,7 @@ npm run web:deploy
 
 - Quando a consulta concluída da Home retorna uma carteira de investimentos vazia, `HomeScreen.web.tsx` não monta a seção de investimentos e centraliza os cartões bancários no desktop.
 - A composição estrutural da Home Web usa classes Tailwind centralizadas em `hooks/useScreenStyle.ts`; não adicionar `StyleSheet.create()` nem duplicar geometria na tela. Valores de tema e dimensões calculadas continuam sendo fornecidos pelo hook em runtime.
+- A geometria horizontal das telas Web é compartilhada por `WEB_DASHBOARD_CLASS_NAMES`: `sheet` aplica gutter de `24px`/`32px`, `contentFrame` limita e centraliza a área útil em `1180px` e `contentPadding` mantém o mesmo respiro interno. As telas Web específicas e as telas canônicas reutilizadas por rotas Web devem consumir esses tokens, sem criar `maxWidth`, `paddingHorizontal` ou gutters locais para a viewport.
 - A tela de registro de despesas Web compartilha a geometria do hero/sheet da Home por `webDashboardClassNames`; somente a grade e os espaçamentos internos do formulário permanecem locais. Os tokens claro/escuro continuam vindo de `useScreenStyles()`. Não mover regras financeiras para o layout Web nem introduzir persistência específica do navegador.
 - A tela de registro de ganhos Web segue a mesma geometria e `WEB_EXPENSE_CLASS_NAMES` da tela de despesas para manter paridade visual entre entradas e saídas; somente os textos, campos específicos e regras do formulário de ganhos diferem.
 - `AddMandatoryExpensesScreen.web.tsx` segue a mesma geometria de `AddRegisterExpensesScreen.web.tsx`: hero animado, sheet sobreposto, grid de campos, labels e tokens de `useScreenStyles()`. A Web mantém o input de vencimento fixo e deixa somente o switch de dias úteis no acordeão **Mais opções do vencimento**; parcelamento/lembrete seguem no acordeão **Mais opções** e o controle mensal aparece somente depois da persistência do template. O fluxo nativo e a persistência não são alterados.

@@ -457,6 +457,7 @@ export default function HomeScreen() {
 		submitButtonTextClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
+		webDashboardClassNames,
 	} = useScreenStyles();
 
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
@@ -1184,15 +1185,13 @@ export default function HomeScreen() {
 				</View>
 
 				<View
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 					style={{
 						marginTop: heroHeight - 64,
-						paddingHorizontal: isDesktopWeb ? 32 : 24,
 					}}
 				>
 					<View
-						className="flex-1 w-full"
-						style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
+						className={`flex-1 w-full ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}
 					>
 						<ScrollView
 							className="flex-1 w-full"

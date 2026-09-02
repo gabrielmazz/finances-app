@@ -1242,7 +1242,7 @@ export default function MandatoryExpensesListScreen() {
 						<ScrollView
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
-							className={`flex-1 rounded-t-3xl ${cardBackground} pb-1 web:w-full web:relative web:z-[3]`}
+							className={`${webStyles.sheet} ${cardBackground} web:relative web:z-[3]`}
 							style={{ flex: 1 }}
 							contentContainerStyle={{ paddingBottom: 48 }}
 							showsVerticalScrollIndicator={false}
@@ -1254,7 +1254,7 @@ export default function MandatoryExpensesListScreen() {
 								/>
 							}
 						>
-							<VStack className="justify-between web:w-full web:max-w-[1180px] web:self-center web:px-2 web:pb-8">
+							<VStack className={`${webStyles.contentFrame} ${webStyles.contentPadding} justify-between pb-8`}>
 
 								{isLoading ? (
 									<MandatoryExpensesTimelineSkeleton

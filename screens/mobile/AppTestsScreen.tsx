@@ -41,6 +41,7 @@ export default function AppTestsScreen() {
 		helperText,
 		notTintedCardClassName,
 		accordionSectionButtonClassName,
+		webDashboardClassNames,
 		heroHeight,
 		insets,
 	} = useScreenStyles();
@@ -189,11 +190,11 @@ export default function AppTestsScreen() {
 					keyboardShouldPersistTaps="handled"
 					keyboardDismissMode="on-drag"
 					showsVerticalScrollIndicator={false}
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
+					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 					style={{ marginTop: heroHeight - 64 }}
 					contentContainerStyle={{ paddingBottom: 48 }}
 				>
-					<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
+					<VStack className={`mt-4 gap-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 						<Box className={`${notTintedCardClassName} px-4 py-4`}>
 							<VStack className="gap-3">
 								<ShieldCheck size={24} color={isDarkMode ? '#E2E8F0' : '#334155'} />

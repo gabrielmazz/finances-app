@@ -20,6 +20,7 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
    - `useScreenStyle()` — hook que detecta `isDarkMode` e retorna estilos condicionais
    - Classes NativeWind `dark:` — estilos Tailwind condicionais ao tema
    - `webDashboardPalette` de `useScreenStyles()` — tokens do dashboard Web, evitando decisão claro/escuro dentro da tela
+   - `navigator.web.tsx` → `StaggeredMenu` — passa `themeMode` e seleciona a paleta Web correspondente para a rail/painel
 5. As versões `LoginScreen.tsx` e `.web.tsx` consomem os tokens de `useScreenStyles()`. Na Web, o painel em gradiente mantém a marca institucional independente do tema; no Android/iOS, o wallpaper é combinado ao logo claro/escuro. Conteúdo, campos, bordas e textos acompanham a preferência claro/escuro nas duas plataformas
 6. Na tela de `Configurações`, o card do toggle exibe helper text, status da preferência e um popover inline ao lado do título para explicar o alcance da mudança
 

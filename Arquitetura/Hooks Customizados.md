@@ -10,7 +10,7 @@ versao: 1.5.1
 
 Hooks React personalizados do projeto. Existem hooks centrais para fetching de dados da home, centralização de estilos, resolução de ícones de tags e comportamento de teclado em formulários.
 
-As classes estruturais das composições Web ficam no `useScreenStyle.ts`: `WEB_DASHBOARD_CLASS_NAMES` atende a Home e `WEB_EXPENSE_CLASS_NAMES` atende o formulário Web de despesas. As telas apenas consomem os mapas retornados por `useScreenStyles()`.
+As classes estruturais das composições Web ficam no `useScreenStyle.ts`: `WEB_DASHBOARD_CLASS_NAMES` atende a geometria compartilhada de sheets, frames e gutters, enquanto `WEB_EXPENSE_CLASS_NAMES` atende o formulário Web de despesas. As telas apenas consomem os mapas retornados por `useScreenStyles()`.
 
 ---
 
@@ -260,7 +260,7 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 - O foco amarelo (`#FFE000` / `yellow-300`) é o padrão visual principal do sistema para estados ativos
 - Estados visuais de checkbox selecionado expõem `style` e classes juntos para garantir amarelo acima do estilo base do Gluestack
 - Quando uma tela repetir estruturas de tabela, paginação ou larguras utilitárias, a preferência é promover as classes para `useScreenStyles` em vez de duplicá-las
-- A Home Web mantém sua geometria fixa em `WEB_DASHBOARD_CLASS_NAMES` e as dimensões dos gráficos DOM em `WEB_DASHBOARD_DOM_STYLES`; `style` na tela fica reservado a valores calculados em runtime.
+- `WEB_DASHBOARD_CLASS_NAMES` mantém a geometria Web compartilhada em `sheet`, `sheetInner`, `contentFrame` e `contentPadding`: gutter e padding de `24px` no mobile Web, `32px` a partir de `1024px`, e frame central de até `1180px`. As variantes `webSheet`, `webContentFrame` e `webContentPadding` permitem que telas canônicas carregadas pelas rotas Web mantenham a geometria nativa fora do navegador. A Home Web também mantém as dimensões dos gráficos DOM em `WEB_DASHBOARD_DOM_STYLES`; `style` na tela fica reservado a valores calculados em runtime.
 - `WEB_DASHBOARD_CLASS_NAMES.screen`, `.fill` e `.hero` usam `w-screen` para representar `100vw` sem violar `StyleProp<ViewStyle>`; mantenha a largura de viewport nesse mapa compartilhado ao ajustar Home ou o cadastro Web de despesas.
 - `webSelectClassNames` deve permanecer no hook para que selects Web reutilizados compartilhem altura, contorno, padding, foco amarelo, hover, seleção e contraste claro/escuro; o componente `web-select-field.tsx` não deve duplicar esses tokens na tela.
 - `webTimePickerClassNames` deve permanecer no hook e reaproveitar a base de `webSelectClassNames`; assim, `time-picker-field.web.tsx` mantém o mesmo trigger, seta, padding, menu e estados visuais do select sem espalhar classes específicas pela tela.

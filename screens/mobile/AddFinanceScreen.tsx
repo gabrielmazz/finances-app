@@ -148,6 +148,7 @@ export default function AddFinanceScreen() {
 		compactCardClassName,
 		notTintedCardClassName,
 		topSummaryCardClassName,
+		webDashboardClassNames,
 	} = useScreenStyles();
 	// Estado para guardar o nome do investimento que o usuário está digitando.
 	const [investmentName, setInvestmentName] = React.useState('');
@@ -708,13 +709,13 @@ export default function AddFinanceScreen() {
 							ref={scrollViewRef}
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="interactive"
-							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 							style={{ marginTop: heroHeight - 64 }}
 							contentContainerStyle={{ paddingBottom: contentBottomPadding }}
 							onScroll={handleScroll}
 							scrollEventThrottle={scrollEventThrottle}
 						>
-							<VStack className="justify-between">
+							<VStack className={`justify-between ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
 										{renderFieldLabelWithPopover(

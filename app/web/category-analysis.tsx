@@ -1,1 +1,1 @@
-export { default } from '@/screens/mobile/CategoryAnalysisScreen';
+export { default } from '@/screens/web/CategoryAnalysisScreen.web';

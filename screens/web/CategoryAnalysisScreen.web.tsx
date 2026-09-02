@@ -1,5 +1,7 @@
+// Implementação Web independente da análise por categoria.
 import React from 'react';
 import {
+	Image as RNImage,
 	Platform,
 	Pressable,
 	RefreshControl,
@@ -16,12 +18,12 @@ import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCa
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { Image } from '@/components/ui/image';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerIcon, TabsTriggerText } from '@/components/ui/tabs';
@@ -272,7 +274,7 @@ const CategoryAnalysisSkeleton = () => (
 	</VStack>
 );
 
-export default function CategoryAnalysisScreen() {
+export default function CategoryAnalysisScreenWeb() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
@@ -711,32 +713,26 @@ export default function CategoryAnalysisScreen() {
 					className={`absolute top-0 left-0 right-0 ${cardBackground}`}
 					style={{ height: heroHeight }}
 				>
-					<Image
+					<RNImage
 						source={LoginWallpaper}
-						alt="Background da análise por categoria"
-						className="w-full h-full rounded-b-3xl absolute"
+						accessibilityLabel="Background da análise por categoria"
+						style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
 						resizeMode="cover"
 					/>
-
-					<VStack
-						className="w-full h-full items-center justify-start px-6 gap-4"
-						style={{ paddingTop: insets.top + 24 }}
-					>
-						<Heading size="xl" className="text-white text-center">
-							Análise por Categoria
-						</Heading>
-						<CategoryAnalysisIllustration width="42%" height="42%" className="opacity-95" />
-					</VStack>
+					<WebScreenHero
+						title="Análise por categoria"
+						Illustration={CategoryAnalysisIllustration}
+						isDarkMode={isDarkMode}
+						topPadding={insets.top + 24}
+					/>
 				</View>
 
 				<View
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
-					style={{
-						marginTop: heroHeight - 64,
-					}}
+					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+					style={{ marginTop: heroHeight - 64 }}
 				>
 					<View
-						className={`flex-1 w-full ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}
+						className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} flex-1`}
 					>
 						<ScrollView
 							className="flex-1 w-full"

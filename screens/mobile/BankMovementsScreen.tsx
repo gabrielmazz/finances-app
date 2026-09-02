@@ -102,7 +102,6 @@ import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/uti
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
-import { isWebDesktopLayout } from '@/utils/webLayout';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { buildPdfFileName } from '@/utils/pdfFileName';
 import { exportHtmlReport } from '@/utils/reportExport';
@@ -943,7 +942,7 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 
 export default function BankMovementsScreen() {
 	const { width: windowWidth } = useWindowDimensions();
-	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
+	const isDesktopWeb = windowWidth >= 1024 && Platform.OS === 'web';
 
 	const {
 		isDarkMode,
@@ -961,6 +960,7 @@ export default function BankMovementsScreen() {
 		insets,
 		infoCardStyle,
 		modalContentClassName,
+		webDashboardClassNames,
 	} = useScreenStyles();
 	const searchParams = useLocalSearchParams<{
 		bankId?: string | string[];
@@ -2735,10 +2735,9 @@ export default function BankMovementsScreen() {
 						<ScrollView
 							keyboardShouldPersistTaps="handled"
 							keyboardDismissMode="on-drag"
-							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1`}
+							className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 							style={{
 								marginTop: heroHeight - 64,
-								paddingHorizontal: isDesktopWeb ? 32 : 24,
 							}}
 							contentContainerStyle={{ paddingBottom: 32 }}
 							refreshControl={
@@ -2749,10 +2748,7 @@ export default function BankMovementsScreen() {
 								/>
 							}
 						>
-							<VStack
-								className="justify-between mt-4"
-								style={isDesktopWeb ? { width: '100%', maxWidth: 1180, alignSelf: 'center' } : undefined}
-							>
+							<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
 								<View
 									style={{

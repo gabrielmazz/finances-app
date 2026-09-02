@@ -1,0 +1,921 @@
+import React from 'react';
+import { Image as RNImage, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+	Accordion,
+	AccordionContent,
+	AccordionHeader,
+	AccordionIcon,
+	AccordionItem,
+	AccordionTitleText,
+	AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Box } from '@/components/ui/box';
+import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
+import { Heading } from '@/components/ui/heading';
+import { HStack } from '@/components/ui/hstack';
+import { Input, InputField } from '@/components/ui/input';
+import {
+	Actionsheet,
+	ActionsheetBackdrop,
+	ActionsheetContent,
+	ActionsheetDragIndicator,
+	ActionsheetDragIndicatorWrapper,
+	ActionsheetItem,
+	ActionsheetItemText,
+	ActionsheetScrollView,
+} from '@/components/ui/actionsheet';
+import { Button, ButtonText } from '@/components/ui/button';
+import {
+	Modal,
+	ModalBackdrop,
+	ModalBody,
+	ModalCloseButton,
+	ModalContent,
+	ModalFooter,
+	ModalHeader,
+	ModalTitle,
+} from '@/components/ui/modal';
+import { Switch } from '@/components/ui/switch';
+import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import {
+	POST_SUBMIT_DESTINATION_OPTIONS,
+	type PostSubmitBehaviorMode,
+	type PostSubmitDestinationKey,
+	type PostSubmitScreenKey,
+	usePostSubmitBehaviorPreferences,
+} from '@/contexts/PostSubmitBehaviorContext';
+import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import {
+	getPostSubmitDestinationPath,
+	getRouteVisibilityKeyForPath,
+	navigateToHomeConfigurations,
+} from '@/utils/navigation';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import AddFinancialScreenIllustration from '@/assets/UnDraw/addFinancialScreen.svg';
+import AddMandatoryExpensesScreenIllustration from '@/assets/UnDraw/addMandatoryExpensesScreen.svg';
+import AddMandatoryGainsScreenIllustration from '@/assets/UnDraw/addMandatoryGainsScreen.svg';
+import AddRegisterBankScreenIllustration from '@/assets/UnDraw/addRegisterBankScreen.svg';
+import AddRegisterExpensesScreenIllustration from '@/assets/UnDraw/addRegisterExpanseScreen.svg';
+import AddRegisterGainScreenIllustration from '@/assets/UnDraw/addRegisterGainScreen.svg';
+import AddRegisterMonthlyBalanceScreenIllustration from '@/assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
+import AddRegisterTagScreenIllustration from '@/assets/UnDraw/addRegisterTagScreen.svg';
+import AddRegisterUserScreenIllustration from '@/assets/UnDraw/addRegisterUserScreen.svg';
+import AddRescueScreenIllustration from '@/assets/UnDraw/addRescue.svg';
+import AddUserRelationScreenIllustration from '@/assets/UnDraw/addUserRelationScreen.svg';
+import AnnotationIllustration from '@/assets/UnDraw/annotationScreen.svg';
+import CategoryAnalysisScreenIllustration from '@/assets/UnDraw/analyzeGainExpensesTag.svg';
+import ConfigurationsScreenIllustration from '@/assets/UnDraw/configurationsScreen.svg';
+import FinancialListScreenIllustration from '@/assets/UnDraw/financialListScreen.svg';
+import HomeScreenIllustration from '@/assets/UnDraw/homeScreen.svg';
+import LumusAssistantScreenIllustration from '@/assets/UnDraw/lumusAssistantScreen.svg';
+import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryExpensesListScreen.svg';
+import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
+import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
+import TestsScreenIllustration from '@/assets/UnDraw/testsScreen.svg';
+import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
+
+type ScreenSettingsItem = {
+	key: PostSubmitScreenKey;
+	mode: PostSubmitBehaviorMode;
+	label: string;
+	description: string;
+	Illustration: React.ComponentType<any>;
+};
+
+type ScreenSettingsCategory = {
+	id: string;
+	label: string;
+	description: string;
+	items: ScreenSettingsItem[];
+};
+
+type ReturnDestinationSelection = {
+	screenKey: PostSubmitScreenKey;
+	mode: PostSubmitBehaviorMode;
+};
+
+type StandaloneVisibilitySetting = {
+	key: 'lumusAssistant' | 'annotations' | 'appTests';
+	label: string;
+	description: string;
+	searchableText: string;
+	Illustration: React.ComponentType<any>;
+	isDevelopmentOnly?: boolean;
+};
+
+const normalizeSearchText = (value: string) =>
+	value
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase()
+		.trim();
+
+const screenSettingsCategories: ScreenSettingsCategory[] = [
+	{
+		id: 'financial-records',
+		label: 'Lançamentos e movimentações',
+		description: 'Defina o que acontece depois de registrar uma movimentação financeira.',
+		items: [
+			{
+				key: 'addRegisterExpenses',
+				mode: 'create',
+				label: 'Registrar despesa',
+				description: 'Configure o comportamento após incluir uma despesa comum.',
+				Illustration: AddRegisterExpensesScreenIllustration,
+			},
+			{
+				key: 'addRegisterGain',
+				mode: 'create',
+				label: 'Registrar ganho',
+				description: 'Configure o comportamento após incluir uma receita comum.',
+				Illustration: AddRegisterGainScreenIllustration,
+			},
+			{
+				key: 'transferScreen',
+				mode: 'create',
+				label: 'Registrar transferência',
+				description: 'Configure o comportamento após concluir uma transferência.',
+				Illustration: TransferScreenIllustration,
+			},
+			{
+				key: 'addRescue',
+				mode: 'create',
+				label: 'Registrar saque em dinheiro',
+				description: 'Configure o comportamento após registrar um saque.',
+				Illustration: AddRescueScreenIllustration,
+			},
+			{
+				key: 'registerMonthlyBalance',
+				mode: 'create',
+				label: 'Registrar saldo mensal',
+				description: 'Configure o comportamento após salvar um saldo para o mês.',
+				Illustration: AddRegisterMonthlyBalanceScreenIllustration,
+			},
+		],
+	},
+	{
+		id: 'planning',
+		label: 'Planejamento e investimentos',
+		description: 'Ajuste os formulários de itens recorrentes e investimentos.',
+		items: [
+			{
+				key: 'addMandatoryExpenses',
+				mode: 'create',
+				label: 'Registrar gasto obrigatório',
+				description: 'Configure o comportamento após cadastrar uma despesa fixa.',
+				Illustration: AddMandatoryExpensesScreenIllustration,
+			},
+			{
+				key: 'addMandatoryGains',
+				mode: 'create',
+				label: 'Registrar ganho obrigatório',
+				description: 'Configure o comportamento após cadastrar uma receita fixa.',
+				Illustration: AddMandatoryGainsScreenIllustration,
+			},
+			{
+				key: 'addFinance',
+				mode: 'create',
+				label: 'Registrar investimento',
+				description: 'Configure o comportamento após cadastrar um investimento.',
+				Illustration: AddFinancialScreenIllustration,
+			},
+		],
+	},
+	{
+		id: 'registrations',
+		label: 'Cadastros e vínculos',
+		description: 'Organize o comportamento dos cadastros de apoio ao controle financeiro.',
+		items: [
+			{
+				key: 'addRegisterBank',
+				mode: 'create',
+				label: 'Cadastrar banco',
+				description: 'Configure o comportamento após cadastrar um banco.',
+				Illustration: AddRegisterBankScreenIllustration,
+			},
+			{
+				key: 'addRegisterTag',
+				mode: 'create',
+				label: 'Cadastrar categoria',
+				description: 'Configure o comportamento após cadastrar uma categoria fora de um fluxo inline.',
+				Illustration: AddRegisterTagScreenIllustration,
+			},
+			{
+				key: 'addRegisterUser',
+				mode: 'create',
+				label: 'Cadastrar usuário',
+				description: 'Configure o comportamento após cadastrar um usuário.',
+				Illustration: AddRegisterUserScreenIllustration,
+			},
+			{
+				key: 'addUserRelation',
+				mode: 'create',
+				label: 'Relacionar usuário',
+				description: 'Configure o comportamento após criar um vínculo de usuário.',
+				Illustration: AddUserRelationScreenIllustration,
+			},
+		],
+	},
+	{
+		id: 'editing',
+		label: 'Edições',
+		description: 'Após uma edição, a tela nunca limpa os dados já carregados.',
+		items: [
+			{
+				key: 'addRegisterExpenses',
+				mode: 'edit',
+				label: 'Editar despesa',
+				description: 'Escolha a tela para abrir depois de atualizar uma despesa.',
+				Illustration: AddRegisterExpensesScreenIllustration,
+			},
+			{
+				key: 'addRegisterGain',
+				mode: 'edit',
+				label: 'Editar ganho',
+				description: 'Escolha a tela para abrir depois de atualizar uma receita.',
+				Illustration: AddRegisterGainScreenIllustration,
+			},
+			{
+				key: 'addMandatoryExpenses',
+				mode: 'edit',
+				label: 'Editar gasto obrigatório',
+				description: 'Escolha a tela para abrir depois de atualizar uma despesa fixa.',
+				Illustration: AddMandatoryExpensesScreenIllustration,
+			},
+			{
+				key: 'addMandatoryGains',
+				mode: 'edit',
+				label: 'Editar ganho obrigatório',
+				description: 'Escolha a tela para abrir depois de atualizar uma receita fixa.',
+				Illustration: AddMandatoryGainsScreenIllustration,
+			},
+			{
+				key: 'registerMonthlyBalance',
+				mode: 'edit',
+				label: 'Editar saldo mensal',
+				description: 'Escolha a tela para abrir depois de atualizar o saldo do mês.',
+				Illustration: AddRegisterMonthlyBalanceScreenIllustration,
+			},
+			{
+				key: 'addRegisterBank',
+				mode: 'edit',
+				label: 'Editar banco',
+				description: 'Escolha a tela para abrir depois de atualizar um banco.',
+				Illustration: AddRegisterBankScreenIllustration,
+			},
+			{
+				key: 'addRegisterTag',
+				mode: 'edit',
+				label: 'Editar categoria',
+				description: 'Escolha a tela para abrir depois de atualizar uma categoria.',
+				Illustration: AddRegisterTagScreenIllustration,
+			},
+		],
+	},
+];
+
+const standaloneVisibilitySettings: readonly StandaloneVisibilitySetting[] = [
+	{
+		key: 'lumusAssistant',
+		label: 'Assistente Lumus',
+		description: 'Defina se o assistente inteligente fica disponível neste aparelho.',
+		searchableText: 'Lumus IA Assistente inteligente Configure o acesso ao assistente',
+		Illustration: LumusAssistantScreenIllustration,
+	},
+	{
+		key: 'annotations',
+		label: 'Anotações',
+		description: 'Defina se suas páginas locais ficam disponíveis no menu Home deste aparelho.',
+		searchableText: 'Anotações páginas locais notas listas checklist organização',
+		Illustration: AnnotationIllustration,
+		isDevelopmentOnly: true,
+	},
+	{
+		key: 'appTests',
+		label: 'Testes do aplicativo',
+		description: 'Libere a central manual de verificações somente quando precisar usá-la neste aparelho.',
+		searchableText: 'Testes aplicativo central verificações navegação segurança Firestore',
+		Illustration: TestsScreenIllustration,
+	},
+];
+
+const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React.ComponentType<any>> = {
+	homeDashboard: HomeScreenIllustration,
+	// A aba Controle abre o formulário de despesa dentro da Home.
+	homeControl: AddRegisterExpensesScreenIllustration,
+	homeConfigurations: ConfigurationsScreenIllustration,
+	categoryAnalysis: CategoryAnalysisScreenIllustration,
+	addRegisterExpenses: AddRegisterExpensesScreenIllustration,
+	addRegisterGain: AddRegisterGainScreenIllustration,
+	registerMonthlyBalance: AddRegisterMonthlyBalanceScreenIllustration,
+	transferScreen: TransferScreenIllustration,
+	addRescue: AddRescueScreenIllustration,
+	mandatoryExpenses: MandatoryExpensesListScreenIllustration,
+	mandatoryGains: MandatoryGainsListScreenIllustration,
+	financialList: FinancialListScreenIllustration,
+	addRegisterBank: AddRegisterBankScreenIllustration,
+	addRegisterTag: AddRegisterTagScreenIllustration,
+	addRegisterUser: AddRegisterUserScreenIllustration,
+	addUserRelation: AddUserRelationScreenIllustration,
+};
+
+const getDestinationLabel = (destinationKey: PostSubmitDestinationKey) =>
+	POST_SUBMIT_DESTINATION_OPTIONS.find((option) => option.key === destinationKey)?.label ?? 'Home';
+
+export default function ScreenSettingsScreenWeb() {
+	const {
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		notTintedCardClassName,
+		fieldContainerCardClassName,
+		heroHeight,
+		insets,
+		switchTrackColor,
+		switchThumbColor,
+		switchIosBackgroundColor,
+		webDashboardClassNames,
+	} = useScreenStyles();
+	const { getBehaviorForScreen, updateBehaviorForScreen, isLoadingPostSubmitBehavior } =
+		usePostSubmitBehaviorPreferences();
+	const { isRouteVisible, setRouteVisibility, isLoadingRouteVisibility } = useRouteVisibility();
+	const [screenSearch, setScreenSearch] = React.useState('');
+	const [returnDestinationSelection, setReturnDestinationSelection] = React.useState<ReturnDestinationSelection | null>(
+		null,
+	);
+	const [returnDestinationSearch, setReturnDestinationSearch] = React.useState('');
+	const [isAnnotationDevelopmentNoticeOpen, setIsAnnotationDevelopmentNoticeOpen] = React.useState(false);
+	const returnDestinationSheetSnapPoints = React.useMemo(() => [86], []);
+
+	const filteredCategories = React.useMemo(() => {
+		const normalizedSearch = normalizeSearchText(screenSearch);
+
+		if (!normalizedSearch) {
+			return screenSettingsCategories;
+		}
+
+		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+
+		return screenSettingsCategories
+			.map((category) => ({
+				...category,
+				items: category.items.filter((item) => {
+					const searchableText = normalizeSearchText(
+						[category.label, category.description, item.label, item.description].join(' '),
+					);
+
+					return searchTerms.every((term) => searchableText.includes(term));
+				}),
+			}))
+			.filter((category) => category.items.length > 0);
+	}, [screenSearch]);
+
+	const filteredStandaloneVisibilitySettings = React.useMemo(() => {
+		const normalizedSearch = normalizeSearchText(screenSearch);
+
+		if (!normalizedSearch) {
+			return standaloneVisibilitySettings;
+		}
+
+		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+
+		return standaloneVisibilitySettings.filter((item) => {
+			const searchableText = normalizeSearchText(`${item.label} ${item.description} ${item.searchableText}`);
+			return searchTerms.every((term) => searchableText.includes(term));
+		});
+	}, [screenSearch]);
+
+	const handleReturnToggle = React.useCallback(
+		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode, value: boolean) => {
+			updateBehaviorForScreen(screenKey, mode, (current) => ({
+				...current,
+				shouldReturnAfterSubmit: value,
+				shouldClearFieldsAfterSubmit: mode === 'create' ? !value : false,
+			}));
+		},
+		[updateBehaviorForScreen],
+	);
+
+	const handleRouteVisibilityChange = React.useCallback(
+		(routeKey: RouteVisibilityKey, isVisible: boolean) => {
+			setRouteVisibility(routeKey, isVisible);
+		},
+		[setRouteVisibility],
+	);
+
+	const handleStandaloneVisibilityChange = React.useCallback(
+		(item: StandaloneVisibilitySetting, toggleValue: boolean) => {
+			const isVisible = item.isDevelopmentOnly ? !toggleValue : toggleValue;
+			setRouteVisibility(item.key, isVisible);
+
+			if (item.key === 'annotations' && isVisible) {
+				setIsAnnotationDevelopmentNoticeOpen(true);
+			}
+		},
+		[setRouteVisibility],
+	);
+
+	const handleCloseAnnotationDevelopmentNotice = React.useCallback(() => {
+		setIsAnnotationDevelopmentNoticeOpen(false);
+	}, []);
+
+	const handleDestinationChange = React.useCallback(
+		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode, destination: PostSubmitDestinationKey) => {
+			updateBehaviorForScreen(screenKey, mode, {
+				returnDestination: destination,
+			});
+		},
+		[updateBehaviorForScreen],
+	);
+
+	const handleCloseReturnDestinationSheet = React.useCallback(() => {
+		setReturnDestinationSearch('');
+		setReturnDestinationSelection(null);
+	}, []);
+
+	const handleOpenReturnDestinationSheet = React.useCallback(
+		(screenKey: PostSubmitScreenKey, mode: PostSubmitBehaviorMode) => {
+			if (isLoadingPostSubmitBehavior) {
+				return;
+			}
+
+			setReturnDestinationSearch('');
+			setReturnDestinationSelection({ screenKey, mode });
+		},
+		[isLoadingPostSubmitBehavior],
+	);
+
+	const handleSelectReturnDestination = React.useCallback(
+		(destination: PostSubmitDestinationKey) => {
+			if (!returnDestinationSelection) {
+				return;
+			}
+
+			handleDestinationChange(returnDestinationSelection.screenKey, returnDestinationSelection.mode, destination);
+			handleCloseReturnDestinationSheet();
+		},
+		[handleCloseReturnDestinationSheet, handleDestinationChange, returnDestinationSelection],
+	);
+
+	const filteredReturnDestinationOptions = React.useMemo(() => {
+		const normalizedSearch = normalizeSearchText(returnDestinationSearch);
+		const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+
+		return POST_SUBMIT_DESTINATION_OPTIONS.filter((option) => {
+			const searchableText = normalizeSearchText(`${option.label} ${option.description}`);
+			const destinationPath = getPostSubmitDestinationPath(option.key);
+			const routeVisibilityKey = destinationPath ? getRouteVisibilityKeyForPath(destinationPath) : null;
+
+			return (
+				(!routeVisibilityKey || isRouteVisible(routeVisibilityKey)) &&
+				searchTerms.every((term) => searchableText.includes(term))
+			);
+		});
+	}, [isRouteVisible, returnDestinationSearch]);
+
+	const selectedReturnDestination = returnDestinationSelection
+		? getBehaviorForScreen(returnDestinationSelection.screenKey, returnDestinationSelection.mode).returnDestination
+		: null;
+
+	const handleClearFieldsToggle = React.useCallback(
+		(screenKey: PostSubmitScreenKey, value: boolean) => {
+			updateBehaviorForScreen(screenKey, 'create', (current) => {
+				if (current.shouldReturnAfterSubmit) {
+					return current;
+				}
+
+				return {
+					...current,
+					shouldClearFieldsAfterSubmit: value,
+				};
+			});
+		},
+		[updateBehaviorForScreen],
+	);
+
+	const handleBackToConfigurations = React.useCallback(() => {
+		navigateToHomeConfigurations();
+		return true;
+	}, []);
+
+	return (
+		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<View className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
+					<RNImage
+						source={LoginWallpaper}
+						accessibilityLabel="Background da tela de configurações das telas"
+						style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
+						resizeMode="cover"
+					/>
+					<WebScreenHero
+						title="Configurações das telas"
+						Illustration={ScreenSettingsIllustration}
+						isDarkMode={isDarkMode}
+						topPadding={insets.top + 24}
+					/>
+				</View>
+
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					nestedScrollEnabled
+					showsVerticalScrollIndicator={false}
+					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-10`}
+					style={{ marginTop: heroHeight - 64 }}
+					contentContainerStyle={{ paddingBottom: 48 }}
+				>
+					<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4 gap-4`}>
+						<VStack className="gap-1">
+							<Text className={`${bodyText} ml-1 text-sm font-semibold`}>Encontrar tela</Text>
+							<Input className={fieldContainerClassName}>
+								<InputField
+									value={screenSearch}
+									onChangeText={setScreenSearch}
+									placeholder="Busque pelo nome da tela"
+									autoCapitalize="none"
+									autoCorrect={false}
+									returnKeyType="search"
+									accessibilityLabel="Buscar configurações por nome da tela"
+									className={inputField}
+								/>
+							</Input>
+						</VStack>
+
+						{filteredCategories.map((category) => (
+							<Box key={category.id} className={`${notTintedCardClassName} px-4 py-4`}>
+								<VStack className="gap-3">
+									<VStack className="gap-1">
+										<Heading size="md" className={bodyText}>
+											{category.label}
+										</Heading>
+										<Text className={`${helperText} text-sm leading-5`}>{category.description}</Text>
+									</VStack>
+
+									<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
+										{category.items.map((item) => {
+											const behavior = getBehaviorForScreen(item.key, item.mode);
+											const isEditing = item.mode === 'edit';
+											const isScreenVisible = isRouteVisible(item.key);
+											const isClearFieldsDisabled =
+												isEditing || behavior.shouldReturnAfterSubmit || isLoadingPostSubmitBehavior;
+											const selectedDestinationLabel = getDestinationLabel(behavior.returnDestination);
+											const Illustration = item.Illustration;
+
+											return (
+												<AccordionItem key={`${item.mode}-${item.key}`} value={`${item.mode}-${item.key}`}>
+													<AccordionHeader>
+														<AccordionTrigger className="px-0 py-3">
+															{({ isExpanded }: { isExpanded: boolean }) => (
+																<View className="w-full flex-row items-center justify-between gap-3">
+																	<View className="h-[64px] w-[64px] shrink-0 items-center justify-center rounded-2xl">
+																		<Illustration width={64} height={64} className="opacity-90" />
+																	</View>
+																	<VStack className="min-w-0 flex-1 gap-1">
+																		<AccordionTitleText className="flex-none font-semibold leading-5">
+																			{item.label}
+																		</AccordionTitleText>
+																		<Text className={`${helperText} text-xs`} numberOfLines={1}>
+																			{!isScreenVisible
+																				? 'Oculta do navigator e sem acesso neste aparelho'
+																				: isEditing
+																					? behavior.shouldReturnAfterSubmit
+																						? `Volta para ${selectedDestinationLabel} após atualizar`
+																						: 'Permanece na edição com os dados atuais'
+																					: behavior.shouldReturnAfterSubmit
+																						? `Volta para ${selectedDestinationLabel}`
+																						: behavior.shouldClearFieldsAfterSubmit
+																							? 'Permanece na tela e limpa campos'
+																							: 'Permanece na tela mantendo campos'}
+																		</Text>
+																	</VStack>
+																	<AccordionIcon
+																		as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																		className={helperText}
+																	/>
+																</View>
+															)}
+														</AccordionTrigger>
+													</AccordionHeader>
+
+													<AccordionContent className="px-0 pb-3">
+														<Box className={`${notTintedCardClassName} px-4 py-4`}>
+															<VStack className="gap-4">
+																<Text className={`${helperText} text-sm leading-5`}>{item.description}</Text>
+
+																<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+																	<HStack className="items-center justify-between gap-4">
+																		<VStack className="min-w-0 flex-1 gap-1">
+																			<Text className={`${bodyText} text-sm font-semibold`}>Mostrar no app</Text>
+																			<Text className={`${helperText} text-xs`}>
+																				Quando desativada, a tela sai do navigator e não pode ser aberta neste aparelho.
+																			</Text>
+																		</VStack>
+																		<Switch
+																			value={isScreenVisible}
+																			onValueChange={(value) => handleRouteVisibilityChange(item.key, value)}
+																			isDisabled={isLoadingRouteVisibility}
+																			trackColor={switchTrackColor}
+																			thumbColor={switchThumbColor}
+																			ios_backgroundColor={switchIosBackgroundColor}
+																		/>
+																	</HStack>
+																</View>
+
+																<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+																	<HStack className="items-center justify-between gap-4">
+																		<VStack className="min-w-0 flex-1 gap-1">
+																			<Text className={`${bodyText} text-sm font-semibold`}>Voltar após salvar</Text>
+																			{isEditing ? (
+																				<Text className={`${helperText} text-xs`}>
+																					Depois de atualizar, a edição abre a tela escolhida.
+																				</Text>
+																			) : null}
+																		</VStack>
+																		<Switch
+																			value={behavior.shouldReturnAfterSubmit}
+																			onValueChange={(value) => handleReturnToggle(item.key, item.mode, value)}
+																			isDisabled={isLoadingPostSubmitBehavior}
+																			trackColor={switchTrackColor}
+																			thumbColor={switchThumbColor}
+																			ios_backgroundColor={switchIosBackgroundColor}
+																		/>
+																	</HStack>
+																</View>
+
+																<VStack className="gap-4">
+																	<VStack className="gap-2">
+																		<Text className={`${bodyText} text-sm font-semibold`}>Tela de retorno</Text>
+																		<Pressable
+																			onPress={() => handleOpenReturnDestinationSheet(item.key, item.mode)}
+																			disabled={!behavior.shouldReturnAfterSubmit || isLoadingPostSubmitBehavior}
+																			accessibilityRole="button"
+																			accessibilityLabel="Escolher tela de retorno"
+																			className={`${fieldContainerClassName} flex-row items-center justify-between gap-3 px-4 ${!behavior.shouldReturnAfterSubmit ? 'opacity-50' : ''}`}
+																		>
+																			<Text className={`${inputField} min-w-0 flex-1`} numberOfLines={1}>
+																				{selectedDestinationLabel}
+																			</Text>
+																			<Text className={`${helperText} text-xs`}>Alterar</Text>
+																		</Pressable>
+																	</VStack>
+
+																	{!isEditing ? (
+																		<HStack
+																			className={`items-center justify-between gap-4 ${isClearFieldsDisabled ? 'opacity-50' : ''}`}
+																		>
+																			<VStack className="min-w-0 flex-1">
+																				<Text className={`${bodyText} text-sm font-semibold`}>Limpar campos</Text>
+																				<Text className={`${helperText} text-xs`}>
+																					Disponível apenas quando a tela não volta automaticamente.
+																				</Text>
+																			</VStack>
+																			<Switch
+																				value={
+																					!behavior.shouldReturnAfterSubmit && behavior.shouldClearFieldsAfterSubmit
+																				}
+																				onValueChange={(value) => handleClearFieldsToggle(item.key, value)}
+																				isDisabled={isClearFieldsDisabled}
+																				trackColor={switchTrackColor}
+																				thumbColor={switchThumbColor}
+																				ios_backgroundColor={switchIosBackgroundColor}
+																			/>
+																		</HStack>
+																	) : null}
+																</VStack>
+															</VStack>
+														</Box>
+													</AccordionContent>
+												</AccordionItem>
+											);
+										})}
+									</Accordion>
+								</VStack>
+							</Box>
+						))}
+
+						{filteredStandaloneVisibilitySettings.map((item) => {
+							const isScreenVisible = isRouteVisible(item.key);
+							const isDevelopmentOnly = item.isDevelopmentOnly === true;
+							const toggleValue = isDevelopmentOnly ? !isScreenVisible : isScreenVisible;
+							const Illustration = item.Illustration;
+
+							return (
+								<Box key={item.key} className={`${notTintedCardClassName} px-4 py-4`}>
+									<Accordion size="md" variant="unfilled" type="single" isCollapsible className="w-full">
+										<AccordionItem value={item.key}>
+											<AccordionHeader>
+												<AccordionTrigger className="px-0 py-3">
+													{({ isExpanded }: { isExpanded: boolean }) => (
+														<View className="w-full flex-row items-center justify-between gap-3">
+															<View className="h-[64px] w-[64px] shrink-0 items-center justify-center rounded-2xl">
+																<Illustration width={64} height={64} className="opacity-90" />
+															</View>
+															<VStack className="min-w-0 flex-1 gap-1">
+																<AccordionTitleText className="flex-none font-semibold leading-5">
+																	{item.label}
+																</AccordionTitleText>
+																<Text className={`${helperText} text-xs`} numberOfLines={1}>
+																	{isDevelopmentOnly
+																		? isScreenVisible
+																			? 'Em desenvolvimento: visível para testes neste aparelho'
+																			: 'Em desenvolvimento: oculta no app'
+																		: isScreenVisible
+																			? 'Visível no navigator deste aparelho'
+																			: 'Oculta do navigator e sem acesso neste aparelho'}
+																</Text>
+															</VStack>
+															<AccordionIcon as={isExpanded ? ChevronUpIcon : ChevronDownIcon} className={helperText} />
+														</View>
+													)}
+												</AccordionTrigger>
+											</AccordionHeader>
+
+											<AccordionContent className="px-0 pb-3">
+												<Box className={`${notTintedCardClassName} px-4 py-4`}>
+													<VStack className="gap-4">
+														<Text className={`${helperText} text-sm leading-5`}>{item.description}</Text>
+
+														<View className={`${fieldContainerCardClassName} px-4 py-3`}>
+															<HStack className="items-center justify-between gap-4">
+																<VStack className="min-w-0 flex-1 gap-1">
+																	<Text className={`${bodyText} text-sm font-semibold`}>
+																		{isDevelopmentOnly ? 'Em desenvolvimento' : 'Mostrar no app'}
+																	</Text>
+																	<Text className={`${helperText} text-xs`}>
+																		{isDevelopmentOnly
+																			? 'Enquanto ativada, esta tela permanece oculta. Desative para liberá-la para testes neste aparelho.'
+																			: 'Quando desativada, a tela sai do navigator e a rota fica bloqueada neste aparelho.'}
+																	</Text>
+																</VStack>
+																<Switch
+																	value={toggleValue}
+																	onValueChange={(value) => handleStandaloneVisibilityChange(item, value)}
+																	isDisabled={isLoadingRouteVisibility}
+																	trackColor={switchTrackColor}
+																	thumbColor={switchThumbColor}
+																	ios_backgroundColor={switchIosBackgroundColor}
+																/>
+															</HStack>
+														</View>
+													</VStack>
+												</Box>
+											</AccordionContent>
+										</AccordionItem>
+									</Accordion>
+								</Box>
+							);
+						})}
+
+						{filteredCategories.length === 0 && filteredStandaloneVisibilitySettings.length === 0 ? (
+							<Box className={`${notTintedCardClassName} px-4 py-6`}>
+								<VStack className="items-center gap-1">
+									<Text className={`${bodyText} text-center text-sm font-semibold`}>Nenhuma tela encontrada</Text>
+									<Text className={`${helperText} text-center text-xs`}>
+										Tente buscar por outro nome ou parte do nome da tela.
+									</Text>
+								</VStack>
+							</Box>
+						) : null}
+					</VStack>
+				</ScrollView>
+
+				<Actionsheet
+					isOpen={Boolean(returnDestinationSelection)}
+					onClose={handleCloseReturnDestinationSheet}
+					snapPoints={returnDestinationSheetSnapPoints}
+				>
+					<ActionsheetBackdrop />
+					<ActionsheetContent className={isDarkMode ? 'bg-slate-950' : 'bg-white'}>
+						<ActionsheetDragIndicatorWrapper>
+							<ActionsheetDragIndicator />
+						</ActionsheetDragIndicatorWrapper>
+
+						<KeyboardAvoidingView
+							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+							style={{ width: '100%', flex: 1 }}
+						>
+							<VStack className="w-full gap-1 px-4 pb-3 pt-6">
+								<Heading size="lg" className={isDarkMode ? 'text-slate-100' : 'text-slate-900'}>
+									Escolha a tela de retorno
+								</Heading>
+								<Text className={`${helperText} text-sm`}>Após salvar, o formulário abrirá a tela selecionada.</Text>
+							</VStack>
+
+							<VStack className="w-full px-2 pb-3">
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Buscar tela</Text>
+								<Input className={fieldContainerClassName}>
+									<InputField
+										value={returnDestinationSearch}
+										onChangeText={setReturnDestinationSearch}
+										placeholder="Digite o nome da tela"
+										autoCapitalize="none"
+										autoCorrect={false}
+										returnKeyType="search"
+										accessibilityLabel="Buscar tela de retorno"
+										className={inputField}
+									/>
+								</Input>
+							</VStack>
+
+							<ActionsheetScrollView
+								className="w-full flex-1"
+								keyboardShouldPersistTaps="handled"
+								keyboardDismissMode="on-drag"
+								contentContainerStyle={{ paddingBottom: Math.max(96, insets.bottom + 72) }}
+							>
+								<VStack className="w-full px-2 pb-2">
+									{filteredReturnDestinationOptions.length === 0 ? (
+										<VStack className="items-center px-4 py-8">
+											<Text className={`${bodyText} text-center text-sm`}>
+												Nenhuma tela encontrada para &quot;{returnDestinationSearch.trim()}&quot;.
+											</Text>
+											<Text className={`${helperText} mt-1 text-center text-xs`}>
+												Tente buscar por outro nome ou parte do nome.
+											</Text>
+										</VStack>
+									) : null}
+
+									{filteredReturnDestinationOptions.map((destinationOption) => {
+										const isSelected = destinationOption.key === selectedReturnDestination;
+										const DestinationIllustration = returnDestinationIllustrationByKey[destinationOption.key];
+
+										return (
+											<ActionsheetItem
+												key={destinationOption.key}
+												onPress={() => handleSelectReturnDestination(destinationOption.key)}
+												className={
+													isSelected
+														? isDarkMode
+															? 'rounded-2xl bg-slate-900'
+															: 'rounded-2xl bg-amber-50'
+														: 'rounded-2xl'
+												}
+											>
+												<HStack className="w-full items-center gap-3">
+													<View className="h-11 w-11 items-center justify-center rounded-2xl">
+														<DestinationIllustration width={44} height={44} className="opacity-90" />
+													</View>
+													<VStack className="min-w-0 flex-1 items-start gap-1">
+														<ActionsheetItemText className={isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900'}>
+															{destinationOption.label}
+														</ActionsheetItemText>
+														<Text className={`${helperText} text-xs leading-4`}>{destinationOption.description}</Text>
+														{isSelected ? (
+															<Text className="text-xs text-amber-500 dark:text-amber-300">Selecionada atualmente</Text>
+														) : null}
+													</VStack>
+												</HStack>
+											</ActionsheetItem>
+										);
+									})}
+								</VStack>
+							</ActionsheetScrollView>
+						</KeyboardAvoidingView>
+					</ActionsheetContent>
+				</Actionsheet>
+
+				<Modal isOpen={isAnnotationDevelopmentNoticeOpen} onClose={handleCloseAnnotationDevelopmentNotice}>
+					<ModalBackdrop />
+					<ModalContent className="max-w-[360px]">
+						<ModalHeader>
+							<ModalTitle>Anotações em desenvolvimento</ModalTitle>
+							<ModalCloseButton onPress={handleCloseAnnotationDevelopmentNotice} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={`${bodyText} text-sm leading-5`}>
+								Esta tela ainda está em desenvolvimento e pode mudar antes de ficar pronta para uso geral.
+							</Text>
+						</ModalBody>
+						<ModalFooter>
+							<Button
+								action="primary"
+								variant="solid"
+								onPress={handleCloseAnnotationDevelopmentNotice}
+								className="w-full"
+							>
+								<ButtonText>Entendi</ButtonText>
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+
+				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+					<Navigator defaultValue={2} onHardwareBack={handleBackToConfigurations} />
+				</View>
+			</View>
+		</SafeAreaView>
+	);
+}

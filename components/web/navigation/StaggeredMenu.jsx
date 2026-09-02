@@ -32,6 +32,7 @@ import './StaggeredMenu.css';
  * @property {{ name: string, subtitle?: string, imageUrl?: string, initials: string }} [profile]
  * @property {string} [className]
  * @property {string} [navigationLabel]
+ * @property {'light' | 'dark'} [themeMode]
  * @property {string} [menuButtonColor]
  * @property {string} [openMenuButtonColor]
  * @property {string} [accentColor]
@@ -63,6 +64,7 @@ export const StaggeredMenu = ({
   profile,
   className,
   navigationLabel = 'Navegação principal',
+  themeMode = 'dark',
   menuButtonColor = '#fff',
   openMenuButtonColor = '#fff',
   accentColor = '#5227FF',
@@ -490,6 +492,7 @@ export const StaggeredMenu = ({
       data-position={position}
       data-open={open || undefined}
       data-collapsed-rail={collapsedRail || undefined}
+      data-theme={themeMode}
     >
       <div
         ref={preLayersRef}

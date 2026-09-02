@@ -1025,6 +1025,7 @@ export default function ConfigurationsScreen() {
 		switchTrackColor,
 		switchThumbColor,
 		switchIosBackgroundColor,
+		webDashboardClassNames,
 	} = useScreenStyles();
 
 	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
@@ -1993,7 +1994,7 @@ export default function ConfigurationsScreen() {
 						contentContainerStyle={{ paddingBottom: 48 }}
 						nestedScrollEnabled
 						showsVerticalScrollIndicator={false}
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 web:w-full web:px-8 web:relative web:z-[3]`}
+						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
 						style={{ marginTop: heroHeight - 64 }}
 					>
 						{isInitialLoading ? (
@@ -2010,7 +2011,7 @@ export default function ConfigurationsScreen() {
 							/>
 						) : (
 
-							<VStack className="mt-4 gap-4 web:w-full web:max-w-[1180px] web:self-center web:rounded-[28px] web:p-8">
+							<VStack className={`mt-4 gap-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
 								<Heading
 									className="text-lg uppercase tracking-widest "

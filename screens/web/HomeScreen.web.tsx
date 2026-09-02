@@ -759,7 +759,7 @@ export default function HomeScreen() {
 						className={`${webDashboardClassNames.sheet} ${compact ? webDashboardClassNames.sheetCompact : ''}`}
 						style={{ marginTop: heroHeight - 64, backgroundColor: surfaceBackground }}
 					>
-						<View className={`${webDashboardClassNames.sheetInner} max-w-[1180px] w-full self-center`}>
+						<View className={webDashboardClassNames.sheetInner}>
 							<View className={webDashboardClassNames.scrollContent}>
 								<View
 									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
