@@ -2,7 +2,6 @@
 import React from 'react';
 import {
 	Image as RNImage,
-	Platform,
 	Pressable,
 	RefreshControl,
 	ScrollView,
@@ -14,19 +13,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-gifted-charts';
-import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
+import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
+import '@mantine/core/styles.css';
+import { MantineProvider, Tabs as MantineTabs } from '@mantine/core';
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
-import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerIcon, TabsTriggerText } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
@@ -43,7 +42,6 @@ import {
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import { isWebDesktopLayout } from '@/utils/webLayout';
 import {
 	type CategoryAnalysisPdfMetric,
 	buildCategoryAnalysisPdfHtml,
@@ -276,7 +274,6 @@ const CategoryAnalysisSkeleton = () => (
 
 export default function CategoryAnalysisScreenWeb() {
 	const { width: windowWidth } = useWindowDimensions();
-	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
 	const currentUserId = auth.currentUser?.uid ?? null;
 	const [analysis, setAnalysis] = React.useState<CategoryAnalysisData | null>(null);
@@ -450,6 +447,76 @@ export default function CategoryAnalysisScreenWeb() {
 			}
 		},
 		[canSelectExpense, canSelectGain],
+	);
+	const movementTabsActiveColor = '#CA8A04';
+	const movementTabsStyles = React.useMemo(
+		() => {
+			const activeBackground = movementTabsActiveColor;
+			const tabSurface = isDarkMode ? '#081120' : '#F8FAFC';
+			const inactiveHoverSurface = isDarkMode ? 'rgba(148, 163, 184, 0.12)' : '#FFFFFF';
+			const activeShadow = '0 6px 18px rgba(202, 138, 4, 0.22)';
+
+			return {
+				list: {
+					gap: 6,
+					padding: 5,
+					border: 'none',
+					borderRadius: 18,
+					backgroundColor: tabSurface,
+				},
+				tab: {
+					position: 'relative',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					minHeight: 46,
+					paddingInline: 16,
+					border: 'none',
+					borderRadius: 13,
+					color: palette.subtitle,
+					fontSize: 14,
+					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+					fontWeight: 600,
+					letterSpacing: '0.01em',
+					lineHeight: 1.2,
+					transition:
+						'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease',
+					'&[data-active]': {
+						backgroundColor: activeBackground,
+						border: 'none',
+						boxShadow: activeShadow,
+						color: '#FFFFFF',
+					},
+					'&:hover:not([data-disabled]):not([data-active])': {
+						backgroundColor: inactiveHoverSurface,
+						color: palette.title,
+					},
+					'&:focus-visible': {
+						outline: `2px solid ${activeBackground}`,
+						outlineOffset: 2,
+					},
+					'&[data-disabled]': {
+						cursor: 'not-allowed',
+						opacity: 0.4,
+					},
+				},
+				tabSection: {
+					position: 'absolute',
+					insetInlineStart: 16,
+					display: 'inline-flex',
+					color: 'inherit',
+					pointerEvents: 'none',
+				},
+				tabLabel: {
+					display: 'block',
+					width: '100%',
+					textAlign: 'center',
+					color: 'inherit',
+					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+				},
+			} as const;
+		},
+		[isDarkMode, movementTabsActiveColor, palette.subtitle, palette.title],
 	);
 	const activeBreakdown = React.useMemo(() => {
 		if (!selectedReport) {
@@ -805,56 +872,79 @@ export default function CategoryAnalysisScreenWeb() {
 									</View>
 								) : (
 									<VStack className="gap-5">
-										<View
-											style={{
-												flexDirection: isDesktopWeb ? 'row' : 'column',
-												alignItems: 'stretch',
-												gap: isDesktopWeb ? 16 : 20,
-											}}
-										>
-											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
-												<TagActionsheetSelector
-													options={tagSelectorOptions}
-													selectedId={selectedTagId}
-													selectedOption={selectedTagOption}
-													onSelect={handleSelectTag}
-													isDarkMode={isDarkMode}
-													bodyTextClassName={bodyText}
-													helperTextClassName={helperText}
-													triggerClassName={sectionCardClassName}
-													placeholder="Selecione uma categoria"
-													sheetTitle="Categorias da análise"
-													emptyMessage="Nenhuma categoria disponível para análise."
-													triggerHint="Toque para escolher a categoria do relatório."
-													disabledHint="Categorias indisponíveis no momento."
-													accessibilityLabel="Selecionar categoria para análise"
-												/>
-											</View>
+										<View className="w-full">
+											<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+												<MantineTabs
+													value={selectedType}
+													onChange={value => {
+														if (value) {
+															handleSelectMovementType(value);
+														}
+													}}
+													variant="pills"
+													radius="md"
+													color="yellow"
+													style={
+														{
+															'--tabs-color': movementTabsActiveColor,
+															'--tabs-text-color': '#FFFFFF',
+														} as React.CSSProperties
+													}
+													classNames={{ root: 'w-full', list: 'w-full', tab: 'flex-1 justify-center' }}
+												styles={movementTabsStyles}
+												>
+													<MantineTabs.List grow aria-label="Tipo de movimento">
+														{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
+															const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
+															const isSelected = selectedType === option;
 
-											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
-												<Box className={`${notTintedCardClassName} p-1.5`}>
-													<Tabs value={selectedType} onValueChange={handleSelectMovementType}>
-														<TabsList>
-															{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
-																const isDisabled = option === 'expense' ? !canSelectExpense : !canSelectGain;
-																const isSelected = selectedType === option;
+															return (
+																<MantineTabs.Tab
+																	key={option}
+																	value={option}
+																	disabled={isDisabled}
+																	leftSection={
+																		option === 'expense' ? (
+																			<TrendingDown
+																				size={16}
+																				strokeWidth={2.4}
+																				color={isSelected ? '#FFFFFF' : palette.subtitle}
+																			/>
+																		) : (
+																			<TrendingUp
+																				size={16}
+																				strokeWidth={2.4}
+																				color={isSelected ? '#FFFFFF' : palette.subtitle}
+																			/>
+																		)
+																	}
+																>
+																	{getMovementTypeLabel(option)}
+																</MantineTabs.Tab>
+															);
+														})}
+													</MantineTabs.List>
+												</MantineTabs>
+											</MantineProvider>
+										</View>
 
-																return (
-																	<TabsTrigger key={option} value={option} disabled={isDisabled} className="flex-1">
-																		<TabsTriggerIcon
-																			as={option === 'expense' ? TrendingDown : TrendingUp}
-																			size={16}
-																			color={isSelected ? '#0F172A' : palette.subtitle}
-																		/>
-																		<TabsTriggerText>{getMovementTypeLabel(option)}</TabsTriggerText>
-																	</TabsTrigger>
-																);
-															})}
-															<TabsIndicator />
-														</TabsList>
-													</Tabs>
-												</Box>
-											</View>
+										<View className="w-full">
+											<TagActionsheetSelector
+												options={tagSelectorOptions}
+												selectedId={selectedTagId}
+												selectedOption={selectedTagOption}
+												onSelect={handleSelectTag}
+												isDarkMode={isDarkMode}
+												bodyTextClassName={bodyText}
+												helperTextClassName={helperText}
+												triggerClassName={sectionCardClassName}
+												placeholder="Selecione uma categoria"
+												sheetTitle="Categorias da análise"
+												emptyMessage="Nenhuma categoria disponível para análise."
+												triggerHint="Toque para escolher a categoria do relatório."
+												disabledHint="Categorias indisponíveis no momento."
+												accessibilityLabel="Selecionar categoria para análise"
+											/>
 										</View>
 
 										<LinearGradient
@@ -957,15 +1047,12 @@ export default function CategoryAnalysisScreenWeb() {
 													</View>
 												</HStack>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
 														<HStack className="items-center justify-between gap-3">
-															<HStack className="items-center gap-2">
-																<BarChart3 size={18} color={palette.warning} />
-																<Heading size="sm" className={headingText}>
-																	Evolução mensal
-																</Heading>
-															</HStack>
+															<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+																{getMovementTypeLabel(selectedType)} por mês
+															</Heading>
 															<Text style={{ color: statusColor, fontSize: 12, fontWeight: '700' }}>
 																{formatSignedCurrencyBRL(metric.deltaInCents)}
 															</Text>
@@ -1022,14 +1109,11 @@ export default function CategoryAnalysisScreenWeb() {
 													</VStack>
 												</View>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
-														<HStack className="items-center gap-2">
-															<WalletCards size={18} color={palette.warning} />
-															<Heading size="sm" className={headingText}>
-																Bancos e dinheiro
-															</Heading>
-														</HStack>
+														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+															Distribuição por conta
+														</Heading>
 
 														{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
 															<>
@@ -1124,14 +1208,11 @@ export default function CategoryAnalysisScreenWeb() {
 													</VStack>
 												</View>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
-														<HStack className="items-center gap-2">
-															<Activity size={18} color={palette.warning} />
-															<Heading size="sm" className={headingText}>
-																Movimentos recentes
-															</Heading>
-														</HStack>
+														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+															Últimas movimentações
+														</Heading>
 
 														{visibleRecentMovements.length > 0 ? (
 															<VStack className="gap-3">

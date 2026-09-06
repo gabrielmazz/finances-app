@@ -3,7 +3,7 @@ tags: [receitas-fixas, recorrencia, notificacoes, financeiro]
 relacionado: [[Transações de Receitas]], [[Notificações]], [[Despesas Fixas]], [[Previsão de Fluxo de Caixa]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 2.1.0
+versao: 2.2.0
 ---
 
 # Receitas Fixas
@@ -27,7 +27,7 @@ graph TD
     GAIN --> UPD[Atualiza ciclo + lastReceiptGainId]
 ```
 
-1. `screens/mobile/AddMandatoryGainsScreen.tsx` cria a receita fixa com nome, valor, dia esperado de recebimento, categoria obrigatória e parcelamento opcional; o seletor de categoria usa o ActionSheet customizado das telas de registro, com ícone, nome e ação interna para abrir `AddRegisterTagScreen.tsx` sem perder o contexto
+1. `screens/mobile/AddMandatoryGainsScreen.tsx` cria a receita fixa com nome, valor, dia esperado de recebimento, categoria obrigatória e parcelamento opcional; quando parcelada, recebe o valor total e a quantidade, calcula o valor mensal e bloqueia sua edição. O seletor de categoria usa o ActionSheet customizado das telas de registro, com ícone, nome e ação interna para abrir `AddRegisterTagScreen.tsx` sem perder o contexto
 2. Cada receita fixa tem um controle de ciclo (`YYYY-MM`) para rastrear se já foi recebida no mês atual
 3. `MandatoryGainsListScreen.tsx` exibe todas as receitas fixas com status: recebida / pendente no ciclo atual
 4. Após criar ou editar o template obrigatório, `AddMandatoryGainsScreen.tsx` aplica [[Comportamento Pós-Registro]] depois do feedback de sucesso
@@ -39,9 +39,9 @@ graph TD
 10. `screens/mobile/MandatoryGainsListScreen.tsx` exibe um resumo do mês corrente com total do ciclo, valores recebidos, valores pendentes, parcelamentos concluídos fora do ciclo e botão para baixar o resumo em PDF via `expo-print`/`expo-sharing`; as ações de baixar PDF e adicionar ganho ficam lado a lado em um `HStack`
 11. A lista reconcilia a agenda local com os templates do UID autenticado ao carregar ou atualizar por pull-to-refresh
 12. Criações, edições e exclusões confirmadas no Firestore acionam a Function de [[Notificações]], que envia push aos aparelhos registrados do dono e de seus `relatedIdUsers`; a lista mantém somente a responsabilidade de reconciliar a agenda local.
-13. No resumo diário Web, os itens do mesmo dia aparecem com pendentes antes dos recebidos e, dentro de cada estado, em ordem alfabética pelo nome. O detalhe é compacto e preserva registrar, editar, reivindicar e excluir; a ação de quitar parcelas não é exibida para ganhos.
-14. `screens/web/MandatoryGainsListScreen.web.tsx` mantém a mesma composição Web da lista de despesas — calendário mensal, atualização por pull-to-refresh, resumo, timeline expansível, confirmação de ações e impressão — mas carrega ganhos com `getMandatoryGainsWithRelationsFirebase`, usa `lastReceipt*` e navega para `addRegisterGain`, sem oferecer quitação antecipada.
-15. `screens/web/AddMandatoryGainsScreen.web.tsx` mantém a composição hero/sheet responsiva de `AddMandatoryExpensesScreen.web.tsx`, com grid de nome/valor, recebimento por dia útil, calendário customizado de parcelas, ActionSheet de categorias obrigatórias, lembrete com antecedência de 1/2/3 dias e aviso opcional no recebimento, além do controle mensal. A variante chama somente `getMandatoryGainFirebase`, `addMandatoryGainFirebase` e `updateMandatoryGainFirebase`; no navegador, persiste a configuração do lembrete e informa que a entrega acontece no aplicativo instalado.
+13. No resumo diário Web, os itens do mesmo dia aparecem com pendentes antes dos recebidos e, dentro de cada estado, em ordem alfabética pelo nome. O detalhe é compacto e preserva registrar, receber parcelas, editar, reivindicar e excluir. Na grade mensal, quando um feriado coincide com um ganho, o recorte circular do Web mantém a divisão colorida inteira dentro da bolinha.
+14. `screens/web/MandatoryGainsListScreen.web.tsx` mantém a mesma composição Web da lista de despesas — calendário mensal, atualização por pull-to-refresh, resumo, timeline expansível, confirmação de ações e impressão — e permite informar quantas parcelas ativas devem ser recebidas em um único lançamento real.
+15. `screens/web/AddMandatoryGainsScreen.web.tsx` mantém a composição hero/sheet responsiva de `AddMandatoryExpensesScreen.web.tsx`, com grid de nome/valor, recebimento por dia útil, calendário customizado de parcelas, ActionSheet de categorias obrigatórias, lembrete com antecedência de 1/2/3 dias e aviso opcional no recebimento. O registro de recebimento ocorre exclusivamente pela lista. A variante chama somente `getMandatoryGainFirebase`, `addMandatoryGainFirebase` e `updateMandatoryGainFirebase`; no navegador, persiste a configuração do lembrete e informa que a entrega acontece no aplicativo instalado.
 16. `screens/web/MandatoryGainsListScreen.web.tsx` exibe os mesmos três indicadores Web da lista de despesas: barra de progresso do ciclo, radar de ganhos por categoria e scatter dos dias de recebimento. A barra e o radar usam o total efetivamente exibido em centavos, substituem os dados por valores neutros quando a privacidade está ativa e os rótulos acessíveis identificam recebimentos/ganhos, sem alterar o loader ou a lógica de `lastReceipt*`.
 
 ## Chave de Ciclo
@@ -65,14 +65,16 @@ Usa a mesma lógica de `utils/mandatoryExpenses.ts`:
 ## Parcelamento
 
 - Parcelamento é opcional. Sem `installmentTotal`, a receita continua sendo uma recorrência mensal sem prazo final.
-- Com `installmentTotal`, o template passa a representar uma receita parcelada finita. O valor mensal continua em centavos em `valueInCents`.
+- Com `installmentTotal`, o template passa a representar uma receita parcelada finita. `installmentTotalValueInCents` guarda o valor contratual total; `valueInCents` é o valor mensal derivado por divisão inteira e deixa de ser editável enquanto o parcelamento estiver ativo. A diferença de centavos fica na última parcela para que a soma seja sempre exata.
+- Ao ativar o parcelamento, o valor que já estava informado passa a ser o valor total contratado; escolher ou alterar a quantidade somente recalcula o valor mensal. O total nunca é multiplicado pela quantidade.
 - Ao ativar o parcelamento, `AddMandatoryGainsScreen.tsx` mostra calendário de início preenchido com hoje e calendário final bloqueado até haver uma quantidade válida de parcelas.
 - A quantidade e a data final ficam sincronizadas: alterar a quantidade recalcula `installmentEndDate`; alterar a data final recalcula `installmentTotal` pelos meses inclusivos entre início e fim.
 - `installmentStartDate` permite backfill de templates antigos: ao editar/salvar ou listar, o app calcula quantas parcelas mensais já transcorreram antes do ciclo atual e mantém o ciclo atual dependente do recebimento real registrado.
-- `installmentsCompleted` guarda quantos ciclos já foram efetivados. Ao registrar o recebimento via [[Transações de Receitas]], `markMandatoryGainReceiptFirebase()` incrementa esse contador uma vez por ciclo.
-- Ao reivindicar/desfazer o recebimento do ciclo, `clearMandatoryGainReceiptFirebase()` remove o vínculo com a receita real e recua uma parcela quando havia recebimento vinculado.
+- `installmentsCompleted` guarda quantas parcelas já foram efetivadas. Ao registrar o recebimento via [[Transações de Receitas]], `markMandatoryGainReceiptFirebase()` incrementa esse contador pela quantidade escolhida em uma mesma transação.
+- Ao reivindicar/desfazer o recebimento do ciclo, `clearMandatoryGainReceiptFirebase()` remove o vínculo com a receita real e recua a mesma quantidade registrada em `lastReceiptInstallmentsCount` (uma para templates legados).
 - Quando `installmentsCompleted >= installmentTotal`, a listagem trata o parcelamento como concluído e bloqueia novos registros para o template.
 - A UI usa `formatMandatoryInstallmentLabel()` em `utils/mandatoryInstallments.ts` para exibir `Parcela X de Y` no calendário e na timeline.
+- Enquanto houver parcelas restantes, a lista oferece **Receber parcelas**. O usuário informa de uma até a quantidade restante; o fluxo calcula em centavos a soma exata, abre o lançamento de receita e avança o saldo do template pela quantidade confirmada.
 - A sincronização de lembretes trata parcelamentos concluídos como `reminderEnabled: false`, cancelando notificações futuras ao recarregar a lista.
 
 ## Arquivos principais

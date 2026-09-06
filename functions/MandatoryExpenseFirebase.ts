@@ -31,6 +31,7 @@ interface AddMandatoryExpenseParams {
 	reminderHour?: number;
 	reminderMinute?: number;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
@@ -51,6 +52,7 @@ interface UpdateMandatoryExpenseParams {
 	reminderHour?: number;
 	reminderMinute?: number;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
@@ -84,6 +86,7 @@ interface RegisterMandatoryExpensePaymentParams {
 	bankTransferTargetBankNameSnapshot?: string | null;
 	bankTransferExpenseId?: string | null;
 	bankTransferGainId?: string | null;
+	installmentsToSettle?: number;
 }
 
 type MandatoryExpensePaymentFailureReason =
@@ -97,7 +100,7 @@ type MandatoryExpensePaymentFailureReason =
 	| 'transaction_failed';
 
 type MandatoryExpensePaymentResult =
-	| { success: true; expenseId: string }
+	| { success: true; expenseId: string; isInstallmentPlanComplete?: boolean }
 	| { success: false; reason: MandatoryExpensePaymentFailureReason };
 
 const MANDATORY_EXPENSES_COLLECTION = 'mandatoryExpenses';
@@ -105,14 +108,25 @@ const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
 
 const buildMandatoryInstallmentFields = (
 	installmentTotal: number | null | undefined,
+	installmentTotalValueInCents: number | null | undefined,
+	installmentValueInCents: number,
 	installmentsCompleted = 0,
 	installmentStartDate?: Date | null,
 	installmentEndDate?: Date | null,
 ) => {
 	const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+	const fallbackTotalValue = normalizedInstallmentTotal === null ? null : normalizedInstallmentTotal * installmentValueInCents;
+	const normalizedTotalValue =
+		normalizedInstallmentTotal !== null &&
+		typeof installmentTotalValueInCents === 'number' &&
+		Number.isSafeInteger(installmentTotalValueInCents) &&
+		installmentTotalValueInCents > 0
+			? installmentTotalValueInCents
+			: fallbackTotalValue;
 
 	return {
 		installmentTotal: normalizedInstallmentTotal,
+		installmentTotalValueInCents: normalizedInstallmentTotal === null ? null : normalizedTotalValue,
 		installmentsCompleted:
 			normalizedInstallmentTotal === null
 				? 0
@@ -129,13 +143,17 @@ const chunkDocumentIds = (ids: string[]) =>
 		ids.slice(index * LINKED_MOVEMENTS_QUERY_LIMIT, (index + 1) * LINKED_MOVEMENTS_QUERY_LIMIT),
 	);
 
-const getMandatoryExpenseInstallmentPaymentState = (data: Record<string, unknown>, paymentDate: Date) => {
+const getMandatoryExpenseInstallmentPaymentState = (
+	data: Record<string, unknown>,
+	paymentDate: Date,
+	isCurrentCycleCompleted = false,
+) => {
 	const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
 	const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
 		storedCompleted: data.installmentsCompleted,
 		installmentTotal,
 		startDate: normalizeMandatoryInstallmentDate(data.installmentStartDate),
-		isCurrentCycleCompleted: false,
+		isCurrentCycleCompleted,
 		referenceDate: paymentDate,
 	});
 
@@ -183,6 +201,7 @@ export async function addMandatoryExpenseFirebase({
 	reminderHour = 9,
 	reminderMinute = 0,
 	installmentTotal = null,
+	installmentTotalValueInCents = null,
 	installmentsCompleted = 0,
 	installmentStartDate = null,
 	installmentEndDate = null,
@@ -191,6 +210,8 @@ export async function addMandatoryExpenseFirebase({
 		const mandatoryExpenseRef = doc(collection(db, MANDATORY_EXPENSES_COLLECTION));
 		const installmentFields = buildMandatoryInstallmentFields(
 			installmentTotal,
+			installmentTotalValueInCents,
+			valueInCents,
 			installmentsCompleted,
 			installmentStartDate,
 			installmentEndDate,
@@ -243,6 +264,7 @@ export async function updateMandatoryExpenseFirebase({
 	reminderHour,
 	reminderMinute,
 	installmentTotal,
+	installmentTotalValueInCents,
 	installmentsCompleted,
 	installmentStartDate,
 	installmentEndDate,
@@ -306,6 +328,7 @@ export async function updateMandatoryExpenseFirebase({
 			updates.installmentTotal = normalizedInstallmentTotal;
 			if (normalizedInstallmentTotal === null) {
 				updates.installmentsCompleted = 0;
+				updates.installmentTotalValueInCents = null;
 				updates.installmentStartDate = null;
 				updates.installmentEndDate = null;
 			} else if (typeof installmentsCompleted === 'number') {
@@ -316,6 +339,16 @@ export async function updateMandatoryExpenseFirebase({
 			}
 		} else if (typeof installmentsCompleted === 'number') {
 			updates.installmentsCompleted = Math.max(0, Math.floor(installmentsCompleted));
+		}
+
+		if (installmentTotalValueInCents !== undefined && installmentTotal !== null) {
+			if (
+				typeof installmentTotalValueInCents === 'number' &&
+				Number.isSafeInteger(installmentTotalValueInCents) &&
+				installmentTotalValueInCents > 0
+			) {
+				updates.installmentTotalValueInCents = installmentTotalValueInCents;
+			}
 		}
 
 		if (installmentStartDate !== undefined) {
@@ -553,6 +586,7 @@ export async function registerMandatoryExpensePaymentFirebase(
 				lastPaymentExpenseId: paymentExpenseRef.id,
 				lastPaymentDate: date,
 				lastPaymentCycle: paymentCycle,
+				lastPaymentInstallmentsCount: installmentState.installmentTotal !== null ? 1 : null,
 				...(nextInstallmentsCompleted !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
 				updatedAt: createdAt,
 			});
@@ -565,8 +599,8 @@ export async function registerMandatoryExpensePaymentFirebase(
 	}
 }
 
-// A quitação antecipada cria uma despesa única com o saldo das parcelas e remove
-// o template na mesma transação, seguindo [[Despesas Fixas]] e [[Transações de Despesas]].
+// A quitação antecipada cria uma despesa única para a quantidade escolhida de parcelas.
+// O template só é removido quando a última parcela é quitada, conforme [[Despesas Fixas]].
 export async function settleMandatoryExpenseFirebase(
 	params: RegisterMandatoryExpensePaymentParams,
 ): Promise<MandatoryExpensePaymentResult> {
@@ -596,6 +630,7 @@ export async function settleMandatoryExpenseFirebase(
 		bankTransferTargetBankNameSnapshot,
 		bankTransferExpenseId,
 		bankTransferGainId,
+		installmentsToSettle,
 	} = params;
 	const mandatoryExpenseRef = doc(db, MANDATORY_EXPENSES_COLLECTION, mandatoryExpenseId);
 	const settlementExpenseRef = doc(collection(db, 'expenses'));
@@ -614,11 +649,25 @@ export async function settleMandatoryExpenseFirebase(
 				return { success: false, reason: 'installment_plan_required' };
 			}
 
-			const installmentState = getMandatoryExpenseInstallmentPaymentState(mandatoryExpenseData, date);
+			const settlementCycle = getCycleKeyFromDate(date);
+			const isCurrentCyclePaid = mandatoryExpenseData.lastPaymentCycle === settlementCycle;
+			const installmentState = getMandatoryExpenseInstallmentPaymentState(
+				mandatoryExpenseData,
+				date,
+				isCurrentCyclePaid,
+			);
 			const remainingInstallments = installmentTotal - installmentState.installmentsCompleted;
 			if (remainingInstallments <= 0) {
 				return { success: false, reason: 'no_remaining_installments' };
 			}
+			const requestedInstallments =
+				installmentsToSettle === undefined
+					? remainingInstallments
+					: normalizeMandatoryInstallmentTotal(installmentsToSettle);
+			if (requestedInstallments === null || requestedInstallments > remainingInstallments) {
+				return { success: false, reason: 'no_remaining_installments' };
+			}
+			const nextInstallmentsCompleted = installmentState.installmentsCompleted + requestedInstallments;
 
 			const createdAt = new Date();
 			// A settlement may be discounted by the creditor. The entered amount is
@@ -648,9 +697,28 @@ export async function settleMandatoryExpenseFirebase(
 				createdAt,
 				updatedAt: createdAt,
 			});
-			transaction.delete(mandatoryExpenseRef);
+			if (nextInstallmentsCompleted >= installmentTotal) {
+				transaction.delete(mandatoryExpenseRef);
+			} else {
+				transaction.update(mandatoryExpenseRef, {
+					...(!isCurrentCyclePaid
+						? {
+							lastPaymentExpenseId: settlementExpenseRef.id,
+							lastPaymentDate: date,
+							lastPaymentCycle: settlementCycle,
+							lastPaymentInstallmentsCount: requestedInstallments,
+						}
+						: {}),
+					installmentsCompleted: nextInstallmentsCompleted,
+					updatedAt: createdAt,
+				});
+			}
 
-			return { success: true, expenseId: settlementExpenseRef.id };
+			return {
+				success: true,
+				expenseId: settlementExpenseRef.id,
+				isInstallmentPlanComplete: nextInstallmentsCompleted >= installmentTotal,
+			};
 		});
 	} catch (error) {
 		console.error('Erro ao quitar antecipadamente o gasto obrigatório:', error);
@@ -725,6 +793,7 @@ export async function markMandatoryExpensePaymentFirebase({
 				lastPaymentExpenseId: paymentExpenseId,
 				lastPaymentDate: paymentDate,
 				lastPaymentCycle: paymentCycle,
+				lastPaymentInstallmentsCount: installmentState.installmentTotal !== null ? 1 : null,
 				...(nextInstallmentsCompleted !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
 				updatedAt: new Date(),
 			});
@@ -758,13 +827,19 @@ export async function clearMandatoryExpensePaymentFirebase(expenseId: string) {
 			);
 			const hasLinkedPayment =
 				typeof data.lastPaymentExpenseId === 'string' && data.lastPaymentExpenseId.length > 0;
+			const recordedInstallmentCount = normalizeMandatoryInstallmentTotal(
+				data.lastPaymentInstallmentsCount,
+			);
 			const nextInstallmentsCompleted =
-				installmentTotal !== null && hasLinkedPayment ? Math.max(0, installmentsCompleted - 1) : installmentsCompleted;
+				installmentTotal !== null && hasLinkedPayment
+					? Math.max(0, installmentsCompleted - (recordedInstallmentCount ?? 1))
+					: installmentsCompleted;
 
 			transaction.update(mandatoryExpenseRef, {
 				lastPaymentExpenseId: null,
 				lastPaymentDate: null,
 				lastPaymentCycle: null,
+				lastPaymentInstallmentsCount: null,
 				...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
 				updatedAt: new Date(),
 			});

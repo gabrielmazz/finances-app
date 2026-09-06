@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { ScrollView, TextInput, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -52,6 +52,7 @@ import {
 import {
 	formatMandatoryInstallmentDateLabel,
 	formatMandatoryInstallmentLabel,
+	getMandatoryInstallmentValueInCents,
 	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
@@ -85,10 +86,12 @@ type MandatoryGainItem = DateCalendarItem & {
 	lastReceiptValueInCents?: number | null;
 	isReceivedForCurrentCycle?: boolean;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
 	installmentLabel?: string | null;
+	remainingInstallments?: number;
 	isInstallmentComplete?: boolean;
 };
 
@@ -309,6 +312,7 @@ export default function MandatoryGainsListScreen() {
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingGainAction | null>(null);
+	const [receiptInstallmentCount, setReceiptInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedGainIds, setExpandedGainIds] = React.useState<string[]>([]);
@@ -516,6 +520,8 @@ export default function MandatoryGainsListScreen() {
 					lastReceiptValueInCents:
 						typeof gain?.lastReceiptValueInCents === 'number' ? gain.lastReceiptValueInCents : null,
 					installmentTotal,
+					installmentTotalValueInCents:
+						typeof gain?.installmentTotalValueInCents === 'number' ? gain.installmentTotalValueInCents : null,
 					installmentsCompleted,
 					installmentStartDate,
 					installmentEndDate,
@@ -553,6 +559,10 @@ export default function MandatoryGainsListScreen() {
 					isReceivedForCurrentCycle,
 					isInstallmentComplete,
 					installmentLabel,
+					remainingInstallments:
+						typeof gain.installmentTotal === 'number'
+							? Math.max(0, gain.installmentTotal - resolvedInstallmentsCompleted)
+							: 0,
 					displayValueInCents,
 				};
 			});
@@ -598,7 +608,7 @@ export default function MandatoryGainsListScreen() {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains, { gainTemplateId });
 	}, []);
 
-	const handleRegisterGain = React.useCallback((gain: MandatoryGainItem) => {
+	const handleRegisterGain = React.useCallback((gain: MandatoryGainItem, installmentsToReceive = 1) => {
 		if (gain.isReceivedForCurrentCycle) {
 			showNotifierAlert({
 				description: 'Este ganho já foi registrado como recebido neste mês.',
@@ -617,14 +627,35 @@ export default function MandatoryGainsListScreen() {
 			return;
 		}
 
+		const receiptValueInCents =
+			typeof gain.installmentTotal === 'number'
+				? getMandatoryInstallmentValueInCents({
+						installmentTotal: gain.installmentTotal,
+						installmentsCompleted: gain.installmentsCompleted ?? 0,
+						installmentsToSettle: installmentsToReceive,
+						installmentValueInCents: gain.valueInCents,
+						installmentTotalValueInCents: gain.installmentTotalValueInCents,
+					})
+				: gain.valueInCents;
+		if (!receiptValueInCents || receiptValueInCents <= 0) {
+			showNotifierAlert({
+				description: 'Informe uma quantidade válida de parcelas para receber.',
+				type: 'warn',
+				isDarkMode,
+			});
+			return;
+		}
+
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, {
 			templateName: encodeURIComponent(gain.name),
-			templateValueInCents: String(gain.valueInCents),
+			templateValueInCents: String(receiptValueInCents),
 			templateTagId: gain.tagId,
 			templateDueDay: String(gain.dueDay),
 			templateUsesBusinessDays: gain.usesBusinessDays ? '1' : undefined,
 			templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
 			templateMandatoryGainId: gain.id,
+			templateMandatoryGainInstallmentsCount:
+				typeof gain.installmentTotal === 'number' ? String(installmentsToReceive) : undefined,
 			templateTagName: tagMetadataMap[gain.tagId]?.name
 				? encodeURIComponent(tagMetadataMap[gain.tagId].name)
 				: undefined,
@@ -647,13 +678,46 @@ export default function MandatoryGainsListScreen() {
 		setPendingAction(null);
 	}, [isActionProcessing]);
 
+	const selectedReceiptInstallments = React.useMemo(() => {
+		if (pendingAction?.type !== 'register' || typeof pendingAction.gain.installmentTotal !== 'number') {
+			return 1;
+		}
+
+		const requestedInstallments = Number(receiptInstallmentCount);
+		const remainingInstallments = pendingAction.gain.remainingInstallments ?? 0;
+		return Number.isInteger(requestedInstallments) && requestedInstallments >= 1 && requestedInstallments <= remainingInstallments
+			? requestedInstallments
+			: 0;
+	}, [pendingAction, receiptInstallmentCount]);
+
+	const selectedReceiptValueInCents = React.useMemo(() => {
+		if (pendingAction?.type !== 'register' || typeof pendingAction.gain.installmentTotal !== 'number') {
+			return pendingAction?.type === 'register' ? pendingAction.gain.valueInCents : null;
+		}
+
+		if (selectedReceiptInstallments <= 0) {
+			return null;
+		}
+
+		return getMandatoryInstallmentValueInCents({
+			installmentTotal: pendingAction.gain.installmentTotal,
+			installmentsCompleted: pendingAction.gain.installmentsCompleted ?? 0,
+			installmentsToSettle: selectedReceiptInstallments,
+			installmentValueInCents: pendingAction.gain.valueInCents,
+			installmentTotalValueInCents: pendingAction.gain.installmentTotalValueInCents,
+		});
+	}, [pendingAction, selectedReceiptInstallments]);
+
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
 			return;
 		}
 
 		if (pendingAction.type === 'register') {
-			handleRegisterGain(pendingAction.gain);
+			if (!selectedReceiptValueInCents || selectedReceiptInstallments <= 0) {
+				return;
+			}
+			handleRegisterGain(pendingAction.gain, selectedReceiptInstallments);
 			setPendingAction(null);
 			return;
 		}
@@ -748,7 +812,7 @@ export default function MandatoryGainsListScreen() {
 			setIsActionProcessing(false);
 			setPendingAction(null);
 		}
-	}, [handleEdit, handleRegisterGain, loadData, pendingAction]);
+	}, [handleEdit, handleRegisterGain, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading) {
@@ -917,6 +981,9 @@ export default function MandatoryGainsListScreen() {
 			if (action === 'settle') {
 				return;
 			}
+			if (action === 'register') {
+				setReceiptInstallmentCount('1');
+			}
 			setPendingAction({ type: action, gain });
 		},
 		[],
@@ -942,9 +1009,14 @@ export default function MandatoryGainsListScreen() {
 		const gainName = pendingAction.gain.name || 'ganho obrigatório selecionado';
 
 		if (pendingAction.type === 'register') {
+			const isInstallmentPlan = typeof pendingAction.gain.installmentTotal === 'number';
 			return {
 				title: 'Registrar ganho',
-				message: `Deseja registrar "${gainName}" como um novo ganho?`,
+				message: isInstallmentPlan
+					? selectedReceiptInstallments > 0 && selectedReceiptValueInCents
+						? `Registrar ${selectedReceiptInstallments} parcela(s) de "${gainName}" como um novo ganho no valor de ${formatCurrencyBRL(selectedReceiptValueInCents)}?`
+						: `Informe de 1 a ${pendingAction.gain.remainingInstallments ?? 0} parcela(s) para receber.`
+					: `Deseja registrar "${gainName}" como um novo ganho?`,
 				confirmLabel: 'Registrar',
 				action: 'primary' as const,
 			};
@@ -974,7 +1046,7 @@ export default function MandatoryGainsListScreen() {
 			confirmLabel: 'Excluir',
 			action: 'negative' as const,
 		};
-	}, [pendingAction]);
+	}, [formatCurrencyBRL, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents]);
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
 			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
@@ -1476,7 +1548,7 @@ export default function MandatoryGainsListScreen() {
 																			<HStack className="flex-wrap gap-4" style={{ paddingTop: 2 }}>
 																				<TouchableOpacity
 																					activeOpacity={0.85}
-																					onPress={() => setPendingAction({ type: 'register', gain })}
+									onPress={() => handleCalendarAction('register', gain)}
 																					disabled={gain.isReceivedForCurrentCycle || gain.isInstallmentComplete}
 																					style={{
 																						flexDirection: 'row',
@@ -1563,6 +1635,21 @@ export default function MandatoryGainsListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
+							{pendingAction?.type === 'register' && typeof pendingAction.gain.installmentTotal === 'number' ? (
+								<VStack className="mt-4 gap-2">
+									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
+									<TextInput
+										value={receiptInstallmentCount}
+										onChangeText={value => setReceiptInstallmentCount(value.replace(/\D/g, '').slice(0, 3))}
+										keyboardType="number-pad"
+										accessibilityLabel="Quantidade de parcelas a receber"
+										className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+									/>
+									<Text className={helperText}>
+										Restam {pendingAction.gain.remainingInstallments ?? 0} parcela(s).
+									</Text>
+								</VStack>
+							) : null}
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -1577,7 +1664,7 @@ export default function MandatoryGainsListScreen() {
 								variant="solid"
 								action={actionModalCopy.action}
 								onPress={handleConfirmAction}
-								isDisabled={isActionProcessing}
+								isDisabled={isActionProcessing || (pendingAction?.type === 'register' && (!selectedReceiptValueInCents || selectedReceiptInstallments <= 0))}
 								className={actionConfirmButtonClassName}
 							>
 								{isActionProcessing ? (

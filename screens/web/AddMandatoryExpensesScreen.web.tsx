@@ -46,7 +46,6 @@ import {
 	addMandatoryExpenseFirebase,
 	getMandatoryExpenseFirebase,
 	updateMandatoryExpenseFirebase,
-	clearMandatoryExpensePaymentFirebase,
 } from '@/functions/MandatoryExpenseFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import {
@@ -60,15 +59,12 @@ import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
 } from '@/utils/mandatoryReminderNotifications';
-import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
+import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
 import {
 	MAX_MANDATORY_INSTALLMENTS,
-	formatMandatoryInstallmentLabel,
 	getMandatoryInstallmentEndDateFromTotal,
 	getMandatoryInstallmentTotalFromDateRange,
-	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	resolveMandatoryInstallmentsCompleted,
@@ -106,26 +102,6 @@ type TagOption = {
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
-};
-type PaymentInfo = {
-	expenseId: string | null;
-	paidAt: Date | null;
-	cycleKey: string | null;
-};
-type MandatoryExpenseFormSnapshot = {
-	name: string;
-	valueInCents: number | null;
-	dueDay: string;
-	usesBusinessDays: boolean;
-	tagId: string | null;
-	installmentTotal: number | null;
-	installmentStartDate: string;
-	installmentEndDate: string;
-	description: string;
-	reminderTime: string;
-	reminderEnabled: boolean;
-	reminderDaysBefore: 1 | 2 | 3;
-	reminderOnDueDate: boolean;
 };
 type FocusableInputKey = 'expense-name' | 'expense-value' | 'due-day' | 'installments' | 'description';
 
@@ -171,25 +147,6 @@ const MANDATORY_REMINDER_DAY_OPTIONS: Array<{ value: string; label: string }> = 
 	{ value: '2', label: '2 dias antes (2 avisos)' },
 	{ value: '3', label: '3 dias antes (3 avisos)' },
 ];
-const normalizeDateValue = (value: unknown): Date | null => {
-	if (!value) {
-		return null;
-	}
-	if (value instanceof Date) {
-		return value;
-	}
-	if (typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
-		return (value as { toDate?: () => Date }).toDate?.() ?? null;
-	}
-	if (typeof value === 'string' || typeof value === 'number') {
-		const parsed = new Date(value);
-		if (!Number.isNaN(parsed.getTime())) {
-			return parsed;
-		}
-	}
-	return null;
-};
-
 export default function AddMandatoryExpensesScreen() {
 	const { width } = useWindowDimensions();
 	const compact = width < 720;
@@ -233,6 +190,8 @@ export default function AddMandatoryExpensesScreen() {
 	const [usesBusinessDays, setUsesBusinessDays] = React.useState(false);
 	const [installmentsEnabled, setInstallmentsEnabled] = React.useState(false);
 	const [installmentTotal, setInstallmentTotal] = React.useState('');
+	const [installmentTotalValueDisplay, setInstallmentTotalValueDisplay] = React.useState('');
+	const [installmentTotalValueInCents, setInstallmentTotalValueInCents] = React.useState<number | null>(null);
 	const [installmentStartDate, setInstallmentStartDate] = React.useState(() => formatDateToBR(new Date()));
 	const [installmentEndDate, setInstallmentEndDate] = React.useState('');
 	const [settledInstallmentsCount, setSettledInstallmentsCount] = React.useState(0);
@@ -247,9 +206,7 @@ export default function AddMandatoryExpensesScreen() {
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
-	const [currentPaymentInfo, setCurrentPaymentInfo] = React.useState<PaymentInfo | null>(null);
-	const [isPaymentActionLoading, setIsPaymentActionLoading] = React.useState(false);
-	const [persistedFormSnapshot, setPersistedFormSnapshot] = React.useState<MandatoryExpenseFormSnapshot | null>(null);
+	const [lastPaymentCycle, setLastPaymentCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef(false);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryExpenses');
 	const selectedTagLabel = React.useMemo(() => {
@@ -300,7 +257,33 @@ export default function AddMandatoryExpensesScreen() {
 		const parsedStartDate = parseDateFromBR(installmentStartDate);
 		const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parsedStartDate, normalizedTotal);
 		setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
-	}, [installmentStartDate]);
+
+		if (normalizedTotal !== null && installmentTotalValueInCents !== null) {
+			const monthlyValueInCents = Math.floor(installmentTotalValueInCents / normalizedTotal);
+			setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+			setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+		}
+	}, [installmentStartDate, installmentTotalValueInCents]);
+
+	const handleInstallmentTotalValueChange = React.useCallback((input: string) => {
+		const digitsOnly = formatValueInput(input);
+		if (!digitsOnly) {
+			setInstallmentTotalValueDisplay('');
+			setInstallmentTotalValueInCents(null);
+			return;
+		}
+
+		const totalValueInCents = parseInt(digitsOnly, 10);
+		setInstallmentTotalValueInCents(totalValueInCents);
+		setInstallmentTotalValueDisplay(formatCurrencyBRL(totalValueInCents));
+
+		const normalizedTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal));
+		if (normalizedTotal !== null) {
+			const monthlyValueInCents = Math.floor(totalValueInCents / normalizedTotal);
+			setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+			setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+		}
+	}, [installmentTotal]);
 
 	const handleInstallmentsToggle = React.useCallback((value: boolean) => {
 		setOpenOptionalSection('optional');
@@ -311,12 +294,22 @@ export default function AddMandatoryExpensesScreen() {
 			const nextTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal)) ?? Math.max(1, settledInstallmentsCount);
 			setInstallmentStartDate(nextStartDate);
 			setInstallmentTotal(String(nextTotal));
+			const nextTotalValueInCents = installmentTotalValueInCents ?? valueInCents;
+			setInstallmentTotalValueInCents(nextTotalValueInCents);
+			setInstallmentTotalValueDisplay(nextTotalValueInCents ? formatCurrencyBRL(nextTotalValueInCents) : '');
+			if (nextTotalValueInCents !== null) {
+				const monthlyValueInCents = Math.floor(nextTotalValueInCents / nextTotal);
+				setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+				setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+			}
 			const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parseDateFromBR(nextStartDate), nextTotal);
 			setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
 		} else {
 			setInstallmentEndDate('');
+			setInstallmentTotalValueDisplay('');
+			setInstallmentTotalValueInCents(null);
 		}
-	}, [installmentStartDate, installmentTotal, settledInstallmentsCount]);
+	}, [installmentStartDate, installmentTotal, installmentTotalValueInCents, settledInstallmentsCount, valueInCents]);
 
 	const handleInstallmentStartDateChange = React.useCallback((formattedValue: string, date: Date) => {
 		setInstallmentStartDate(formattedValue);
@@ -345,8 +338,6 @@ export default function AddMandatoryExpensesScreen() {
 		const maxDueDay = usesBusinessDays ? MAX_MONTHLY_BUSINESS_DAY : 31;
 		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= maxDueDay;
 	}, [dueDay, usesBusinessDays]);
-	const isPaidForCurrentCycle = React.useMemo(() => isCycleKeyCurrent(currentPaymentInfo?.cycleKey), [currentPaymentInfo?.cycleKey]);
-
 	const normalizedInstallmentTotal = React.useMemo(() => {
 		if (!installmentsEnabled || installmentTotal.trim().length === 0) {
 			return null;
@@ -364,6 +355,11 @@ export default function AddMandatoryExpensesScreen() {
 		[installmentEndDate],
 	);
 	const isInstallmentTotalValid = !installmentsEnabled || normalizedInstallmentTotal !== null;
+	const isInstallmentTotalValueValid =
+		!installmentsEnabled ||
+		(installmentTotalValueInCents !== null &&
+			normalizedInstallmentTotal !== null &&
+			installmentTotalValueInCents >= normalizedInstallmentTotal);
 	const isInstallmentStartDateValid = !installmentsEnabled || parsedInstallmentStartDate !== null;
 	const isInstallmentEndDateUnlocked = installmentsEnabled && normalizedInstallmentTotal !== null;
 	const isInstallmentEndDateValid = !isInstallmentEndDateUnlocked || parsedInstallmentEndDate !== null;
@@ -374,12 +370,11 @@ export default function AddMandatoryExpensesScreen() {
 					storedCompleted: settledInstallmentsCount,
 					installmentTotal: normalizedInstallmentTotal,
 					startDate: parsedInstallmentStartDate,
-					isCurrentCycleCompleted: isPaidForCurrentCycle,
+					isCurrentCycleCompleted: false,
 				})
 				: 0,
 		[
 			installmentsEnabled,
-			isPaidForCurrentCycle,
 			normalizedInstallmentTotal,
 			parsedInstallmentStartDate,
 			settledInstallmentsCount,
@@ -463,40 +458,6 @@ export default function AddMandatoryExpensesScreen() {
 		keyboardScrollOffset,
 	});
 
-	const buildFormSnapshot = React.useCallback(
-		(): MandatoryExpenseFormSnapshot => ({
-			name: expenseName.trim(),
-			valueInCents,
-			dueDay: dueDay.trim(),
-			usesBusinessDays,
-			tagId: selectedTagId,
-			installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
-			installmentStartDate: installmentsEnabled ? installmentStartDate : '',
-			installmentEndDate: installmentsEnabled ? installmentEndDate : '',
-			description: description.trim(),
-			reminderTime,
-			reminderEnabled,
-			reminderDaysBefore,
-			reminderOnDueDate,
-		}),
-		[
-			description,
-			dueDay,
-			expenseName,
-			installmentEndDate,
-			installmentStartDate,
-			installmentsEnabled,
-			normalizedInstallmentTotal,
-			reminderEnabled,
-			reminderDaysBefore,
-			reminderOnDueDate,
-			reminderTime,
-			selectedTagId,
-			usesBusinessDays,
-			valueInCents,
-		],
-	);
-
 	const hasExpenseName = expenseName.trim().length > 0;
 	const hasExpenseValue = valueInCents !== null && valueInCents > 0;
 	const isFormBusy = isSubmitting || isPrefilling;
@@ -504,40 +465,18 @@ export default function AddMandatoryExpensesScreen() {
 	const isInstallmentConfigReady =
 		!installmentsEnabled ||
 		(isInstallmentTotalValid &&
+			isInstallmentTotalValueValid &&
 			isInstallmentStartDateValid &&
 			isInstallmentEndDateValid &&
 			!isInstallmentTotalBelowSettled);
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
-	const isValueFieldDisabled = !hasExpenseName || isFormBusy;
+	const isValueFieldDisabled = !hasExpenseName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
-	const isInstallmentFieldDisabled = !isCoreTemplateReady || isFormBusy;
+	const isInstallmentFieldDisabled = !hasExpenseName || !isDueDayValid || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isCoreTemplateReady || isFormBusy;
 	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
-	const hasPendingTemplateChanges = React.useMemo(() => {
-		if (!selectedExpenseId || !persistedFormSnapshot) {
-			return false;
-		}
-
-		const currentSnapshot = buildFormSnapshot();
-		return (
-			currentSnapshot.name !== persistedFormSnapshot.name ||
-			currentSnapshot.valueInCents !== persistedFormSnapshot.valueInCents ||
-			currentSnapshot.dueDay !== persistedFormSnapshot.dueDay ||
-			currentSnapshot.usesBusinessDays !== persistedFormSnapshot.usesBusinessDays ||
-			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
-			currentSnapshot.installmentTotal !== persistedFormSnapshot.installmentTotal ||
-			currentSnapshot.installmentStartDate !== persistedFormSnapshot.installmentStartDate ||
-			currentSnapshot.installmentEndDate !== persistedFormSnapshot.installmentEndDate ||
-			currentSnapshot.description !== persistedFormSnapshot.description ||
-			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
-			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled ||
-			currentSnapshot.reminderDaysBefore !== persistedFormSnapshot.reminderDaysBefore ||
-			currentSnapshot.reminderOnDueDate !== persistedFormSnapshot.reminderOnDueDate
-		);
-	}, [buildFormSnapshot, persistedFormSnapshot, selectedExpenseId]);
-
 	const tagHelperMessage = isLoadingTags
 		? 'Carregando categorias obrigatórias...'
 		: tagOptions.length === 0
@@ -559,10 +498,6 @@ export default function AddMandatoryExpensesScreen() {
 	const businessDayToggleHelperMessage = usesBusinessDays
 		? `${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Fins de semana e feriados não contam.`
 		: 'Ative quando o vencimento seguir a contagem de dias úteis.';
-	const isInstallmentPlanCompleted = React.useMemo(
-		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, resolvedSettledInstallmentsCount),
-		[normalizedInstallmentTotal, resolvedSettledInstallmentsCount],
-	);
 	const installmentHelperMessage = React.useMemo(() => {
 		if (!isCoreTemplateReady) {
 			return 'Preencha nome, valor e vencimento para liberar o parcelamento.';
@@ -573,6 +508,9 @@ export default function AddMandatoryExpensesScreen() {
 		if (!isInstallmentTotalValid) {
 			return `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`;
 		}
+		if (!isInstallmentTotalValueValid) {
+			return 'O valor total do parcelamento precisa ser de pelo menos R$ 0,01 por parcela.';
+		}
 		if (!isInstallmentStartDateValid) {
 			return 'Informe uma data inicial válida para calcular o progresso das parcelas.';
 		}
@@ -582,8 +520,8 @@ export default function AddMandatoryExpensesScreen() {
 		if (isInstallmentTotalBelowSettled) {
 			return `Este gasto já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`;
 		}
-		if (normalizedInstallmentTotal) {
-			return `A listagem exibirá ${formatMandatoryInstallmentLabel(normalizedInstallmentTotal, resolvedSettledInstallmentsCount, isPaidForCurrentCycle) ?? 'o progresso das parcelas'}.`;
+		if (normalizedInstallmentTotal && installmentTotalValueInCents !== null && valueInCents !== null) {
+			return `Total do parcelamento: ${formatCurrencyBRL(installmentTotalValueInCents)}. Valor mensal calculado: ${formatCurrencyBRL(valueInCents)}. A última parcela recebe eventuais centavos restantes.`;
 		}
 		return 'Informe a quantidade total de parcelas.';
 	}, [
@@ -593,9 +531,11 @@ export default function AddMandatoryExpensesScreen() {
 		isInstallmentStartDateValid,
 		isInstallmentTotalBelowSettled,
 		isInstallmentTotalValid,
-		isPaidForCurrentCycle,
+		installmentTotalValueInCents,
+		isInstallmentTotalValueValid,
 		normalizedInstallmentTotal,
 		resolvedSettledInstallmentsCount,
+		valueInCents,
 	]);
 
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
@@ -607,6 +547,8 @@ export default function AddMandatoryExpensesScreen() {
 		setUsesBusinessDays(false);
 		setInstallmentsEnabled(false);
 		setInstallmentTotal('');
+		setInstallmentTotalValueDisplay('');
+		setInstallmentTotalValueInCents(null);
 		setInstallmentStartDate(formatDateToBR(new Date()));
 		setInstallmentEndDate('');
 		setSettledInstallmentsCount(0);
@@ -623,8 +565,7 @@ export default function AddMandatoryExpensesScreen() {
 			}
 			return null;
 		});
-		setCurrentPaymentInfo(null);
-		setPersistedFormSnapshot(null);
+		setLastPaymentCycle(null);
 	}, []);
 
 	// Segue [[Despesas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
@@ -833,15 +774,18 @@ export default function AddMandatoryExpensesScreen() {
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
 				const reminderMinute =
 					typeof data.reminderMinute === 'number' ? data.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
-				const lastPaymentExpenseId =
-					typeof data.lastPaymentExpenseId === 'string' && data.lastPaymentExpenseId.length > 0
-						? data.lastPaymentExpenseId
-						: null;
 				const lastPaymentCycle =
 					typeof data.lastPaymentCycle === 'string' && data.lastPaymentCycle.length > 0
 						? data.lastPaymentCycle
 						: null;
-				const lastPaymentDate = normalizeDateValue(data.lastPaymentDate ?? null);
+				const installmentTotalValueInCents =
+					installmentTotalValue !== null
+						? typeof data.installmentTotalValueInCents === 'number' &&
+							Number.isSafeInteger(data.installmentTotalValueInCents) &&
+							data.installmentTotalValueInCents > 0
+							? data.installmentTotalValueInCents
+							: value * installmentTotalValue
+						: null;
 				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: data.installmentsCompleted,
 					installmentTotal: installmentTotalValue,
@@ -857,6 +801,8 @@ export default function AddMandatoryExpensesScreen() {
 				setUsesBusinessDays(usesBusinessDaysValue);
 				setInstallmentsEnabled(installmentTotalValue !== null);
 				setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
+				setInstallmentTotalValueInCents(installmentTotalValueInCents);
+				setInstallmentTotalValueDisplay(installmentTotalValueInCents ? formatCurrencyBRL(installmentTotalValueInCents) : '');
 				setInstallmentStartDate(installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : formatDateToBR(new Date()));
 				setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
 				setSettledInstallmentsCount(installmentsCompletedValue);
@@ -867,26 +813,7 @@ export default function AddMandatoryExpensesScreen() {
 				setReminderDaysBefore(reminderDaysBeforeValue);
 				setReminderOnDueDate(reminderOnDueDateValue);
 				setOpenOptionalSection(installmentTotalValue !== null || reminderFlag ? 'optional' : null);
-				setCurrentPaymentInfo({
-					expenseId: lastPaymentExpenseId,
-					cycleKey: lastPaymentCycle,
-					paidAt: lastPaymentDate,
-				});
-				setPersistedFormSnapshot({
-					name: name.trim(),
-					valueInCents: value,
-					dueDay: String(dueDayValue).padStart(2, '0'),
-					usesBusinessDays: usesBusinessDaysValue,
-					tagId,
-					installmentTotal: installmentTotalValue,
-					installmentStartDate: installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : '',
-					installmentEndDate: installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '',
-					description: descriptionValue.trim(),
-					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
-					reminderEnabled: reminderFlag,
-					reminderDaysBefore: reminderDaysBeforeValue,
-					reminderOnDueDate: reminderOnDueDateValue,
-				});
+				setLastPaymentCycle(lastPaymentCycle);
 			} catch (error) {
 				console.error('Erro ao carregar gasto obrigatório para edição:', error);
 				if (isMounted) {
@@ -975,6 +902,17 @@ export default function AddMandatoryExpensesScreen() {
 			return;
 		}
 
+		if (installmentsEnabled && !isInstallmentTotalValueValid) {
+			showNotifierAlert({
+				title: 'Erro ao salvar gasto obrigatório',
+				description: 'Informe um valor total que cubra pelo menos R$ 0,01 por parcela.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
 		if (installmentsEnabled && parsedInstallmentStartDate === null) {
 			showNotifierAlert({
 				title: 'Erro ao salvar gasto obrigatório',
@@ -1054,6 +992,7 @@ export default function AddMandatoryExpensesScreen() {
 				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
 				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
 				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
 				installmentsCompleted: payloadInstallmentsCompleted,
 				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
 				installmentEndDate: installmentsEnabled ? parsedInstallmentEndDate : null,
@@ -1100,7 +1039,7 @@ export default function AddMandatoryExpensesScreen() {
 							reminderDaysBefore: payload.reminderDaysBefore,
 							reminderOnDueDate: payload.reminderOnDueDate,
 							description: payload.description ?? undefined,
-							lastCompletedCycle: currentPaymentInfo?.cycleKey ?? undefined,
+							lastCompletedCycle: lastPaymentCycle ?? undefined,
 							activeFromDate: payload.installmentStartDate ?? undefined,
 							activeThroughDate: payload.installmentEndDate ?? undefined,
 							requestPermission: true,
@@ -1173,6 +1112,7 @@ export default function AddMandatoryExpensesScreen() {
 		isDueDayValid,
 		installmentsEnabled,
 		isInstallmentTotalBelowSettled,
+		isInstallmentTotalValueValid,
 		isSubmitting,
 		usesBusinessDays,
 		normalizedInstallmentTotal,
@@ -1182,7 +1122,8 @@ export default function AddMandatoryExpensesScreen() {
 		reminderDaysBefore,
 		reminderOnDueDate,
 		reminderTime,
-		currentPaymentInfo?.cycleKey,
+		installmentTotalValueInCents,
+		lastPaymentCycle,
 		resolvedSettledInstallmentsCount,
 		applyPostSubmitBehavior,
 		resetForm,
@@ -1192,147 +1133,11 @@ export default function AddMandatoryExpensesScreen() {
 		valueInCents,
 	]);
 
-	const handleRegisterPaymentNavigation = React.useCallback(() => {
-		if (!selectedExpenseId) {
-			showNotifierAlert({
-				title: 'Controle mensal indisponível',
-				description: 'Salve o gasto obrigatório antes de registrá-lo como despesa.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (isPaidForCurrentCycle) {
-			showNotifierAlert({
-				title: 'Pagamento já registrado',
-				description: 'Este gasto já foi registrado como pago neste mês.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (isInstallmentPlanCompleted) {
-			showNotifierAlert({
-				title: 'Parcelamento concluído',
-				description: 'Todas as parcelas deste gasto obrigatório já foram registradas.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (!isTemplateReady || hasPendingTemplateChanges) {
-			showNotifierAlert({
-				title: 'Salve as alterações primeiro',
-				description: 'Salve o template atualizado antes de registrar a despesa deste mês.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const requiredValueInCents = valueInCents;
-		const requiredTagId = selectedTagId;
-		if (requiredValueInCents === null || !requiredTagId) {
-			return;
-		}
-
-		const params: Record<string, string> = {
-			templateName: encodeURIComponent(expenseName || 'Gasto obrigatório'),
-			templateValueInCents: String(requiredValueInCents),
-			templateTagId: requiredTagId,
-			templateDueDay: dueDay || '1',
-			templateMandatoryExpenseId: selectedExpenseId,
-		};
-		if (usesBusinessDays) {
-			params.templateUsesBusinessDays = '1';
-		}
-
-		if (selectedTagLabel) {
-			params.templateTagName = encodeURIComponent(selectedTagLabel);
-		}
-		if (description.trim().length > 0) {
-			params.templateDescription = encodeURIComponent(description.trim());
-		}
-
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, params);
-	}, [
-		description,
-		dueDay,
-		expenseName,
-		hasPendingTemplateChanges,
-		isDarkMode,
-		isInstallmentPlanCompleted,
-		isPaidForCurrentCycle,
-		isTemplateReady,
-		selectedExpenseId,
-		selectedTagId,
-		selectedTagLabel,
-		usesBusinessDays,
-		valueInCents,
-	]);
-
-	const handleReclaimPayment = React.useCallback(async () => {
-		if (!selectedExpenseId) {
-			return;
-		}
-
-		setIsPaymentActionLoading(true);
-
-		try {
-			const relatedExpenseId = currentPaymentInfo?.expenseId;
-
-			if (relatedExpenseId) {
-				await deleteExpenseFirebase(relatedExpenseId);
-			}
-
-			const result = await clearMandatoryExpensePaymentFirebase(selectedExpenseId);
-			if (!result.success) {
-				throw new Error('Erro ao remover o registro de pagamento.');
-			}
-
-			setCurrentPaymentInfo(null);
-			showNotifierAlert({
-				title: 'Pagamento do mês desfeito',
-				description: 'O registro mensal foi removido. Faça um novo lançamento quando necessário.',
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-		} catch (error) {
-			console.error('Erro ao reivindicar pagamento do gasto obrigatório:', error);
-			showNotifierAlert({
-				title: 'Erro ao desfazer pagamento',
-				description: 'Não foi possível desfazer o pagamento. Tente novamente.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-		} finally {
-			setIsPaymentActionLoading(false);
-		}
-	}, [currentPaymentInfo?.expenseId, isDarkMode, selectedExpenseId]);
-
 	const isSaveDisabled =
 		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
 	const screenTitle = isEditingMode ? 'Atualize seu gasto obrigatório' : 'Registro de gasto obrigatório';
-	const monthlyControlMessage = isPrefilling && isEditingMode
-		? 'Carregando os dados do gasto obrigatório salvo.'
-		: !selectedExpenseId
-			? 'Salve este template para liberar o registro do ciclo atual.'
-			: hasPendingTemplateChanges
-				? 'Salve as alterações para usar os dados atualizados ao registrar o pagamento deste mês.'
-				: isPaidForCurrentCycle
-					? `Pagamento registrado em ${currentPaymentInfo?.paidAt ? formatDateToBR(currentPaymentInfo.paidAt) : 'data não disponível'}.`
-					: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
 	const dueDayOptionsSummary = usesBusinessDays
 		? 'Contagem pelo dia útil ativa'
 		: 'Contagem pelo dia do mês';
@@ -1670,8 +1475,24 @@ export default function AddMandatoryExpensesScreen() {
 																						styles={{ root: { margin: 0 }, input: { paddingLeft: 16, paddingRight: 44 } }}
 																						onFocus={() => handleInputFocus('installments')}
 																					/>
-																				</MantineProvider>
-																				<HStack className="w-full gap-3 web:flex-row">
+																																										</MantineProvider>
+																																										<VStack className="w-full gap-2">
+																																											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																																												Valor total do parcelamento
+																																											</Text>
+																																											<Input className={inputClassName} isDisabled={isInstallmentFieldDisabled}>
+																																												<InputField
+																																													accessibilityLabel="Valor total do parcelamento"
+																																													placeholder="Ex.: R$ 500,00…"
+																																													value={installmentTotalValueDisplay}
+																																															onChangeText={handleInstallmentTotalValueChange}
+																																													keyboardType="numeric"
+																																													inputMode="numeric"
+																																													className={inputField}
+																																												/>
+																																											</Input>
+																																										</VStack>
+																																										<HStack className="w-full gap-3 web:flex-row">
 																					<VStack className="min-w-0 flex-1 gap-2">
 																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Início</Text>
 																						<DatePickerField
@@ -1804,38 +1625,6 @@ export default function AddMandatoryExpensesScreen() {
 															</AccordionContent>
 														</AccordionItem>
 													</Accordion>
-
-													{selectedExpenseId ? (
-														<View className={cardClassName}>
-															<VStack className="gap-3">
-																<Text className="font-semibold">Controle mensal</Text>
-																<Text className={helperText + ' text-sm leading-5'}>{monthlyControlMessage}</Text>
-																<HStack className="flex-wrap gap-3">
-																	{selectedExpenseId && !isPaidForCurrentCycle && !isInstallmentPlanCompleted ? (
-																		<Button
-																			className={submitButtonClassName}
-																			onPress={handleRegisterPaymentNavigation}
-																			isDisabled={!isTemplateReady || hasPendingTemplateChanges || isPaymentActionLoading}
-																		>
-																			{isPaymentActionLoading ? <ButtonSpinner /> : null}
-																			<ButtonText>Registrar pagamento</ButtonText>
-																		</Button>
-																	) : null}
-																	{selectedExpenseId && isPaidForCurrentCycle ? (
-																		<Button
-																			variant="outline"
-																			className={submitButtonCancelClassName}
-																			onPress={handleReclaimPayment}
-																			isDisabled={isPaymentActionLoading}
-																		>
-																			{isPaymentActionLoading ? <ButtonSpinner /> : null}
-																			<ButtonText>Desfazer pagamento</ButtonText>
-																		</Button>
-																	) : null}
-																</HStack>
-															</VStack>
-														</View>
-													) : null}
 
 													<Button
 														className={submitButtonClassName + ' web:h-12 web:rounded-2xl'}

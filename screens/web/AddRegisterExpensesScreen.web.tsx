@@ -230,6 +230,7 @@ export default function AddRegisterExpensesScreen() {
 		templateTagIconStyle?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
 		templateMandatoryExpenseSettlement?: string | string[];
+		templateMandatoryExpenseInstallmentsCount?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
 		investmentDeltaInCents?: string | string[];
@@ -264,6 +265,7 @@ export default function AddRegisterExpensesScreen() {
 		const tagIconName = decodeParam(params.templateTagIconName);
 		const tagIconStyle = decodeParam(params.templateTagIconStyle);
 		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
+		const installmentsToSettle = parseNumberParam(params.templateMandatoryExpenseInstallmentsCount);
 		const valueInCents = parseNumberParam(params.templateValueInCents);
 		const dueDay = parseNumberParam(params.templateDueDay);
 		if (
@@ -297,6 +299,7 @@ export default function AddRegisterExpensesScreen() {
 			usesBusinessDays: decodeParam(params.templateUsesBusinessDays) === '1',
 			mandatoryExpenseId,
 			isMandatoryExpenseSettlement: decodeParam(params.templateMandatoryExpenseSettlement) === '1',
+			installmentsToSettle,
 			lockTag: decodeParam(params.templateLockTag) === '1',
 			investmentAdjustmentId: decodeParam(params.investmentIdForAdjustment),
 			investmentDeltaInCents: parseNumberParam(params.investmentDeltaInCents),
@@ -310,6 +313,7 @@ export default function AddRegisterExpensesScreen() {
 		params.templateLockTag,
 		params.templateMandatoryExpenseId,
 		params.templateMandatoryExpenseSettlement,
+		params.templateMandatoryExpenseInstallmentsCount,
 		params.templateName,
 		params.templateTagIconFamily,
 		params.templateTagIconName,
@@ -323,6 +327,7 @@ export default function AddRegisterExpensesScreen() {
 
 	const linkedMandatoryExpenseId = templateData?.mandatoryExpenseId ?? null;
 	const isMandatoryExpenseSettlement = templateData?.isMandatoryExpenseSettlement === true;
+	const installmentsToSettle = templateData?.installmentsToSettle;
 	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
 	const pendingInvestmentAdjustment = React.useMemo(() => {
@@ -498,7 +503,7 @@ export default function AddRegisterExpensesScreen() {
 						moneyFormat,
 					};
 					const result = isMandatoryExpenseSettlement
-						? await settleMandatoryExpenseFirebase(paymentParams)
+						? await settleMandatoryExpenseFirebase({ ...paymentParams, installmentsToSettle })
 						: await registerMandatoryExpensePaymentFirebase(paymentParams);
 					if (!result.success) {
 						const description =
@@ -514,7 +519,7 @@ export default function AddRegisterExpensesScreen() {
 						return notifyError('Erro ao registrar gasto obrigatório', description, 5000);
 					}
 					try {
-						if (isMandatoryExpenseSettlement)
+						if (isMandatoryExpenseSettlement && result.isInstallmentPlanComplete)
 							await cancelMandatoryExpenseNotification(personId, linkedMandatoryExpenseId);
 						else
 							await suppressMandatoryExpenseNotificationCycle(

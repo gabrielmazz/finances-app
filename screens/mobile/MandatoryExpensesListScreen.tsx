@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshControl, ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
+import { RefreshControl, ScrollView, TextInput, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -50,6 +50,7 @@ import {
 	formatMandatoryInstallmentDateLabel,
 	formatMandatoryInstallmentLabel,
 	getMandatoryInstallmentRemainingValueInCents,
+	getMandatoryInstallmentValueInCents,
 	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
@@ -102,6 +103,7 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	lastPaymentValueInCents?: number | null;
 	isPaidForCurrentCycle?: boolean;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
@@ -363,6 +365,7 @@ export default function MandatoryExpensesListScreen() {
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
+	const [settlementInstallmentCount, setSettlementInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
@@ -611,6 +614,12 @@ export default function MandatoryExpensesListScreen() {
 							? expense.lastPaymentValueInCents
 							: null,
 					installmentTotal,
+					installmentTotalValueInCents:
+						typeof expense?.installmentTotalValueInCents === 'number' &&
+						Number.isSafeInteger(expense.installmentTotalValueInCents) &&
+						expense.installmentTotalValueInCents > 0
+							? expense.installmentTotalValueInCents
+							: null,
 					installmentsCompleted,
 					installmentStartDate,
 					installmentEndDate,
@@ -639,6 +648,7 @@ export default function MandatoryExpensesListScreen() {
 					installmentTotal: expense.installmentTotal,
 					installmentsCompleted: resolvedInstallmentsCompleted,
 					installmentValueInCents: expense.valueInCents,
+					installmentTotalValueInCents: expense.installmentTotalValueInCents,
 				});
 				const displayValueInCents =
 					isPaidForCurrentCycle &&
@@ -733,9 +743,20 @@ export default function MandatoryExpensesListScreen() {
 			return;
 		}
 
+		const nextInstallmentValueInCents =
+			typeof expense.installmentTotal === 'number'
+				? getMandatoryInstallmentValueInCents({
+						installmentTotal: expense.installmentTotal,
+						installmentsCompleted: expense.installmentsCompleted ?? 0,
+						installmentsToSettle: 1,
+						installmentValueInCents: expense.valueInCents,
+						installmentTotalValueInCents: expense.installmentTotalValueInCents,
+					})
+				: null;
+
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
 			templateName: encodeURIComponent(expense.name),
-			templateValueInCents: String(expense.valueInCents),
+			templateValueInCents: String(nextInstallmentValueInCents ?? expense.valueInCents),
 			templateTagId: expense.tagId,
 			templateDueDay: String(expense.dueDay),
 			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
@@ -756,7 +777,7 @@ export default function MandatoryExpensesListScreen() {
 		});
 	}, [tagMetadataMap]);
 
-	const handleSettleExpense = React.useCallback((expense: MandatoryExpenseItem) => {
+	const handleSettleExpense = React.useCallback((expense: MandatoryExpenseItem, installmentsToSettle: number, valueInCents: number) => {
 		if (typeof expense.installmentTotal !== 'number' || expense.isInstallmentComplete) {
 			showNotifierAlert({
 				description: 'A quitação antecipada só está disponível para parcelamentos ativos.',
@@ -766,9 +787,15 @@ export default function MandatoryExpensesListScreen() {
 			return;
 		}
 
-		if (!expense.remainingValueInCents || expense.remainingValueInCents <= 0) {
+		if (
+			!Number.isInteger(installmentsToSettle) ||
+			installmentsToSettle < 1 ||
+			installmentsToSettle > (expense.remainingInstallments ?? 0) ||
+			!Number.isSafeInteger(valueInCents) ||
+			valueInCents <= 0
+		) {
 			showNotifierAlert({
-				description: 'Não há parcelas restantes para quitar neste gasto.',
+				description: 'Informe uma quantidade válida de parcelas para quitar.',
 				type: 'warn',
 				isDarkMode,
 			});
@@ -777,17 +804,23 @@ export default function MandatoryExpensesListScreen() {
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
 			templateName: encodeURIComponent(expense.name),
-			templateValueInCents: String(expense.remainingValueInCents),
+			templateValueInCents: String(valueInCents),
 			templateTagId: expense.tagId,
 			templateDueDay: String(expense.dueDay),
 			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
 			templateDescription: encodeURIComponent(
-				[expense.description, `Quitação antecipada de ${expense.remainingInstallments ?? 0} parcela(s) restantes.`]
+				[
+					expense.description,
+					`Quitação antecipada de ${installmentsToSettle} parcela(s)${
+						installmentsToSettle === expense.remainingInstallments ? ' restantes' : ''
+					}.`,
+				]
 					.filter(Boolean)
 					.join('\n'),
 			),
 			templateMandatoryExpenseId: expense.id,
 			templateMandatoryExpenseSettlement: '1',
+			templateMandatoryExpenseInstallmentsCount: String(installmentsToSettle),
 			templateTagName: tagMetadataMap[expense.tagId]?.name
 				? encodeURIComponent(tagMetadataMap[expense.tagId].name)
 				: undefined,
@@ -810,6 +843,32 @@ export default function MandatoryExpensesListScreen() {
 		setPendingAction(null);
 	}, [isActionProcessing]);
 
+	const selectedSettlementInstallments = React.useMemo(() => {
+		if (pendingAction?.type !== 'settle') {
+			return 0;
+		}
+
+		const requestedInstallments = Number(settlementInstallmentCount);
+		const remainingInstallments = pendingAction.expense.remainingInstallments ?? 0;
+		return Number.isInteger(requestedInstallments) && requestedInstallments >= 1 && requestedInstallments <= remainingInstallments
+			? requestedInstallments
+			: 0;
+	}, [pendingAction, settlementInstallmentCount]);
+
+	const selectedSettlementValueInCents = React.useMemo(() => {
+		if (pendingAction?.type !== 'settle' || selectedSettlementInstallments <= 0) {
+			return null;
+		}
+
+		return getMandatoryInstallmentValueInCents({
+			installmentTotal: pendingAction.expense.installmentTotal,
+			installmentsCompleted: pendingAction.expense.installmentsCompleted ?? 0,
+			installmentsToSettle: selectedSettlementInstallments,
+			installmentValueInCents: pendingAction.expense.valueInCents,
+			installmentTotalValueInCents: pendingAction.expense.installmentTotalValueInCents,
+		});
+	}, [pendingAction, selectedSettlementInstallments]);
+
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
 			return;
@@ -822,7 +881,10 @@ export default function MandatoryExpensesListScreen() {
 		}
 
 		if (pendingAction.type === 'settle') {
-			handleSettleExpense(pendingAction.expense);
+			if (!selectedSettlementValueInCents || selectedSettlementInstallments <= 0) {
+				return;
+			}
+			handleSettleExpense(pendingAction.expense, selectedSettlementInstallments, selectedSettlementValueInCents);
 			setPendingAction(null);
 			return;
 		}
@@ -910,7 +972,7 @@ export default function MandatoryExpensesListScreen() {
 			setIsActionProcessing(false);
 			setPendingAction(null);
 		}
-	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction]);
+	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading) {
@@ -1068,6 +1130,9 @@ export default function MandatoryExpensesListScreen() {
 
 	const handleCalendarAction = React.useCallback(
 		(action: PendingExpenseAction['type'], expense: MandatoryExpenseItem) => {
+			if (action === 'settle') {
+				setSettlementInstallmentCount('1');
+			}
 			setPendingAction({ type: action, expense });
 		},
 		[],
@@ -1102,9 +1167,12 @@ export default function MandatoryExpensesListScreen() {
 		}
 
 		if (pendingAction.type === 'settle') {
+			const isFinalSettlement = selectedSettlementInstallments === (pendingAction.expense.remainingInstallments ?? 0);
 			return {
 				title: 'Quitar parcelas',
-				message: `Registrar ${pendingAction.expense.remainingInstallments ?? 0} parcela(s) restantes de "${expenseName}" em uma única despesa no valor de ${formatCurrencyBRL(pendingAction.expense.remainingValueInCents ?? 0)}? O parcelamento será encerrado após o lançamento.`,
+				message: selectedSettlementInstallments > 0 && selectedSettlementValueInCents
+					? `Registrar ${selectedSettlementInstallments} parcela(s) de "${expenseName}" em uma única despesa no valor de ${formatCurrencyBRL(selectedSettlementValueInCents)}?${isFinalSettlement ? ' O parcelamento será encerrado após o lançamento.' : ' As demais parcelas continuarão programadas.'}`
+					: `Informe de 1 a ${pendingAction.expense.remainingInstallments ?? 0} parcela(s) para quitar.`,
 				confirmLabel: 'Continuar',
 				action: 'primary' as const,
 			};
@@ -1134,7 +1202,7 @@ export default function MandatoryExpensesListScreen() {
 			confirmLabel: 'Excluir',
 			action: 'negative' as const,
 		};
-	}, [formatCurrencyBRL, pendingAction]);
+	}, [formatCurrencyBRL, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents]);
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
 			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
@@ -1678,7 +1746,7 @@ export default function MandatoryExpensesListScreen() {
 																				{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
 																					<TouchableOpacity
 																						activeOpacity={0.85}
-																						onPress={() => setPendingAction({ type: 'settle', expense })}
+										onPress={() => handleCalendarAction('settle', expense)}
 																						style={{
 																							flexDirection: 'row',
 																							alignItems: 'center',
@@ -1757,6 +1825,21 @@ export default function MandatoryExpensesListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
+							{pendingAction?.type === 'settle' ? (
+								<VStack className="mt-4 gap-2">
+									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
+									<TextInput
+										value={settlementInstallmentCount}
+										onChangeText={value => setSettlementInstallmentCount(value.replace(/\D/g, '').slice(0, 3))}
+										keyboardType="number-pad"
+										accessibilityLabel="Quantidade de parcelas a quitar"
+										className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+									/>
+									<Text className={helperText}>
+										Restam {pendingAction.expense.remainingInstallments ?? 0} parcela(s).
+									</Text>
+								</VStack>
+							) : null}
 						</ModalBody>
 						<ModalFooter className="gap-3">
 							<Button
@@ -1771,7 +1854,7 @@ export default function MandatoryExpensesListScreen() {
 								variant="solid"
 								action={actionModalCopy.action}
 								onPress={handleConfirmAction}
-								isDisabled={isActionProcessing}
+								isDisabled={isActionProcessing || (pendingAction?.type === 'settle' && (!selectedSettlementValueInCents || selectedSettlementInstallments <= 0))}
 								className={actionConfirmButtonClassName}
 							>
 								{isActionProcessing ? (

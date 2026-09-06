@@ -219,7 +219,14 @@ function CalendarDayCircle({
 }) {
 	if (hasItems && hasHoliday) {
 		return (
-			<View style={{ width: DAY_CIRCLE_SIZE, height: DAY_CIRCLE_SIZE }}>
+			<View
+				style={{
+					width: DAY_CIRCLE_SIZE,
+					height: DAY_CIRCLE_SIZE,
+					borderRadius: 999,
+					overflow: 'hidden',
+				}}
+			>
 				<Svg width={DAY_CIRCLE_SIZE} height={DAY_CIRCLE_SIZE} viewBox={`0 0 ${DAY_CIRCLE_SIZE} ${DAY_CIRCLE_SIZE}`}>
 					<Defs>
 						<ClipPath id={splitId}>

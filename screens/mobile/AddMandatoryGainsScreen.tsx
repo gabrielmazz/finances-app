@@ -45,7 +45,6 @@ import { auth } from '@/FirebaseConfig';
 import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import {
 	addMandatoryGainFirebase,
-	clearMandatoryGainReceiptFirebase,
 	getMandatoryGainFirebase,
 	updateMandatoryGainFirebase,
 } from '@/functions/MandatoryGainFirebase';
@@ -68,15 +67,12 @@ import {
 	formatMandatoryReminderNextTrigger,
 	type MandatoryReminderScheduleResult,
 } from '@/utils/mandatoryReminderNotifications';
-import { getCurrentCycleKey, isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { deleteGainFirebase } from '@/functions/GainFirebase';
+import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
 import {
 	MAX_MANDATORY_INSTALLMENTS,
-	formatMandatoryInstallmentLabel,
 	getMandatoryInstallmentEndDateFromTotal,
 	getMandatoryInstallmentTotalFromDateRange,
-	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	resolveMandatoryInstallmentsCompleted,
@@ -106,26 +102,6 @@ type TagOption = {
 	iconFamily?: TagIconFamily | null;
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
-};
-type ReceiptInfo = {
-	gainId: string | null;
-	receivedAt: Date | null;
-	cycleKey: string | null;
-};
-type MandatoryGainFormSnapshot = {
-	name: string;
-	valueInCents: number | null;
-	dueDay: string;
-	usesBusinessDays: boolean;
-	tagId: string | null;
-	installmentTotal: number | null;
-	installmentStartDate: string;
-	installmentEndDate: string;
-	description: string;
-	reminderTime: string;
-	reminderEnabled: boolean;
-	reminderDaysBefore: 1 | 2 | 3;
-	reminderOnDueDate: boolean;
 };
 type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'installments' | 'description';
 
@@ -171,30 +147,6 @@ const MANDATORY_REMINDER_DAY_OPTIONS: Array<{ value: string; label: string }> = 
 	{ value: '2', label: '2 dias antes (2 avisos)' },
 	{ value: '3', label: '3 dias antes (3 avisos)' },
 ];
-const normalizeDateValue = (value: unknown): Date | null => {
-	if (!value) {
-		return null;
-	}
-	if (value instanceof Date) {
-		return value;
-	}
-	if (
-		typeof value === 'object' &&
-		value !== null &&
-		'toDate' in value &&
-		typeof (value as { toDate?: () => Date }).toDate === 'function'
-	) {
-		return (value as { toDate?: () => Date }).toDate?.() ?? null;
-	}
-	if (typeof value === 'string' || typeof value === 'number') {
-		const parsed = new Date(value);
-		if (!Number.isNaN(parsed.getTime())) {
-			return parsed;
-		}
-	}
-	return null;
-};
-
 export default function AddMandatoryGainsScreen() {
 	const {
 		isDarkMode,
@@ -235,6 +187,8 @@ export default function AddMandatoryGainsScreen() {
 	const [usesBusinessDays, setUsesBusinessDays] = React.useState(false);
 	const [installmentsEnabled, setInstallmentsEnabled] = React.useState(false);
 	const [installmentTotal, setInstallmentTotal] = React.useState('');
+	const [installmentTotalValueDisplay, setInstallmentTotalValueDisplay] = React.useState('');
+	const [installmentTotalValueInCents, setInstallmentTotalValueInCents] = React.useState<number | null>(null);
 	const [installmentStartDate, setInstallmentStartDate] = React.useState(() => formatDateToBR(new Date()));
 	const [installmentEndDate, setInstallmentEndDate] = React.useState('');
 	const [settledInstallmentsCount, setSettledInstallmentsCount] = React.useState(0);
@@ -247,9 +201,7 @@ export default function AddMandatoryGainsScreen() {
 	const [selectedGainTemplateId, setSelectedGainTemplateId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
-	const [currentReceiptInfo, setCurrentReceiptInfo] = React.useState<ReceiptInfo | null>(null);
-	const [isReceiptActionLoading, setIsReceiptActionLoading] = React.useState(false);
-	const [persistedFormSnapshot, setPersistedFormSnapshot] = React.useState<MandatoryGainFormSnapshot | null>(null);
+	const [lastReceiptCycle, setLastReceiptCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef(false);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryGains');
 	const selectedTagLabel = React.useMemo(() => {
@@ -300,7 +252,33 @@ export default function AddMandatoryGainsScreen() {
 		const parsedStartDate = parseDateFromBR(installmentStartDate);
 		const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parsedStartDate, normalizedTotal);
 		setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
-	}, [installmentStartDate]);
+
+		if (normalizedTotal !== null && installmentTotalValueInCents !== null) {
+			const monthlyValueInCents = Math.floor(installmentTotalValueInCents / normalizedTotal);
+			setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+			setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+		}
+	}, [installmentStartDate, installmentTotalValueInCents]);
+
+	const handleInstallmentTotalValueChange = React.useCallback((input: string) => {
+		const digitsOnly = formatValueInput(input);
+		if (!digitsOnly) {
+			setInstallmentTotalValueDisplay('');
+			setInstallmentTotalValueInCents(null);
+			return;
+		}
+
+		const totalValueInCents = parseInt(digitsOnly, 10);
+		setInstallmentTotalValueInCents(totalValueInCents);
+		setInstallmentTotalValueDisplay(formatCurrencyBRL(totalValueInCents));
+
+		const normalizedTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal));
+		if (normalizedTotal !== null) {
+			const monthlyValueInCents = Math.floor(totalValueInCents / normalizedTotal);
+			setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+			setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+		}
+	}, [installmentTotal]);
 
 	const handleInstallmentsToggle = React.useCallback((value: boolean) => {
 		setInstallmentsEnabled(value);
@@ -310,12 +288,22 @@ export default function AddMandatoryGainsScreen() {
 			const nextTotal = normalizeMandatoryInstallmentTotal(Number(installmentTotal)) ?? Math.max(1, settledInstallmentsCount);
 			setInstallmentStartDate(nextStartDate);
 			setInstallmentTotal(String(nextTotal));
+			const nextTotalValueInCents = installmentTotalValueInCents ?? valueInCents;
+			setInstallmentTotalValueInCents(nextTotalValueInCents);
+			setInstallmentTotalValueDisplay(nextTotalValueInCents ? formatCurrencyBRL(nextTotalValueInCents) : '');
+			if (nextTotalValueInCents !== null) {
+				const monthlyValueInCents = Math.floor(nextTotalValueInCents / nextTotal);
+				setValueInCents(monthlyValueInCents > 0 ? monthlyValueInCents : null);
+				setValueDisplay(monthlyValueInCents > 0 ? formatCurrencyBRL(monthlyValueInCents) : '');
+			}
 			const computedEndDate = getMandatoryInstallmentEndDateFromTotal(parseDateFromBR(nextStartDate), nextTotal);
 			setInstallmentEndDate(computedEndDate ? formatDateToBR(computedEndDate) : '');
 		} else {
 			setInstallmentEndDate('');
+			setInstallmentTotalValueDisplay('');
+			setInstallmentTotalValueInCents(null);
 		}
-	}, [installmentStartDate, installmentTotal, settledInstallmentsCount]);
+	}, [installmentStartDate, installmentTotal, installmentTotalValueInCents, settledInstallmentsCount, valueInCents]);
 
 	const handleInstallmentStartDateChange = React.useCallback((formattedValue: string, date: Date) => {
 		setInstallmentStartDate(formattedValue);
@@ -344,11 +332,6 @@ export default function AddMandatoryGainsScreen() {
 		const maxDueDay = usesBusinessDays ? MAX_MONTHLY_BUSINESS_DAY : 31;
 		return !Number.isNaN(parsed) && parsed >= 1 && parsed <= maxDueDay;
 	}, [dueDay, usesBusinessDays]);
-	const isReceivedForCurrentCycle = React.useMemo(
-		() => isCycleKeyCurrent(currentReceiptInfo?.cycleKey),
-		[currentReceiptInfo?.cycleKey],
-	);
-
 	const normalizedInstallmentTotal = React.useMemo(() => {
 		if (!installmentsEnabled || installmentTotal.trim().length === 0) {
 			return null;
@@ -366,6 +349,11 @@ export default function AddMandatoryGainsScreen() {
 		[installmentEndDate],
 	);
 	const isInstallmentTotalValid = !installmentsEnabled || normalizedInstallmentTotal !== null;
+	const isInstallmentTotalValueValid =
+		!installmentsEnabled ||
+		(installmentTotalValueInCents !== null &&
+			normalizedInstallmentTotal !== null &&
+			installmentTotalValueInCents >= normalizedInstallmentTotal);
 	const isInstallmentStartDateValid = !installmentsEnabled || parsedInstallmentStartDate !== null;
 	const isInstallmentEndDateUnlocked = installmentsEnabled && normalizedInstallmentTotal !== null;
 	const isInstallmentEndDateValid = !isInstallmentEndDateUnlocked || parsedInstallmentEndDate !== null;
@@ -376,12 +364,11 @@ export default function AddMandatoryGainsScreen() {
 					storedCompleted: settledInstallmentsCount,
 					installmentTotal: normalizedInstallmentTotal,
 					startDate: parsedInstallmentStartDate,
-					isCurrentCycleCompleted: isReceivedForCurrentCycle,
+					isCurrentCycleCompleted: false,
 				})
 				: 0,
 		[
 			installmentsEnabled,
-			isReceivedForCurrentCycle,
 			normalizedInstallmentTotal,
 			parsedInstallmentStartDate,
 			settledInstallmentsCount,
@@ -442,40 +429,6 @@ export default function AddMandatoryGainsScreen() {
 		});
 	}, [reminderDaysBefore, reminderEnabled, reminderOnDueDate, reminderTime]);
 
-	const buildFormSnapshot = React.useCallback(
-		(): MandatoryGainFormSnapshot => ({
-			name: gainName.trim(),
-			valueInCents,
-			dueDay: dueDay.trim(),
-			usesBusinessDays,
-			tagId: selectedTagId,
-			installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
-			installmentStartDate: installmentsEnabled ? installmentStartDate : '',
-			installmentEndDate: installmentsEnabled ? installmentEndDate : '',
-			description: description.trim(),
-			reminderTime,
-			reminderEnabled,
-			reminderDaysBefore,
-			reminderOnDueDate,
-		}),
-		[
-			description,
-			dueDay,
-			gainName,
-			installmentEndDate,
-			installmentStartDate,
-			installmentsEnabled,
-			normalizedInstallmentTotal,
-			reminderEnabled,
-			reminderDaysBefore,
-			reminderOnDueDate,
-			reminderTime,
-			selectedTagId,
-			usesBusinessDays,
-			valueInCents,
-		],
-	);
-
 	const hasGainName = gainName.trim().length > 0;
 	const hasGainValue = valueInCents !== null && valueInCents > 0;
 	const isFormBusy = isSubmitting || isPrefilling;
@@ -483,40 +436,18 @@ export default function AddMandatoryGainsScreen() {
 	const isInstallmentConfigReady =
 		!installmentsEnabled ||
 		(isInstallmentTotalValid &&
+			isInstallmentTotalValueValid &&
 			isInstallmentStartDateValid &&
 			isInstallmentEndDateValid &&
 			!isInstallmentTotalBelowSettled);
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
-	const isValueFieldDisabled = !hasGainName || isFormBusy;
+	const isValueFieldDisabled = !hasGainName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
-	const isInstallmentFieldDisabled = !isCoreTemplateReady || isFormBusy;
+	const isInstallmentFieldDisabled = !hasGainName || !isDueDayValid || isFormBusy;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
 	const isReminderTimeFieldDisabled = !reminderEnabled || isFormBusy;
-	const hasPendingTemplateChanges = React.useMemo(() => {
-		if (!selectedGainTemplateId || !persistedFormSnapshot) {
-			return false;
-		}
-
-		const currentSnapshot = buildFormSnapshot();
-		return (
-			currentSnapshot.name !== persistedFormSnapshot.name ||
-			currentSnapshot.valueInCents !== persistedFormSnapshot.valueInCents ||
-			currentSnapshot.dueDay !== persistedFormSnapshot.dueDay ||
-			currentSnapshot.usesBusinessDays !== persistedFormSnapshot.usesBusinessDays ||
-			currentSnapshot.tagId !== persistedFormSnapshot.tagId ||
-			currentSnapshot.installmentTotal !== persistedFormSnapshot.installmentTotal ||
-			currentSnapshot.installmentStartDate !== persistedFormSnapshot.installmentStartDate ||
-			currentSnapshot.installmentEndDate !== persistedFormSnapshot.installmentEndDate ||
-			currentSnapshot.description !== persistedFormSnapshot.description ||
-			currentSnapshot.reminderTime !== persistedFormSnapshot.reminderTime ||
-			currentSnapshot.reminderEnabled !== persistedFormSnapshot.reminderEnabled ||
-			currentSnapshot.reminderDaysBefore !== persistedFormSnapshot.reminderDaysBefore ||
-			currentSnapshot.reminderOnDueDate !== persistedFormSnapshot.reminderOnDueDate
-		);
-	}, [buildFormSnapshot, persistedFormSnapshot, selectedGainTemplateId]);
-
 	const tagHelperMessage = isLoadingTags
 		? 'Carregando categorias obrigatórias...'
 		: tagOptions.length === 0
@@ -546,10 +477,6 @@ export default function AddMandatoryGainsScreen() {
 	const businessDayToggleHelperMessage = usesBusinessDays
 		? `Este ganho será tratado como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
 		: 'Ative quando o recebimento seguir um dia útil do mês, como salário no 5º dia útil.';
-	const isInstallmentPlanCompleted = React.useMemo(
-		() => isMandatoryInstallmentPlanComplete(normalizedInstallmentTotal, resolvedSettledInstallmentsCount),
-		[normalizedInstallmentTotal, resolvedSettledInstallmentsCount],
-	);
 	const installmentHelperMessage = React.useMemo(() => {
 		if (!isCoreTemplateReady) {
 			return 'Preencha nome, valor e recebimento para liberar o parcelamento.';
@@ -560,6 +487,9 @@ export default function AddMandatoryGainsScreen() {
 		if (!isInstallmentTotalValid) {
 			return `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`;
 		}
+		if (!isInstallmentTotalValueValid) {
+			return 'O valor total do parcelamento precisa ser de pelo menos R$ 0,01 por parcela.';
+		}
 		if (!isInstallmentStartDateValid) {
 			return 'Informe uma data inicial válida para calcular o progresso das parcelas.';
 		}
@@ -569,8 +499,8 @@ export default function AddMandatoryGainsScreen() {
 		if (isInstallmentTotalBelowSettled) {
 			return `Este ganho já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`;
 		}
-		if (normalizedInstallmentTotal) {
-			return `A listagem exibirá ${formatMandatoryInstallmentLabel(normalizedInstallmentTotal, resolvedSettledInstallmentsCount, isReceivedForCurrentCycle) ?? 'o progresso das parcelas'}.`;
+		if (normalizedInstallmentTotal && installmentTotalValueInCents !== null && valueInCents !== null) {
+			return `Total do parcelamento: ${formatCurrencyBRL(installmentTotalValueInCents)}. Valor mensal calculado: ${formatCurrencyBRL(valueInCents)}. A última parcela recebe eventuais centavos restantes.`;
 		}
 		return 'Informe a quantidade total de parcelas.';
 	}, [
@@ -580,9 +510,11 @@ export default function AddMandatoryGainsScreen() {
 		isInstallmentStartDateValid,
 		isInstallmentTotalBelowSettled,
 		isInstallmentTotalValid,
-		isReceivedForCurrentCycle,
+		installmentTotalValueInCents,
+		isInstallmentTotalValueValid,
 		normalizedInstallmentTotal,
 		resolvedSettledInstallmentsCount,
+		valueInCents,
 	]);
 
 	const getInputRef = React.useCallback(
@@ -625,6 +557,8 @@ export default function AddMandatoryGainsScreen() {
 		setUsesBusinessDays(false);
 		setInstallmentsEnabled(false);
 		setInstallmentTotal('');
+		setInstallmentTotalValueDisplay('');
+		setInstallmentTotalValueInCents(null);
 		setInstallmentStartDate(formatDateToBR(new Date()));
 		setInstallmentEndDate('');
 		setSettledInstallmentsCount(0);
@@ -639,8 +573,7 @@ export default function AddMandatoryGainsScreen() {
 			}
 			return null;
 		});
-		setCurrentReceiptInfo(null);
-		setPersistedFormSnapshot(null);
+		setLastReceiptCycle(null);
 	}, []);
 
 	// Segue [[Receitas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
@@ -848,15 +781,18 @@ export default function AddMandatoryGainsScreen() {
 					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
 				const reminderMinute =
 					typeof data.reminderMinute === 'number' ? data.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
-				const lastReceiptGainId =
-					typeof data.lastReceiptGainId === 'string' && data.lastReceiptGainId.length > 0
-						? data.lastReceiptGainId
-						: null;
 				const lastReceiptCycle =
 					typeof data.lastReceiptCycle === 'string' && data.lastReceiptCycle.length > 0
 						? data.lastReceiptCycle
 						: null;
-				const lastReceiptDate = normalizeDateValue(data.lastReceiptDate ?? null);
+				const installmentTotalValueInCents =
+					installmentTotalValue !== null
+						? typeof data.installmentTotalValueInCents === 'number' &&
+							Number.isSafeInteger(data.installmentTotalValueInCents) &&
+							data.installmentTotalValueInCents > 0
+							? data.installmentTotalValueInCents
+							: value * installmentTotalValue
+						: null;
 				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: data.installmentsCompleted,
 					installmentTotal: installmentTotalValue,
@@ -872,6 +808,8 @@ export default function AddMandatoryGainsScreen() {
 				setUsesBusinessDays(usesBusinessDaysValue);
 				setInstallmentsEnabled(installmentTotalValue !== null);
 				setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
+				setInstallmentTotalValueInCents(installmentTotalValueInCents);
+				setInstallmentTotalValueDisplay(installmentTotalValueInCents ? formatCurrencyBRL(installmentTotalValueInCents) : '');
 				setInstallmentStartDate(installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : formatDateToBR(new Date()));
 				setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
 				setSettledInstallmentsCount(installmentsCompletedValue);
@@ -881,26 +819,7 @@ export default function AddMandatoryGainsScreen() {
 				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
 				setReminderDaysBefore(reminderDaysBeforeValue);
 				setReminderOnDueDate(reminderOnDueDateValue);
-				setCurrentReceiptInfo({
-					gainId: lastReceiptGainId,
-					cycleKey: lastReceiptCycle,
-					receivedAt: lastReceiptDate,
-				});
-				setPersistedFormSnapshot({
-					name: name.trim(),
-					valueInCents: value,
-					dueDay: String(dueDayValue).padStart(2, '0'),
-					usesBusinessDays: usesBusinessDaysValue,
-					tagId,
-					installmentTotal: installmentTotalValue,
-					installmentStartDate: installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : '',
-					installmentEndDate: installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '',
-					description: descriptionValue.trim(),
-					reminderTime: formatMandatoryReminderTime(reminderHour, reminderMinute),
-					reminderEnabled: reminderFlag,
-					reminderDaysBefore: reminderDaysBeforeValue,
-					reminderOnDueDate: reminderOnDueDateValue,
-				});
+				setLastReceiptCycle(lastReceiptCycle);
 			} catch (error) {
 				console.error('Erro ao carregar ganho obrigatório para edição:', error);
 				if (isMounted) {
@@ -989,6 +908,17 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
+		if (installmentsEnabled && !isInstallmentTotalValueValid) {
+			showNotifierAlert({
+				title: 'Erro ao salvar ganho obrigatório',
+				description: 'Informe um valor total que cubra pelo menos R$ 0,01 por parcela.',
+				type: 'error',
+				isDarkMode,
+				duration: 4500,
+			});
+			return;
+		}
+
 		if (installmentsEnabled && parsedInstallmentStartDate === null) {
 			showNotifierAlert({
 				title: 'Erro ao salvar ganho obrigatório',
@@ -1068,6 +998,7 @@ export default function AddMandatoryGainsScreen() {
 				reminderDaysBefore,
 				reminderOnDueDate,
 				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
+				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
 				installmentsCompleted: payloadInstallmentsCompleted,
 				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
 				installmentEndDate: installmentsEnabled ? parsedInstallmentEndDate : null,
@@ -1114,7 +1045,7 @@ export default function AddMandatoryGainsScreen() {
 							reminderDaysBefore: payload.reminderDaysBefore,
 							reminderOnDueDate: payload.reminderOnDueDate,
 							description: payload.description ?? undefined,
-							lastCompletedCycle: currentReceiptInfo?.cycleKey ?? undefined,
+							lastCompletedCycle: lastReceiptCycle ?? undefined,
 							activeFromDate: payload.installmentStartDate ?? undefined,
 							activeThroughDate: payload.installmentEndDate ?? undefined,
 							requestPermission: true,
@@ -1187,6 +1118,7 @@ export default function AddMandatoryGainsScreen() {
 		isDueDayValid,
 		installmentsEnabled,
 		isInstallmentTotalBelowSettled,
+		isInstallmentTotalValueValid,
 		isSubmitting,
 		usesBusinessDays,
 		normalizedInstallmentTotal,
@@ -1203,154 +1135,15 @@ export default function AddMandatoryGainsScreen() {
 		selectedGainTemplateId,
 		selectedTagId,
 		valueInCents,
-		currentReceiptInfo?.cycleKey,
+		installmentTotalValueInCents,
+		lastReceiptCycle,
 	]);
-
-	const handleRegisterReceiptNavigation = React.useCallback(() => {
-		if (!selectedGainTemplateId) {
-			showNotifierAlert({
-				title: 'Controle mensal indisponível',
-				description: 'Salve o ganho obrigatório antes de registrá-lo como recebido.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (isReceivedForCurrentCycle) {
-			showNotifierAlert({
-				title: 'Recebimento já registrado',
-				description: 'Este ganho já foi registrado como recebido neste mês.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (isInstallmentPlanCompleted) {
-			showNotifierAlert({
-				title: 'Parcelamento concluído',
-				description: 'Todas as parcelas deste ganho obrigatório já foram registradas.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (!isTemplateReady || hasPendingTemplateChanges) {
-			showNotifierAlert({
-				title: 'Salve as alterações primeiro',
-				description: 'Salve o template atualizado antes de registrar o ganho deste mês.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const requiredValueInCents = valueInCents;
-		const requiredTagId = selectedTagId;
-		if (requiredValueInCents === null || !requiredTagId) {
-			return;
-		}
-
-		const params: Record<string, string> = {
-			templateName: encodeURIComponent(gainName || 'Ganho obrigatório'),
-			templateValueInCents: String(requiredValueInCents),
-			templateTagId: requiredTagId,
-			templateMandatoryGainId: selectedGainTemplateId,
-		};
-
-		if (selectedTagLabel) {
-			params.templateTagName = encodeURIComponent(selectedTagLabel);
-		}
-		if (description.trim().length > 0) {
-			params.templateDescription = encodeURIComponent(description.trim());
-		}
-
-		if (dueDay.trim().length > 0) {
-			params.templateDueDay = dueDay;
-		}
-		if (usesBusinessDays) {
-			params.templateUsesBusinessDays = '1';
-		}
-
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, params);
-	}, [
-		description,
-		dueDay,
-		gainName,
-		hasPendingTemplateChanges,
-		isDarkMode,
-		isInstallmentPlanCompleted,
-		isReceivedForCurrentCycle,
-		isTemplateReady,
-		selectedGainTemplateId,
-		selectedTagId,
-		selectedTagLabel,
-		usesBusinessDays,
-		valueInCents,
-	]);
-
-	const handleReclaimReceipt = React.useCallback(async () => {
-		if (!selectedGainTemplateId) {
-			return;
-		}
-
-		setIsReceiptActionLoading(true);
-
-		try {
-			const relatedGainId = currentReceiptInfo?.gainId;
-
-			if (relatedGainId) {
-				await deleteGainFirebase(relatedGainId);
-			}
-
-			const result = await clearMandatoryGainReceiptFirebase(selectedGainTemplateId);
-			if (!result.success) {
-				throw new Error('Erro ao remover o registro de recebimento.');
-			}
-
-			setCurrentReceiptInfo(null);
-			showNotifierAlert({
-				title: 'Recebimento do mês desfeito',
-				description: 'O registro mensal foi removido. Faça um novo lançamento quando necessário.',
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-		} catch (error) {
-			console.error('Erro ao reivindicar recebimento do ganho obrigatório:', error);
-			showNotifierAlert({
-				title: 'Erro ao desfazer recebimento',
-				description: 'Não foi possível desfazer o recebimento. Tente novamente.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-		} finally {
-			setIsReceiptActionLoading(false);
-		}
-	}, [currentReceiptInfo?.gainId, isDarkMode, selectedGainTemplateId]);
 
 	const isSaveDisabled =
 		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Receitas Fixas]].
 	const isEditingMode = Boolean(editingGainTemplateId);
 	const screenTitle = isEditingMode ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório';
-	const monthlyControlMessage = isPrefilling && isEditingMode
-		? 'Carregando os dados do ganho obrigatório salvo.'
-		: !selectedGainTemplateId
-			? 'Salve este template para liberar o registro do ciclo atual.'
-			: hasPendingTemplateChanges
-				? 'Salve as alterações para usar os dados atualizados ao registrar o recebimento deste mês.'
-			: isReceivedForCurrentCycle
-				? `Recebimento registrado em ${currentReceiptInfo?.receivedAt ? formatDateToBR(currentReceiptInfo.receivedAt) : 'data não disponível'}.`
-				: `Pronto para registrar o ciclo ${getCurrentCycleKey()}. O banco e a data exata serão definidos no próximo passo.`;
-
 	return (
 		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -1495,8 +1288,22 @@ export default function AddMandatoryGainsScreen() {
 															className={inputField}
 															onFocus={() => handleInputFocus('installments')}
 														/>
-													</Input>
-													<HStack className="gap-3">
+																					</Input>
+																					<VStack className="gap-2">
+																						<Text className={`${bodyText} ml-1 text-sm`}>Valor total do parcelamento</Text>
+																						<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
+																							<InputField
+																								placeholder="Ex: R$ 500,00"
+																								value={installmentTotalValueDisplay}
+																								onChangeText={handleInstallmentTotalValueChange}
+																								keyboardType="numeric"
+																								returnKeyType="done"
+																								className={inputField}
+																								accessibilityLabel="Valor total do parcelamento"
+																							/>
+																						</Input>
+																					</VStack>
+																					<HStack className="gap-3">
 														<VStack className="flex-1 gap-2">
 															<Text className={`${bodyText} ml-1 text-sm`}>Início das parcelas</Text>
 															<DatePickerField

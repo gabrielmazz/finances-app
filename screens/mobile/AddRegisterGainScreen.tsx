@@ -292,6 +292,7 @@ export default function AddRegisterGainScreen() {
 		templateTagIconName?: string | string[];
 		templateTagIconStyle?: string | string[];
 		templateMandatoryGainId?: string | string[];
+		templateMandatoryGainInstallmentsCount?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
 		investmentDeltaInCents?: string | string[];
@@ -339,6 +340,7 @@ export default function AddRegisterGainScreen() {
 		const dueDay = parseNumberParam(params.templateDueDay);
 		const usesBusinessDaysParam = decodeParam(params.templateUsesBusinessDays);
 		const mandatoryGainId = decodeParam(params.templateMandatoryGainId);
+		const installmentsToAdvance = parseNumberParam(params.templateMandatoryGainInstallmentsCount);
 		const lockTagParam = decodeParam(params.templateLockTag);
 		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
 		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
@@ -379,6 +381,7 @@ export default function AddRegisterGainScreen() {
 			dueDay,
 			usesBusinessDays: usesBusinessDaysParam === '1',
 			mandatoryGainId,
+			installmentsToAdvance,
 			lockTag: lockTagParam === '1',
 			investmentAdjustmentId,
 			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
@@ -397,6 +400,7 @@ export default function AddRegisterGainScreen() {
 		params.templateLockTag,
 		params.templateTagName,
 		params.templateMandatoryGainId,
+		params.templateMandatoryGainInstallmentsCount,
 		params.templateName,
 		params.templateTagId,
 		params.templateValueInCents,
@@ -413,6 +417,7 @@ export default function AddRegisterGainScreen() {
 		() => (templateData?.mandatoryGainId ? templateData.mandatoryGainId : null),
 		[templateData],
 	);
+	const installmentsToAdvance = templateData?.installmentsToAdvance;
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
@@ -968,6 +973,7 @@ export default function AddRegisterGainScreen() {
 					gainTemplateId: linkedMandatoryGainId,
 					receiptGainId: result.gainId,
 					receiptDate: dateWithCurrentTime,
+					installmentsToAdvance,
 				});
 
 				if (!markResult.success) {

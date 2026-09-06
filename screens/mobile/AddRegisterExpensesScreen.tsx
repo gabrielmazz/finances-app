@@ -328,6 +328,7 @@ export default function AddRegisterExpensesScreen() {
 		templateTagIconStyle?: string | string[];
 		templateMandatoryExpenseId?: string | string[];
 		templateMandatoryExpenseSettlement?: string | string[];
+		templateMandatoryExpenseInstallmentsCount?: string | string[];
 		templateLockTag?: string | string[];
 		investmentIdForAdjustment?: string | string[];
 		investmentDeltaInCents?: string | string[];
@@ -373,6 +374,7 @@ export default function AddRegisterExpensesScreen() {
 		const usesBusinessDaysParam = decodeParam(params.templateUsesBusinessDays);
 		const mandatoryExpenseId = decodeParam(params.templateMandatoryExpenseId);
 		const mandatoryExpenseSettlement = decodeParam(params.templateMandatoryExpenseSettlement);
+		const installmentsToSettle = parseNumberParam(params.templateMandatoryExpenseInstallmentsCount);
 		const lockTagParam = decodeParam(params.templateLockTag);
 		const investmentAdjustmentId = decodeParam(params.investmentIdForAdjustment);
 		const investmentDelta = parseNumberParam(params.investmentDeltaInCents);
@@ -410,6 +412,7 @@ export default function AddRegisterExpensesScreen() {
 			usesBusinessDays: usesBusinessDaysParam === '1',
 			mandatoryExpenseId,
 			isMandatoryExpenseSettlement: mandatoryExpenseSettlement === '1',
+			installmentsToSettle,
 			lockTag: lockTagParam === '1',
 			investmentAdjustmentId,
 			investmentDeltaInCents: typeof investmentDelta === 'number' ? investmentDelta : undefined,
@@ -427,6 +430,7 @@ export default function AddRegisterExpensesScreen() {
 		params.templateLockTag,
 		params.templateMandatoryExpenseId,
 		params.templateMandatoryExpenseSettlement,
+		params.templateMandatoryExpenseInstallmentsCount,
 		params.templateName,
 		params.templateTagId,
 		params.templateTagName,
@@ -438,6 +442,7 @@ export default function AddRegisterExpensesScreen() {
 		[templateData],
 	);
 	const isMandatoryExpenseSettlement = templateData?.isMandatoryExpenseSettlement === true;
+	const installmentsToSettle = templateData?.installmentsToSettle;
 	React.useEffect(() => {
 		if (!templateData) {
 			setHasAppliedTemplate(false);
@@ -950,7 +955,7 @@ export default function AddRegisterExpensesScreen() {
 					moneyFormat,
 				};
 				const mandatoryPaymentResult = isMandatoryExpenseSettlement
-					? await settleMandatoryExpenseFirebase(paymentParams)
+					? await settleMandatoryExpenseFirebase({ ...paymentParams, installmentsToSettle })
 					: await registerMandatoryExpensePaymentFirebase(paymentParams);
 
 				if (!mandatoryPaymentResult.success) {
@@ -979,7 +984,7 @@ export default function AddRegisterExpensesScreen() {
 				}
 
 				try {
-					if (isMandatoryExpenseSettlement) {
+					if (isMandatoryExpenseSettlement && mandatoryPaymentResult.isInstallmentPlanComplete) {
 						await cancelMandatoryExpenseNotification(personId, linkedMandatoryExpenseId);
 					} else {
 						await suppressMandatoryExpenseNotificationCycle(
