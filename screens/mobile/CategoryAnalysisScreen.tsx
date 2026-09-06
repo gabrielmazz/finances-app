@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-gifted-charts';
-import { Activity, BarChart3, Download, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
+import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
@@ -961,15 +961,12 @@ export default function CategoryAnalysisScreen() {
 													</View>
 												</HStack>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
 														<HStack className="items-center justify-between gap-3">
-															<HStack className="items-center gap-2">
-																<BarChart3 size={18} color={palette.warning} />
-																<Heading size="sm" className={headingText}>
-																	Evolução mensal
-																</Heading>
-															</HStack>
+															<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+																{getMovementTypeLabel(selectedType)} por mês
+															</Heading>
 															<Text style={{ color: statusColor, fontSize: 12, fontWeight: '700' }}>
 																{formatSignedCurrencyBRL(metric.deltaInCents)}
 															</Text>
@@ -1026,14 +1023,11 @@ export default function CategoryAnalysisScreen() {
 													</VStack>
 												</View>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
-														<HStack className="items-center gap-2">
-															<WalletCards size={18} color={palette.warning} />
-															<Heading size="sm" className={headingText}>
-																Bancos e dinheiro
-															</Heading>
-														</HStack>
+														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+															Distribuição por conta
+														</Heading>
 
 														{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
 															<>
@@ -1128,14 +1122,11 @@ export default function CategoryAnalysisScreen() {
 													</VStack>
 												</View>
 
-												<View className={`${sectionCardClassName} px-5 py-5`}>
+												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
-														<HStack className="items-center gap-2">
-															<Activity size={18} color={palette.warning} />
-															<Heading size="sm" className={headingText}>
-																Movimentos recentes
-															</Heading>
-														</HStack>
+														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+															Últimas movimentações
+														</Heading>
 
 														{visibleRecentMovements.length > 0 ? (
 															<VStack className="gap-3">

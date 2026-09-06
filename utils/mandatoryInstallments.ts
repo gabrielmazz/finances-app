@@ -163,33 +163,101 @@ export const isMandatoryInstallmentPlanComplete = (
 	installmentsCompleted: number,
 ) => installmentTotal !== null && installmentsCompleted >= installmentTotal;
 
+const getMandatoryInstallmentContractTotalInCents = ({
+	installmentTotal,
+	installmentValueInCents,
+	installmentTotalValueInCents,
+}: {
+	installmentTotal: unknown;
+	installmentValueInCents: unknown;
+	installmentTotalValueInCents?: unknown;
+}) => {
+	const normalizedTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+	const normalizedMonthlyValue =
+		typeof installmentValueInCents === 'number' && Number.isSafeInteger(installmentValueInCents)
+			? installmentValueInCents
+			: null;
+	const storedTotalValue =
+		typeof installmentTotalValueInCents === 'number' &&
+		Number.isSafeInteger(installmentTotalValueInCents) &&
+		installmentTotalValueInCents > 0
+			? installmentTotalValueInCents
+			: null;
+
+	if (normalizedTotal === null || normalizedMonthlyValue === null || normalizedMonthlyValue <= 0) {
+		return null;
+	}
+
+	if (storedTotalValue !== null) {
+		return storedTotalValue;
+	}
+
+	const fallbackTotal = normalizedTotal * normalizedMonthlyValue;
+	return Number.isSafeInteger(fallbackTotal) ? fallbackTotal : null;
+};
+
+export const getMandatoryInstallmentValueInCents = ({
+	installmentTotal,
+	installmentsCompleted,
+	installmentsToSettle = 1,
+	installmentValueInCents,
+	installmentTotalValueInCents,
+}: {
+	installmentTotal: unknown;
+	installmentsCompleted: unknown;
+	installmentsToSettle?: unknown;
+	installmentValueInCents: unknown;
+	installmentTotalValueInCents?: unknown;
+}) => {
+	const normalizedTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+	const contractTotal = getMandatoryInstallmentContractTotalInCents({
+		installmentTotal,
+		installmentValueInCents,
+		installmentTotalValueInCents,
+	});
+
+	if (normalizedTotal === null || contractTotal === null) {
+		return null;
+	}
+
+	const completed = normalizeMandatoryInstallmentsCompleted(installmentsCompleted, normalizedTotal);
+	const requestedCount = normalizeMandatoryInstallmentTotal(installmentsToSettle);
+	const quantity = Math.min(requestedCount ?? 0, normalizedTotal - completed);
+	if (quantity <= 0) {
+		return null;
+	}
+
+	const baseInstallmentValue = Math.floor(contractTotal / normalizedTotal);
+	const remainder = contractTotal % normalizedTotal;
+	const includesFinalInstallment = completed + quantity >= normalizedTotal;
+	const selectionValue = baseInstallmentValue * quantity + (includesFinalInstallment ? remainder : 0);
+
+	return Number.isSafeInteger(selectionValue) && selectionValue > 0 ? selectionValue : null;
+};
+
 export const getMandatoryInstallmentRemainingValueInCents = ({
 	installmentTotal,
 	installmentsCompleted,
 	installmentValueInCents,
+	installmentTotalValueInCents,
 }: {
 	installmentTotal: unknown;
 	installmentsCompleted: unknown;
 	installmentValueInCents: unknown;
+	installmentTotalValueInCents?: unknown;
 }) => {
 	const normalizedTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
-	const normalizedValue =
-		typeof installmentValueInCents === 'number' && Number.isSafeInteger(installmentValueInCents)
-			? installmentValueInCents
-			: null;
-
-	if (normalizedTotal === null || normalizedValue === null || normalizedValue <= 0) {
+	if (normalizedTotal === null) {
 		return null;
 	}
 
-	const normalizedCompleted = normalizeMandatoryInstallmentsCompleted(
+	return getMandatoryInstallmentValueInCents({
+		installmentTotal: normalizedTotal,
 		installmentsCompleted,
-		normalizedTotal,
-	);
-	const remainingInstallments = normalizedTotal - normalizedCompleted;
-	const remainingValueInCents = remainingInstallments * normalizedValue;
-
-	return Number.isSafeInteger(remainingValueInCents) ? remainingValueInCents : null;
+		installmentsToSettle: normalizedTotal,
+		installmentValueInCents,
+		installmentTotalValueInCents,
+	});
 };
 
 export const getMandatoryInstallmentDisplayNumber = (

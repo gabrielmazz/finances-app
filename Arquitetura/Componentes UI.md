@@ -3,7 +3,7 @@ tags: [componentes, ui, gluestack, nativewind, design-system, web, responsivo]
 relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]], [[Organização do Código]], [[Componentes por Sistema]]
 status: ativo
 tipo: componente
-versao: 2.4.0
+versao: 2.4.7
 ---
 
 # Componentes UI
@@ -165,7 +165,7 @@ graph LR
 - [[Dashboard Home]] — Consome `home-expense-chart.tsx` para as tendências mensais compactas dos cards de ganhos/gastos na Home Web
 - [[Dashboard Home]] — Consome `home-expense-line-chart.tsx` para o gráfico detalhado diário de gastos na Home Web
 - [[Dashboard Home]] — Consome `home-activity-heatmap.tsx` para a atividade financeira anual na Home Web
-- [[Análise por Categoria]] — Usa `components/ui/tabs` para alternar o relatório entre gastos e ganhos sem recarregar os dados
+- [[Análise por Categoria]] — Android/iOS usam `components/ui/tabs` e a Web usa `Tabs` do Mantine para alternar o relatório entre gastos e ganhos sem recarregar os dados; os blocos de evolução, distribuição e últimas movimentações seguem o cabeçalho em caixa alta da Home e não usam card externo nem ícone decorativo de seção
 - [[Monitoramento de Investimentos]] — Usa `components/ui/tabs` para o período da rentabilidade e `investment-evolution-chart.tsx` para a evolução consolidada da carteira
 - [[Assistente Lumus]] — Combina `chatAi/` com cards nativos; o `modal/` organiza exemplos de perguntas, o `drawer/` organiza preferências e o `switch/` controla a leitura automática
 
@@ -202,7 +202,7 @@ graph LR
 - TimePickerField deve ser usado para horários operacionais: no Android abre o diálogo do sistema e no iOS apresenta o seletor nativo com confirmação; no web usa input type=time. O valor devolvido ao domínio permanece no formato 24h HH:MM.
 - Componentes Gluestack são gerados/copiados do CLI do Gluestack — não editar manualmente os arquivos em `components/ui/` sem cautela
 - Em telas `.web.tsx`, use o `Text` de `react-native` quando houver arrays de `StyleSheet`, `numberOfLines` ou props de acessibilidade. O `components/ui/text/index.web.tsx` renderiza um `span` DOM direto e repassa props sem a normalização do React Native Web.
-- `tabs/` mantém a API composta `Tabs`/`TabsList`/`TabsTrigger`/`TabsTriggerText`/`TabsIndicator` e usa o indicador no thread de UI; o código é compatível com a linha estável instalada e não deve reintroduzir imports do creator de Tabs do Gluestack 5. Nas telas de previsão, análise e investimentos, a composição deve ficar dentro de um card `notTintedCardClassName`; o indicador preenchido usa o amarelo ativo do sistema e preserva texto/ícone escuros para contraste.
+- `tabs/` mantém a API composta `Tabs`/`TabsList`/`TabsTrigger`/`TabsTriggerText`/`TabsIndicator` e usa o indicador no thread de UI para as telas nativas; o código é compatível com a linha estável instalada e não deve reintroduzir imports do creator de Tabs do Gluestack 5. Nas telas nativas de previsão, análise e investimentos, a composição deve ficar dentro de um card `notTintedCardClassName`; o indicador preenchido usa o amarelo ativo do sistema e preserva texto/ícone escuros para contraste. A composição Web de `CategoryAnalysisScreen.web.tsx` usa `Tabs` do Mantine em um controle segmentado sem bordas externas ou nos gatilhos, com superfície interna, amarelo âmbar escuro `#CA8A04`, rótulos na fonte padrão do sistema e centralizados em cada tab, texto/ícone brancos quando selecionados e hover/foco visíveis; as tabs ficam no topo e o seletor de categoria abaixo, sem alterar a API mobile.
 - O Tailwind 3 detecta classes literais pelos caminhos de `content` em `tailwind.config.js`; variantes realmente dinâmicas devem listar as classes completas ou usar a `safelist`.
 - `chatAi/` preserva a API de composição documentada pelo Chat AI do Gluestack, mas usa as primitivas da linha estável instalada no app. Não migrar suas dependências para o CLI alpha sem uma atualização coordenada de `@gluestack-ui/core`.
 - O compositor de [[Assistente Lumus]] reaproveita `fieldContainerClassNameNotSpace`, `inputField` e `submitButtonClassName` de `useScreenStyles()`: texto, áudio e envio usam o módulo `h-10`, com os controles de ícone em `w-10 rounded-2xl`. Prefira classes NativeWind; valores calculados de hero, insets ou teclado são as únicas exceções para `style`.
@@ -227,6 +227,7 @@ graph LR
 - `date-calendar.tsx` aceita `modalSize="lg"` para o resumo diário Web ocupar uma superfície fluida até 640 px; o padrão `md` preserva os diálogos compactos das telas nativas. Na Web, esse resumo mantém `ModalContent`, `ModalBody`, o content container e o card expandido com crescimento flexível desabilitado para ajustar a altura ao conteúdo e rolar apenas quando necessário
 - No resumo diário de `date-calendar.tsx`, Web, Android e iOS usam a mesma linha de item: ícone, nome/categoria à esquerda, valor/data e seta à direita. Não há trilho ou marcador exclusivo do navegador; o estado expandido permanece associado ao item
 - No resumo diário Web, os itens do dia são ordenados com pendentes antes dos concluídos/recebidos e depois por nome; o detalhe usa uma superfície intrínseca, com rolagem somente no corpo do modal quando necessário, e mantém foco visível nas ações
+- Na célula do calendário Web que combina feriado com gasto/ganho, o wrapper circular também recorta o desenho SVG; assim a divisão de cores permanece contida na bolinha mesmo quando o navegador não aplica o `ClipPath` interno
 - O detalhe expandido do resumo diário Web reutiliza `Grainient` como fundo contextual, com stops derivados do tom do item e conteúdo em camada superior; a montagem ocorre apenas enquanto o item está aberto e mantém o fallback CSS do componente para ambientes sem WebGL2
 - Os itens consecutivos do resumo diário Web mantêm espaçamento próprio, sem divisor/borda entre gastos ou ganhos; as bordas da navegação mensal do `date-picker.web.tsx` não fazem parte dessa regra
 - Os botões de ação e a linha clicável do resumo diário Web não exibem estado visual de hover por enquanto; o foco visível permanece disponível

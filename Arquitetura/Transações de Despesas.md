@@ -3,7 +3,7 @@ tags: [despesas, transacoes, financeiro, tags]
 relacionado: [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]], [[Dashboard Home]], [[Transferências]], [[Despesas Fixas]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.12.0
+versao: 1.13.0
 ---
 
 # Transações de Despesas
@@ -28,9 +28,9 @@ sequenceDiagram
     else Pagamento obrigatório vinculado
         S->>ME: cria despesa real + atualiza ciclo em transação
         ME->>FS: persiste despesa e vínculo atômicos
-    else Quitação antecipada de parcelas
-        S->>ME: cria despesa com saldo restante + remove template em transação
-        ME->>FS: persiste lançamento e encerramento atômicos
+    else Quitação de parcelas
+        S->>ME: cria despesa pela quantidade escolhida + atualiza o saldo do template
+        ME->>FS: persiste lançamento e avanço atômicos; remove somente na última parcela
     end
     S->>S: Exibe feedback de sucesso
     S->>U: Aplica comportamento pós-registro configurado
@@ -39,7 +39,7 @@ sequenceDiagram
 1. Usuário acessa `AddRegisterExpensesScreen.tsx` no Android/iOS ou `AddRegisterExpensesScreen.web.tsx` no navegador
 2. Preenche: descrição, valor, data, banco de origem e tag; banco e tag são escolhidos por ActionSheets customizados com ícone, nome e destaque da seleção atual, e a tag mantém a ação interna para criar uma nova categoria de despesa
 3. Em novos registros comuns do ciclo atual, antes de salvar, a tela consulta [[Despesas Fixas]] e usa `utils/mandatoryExpenseSuggestions.ts` para sugerir somente um candidato pendente, único e de alta confiança
-4. Despesas comuns são salvas por `ExpenseFirebase.ts`; pagamentos iniciados a partir de um template obrigatório usam `registerMandatoryExpensePaymentFirebase()` para criar a despesa real e concluir o ciclo na mesma transação Firestore. A quitação antecipada usa `settleMandatoryExpenseFirebase()` para lançar o valor efetivamente pago — que pode incluir desconto — e remover o template na mesma transação
+4. Despesas comuns são salvas por `ExpenseFirebase.ts`; pagamentos iniciados a partir de um template obrigatório usam `registerMandatoryExpensePaymentFirebase()` para criar a despesa real e concluir o ciclo na mesma transação Firestore. A quitação de parcelas usa `settleMandatoryExpenseFirebase()` para lançar a soma da quantidade escolhida — ajustável para desconto — e avançar o template na mesma transação; ele só é removido na última parcela
 5. Após criar ou editar uma despesa, `AddRegisterExpensesScreen.tsx` aplica [[Comportamento Pós-Registro]] depois do feedback de sucesso; por padrão volta para [[Dashboard Home]]
 6. O movimento aparece na timeline do [[Dashboard Home]] e em [[Gerenciamento de Bancos|BankMovementsScreen]]
 7. O saldo do banco selecionado é impactado automaticamente nos cálculos de saldo

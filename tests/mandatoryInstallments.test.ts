@@ -2,6 +2,7 @@ import {
 	getMandatoryInstallmentEndDateFromTotal,
 	getMandatoryInstallmentRemainingValueInCents,
 	getMandatoryInstallmentTotalFromDateRange,
+	getMandatoryInstallmentValueInCents,
 	getMandatoryInstallmentsCompletedFromStartDate,
 	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
@@ -71,6 +72,28 @@ describe('mandatory installments', () => {
 				installmentValueInCents: 12500,
 			}),
 		).toBe(87500);
+	});
+
+	it('keeps the contracted total exact when a selection includes the final installment', () => {
+		expect(
+			getMandatoryInstallmentValueInCents({
+				installmentTotal: 3,
+				installmentsCompleted: 0,
+				installmentsToSettle: 2,
+				installmentValueInCents: 3333,
+				installmentTotalValueInCents: 10000,
+			}),
+		).toBe(6666);
+
+		expect(
+			getMandatoryInstallmentValueInCents({
+				installmentTotal: 3,
+				installmentsCompleted: 2,
+				installmentsToSettle: 1,
+				installmentValueInCents: 3333,
+				installmentTotalValueInCents: 10000,
+			}),
+		).toBe(3334);
 	});
 
 	it('does not allow settlement for a non-installment plan', () => {

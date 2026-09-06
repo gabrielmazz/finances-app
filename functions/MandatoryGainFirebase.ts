@@ -6,6 +6,7 @@ import {
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
+	resolveMandatoryInstallmentsCompleted,
 } from '@/utils/mandatoryInstallments';
 import {
 	MANDATORY_REMINDER_CONFIG_VERSION,
@@ -27,6 +28,7 @@ interface AddMandatoryGainParams {
 	reminderDaysBefore?: number;
 	reminderOnDueDate?: boolean;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
@@ -47,6 +49,7 @@ interface UpdateMandatoryGainParams {
 	reminderDaysBefore?: number;
 	reminderOnDueDate?: boolean;
 	installmentTotal?: number | null;
+	installmentTotalValueInCents?: number | null;
 	installmentsCompleted?: number;
 	installmentStartDate?: Date | null;
 	installmentEndDate?: Date | null;
@@ -56,6 +59,7 @@ interface MarkMandatoryGainReceiptParams {
 	gainTemplateId: string;
 	receiptGainId: string;
 	receiptDate: Date;
+	installmentsToAdvance?: number;
 }
 
 const MANDATORY_GAINS_COLLECTION = 'mandatoryGains';
@@ -63,14 +67,25 @@ const LINKED_MOVEMENTS_QUERY_LIMIT = 10;
 
 const buildMandatoryInstallmentFields = (
 	installmentTotal: number | null | undefined,
+	installmentTotalValueInCents: number | null | undefined,
+	installmentValueInCents: number,
 	installmentsCompleted = 0,
 	installmentStartDate?: Date | null,
 	installmentEndDate?: Date | null,
 ) => {
 	const normalizedInstallmentTotal = normalizeMandatoryInstallmentTotal(installmentTotal);
+	const fallbackTotalValue = normalizedInstallmentTotal === null ? null : normalizedInstallmentTotal * installmentValueInCents;
+	const normalizedTotalValue =
+		normalizedInstallmentTotal !== null &&
+		typeof installmentTotalValueInCents === 'number' &&
+		Number.isSafeInteger(installmentTotalValueInCents) &&
+		installmentTotalValueInCents > 0
+			? installmentTotalValueInCents
+			: fallbackTotalValue;
 
 	return {
 		installmentTotal: normalizedInstallmentTotal,
+		installmentTotalValueInCents: normalizedInstallmentTotal === null ? null : normalizedTotalValue,
 		installmentsCompleted:
 			normalizedInstallmentTotal === null
 				? 0
@@ -101,6 +116,7 @@ export async function addMandatoryGainFirebase({
 	reminderDaysBefore = 1,
 	reminderOnDueDate = false,
 	installmentTotal = null,
+	installmentTotalValueInCents = null,
 	installmentsCompleted = 0,
 	installmentStartDate = null,
 	installmentEndDate = null,
@@ -109,6 +125,8 @@ export async function addMandatoryGainFirebase({
 		const mandatoryGainRef = doc(collection(db, MANDATORY_GAINS_COLLECTION));
 		const installmentFields = buildMandatoryInstallmentFields(
 			installmentTotal,
+			installmentTotalValueInCents,
+			valueInCents,
 			installmentsCompleted,
 			installmentStartDate,
 			installmentEndDate,
@@ -159,6 +177,7 @@ export async function updateMandatoryGainFirebase({
 	reminderDaysBefore,
 	reminderOnDueDate,
 	installmentTotal,
+	installmentTotalValueInCents,
 	installmentsCompleted,
 	installmentStartDate,
 	installmentEndDate,
@@ -223,6 +242,7 @@ export async function updateMandatoryGainFirebase({
 			updates.installmentTotal = normalizedInstallmentTotal;
 			if (normalizedInstallmentTotal === null) {
 				updates.installmentsCompleted = 0;
+				updates.installmentTotalValueInCents = null;
 				updates.installmentStartDate = null;
 				updates.installmentEndDate = null;
 			} else if (typeof installmentsCompleted === 'number') {
@@ -233,6 +253,16 @@ export async function updateMandatoryGainFirebase({
 			}
 		} else if (typeof installmentsCompleted === 'number') {
 			updates.installmentsCompleted = Math.max(0, Math.floor(installmentsCompleted));
+		}
+
+		if (installmentTotalValueInCents !== undefined && installmentTotal !== null) {
+			if (
+				typeof installmentTotalValueInCents === 'number' &&
+				Number.isSafeInteger(installmentTotalValueInCents) &&
+				installmentTotalValueInCents > 0
+			) {
+				updates.installmentTotalValueInCents = installmentTotalValueInCents;
+			}
 		}
 
 		if (installmentStartDate !== undefined) {
@@ -360,24 +390,45 @@ export async function markMandatoryGainReceiptFirebase({
 	gainTemplateId,
 	receiptGainId,
 	receiptDate,
+	installmentsToAdvance,
 }: MarkMandatoryGainReceiptParams) {
 	try {
 		const gainTemplateRef = doc(db, MANDATORY_GAINS_COLLECTION, gainTemplateId);
 		const receiptCycle = getCycleKeyFromDate(receiptDate);
 
-		await runTransaction(db, async transaction => {
+		const transactionResult = await runTransaction(db, async transaction => {
 			const gainSnapshot = await transaction.get(gainTemplateRef);
-			const data = gainSnapshot.exists() ? gainSnapshot.data() : {};
+			if (!gainSnapshot.exists()) {
+				return { success: false, reason: 'mandatory_gain_not_found' as const };
+			}
+
+			const data = gainSnapshot.data();
 			const installmentTotal = normalizeMandatoryInstallmentTotal(data.installmentTotal);
-			const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-				data.installmentsCompleted,
-				installmentTotal,
-			);
 			const lastReceiptCycle = typeof data.lastReceiptCycle === 'string' ? data.lastReceiptCycle : null;
-			const shouldAdvanceInstallment = installmentTotal !== null && lastReceiptCycle !== receiptCycle;
-			const nextInstallmentsCompleted = shouldAdvanceInstallment
-				? Math.min(installmentsCompleted + 1, installmentTotal)
-				: installmentsCompleted;
+			if (lastReceiptCycle === receiptCycle) {
+				return { success: false, reason: 'already_received_for_cycle' as const };
+			}
+			const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
+				storedCompleted: data.installmentsCompleted,
+				installmentTotal,
+				startDate: normalizeMandatoryInstallmentDate(data.installmentStartDate),
+				isCurrentCycleCompleted: false,
+				referenceDate: receiptDate,
+			});
+			const requestedInstallments =
+				installmentsToAdvance === undefined
+					? 1
+					: normalizeMandatoryInstallmentTotal(installmentsToAdvance);
+			if (requestedInstallments === null) {
+				return { success: false, reason: 'invalid_installment_count' as const };
+			}
+			if (installmentTotal !== null && requestedInstallments > installmentTotal - installmentsCompleted) {
+				return { success: false, reason: 'no_remaining_installments' as const };
+			}
+			const nextInstallmentsCompleted =
+				installmentTotal !== null
+					? installmentsCompleted + requestedInstallments
+					: installmentsCompleted;
 
 			transaction.set(
 				gainTemplateRef,
@@ -385,14 +436,17 @@ export async function markMandatoryGainReceiptFirebase({
 					lastReceiptGainId: receiptGainId,
 					lastReceiptDate: receiptDate,
 					lastReceiptCycle: receiptCycle,
+					lastReceiptInstallmentsCount: installmentTotal !== null ? requestedInstallments : null,
 					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
 					updatedAt: new Date(),
 				},
 				{ merge: true },
 			);
+
+			return { success: true as const };
 		});
 
-		return { success: true };
+		return transactionResult;
 	} catch (error) {
 		console.error('Erro ao marcar recebimento do ganho obrigatório:', error);
 		return { success: false, error };
@@ -411,8 +465,13 @@ export async function clearMandatoryGainReceiptFirebase(gainTemplateId: string) 
 				installmentTotal,
 			);
 			const hasLinkedReceipt = typeof data.lastReceiptGainId === 'string' && data.lastReceiptGainId.length > 0;
+			const recordedInstallmentCount = normalizeMandatoryInstallmentTotal(
+				data.lastReceiptInstallmentsCount,
+		);
 			const nextInstallmentsCompleted =
-				installmentTotal !== null && hasLinkedReceipt ? Math.max(0, installmentsCompleted - 1) : installmentsCompleted;
+				installmentTotal !== null && hasLinkedReceipt
+					? Math.max(0, installmentsCompleted - (recordedInstallmentCount ?? 1))
+					: installmentsCompleted;
 
 			transaction.set(
 				gainTemplateRef,
@@ -420,6 +479,7 @@ export async function clearMandatoryGainReceiptFirebase(gainTemplateId: string) 
 					lastReceiptGainId: null,
 					lastReceiptDate: null,
 					lastReceiptCycle: null,
+					lastReceiptInstallmentsCount: null,
 					...(installmentTotal !== null ? { installmentsCompleted: nextInstallmentsCompleted } : {}),
 					updatedAt: new Date(),
 				},
