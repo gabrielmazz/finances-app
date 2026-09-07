@@ -3,7 +3,7 @@ tags: [analise, categorias, tags, gastos, bancos, graficos]
 relacionado: [[Dashboard Home]], [[Gerenciamento de Tags]], [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Navegação]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.0.9
+versao: 1.0.10
 ---
 
 # Análise por Categoria
@@ -31,7 +31,7 @@ graph TD
 2. `CategoryAnalysisScreen.tsx` carrega uma vez por foco via `useFocusEffect` e mantém todos os relatórios por tag em memória local
 3. A categoria é escolhida por `components/uiverse/categories/tag-actionsheet-selector.tsx`, reaproveitando o mesmo ActionSheet das telas de registro; dentro da lista, cada tag mostra um label de uso (`Despesa`, `Ganho`, `Despesa obrigatória`, `Ganho obrigatório` ou combinações) abaixo do nome
 4. O relatório compara o mês atual contra a média dos 3 meses fechados anteriores
-5. A tela permite alternar entre **Gastos** e **Ganhos** quando a categoria suporta os dois usos. No Android/iOS, a alternância usa as Tabs controladas de `components/ui/tabs`; na Web, usa `Tabs` controladas do Mantine em um controle segmentado sem bordas externas ou nos gatilhos, com o amarelo âmbar escuro `#CA8A04` já presente na paleta do sistema, rótulos na fonte padrão do sistema e centralizados em cada tab, texto/ícone brancos quando selecionados, hover/foco visíveis e desabilitação contextual. As duas opções ficam como primeiro controle visual, em ordem fixa, e o seletor de categoria aparece logo abaixo. A opção sem suporte permanece desabilitada e a alternância reutiliza o relatório já carregado
+5. A tela permite alternar entre **Gastos** e **Ganhos** quando a categoria suporta os dois usos. No Android/iOS, a alternância usa as Tabs controladas de `components/ui/tabs`; na Web, usa `Tabs` controladas do Mantine em um controle segmentado sem bordas externas ou nos gatilhos, com o amarelo brilhante `#FFEB31` no estado ativo, rótulos na fonte padrão do sistema, centralizados e brancos em cada tab, texto/ícone brancos quando selecionados, hover/foco visíveis e desabilitação contextual. As duas opções ficam como primeiro controle visual, em ordem fixa, e o seletor de categoria aparece logo abaixo. A opção sem suporte permanece desabilitada e a alternância reutiliza o relatório já carregado
 6. O status pode ser:
    - `above` — mês atual acima da média histórica
    - `below` — mês atual abaixo da média histórica

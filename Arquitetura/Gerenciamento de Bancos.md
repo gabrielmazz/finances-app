@@ -3,7 +3,7 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.2
+versao: 1.7.4
 ---
 
 # Gerenciamento de Bancos
@@ -44,10 +44,10 @@ graph TD
     FTG --> LIST
 ```
 
-1. `BankMovementsScreen.tsx` exibe todos os movimentos de um banco em um período selecionado
+1. `BankMovementsScreen.tsx` exibe todos os movimentos de um banco em um período selecionado; a composição Web equivalente fica em `screens/web/BankMovementsScreen.web.tsx`. Na Web, quando a rota é aberta pelo menu sem `bankId`, o seletor de banco no início dos filtros permite escolher uma conta ativa e carregar seu extrato sem retornar à Home; a visão de Caixa continua sendo uma rota própria.
 2. Filtra por data via `DatePicker` customizado
 3. Permite refinar a listagem por tipo (`ganhos`, `gastos` ou `todos`) e por tag, usando apenas as tags presentes nas movimentações carregadas para aquele banco/período
-4. O card superior do banco mantém os totais gerais do período carregado e **não reage** aos filtros de tipo/tag
+4. Na variante nativa, o card superior do banco mantém os totais gerais do período carregado e **não reage** aos filtros de tipo/tag; na variante Web, esse card foi removido para iniciar o fluxo diretamente pelos filtros, e o agrupamento externo dos filtros também não usa card, deixando cada input com seu próprio contorno
 5. Um resumo separado do período exibe ganhos, despesas, saldo líquido e quantidade de movimentações de acordo com os filtros ativos
 6. O resumo filtrado permite baixar um PDF estilizado do período ativo, incluindo dados do banco/dinheiro, totais gerais, totais filtrados e a lista de movimentações visíveis
 7. A lista pode ser recarregada manualmente por pull-to-refresh, preservando o período, o banco/dinheiro e os filtros locais
@@ -78,10 +78,11 @@ graph TD
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
 - `hooks/useBankIcons.tsx` — Catálogo de ícones/monogramas para bancos brasileiros
 - `screens/mobile/BankMovementsScreen.tsx` — Listagem de movimentos por período
+- `screens/web/BankMovementsScreen.web.tsx` — Composição Web completa do extrato, com hero animado, seletor de banco e resoluções Web dos componentes compartilhados
 - `functions/BankFirebase.ts` — CRUD de bancos e busca de movimentos
 - `utils/monthlyBalance.ts` — `computeMonthlyBankBalances()` + filtros de movimentos
 - `app/mobile/add-register-bank.tsx` — Rota de cadastro
-- `app/mobile/bank-movements.tsx` — Rota de movimentos
+- `app/mobile/bank-movements.tsx` / `app/web/bank-movements.tsx` — Rotas de movimentos por plataforma
 - `app/mobile/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
 - `components/uiverse/navigation/navigator.tsx` / `components/web/navigation/navigator.web.tsx` — Oferecem **Movimentos do banco** no grupo Home e marcam a opção quando `/bank-movements` está aberta
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
@@ -111,13 +112,13 @@ graph TD
 
 - Transferências entre bancos geram dois movimentos (débito em um, crédito em outro) — ambos do tipo especial para não duplicar totais
 - A busca de movimentos bancários reforça transferências por metadados de origem/destino para exibir a saída no banco remetente e a entrada no banco recebedor, mesmo quando um registro antigo não é retornado apenas pelo `bankId`
-- O `BankMovementsScreen` recebe o banco via parâmetros de rota do Expo Router
+- A composição Web de `BankMovementsScreen` aceita o banco por parâmetros de rota do Expo Router, mas não depende deles: ao entrar pelo menu, a pessoa escolhe uma conta ativa no `bank-actionsheet-selector.tsx`; a escolha recarrega o período e limpa apenas filtros/expansões locais. A tela nativa permanece com o contrato original baseado em `bankId`.
 - Cores dos bancos são misturadas com gradiente em `bank-card-surface.tsx`
 - O catálogo de ícones usa monogramas estilizados, não imagens oficiais externas; bancos sem `iconKey` caem no ícone genérico com iniciais do nome
 - Seletores de banco em telas de criação devem usar `bank-actionsheet-selector.tsx`, não o `Select` padrão, para manter ícone, busca visual por instituição e consistência com o seletor de categorias
 - Cadastros de banco, saques, transferências e saldos mensais seguem [[Comportamento Pós-Registro]] para retorno/limpeza e mantêm uma trava síncrona de submit enquanto o Firestore responde, evitando registros duplicados por toques repetidos
-- O filtro de tags é contextual: as opções exibidas dependem do tipo selecionado e das movimentações já carregadas no período
-- O resumo filtrado do período muda com os filtros locais, mas o card superior continua exibindo os totais gerais do período consultado
+- O filtro de tags é contextual: as opções exibidas dependem do tipo selecionado e das movimentações já carregadas no período; na Web, `TagsInput` do Mantine apresenta essas opções em um input pesquisável, permite múltiplas seleções, mantém o filtro por IDs e usa a altura base de 48px alinhada aos demais inputs Web, sem alterar a variante nativa
+- O resumo filtrado do período muda com os filtros locais; na variante nativa o card superior continua exibindo os totais gerais do período consultado, enquanto a Web mantém esses totais apenas nos cálculos do PDF
 - O PDF segue o mesmo escopo do resumo filtrado: tipo/tag ativos, período selecionado e valores mascarados quando a [[Privacidade de Valores]] está ativa
 - `BankMovementsScreen.tsx` intercepta o retorno físico pelo `Navigator` para cair em `/home?tab=0` sem depender de `router.back()`
 - A opção **Movimentos do banco** permanece visível no grupo Home para abrir o extrato diretamente; ela só recebe estado ativo quando a rota de movimentos está aberta

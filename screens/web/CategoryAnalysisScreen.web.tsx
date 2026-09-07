@@ -448,13 +448,13 @@ export default function CategoryAnalysisScreenWeb() {
 		},
 		[canSelectExpense, canSelectGain],
 	);
-	const movementTabsActiveColor = '#CA8A04';
+	const movementTabsActiveColor = '#FACC15'; // bg-yellow-400
 	const movementTabsStyles = React.useMemo(
 		() => {
 			const activeBackground = movementTabsActiveColor;
-			const tabSurface = isDarkMode ? '#081120' : '#F8FAFC';
+			const tabSurface = 'transparent';
 			const inactiveHoverSurface = isDarkMode ? 'rgba(148, 163, 184, 0.12)' : '#FFFFFF';
-			const activeShadow = '0 6px 18px rgba(202, 138, 4, 0.22)';
+			const activeShadow = '0 6px 18px rgba(250, 204, 21, 0.22)';
 
 			return {
 				list: {
@@ -473,7 +473,7 @@ export default function CategoryAnalysisScreenWeb() {
 					paddingInline: 16,
 					border: 'none',
 					borderRadius: 13,
-					color: palette.subtitle,
+					color: '#FFFFFF',
 					fontSize: 14,
 					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 					fontWeight: 600,
@@ -489,7 +489,7 @@ export default function CategoryAnalysisScreenWeb() {
 					},
 					'&:hover:not([data-disabled]):not([data-active])': {
 						backgroundColor: inactiveHoverSurface,
-						color: palette.title,
+						color: '#FFFFFF',
 					},
 					'&:focus-visible': {
 						outline: `2px solid ${activeBackground}`,
@@ -872,8 +872,8 @@ export default function CategoryAnalysisScreenWeb() {
 									</View>
 								) : (
 									<VStack className="gap-5">
-										<View className="w-full">
-											<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+						<View className={`${notTintedCardClassName} w-full p-1.5`}>
+							<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
 												<MantineTabs
 													value={selectedType}
 													onChange={value => {
@@ -925,8 +925,8 @@ export default function CategoryAnalysisScreenWeb() {
 														})}
 													</MantineTabs.List>
 												</MantineTabs>
-											</MantineProvider>
-										</View>
+							</MantineProvider>
+						</View>
 
 										<View className="w-full">
 											<TagActionsheetSelector
