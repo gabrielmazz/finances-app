@@ -57,7 +57,7 @@ export default function HomeExpenseLineChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div
 				role="img"
 				aria-label="Gastos por dia nos últimos três meses, com uma linha para cada mês"

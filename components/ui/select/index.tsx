@@ -52,7 +52,7 @@ const selectStyle = tva({
 });
 
 const selectTriggerStyle = tva({
-  base: 'border border-background-300 rounded flex-row items-center overflow-hidden data-[hover=true]:border-outline-400 data-[focus=true]:border-primary-700 data-[disabled=true]:opacity-40 data-[disabled=true]:data-[hover=true]:border-background-300',
+  base: 'min-h-touch flex-row items-center overflow-hidden rounded-control border border-slate-200 bg-white data-[hover=true]:border-slate-400 data-[focus=true]:border-lumus-focus data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-focus/35 data-[disabled=true]:opacity-40 dark:border-slate-800 dark:bg-slate-950',
   variants: {
     size: {
       xl: 'h-12',
@@ -64,7 +64,7 @@ const selectTriggerStyle = tva({
       underlined:
         'border-0 border-b rounded-none data-[hover=true]:border-primary-700 data-[focus=true]:border-primary-700 data-[focus=true]:web:shadow-[inset_0_-1px_0_0] data-[focus=true]:web:shadow-primary-700 data-[invalid=true]:border-error-700 data-[invalid=true]:web:shadow-error-700',
       outline:
-        'data-[focus=true]:border-primary-700 data-[focus=true]:web:shadow-[inset_0_0_0_1px] data-[focus=true]:data-[hover=true]:web:shadow-primary-600 data-[invalid=true]:web:shadow-[inset_0_0_0_1px] data-[invalid=true]:border-error-700 data-[invalid=true]:web:shadow-error-700 data-[invalid=true]:data-[hover=true]:border-error-700',
+        'data-[invalid=true]:border-error-700 data-[invalid=true]:web:ring-2 data-[invalid=true]:web:ring-error-500/30',
       rounded:
         'rounded-full data-[focus=true]:border-primary-700 data-[focus=true]:web:shadow-[inset_0_0_0_1px] data-[focus=true]:web:shadow-primary-700 data-[invalid=true]:border-error-700 data-[invalid=true]:web:shadow-error-700',
     },
@@ -72,7 +72,7 @@ const selectTriggerStyle = tva({
 });
 
 const selectInputStyle = tva({
-  base: 'px-3 placeholder:text-typography-500 web:w-full h-full text-typography-900 pointer-events-none web:outline-none ios:leading-[0px] py-0',
+  base: 'pointer-events-none h-full px-3 py-0 text-slate-900 placeholder:text-slate-500 dark:text-slate-100 ios:leading-[0px] web:w-full web:outline-none',
   parentVariants: {
     size: {
       xl: 'text-xl',

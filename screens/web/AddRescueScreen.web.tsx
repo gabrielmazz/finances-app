@@ -244,23 +244,23 @@ export default function AddRescueScreen() {
 
 		const loadBankBalance = async () => {
 			try {
-					const currentUser = auth.currentUser;
+				const currentUser = auth.currentUser;
 				if (!currentUser) {
 					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 					return;
 				}
 
-					const balanceResult = await getLegacyBankBalanceInCentsFirebase({
-						personId: currentUser.uid,
-						bankId: selectedBankId,
-					});
-					if (!isMounted) {
-						return;
-					}
-					if (!balanceResult.success) {
-						throw balanceResult.error;
-					}
-					setCurrentBankBalanceInCents(balanceResult.data);
+				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
+					personId: currentUser.uid,
+					bankId: selectedBankId,
+				});
+				if (!isMounted) {
+					return;
+				}
+				if (!balanceResult.success) {
+					throw balanceResult.error;
+				}
+				setCurrentBankBalanceInCents(balanceResult.data);
 			} catch (error) {
 				console.error('Erro ao carregar saldo do banco:', error);
 				if (isMounted) {
@@ -362,14 +362,14 @@ export default function AddRescueScreen() {
 
 				if (banksResult.success && Array.isArray(banksResult.data)) {
 					const formattedBanks = banksResult.data.map((bank: any) => ({
-							id: bank.id,
-							name:
-								typeof bank?.name === 'string' && bank.name.trim().length > 0
-									? bank.name.trim()
-									: 'Banco sem nome',
-							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-						}));
+						id: bank.id,
+						name:
+							typeof bank?.name === 'string' && bank.name.trim().length > 0
+								? bank.name.trim()
+								: 'Banco sem nome',
+						iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+						colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
+					}));
 					setBanks(formattedBanks);
 					setFinancialLedgerContext(null);
 					setCashAccountId(null);
@@ -577,11 +577,11 @@ export default function AddRescueScreen() {
 							/>
 
 							<WebScreenHero
-					title="Saque em dinheiro"
-					Illustration={AddRescueIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
+								title="Saque em dinheiro"
+								Illustration={AddRescueIllustration}
+								isDarkMode={isDarkMode}
+								topPadding={insets.top + 24}
+							/>
 						</View>
 
 						<ScrollView
@@ -607,7 +607,7 @@ export default function AddRescueScreen() {
 										isDarkMode={isDarkMode}
 										bodyTextClassName={bodyText}
 										helperTextClassName={helperText}
-																	triggerClassName={fieldBankContainerClassName}
+										triggerClassName={fieldBankContainerClassName}
 										placeholder="Selecione o banco do qual o valor foi retirado"
 										sheetTitle="Escolha o banco de origem"
 										emptyMessage="Nenhum banco disponível."

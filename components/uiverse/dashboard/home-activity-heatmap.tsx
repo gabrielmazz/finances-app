@@ -39,7 +39,7 @@ export default function HomeActivityHeatmap({
   return (
     <MantineProvider forceColorScheme={isDarkMode ? "dark" : "light"}>
       <style>
-        {"html, body { background-color: transparent !important; }"}
+        {"html, body { background-color: transparent; }"}
       </style>
       <div style={{ overflowX: "auto", paddingBottom: 4 }}>
         <Heatmap

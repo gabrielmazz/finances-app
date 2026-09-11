@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import '@mantine/core/styles.css';
 import { MantineProvider, NumberInput } from '@mantine/core';
+import { getMantineNumberInputClassNames } from '@/design-system/mantine';
+import { cn } from '@/lib/utils';
 
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import {
@@ -1093,7 +1095,7 @@ export default function AddMandatoryGainsScreen() {
 													onValueChange={(value) => setOpenDueSection(value[0] ?? null)}
 													className="w-full"
 												>
-													<AccordionItem value="due" className={`${cardClassName} overflow-hidden !p-0`}>
+													<AccordionItem value="due" className={cn(cardClassName, 'overflow-hidden p-0')}>
 														<AccordionHeader>
 															<AccordionTrigger className="px-4 py-3">
 																{({ isExpanded }: { isExpanded: boolean }) => (
@@ -1133,7 +1135,7 @@ export default function AddMandatoryGainsScreen() {
 
 												<VStack className={webExpenseClassNames.fieldFull}>
 													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Observações</Text>
+														<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Observações</Text>
 														<Popover
 															placement="bottom"
 															size="md"
@@ -1214,7 +1216,7 @@ export default function AddMandatoryGainsScreen() {
 													onValueChange={(value) => setOpenOptionalSection(value[0] ?? null)}
 													className="w-full"
 												>
-													<AccordionItem value="optional" className={`${cardClassName} overflow-hidden !p-0`}>
+													<AccordionItem value="optional" className={cn(cardClassName, 'overflow-hidden p-0')}>
 														<AccordionHeader>
 															<AccordionTrigger className="px-4 py-3">
 																{({ isExpanded }: { isExpanded: boolean }) => (
@@ -1250,7 +1252,7 @@ export default function AddMandatoryGainsScreen() {
 																	</HStack>
 																	{installmentsEnabled ? (
 																		<VStack className="w-full gap-2">
-																			<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																			<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
 																				Quantidade de parcelas
 																			</Text>
 																			<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
@@ -1264,20 +1266,12 @@ export default function AddMandatoryGainsScreen() {
 																					clampBehavior="strict"
 																					disabled={isInstallmentFieldDisabled}
 																					aria-label="Quantidade de parcelas"
-																					classNames={{
-																						root: 'w-full !m-0',
-																						input: `${inputClassName} ${inputField} !pl-4 !pr-11 !text-base`,
-																						controls:
-																							'my-1 mr-2 w-7 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800',
-																						control:
-																							'border-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-200',
-																					}}
-																					styles={{ root: { margin: 0 }, input: { paddingLeft: 16, paddingRight: 44 } }}
+																					classNames={getMantineNumberInputClassNames(inputClassName, inputField)}
 																					onFocus={() => handleInputFocus('installments')}
 																				/>
 																			</MantineProvider>
 																			<VStack className="w-full gap-2">
-																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																				<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
 																					Valor total do parcelamento
 																				</Text>
 																				<Input className={inputClassName} isDisabled={isInstallmentFieldDisabled}>
@@ -1294,7 +1288,7 @@ export default function AddMandatoryGainsScreen() {
 																			</VStack>
 																			<HStack className="w-full gap-3 web:flex-row">
 																				<VStack className="min-w-0 flex-1 gap-2">
-																					<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																					<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
 																						Início
 																					</Text>
 																					<DatePickerField
@@ -1308,7 +1302,7 @@ export default function AddMandatoryGainsScreen() {
 																					/>
 																				</VStack>
 																				<VStack className="min-w-0 flex-1 gap-2">
-																					<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																					<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
 																						Fim
 																					</Text>
 																					<DatePickerField
@@ -1348,7 +1342,7 @@ export default function AddMandatoryGainsScreen() {
 																	{reminderEnabled ? (
 																		<VStack className="gap-3">
 																			<VStack className="gap-2">
-																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Começar a lembrar</Text>
+																				<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Começar a lembrar</Text>
 																				<WebSelectField
 																					options={MANDATORY_REMINDER_DAY_OPTIONS}
 																					value={String(reminderDaysBefore)}
@@ -1378,7 +1372,7 @@ export default function AddMandatoryGainsScreen() {
 																			</HStack>
 
 																			<HStack className="items-center gap-1">
-																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
+																				<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
 																					Horário preferido
 																				</Text>
 																				<Popover

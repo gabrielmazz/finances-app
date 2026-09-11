@@ -3,7 +3,7 @@ tags: [tema, dark-mode, ui, contexto]
 relacionado: [[Configurações]], [[Componentes UI]], [[Hooks Customizados]], [[Privacidade de Valores]]
 status: ativo
 tipo: feature
-versao: 1.0.10
+versao: 1.1.0
 ---
 
 # Sistema de Temas
@@ -17,7 +17,8 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 3. `toggleThemeMode()` alterna o tema e persiste a nova preferência no AsyncStorage
 4. O tema é aplicado via:
    - `GluestackUIProvider` — adapta os componentes Gluestack ao tema
-   - `useScreenStyle()` — hook que detecta `isDarkMode` e retorna estilos condicionais
+   - `design-system/tokens.ts` — fonte canônica de tokens semânticos, contratos de classes e valores resolvidos para APIs externas
+   - `useScreenStyles()` — fachada de compatibilidade que fornece estado de tema/layout e tokens resolvidos exigidos por APIs sem `className`
    - Classes NativeWind `dark:` — estilos Tailwind condicionais ao tema
    - `webDashboardPalette` de `useScreenStyles()` — tokens do dashboard Web, evitando decisão claro/escuro dentro da tela
    - `navigator.web.tsx` → `StaggeredMenu` — passa `themeMode` e seleciona a paleta Web correspondente para a rail/painel
@@ -27,7 +28,9 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 ## Arquivos principais
 
 - `contexts/ThemeContext.tsx` — Provider, estado e toggle
-- `hooks/useScreenStyle.ts` — Estilos centralizados que reagem ao tema
+- `design-system/tokens.ts` — tokens semânticos, classes base e paletas resolvidas
+- `design-system/web-dashboard.ts` / `web-forms.ts` / `mantine.ts` — contratos Web compartilhados
+- `hooks/useScreenStyle.ts` — estado/layout em runtime e fachada temporária para consumidores existentes
 - `components/ui/gluestack-ui-provider/` — Integração Gluestack com tema
 - `global.css` — Entrada mínima das camadas Tailwind
 - `tailwind.config.js` — Tokens do Gluestack, preset NativeWind e classes preservadas pela safelist
@@ -41,9 +44,9 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 
 ## Configuração
 
-- `global.css`: importa apenas as camadas `base`, `components` e `utilities` do Tailwind 3
+- `global.css`: importa Geist e as camadas Tailwind 3; também define `color-scheme`, fundo base e redução de movimento para o navegador
 - `tailwind.config.js`: usa `nativewind/preset`, `darkMode: 'class'` e tokens CSS do Gluestack
-- Cores customizadas no Tailwind: `primary`, `secondary`, `tertiary`, `error`, `success`, `warning`, `info`
+- Cores customizadas no Tailwind: escalas Gluestack e tokens semânticos `lumus-accent`, `lumus-on-accent`, `lumus-focus`, `lumus-income-*` e `lumus-expense-*`
 - Persistência via `@react-native-async-storage/async-storage` com chave dedicada
 
 ## Observações importantes
@@ -52,6 +55,8 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 - O app não declara `userInterfaceStyle` nativo nem instala `expo-system-ui`; a preferência visual é controlada pelo próprio `ThemeContext`/Gluestack, evitando uma configuração nativa redundante
 - NativeWind + Gluestack UI precisam estar sincronizados — mudança de tema reaplica classes Tailwind
 - Quando uma tela depender de classes retornadas por `useScreenStyle()`, as classes completas precisam aparecer literalmente em arquivos cobertos por `content` ou na `safelist` do Tailwind; concatenar fragmentos arbitrários impede sua geração.
-- A composição Web da Home mantém as classes Tailwind fixas em `WEB_DASHBOARD_CLASS_NAMES`, dentro de `hooks/useScreenStyle.ts`, e deixa na tela somente valores dinâmicos de tema ou layout; novos estilos estruturais do dashboard devem seguir esse mesmo ponto de centralização.
+- A composição Web da Home mantém as classes Tailwind fixas em `design-system/web-dashboard.ts`; `useScreenStyles()` apenas reexporta o contrato durante a migração dos consumidores.
+- A ação primária usa fundo amarelo `lumus-accent` com texto escuro `lumus-on-accent` nos dois temas, garantindo contraste. Foco usa `lumus-focus` com ring visível.
+- `script/check_style_architecture.js` bloqueia crescimento de estilos inline, cores brutas, valores arbitrários, novos consumidores do hook, CSS isolado, `StyleSheet.create`, `!important`, `transition-all` e utilitários Tailwind com prefixo `!`.
 - Os estados selecionados de checkbox que representam ação principal devem manter o amarelo padrão do sistema, mesmo quando o componente base do Gluestack usar a cor `primary` do tema
 - O toggle de tema em `Configurações` deve manter o mesmo alinhamento estrutural do toggle de privacidade, com label e popover no bloco esquerdo e `Switch` fixo à direita

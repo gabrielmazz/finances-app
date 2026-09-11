@@ -658,8 +658,8 @@ export default function MandatoryExpensesListScreen() {
 					installmentTotal,
 					installmentTotalValueInCents:
 						typeof expense?.installmentTotalValueInCents === 'number' &&
-						Number.isSafeInteger(expense.installmentTotalValueInCents) &&
-						expense.installmentTotalValueInCents > 0
+							Number.isSafeInteger(expense.installmentTotalValueInCents) &&
+							expense.installmentTotalValueInCents > 0
 							? expense.installmentTotalValueInCents
 							: null,
 					installmentsCompleted,
@@ -688,9 +688,9 @@ export default function MandatoryExpensesListScreen() {
 				);
 				const remainingValueInCents = getMandatoryInstallmentRemainingValueInCents({
 					installmentTotal: expense.installmentTotal,
-						installmentsCompleted: resolvedInstallmentsCompleted,
-						installmentValueInCents: expense.valueInCents,
-						installmentTotalValueInCents: expense.installmentTotalValueInCents,
+					installmentsCompleted: resolvedInstallmentsCompleted,
+					installmentValueInCents: expense.valueInCents,
+					installmentTotalValueInCents: expense.installmentTotalValueInCents,
 				});
 				const displayValueInCents =
 					isPaidForCurrentCycle &&
@@ -788,12 +788,12 @@ export default function MandatoryExpensesListScreen() {
 		const nextInstallmentValueInCents =
 			typeof expense.installmentTotal === 'number'
 				? getMandatoryInstallmentValueInCents({
-						installmentTotal: expense.installmentTotal,
-						installmentsCompleted: expense.installmentsCompleted ?? 0,
-						installmentsToSettle: 1,
-						installmentValueInCents: expense.valueInCents,
-						installmentTotalValueInCents: expense.installmentTotalValueInCents,
-					})
+					installmentTotal: expense.installmentTotal,
+					installmentsCompleted: expense.installmentsCompleted ?? 0,
+					installmentsToSettle: 1,
+					installmentValueInCents: expense.valueInCents,
+					installmentTotalValueInCents: expense.installmentTotalValueInCents,
+				})
 				: null;
 
 		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
@@ -853,8 +853,7 @@ export default function MandatoryExpensesListScreen() {
 			templateDescription: encodeURIComponent(
 				[
 					expense.description,
-					`Quitação antecipada de ${installmentsToSettle} parcela(s)${
-						installmentsToSettle === expense.remainingInstallments ? ' restantes' : ''
+					`Quitação antecipada de ${installmentsToSettle} parcela(s)${installmentsToSettle === expense.remainingInstallments ? ' restantes' : ''
 					}.`,
 				]
 					.filter(Boolean)
@@ -1471,7 +1470,7 @@ export default function MandatoryExpensesListScreen() {
 																		isDarkMode={isDarkMode}
 																		shouldHideValues={shouldHideValues}
 																		dom={{ focusable: false, scrollEnabled: false, style: { height: 300, backgroundColor: 'transparent' } }}
-																		/>
+																	/>
 																</View>
 															</VStack>
 														</View>
@@ -1491,7 +1490,7 @@ export default function MandatoryExpensesListScreen() {
 																		data={mandatoryExpensesScatterData}
 																		isDarkMode={isDarkMode}
 																		dom={{ focusable: false, scrollEnabled: false, style: { height: 320, backgroundColor: 'transparent' } }}
-																		/>
+																	/>
 																</View>
 															</VStack>
 														</View>
@@ -1745,7 +1744,7 @@ export default function MandatoryExpensesListScreen() {
 
 																						{typeof expense.installmentTotal === 'number' && !expense.isInstallmentComplete ? (
 																							<Pressable
-												onPress={() => handleCalendarAction('settle', expense)}
+																								onPress={() => handleCalendarAction('settle', expense)}
 																								accessibilityRole="button"
 																								accessibilityLabel={`Quitar parcelas restantes de ${expense.name}`}
 																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"

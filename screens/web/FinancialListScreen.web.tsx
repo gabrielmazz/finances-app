@@ -288,8 +288,8 @@ const parseDateFromBR = (value: string) => {
 	return parsedDate.getDate() === parsedDay &&
 		parsedDate.getMonth() + 1 === parsedMonth &&
 		parsedDate.getFullYear() === parsedYear
-			? parsedDate
-			: null;
+		? parsedDate
+		: null;
 };
 
 // Mantém a data civil escolhida pelo usuário e usa o horário atual, conforme o fluxo de datas de [[Investimentos]].
@@ -1611,24 +1611,24 @@ export default function FinancialListScreenWeb() {
 							>
 								Visão da carteira
 							</Heading>
-								{isInitialLoading ? (
-									<VStack className="gap-4">
-										<View className="flex-row flex-wrap gap-3">
-											{Array.from({ length: 3 }).map((_, index) => (
-												<Skeleton
-													key={`financial-list-summary-${index}`}
-													className="h-24 min-w-[145px] flex-1 rounded-2xl"
-													baseColor={skeletonMutedBaseColor}
-													highlightColor={skeletonMutedHighlightColor}
-												/>
-											))}
-										</View>
-										<Skeleton
-											className="h-16 rounded-[24px]"
-											baseColor={skeletonMutedBaseColor}
-											highlightColor={skeletonMutedHighlightColor}
-										/>
-									</VStack>
+							{isInitialLoading ? (
+								<VStack className="gap-4">
+									<View className="flex-row flex-wrap gap-3">
+										{Array.from({ length: 3 }).map((_, index) => (
+											<Skeleton
+												key={`financial-list-summary-${index}`}
+												className="h-24 min-w-[145px] flex-1 rounded-2xl"
+												baseColor={skeletonMutedBaseColor}
+												highlightColor={skeletonMutedHighlightColor}
+											/>
+										))}
+									</View>
+									<Skeleton
+										className="h-16 rounded-[24px]"
+										baseColor={skeletonMutedBaseColor}
+										highlightColor={skeletonMutedHighlightColor}
+									/>
+								</VStack>
 							) : (
 								<VStack className="gap-4">
 									<Box className={`${topSummaryCardClassName} px-4 py-4`}>
@@ -1684,71 +1684,70 @@ export default function FinancialListScreenWeb() {
 											style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
 										>
 											<View className="flex-row flex-wrap gap-3">
-										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-												Patrimônio estimado
-											</Text>
-											<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-300">
-												{formatCurrencyInCents(portfolioAnalytics.projectedValueInCents)}
-											</Text>
-										</Box>
-										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-												Rendimento acumulado
-											</Text>
-											<Text
-												className={`mt-2 text-2xl font-bold ${
-													portfolioAnalytics.totalGainInCents >= 0
-														? 'text-emerald-600 dark:text-emerald-400'
-														: 'text-rose-600 dark:text-rose-400'
-												}`}
-											>
-												{formatCurrencyInCents(portfolioAnalytics.totalGainInCents)}
-											</Text>
-										</Box>
-										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-												Aplicado líquido
-											</Text>
-											<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-300">
-												{formatCurrencyInCents(portfolioAnalytics.netAppliedInCents)}
-											</Text>
-										</Box>
-										<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-											<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-												Próximo dia
-											</Text>
-											<Text className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-300">
-												{formatCurrencyInCents(portfolioAnalytics.dailyYieldInCents)}
-											</Text>
-										</Box>
+												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+														Patrimônio estimado
+													</Text>
+													<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-300">
+														{formatCurrencyInCents(portfolioAnalytics.projectedValueInCents)}
+													</Text>
+												</Box>
+												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+														Rendimento acumulado
+													</Text>
+													<Text
+														className={`mt-2 text-2xl font-bold ${portfolioAnalytics.totalGainInCents >= 0
+															? 'text-emerald-600 dark:text-emerald-400'
+															: 'text-rose-600 dark:text-rose-400'
+															}`}
+													>
+														{formatCurrencyInCents(portfolioAnalytics.totalGainInCents)}
+													</Text>
+												</Box>
+												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+														Aplicado líquido
+													</Text>
+													<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-300">
+														{formatCurrencyInCents(portfolioAnalytics.netAppliedInCents)}
+													</Text>
+												</Box>
+												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
+														Próximo dia
+													</Text>
+													<Text className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-300">
+														{formatCurrencyInCents(portfolioAnalytics.dailyYieldInCents)}
+													</Text>
+												</Box>
 											</View>
 
 											<VStack className="gap-2">
-										<Text className={`${bodyText} text-sm font-semibold`}>
-											Rentabilidade por período
-										</Text>
-										<Box className={`${notTintedCardClassName} p-1.5`}>
-											<Tabs
-												value={performancePeriod}
-												onValueChange={handlePerformancePeriodChange}
-											>
-												<TabsList>
-													{performancePeriodOptions.map(option => (
-														<TabsTrigger
-															key={option.value}
-															value={option.value}
-															className="flex-1 px-1"
-														>
-															<TabsTriggerText className="text-xs">
-																{option.label}
-															</TabsTriggerText>
-														</TabsTrigger>
-													))}
-													<TabsIndicator />
-												</TabsList>
-											</Tabs>
-										</Box>
+												<Text className={`${bodyText} text-sm font-semibold`}>
+													Rentabilidade por período
+												</Text>
+												<Box className={`${notTintedCardClassName} p-1.5`}>
+													<Tabs
+														value={performancePeriod}
+														onValueChange={handlePerformancePeriodChange}
+													>
+														<TabsList>
+															{performancePeriodOptions.map(option => (
+																<TabsTrigger
+																	key={option.value}
+																	value={option.value}
+																	className="flex-1 px-1"
+																>
+																	<TabsTriggerText className="text-xs">
+																		{option.label}
+																	</TabsTriggerText>
+																</TabsTrigger>
+															))}
+															<TabsIndicator />
+														</TabsList>
+													</Tabs>
+												</Box>
 											</VStack>
 										</VStack>
 
@@ -1757,27 +1756,27 @@ export default function FinancialListScreenWeb() {
 												className={`${notTintedCardClassName} px-4 py-4`}
 												style={isDesktopWeb ? { flex: 1.2, minWidth: 0 } : undefined}
 											>
-											<VStack className="gap-1">
-												<HStack className="items-center gap-2">
-													<Icon
-														as={CalendarDaysIcon}
-														size="md"
-														className={isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}
+												<VStack className="gap-1">
+													<HStack className="items-center gap-2">
+														<Icon
+															as={CalendarDaysIcon}
+															size="md"
+															className={isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}
+														/>
+														<Heading size="md">Evolução da carteira</Heading>
+													</HStack>
+													<Text className={`${helperText} text-xs leading-5`}>
+														Comparação entre capital líquido aplicado e patrimônio estimado no período selecionado.
+													</Text>
+												</VStack>
+												<View style={{ height: 292, marginTop: 6 }}>
+													<InvestmentEvolutionChart
+														data={portfolioAnalytics.evolution}
+														isDarkMode={isDarkMode}
+														shouldHideValues={shouldHideValues}
+														dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
 													/>
-													<Heading size="md">Evolução da carteira</Heading>
-												</HStack>
-												<Text className={`${helperText} text-xs leading-5`}>
-													Comparação entre capital líquido aplicado e patrimônio estimado no período selecionado.
-												</Text>
-											</VStack>
-											<View style={{ height: 292, marginTop: 6 }}>
-												<InvestmentEvolutionChart
-													data={portfolioAnalytics.evolution}
-													isDarkMode={isDarkMode}
-													shouldHideValues={shouldHideValues}
-													dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
-												/>
-											</View>
+												</View>
 											</Box>
 										) : null}
 									</View>
@@ -2118,29 +2117,29 @@ export default function FinancialListScreenWeb() {
 																					),
 																				),
 																			},
-															{
-																label: 'Patrimônio estimado',
-																value:
-																	formatCurrencyBRL(
-																		convertCentsToBRL(simulatedValueInCents),
-																	),
-															},
-															{
-																label: 'Próximo dia',
-																value: formatCurrencyBRL(
-																	convertCentsToBRL(dailyYieldInCents),
-																),
-															},
-															{
-																label: 'Produto',
-																value: investmentAssetTypeLabels[investment.assetType],
-															},
-															{
-																label: 'Percentual CDI',
-																value:
-																	investment.valuationMethod === 'cdi'
-																		? `${formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints)}%`
-																		: 'Atualização manual',
+																			{
+																				label: 'Patrimônio estimado',
+																				value:
+																					formatCurrencyBRL(
+																						convertCentsToBRL(simulatedValueInCents),
+																					),
+																			},
+																			{
+																				label: 'Próximo dia',
+																				value: formatCurrencyBRL(
+																					convertCentsToBRL(dailyYieldInCents),
+																				),
+																			},
+																			{
+																				label: 'Produto',
+																				value: investmentAssetTypeLabels[investment.assetType],
+																			},
+																			{
+																				label: 'Percentual CDI',
+																				value:
+																					investment.valuationMethod === 'cdi'
+																						? `${formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints)}%`
+																						: 'Atualização manual',
 																			},
 																			{
 																				label: 'Banco',
@@ -2455,141 +2454,141 @@ export default function FinancialListScreenWeb() {
 										Ajuste nome, valor base, CDI e banco do investimento.
 									</Text>
 									<VStack>
-								{renderStandardizedInput({
-									label: 'Nome do investimento',
-									value: editName,
-									onChangeText: setEditName,
-									placeholder: 'Digite o nome do investimento',
-									keyboardType: 'default',
-									autoCapitalize: 'sentences',
-									returnKeyType: 'next',
-									isDisabled: isSavingEdit,
-								})}
-								{renderStandardizedInput({
-									label: 'Valor inicial',
-									value: editInitialInput,
-									onChangeText: handleEditInitialInputChange,
-									placeholder: 'Digite o valor inicial',
-									keyboardType: 'numeric',
-									returnKeyType: 'next',
-									isDisabled: isSavingEdit,
-								})}
-								{renderStandardizedInput({
-									label: 'CDI (%)',
-									value: editCdiInput,
-									onChangeText: (text) =>
-										setEditCdiInput(sanitizeNumberInput(text)),
-									placeholder: 'Digite o percentual do CDI',
-									keyboardType: 'decimal-pad',
-									isDisabled: isSavingEdit,
-								})}
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-										Prazo de resgate
-									</Text>
-									<Select
-										selectedValue={editTerm}
-										onValueChange={(value) =>
-											setEditTerm(value as RedemptionTerm)
-										}
-										isDisabled={isSavingEdit}
-									>
-										<SelectTrigger
-											variant="outline"
-											size="md"
-											className={fieldContainerClassName}
-										>
-											<SelectInput
-												value={redemptionTermLabels[editTerm]}
-												className={inputField}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-												{redemptionOptions.map((option) => (
-													<SelectItem
-														key={option.value}
-														label={option.label}
-														value={option.value}
-													/>
-												))}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
-								</VStack>
-								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-										Banco
-									</Text>
-									<Select
-										selectedValue={editBankId ?? undefined}
-										onValueChange={(value) => setEditBankId(value)}
-										isDisabled={isSavingEdit || bankOptions.length === 0}
-									>
-										<SelectTrigger
-											variant="outline"
-											size="md"
-											className={fieldContainerClassName}
-										>
-											<SelectInput
-												placeholder="Selecione o banco"
-												value={
-													editBankId
-														? (bankOptions.find(
-															(bank) => bank.id === editBankId,
-														)?.name ?? '')
-														: ''
+										{renderStandardizedInput({
+											label: 'Nome do investimento',
+											value: editName,
+											onChangeText: setEditName,
+											placeholder: 'Digite o nome do investimento',
+											keyboardType: 'default',
+											autoCapitalize: 'sentences',
+											returnKeyType: 'next',
+											isDisabled: isSavingEdit,
+										})}
+										{renderStandardizedInput({
+											label: 'Valor inicial',
+											value: editInitialInput,
+											onChangeText: handleEditInitialInputChange,
+											placeholder: 'Digite o valor inicial',
+											keyboardType: 'numeric',
+											returnKeyType: 'next',
+											isDisabled: isSavingEdit,
+										})}
+										{renderStandardizedInput({
+											label: 'CDI (%)',
+											value: editCdiInput,
+											onChangeText: (text) =>
+												setEditCdiInput(sanitizeNumberInput(text)),
+											placeholder: 'Digite o percentual do CDI',
+											keyboardType: 'decimal-pad',
+											isDisabled: isSavingEdit,
+										})}
+										<VStack className="mb-4">
+											<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												Prazo de resgate
+											</Text>
+											<Select
+												selectedValue={editTerm}
+												onValueChange={(value) =>
+													setEditTerm(value as RedemptionTerm)
 												}
-												className={inputField}
-											/>
-											<SelectIcon />
-										</SelectTrigger>
-										<SelectPortal>
-											<SelectBackdrop />
-											<SelectContent>
-												<SelectDragIndicatorWrapper>
-													<SelectDragIndicator />
-												</SelectDragIndicatorWrapper>
-												{bankOptions.length > 0 ? (
-													bankOptions.map((bank) => (
-														<SelectItem
-															key={bank.id}
-															label={bank.name}
-															value={bank.id}
-														/>
-													))
-												) : (
-													<SelectItem
-														label="Nenhum banco disponível"
-														value="no-bank"
-														isDisabled
+												isDisabled={isSavingEdit}
+											>
+												<SelectTrigger
+													variant="outline"
+													size="md"
+													className={fieldContainerClassName}
+												>
+													<SelectInput
+														value={redemptionTermLabels[editTerm]}
+														className={inputField}
 													/>
-												)}
-											</SelectContent>
-										</SelectPortal>
-									</Select>
-								</VStack>
-								<VStack className="mb-1">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-										Descrição
-									</Text>
-									<Textarea
-										className={textareaContainerClassName}
-										isDisabled={isSavingEdit}
-									>
-										<TextareaInput
-											value={editDescription}
-											onChangeText={setEditDescription}
-											placeholder="Adicione um contexto para este investimento"
-											className={inputField}
-										/>
-									</Textarea>
-								</VStack>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{redemptionOptions.map((option) => (
+															<SelectItem
+																key={option.value}
+																label={option.label}
+																value={option.value}
+															/>
+														))}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+										<VStack className="mb-4">
+											<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												Banco
+											</Text>
+											<Select
+												selectedValue={editBankId ?? undefined}
+												onValueChange={(value) => setEditBankId(value)}
+												isDisabled={isSavingEdit || bankOptions.length === 0}
+											>
+												<SelectTrigger
+													variant="outline"
+													size="md"
+													className={fieldContainerClassName}
+												>
+													<SelectInput
+														placeholder="Selecione o banco"
+														value={
+															editBankId
+																? (bankOptions.find(
+																	(bank) => bank.id === editBankId,
+																)?.name ?? '')
+																: ''
+														}
+														className={inputField}
+													/>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{bankOptions.length > 0 ? (
+															bankOptions.map((bank) => (
+																<SelectItem
+																	key={bank.id}
+																	label={bank.name}
+																	value={bank.id}
+																/>
+															))
+														) : (
+															<SelectItem
+																label="Nenhum banco disponível"
+																value="no-bank"
+																isDisabled
+															/>
+														)}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+										<VStack className="mb-1">
+											<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												Descrição
+											</Text>
+											<Textarea
+												className={textareaContainerClassName}
+												isDisabled={isSavingEdit}
+											>
+												<TextareaInput
+													value={editDescription}
+													onChangeText={setEditDescription}
+													placeholder="Adicione um contexto para este investimento"
+													className={inputField}
+												/>
+											</Textarea>
+										</VStack>
 									</VStack>
 								</ScrollView>
 							</ModalBody>

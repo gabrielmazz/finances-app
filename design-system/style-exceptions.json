@@ -1,0 +1,90 @@
+[
+  {
+    "files": ["components/ui/gluestack-ui-provider/index.tsx", "components/ui/gluestack-ui-provider/config.ts"],
+    "reason": "O provider Gluestack injeta variáveis CSS por meio da propriedade style.",
+    "limitation": "A API do provider não aceita as variáveis de tema por className.",
+    "risk": "Alterações no formato das variáveis podem quebrar claro/escuro.",
+    "alternative": "Manter apenas a geometria em NativeWind e os valores do provider neste adaptador.",
+    "owner": "design-system"
+  },
+  {
+    "files": ["components/mobile/recurring/date-calendar.native.tsx", "components/web/recurring/date-calendar.web.tsx"],
+    "reason": "O ScrollView do modal de resumo recebe contentContainerStyle pela API do React Native.",
+    "limitation": "A composição do conteúdo interno não possui contentContainerClassName compatível em todas as plataformas.",
+    "risk": "O conteúdo pode voltar a ocupar toda a altura se a API da biblioteca mudar.",
+    "alternative": "Migrar as demais propriedades estáticas para classes e manter somente as propriedades de layout não suportadas.",
+    "owner": "recurring-ui"
+  },
+  {
+    "files": ["components/mobile/feedback/notifier-alert.native.tsx"],
+    "reason": "react-native-notifier recebe containerStyle e cores resolvidas por uma API imperativa.",
+    "limitation": "A biblioteca não oferece className/NativeWind na configuração de Notifier.showNotification.",
+    "risk": "O toast pode divergir dos tokens se o adaptador for ignorado.",
+    "alternative": "Manter tokens resolvidos e classes nos elementos renderizados pelo componente.",
+    "owner": "feedback-ui"
+  },
+  {
+    "files": ["components/shared/banks/bank-card-surface.tsx"],
+    "reason": "A cor do cartão é um dado do banco e alimenta gradientes SVG e sombra nativa em runtime.",
+    "limitation": "Cores arbitrárias de dados não podem ser enumeradas como classes Tailwind.",
+    "risk": "Uma cor escolhida pelo usuário pode produzir contraste insuficiente.",
+    "alternative": "O construtor de paleta calcula luminância e mantém toda a geometria em NativeWind.",
+    "owner": "banking-ui"
+  },
+  {
+    "files": ["components/web/visuals/Grainient.jsx", "components/web/visuals/Grainient.css"],
+    "reason": "O efeito WebGL exige uniforms numéricos, canvas e clip-path controlados pela API OGL.",
+    "limitation": "Uniforms e dimensões do canvas não são representáveis por classes.",
+    "risk": "Uso excessivo de GPU ou contraste variável.",
+    "alternative": "Classes controlam o container; o componente respeita reduced motion e tokens recebidos.",
+    "owner": "web-visuals"
+  },
+  {
+    "files": ["components/web/visuals/StrokeText.jsx", "components/web/visuals/StrokeText.css"],
+    "reason": "A animação de traço depende de atributos SVG, medidas de texto e timeline GSAP.",
+    "limitation": "Atributos SVG calculados e a variável de altura não são classes estáticas.",
+    "risk": "Movimento excessivo e diferenças entre fontes.",
+    "alternative": "Classes controlam layout e tipografia; JS fica restrito à animação e respeita reduced motion.",
+    "owner": "web-visuals"
+  },
+  {
+    "files": ["components/web/visuals/Carousel.jsx", "components/web/visuals/Carousel.css"],
+    "reason": "O carrossel legado usa Embla e propriedades CSS calculadas para perspectiva e posicionamento.",
+    "limitation": "Transformações por índice e variáveis CSS mudam continuamente em runtime.",
+    "risk": "CSS local pode divergir da escala canônica.",
+    "alternative": "Migrar valores estáticos para tokens e manter somente transformações calculadas.",
+    "owner": "web-visuals"
+  },
+  {
+    "files": ["components/web/navigation/StaggeredMenu.jsx", "components/web/navigation/StaggeredMenu.css"],
+    "reason": "O menu animado usa seletores DOM e estados data controlados por uma timeline GSAP.",
+    "limitation": "Parte da animação depende de regras descendentes e variáveis CSS coordenadas com consultas DOM.",
+    "risk": "A folha local pode criar uma segunda paleta.",
+    "alternative": "Cores entram por tokens; novas regras estáticas devem usar Tailwind e a folha não pode ganhar !important.",
+    "owner": "navigation-ui"
+  },
+  {
+    "files": ["components/uiverse/**/*.tsx"],
+    "reason": "Gráficos Mantine, Recharts e Expo DOM recebem cores, dimensões e conteúdo de iframe por propriedades JavaScript.",
+    "limitation": "As bibliotecas não resolvem classes NativeWind para todos os elementos internos.",
+    "risk": "Paletas e foco podem divergir entre gráficos.",
+    "alternative": "Usar tokens resolvidos do design system e classes nos containers.",
+    "owner": "data-visualization"
+  },
+  {
+    "files": ["design-system/mantine.ts"],
+    "reason": "Mantine expõe classNames, CSS variables e styles para partes internas que não recebem classes NativeWind diretamente.",
+    "limitation": "Tabs, NumberInput, TagsInput e Pill resolvem estados internos por contratos próprios da biblioteca.",
+    "risk": "Uma atualização do Mantine pode renomear slots ou variáveis.",
+    "alternative": "Concentrar o adaptador em um único módulo e consumir os mesmos tokens semânticos do Tailwind.",
+    "owner": "design-system"
+  },
+  {
+    "files": ["app.json"],
+    "reason": "O plugin nativo do DateTimePicker exige cores Android serializadas no manifesto Expo.",
+    "limitation": "O arquivo JSON de configuração não pode importar tokens TypeScript nem interpretar classes.",
+    "risk": "A paleta nativa pode divergir se esses valores forem alterados isoladamente.",
+    "alternative": "Manter os valores espelhados na documentação e revisar o manifesto junto com tokens.ts.",
+    "owner": "native-platform"
+  }
+]

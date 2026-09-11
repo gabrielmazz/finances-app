@@ -4,7 +4,8 @@ import { View } from 'react-native';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
-import { WEB_DASHBOARD_CLASS_NAMES } from '@/hooks/useScreenStyle';
+import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
+import { LUMUS_FONT_STACKS, LUMUS_HERO_COLORS } from '@/design-system/tokens';
 
 type WebScreenHeroProps = {
 	title: string;
@@ -19,19 +20,13 @@ export default function WebScreenHero({
 	isDarkMode,
 	topPadding,
 }: WebScreenHeroProps) {
+	const heroColors = isDarkMode ? LUMUS_HERO_COLORS.dark : LUMUS_HERO_COLORS.light;
+
 	return (
 		<>
 			<View
 				pointerEvents="none"
-				style={{
-					position: 'absolute',
-					top: 0,
-					left: 0,
-					width: '100%',
-					height: '100%',
-					opacity: 0.62,
-					zIndex: 1,
-				}}
+				className="absolute inset-0 z-content h-full w-full opacity-hero"
 				aria-hidden
 			>
 				<Grainient
@@ -48,9 +43,9 @@ export default function WebScreenHero({
 					grainAnimated
 					contrast={1.08}
 					zoom={0.9}
-					color1={isDarkMode ? '#f8bd0c' : '#FFE58A'}
-					color2={isDarkMode ? '#facc15' : '#D97706'}
-					color3={isDarkMode ? '#fefe59' : '#EAB308'}
+					color1={heroColors[0]}
+					color2={heroColors[1]}
+					color3={heroColors[2]}
 				/>
 			</View>
 			<div
@@ -59,15 +54,15 @@ export default function WebScreenHero({
 			>
 				<StrokeText
 					text={title}
-					strokeColor="#FFFFFF"
-					fillColor="#FFFFFF"
+					strokeColor={LUMUS_HERO_COLORS.text}
+					fillColor={LUMUS_HERO_COLORS.text}
 					strokeWidth={1.5}
 					drawDuration={2}
 					fillDelay={1}
 					fontSize={40}
 					fontWeight={600}
 					letterSpacing={-0.5}
-					fontFamily={'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'}
+					fontFamily={LUMUS_FONT_STACKS.sans}
 					ease="power3.out"
 					trigger="mount"
 					className="block w-full max-w-[620px] text-center text-[25px] font-extrabold text-white"

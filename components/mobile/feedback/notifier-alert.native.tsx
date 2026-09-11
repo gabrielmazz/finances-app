@@ -2,7 +2,6 @@ import React from 'react';
 import {
 	Platform,
 	StatusBar,
-	StyleSheet,
 	Text,
 	View,
 	type StyleProp,
@@ -11,6 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Notifier, type QueueMode } from 'react-native-notifier';
+
+import { NATIVE_LIBRARY_STYLES } from '@/design-system/native-styles';
+import { LUMUS_ALERT_COLORS } from '@/design-system/tokens';
 
 export type NotifierAlertType = 'error' | 'warn' | 'info' | 'success';
 
@@ -50,24 +52,24 @@ export type ShowNotifierAlertParams = {
 
 const ALERT_VARIANTS: Record<NotifierAlertType, NotifierAlertVariant> = {
 	error: {
-		backgroundColor: '#DC2626',
-		statusBarColor: '#DC2626',
-		textColor: '#FFFFFF',
+		backgroundColor: LUMUS_ALERT_COLORS.error,
+		statusBarColor: LUMUS_ALERT_COLORS.error,
+		textColor: LUMUS_ALERT_COLORS.text,
 	},
 	warn: {
-		backgroundColor: '#D97706',
-		statusBarColor: '#D97706',
-		textColor: '#FFFFFF',
+		backgroundColor: LUMUS_ALERT_COLORS.warn,
+		statusBarColor: LUMUS_ALERT_COLORS.warn,
+		textColor: LUMUS_ALERT_COLORS.text,
 	},
 	info: {
-		backgroundColor: '#2563EB',
-		statusBarColor: '#2563EB',
-		textColor: '#FFFFFF',
+		backgroundColor: LUMUS_ALERT_COLORS.info,
+		statusBarColor: LUMUS_ALERT_COLORS.info,
+		textColor: LUMUS_ALERT_COLORS.text,
 	},
 	success: {
-		backgroundColor: '#16A34A',
-		statusBarColor: '#16A34A',
-		textColor: '#FFFFFF',
+		backgroundColor: LUMUS_ALERT_COLORS.success,
+		statusBarColor: LUMUS_ALERT_COLORS.success,
+		textColor: LUMUS_ALERT_COLORS.text,
 	},
 };
 
@@ -77,33 +79,6 @@ const DEFAULT_TITLES: Record<NotifierAlertType, string> = {
 	info: 'Aviso',
 	success: 'Sucesso',
 };
-
-const styles = StyleSheet.create({
-	safeArea: {
-		width: '100%',
-	},
-	content: {
-		marginHorizontal: 10,
-		marginBottom: 10,
-		paddingHorizontal: 16,
-		paddingBottom: 12,
-	},
-	title: {
-		fontSize: 15,
-		lineHeight: 22,
-		fontWeight: '700',
-		textAlign: 'center',
-	},
-	description: {
-		fontSize: 14,
-		lineHeight: 22,
-		textAlign: 'center',
-	},
-	notifierContainer: {
-		zIndex: 9999,
-		elevation: 9999,
-	},
-});
 
 export const restoreNotifierAlertStatusBar = (isDarkMode = false) => {
 	StatusBar.setBarStyle(isDarkMode ? 'light-content' : 'dark-content', true);
@@ -129,18 +104,16 @@ export const NotifierAlert: React.FC<NotifierAlertProps> = ({
 	return (
 		<SafeAreaView
 			edges={['top']}
-			style={[
-				styles.safeArea,
-				{
-					backgroundColor: backgroundColor ?? variant.backgroundColor,
-					paddingTop: extraTopPadding,
-				},
-			]}
+			className="w-full"
+			style={{
+				backgroundColor: backgroundColor ?? variant.backgroundColor,
+				paddingTop: extraTopPadding,
+			}}
 		>
-			<View style={[styles.content, contentStyle]}>
-				{!!title && <Text style={[styles.title, { color: resolvedTextColor }, titleStyle]}>{title}</Text>}
+			<View className="mx-2.5 mb-2.5 px-4 pb-3" style={contentStyle}>
+				{!!title && <Text className="text-label text-center font-bold" style={[{ color: resolvedTextColor }, titleStyle]}>{title}</Text>}
 				{!!description && (
-					<Text style={[styles.description, { color: resolvedTextColor }, descriptionStyle]}>
+					<Text className="text-body-sm text-center" style={[{ color: resolvedTextColor }, descriptionStyle]}>
 						{description}
 					</Text>
 				)}
@@ -179,7 +152,7 @@ export const showNotifierAlert = ({
 			}
 		},
 		onHidden: () => restoreNotifierAlertStatusBar(isDarkMode),
-		containerStyle: styles.notifierContainer,
+		containerStyle: NATIVE_LIBRARY_STYLES.notifierContainer,
 		Component: NotifierAlert,
 		componentProps: {
 			type,

@@ -16,6 +16,11 @@ import { PieChart } from 'react-native-gifted-charts';
 import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
 import '@mantine/core/styles.css';
 import { MantineProvider, Tabs as MantineTabs } from '@mantine/core';
+import {
+	getMantineTabsStyles,
+	MANTINE_TABS_CLASS_NAMES,
+	MANTINE_TABS_CSS_VARIABLES,
+} from '@/design-system/mantine';
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
@@ -448,75 +453,9 @@ export default function CategoryAnalysisScreenWeb() {
 		},
 		[canSelectExpense, canSelectGain],
 	);
-	const movementTabsActiveColor = '#FACC15'; // bg-yellow-400
 	const movementTabsStyles = React.useMemo(
-		() => {
-			const activeBackground = movementTabsActiveColor;
-			const tabSurface = 'transparent';
-			const inactiveHoverSurface = isDarkMode ? 'rgba(148, 163, 184, 0.12)' : '#FFFFFF';
-			const activeShadow = '0 6px 18px rgba(250, 204, 21, 0.22)';
-
-			return {
-				list: {
-					gap: 6,
-					padding: 5,
-					border: 'none',
-					borderRadius: 18,
-					backgroundColor: tabSurface,
-				},
-				tab: {
-					position: 'relative',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-					minHeight: 46,
-					paddingInline: 16,
-					border: 'none',
-					borderRadius: 13,
-					color: '#FFFFFF',
-					fontSize: 14,
-					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-					fontWeight: 600,
-					letterSpacing: '0.01em',
-					lineHeight: 1.2,
-					transition:
-						'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease',
-					'&[data-active]': {
-						backgroundColor: activeBackground,
-						border: 'none',
-						boxShadow: activeShadow,
-						color: '#FFFFFF',
-					},
-					'&:hover:not([data-disabled]):not([data-active])': {
-						backgroundColor: inactiveHoverSurface,
-						color: '#FFFFFF',
-					},
-					'&:focus-visible': {
-						outline: `2px solid ${activeBackground}`,
-						outlineOffset: 2,
-					},
-					'&[data-disabled]': {
-						cursor: 'not-allowed',
-						opacity: 0.4,
-					},
-				},
-				tabSection: {
-					position: 'absolute',
-					insetInlineStart: 16,
-					display: 'inline-flex',
-					color: 'inherit',
-					pointerEvents: 'none',
-				},
-				tabLabel: {
-					display: 'block',
-					width: '100%',
-					textAlign: 'center',
-					color: 'inherit',
-					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-				},
-			} as const;
-		},
-		[isDarkMode, movementTabsActiveColor, palette.subtitle, palette.title],
+		() => getMantineTabsStyles(isDarkMode),
+		[isDarkMode],
 	);
 	const activeBreakdown = React.useMemo(() => {
 		if (!selectedReport) {
@@ -872,8 +811,8 @@ export default function CategoryAnalysisScreenWeb() {
 									</View>
 								) : (
 									<VStack className="gap-5">
-						<View className={`${notTintedCardClassName} w-full p-1.5`}>
-							<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+										<View className={`${notTintedCardClassName} w-full p-1.5`}>
+											<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
 												<MantineTabs
 													value={selectedType}
 													onChange={value => {
@@ -884,14 +823,9 @@ export default function CategoryAnalysisScreenWeb() {
 													variant="pills"
 													radius="md"
 													color="yellow"
-													style={
-														{
-															'--tabs-color': movementTabsActiveColor,
-															'--tabs-text-color': '#FFFFFF',
-														} as React.CSSProperties
-													}
-													classNames={{ root: 'w-full', list: 'w-full', tab: 'flex-1 justify-center' }}
-												styles={movementTabsStyles}
+													style={MANTINE_TABS_CSS_VARIABLES}
+													classNames={MANTINE_TABS_CLASS_NAMES}
+													styles={movementTabsStyles}
 												>
 													<MantineTabs.List grow aria-label="Tipo de movimento">
 														{ANALYSIS_MOVEMENT_TYPE_OPTIONS.map(option => {
@@ -925,8 +859,8 @@ export default function CategoryAnalysisScreenWeb() {
 														})}
 													</MantineTabs.List>
 												</MantineTabs>
-							</MantineProvider>
-						</View>
+											</MantineProvider>
+										</View>
 
 										<View className="w-full">
 											<TagActionsheetSelector

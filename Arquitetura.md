@@ -32,7 +32,8 @@ O vault é a **fonte de verdade** do projeto. Toda feature, decisão arquitetura
 | Trabalhar em navegação/rotas | `Navegação.md` |
 | Trabalhar em componentes | `Componentes UI.md` |
 | Organizar componentes por sistema | `Componentes por Sistema.md`, `Componentes UI.md` |
-| Trabalhar em temas/estilos | `Sistema de Temas.md`, `Hooks Customizados.md` |
+| Trabalhar em temas/estilos | `Auditoria de Design.md`, `Sistema de Temas.md`, `Hooks Customizados.md` |
+| Auditar Tailwind, acessibilidade ou responsividade | `Auditoria de Design.md`, `Componentes UI.md`, `Versão Web.md` |
 | Trabalhar em notificações | `Notificações.md` |
 | Configurar Firebase | `Firebase Config.md` |
 | Trabalhar na versão Web ou Hosting | `Versão Web.md`, `Navegação.md`, `Firebase Config.md`, `Notificações.md`, `Componentes UI.md` |
@@ -113,7 +114,7 @@ Firebase (Auth + Firestore + AI Logic)
 | Hosting Web | Firebase Hosting do projeto `finances-app-e8685` |
 | Backend | Firebase 12.16 (Auth + Firestore + AI Logic web) |
 | IA Android | React Native Firebase 25.1 (AI + App Check + Remote Config) |
-| Design System | Gluestack UI + NativeWind (Tailwind) |
+| Design System | Tailwind 3 + NativeWind 4 + Gluestack UI, com tokens semânticos em `design-system/` |
 | Linguagem | TypeScript 5.9 (strict mode) |
 | React | 19.1.0 |
 
@@ -128,6 +129,7 @@ backend/       → Firebase Functions confiáveis do razão financeiro
 components/
   ui/          → Primitivos Gluestack UI
   uiverse/     → Componentes customizados do domínio
+design-system/ → Tokens, contratos de classe, adaptadores visuais, exceções e baseline de dívida
 contexts/      → AuthContext, ThemeContext, ValueVisibilityContext
 services/      → Gateways, comandos e relatórios do Assistente Lumus
 hooks/         → useHomeScreenData, useScreenStyle

@@ -3,18 +3,18 @@ tags: [componentes, ui, gluestack, nativewind, design-system, web, responsivo]
 relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]], [[Organização do Código]], [[Componentes por Sistema]]
 status: ativo
 tipo: componente
-versao: 2.4.8
+versao: 2.5.0
 ---
 
 # Componentes UI
 
-Design system do app composto por dois grupos: componentes base do **Gluestack UI** estilizados com **NativeWind** e componentes customizados (**uiverse**) para funcionalidades específicas do domínio. Os contratos lógicos continuam em `components/uiverse/`; as implementações exclusivas de plataforma ficam organizadas em `components/web/` e `components/mobile/`, separadas por sistema funcional.
+O design system tem uma fundação canônica em `tailwind.config.js` e `design-system/`, primitives do **Gluestack UI** estilizados com **NativeWind** e componentes de domínio em `components/uiverse/`. Telas consomem tokens, contratos de classe e variantes compartilhadas; não definem uma linguagem visual própria. Exceções para APIs sem `className` usam adaptadores registrados em `design-system/style-exceptions.json`.
 
 ## Resolução por plataforma
 
 As telas importam o caminho lógico sem extensão. Os adaptadores em `components/uiverse/` encaminham automaticamente para `components/web/` no navegador e `components/mobile/` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport mobile para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.
 
-Os componentes com variantes independentes preservam os mesmos tipos públicos, callbacks e regras de privacidade: `date-picker`, `date-calendar`, `bank-actionsheet-selector`, `bank-card-surface`, `tag-actionsheet-selector`, `category-availability-selector`, `loader`, `screen-dismiss-keyboard`, `web-app-shell`, `assistant-cards` e `assistant-route-boundary`. O Web pode usar controles DOM/Mantine ou comportamento de foco próprio em `components/web/`; o mobile mantém suas interações nativas em `components/mobile/`. Os arquivos homônimos de `components/uiverse/` são adaptadores de resolução e não acessam Firebase nem alteram cálculos financeiros.
+Os componentes com variantes independentes preservam os mesmos tipos públicos, callbacks e regras de privacidade: `date-picker`, `date-calendar`, `bank-actionsheet-selector`, `tag-actionsheet-selector`, `category-availability-selector`, `loader`, `screen-dismiss-keyboard`, `web-app-shell`, `assistant-cards` e `assistant-route-boundary`. O cartão bancário usa a implementação compartilhada em `components/shared/banks/bank-card-surface.tsx`, reexportada pelos adaptadores de plataforma. O Web pode usar controles DOM/Mantine ou comportamento de foco próprio em `components/web/`; o mobile mantém suas interações nativas em `components/mobile/`. Os arquivos homônimos de `components/uiverse/` são adaptadores de resolução e não acessam Firebase nem alteram cálculos financeiros.
 
 Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira deliberada de Expo DOM. Eles recebem props serializáveis e executam a mesma implementação em Web e WebView nativo; criar uma cópia nativa desses módulos reduziria a paridade documentada sem resolver uma incompatibilidade de API.
 
@@ -25,7 +25,7 @@ Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira del
 | `uiverse/navigation/` | Navegação e shell Web | `navigator`, `web-app-shell`, `web-route-transition`, `web-screen-hero` |
 | `uiverse/shared/` | Infraestrutura compartilhada | `loader`, `screen-dismiss-keyboard`, `date-picker` |
 | `uiverse/feedback/` | Feedback in-app | `notifier-alert`, `notifier-boundary` |
-| `uiverse/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` |
+| `uiverse/banks/` e `shared/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` compartilhado |
 | `uiverse/categories/` | Categorias e disponibilidade | `tag-actionsheet-selector`, `category-availability-selector` |
 | `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart`, `mandatory-expenses-radar-chart`, `mandatory-expenses-scatter-chart` |
 | `uiverse/dashboard/` | Dashboard Home | gráficos de resumo e atividade da Home |
@@ -152,7 +152,7 @@ graph LR
 
 ## Integrações
 
-- [[Sistema de Temas]] — `GluestackUIProvider` aplica o tema; `useScreenStyles` retorna estilos condicionais
+- [[Sistema de Temas]] — `GluestackUIProvider` aplica o modo; Tailwind e `design-system/tokens.ts` definem a apresentação, enquanto `useScreenStyles` expõe apenas dados de runtime necessários
 - [[Autenticação]] — `LoginScreen.tsx` e `.web.tsx` concentram apresentação, formulário, validação, throttle e feedback do Login
 - [[Notificações]] — `notifier-alert` exibe avisos in-app e `date-calendar` apresenta o resumo dos lembretes locais
 - [[Gerenciamento de Bancos]] — `bank-card-surface` exibe cards de bancos no carrossel
@@ -172,7 +172,9 @@ graph LR
 ## Configuração
 
 - `global.css` — Entrada mínima do Tailwind 3 com `base`, `components` e `utilities`
-- `tailwind.config.js` — Conteúdo escaneado, preset NativeWind e tokens/safelist do Gluestack
+- `tailwind.config.js` — Conteúdo escaneado, preset NativeWind e escalas semânticas de cor, tipografia, espaço, raio, sombra, dimensões e movimento
+- `design-system/` — Contratos de classe, tokens resolvidos, adaptadores Mantine/nativos, exceções e baseline de dívida por arquivo
+- `npm run lint:styles` — Bloqueia novos `StyleSheet.create`, `!important`, `transition-all`, utilitários forçados e qualquer aumento de `style`, hex, valor arbitrário ou uso do hook por arquivo
 - `metro.config.js` — Combina `withNativeWind({ input: './global.css' })` com o transformer de SVG e extensão CJS
 - `babel.config.js` — Mantém somente `babel-preset-expo`, `nativewind/babel`, o alias `@`/`tailwind.config` e `react-native-worklets/plugin`
 - `nativewind@4.2.1`, `tailwindcss@3.4.18`, `@gluestack-ui/core@3.0.12`, `@gluestack-ui/utils@3.0.12`, `@react-stately/color@3.9.2` e `@react-stately/utils@3.10.8` ficam em versões exatas para conservar o toolchain já compatível com Expo 54

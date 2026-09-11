@@ -19,6 +19,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@/utils/reactNativeCompat';
 import '@mantine/core/styles.css';
 import { MantineProvider, Pill, TagsInput, Tabs as MantineTabs, type OptionsFilter } from '@mantine/core';
+import {
+	getMantineTabsStyles,
+	getMantineTagsInputStyles,
+	MANTINE_TABS_CLASS_NAMES,
+	MANTINE_TABS_CSS_VARIABLES,
+	MANTINE_SELECTED_PILL_SLOT_STYLES,
+	MANTINE_SELECTED_PILL_STYLE,
+} from '@/design-system/mantine';
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 // Componentes de UI
 import { Heading } from '@/components/ui/heading';
@@ -206,10 +215,10 @@ const movementFilterOptions: Array<{
 	label: string;
 	icon: typeof ChevronsUpDownIcon;
 }> = [
-	{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
-	{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
-	{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
-];
+		{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
+		{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
+		{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
+	];
 
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 	{ value: 'anytime', label: redemptionTermLabels.anytime },
@@ -815,7 +824,7 @@ const buildPeriodSummaryPdfHtml = ({
 						</div>
 
 						${movements.length > 0
-							? `
+			? `
 								<table>
 									<thead>
 										<tr>
@@ -831,7 +840,7 @@ const buildPeriodSummaryPdfHtml = ({
 									</tbody>
 								</table>
 							`
-							: '<div class="empty-state">Nenhuma movimentação foi registrada para o período e filtros informados.</div>'}
+			: '<div class="empty-state">Nenhuma movimentação foi registrada para o período e filtros informados.</div>'}
 					</section>
 
 					<div class="footer">
@@ -1189,8 +1198,8 @@ export default function BankMovementsScreen() {
 		() => ({
 			selectedBackground: '#FACC15',
 			selectedBorder: '#FACC15',
-			selectedIconClassName: isDarkMode ? 'text-slate-900' : 'text-white',
-			selectedTextClassName: isDarkMode ? 'text-slate-900' : 'text-white',
+			selectedIconClassName: 'text-lumus-on-accent',
+			selectedTextClassName: 'text-lumus-on-accent',
 			unselectedBackground: isDarkMode ? 'transparent' : '#FFFFFF',
 			unselectedBorder: isDarkMode ? '#1E293B' : '#E2E8F0',
 			unselectedIconClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
@@ -1198,75 +1207,9 @@ export default function BankMovementsScreen() {
 		}),
 		[isDarkMode],
 	);
-	const movementFilterTabsActiveColor = '#FACC15'; // bg-yellow-400
 	const movementFilterTabsStyles = React.useMemo(
-		() => {
-			const activeBackground = movementFilterTabsActiveColor;
-			const tabSurface = 'transparent';
-			const inactiveHoverSurface = isDarkMode ? 'rgba(148, 184, 156, 0.12)' : '#FFFFFF';
-			const activeShadow = '0 6px 18px rgba(250, 204, 21, 0.22)';
-
-			return {
-				list: {
-					gap: 6,
-					padding: 5,
-					border: 'none',
-					borderRadius: 18,
-					backgroundColor: tabSurface,
-				},
-				tab: {
-					position: 'relative',
-					display: 'flex',
-					alignItems: 'center',
-					justifyContent: 'center',
-					minHeight: 46,
-					paddingInline: 16,
-					border: 'none',
-					borderRadius: 13,
-					color: '#FFFFFF',
-					fontSize: 14,
-					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-					fontWeight: 600,
-					letterSpacing: '0.01em',
-					lineHeight: 1.2,
-					transition:
-						'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease',
-					'&[data-active]': {
-						backgroundColor: activeBackground,
-						border: 'none',
-						boxShadow: activeShadow,
-						color: '#FFFFFF',
-					},
-					'&:hover:not([data-disabled]):not([data-active])': {
-						backgroundColor: inactiveHoverSurface,
-						color: '#FFFFFF',
-					},
-					'&:focus-visible': {
-						outline: `2px solid ${activeBackground}`,
-						outlineOffset: 2,
-					},
-					'&[data-disabled]': {
-						cursor: 'not-allowed',
-						opacity: 0.4,
-					},
-				},
-				tabSection: {
-					position: 'absolute',
-					insetInlineStart: 16,
-					display: 'inline-flex',
-					color: 'inherit',
-					pointerEvents: 'none',
-				},
-				tabLabel: {
-					display: 'block',
-					width: '100%',
-					textAlign: 'center',
-					color: 'inherit',
-					fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-				},
-			} as const;
-		},
-		[isDarkMode, movementFilterTabsActiveColor],
+		() => getMantineTabsStyles(isDarkMode),
+		[isDarkMode],
 	);
 
 	const periodSummaryPalette = React.useMemo(
@@ -1285,82 +1228,8 @@ export default function BankMovementsScreen() {
 		[isDarkMode],
 	);
 	const tagInputStyles = React.useMemo(
-		() => ({
-			root: {
-				width: '100%',
-			},
-			input: {
-				minHeight: 48,
-				borderRadius: 16,
-				borderColor: periodSummaryPalette.neutralBorder,
-				backgroundColor: 'transparent',
-				color: periodSummaryPalette.title,
-				// Mantém a altura base alinhada ao `h-12` dos inputs Web de cadastro.
-				padding: 3,
-				transition: 'border-color 150ms ease, box-shadow 150ms ease',
-				'&:focus-within': {
-					borderColor: '#FFE000',
-					boxShadow: '0 0 0 2px rgba(255, 224, 0, 0.2)',
-				},
-			},
-			inputField: {
-				minHeight: 36,
-				color: periodSummaryPalette.title,
-				fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-				fontSize: 14,
-				lineHeight: '20px',
-				'&::placeholder': {
-					color: '#64748B',
-					opacity: 1,
-				},
-			},
-			pillsList: {
-				gap: 6,
-				padding: 0,
-			},
-			pill: {
-				display: 'inline-flex',
-				alignItems: 'center',
-				justifyContent: 'center',
-				borderRadius: 999,
-				backgroundColor: '#FACC15',
-				color: '#FFFFFF',
-				fontSize: 12,
-				fontWeight: 700,
-				textAlign: 'center',
-			},
-			dropdown: {
-				borderRadius: 16,
-				borderColor: periodSummaryPalette.neutralBorder,
-				backgroundColor: isDarkMode ? '#081120' : '#FFFFFF',
-				boxShadow: '0 12px 30px rgba(2, 6, 23, 0.22)',
-				padding: 6,
-				overflow: 'hidden',
-			},
-			option: {
-				display: 'flex',
-				alignItems: 'center',
-				borderRadius: 10,
-				color: periodSummaryPalette.title,
-				fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-				fontSize: 14,
-				minHeight: 42,
-				padding: '10px 12px',
-				transition: 'background-color 150ms ease, color 150ms ease',
-				'&[data-combobox-selected]': {
-					backgroundColor: isDarkMode ? 'rgba(250, 204, 21, 0.16)' : '#FEF9C3',
-					color: periodSummaryPalette.title,
-				},
-				'&:hover': {
-					backgroundColor: isDarkMode ? 'rgba(148, 163, 184, 0.12)' : '#F8FAFC',
-				},
-				'&:focus-visible': {
-					outline: '2px solid #FFE000',
-					outlineOffset: -2,
-				},
-			},
-		}) as const,
-		[isDarkMode, periodSummaryPalette.neutralBorder, periodSummaryPalette.subtitle, periodSummaryPalette.title],
+		() => getMantineTagsInputStyles(isDarkMode),
+		[isDarkMode],
 	);
 
 	const getMovementTone = React.useCallback(
@@ -1840,8 +1709,8 @@ export default function BankMovementsScreen() {
 						: null,
 				investmentSyncReason:
 					syncEvent?.reason === 'manual' ||
-					syncEvent?.reason === 'deposit' ||
-					syncEvent?.reason === 'withdrawal'
+						syncEvent?.reason === 'deposit' ||
+						syncEvent?.reason === 'withdrawal'
 						? syncEvent.reason
 						: 'manual',
 			}));
@@ -2852,9 +2721,9 @@ export default function BankMovementsScreen() {
 			? 'transferência'
 			: pendingAction.movement.type === 'sync'
 				? 'sincronização'
-			: pendingAction.movement.type === 'gain'
-				? 'ganho'
-				: 'despesa';
+				: pendingAction.movement.type === 'gain'
+					? 'ganho'
+					: 'despesa';
 
 		if (pendingAction.type === 'edit-standard-movement') {
 			return {
@@ -2964,38 +2833,38 @@ export default function BankMovementsScreen() {
 							className="flex-1"
 							style={{ backgroundColor: surfaceBackground, position: 'relative' }}
 						>
-						<View
-							className={`absolute top-0 left-0 right-0 ${cardBackground}`}
-							style={{ height: heroHeight }}
-						>
-							<RNImage
-								source={LoginWallpaper}
-								accessible={false}
-								style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}
-								resizeMode="cover"
-							/>
-
-							<WebScreenHero
-								title={screenTitle}
-								Illustration={BankMovementsIllustration}
-								isDarkMode={isDarkMode}
-								topPadding={insets.top + 24}
-							/>
-						</View>
-
-						<View
-							className={`flex-1 rounded-t-3xl ${cardBackground} ${bankMovementsSheetClassName}`}
-							style={{
-								marginTop: heroHeight - 64,
-								backgroundColor: surfaceBackground,
-								position: 'relative',
-								zIndex: 3,
-							}}
-						>
-							<VStack
-								className={`justify-between ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding} ${webDashboardClassNames.bankMovementsContentPadding}`}
-								style={{ marginTop: 0 }}
+							<View
+								className={`absolute top-0 left-0 right-0 ${cardBackground}`}
+								style={{ height: heroHeight }}
 							>
+								<RNImage
+									source={LoginWallpaper}
+									accessible={false}
+									style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}
+									resizeMode="cover"
+								/>
+
+								<WebScreenHero
+									title={screenTitle}
+									Illustration={BankMovementsIllustration}
+									isDarkMode={isDarkMode}
+									topPadding={insets.top + 24}
+								/>
+							</View>
+
+							<View
+								className={`flex-1 rounded-t-3xl ${cardBackground} ${bankMovementsSheetClassName}`}
+								style={{
+									marginTop: heroHeight - 64,
+									backgroundColor: surfaceBackground,
+									position: 'relative',
+									zIndex: 3,
+								}}
+							>
+								<VStack
+									className={`justify-between ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding} ${webDashboardClassNames.bankMovementsContentPadding}`}
+									style={{ marginTop: 0 }}
+								>
 
 									<VStack className="w-full mb-4">
 										<VStack className="gap-2">
@@ -3022,7 +2891,7 @@ export default function BankMovementsScreen() {
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data inicial</Text>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data inicial</Text>
 													<DatePickerField
 														value={startDateInput}
 														onChange={formatted => handleDateSelect(formatted, 'start')}
@@ -3034,7 +2903,7 @@ export default function BankMovementsScreen() {
 												</VStack>
 
 												<VStack className="flex-1">
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data final</Text>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data final</Text>
 													<DatePickerField
 														value={endDateInput}
 														onChange={formatted => handleDateSelect(formatted, 'end')}
@@ -3048,156 +2917,135 @@ export default function BankMovementsScreen() {
 											<VStack>
 												<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
 													Tipo de movimentação
-										</Text>
-						<View className={`${notTintedCardClassName} w-full p-1.5`}>
-							<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-											<MantineTabs
-												value={movementFilter}
-												onChange={value => {
-													if (value === 'all' || value === 'gain' || value === 'expense') {
-														setMovementFilter(value);
-													}
-											}}
-												variant="pills"
-												radius="md"
-												color="yellow"
-												style={
-													{
-														'--tabs-color': movementFilterTabsActiveColor,
-														'--tabs-text-color': '#FFFFFF',
-													} as React.CSSProperties
-												}
-												classNames={{ root: 'w-full', list: 'w-full', tab: 'flex-1 justify-center' }}
-												styles={movementFilterTabsStyles}
-											>
-												<MantineTabs.List grow aria-label="Tipo de movimentação">
-													{movementFilterOptions.map(option => {
-														const isSelected = movementFilter === option.value;
-
-														return (
-															<MantineTabs.Tab
-																key={option.value}
-																value={option.value}
-																disabled={isLoading}
-																leftSection={
-																	<Icon
-																		as={option.icon}
-																		size="sm"
-																		className={
-																			isSelected
-																				? movementFilterPalette.selectedIconClassName
-																				: movementFilterPalette.unselectedIconClassName
-																		}
-																	/>
+												</Text>
+												<View className={`${notTintedCardClassName} w-full p-1.5`}>
+													<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+														<MantineTabs
+															value={movementFilter}
+															onChange={value => {
+																if (value === 'all' || value === 'gain' || value === 'expense') {
+																	setMovementFilter(value);
 																}
-															>
-																{option.label}
-															</MantineTabs.Tab>
-														);
-													})}
-												</MantineTabs.List>
-											</MantineTabs>
-							</MantineProvider>
-						</View>
-									</VStack>
+															}}
+															variant="pills"
+															radius="md"
+															color="yellow"
+															style={MANTINE_TABS_CSS_VARIABLES}
+															classNames={MANTINE_TABS_CLASS_NAMES}
+															styles={movementFilterTabsStyles}
+														>
+															<MantineTabs.List grow aria-label="Tipo de movimentação">
+																{movementFilterOptions.map(option => {
+																	const isSelected = movementFilter === option.value;
 
-												<VStack>
-															<HStack className="mb-2 items-center justify-between gap-3">
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Tags</Text>
-					<Text className={`${helperText} text-xs`}>
-																{selectedTagFilterOptions.length === 1
-																	? `${selectedTagFilterOptions[0].movementCount} item(ns)`
-																	: selectedTagFilterOptions.length > 1
-																		? `${selectedTagFilterOptions.length} tags selecionadas`
-																	: availableTagFilters.length === 0
-																		? 'Sem tags neste filtro'
-																		: `${availableTagFilters.length} tag(ns)`}
+																	return (
+																		<MantineTabs.Tab
+																			key={option.value}
+																			value={option.value}
+																			disabled={isLoading}
+																			leftSection={
+																				<Icon
+																					as={option.icon}
+																					size="sm"
+																					className={
+																						isSelected
+																							? movementFilterPalette.selectedIconClassName
+																							: movementFilterPalette.unselectedIconClassName
+																					}
+																				/>
+																			}
+																		>
+																			{option.label}
+																		</MantineTabs.Tab>
+																	);
+																})}
+															</MantineTabs.List>
+														</MantineTabs>
+													</MantineProvider>
+												</View>
+											</VStack>
+
+											<VStack>
+												<HStack className="mb-2 items-center justify-between gap-3">
+													<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Tags</Text>
+													<Text className={`${helperText} text-xs`}>
+														{selectedTagFilterOptions.length === 1
+															? `${selectedTagFilterOptions[0].movementCount} item(ns)`
+															: selectedTagFilterOptions.length > 1
+																? `${selectedTagFilterOptions.length} tags selecionadas`
+																: availableTagFilters.length === 0
+																	? 'Sem tags neste filtro'
+																	: `${availableTagFilters.length} tag(ns)`}
 													</Text>
 												</HStack>
 
-													<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-															<TagsInput
-															aria-label="Filtrar movimentações por tag"
-															data={tagInputData}
-																			value={selectedTagFilterIds}
-																		onChange={handleTagInputChange}
-																		acceptValueOnBlur={false}
-																		clearable
-																		filter={tagInputFilter}
-																		maxDropdownHeight={240}
-																disabled={isLoading || availableTagFilters.length === 0}
-															placeholder={
-																availableTagFilters.length > 0
-																	? 'Selecione uma tag'
-																	: 'Sem tags disponíveis para este filtro'
-															}
-																	styles={tagInputStyles}
-																	renderOption={({ option }) => {
-																		const tagOption = availableTagFilters.find(item => item.id === String(option.value));
-																const iconColor = isDarkMode ? '#CBD5E1' : '#475569';
+												<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+													<TagsInput
+														aria-label="Filtrar movimentações por tag"
+														data={tagInputData}
+														value={selectedTagFilterIds}
+														onChange={handleTagInputChange}
+														acceptValueOnBlur={false}
+														clearable
+														filter={tagInputFilter}
+														maxDropdownHeight={240}
+														disabled={isLoading || availableTagFilters.length === 0}
+														placeholder={
+															availableTagFilters.length > 0
+																? 'Selecione uma tag'
+																: 'Sem tags disponíveis para este filtro'
+														}
+														styles={tagInputStyles}
+														renderOption={({ option }) => {
+															const tagOption = availableTagFilters.find(item => item.id === String(option.value));
+															const iconColor = isDarkMode
+																? LUMUS_RUNTIME_COLORS.dark.textMuted
+																: LUMUS_RUNTIME_COLORS.light.textMuted;
 
-																return (
-																	<span
-																		style={{
-																			display: 'flex',
-																			alignItems: 'center',
-																			justifyContent: 'space-between',
-																			gap: 10,
-																			width: '100%',
-																		}}
-																	>
-																		<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-																			{tagOption?.icon?.iconName ? (
-																				<TagIcon
-																					iconFamily={tagOption.icon.iconFamily}
-																					iconName={tagOption.icon.iconName}
-																					iconStyle={tagOption.icon.iconStyle}
-																					size={14}
-																					color={iconColor}
-																				/>
-																			) : (
-																				<TagsIcon size={14} color={iconColor} />
-																			)}
-																			<span>{tagOption?.label ?? String(option.value)}</span>
-																		</span>
-																		<span style={{ color: iconColor, fontSize: 12 }}>
-																			{tagOption?.movementCount ?? 0}
-																		</span>
+															return (
+																<span className="flex w-full items-center justify-between gap-2.5">
+																	<span className="inline-flex items-center gap-2">
+																		{tagOption?.icon?.iconName ? (
+																			<TagIcon
+																				iconFamily={tagOption.icon.iconFamily}
+																				iconName={tagOption.icon.iconName}
+																				iconStyle={tagOption.icon.iconStyle}
+																				size={14}
+																				color={iconColor}
+																			/>
+																		) : (
+																			<TagsIcon size={14} color={iconColor} />
+																		)}
+																		<span>{tagOption?.label ?? String(option.value)}</span>
 																	</span>
+																	<span className="text-xs" style={{ color: iconColor }}>
+																		{tagOption?.movementCount ?? 0}
+																	</span>
+																</span>
 															);
-															}}
-																	renderPill={({ option, onRemove, disabled }) => {
-																	const tagOption = availableTagFilters.find(item => item.id === String(option.value));
+														}}
+														renderPill={({ option, onRemove, disabled }) => {
+															const tagOption = availableTagFilters.find(item => item.id === String(option.value));
 
-																	return (
-																		<Pill
-																			withRemoveButton={!disabled}
-																			onRemove={onRemove}
-																			disabled={disabled}
-																			size="sm"
-																			removeButtonProps={{
-																				'aria-label': `Remover a tag ${tagOption?.label ?? String(option.value)}`,
-																				style: { color: '#FFFFFF' },
-																			}}
-																			style={{
-																				alignItems: 'center',
-																				justifyContent: 'center',
-																				backgroundColor: '#FACC15',
-																				color: '#FFFFFF',
-																					fontWeight: 700,
-																					textAlign: 'center',
-																			}}
-																			styles={{
-																				label: { color: '#FFFFFF', flex: 1, textAlign: 'center' },
-																				remove: { color: '#FFFFFF' },
-																			}}
-																		>
-																			{tagOption?.label ?? String(option.value)}
-																		</Pill>
-																	);
-																}}
-														/>
-													</MantineProvider>
+															return (
+																<Pill
+																	withRemoveButton={!disabled}
+																	onRemove={onRemove}
+																	disabled={disabled}
+																	size="sm"
+																	removeButtonProps={{
+																		'aria-label': `Remover a tag ${tagOption?.label ?? String(option.value)}`,
+																		style: { color: LUMUS_RUNTIME_COLORS.light.onAccent },
+																	}}
+																	style={MANTINE_SELECTED_PILL_STYLE}
+																	styles={MANTINE_SELECTED_PILL_SLOT_STYLES}
+																>
+																	{tagOption?.label ?? String(option.value)}
+																</Pill>
+															);
+														}}
+													/>
+												</MantineProvider>
 											</VStack>
 
 											<Button
@@ -3219,601 +3067,633 @@ export default function BankMovementsScreen() {
 														<ButtonText>Carregando movimentações</ButtonText>
 													</>
 												) : (
-																<ButtonText>Buscar movimentações</ButtonText>
-																)}
-															</Button>
-													</VStack>
-								</VStack>
-
-							{errorMessage && (
-									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-										<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
-									</View>
-								)}
-
-								<VStack className="mb-5">
-									<VStack className="px-2 pb-3 gap-1">
-										<Heading className="text-lg uppercase tracking-widest" size="lg">
-											{filteredSummaryTitle}
-										</Heading>
+													<ButtonText>Buscar movimentações</ButtonText>
+												)}
+											</Button>
+										</VStack>
 									</VStack>
 
-									<HStack className="gap-3">
-										<View
-											style={{
-												flex: 1,
-												minHeight: 100,
-												borderRadius: 24,
-												borderWidth: 1,
-												borderColor: periodSummaryPalette.neutralBorder,
-												paddingHorizontal: 16,
-												paddingVertical: 12,
-											}}
-										>
-											<VStack className="flex-1 justify-between">
-												<HStack className="items-center justify-between gap-2">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: periodSummaryPalette.subtitle }}
-													>
-														Ganhos
-													</Text>
-													<Icon as={ArrowUpIcon} size="sm" className="text-emerald-500" />
-												</HStack>
-												<Heading size="md" style={{ color: periodSummaryPalette.gainText }}>
-													{formatCurrencyBRL(filteredTotals.totalGains)}
-												</Heading>
-											</VStack>
+									{errorMessage && (
+										<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
+											<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
 										</View>
+									)}
 
-										<View
-											style={{
-												flex: 1,
-												minHeight: 100,
-												borderRadius: 24,
-												borderWidth: 1,
-												borderColor: periodSummaryPalette.neutralBorder,
-												paddingHorizontal: 16,
-												paddingVertical: 12,
-											}}
-										>
-											<VStack className="flex-1 justify-between">
-												<HStack className="items-center justify-between gap-2">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: periodSummaryPalette.subtitle }}
-													>
-														Despesas
-													</Text>
-													<Icon as={ArrowDownIcon} size="sm" className="text-rose-500" />
-												</HStack>
-												<Heading size="md" style={{ color: periodSummaryPalette.expenseText }}>
-													{formatCurrencyBRL(filteredTotals.totalExpenses)}
-												</Heading>
-											</VStack>
-										</View>
-									</HStack>
-
-									<View
-										style={{
-											marginTop: 12,
-											borderRadius: 24,
-											borderWidth: 1,
-											borderColor: periodSummaryPalette.neutralBorder,
-											paddingHorizontal: 16,
-											paddingVertical: 14,
-										}}
-									>
-										<VStack className="gap-3">
-											<HStack className="items-center justify-between gap-3">
-												<VStack className="flex-1 gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: periodSummaryPalette.subtitle }}
-													>
-														Saldo do filtro
-													</Text>
-													<Heading
-														size="sm"
-														style={{
-															color:
-																filteredBalanceInCents >= 0
-																	? periodSummaryPalette.gainText
-																	: periodSummaryPalette.expenseText,
-														}}
-													>
-														{formatCurrencyBRL(filteredBalanceInCents)}
-													</Heading>
-												</VStack>
-
-												<VStack className="items-end gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: periodSummaryPalette.subtitle }}
-													>
-														Movimentações
-													</Text>
-													<Text
-														style={{
-															color: periodSummaryPalette.title,
-															fontSize: 20,
-															fontWeight: '700',
-														}}
-													>
-														{visibleMovements.length}
-													</Text>
-												</VStack>
-											</HStack>
+									<VStack className="mb-5">
+										<VStack className="px-2 pb-3 gap-1">
+											<Heading className="text-lg uppercase tracking-widest" size="lg">
+												{filteredSummaryTitle}
+											</Heading>
 										</VStack>
-									</View>
 
-									<Button
-										className={`${submitButtonClassName} mt-4`}
-										onPress={() => {
-											void handleExportPeriodSummaryPdf();
-										}}
-										isDisabled={
-											isLoading ||
-											isExportingPdf ||
-											!parseDateFromBR(startDateInput) ||
-											!parseDateFromBR(endDateInput)
-										}
-									>
-										{isExportingPdf ? (
-											<>
-												<ButtonSpinner />
-												<ButtonText>Gerando PDF</ButtonText>
-											</>
-										) : (
-											<>
-												<Icon
-													as={DownloadIcon}
-													size="sm"
-													className={isDarkMode ? 'text-slate-900' : 'text-white'}
-												/>
-												<ButtonText>Baixar resumo em PDF</ButtonText>
-											</>
-										)}
-									</Button>
-								</VStack>
-
-
-								<VStack className="mb-4 mt-6">
-									<HStack className="items-start justify-between gap-3">
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleTogglePeriodTimeline}
-											style={{ flex: 1 }}
-										>
-											<VStack className="px-2 pb-3">
-												<HStack className="gap-1 items-center">
-													<Heading
-														className="text-lg uppercase tracking-widest "
-														size="lg"
-													>
-														Movimentações do período
+										<HStack className="gap-3">
+											<View
+												style={{
+													flex: 1,
+													minHeight: 100,
+													borderRadius: 24,
+													borderWidth: 1,
+													borderColor: periodSummaryPalette.neutralBorder,
+													paddingHorizontal: 16,
+													paddingVertical: 12,
+												}}
+											>
+												<VStack className="flex-1 justify-between">
+													<HStack className="items-center justify-between gap-2">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: periodSummaryPalette.subtitle }}
+														>
+															Ganhos
+														</Text>
+														<Icon as={ArrowUpIcon} size="sm" className="text-emerald-500" />
+													</HStack>
+													<Heading size="md" style={{ color: periodSummaryPalette.gainText }}>
+														{formatCurrencyBRL(filteredTotals.totalGains)}
 													</Heading>
+												</VStack>
+											</View>
 
-													<Popover
-														placement="bottom"
-														size="md"
-														offset={0}
-														shouldFlip
-														focusScope={false}
-														trapFocus={false}
-														trigger={triggerProps => (
-															<Pressable
-																{...triggerProps}
-																hitSlop={8}
-																accessibilityRole="button"
-																accessibilityLabel="Informações sobre o formato de pagamento"
-															>
-																<Info
-																	size={14}
-																	color={isDarkMode ? '#94A3B8' : '#64748B'}
-																	style={{ marginLeft: 4 }}
-																/>
-															</Pressable>
-														)}
-													>
-														<PopoverBackdrop className="bg-transparent" />
-														<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-															<PopoverBody className="px-3 py-3">
-																<Text className={`${bodyText} text-xs leading-5`}>
-																	Exibimos aqui um resumo dos seus bancos e do dinheiro em espécie que você registrou. Toque em cada cartão para ver detalhes e movimentações específicas de cada um.
-																	Se você não vê um banco ou valor que espera, verifique se eles estão registrados corretamente na seção de movimentações bancárias. Os dados aqui refletem o que foi registrado lá.
-																</Text>
-															</PopoverBody>
-														</PopoverContent>
-													</Popover>
-												</HStack>
-											</VStack>
-										</TouchableOpacity>
+											<View
+												style={{
+													flex: 1,
+													minHeight: 100,
+													borderRadius: 24,
+													borderWidth: 1,
+													borderColor: periodSummaryPalette.neutralBorder,
+													paddingHorizontal: 16,
+													paddingVertical: 12,
+												}}
+											>
+												<VStack className="flex-1 justify-between">
+													<HStack className="items-center justify-between gap-2">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: periodSummaryPalette.subtitle }}
+														>
+															Despesas
+														</Text>
+														<Icon as={ArrowDownIcon} size="sm" className="text-rose-500" />
+													</HStack>
+													<Heading size="md" style={{ color: periodSummaryPalette.expenseText }}>
+														{formatCurrencyBRL(filteredTotals.totalExpenses)}
+													</Heading>
+												</VStack>
+											</View>
+										</HStack>
 
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleTogglePeriodTimeline}
+										<View
 											style={{
-												minWidth: 28,
-												paddingLeft: 8,
-												paddingVertical: 4,
-												alignItems: 'center',
-												justifyContent: 'center',
-												flexShrink: 0,
+												marginTop: 12,
+												borderRadius: 24,
+												borderWidth: 1,
+												borderColor: periodSummaryPalette.neutralBorder,
+												paddingHorizontal: 16,
+												paddingVertical: 14,
 											}}
 										>
-											<Icon
-												as={isPeriodTimelineExpanded ? ChevronUpIcon : ChevronDownIcon}
-												size="sm"
-												className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-											/>
-										</TouchableOpacity>
-									</HStack>
+											<VStack className="gap-3">
+												<HStack className="items-center justify-between gap-3">
+													<VStack className="flex-1 gap-1">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: periodSummaryPalette.subtitle }}
+														>
+															Saldo do filtro
+														</Text>
+														<Heading
+															size="sm"
+															style={{
+																color:
+																	filteredBalanceInCents >= 0
+																		? periodSummaryPalette.gainText
+																		: periodSummaryPalette.expenseText,
+															}}
+														>
+															{formatCurrencyBRL(filteredBalanceInCents)}
+														</Heading>
+													</VStack>
 
-									{isPeriodTimelineExpanded ? (
-										isLoading ? (
-											<View
+													<VStack className="items-end gap-1">
+														<Text
+															className="text-xs uppercase tracking-wide"
+															style={{ color: periodSummaryPalette.subtitle }}
+														>
+															Movimentações
+														</Text>
+														<Text
+															style={{
+																color: periodSummaryPalette.title,
+																fontSize: 20,
+																fontWeight: '700',
+															}}
+														>
+															{visibleMovements.length}
+														</Text>
+													</VStack>
+												</HStack>
+											</VStack>
+										</View>
+
+										<Button
+											className={`${submitButtonClassName} mt-4`}
+											onPress={() => {
+												void handleExportPeriodSummaryPdf();
+											}}
+											isDisabled={
+												isLoading ||
+												isExportingPdf ||
+												!parseDateFromBR(startDateInput) ||
+												!parseDateFromBR(endDateInput)
+											}
+										>
+											{isExportingPdf ? (
+												<>
+													<ButtonSpinner />
+													<ButtonText>Gerando PDF</ButtonText>
+												</>
+											) : (
+												<>
+													<Icon
+														as={DownloadIcon}
+														size="sm"
+														className={isDarkMode ? 'text-slate-900' : 'text-white'}
+													/>
+													<ButtonText>Baixar resumo em PDF</ButtonText>
+												</>
+											)}
+										</Button>
+									</VStack>
+
+
+									<VStack className="mb-4 mt-6">
+										<HStack className="items-start justify-between gap-3">
+											<TouchableOpacity
+												activeOpacity={0.85}
+												onPress={handleTogglePeriodTimeline}
+												style={{ flex: 1 }}
+											>
+												<VStack className="px-2 pb-3">
+													<HStack className="gap-1 items-center">
+														<Heading
+															className="text-lg uppercase tracking-widest "
+															size="lg"
+														>
+															Movimentações do período
+														</Heading>
+
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={0}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={triggerProps => (
+																<Pressable
+																	{...triggerProps}
+																	hitSlop={8}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre o formato de pagamento"
+																>
+																	<Info
+																		size={14}
+																		color={isDarkMode ? '#94A3B8' : '#64748B'}
+																		style={{ marginLeft: 4 }}
+																	/>
+																</Pressable>
+															)}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={`${bodyText} text-xs leading-5`}>
+																		Exibimos aqui um resumo dos seus bancos e do dinheiro em espécie que você registrou. Toque em cada cartão para ver detalhes e movimentações específicas de cada um.
+																		Se você não vê um banco ou valor que espera, verifique se eles estão registrados corretamente na seção de movimentações bancárias. Os dados aqui refletem o que foi registrado lá.
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</HStack>
+												</VStack>
+											</TouchableOpacity>
+
+											<TouchableOpacity
+												activeOpacity={0.85}
+												onPress={handleTogglePeriodTimeline}
 												style={{
-													marginTop: 10,
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: timelinePalette.cardBorder,
-													paddingHorizontal: 16,
-													paddingVertical: 18,
+													minWidth: 28,
+													paddingLeft: 8,
+													paddingVertical: 4,
+													alignItems: 'center',
+													justifyContent: 'center',
+													flexShrink: 0,
 												}}
 											>
-												<Text style={{ color: timelinePalette.subtitle }}>
-													Carregando movimentações...
-												</Text>
-											</View>
-										) : visibleMovements.length === 0 ? (
-											<View
-												style={{
-													marginTop: 10,
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: timelinePalette.cardBorder,
-													paddingHorizontal: 16,
-													paddingVertical: 18,
-												}}
-											>
-												<Text style={{ color: timelinePalette.subtitle }}>
-													Nenhuma movimentação foi registrada para o período informado.
-												</Text>
-											</View>
-										) : (
-											<View style={{ marginTop: 14 }}>
-												{visibleMovements.map((movement, index) => {
-													const movementTone = getMovementTone(movement);
-													const tagMetadata = movement.tagId ? tagMetadataById[movement.tagId] : null;
-													const movementIcon =
-														tagMetadata?.icon && tagMetadata.icon.iconName
-															? tagMetadata.icon
-															: getFallbackMovementIcon(movement);
-													const isExpanded = expandedMovementIds.includes(movement.id);
-													const counterpartyLabel = movement.isBankTransfer
-														? movement.bankTransferDirection === 'outgoing'
-															? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
-															: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
-														: null;
-													const detailItems = [
-														{
-															label: 'Tipo',
-															value: resolveMovementTypeLabel(movement),
-														},
-														{
-															label: 'Data',
-															value: formatMovementDate(movement.date),
-														},
-														{
-															label: 'Tag',
-															value:
-																tagMetadata?.name ??
-																(movement.tagId ? movement.tagId : 'Sem tag associada'),
-														},
-														{
-															label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
-															value: getMovementPrimarySourceLabel(movement),
-														},
-													];
-													const syncMetadataItems = movement.isFinanceInvestmentSync
-														? [
+												<Icon
+													as={isPeriodTimelineExpanded ? ChevronUpIcon : ChevronDownIcon}
+													size="sm"
+													className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+												/>
+											</TouchableOpacity>
+										</HStack>
+
+										{isPeriodTimelineExpanded ? (
+											isLoading ? (
+												<View
+													style={{
+														marginTop: 10,
+														borderRadius: 18,
+														borderWidth: 1,
+														borderColor: timelinePalette.cardBorder,
+														paddingHorizontal: 16,
+														paddingVertical: 18,
+													}}
+												>
+													<Text style={{ color: timelinePalette.subtitle }}>
+														Carregando movimentações...
+													</Text>
+												</View>
+											) : visibleMovements.length === 0 ? (
+												<View
+													style={{
+														marginTop: 10,
+														borderRadius: 18,
+														borderWidth: 1,
+														borderColor: timelinePalette.cardBorder,
+														paddingHorizontal: 16,
+														paddingVertical: 18,
+													}}
+												>
+													<Text style={{ color: timelinePalette.subtitle }}>
+														Nenhuma movimentação foi registrada para o período informado.
+													</Text>
+												</View>
+											) : (
+												<View style={{ marginTop: 14 }}>
+													{visibleMovements.map((movement, index) => {
+														const movementTone = getMovementTone(movement);
+														const tagMetadata = movement.tagId ? tagMetadataById[movement.tagId] : null;
+														const movementIcon =
+															tagMetadata?.icon && tagMetadata.icon.iconName
+																? tagMetadata.icon
+																: getFallbackMovementIcon(movement);
+														const isExpanded = expandedMovementIds.includes(movement.id);
+														const counterpartyLabel = movement.isBankTransfer
+															? movement.bankTransferDirection === 'outgoing'
+																? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
+																: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
+															: null;
+														const detailItems = [
 															{
-																label: 'Valor anterior',
+																label: 'Tipo',
+																value: resolveMovementTypeLabel(movement),
+															},
+															{
+																label: 'Data',
+																value: formatMovementDate(movement.date),
+															},
+															{
+																label: 'Tag',
 																value:
-																	typeof movement.investmentSyncPreviousValueInCents === 'number'
-																		? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
-																		: 'Não disponível',
+																	tagMetadata?.name ??
+																	(movement.tagId ? movement.tagId : 'Sem tag associada'),
 															},
 															{
-																label: 'Valor sincronizado',
-																value: formatCurrencyBRL(movement.valueInCents),
+																label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
+																value: getMovementPrimarySourceLabel(movement),
 															},
-															{
-																label: 'Variação',
-																value: formatDeltaCurrencyBRL(
-																	typeof movement.investmentSyncPreviousValueInCents === 'number'
-																		? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																		: null,
-																),
-															},
-															{
-																label: 'Motivo',
-																value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
-															},
-														]
-														: [];
-													const investmentMetadataItems = movement.isFinanceInvestment
-														? [
-															{
-																label: 'Prazo',
-																value: movement.investmentRedemptionTerm
-																	? redemptionTermLabels[movement.investmentRedemptionTerm]
-																	: 'Não informado',
-															},
-															{
-																label: 'CDI',
-																value:
-																	typeof movement.investmentCdiPercentage === 'number'
-																		? `${movement.investmentCdiPercentage}%`
+														];
+														const syncMetadataItems = movement.isFinanceInvestmentSync
+															? [
+																{
+																	label: 'Valor anterior',
+																	value:
+																		typeof movement.investmentSyncPreviousValueInCents === 'number'
+																			? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
+																			: 'Não disponível',
+																},
+																{
+																	label: 'Valor sincronizado',
+																	value: formatCurrencyBRL(movement.valueInCents),
+																},
+																{
+																	label: 'Variação',
+																	value: formatDeltaCurrencyBRL(
+																		typeof movement.investmentSyncPreviousValueInCents === 'number'
+																			? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																			: null,
+																	),
+																},
+																{
+																	label: 'Motivo',
+																	value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
+																},
+															]
+															: [];
+														const investmentMetadataItems = movement.isFinanceInvestment
+															? [
+																{
+																	label: 'Prazo',
+																	value: movement.investmentRedemptionTerm
+																		? redemptionTermLabels[movement.investmentRedemptionTerm]
 																		: 'Não informado',
-															},
-														]
-														: [];
-													const metadataItems = [
-														...detailItems,
-														...(counterpartyLabel
-															? [{ label: 'Contraparte', value: counterpartyLabel }]
-															: []),
-														...investmentMetadataItems,
-														...syncMetadataItems,
-													];
-													const canEditMovement = !(
-														movement.isFromMandatory ||
-														movement.isCashRescue ||
-														movement.isBankTransfer ||
-														movement.isInvestmentRedemption ||
-														movement.isInvestmentDeposit ||
-														movement.isFinanceInvestmentSync
-													);
-													const usesUndoAction =
-														movement.isInvestmentDeposit ||
-														movement.isInvestmentRedemption ||
-														movement.isFinanceInvestmentSync;
-													const canDeleteMovement = !(
-														movement.isFromMandatory ||
-														movement.isCashRescue ||
-														movement.isBankTransfer
-													);
-													const secondaryActionLabel = movement.isInvestmentDeposit
-														? 'Desfazer aporte'
-														: movement.isInvestmentRedemption
-															? 'Desfazer resgate'
-															: movement.isFinanceInvestmentSync
-																? 'Desfazer sync'
-																: 'Excluir';
-													const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
+																},
+																{
+																	label: 'CDI',
+																	value:
+																		typeof movement.investmentCdiPercentage === 'number'
+																			? `${movement.investmentCdiPercentage}%`
+																			: 'Não informado',
+																},
+															]
+															: [];
+														const metadataItems = [
+															...detailItems,
+															...(counterpartyLabel
+																? [{ label: 'Contraparte', value: counterpartyLabel }]
+																: []),
+															...investmentMetadataItems,
+															...syncMetadataItems,
+														];
+														const canEditMovement = !(
+															movement.isFromMandatory ||
+															movement.isCashRescue ||
+															movement.isBankTransfer ||
+															movement.isInvestmentRedemption ||
+															movement.isInvestmentDeposit ||
+															movement.isFinanceInvestmentSync
+														);
+														const usesUndoAction =
+															movement.isInvestmentDeposit ||
+															movement.isInvestmentRedemption ||
+															movement.isFinanceInvestmentSync;
+														const canDeleteMovement = !(
+															movement.isFromMandatory ||
+															movement.isCashRescue ||
+															movement.isBankTransfer
+														);
+														const secondaryActionLabel = movement.isInvestmentDeposit
+															? 'Desfazer aporte'
+															: movement.isInvestmentRedemption
+																? 'Desfazer resgate'
+																: movement.isFinanceInvestmentSync
+																	? 'Desfazer sync'
+																	: 'Excluir';
+														const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
 
-													return (
-														<View key={movement.id} style={{ flexDirection: 'row' }}>
-															<View
-																style={{
-																	alignItems: 'center',
-																	width: '7%',
-																	paddingTop: 6,
-																}}
-															>
+														return (
+															<View key={movement.id} style={{ flexDirection: 'row' }}>
 																<View
 																	style={{
-																		width: 14,
-																		height: 14,
-																		borderRadius: 999,
-																		backgroundColor: movementTone.accentColor,
-																		borderWidth: 2,
-																		borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																		shadowColor: movementTone.accentColor,
-																		shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																		shadowRadius: 8,
-																		shadowOffset: { width: 0, height: 4 },
-																		elevation: 2,
+																		alignItems: 'center',
+																		width: '7%',
+																		paddingTop: 6,
 																	}}
-																/>
-																{index < visibleMovements.length - 1 ? (
+																>
 																	<View
 																		style={{
-																			flex: 1,
-																			width: 3,
+																			width: 14,
+																			height: 14,
 																			borderRadius: 999,
-																			marginVertical: 2,
-																			backgroundColor: movementTone.lineColor,
+																			backgroundColor: movementTone.accentColor,
+																			borderWidth: 2,
+																			borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+																			shadowColor: movementTone.accentColor,
+																			shadowOpacity: isDarkMode ? 0.26 : 0.14,
+																			shadowRadius: 8,
+																			shadowOffset: { width: 0, height: 4 },
+																			elevation: 2,
 																		}}
 																	/>
-																) : (
-																	<View />
-																)}
-															</View>
+																	{index < visibleMovements.length - 1 ? (
+																		<View
+																			style={{
+																				flex: 1,
+																				width: 3,
+																				borderRadius: 999,
+																				marginVertical: 2,
+																				backgroundColor: movementTone.lineColor,
+																			}}
+																		/>
+																	) : (
+																		<View />
+																	)}
+																</View>
 
-															<View style={{ width: '93%', paddingBottom: 14 }}>
-																<TouchableOpacity
-																	activeOpacity={0.85}
-																	onPress={() => handleToggleMovementCard(movement.id)}
-																	style={{ width: '100%' }}
-																>
-																	<HStack className="items-center justify-between gap-3">
-																		<HStack className="items-center gap-3" style={{ flex: 1 }}>
-																			<LinearGradient
-																				colors={movementTone.iconGradient}
-																				start={{ x: 0, y: 0 }}
-																				end={{ x: 1, y: 1 }}
-																				style={{
-																					width: 44,
-																					height: 44,
-																					borderRadius: 16,
-																					alignItems: 'center',
-																					justifyContent: 'center',
-																					flexShrink: 0,
-																				}}
-																			>
-																				<TagIcon
-																					iconFamily={movementIcon.iconFamily}
-																					iconName={movementIcon.iconName}
-																					iconStyle={movementIcon.iconStyle}
-																					size={18}
-																					color="#FFFFFF"
-																				/>
-																			</LinearGradient>
-
-																			<View style={{ flex: 1 }}>
-																				<Text
-																					numberOfLines={1}
+																<View style={{ width: '93%', paddingBottom: 14 }}>
+																	<TouchableOpacity
+																		activeOpacity={0.85}
+																		onPress={() => handleToggleMovementCard(movement.id)}
+																		style={{ width: '100%' }}
+																	>
+																		<HStack className="items-center justify-between gap-3">
+																			<HStack className="items-center gap-3" style={{ flex: 1 }}>
+																				<LinearGradient
+																					colors={movementTone.iconGradient}
+																					start={{ x: 0, y: 0 }}
+																					end={{ x: 1, y: 1 }}
 																					style={{
-																						color: timelinePalette.title,
-																						fontSize: 15,
-																						fontWeight: '700',
+																						width: 44,
+																						height: 44,
+																						borderRadius: 16,
+																						alignItems: 'center',
+																						justifyContent: 'center',
+																						flexShrink: 0,
 																					}}
 																				>
-																					{movement.name}
-																				</Text>
-																				<Text
-																					numberOfLines={1}
-																					style={{
-																						marginTop: 2,
-																						color: timelinePalette.subtitle,
-																						fontSize: 12,
-																						lineHeight: 18,
-																					}}
-																				>
-																					{getMovementSummarySubtitle(movement)}
-																				</Text>
-																			</View>
-																		</HStack>
+																					<TagIcon
+																						iconFamily={movementIcon.iconFamily}
+																						iconName={movementIcon.iconName}
+																						iconStyle={movementIcon.iconStyle}
+																						size={18}
+																						color="#FFFFFF"
+																					/>
+																				</LinearGradient>
 
-																		<HStack className="items-center gap-2">
-																			<VStack className="items-end">
-																				<Text
-																					style={{
-																						color: movementTone.amountColor,
-																						fontSize: 15,
-																						fontWeight: '700',
-																					}}
-																				>
-																					{formatSignedCurrencyBRL(movement)}
-																				</Text>
-																				{movement.isFinanceInvestmentSync ? (
+																				<View style={{ flex: 1 }}>
 																					<Text
+																						numberOfLines={1}
+																						style={{
+																							color: timelinePalette.title,
+																							fontSize: 15,
+																							fontWeight: '700',
+																						}}
+																					>
+																						{movement.name}
+																					</Text>
+																					<Text
+																						numberOfLines={1}
 																						style={{
 																							marginTop: 2,
 																							color: timelinePalette.subtitle,
-																							fontSize: 11,
+																							fontSize: 12,
+																							lineHeight: 18,
 																						}}
 																					>
-																						{formatDeltaCurrencyBRL(
-																							typeof movement.investmentSyncPreviousValueInCents === 'number'
-																								? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																								: null,
-																						)}
+																						{getMovementSummarySubtitle(movement)}
 																					</Text>
-																				) : null}
-																				<HStack className="mt-1 items-center gap-1">
-																					<Icon
-																						as={CalendarDaysIcon}
-																						size="xs"
-																						className={
-																							isDarkMode
-																								? 'text-slate-500'
-																								: 'text-slate-400'
-																						}
-																					/>
-																					<Text
-																						style={{
-																							color: timelinePalette.subtitle,
-																							fontSize: 11,
-																						}}
-																					>
-																						{formatMovementCompactDate(movement.date)}
-																					</Text>
-																				</HStack>
-																			</VStack>
+																				</View>
+																			</HStack>
 
-																			<Icon
-																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																				size="sm"
-																				className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-																			/>
-																		</HStack>
-																	</HStack>
-																</TouchableOpacity>
-
-																{isExpanded ? (
-																	<LinearGradient
-																		colors={movementTone.cardGradient}
-																		start={{ x: 0, y: 0 }}
-																		end={{ x: 1, y: 1 }}
-																		style={{
-																			marginTop: 10,
-																			marginRight: 16,
-																			borderRadius: 20,
-																			paddingHorizontal: 16,
-																			paddingVertical: 14,
-																		}}
-																	>
-																		<VStack className="gap-3">
-																			<HStack className="items-start justify-between gap-4">
-																				<VStack className="flex-1">
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Resumo
-																					</Text>
-																					<Text
-																						style={{
-																							fontSize: 13,
-																							lineHeight: 19,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{getMovementDetailMessage(movement)}
-																					</Text>
-																				</VStack>
-
+																			<HStack className="items-center gap-2">
 																				<VStack className="items-end">
 																					<Text
 																						style={{
-																							fontSize: 10,
+																							color: movementTone.amountColor,
+																							fontSize: 15,
 																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
 																						}}
 																					>
-																						Valor
-																					</Text>
-																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
 																						{formatSignedCurrencyBRL(movement)}
-																					</Heading>
+																					</Text>
+																					{movement.isFinanceInvestmentSync ? (
+																						<Text
+																							style={{
+																								marginTop: 2,
+																								color: timelinePalette.subtitle,
+																								fontSize: 11,
+																							}}
+																						>
+																							{formatDeltaCurrencyBRL(
+																								typeof movement.investmentSyncPreviousValueInCents === 'number'
+																									? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																									: null,
+																							)}
+																						</Text>
+																					) : null}
+																					<HStack className="mt-1 items-center gap-1">
+																						<Icon
+																							as={CalendarDaysIcon}
+																							size="xs"
+																							className={
+																								isDarkMode
+																									? 'text-slate-500'
+																									: 'text-slate-400'
+																							}
+																						/>
+																						<Text
+																							style={{
+																								color: timelinePalette.subtitle,
+																								fontSize: 11,
+																							}}
+																						>
+																							{formatMovementCompactDate(movement.date)}
+																						</Text>
+																					</HStack>
 																				</VStack>
-																			</HStack>
 
-																			<View
-																				style={{
-																					flexDirection: 'row',
-																					flexWrap: 'wrap',
-																					columnGap: 14,
-																					rowGap: 10,
-																				}}
-																			>
-																				{metadataItems.map(item => (
+																				<Icon
+																					as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																					size="sm"
+																					className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+																				/>
+																			</HStack>
+																		</HStack>
+																	</TouchableOpacity>
+
+																	{isExpanded ? (
+																		<LinearGradient
+																			colors={movementTone.cardGradient}
+																			start={{ x: 0, y: 0 }}
+																			end={{ x: 1, y: 1 }}
+																			style={{
+																				marginTop: 10,
+																				marginRight: 16,
+																				borderRadius: 20,
+																				paddingHorizontal: 16,
+																				paddingVertical: 14,
+																			}}
+																		>
+																			<VStack className="gap-3">
+																				<HStack className="items-start justify-between gap-4">
+																					<VStack className="flex-1">
+																						<Text
+																							style={{
+																								fontSize: 10,
+																								fontWeight: '700',
+																								letterSpacing: 0.4,
+																								color: 'rgba(255,255,255,0.74)',
+																								textTransform: 'uppercase',
+																							}}
+																						>
+																							Resumo
+																						</Text>
+																						<Text
+																							style={{
+																								fontSize: 13,
+																								lineHeight: 19,
+																								color: '#FFFFFF',
+																							}}
+																						>
+																							{getMovementDetailMessage(movement)}
+																						</Text>
+																					</VStack>
+
+																					<VStack className="items-end">
+																						<Text
+																							style={{
+																								fontSize: 10,
+																								fontWeight: '700',
+																								letterSpacing: 0.4,
+																								color: 'rgba(255,255,255,0.74)',
+																								textTransform: 'uppercase',
+																							}}
+																						>
+																							Valor
+																						</Text>
+																						<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																							{formatSignedCurrencyBRL(movement)}
+																						</Heading>
+																					</VStack>
+																				</HStack>
+
+																				<View
+																					style={{
+																						flexDirection: 'row',
+																						flexWrap: 'wrap',
+																						columnGap: 14,
+																						rowGap: 10,
+																					}}
+																				>
+																					{metadataItems.map(item => (
+																						<View
+																							key={`${movement.id}-${item.label}`}
+																							style={{
+																								width: '46%',
+																								minWidth: 128,
+																							}}
+																						>
+																							<Text
+																								style={{
+																									fontSize: 10,
+																									fontWeight: '700',
+																									letterSpacing: 0.4,
+																									color: 'rgba(255,255,255,0.72)',
+																									textTransform: 'uppercase',
+																								}}
+																							>
+																								{item.label}
+																							</Text>
+																							<Text
+																								style={{
+																									marginTop: 3,
+																									fontSize: 13,
+																									lineHeight: 18,
+																									color: '#FFFFFF',
+																								}}
+																							>
+																								{item.value}
+																							</Text>
+																						</View>
+																					))}
+																				</View>
+
+																				{movement.explanation?.trim() &&
+																					getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
 																					<View
-																						key={`${movement.id}-${item.label}`}
 																						style={{
-																							width: '46%',
-																							minWidth: 128,
+																							paddingTop: 2,
 																						}}
 																					>
 																						<Text
@@ -3825,403 +3705,371 @@ export default function BankMovementsScreen() {
 																								textTransform: 'uppercase',
 																							}}
 																						>
-																							{item.label}
+																							Descrição
 																						</Text>
 																						<Text
 																							style={{
-																								marginTop: 3,
+																								marginTop: 6,
 																								fontSize: 13,
 																								lineHeight: 18,
 																								color: '#FFFFFF',
 																							}}
 																						>
-																							{item.value}
+																							{movement.explanation.trim()}
 																						</Text>
 																					</View>
-																				))}
-																			</View>
+																				) : null}
 
-																			{movement.explanation?.trim() &&
-																				getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
-																				<View
+																				<HStack
+																					className="flex-wrap gap-4"
 																					style={{
 																						paddingTop: 2,
 																					}}
 																				>
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.72)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Descrição
-																					</Text>
-																					<Text
-																						style={{
-																							marginTop: 6,
-																							fontSize: 13,
-																							lineHeight: 18,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{movement.explanation.trim()}
-																					</Text>
-																				</View>
-																			) : null}
+																					{canEditMovement ? (
+																						<TouchableOpacity
+																							activeOpacity={0.85}
+																							onPress={() => handleRequestMovementAction('edit', movement)}
+																							style={{
+																								flexDirection: 'row',
+																								alignItems: 'center',
+																								gap: 8,
+																								paddingVertical: 8,
+																							}}
+																						>
+																							<Icon as={EditIcon} size="sm" className="text-white" />
+																							<Text className="text-xs font-semibold text-white">Editar</Text>
+																						</TouchableOpacity>
+																					) : null}
 
-																			<HStack
-																				className="flex-wrap gap-4"
-																				style={{
-																					paddingTop: 2,
-																				}}
-																			>
-																				{canEditMovement ? (
+																					{movement.isCashRescue ? (
+																						<TouchableOpacity
+																							activeOpacity={0.85}
+																							onPress={() =>
+																								handleRequestMovementAction(
+																									'revert-cash-rescue',
+																									movement,
+																								)
+																							}
+																							style={{
+																								flexDirection: 'row',
+																								alignItems: 'center',
+																								gap: 8,
+																								paddingVertical: 8,
+																							}}
+																						>
+																							<Icon as={RepeatIcon} size="sm" className="text-white" />
+																							<Text className="text-xs font-semibold text-white">
+																								Reivindicar
+																							</Text>
+																						</TouchableOpacity>
+																					) : null}
+
 																					<TouchableOpacity
 																						activeOpacity={0.85}
-																						onPress={() => handleRequestMovementAction('edit', movement)}
+																						onPress={() => handleRequestMovementAction('delete', movement)}
 																						style={{
 																							flexDirection: 'row',
 																							alignItems: 'center',
 																							gap: 8,
 																							paddingVertical: 8,
+																							opacity:
+																								usesUndoAction || canDeleteMovement ? 1 : 0.72,
 																						}}
 																					>
-																						<Icon as={EditIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">Editar</Text>
-																					</TouchableOpacity>
-																				) : null}
-
-																				{movement.isCashRescue ? (
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() =>
-																							handleRequestMovementAction(
-																								'revert-cash-rescue',
-																								movement,
-																							)
-																						}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																						}}
-																					>
-																						<Icon as={RepeatIcon} size="sm" className="text-white" />
+																						<Icon as={secondaryActionIcon} size="sm" className="text-white" />
 																						<Text className="text-xs font-semibold text-white">
-																							Reivindicar
+																							{secondaryActionLabel}
 																						</Text>
 																					</TouchableOpacity>
-																				) : null}
-
-																				<TouchableOpacity
-																					activeOpacity={0.85}
-																					onPress={() => handleRequestMovementAction('delete', movement)}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																						opacity:
-																							usesUndoAction || canDeleteMovement ? 1 : 0.72,
-																					}}
-																				>
-																					<Icon as={secondaryActionIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">
-																						{secondaryActionLabel}
-																					</Text>
-																				</TouchableOpacity>
-																			</HStack>
-																		</VStack>
-																	</LinearGradient>
-																) : null}
+																				</HStack>
+																			</VStack>
+																		</LinearGradient>
+																	) : null}
+																</View>
 															</View>
-														</View>
-													);
-												})}
-											</View>
-										)
-									) : null}
+														);
+													})}
+												</View>
+											)
+										) : null}
+									</VStack>
 								</VStack>
-								</VStack>
-						</View>
+							</View>
 						</View>
 					</ScrollView>
-					</View>
+				</View>
 
-					<View
-						style={{
-							marginHorizontal: -18,
-							paddingBottom: 0,
-							flexShrink: 0,
-						}}
+				<View
+					style={{
+						marginHorizontal: -18,
+						paddingBottom: 0,
+						flexShrink: 0,
+					}}
+				>
+					<Navigator defaultValue={0} onHardwareBack={handleBackToHome} />
+				</View>
+
+				<Modal
+					isOpen={Boolean(editingFinanceMovement)}
+					onClose={handleCloseFinanceEditModal}
+				>
+					<ModalBackdrop />
+					<KeyboardAvoidingView
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
-						<Navigator defaultValue={0} onHardwareBack={handleBackToHome} />
-					</View>
-
-					<Modal
-						isOpen={Boolean(editingFinanceMovement)}
-						onClose={handleCloseFinanceEditModal}
-					>
-						<ModalBackdrop />
-						<KeyboardAvoidingView
-							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
-						>
-							<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
-								<ModalHeader>
-									<ModalTitle>Editar investimento</ModalTitle>
-									<ModalCloseButton onPress={handleCloseFinanceEditModal} />
-								</ModalHeader>
-								<ModalBody>
-									<ScrollView
-										keyboardShouldPersistTaps="handled"
-										keyboardDismissMode="on-drag"
-										contentContainerStyle={{ paddingBottom: 24 }}
-									>
-										<Text className={`${bodyText} mb-4 text-sm`}>
-											Ajuste os dados do investimento sem sair da tela de movimentações.
-										</Text>
-										<VStack>
-									<VStack className="mb-4">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											Nome do investimento
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentName}
-												onChangeText={setEditInvestmentName}
-												placeholder="Digite o nome do investimento"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									<VStack className="mb-4">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											Valor inicial
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentInitialInput}
-												onChangeText={handleInvestmentInitialInputChange}
-												placeholder="Digite o valor inicial"
-												keyboardType="numeric"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									<VStack className="mb-4">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											CDI (%)
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentCdiInput}
-												onChangeText={(text) =>
-													setEditInvestmentCdiInput(sanitizeNumberInput(text))
-												}
-												placeholder="Digite o percentual do CDI"
-												keyboardType="decimal-pad"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
-
-									<VStack className="mb-4">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											Prazo de resgate
-										</Text>
-										<Select
-											selectedValue={editInvestmentTerm}
-											onValueChange={(value) =>
-												setEditInvestmentTerm(value as RedemptionTerm)
-											}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={fieldContainerClassName}
-											>
-												<SelectInput
-													value={redemptionTermLabels[editInvestmentTerm]}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{redemptionOptions.map((option) => (
-														<SelectItem
-															key={option.value}
-															label={option.label}
-															value={option.value}
-														/>
-													))}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
-									</VStack>
-
-									<VStack className="mb-4">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											Banco
-										</Text>
-										<Select
-											selectedValue={editInvestmentBankId ?? undefined}
-											onValueChange={(value) => setEditInvestmentBankId(value)}
-											isDisabled={
-												isSavingFinanceMovement || bankOptions.length === 0
-											}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={fieldContainerClassName}
-											>
-												<SelectInput
-													placeholder="Selecione o banco"
-													value={
-														editInvestmentBankId
-															? (bankOptions.find(
-																(bankItem) => bankItem.id === editInvestmentBankId,
-															)?.name ?? '')
-															: ''
-													}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{bankOptions.length > 0 ? (
-														bankOptions.map((bankItem) => (
-															<SelectItem
-																key={bankItem.id}
-																label={bankItem.name}
-																value={bankItem.id}
-															/>
-														))
-													) : (
-														<SelectItem
-															label="Nenhum banco disponível"
-															value="no-bank"
-															isDisabled
-														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
-									</VStack>
-
-									<VStack className="mb-1">
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
-											Descrição
-										</Text>
-										<Textarea
-											className={textareaContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<TextareaInput
-												value={editInvestmentDescription}
-												onChangeText={setEditInvestmentDescription}
-												placeholder="Adicione um contexto para este investimento"
-												className={inputField}
-											/>
-										</Textarea>
-									</VStack>
-										</VStack>
-									</ScrollView>
-								</ModalBody>
-								<ModalFooter className="gap-3">
-									<Button
-										variant="outline"
-										onPress={handleCloseFinanceEditModal}
-										isDisabled={isSavingFinanceMovement}
-										className={submitButtonCancelClassName}
-									>
-										<ButtonText>Cancelar</ButtonText>
-									</Button>
-									<Button
-										onPress={handleSubmitFinanceEdit}
-										isDisabled={isSavingFinanceMovement}
-										className={submitButtonClassName}
-									>
-										{isSavingFinanceMovement ? (
-											<>
-												<ButtonSpinner />
-												<ButtonText>Salvando</ButtonText>
-											</>
-										) : (
-											<ButtonText>Salvar alterações</ButtonText>
-										)}
-									</Button>
-								</ModalFooter>
-							</ModalContent>
-						</KeyboardAvoidingView>
-					</Modal>
-
-					<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-						<ModalBackdrop />
-						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
 							<ModalHeader>
-								<ModalTitle>{actionModalCopy.title}</ModalTitle>
-								<ModalCloseButton onPress={handleCloseActionModal} />
+								<ModalTitle>Editar investimento</ModalTitle>
+								<ModalCloseButton onPress={handleCloseFinanceEditModal} />
 							</ModalHeader>
 							<ModalBody>
-								<Text className={bodyText}>{actionModalCopy.message}</Text>
+								<ScrollView
+									keyboardShouldPersistTaps="handled"
+									keyboardDismissMode="on-drag"
+									contentContainerStyle={{ paddingBottom: 24 }}
+								>
+									<Text className={`${bodyText} mb-4 text-sm`}>
+										Ajuste os dados do investimento sem sair da tela de movimentações.
+									</Text>
+									<VStack>
+										<VStack className="mb-4">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												Nome do investimento
+											</Text>
+											<Input
+												className={fieldContainerClassName}
+												isDisabled={isSavingFinanceMovement}
+											>
+												<InputField
+													value={editInvestmentName}
+													onChangeText={setEditInvestmentName}
+													placeholder="Digite o nome do investimento"
+													className={inputField}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="mb-4">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												Valor inicial
+											</Text>
+											<Input
+												className={fieldContainerClassName}
+												isDisabled={isSavingFinanceMovement}
+											>
+												<InputField
+													value={editInvestmentInitialInput}
+													onChangeText={handleInvestmentInitialInputChange}
+													placeholder="Digite o valor inicial"
+													keyboardType="numeric"
+													className={inputField}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="mb-4">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												CDI (%)
+											</Text>
+											<Input
+												className={fieldContainerClassName}
+												isDisabled={isSavingFinanceMovement}
+											>
+												<InputField
+													value={editInvestmentCdiInput}
+													onChangeText={(text) =>
+														setEditInvestmentCdiInput(sanitizeNumberInput(text))
+													}
+													placeholder="Digite o percentual do CDI"
+													keyboardType="decimal-pad"
+													className={inputField}
+												/>
+											</Input>
+										</VStack>
+
+										<VStack className="mb-4">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												Prazo de resgate
+											</Text>
+											<Select
+												selectedValue={editInvestmentTerm}
+												onValueChange={(value) =>
+													setEditInvestmentTerm(value as RedemptionTerm)
+												}
+												isDisabled={isSavingFinanceMovement}
+											>
+												<SelectTrigger
+													variant="outline"
+													size="md"
+													className={fieldContainerClassName}
+												>
+													<SelectInput
+														value={redemptionTermLabels[editInvestmentTerm]}
+														className={inputField}
+													/>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{redemptionOptions.map((option) => (
+															<SelectItem
+																key={option.value}
+																label={option.label}
+																value={option.value}
+															/>
+														))}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+
+										<VStack className="mb-4">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												Banco
+											</Text>
+											<Select
+												selectedValue={editInvestmentBankId ?? undefined}
+												onValueChange={(value) => setEditInvestmentBankId(value)}
+												isDisabled={
+													isSavingFinanceMovement || bankOptions.length === 0
+												}
+											>
+												<SelectTrigger
+													variant="outline"
+													size="md"
+													className={fieldContainerClassName}
+												>
+													<SelectInput
+														placeholder="Selecione o banco"
+														value={
+															editInvestmentBankId
+																? (bankOptions.find(
+																	(bankItem) => bankItem.id === editInvestmentBankId,
+																)?.name ?? '')
+																: ''
+														}
+														className={inputField}
+													/>
+													<SelectIcon />
+												</SelectTrigger>
+												<SelectPortal>
+													<SelectBackdrop />
+													<SelectContent>
+														<SelectDragIndicatorWrapper>
+															<SelectDragIndicator />
+														</SelectDragIndicatorWrapper>
+														{bankOptions.length > 0 ? (
+															bankOptions.map((bankItem) => (
+																<SelectItem
+																	key={bankItem.id}
+																	label={bankItem.name}
+																	value={bankItem.id}
+																/>
+															))
+														) : (
+															<SelectItem
+																label="Nenhum banco disponível"
+																value="no-bank"
+																isDisabled
+															/>
+														)}
+													</SelectContent>
+												</SelectPortal>
+											</Select>
+										</VStack>
+
+										<VStack className="mb-1">
+											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>
+												Descrição
+											</Text>
+											<Textarea
+												className={textareaContainerClassName}
+												isDisabled={isSavingFinanceMovement}
+											>
+												<TextareaInput
+													value={editInvestmentDescription}
+													onChangeText={setEditInvestmentDescription}
+													placeholder="Adicione um contexto para este investimento"
+													className={inputField}
+												/>
+											</Textarea>
+										</VStack>
+									</VStack>
+								</ScrollView>
 							</ModalBody>
 							<ModalFooter className="gap-3">
 								<Button
 									variant="outline"
-									onPress={handleCloseActionModal}
-									isDisabled={isProcessingAction}
+									onPress={handleCloseFinanceEditModal}
+									isDisabled={isSavingFinanceMovement}
 									className={submitButtonCancelClassName}
 								>
 									<ButtonText>Cancelar</ButtonText>
 								</Button>
 								<Button
-									variant="solid"
-									action={confirmButtonAction}
-									onPress={handleConfirmAction}
-									isDisabled={isProcessingAction}
+									onPress={handleSubmitFinanceEdit}
+									isDisabled={isSavingFinanceMovement}
 									className={submitButtonClassName}
 								>
-									{isProcessingAction ? (
+									{isSavingFinanceMovement ? (
 										<>
 											<ButtonSpinner />
-											<ButtonText>Processando</ButtonText>
+											<ButtonText>Salvando</ButtonText>
 										</>
 									) : (
-										<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+										<ButtonText>Salvar alterações</ButtonText>
 									)}
 								</Button>
 							</ModalFooter>
-							</ModalContent>
-						</Modal>
-				</GestureHandlerRootView>
+						</ModalContent>
+					</KeyboardAvoidingView>
+				</Modal>
+
+				<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+					<ModalBackdrop />
+					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<ModalTitle>{actionModalCopy.title}</ModalTitle>
+							<ModalCloseButton onPress={handleCloseActionModal} />
+						</ModalHeader>
+						<ModalBody>
+							<Text className={bodyText}>{actionModalCopy.message}</Text>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button
+								variant="outline"
+								onPress={handleCloseActionModal}
+								isDisabled={isProcessingAction}
+								className={submitButtonCancelClassName}
+							>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								variant="solid"
+								action={confirmButtonAction}
+								onPress={handleConfirmAction}
+								isDisabled={isProcessingAction}
+								className={submitButtonClassName}
+							>
+								{isProcessingAction ? (
+									<>
+										<ButtonSpinner />
+										<ButtonText>Processando</ButtonText>
+									</>
+								) : (
+									<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</Modal>
+			</GestureHandlerRootView>
 		</SafeAreaView>
 	);
 }

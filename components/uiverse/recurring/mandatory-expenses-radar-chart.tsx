@@ -46,7 +46,7 @@ export default function MandatoryExpensesRadarChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div
 				role="img"
 				aria-label={

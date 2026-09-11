@@ -25,11 +25,8 @@ export function GluestackUIProvider({
 
   return (
     <View
-      style={[
-        config[resolvedColorScheme],
-        { flex: 1, height: '100%', width: '100%' },
-        props.style,
-      ]}
+      className="h-full w-full flex-1"
+      style={[config[resolvedColorScheme], props.style]}
     >
       <OverlayProvider>
         <ToastProvider>{props.children}</ToastProvider>

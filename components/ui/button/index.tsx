@@ -37,11 +37,11 @@ cssInterop(PrimitiveIcon, {
 });
 
 const buttonStyle = tva({
-  base: 'group/button rounded bg-primary-500 flex-row items-center justify-center data-[focus-visible=true]:web:outline-none data-[focus-visible=true]:web:ring-2 data-[disabled=true]:opacity-40 gap-2',
+  base: 'group/button min-h-touch rounded-control flex-row items-center justify-center gap-2 data-[focus-visible=true]:web:outline-none data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-focus data-[focus-visible=true]:web:ring-offset-2 data-[disabled=true]:opacity-40',
   variants: {
     action: {
       primary:
-        'bg-primary-500 data-[hover=true]:bg-primary-600 data-[active=true]:bg-primary-700 border-primary-300 data-[hover=true]:border-primary-400 data-[active=true]:border-primary-500 data-[focus-visible=true]:web:ring-indicator-info',
+        'bg-lumus-accent border-lumus-accent data-[hover=true]:bg-lumus-accent-hover data-[hover=true]:border-lumus-accent-hover data-[active=true]:bg-lumus-accent-pressed data-[active=true]:border-lumus-accent-pressed',
       secondary:
         'bg-secondary-500 border-secondary-300 data-[hover=true]:bg-secondary-600 data-[hover=true]:border-secondary-400 data-[active=true]:bg-secondary-700 data-[active=true]:border-secondary-700 data-[focus-visible=true]:web:ring-indicator-info',
       positive:
@@ -123,7 +123,7 @@ const buttonTextStyle = tva({
   parentVariants: {
     action: {
       primary:
-        'text-primary-600 data-[hover=true]:text-primary-600 data-[active=true]:text-primary-700',
+        'text-yellow-700 data-[hover=true]:text-yellow-800 data-[active=true]:text-yellow-900 dark:text-yellow-300 dark:data-[hover=true]:text-yellow-200',
       secondary:
         'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
       positive:
@@ -150,7 +150,7 @@ const buttonTextStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
     },
     {
       variant: 'solid',
@@ -215,7 +215,7 @@ const buttonIconStyle = tva({
     },
     action: {
       primary:
-        'text-primary-600 data-[hover=true]:text-primary-600 data-[active=true]:text-primary-700',
+        'text-yellow-700 data-[hover=true]:text-yellow-800 data-[active=true]:text-yellow-900 dark:text-yellow-300 dark:data-[hover=true]:text-yellow-200',
       secondary:
         'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
       positive:
@@ -230,7 +230,7 @@ const buttonIconStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
     },
     {
       variant: 'solid',

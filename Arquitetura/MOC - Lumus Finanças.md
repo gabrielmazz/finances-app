@@ -1,14 +1,14 @@
 ---
 tags: [moc, arquitetura, expo, firebase, web, financas]
-relacionado: [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]]
+relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
-versao: 2.2.0
+versao: 2.3.0
 ---
 
 # MOC - Lumus Finanças
 
-> Map of Content principal do projeto **Lumus Finanças** (v2.2.0)
+> Map of Content principal do projeto **Lumus Finanças** (v2.3.0)
 > Aplicação universal de controle financeiro pessoal/familiar, construída com Expo + Firebase para Android/iOS e navegador.
 
 ---
@@ -61,6 +61,7 @@ graph TD
 - [[Anotações Locais]] — Páginas livres salvas localmente por usuário, sem Firestore
 
 ### Sistema
+- [[Auditoria de Design]] — Inventário integral, matriz web/mobile, achados, migrações Tailwind, exceções, validações e riscos residuais
 - [[Navegação]] — Expo Router, fluxo de autenticação, rotas
 - [[Organização do Código]] — Fronteiras entre rotas, composição global, telas, UI, hooks, Firebase e variantes de plataforma
 - [[Firebase Config]] — Configuração dual de apps Firebase, persistência de sessão
@@ -90,8 +91,9 @@ graph TD
 | React Native Firebase | 25.1 | AI Logic, App Check e Remote Config Android |
 | Zod | 4.4 | Validação dos comandos do assistente |
 | Expo Audio / Speech | 1.1 / 14.0 | Gravação temporária e TTS local do assistente |
-| Gluestack UI | 3.0.12 | Design system base |
-| NativeWind | 4.2.1 | Tailwind CSS para RN |
+| Tailwind CSS | 3.4.18 | Fonte canônica de tokens e utilitários visuais |
+| Gluestack UI | 3.0.12 | Primitives do design system |
+| NativeWind | 4.2.1 | Integração Tailwind para React Native e Web |
 | Mantine Charts + Recharts | 8.3.18 / 3.7.0 | Gráficos de previsão e evolução de investimentos via Expo DOM |
 | react-native-webview | 13.15.0 | Ponte nativa dos Expo DOM Components |
 | React | 19.1.0 | UI layer |
@@ -141,7 +143,7 @@ graph TD
 
 O entry ativo do app é `expo-router/entry`; inicializações obrigatórias de runtime devem partir de `app/_layout.tsx` ou de utilitários importados por ele. `App.tsx` permanece como entry alternativo para o fluxo `index.ts`.
 
-Cinco famílias tipográficas estão registradas no projeto:
+As cinco famílias abaixo continuam disponíveis por compatibilidade, mas **Arimo** é a fonte canônica de interface definida no tema Tailwind:
 
 | Fonte | Arquivo |
 |---|---|
@@ -151,7 +153,7 @@ Cinco famílias tipográficas estão registradas no projeto:
 | Obitron | `assets/Fonts/Obitron-VariableFont_wght.ttf` |
 | Raleway | `assets/Fonts/Raleway-VariableFont_wght.ttf` |
 
-As fontes ficam disponíveis para uso via `tailwind.config.js` (`fontFamily`) e estilos inline.
+As fontes ficam disponíveis via `tailwind.config.js` (`fontFamily`). Novos componentes devem usar classes e tokens tipográficos; uso direto em objetos de estilo exige exceção documentada.
 
 ---
 
@@ -159,7 +161,8 @@ As fontes ficam disponíveis para uso via `tailwind.config.js` (`fontFamily`) e 
 
 - Valores monetários armazenados em **centavos** (integers)
 - Chaves de ciclo no formato **YYYY-MM** para recorrências
-- Modo escuro detectado via `useScreenStyles()` (hook centralizado em `hooks/useScreenStyle.ts`)
+- Modo escuro e dimensões de runtime são expostos por `useScreenStyles()`; decisões visuais estáticas pertencem ao Tailwind e a `design-system/`
+- `npm run lint:styles` impede aumento de dívida visual por arquivo e bloqueia fontes de estilo proibidas
 - Dois apps Firebase: primário com sessão memory-only; o secundário usa SecureStore no Android/iOS e memória no Web para o cadastro de usuários
 - Feedback in-app exclusivamente via `notifier-alert.tsx` — sem sistemas paralelos de toast/alert
 - Ícones de tags usam três famílias: `Ionicons`, `MaterialCommunityIcons`, `FontAwesome6`

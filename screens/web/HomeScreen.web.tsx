@@ -69,11 +69,9 @@ import {
 import { type HomeMandatoryItem } from "@/utils/homeMandatorySchedule";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
 import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
-import {
-	useScreenStyles,
-	WEB_DASHBOARD_CLASS_NAMES,
-	WEB_DASHBOARD_DOM_STYLES,
-} from "@/hooks/useScreenStyle";
+import { LUMUS_CHART_COLORS } from "@/design-system/tokens";
+import { WEB_DASHBOARD_CLASS_NAMES, WEB_DASHBOARD_DOM_STYLES } from "@/design-system/web-dashboard";
+import { useScreenStyles } from "@/hooks/useScreenStyle";
 import { getUserDataFirebase } from "@/functions/RegisterUserFirebase";
 import { APP_ROUTE_PATHS, navigateToRoute } from "@/utils/navigation";
 import LoginWallpaper from "../../assets/Background/wallpaper01.png";
@@ -92,16 +90,7 @@ type WebDashboardPalette = {
 
 const webStyles = WEB_DASHBOARD_CLASS_NAMES;
 
-const INVESTMENT_COLORS = [
-	"#FACC15",
-	"#F59E0B",
-	"#FDE047",
-	"#EAB308",
-	"#FBBF24",
-	"#CA8A04",
-	"#FCD34D",
-	"#D97706",
-];
+const INVESTMENT_COLORS = [...LUMUS_CHART_COLORS];
 
 const formatCurrency = (valueInCents: number, hidden: boolean) => {
 	if (hidden) return HIDDEN_VALUE_PLACEHOLDER;

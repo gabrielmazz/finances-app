@@ -351,9 +351,9 @@ export default function FinancialForecastScreenWeb() {
 										<PopoverBackdrop className="bg-transparent" />
 										<PopoverContent className="max-w-[278px]" style={infoCardStyle}>
 											<PopoverBody className="px-3 py-3">
-													<Text className={`${bodyText} text-xs leading-5`}>
-														A previsão prioriza compromissos fixos e lançamentos futuros. A estimativa variável inclui somente categorias recorrentes em pelo menos 2 dos 3 últimos meses fechados, ignorando gastos pontuais. Ela é apenas uma simulação e não cria transações.
-													</Text>
+												<Text className={`${bodyText} text-xs leading-5`}>
+													A previsão prioriza compromissos fixos e lançamentos futuros. A estimativa variável inclui somente categorias recorrentes em pelo menos 2 dos 3 últimos meses fechados, ignorando gastos pontuais. Ela é apenas uma simulação e não cria transações.
+												</Text>
 											</PopoverBody>
 										</PopoverContent>
 									</Popover>
@@ -439,97 +439,97 @@ export default function FinancialForecastScreenWeb() {
 														: 'O cenário indica saldo negativo em algum ponto do período selecionado.'}
 												</Text>
 											</VStack>
-											</LinearGradient>
+										</LinearGradient>
 
-											<View
-												style={{
-													flexDirection: isDesktopWeb ? 'row' : 'column',
-													alignItems: 'stretch',
-													gap: 20,
-												}}
+										<View
+											style={{
+												flexDirection: isDesktopWeb ? 'row' : 'column',
+												alignItems: 'stretch',
+												gap: 20,
+											}}
+										>
+											<VStack
+												className="gap-5"
+												style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
 											>
-												<VStack
-													className="gap-5"
-													style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
-												>
-											<HStack className="gap-3">
-											<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs font-bold uppercase`}>Saldo hoje</Text>
-												<Text className={`mt-2 text-lg font-bold ${headingText}`}>
-													{formatCurrencyBRL(forecast.openingBalanceInCents)}
-												</Text>
-												<Text className={`${helperText} mt-1 text-xs`}>Bancos e dinheiro conhecidos</Text>
-											</View>
-											<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs font-bold uppercase`}>Variação prevista</Text>
-												<Text
-													className="mt-2 text-lg font-bold"
-													style={{ color: forecast.finalBalanceInCents - forecast.openingBalanceInCents >= 0 ? palette.positive : palette.negative }}
-												>
-													{formatSignedCurrencyBRL(forecast.finalBalanceInCents - forecast.openingBalanceInCents)}
-												</Text>
-												<Text className={`${helperText} mt-1 text-xs`}>Entradas menos saídas previstas</Text>
-											</View>
-										</HStack>
-
-										{forecast.missingSnapshotBankNames.length > 0 ? (
-											<View
-												style={{
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: palette.activeBorder,
-													backgroundColor: palette.activeSurface,
-													paddingHorizontal: 16,
-													paddingVertical: 14,
-												}}
-											>
-												<VStack className="gap-3">
-													<HStack className="items-start gap-2">
-														<Info size={17} color={palette.warning} style={{ marginTop: 1 }} />
-														<Text className={`${bodyText} flex-1 text-xs leading-5`}>
-															O saldo inicial de {forecast.missingSnapshotBankNames.join(', ')} ainda não foi incluído porque não há um saldo mensal cadastrado.
+												<HStack className="gap-3">
+													<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
+														<Text className={`${helperText} text-xs font-bold uppercase`}>Saldo hoje</Text>
+														<Text className={`mt-2 text-lg font-bold ${headingText}`}>
+															{formatCurrencyBRL(forecast.openingBalanceInCents)}
 														</Text>
-													</HStack>
-													<Pressable
-														onPress={() => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance)}
-														accessibilityRole="button"
+														<Text className={`${helperText} mt-1 text-xs`}>Bancos e dinheiro conhecidos</Text>
+													</View>
+													<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
+														<Text className={`${helperText} text-xs font-bold uppercase`}>Variação prevista</Text>
+														<Text
+															className="mt-2 text-lg font-bold"
+															style={{ color: forecast.finalBalanceInCents - forecast.openingBalanceInCents >= 0 ? palette.positive : palette.negative }}
+														>
+															{formatSignedCurrencyBRL(forecast.finalBalanceInCents - forecast.openingBalanceInCents)}
+														</Text>
+														<Text className={`${helperText} mt-1 text-xs`}>Entradas menos saídas previstas</Text>
+													</View>
+												</HStack>
+
+												{forecast.missingSnapshotBankNames.length > 0 ? (
+													<View
+														style={{
+															borderRadius: 18,
+															borderWidth: 1,
+															borderColor: palette.activeBorder,
+															backgroundColor: palette.activeSurface,
+															paddingHorizontal: 16,
+															paddingVertical: 14,
+														}}
 													>
-														<Text style={{ color: palette.warning, fontSize: 12, fontWeight: '700' }}>
-															Cadastrar saldos mensais
-														</Text>
-													</Pressable>
-												</VStack>
-											</View>
-											) : null}
-												</VStack>
+														<VStack className="gap-3">
+															<HStack className="items-start gap-2">
+																<Info size={17} color={palette.warning} style={{ marginTop: 1 }} />
+																<Text className={`${bodyText} flex-1 text-xs leading-5`}>
+																	O saldo inicial de {forecast.missingSnapshotBankNames.join(', ')} ainda não foi incluído porque não há um saldo mensal cadastrado.
+																</Text>
+															</HStack>
+															<Pressable
+																onPress={() => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance)}
+																accessibilityRole="button"
+															>
+																<Text style={{ color: palette.warning, fontSize: 12, fontWeight: '700' }}>
+																	Cadastrar saldos mensais
+																</Text>
+															</Pressable>
+														</VStack>
+													</View>
+												) : null}
+											</VStack>
 
 											<View
 												className={`${sectionCardClassName} px-5 py-5`}
 												style={isDesktopWeb ? { flex: 1.35, minWidth: 0 } : undefined}
 											>
-											<VStack className="gap-3">
-												<HStack className="items-center justify-between gap-3">
-													<HStack className="items-center gap-2">
-														<CalendarClock size={18} color={palette.warning} />
-														<Heading size="sm" className={headingText}>
-															Evolução do saldo
-														</Heading>
+												<VStack className="gap-3">
+													<HStack className="items-center justify-between gap-3">
+														<HStack className="items-center gap-2">
+															<CalendarClock size={18} color={palette.warning} />
+															<Heading size="sm" className={headingText}>
+																Evolução do saldo
+															</Heading>
+														</HStack>
+														{isLoading ? <ButtonSpinner color={palette.warning} /> : null}
 													</HStack>
-													{isLoading ? <ButtonSpinner color={palette.warning} /> : null}
-												</HStack>
-												<View style={{ height: 280 }}>
-													<FinancialForecastChart
-														data={chartData}
-														isDarkMode={isDarkMode}
-														shouldHideValues={shouldHideValues}
-														dom={{ focusable: false, scrollEnabled: true, style: { height: 280, backgroundColor: 'transparent' } }}
-													/>
-												</View>
-											</VStack>
+													<View style={{ height: 280 }}>
+														<FinancialForecastChart
+															data={chartData}
+															isDarkMode={isDarkMode}
+															shouldHideValues={shouldHideValues}
+															dom={{ focusable: false, scrollEnabled: true, style: { height: 280, backgroundColor: 'transparent' } }}
+														/>
+													</View>
+												</VStack>
 											</View>
-											</View>
+										</View>
 
-											<VStack className="gap-3">
+										<VStack className="gap-3">
 											<HStack className="items-center gap-2 px-1">
 												<CalendarClock size={18} color={palette.warning} />
 												<Heading size="sm" className={headingText}>

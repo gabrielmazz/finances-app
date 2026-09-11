@@ -505,11 +505,11 @@ export default function AddRegisterTagScreen() {
 									resizeMode="cover"
 								/>
 								<WebScreenHero
-					title={screenTitle}
-					Illustration={AddRegisterTagScreenIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
+									title={screenTitle}
+									Illustration={AddRegisterTagScreenIllustration}
+									isDarkMode={isDarkMode}
+									topPadding={insets.top + 24}
+								/>
 							</View>
 
 							<ScrollView
@@ -567,9 +567,9 @@ export default function AddRegisterTagScreen() {
 														<Text className={`${bodyText} text-sm font-semibold`} numberOfLines={1}>
 															{tagName.trim() || 'Sua nova categoria'}
 														</Text>
-												<Text className={`${helperText} text-xs`} numberOfLines={2}>
-													{isEditing ? availabilityPreviewText : `Esta categoria aparecerá em ${visibleAvailability.toLocaleLowerCase('pt-BR')}.`}
-												</Text>
+														<Text className={`${helperText} text-xs`} numberOfLines={2}>
+															{isEditing ? availabilityPreviewText : `Esta categoria aparecerá em ${visibleAvailability.toLocaleLowerCase('pt-BR')}.`}
+														</Text>
 													</VStack>
 													{isEditing ? <Text className="text-sm font-semibold text-amber-500">Alterar</Text> : null}
 												</HStack>

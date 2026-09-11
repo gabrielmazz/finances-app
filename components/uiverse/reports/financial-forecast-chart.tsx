@@ -39,7 +39,7 @@ export default function FinancialForecastChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; } html, body, #root, #root * { outline: none !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div
 				style={{
 					height: 280,

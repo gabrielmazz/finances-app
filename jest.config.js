@@ -1,6 +1,10 @@
 module.exports = {
 	testEnvironment: 'node',
-	testMatch: ['<rootDir>/tests/**/*.test.ts'],
+	// A relative glob keeps discovery stable when Codex/Windows executes the
+	// WSL workspace through a UNC path. Prefixing with <rootDir> duplicates the
+	// UNC mount segments in Jest 29 and causes every test to be skipped.
+	testMatch: ['**/tests/**/*.test.ts'],
+	testPathIgnorePatterns: ['[/\\\\]node_modules[/\\\\]', '[/\\\\]backend[/\\\\]tests[/\\\\]'],
 	transform: {
 		'^.+\\.(ts|tsx|js|jsx)$': 'babel-jest',
 	},

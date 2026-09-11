@@ -15,6 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import '@mantine/core/styles.css';
 import { Divider, MantineProvider, NumberInput } from '@mantine/core';
+import { getMantineNumberInputClassNames } from '@/design-system/mantine';
+import { cn } from '@/lib/utils';
 
 import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 import {
@@ -1295,7 +1297,7 @@ export default function AddMandatoryExpensesScreen() {
 														onValueChange={value => setOpenDueSection(value[0] ?? null)}
 														className="w-full"
 													>
-														<AccordionItem value="due" className={`${cardClassName} overflow-hidden !p-0`}>
+														<AccordionItem value="due" className={cn(cardClassName, 'overflow-hidden p-0')}>
 															<AccordionHeader>
 																<AccordionTrigger className="px-4 py-3">
 																	{({ isExpanded }: { isExpanded: boolean }) => (
@@ -1318,13 +1320,13 @@ export default function AddMandatoryExpensesScreen() {
 																			Contar por dia útil
 																		</Text>
 																	</VStack>
-							<Switch
-								value={usesBusinessDays}
+																	<Switch
+																		value={usesBusinessDays}
 																		onValueChange={setUsesBusinessDays}
 																		disabled={isFormBusy}
-									trackColor={switchTrackColor}
-									thumbColor={switchThumbColor}
-									activeThumbColor={switchActiveThumbColor}
+																		trackColor={switchTrackColor}
+																		thumbColor={switchThumbColor}
+																		activeThumbColor={switchActiveThumbColor}
 																		ios_backgroundColor={switchIosBackgroundColor}
 																		accessibilityLabel="Contar vencimento por dia útil"
 																	/>
@@ -1334,8 +1336,8 @@ export default function AddMandatoryExpensesScreen() {
 													</Accordion>
 
 													<VStack className={webExpenseClassNames.fieldFull}>
-																	<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-																		<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Observações</Text>
+														<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+															<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Observações</Text>
 															<Popover
 																placement="bottom"
 																size="md"
@@ -1414,7 +1416,7 @@ export default function AddMandatoryExpensesScreen() {
 														onValueChange={value => setOpenOptionalSection(value[0] ?? null)}
 														className="w-full"
 													>
-														<AccordionItem value="optional" className={`${cardClassName} overflow-hidden !p-0`}>
+														<AccordionItem value="optional" className={cn(cardClassName, 'overflow-hidden p-0')}>
 															<AccordionHeader>
 																<AccordionTrigger className="px-4 py-3">
 																	{({ isExpanded }: { isExpanded: boolean }) => (
@@ -1439,20 +1441,20 @@ export default function AddMandatoryExpensesScreen() {
 																					Parcelamento
 																				</Text>
 																			</VStack>
-								<Switch
-									value={installmentsEnabled}
+																			<Switch
+																				value={installmentsEnabled}
 																				onValueChange={handleInstallmentsToggle}
 																				disabled={!isCoreTemplateReady || isFormBusy}
-										trackColor={switchTrackColor}
-										thumbColor={switchThumbColor}
-										activeThumbColor={switchActiveThumbColor}
+																				trackColor={switchTrackColor}
+																				thumbColor={switchThumbColor}
+																				activeThumbColor={switchActiveThumbColor}
 																				ios_backgroundColor={switchIosBackgroundColor}
 																				accessibilityLabel="Ativar parcelamento"
 																			/>
 																		</HStack>
 																		{installmentsEnabled ? (
 																			<VStack className="w-full gap-2">
-																				<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Quantidade de parcelas</Text>
+																				<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Quantidade de parcelas</Text>
 																				<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
 																					<NumberInput
 																						value={installmentTotal === '' ? '' : Number(installmentTotal)}
@@ -1464,37 +1466,29 @@ export default function AddMandatoryExpensesScreen() {
 																						clampBehavior="strict"
 																						disabled={isInstallmentFieldDisabled}
 																						aria-label="Quantidade de parcelas"
-																						classNames={{
-																							root: 'w-full !m-0',
-																							input: `${inputClassName} ${inputField} !pl-4 !pr-11 !text-base`,
-																							controls:
-																								'my-1 mr-2 w-7 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800',
-																							control:
-																								'border-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-900 dark:hover:text-slate-200',
-																						}}
-																						styles={{ root: { margin: 0 }, input: { paddingLeft: 16, paddingRight: 44 } }}
+																						classNames={getMantineNumberInputClassNames(inputClassName, inputField)}
 																						onFocus={() => handleInputFocus('installments')}
 																					/>
-																																										</MantineProvider>
-																																										<VStack className="w-full gap-2">
-																																											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>
-																																												Valor total do parcelamento
-																																											</Text>
-																																											<Input className={inputClassName} isDisabled={isInstallmentFieldDisabled}>
-																																												<InputField
-																																													accessibilityLabel="Valor total do parcelamento"
-																																													placeholder="Ex.: R$ 500,00…"
-																																													value={installmentTotalValueDisplay}
-																																															onChangeText={handleInstallmentTotalValueChange}
-																																													keyboardType="numeric"
-																																													inputMode="numeric"
-																																													className={inputField}
-																																												/>
-																																											</Input>
-																																										</VStack>
-																																										<HStack className="w-full gap-3 web:flex-row">
+																				</MantineProvider>
+																				<VStack className="w-full gap-2">
+																					<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>
+																						Valor total do parcelamento
+																					</Text>
+																					<Input className={inputClassName} isDisabled={isInstallmentFieldDisabled}>
+																						<InputField
+																							accessibilityLabel="Valor total do parcelamento"
+																							placeholder="Ex.: R$ 500,00…"
+																							value={installmentTotalValueDisplay}
+																							onChangeText={handleInstallmentTotalValueChange}
+																							keyboardType="numeric"
+																							inputMode="numeric"
+																							className={inputField}
+																						/>
+																					</Input>
+																				</VStack>
+																				<HStack className="w-full gap-3 web:flex-row">
 																					<VStack className="min-w-0 flex-1 gap-2">
-																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Início</Text>
+																						<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Início</Text>
 																						<DatePickerField
 																							value={installmentStartDate}
 																							onChange={handleInstallmentStartDateChange}
@@ -1506,7 +1500,7 @@ export default function AddMandatoryExpensesScreen() {
 																						/>
 																					</VStack>
 																					<VStack className="min-w-0 flex-1 gap-2">
-																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Fim</Text>
+																						<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Fim</Text>
 																						<DatePickerField
 																							value={installmentEndDate}
 																							onChange={handleInstallmentEndDateChange}
@@ -1529,13 +1523,13 @@ export default function AddMandatoryExpensesScreen() {
 																					Lembrete do vencimento
 																				</Text>
 																			</VStack>
-								<Switch
-									value={reminderEnabled}
+																			<Switch
+																				value={reminderEnabled}
 																				onValueChange={handleReminderToggle}
 																				disabled={!isTemplateReady || isFormBusy}
-										trackColor={switchTrackColor}
-										thumbColor={switchThumbColor}
-										activeThumbColor={switchActiveThumbColor}
+																				trackColor={switchTrackColor}
+																				thumbColor={switchThumbColor}
+																				activeThumbColor={switchActiveThumbColor}
 																				ios_backgroundColor={switchIosBackgroundColor}
 																				accessibilityLabel="Ativar lembrete do vencimento"
 																			/>
@@ -1543,15 +1537,15 @@ export default function AddMandatoryExpensesScreen() {
 																		{reminderEnabled ? (
 																			<VStack className="gap-4">
 																				<VStack className="gap-2">
-																					<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Começar a lembrar</Text>
-																	<WebSelectField
-																		options={MANDATORY_REMINDER_DAY_OPTIONS}
-																		value={String(reminderDaysBefore)}
-																		onChange={handleReminderDaysBeforeChange}
-																		isDisabled={isFormBusy}
-																		placeholder="Escolha quando começar…"
-																		accessibilityLabel="Antecedência do lembrete"
-																	/>
+																					<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Começar a lembrar</Text>
+																					<WebSelectField
+																						options={MANDATORY_REMINDER_DAY_OPTIONS}
+																						value={String(reminderDaysBefore)}
+																						onChange={handleReminderDaysBeforeChange}
+																						isDisabled={isFormBusy}
+																						placeholder="Escolha quando começar…"
+																						accessibilityLabel="Antecedência do lembrete"
+																					/>
 																				</VStack>
 
 																				<HStack className="items-center justify-between gap-4">
@@ -1560,13 +1554,13 @@ export default function AddMandatoryExpensesScreen() {
 																							Avisar também no vencimento
 																						</Text>
 																					</VStack>
-									<Switch
-										value={reminderOnDueDate}
+																					<Switch
+																						value={reminderOnDueDate}
 																						onValueChange={setReminderOnDueDate}
 																						disabled={isFormBusy}
-																	trackColor={switchTrackColor}
-																	thumbColor={switchThumbColor}
-																	activeThumbColor={switchActiveThumbColor}
+																						trackColor={switchTrackColor}
+																						thumbColor={switchThumbColor}
+																						activeThumbColor={switchActiveThumbColor}
 																						ios_backgroundColor={switchIosBackgroundColor}
 																						accessibilityLabel="Avisar também no vencimento"
 																					/>
@@ -1574,7 +1568,7 @@ export default function AddMandatoryExpensesScreen() {
 
 																				<VStack className="w-full gap-2">
 																					<HStack className="items-center gap-1">
-																						<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Horário preferido</Text>
+																						<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Horário preferido</Text>
 																						<Popover
 																							placement="bottom"
 																							size="md"
