@@ -566,11 +566,11 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								/>
 
 								<WebScreenHero
-					title={screenTitle}
-					Illustration={AddRegisterMonthlyBalanceScreenIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
+									title={screenTitle}
+									Illustration={AddRegisterMonthlyBalanceScreenIllustration}
+									isDarkMode={isDarkMode}
+									topPadding={insets.top + 24}
+								/>
 							</View>
 
 							<ScrollView
@@ -589,7 +589,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 									<VStack className="mb-4">
 
 										<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Banco</Text>
+											<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Banco</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -616,7 +616,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
-															Selecione o banco para o qual deseja registrar o saldo mensal. 
+															Selecione o banco para o qual deseja registrar o saldo mensal.
 															Esse saldo representa o valor disponível no início do mês, sendo a base dos calculos com despesas e ganhos.
 														</Text>
 													</PopoverBody>
@@ -634,7 +634,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}
 											helperTextClassName={helperText}
-																				triggerClassName={fieldBankContainerClassName}
+											triggerClassName={fieldBankContainerClassName}
 											placeholder="Selecione o banco vinculado"
 											sheetTitle="Escolha o banco do saldo mensal"
 											emptyMessage="Nenhum banco disponível."
@@ -650,7 +650,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 									<VStack className="mb-4">
 										<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Mês de referência</Text>
+											<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Mês de referência</Text>
 											<Popover
 												placement="bottom"
 												size="md"

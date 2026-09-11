@@ -31,19 +31,9 @@ const AUTHENTICATED_ROUTE_NAMES = Object.values(APP_ROUTE_PATHS)
 const PLATFORM_LOGIN_ROUTE_NAME = `${APP_PLATFORM_GROUP}/index`;
 
 const AuthBootstrapScreen = () => {
-	const { isDarkMode } = useAppTheme();
-	const backgroundColor = isDarkMode ? '#020617' : '#ffffff';
-
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor }}>
-			<View
-				style={{
-					flex: 1,
-					alignItems: 'center',
-					justifyContent: 'center',
-					backgroundColor,
-				}}
-			>
+		<SafeAreaView className="flex-1 bg-white dark:bg-slate-950">
+			<View className="flex-1 items-center justify-center bg-white dark:bg-slate-950">
 				<Loader />
 			</View>
 		</SafeAreaView>
@@ -131,7 +121,7 @@ const LayoutWithTheme = () => {
 	const { themeMode } = useAppTheme();
 
 	return (
-		<GestureHandlerRootView style={{ flex: 1 }}>
+		<GestureHandlerRootView className="flex-1">
 			<GluestackUIProvider mode={themeMode}>
 				<NotifierBoundary>
 					<WebNotifierAlertHost />

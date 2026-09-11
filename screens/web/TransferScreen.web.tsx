@@ -271,14 +271,14 @@ export default function TransferScreen() {
 
 				if (banksResult.success && Array.isArray(banksResult.data)) {
 					const formattedBanks = banksResult.data.map((bank: any) => ({
-							id: bank.id,
-							name:
-								typeof bank?.name === 'string' && bank.name.trim().length > 0
-									? bank.name.trim()
-									: 'Banco sem nome',
-							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-						}));
+						id: bank.id,
+						name:
+							typeof bank?.name === 'string' && bank.name.trim().length > 0
+								? bank.name.trim()
+								: 'Banco sem nome',
+						iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
+						colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
+					}));
 					setBanks(formattedBanks);
 				} else {
 					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
@@ -533,11 +533,11 @@ export default function TransferScreen() {
 							/>
 
 							<WebScreenHero
-					title={screenTitle}
-					Illustration={TransferIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
+								title={screenTitle}
+								Illustration={TransferIllustration}
+								isDarkMode={isDarkMode}
+								topPadding={insets.top + 24}
+							/>
 						</View>
 
 						<ScrollView
@@ -556,7 +556,7 @@ export default function TransferScreen() {
 
 									<VStack className="mb-4 flex-1 web:min-w-[280px]">
 										<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Banco de Origem</Text>
+											<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Banco de Origem</Text>
 											<Popover
 												placement="bottom"
 												size="md"

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 type WebAppShellProps = React.PropsWithChildren<{
 	isAuthenticated: boolean;
 }>;
@@ -10,24 +10,10 @@ type WebAppShellProps = React.PropsWithChildren<{
  */
 export default function WebAppShell({ children }: WebAppShellProps) {
 	return (
-		<View style={styles.frame}>
-			<View style={styles.workspace}>
-				<View style={styles.content}>{children}</View>
+		<View className="flex-1">
+			<View className="min-w-0 flex-1">
+				<View className="min-w-0 flex-1">{children}</View>
 			</View>
 		</View>
 	);
 }
-
-const styles = StyleSheet.create({
-	frame: {
-		flex: 1,
-	},
-	workspace: {
-		flex: 1,
-		minWidth: 0,
-	},
-	content: {
-		flex: 1,
-		minWidth: 0,
-	},
-});

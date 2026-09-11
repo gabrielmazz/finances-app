@@ -3,7 +3,7 @@ tags: [componentes, arquitetura, dominios, web, expo]
 relacionado: [[Componentes UI]], [[Organização do Código]], [[Versão Web]], [[Navegação]], [[Dashboard Home]], [[Despesas Fixas]], [[Investimentos]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
-versao: 1.2.0
+versao: 1.3.0
 ---
 
 # Componentes por Sistema
@@ -14,10 +14,11 @@ Os componentes customizados do Lumus Finanças são organizados por sistema func
 
 | Sistema | Pasta | Telas que consomem | Regra de plataforma |
 |---|---|---|---|
+| Fundação visual | `design-system/` | todas | tokens, contratos de classe, adaptadores, exceções e baseline são compartilhados; telas não criam tokens locais |
 | Navegação | `components/uiverse/navigation/` | todas as telas autenticadas | `navigator` e os componentes de shell/hero usam resolução automática; o shell Web e a transição DOM não entram na árvore nativa |
 | Compartilhado | `components/uiverse/shared/` | bootstrap e formulários | `date-picker`, `loader` e dismiss de teclado têm arquivos Web e nativos independentes, sem compartilhar handlers de foco ou animação |
 | Feedback | `components/uiverse/feedback/` | todas as telas com feedback | o par nativo/Web do notifier mantém uma API única; não criar outro toast |
-| Bancos | `components/uiverse/banks/` | Home, movimentos, registros, transferências e resgate | selector e card têm pares Web/nativo com os mesmos tipos e callbacks; cada superfície pode evoluir sem importar a outra |
+| Bancos | `components/uiverse/banks/` e `components/shared/banks/` | Home, movimentos, registros, transferências e resgate | o selector tem pares Web/nativo; o card visualmente equivalente usa uma implementação compartilhada e adaptadores finos |
 | Categorias | `components/uiverse/categories/` | registros, análise e configurações | disponibilidade e seleção têm pares Web/nativo e preservam a mesma ordenação, seleção e ação de criação |
 | Recorrências | `components/uiverse/recurring/` | despesas/receitas fixas | `date-calendar` tem pares Web/nativo; calendário de ciclos, horários e progresso preservam `YYYY-MM`, HH:MM e a indisponibilidade de agendamento no Web |
 | Dashboard | `components/uiverse/dashboard/` | Home | gráficos Web continuam Expo DOM e recebem somente props serializáveis |
@@ -32,7 +33,7 @@ As implementações específicas ficam organizadas por plataforma:
 
 - `components/web/motion/` — animações DOM de entrada/saída;
 - `components/web/navigation/` — navigator, shell, transição, hero e menu Web desktop;
-- `components/web/visuals/` — carrossel, gradiente, aurora e texto SVG;
+- `components/web/visuals/` — carrossel, gradiente e texto SVG;
 - `components/web/{banks,categories,feedback,recurring,shared,assistant}/` — seletores, calendário, feedback, inputs e cards Web;
 - `components/mobile/{banks,categories,feedback,navigation,recurring,shared,assistant}/` — equivalentes Android/iOS dos componentes que possuem divergência de plataforma.
 
@@ -41,6 +42,8 @@ Esses componentes não recebem acesso a Firebase. Quando usados por uma tela, re
 ## Regras de manutenção
 
 - Primitives Gluestack ficam em `components/ui/` e não recebem componentes de domínio.
+- Toda apresentação nova parte de tokens e contratos em `tailwind.config.js` e `design-system/`; APIs externas sem `className` usam somente adaptadores registrados.
+- `npm run lint:styles` deve passar antes de integrar mudanças visuais e o baseline por arquivo só pode diminuir.
 - Uma resolução `.web.tsx` ou `.native.tsx` mantém um adaptador em `components/uiverse/<sistema>/`, enquanto a implementação real fica em `components/web/<sistema>/` ou `components/mobile/<sistema>/`. O arquivo base mantém o fallback mobile e reexporta o adaptador nativo para TypeScript/Jest.
 - As telas importam o caminho lógico sem extensão (`@/components/uiverse/.../date-picker`); não importar diretamente `.web` ou `.native`, pois isso bypassa a resolução do Expo.
 - As variantes preservam os tipos públicos, callbacks, máscaras de privacidade, formatos de data/horário, estados de seleção e ações de confirmação. A diferença de plataforma fica restrita à apresentação e às APIs de interação; não duplicar regra Firebase ou cálculo financeiro.
@@ -54,5 +57,7 @@ Esses componentes não recebem acesso a Firebase. Quando usados por uma tela, re
 - `components/uiverse/` — Componentes customizados separados por sistema
 - `components/web/` — Implementações Web, separadas por sistema funcional
 - `components/mobile/` — Implementações Android/iOS dos componentes com divergência de plataforma
+- `components/shared/banks/bank-card-surface.tsx` — Superfície bancária única para Web e Android/iOS
+- `design-system/` — Fundação Tailwind, adaptadores e guardrails de estilo
 - `Arquitetura/Componentes UI.md` — Design system e contratos dos componentes
 - `Arquitetura/Organização do Código.md` — Fronteiras entre rotas, telas e componentes

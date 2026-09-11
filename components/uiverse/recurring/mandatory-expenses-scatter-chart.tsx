@@ -37,7 +37,7 @@ export default function MandatoryExpensesScatterChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div
 				role="img"
 				aria-label={`Concentração dos ${subjectLabel} por dia da semana e dia do mês.`}

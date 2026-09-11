@@ -37,7 +37,7 @@ export default function HomeInvestmentChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div
 				role="img"
 				aria-label={`Distribuição de ${investmentCount} ${investmentCount === 1 ? 'investimento' : 'investimentos'}`}

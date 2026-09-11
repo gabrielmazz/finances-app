@@ -16,7 +16,7 @@ export default function HomeTabsScreenWeb() {
 	const { isRouteVisible } = useRouteVisibility();
 	const activeTabIndex = normalizeHomeTabIndex(tab);
 
-    // [[Visibilidade de Rotas]]: a aba Controle reutiliza o formulário de
+	// [[Visibilidade de Rotas]]: a aba Controle reutiliza o formulário de
 	// despesas e não pode oferecer uma rota que foi ocultada neste aparelho.
 	if (activeTabIndex === 1 && !isRouteVisible('addRegisterExpenses')) {
 		return <Redirect href={HOME_DASHBOARD_ROUTE} />;

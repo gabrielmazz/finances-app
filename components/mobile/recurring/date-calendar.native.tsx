@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, ClipPath, Defs, G, Line, Polygon, Rect } from 'react-native-svg';
 
@@ -29,6 +29,7 @@ import {
 	getBrazilNationalHolidaysForMonth,
 } from '@/utils/businessCalendar';
 import { Heading } from '@/components/ui/heading';
+import { NATIVE_LIBRARY_STYLES } from '@/design-system/native-styles';
 
 export type DateCalendarItem = {
 	id: string;
@@ -82,89 +83,6 @@ const HOLIDAY_PURPLE_LIGHT = '#7C3AED';
 const HOLIDAY_PURPLE_DARK = '#8B5CF6';
 const DAY_CIRCLE_SIZE = 48;
 const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
-
-const daySummaryStyles = StyleSheet.create({
-	modalContent: {
-		flexGrow: 0,
-		flexShrink: 1,
-		flexBasis: 'auto',
-		height: 'auto',
-		minHeight: 0,
-	},
-	modalBody: {
-		flexGrow: 0,
-		flexShrink: 1,
-		flexBasis: 'auto',
-		minHeight: 0,
-	},
-	modalBodyContent: {
-		alignItems: 'stretch',
-		flexGrow: 0,
-		flexShrink: 0,
-		flexBasis: 'auto',
-		paddingBottom: 24,
-	},
-	items: {
-		width: '100%',
-		flexGrow: 0,
-		flexShrink: 0,
-	},
-	itemTrigger: {
-		width: '100%',
-		minHeight: 52,
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		columnGap: 12,
-		paddingVertical: 8,
-	},
-	itemIdentity: {
-		minWidth: 0,
-		flex: 1,
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 12,
-	},
-	itemCopy: {
-		minWidth: 0,
-		flex: 1,
-	},
-	itemValue: {
-		flexShrink: 0,
-		alignItems: 'flex-end',
-	},
-	itemSchedule: {
-		maxWidth: '100%',
-		flexDirection: 'row',
-		alignItems: 'center',
-		columnGap: 4,
-	},
-	expandedCard: {
-		width: '100%',
-		flexGrow: 0,
-		flexShrink: 0,
-		alignSelf: 'stretch',
-	},
-	metaRows: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		columnGap: 16,
-		rowGap: 12,
-	},
-	metaItem: {
-		minWidth: 128,
-		flexGrow: 1,
-		flexShrink: 1,
-		flexBasis: 0,
-	},
-	actions: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		columnGap: 16,
-		rowGap: 8,
-		paddingTop: 2,
-	},
-});
 
 const buildCalendarDays = (reference: Date) => {
 	const firstDay = new Date(reference.getFullYear(), reference.getMonth(), 1);
@@ -677,9 +595,9 @@ function DateCalendar({
 				<ModalBody
 					className="pb-6 web:flex-none web:min-h-0 web:max-h-[calc(100vh-180px)] web:pb-0"
 					showsVerticalScrollIndicator={false}
-						contentContainerStyle={daySummaryStyles.modalBodyContent}
+						contentContainerStyle={NATIVE_LIBRARY_STYLES.calendarModalBodyContent}
 					>
-						<VStack className="gap-3" style={{ width: '100%', flexGrow: 0, flexShrink: 0 }}>
+						<VStack className="w-full grow-0 shrink-0 gap-3">
 							<HStack className="flex-wrap gap-2">
 								{selectedDayCount > 0 ? (
 									<View className={`px-3 py-1 rounded-full ${modalSummaryBadgeClassName}`}>
@@ -710,18 +628,16 @@ function DateCalendar({
 								const isExpanded = expandedDayItemIds.includes(item.id);
 
 								return (
-									<VStack key={`selected-${item.id}`} className="gap-2" style={daySummaryStyles.items}>
+									<VStack key={`selected-${item.id}`} className="w-full grow-0 shrink-0 gap-2">
 										<VStack className="gap-2">
 											<Pressable
 												onPress={() => handleToggleDayItemCard(item.id)}
 												accessibilityRole="button"
 												accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${itemNameLabel}`}
 												accessibilityState={{ expanded: isExpanded }}
-													style={daySummaryStyles.itemTrigger}
+													className="min-h-13 w-full flex-row items-center justify-between gap-3 py-2"
 											>
-												<View
-														style={daySummaryStyles.itemIdentity}
-												>
+												<View className="min-w-0 flex-1 flex-row items-center gap-3">
 													<LinearGradient
 														colors={tonePalette.iconGradient}
 														start={{ x: 0, y: 0 }}
@@ -743,7 +659,7 @@ function DateCalendar({
 														/>
 													</LinearGradient>
 
-													<View style={daySummaryStyles.itemCopy}>
+													<View className="min-w-0 flex-1">
 														<Text
 															className="web:block web:truncate"
 															numberOfLines={1}
@@ -786,9 +702,7 @@ function DateCalendar({
 													</View>
 												</View>
 
-												<View
-														style={daySummaryStyles.itemValue}
-												>
+												<View className="shrink-0 items-end">
 													<Text
 														style={{
 															color: tonePalette.amountColor,
@@ -798,7 +712,7 @@ function DateCalendar({
 													>
 														{formatCurrency(getDisplayValueInCents(item))}
 													</Text>
-													<View style={daySummaryStyles.itemSchedule}>
+													<View className="max-w-full flex-row items-center gap-1">
 														<Icon
 															as={CalendarDaysIcon}
 															size="xs"
@@ -832,7 +746,10 @@ function DateCalendar({
 														borderRadius: 20,
 														paddingHorizontal: 16,
 														paddingVertical: 14,
-														...daySummaryStyles.expandedCard,
+																		width: '100%',
+																		flexGrow: 0,
+																		flexShrink: 0,
+																		alignSelf: 'stretch',
 													}}
 												>
 													<VStack className="gap-3">
@@ -906,9 +823,9 @@ function DateCalendar({
 																		: []),
 																],
 															].map((metaRow, rowIndex) => (
-																<View key={`${item.id}-meta-row-${rowIndex}`} style={daySummaryStyles.metaRows}>
+																<View key={`${item.id}-meta-row-${rowIndex}`} className="flex-row flex-wrap gap-x-4 gap-y-3">
 																	{metaRow.map(metaItem => (
-																		<VStack key={`${item.id}-${metaItem.label}`} style={daySummaryStyles.metaItem}>
+																		<VStack key={`${item.id}-${metaItem.label}`} className="min-w-32 basis-0 grow shrink">
 																			<Text
 																				style={{
 																					fontSize: 10,
@@ -962,7 +879,7 @@ function DateCalendar({
 															</VStack>
 														) : null}
 
-														<View style={daySummaryStyles.actions}>
+														<View className="flex-row flex-wrap gap-x-4 gap-y-2 pt-0.5">
 															<Pressable
 																onPress={() => handleDayAction('register', item)}
 																disabled={item.isCompletedForCurrentCycle}

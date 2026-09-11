@@ -4,6 +4,7 @@ module.exports = {
   content: [
     './app/**/*.{html,js,jsx,ts,tsx,mdx}',
     './components/**/*.{html,js,jsx,ts,tsx,mdx}',
+    './design-system/**/*.{html,js,jsx,ts,tsx,mdx}',
     './hooks/**/*.{html,js,jsx,ts,tsx,mdx}',
     './screens/**/*.{html,js,jsx,ts,tsx,mdx}',
     './utils/**/*.{html,js,jsx,ts,tsx,mdx}',
@@ -11,7 +12,6 @@ module.exports = {
     './src/**/*.{html,js,jsx,ts,tsx,mdx}',
   ],
   presets: [require('nativewind/preset')],
-  important: 'html',
   safelist: [
     {
       pattern:
@@ -21,6 +21,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        lumus: {
+          accent: '#FACC15',
+          'accent-hover': '#FDE047',
+          'accent-pressed': '#EAB308',
+          'on-accent': '#0F172A',
+          focus: '#CA8A04',
+          'income-light': '#059669',
+          'income-dark': '#34D399',
+          'expense-light': '#DC2626',
+          'expense-dark': '#F87171',
+        },
         primary: {
           0: 'rgb(var(--color-primary-0)/<alpha-value>)',
           50: 'rgb(var(--color-primary-50)/<alpha-value>)',
@@ -177,10 +188,11 @@ module.exports = {
         },
       },
       fontFamily: {
+        sans: ['Arimo', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         arimo: 'Arimo',
         ibmplex: 'IBMPlexSans',
         metamorphous: 'Metamorphous',
-        obitron: 'Obitron',
+        orbitron: 'Orbitron',
         raleway: 'Raleway',
       },
       fontWeight: {
@@ -188,8 +200,113 @@ module.exports = {
       },
       fontSize: {
         '2xs': '10px',
+        'label': ['15px', { lineHeight: '22px' }],
+        'body-sm': ['14px', { lineHeight: '22px' }],
+      },
+      spacing: {
+        '0.75': '3px',
+        '1.25': '5px',
+        '1.75': '7px',
+        '3.25': '13px',
+        '4.5': '18px',
+        '6.5': '26px',
+        '7.5': '30px',
+        '8.5': '34px',
+        '10.5': '42px',
+		'25': '100px',
+        '27.5': '110px',
+        '31.5': '126px',
+        '37.5': '150px',
+        '45': '180px',
+        '47.5': '190px',
+        control: '48px',
+        touch: '44px',
+        textarea: '112px',
+        chart: '290px',
+        heatmap: '178px',
+      },
+      minHeight: {
+        touch: '44px',
+        control: '48px',
+        navigation: '62px',
+        'summary-card': '126px',
+        'bank-card': '200px',
+        'timeline-row': '80px',
+		'login-card': '540px',
+		'login-shell': '680px',
+      },
+      minWidth: {
+        'date-chip': '58px',
+        'detail-item': '130px',
+      },
+      maxWidth: {
+        content: '1180px',
+        'hero-title': '620px',
+        'bank-card': '610px',
+        tooltip: '300px',
+		'login-form': '420px',
+      },
+      borderRadius: {
+        control: '16px',
+        card: '24px',
+        modal: '28px',
+        sheet: '28px',
+        section: '20px',
+        summary: '18px',
+        chart: '14px',
+        'date-chip': '9px',
+        'movement-icon': '15px',
+		hero: '32px',
+      },
+	  flex: {
+		'login-identity': '1.14 1 0%',
+		'login-form': '0.86 1 0%',
+	  },
+      letterSpacing: {
+        label: '0.7px',
+        section: '1.1px',
+        kicker: '0.6px',
+        detail: '0.5px',
+      },
+      opacity: {
+        hero: '0.62',
+        muted: '0.68',
+      },
+      zIndex: {
+        content: '1',
+        hero: '2',
+        sheet: '3',
+        navigation: '40',
+        overlay: '50',
+        modal: '60',
+        toast: '70',
+      },
+      transitionDuration: {
+        fast: '150ms',
+        standard: '220ms',
+        slow: '320ms',
+      },
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(0.2, 0, 0, 1)',
+        emphasized: 'cubic-bezier(0.2, 0, 0, 1.2)',
+      },
+      keyframes: {
+        'lumus-fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'lumus-slide-up': {
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+      animation: {
+        'lumus-fade-in': 'lumus-fade-in 220ms cubic-bezier(0.2, 0, 0, 1)',
+        'lumus-slide-up': 'lumus-slide-up 220ms cubic-bezier(0.2, 0, 0, 1)',
       },
       boxShadow: {
+        card: '0 8px 24px rgba(15, 23, 42, 0.08)',
+        overlay: '0 18px 48px rgba(2, 6, 23, 0.24)',
         'hard-1': '-2px 2px 8px 0px rgba(38, 38, 38, 0.20)',
         'hard-2': '0px 3px 10px 0px rgba(38, 38, 38, 0.20)',
         'hard-3': '2px 2px 8px 0px rgba(38, 38, 38, 0.20)',

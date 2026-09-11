@@ -40,6 +40,7 @@ import {
 } from '@/utils/navigation';
 import { logoutCurrentUser } from '@/utils/secureLogout';
 import { isWebDesktopLayout } from '@/utils/webLayout';
+import { LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -240,16 +241,20 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 	);
 
 	if (isDesktopWeb) {
+		const navigationColors = isDarkMode
+			? LUMUS_NAVIGATION_COLORS.dark
+			: LUMUS_NAVIGATION_COLORS.light;
+
 		return (
 			<StaggeredMenu
 				className="finance-menu"
 				position="left"
 				isFixed
 				themeMode={isDarkMode ? 'dark' : 'light'}
-				colors={isDarkMode ? ['#1f1808', '#8a6a0a', '#facc15'] : ['#fff7cc', '#fde68a', '#facc15']}
-				accentColor={isDarkMode ? '#facc15' : '#a16207'}
-				menuButtonColor={isDarkMode ? '#e2e8f0' : '#a16207'}
-				openMenuButtonColor={isDarkMode ? '#fef08a' : '#854d0e'}
+				colors={[...navigationColors.layers]}
+				accentColor={navigationColors.accent}
+				menuButtonColor={navigationColors.button}
+				openMenuButtonColor={navigationColors.buttonOpen}
 				profile={{
 					name: profileName || user?.email?.split('@')[0] || 'Usuário',
 					subtitle: user?.email || '',
@@ -266,41 +271,36 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 
 	const activeMobileGroup = resolvedGroups.find(group => group.value === openMobileGroup) ?? null;
 	return (
-		<View role="navigation" accessibilityLabel="Navegação principal" style={{ backgroundColor: '#030617' }}>
+		<View role="navigation" accessibilityLabel="Navegação principal" className="bg-slate-950">
 			{activeMobileGroup ? (
-				<View style={{ borderTopWidth: 1, borderTopColor: '#1e293b', padding: 10, gap: 4 }}>
+				<View className="gap-1 border-t border-slate-800 p-2.5">
 					{activeMobileGroup.options.map(option => (
 						<Pressable
 							key={option.id}
 							onPress={() => handleSelect(option)}
 							accessibilityRole="button"
 							accessibilityState={{ selected: isActive(option, activeMobileGroup) }}
-							style={({ pressed }) => ({
-								minHeight: 48,
-								paddingHorizontal: 14,
-								borderRadius: 12,
-								justifyContent: 'center',
-								backgroundColor: isActive(option, activeMobileGroup) ? 'rgba(250, 204, 21, 0.13)' : 'transparent',
-								opacity: pressed ? 0.78 : 1,
-							})}
+							className={`min-h-control justify-center rounded-xl px-3.5 active:opacity-80 ${
+								isActive(option, activeMobileGroup) ? 'bg-lumus-accent/15' : 'bg-transparent'
+							}`}
 						>
-							<Text style={{ color: isActive(option, activeMobileGroup) ? '#fde047' : '#e2e8f0', fontWeight: '700' }}>
+							<Text className={`font-bold ${isActive(option, activeMobileGroup) ? 'text-yellow-300' : 'text-slate-200'}`}>
 								{option.label}
 							</Text>
 						</Pressable>
 					))}
 				</View>
 			) : null}
-			<View style={{ flexDirection: 'row', minHeight: 62, paddingHorizontal: 12 }}>
+			<View className="min-h-navigation flex-row px-3">
 				{resolvedGroups.map(group => (
 					<Pressable
 						key={group.value}
 						onPress={() => setOpenMobileGroup(current => (current === group.value ? null : group.value))}
 						accessibilityRole="button"
 						accessibilityState={{ expanded: openMobileGroup === group.value, selected: group.value === homeTab && pathname === APP_ROUTE_PATHS.home }}
-						style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+						className="min-h-touch flex-1 items-center justify-center active:opacity-80"
 					>
-						<Text style={{ color: '#cbd5e1', fontSize: 12, fontWeight: '800' }}>{group.label}</Text>
+						<Text className="text-xs font-extrabold text-slate-300">{group.label}</Text>
 					</Pressable>
 				))}
 			</View>

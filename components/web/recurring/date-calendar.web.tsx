@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text as NativeText, View, useWindowDimensions } from 'react-native';
+import { Pressable, Text as NativeText, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, G, Line, Polygon, Rect } from 'react-native-svg';
 
 import { Box } from '@/components/ui/box';
@@ -30,6 +30,7 @@ import {
 import { Heading } from '@/components/ui/heading';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
+import { NATIVE_LIBRARY_STYLES } from '@/design-system/native-styles';
 
 export type DateCalendarItem = {
 	id: string;
@@ -83,36 +84,6 @@ const HOLIDAY_PURPLE_LIGHT = '#7C3AED';
 const HOLIDAY_PURPLE_DARK = '#8B5CF6';
 const DAY_CIRCLE_SIZE = 48;
 const DAY_CIRCLE_RADIUS = DAY_CIRCLE_SIZE / 2;
-
-const daySummaryStyles = StyleSheet.create({
-	modalContent: {
-		flexGrow: 0,
-		flexShrink: 1,
-		flexBasis: 'auto',
-		height: 'auto',
-		minHeight: 0,
-	},
-	modalBody: {
-		flexGrow: 0,
-		flexShrink: 1,
-		flexBasis: 'auto',
-		minHeight: 0,
-	},
-	modalBodyContent: {
-		alignItems: 'stretch',
-		flexGrow: 0,
-		flexShrink: 0,
-		flexBasis: 'auto',
-		paddingBottom: 24,
-	},
-	actions: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		columnGap: 16,
-		rowGap: 8,
-		paddingTop: 2,
-	},
-});
 
 const buildCalendarDays = (reference: Date) => {
 	const firstDay = new Date(reference.getFullYear(), reference.getMonth(), 1);
@@ -643,8 +614,8 @@ function DateCalendar({
 			<Modal size={modalSize} isOpen={Boolean(selectedDayItems)} onClose={handleCloseDayModal}>
 				<ModalBackdrop />
 				<ModalContent
-					className={`${modalWidthClassName} web:h-auto web:flex-none ${modalContentClassName}`}
-					style={{ maxHeight: modalMaxHeight, ...daySummaryStyles.modalContent }}
+					className={`${modalWidthClassName} grow-0 shrink basis-auto ${modalContentClassName} web:h-auto web:min-h-0 web:flex-none`}
+					style={{ maxHeight: modalMaxHeight }}
 				>
 					<ModalHeader className="pt-5">
 						<VStack className="flex-1">
@@ -654,10 +625,9 @@ function DateCalendar({
 						<ModalCloseButton accessibilityLabel="Fechar resumo diário" onPress={handleCloseDayModal} />
 					</ModalHeader>
 					<ModalBody
-						className="px-6 pt-3 pb-4 web:flex-none web:min-h-0 web:max-h-[calc(100vh-180px)] web:overscroll-contain"
-						style={daySummaryStyles.modalBody}
+						className="grow-0 shrink basis-auto px-6 pb-4 pt-3 web:max-h-[calc(100vh-180px)] web:min-h-0 web:flex-none web:overscroll-contain"
 						showsVerticalScrollIndicator={false}
-						contentContainerStyle={daySummaryStyles.modalBodyContent}
+						contentContainerStyle={NATIVE_LIBRARY_STYLES.calendarModalBodyContent}
 					>
 						<VStack className="w-full gap-2">
 							<HStack className="flex-wrap gap-2">
@@ -885,7 +855,7 @@ function DateCalendar({
 																</View>
 															) : null}
 
-															<View style={daySummaryStyles.actions}>
+															<View className="flex-row flex-wrap gap-x-4 gap-y-2 pt-0.5">
 																<Pressable
 																	onPress={() => handleDayAction('register', item)}
 																	disabled={item.isCompletedForCurrentCycle}

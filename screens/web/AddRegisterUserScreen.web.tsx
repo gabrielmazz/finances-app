@@ -314,11 +314,11 @@ export default function AddRegisterUserScreen() {
                                 />
 
                                 <WebScreenHero
-					title={screenTitle}
-					Illustration={AddRegisterUserScreenIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
+                                    title={screenTitle}
+                                    Illustration={AddRegisterUserScreenIllustration}
+                                    isDarkMode={isDarkMode}
+                                    topPadding={insets.top + 24}
+                                />
                             </View>
 
                             <ScrollView
@@ -335,7 +335,7 @@ export default function AddRegisterUserScreen() {
 
                                     <VStack className="mb-4">
                                         <HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-                                            <Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Nome do usuário (opcional)</Text>
+                                            <Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Nome do usuário (opcional)</Text>
                                             <Popover
                                                 placement="bottom"
                                                 size="md"
@@ -383,7 +383,7 @@ export default function AddRegisterUserScreen() {
 
                                     <VStack className="mb-4">
                                         <HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-                                            <Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Email do Usuário</Text>
+                                            <Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Email do Usuário</Text>
                                             <Popover
                                                 placement="bottom"
                                                 size="md"

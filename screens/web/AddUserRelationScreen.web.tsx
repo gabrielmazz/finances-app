@@ -48,29 +48,29 @@ export default function AddUserRelationScreen() {
 
 	const {
 		webExpenseClassNames,
-			webDashboardClassNames,
-			isDarkMode,
-			surfaceBackground,
-			cardBackground,
-			bodyText,
-			helperText,
-			inputField,
-			focusFieldClassName,
-			fieldContainerClassName,
-			fieldContainerClassNameNotSpace,
-			fieldContainerCardClassName,
-			textareaContainerClassName,
-			submitButtonClassName,
-			heroHeight,
-			infoCardStyle,
-			insets,
-			labelText,
-			switchRadioClassName,
-			switchRadioIndicatorClassName,
-			switchRadioIconClassName,
-			switchRadioLabelClassName,
-			addTagButtonClassName,
-		} = useScreenStyles();
+		webDashboardClassNames,
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		focusFieldClassName,
+		fieldContainerClassName,
+		fieldContainerClassNameNotSpace,
+		fieldContainerCardClassName,
+		textareaContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		labelText,
+		switchRadioClassName,
+		switchRadioIndicatorClassName,
+		switchRadioIconClassName,
+		switchRadioLabelClassName,
+		addTagButtonClassName,
+	} = useScreenStyles();
 
 	const [relatedUserId, setRelatedUserId] = React.useState('');
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -209,57 +209,57 @@ export default function AddUserRelationScreen() {
 
 	return (
 		<ScreenDismissKeyboard>
-		<SafeAreaView
-			className="flex-1 web:w-screen"
-			edges={['left', 'right', 'bottom']}
-			style={{ backgroundColor: surfaceBackground }}
-		>
-		<StatusBar
-				translucent
-				backgroundColor="transparent"
-				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-			/>
-		<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-			<KeyboardAvoidingView
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-				className="flex-1"
+			<SafeAreaView
+				className="flex-1 web:w-screen"
+				edges={['left', 'right', 'bottom']}
+				style={{ backgroundColor: surfaceBackground }}
 			>
-				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-					<View
-						className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
-						style={{ height: heroHeight }}
-					>
-						<Image
-							source={LoginWallpaper}
-							alt="Background da tela de vínculo de usuário"
-							className="w-full h-full rounded-b-3xl absolute"
-							resizeMode="cover"
-						/>
-
-						<WebScreenHero
-					title={screenTitle}
-					Illustration={AddUserRelationScreenIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
+				<StatusBar
+					translucent
+					backgroundColor="transparent"
+					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 				/>
-					</View>
-
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
-						style={{ marginTop: heroHeight - 64 }}
-						contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
-						onScroll={handleScroll}
-						scrollEventThrottle={scrollEventThrottle}
+				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+					<KeyboardAvoidingView
+						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+						keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
+						className="flex-1"
 					>
-						<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} justify-between mt-4`}>
+						<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+							<View
+								className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
+								style={{ height: heroHeight }}
+							>
+								<Image
+									source={LoginWallpaper}
+									alt="Background da tela de vínculo de usuário"
+									className="w-full h-full rounded-b-3xl absolute"
+									resizeMode="cover"
+								/>
 
-							<VStack className="mb-4">
-								<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-											<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>ID do usuário</Text>
+								<WebScreenHero
+									title={screenTitle}
+									Illustration={AddUserRelationScreenIllustration}
+									isDarkMode={isDarkMode}
+									topPadding={insets.top + 24}
+								/>
+							</View>
+
+							<ScrollView
+								ref={scrollViewRef}
+								keyboardShouldPersistTaps="handled"
+								keyboardDismissMode="on-drag"
+								className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+								style={{ marginTop: heroHeight - 64 }}
+								contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
+								onScroll={handleScroll}
+								scrollEventThrottle={scrollEventThrottle}
+							>
+								<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} justify-between mt-4`}>
+
+									<VStack className="mb-4">
+										<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+											<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>ID do usuário</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -286,49 +286,49 @@ export default function AddUserRelationScreen() {
 												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
-															Informe o ID do usuário que deseja vincular com você. 
+															Informe o ID do usuário que deseja vincular com você.
 															Este vínculo permitirá compartilhar informações e dados financeiros. Lembrando, esse ID deve ser o mesmo registrado no banco, sendo possivel de conferir na tela de configurações do usuário.
 														</Text>
 													</PopoverBody>
 												</PopoverContent>
 											</Popover>
 										</HStack>
-								<Input className={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}>
-									<InputField
-										ref={relatedUserInputRef as any}
-										placeholder="ID do usuário que será vinculado com você e vice-versa"
-										value={relatedUserId}
-										onChangeText={setRelatedUserId}
-										autoCapitalize="none"
-										className={inputField}
-										onFocus={() => handleInputFocus('related-user-id')}
-									/>
-								</Input>
-							</VStack>
+										<Input className={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}>
+											<InputField
+												ref={relatedUserInputRef as any}
+												placeholder="ID do usuário que será vinculado com você e vice-versa"
+												value={relatedUserId}
+												onChangeText={setRelatedUserId}
+												autoCapitalize="none"
+												className={inputField}
+												onFocus={() => handleInputFocus('related-user-id')}
+											/>
+										</Input>
+									</VStack>
 
-							<Button
-								className={`${submitButtonClassName} web:mt-2 web:h-12`}
-								onPress={handleLinkUsers}
-								isDisabled={isSubmitting || !relatedUserId.trim()}
-							>
-								{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
-							</Button>
-						</VStack>
-					</ScrollView>
+									<Button
+										className={`${submitButtonClassName} web:mt-2 web:h-12`}
+										onPress={handleLinkUsers}
+										isDisabled={isSubmitting || !relatedUserId.trim()}
+									>
+										{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
+									</Button>
+								</VStack>
+							</ScrollView>
+						</View>
+					</KeyboardAvoidingView>
+
+					<View
+						style={{
+							marginHorizontal: -18,
+							paddingBottom: 0,
+							flexShrink: 0,
+						}}
+					>
+						<Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
+					</View>
 				</View>
-			</KeyboardAvoidingView>
-
-			<View
-				style={{
-					marginHorizontal: -18,
-					paddingBottom: 0,
-					flexShrink: 0,
-				}}
-			>
-				<Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
-			</View>
-		</View>
-		</SafeAreaView>
+			</SafeAreaView>
 		</ScreenDismissKeyboard>
 	);
 }

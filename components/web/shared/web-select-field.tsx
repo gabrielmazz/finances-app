@@ -63,16 +63,15 @@ export default function WebSelectField({
 				accessibilityRole="combobox"
 				accessibilityLabel={accessibilityLabel}
 				accessibilityState={{ disabled: isDisabled, expanded: isOpen }}
-				style={webSelectClassNames.triggerStyle}
 				className={`${webSelectClassNames.trigger} ${isDisabled ? 'opacity-40' : ''}`}
 			>
 				<Text className={selectedOption ? webSelectClassNames.value : webSelectClassNames.placeholder} numberOfLines={1}>
 					{selectedOption?.label ?? placeholder}
 				</Text>
 				{isOpen ? (
-					<ChevronUpIcon className={webSelectClassNames.icon} style={webSelectClassNames.iconStyle} aria-hidden />
+					<ChevronUpIcon className={webSelectClassNames.icon} aria-hidden />
 				) : (
-					<ChevronDownIcon className={webSelectClassNames.icon} style={webSelectClassNames.iconStyle} aria-hidden />
+					<ChevronDownIcon className={webSelectClassNames.icon} aria-hidden />
 				)}
 			</WebPressable>
 

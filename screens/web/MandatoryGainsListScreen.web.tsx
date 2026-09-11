@@ -591,8 +591,8 @@ export default function MandatoryGainsListScreen() {
 					);
 					const displayValueInCents =
 						isReceivedForCurrentCycle &&
-						typeof gain.lastReceiptValueInCents === 'number' &&
-						!Number.isNaN(gain.lastReceiptValueInCents)
+							typeof gain.lastReceiptValueInCents === 'number' &&
+							!Number.isNaN(gain.lastReceiptValueInCents)
 							? gain.lastReceiptValueInCents
 							: gain.valueInCents;
 
@@ -677,12 +677,12 @@ export default function MandatoryGainsListScreen() {
 			const receiptValueInCents =
 				typeof gain.installmentTotal === 'number'
 					? getMandatoryInstallmentValueInCents({
-							installmentTotal: gain.installmentTotal,
-							installmentsCompleted: gain.installmentsCompleted ?? 0,
-							installmentsToSettle: installmentsToReceive,
-							installmentValueInCents: gain.valueInCents,
-							installmentTotalValueInCents: gain.installmentTotalValueInCents,
-						})
+						installmentTotal: gain.installmentTotal,
+						installmentsCompleted: gain.installmentsCompleted ?? 0,
+						installmentsToSettle: installmentsToReceive,
+						installmentValueInCents: gain.valueInCents,
+						installmentTotalValueInCents: gain.installmentTotalValueInCents,
+					})
 					: gain.valueInCents;
 			if (!receiptValueInCents || receiptValueInCents <= 0) {
 				showNotifierAlert({
@@ -1236,63 +1236,63 @@ export default function MandatoryGainsListScreen() {
 															</VStack>
 														</View>
 													))}
-															</HStack>
-															</VStack>
+												</HStack>
+											</VStack>
+										</View>
+
+										{monthlySummary.totalReferenceInCents > 0 ? (
+											<View className={`${compactCardClassName} px-4 py-4`}>
+												<VStack className="gap-3">
+													<MandatoryExpensePaymentBulletChart
+														valueInCents={shouldHideValues ? 0 : monthlySummary.receivedTotalInCents}
+														targetInCents={shouldHideValues ? 1 : monthlySummary.totalReferenceInCents}
+														isDarkMode={isDarkMode}
+														shouldHideValues={shouldHideValues}
+														subjectLabel="recebimentos de ganhos obrigatórios"
+													/>
+												</VStack>
+											</View>
+										) : null}
+
+										{gains.length > 0 ? (
+											<HStack className="gap-4 web:flex-row web:flex-wrap">
+												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+													<VStack className="gap-2">
+														<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
+															Ganhos por categoria
+														</Text>
+														<View style={{ height: 300 }}>
+															<MandatoryExpensesRadarChart
+																data={mandatoryGainsRadarData}
+																isDarkMode={isDarkMode}
+																shouldHideValues={shouldHideValues}
+																subjectLabel="ganhos obrigatórios"
+																valueLabel="Ganho obrigatório"
+																dom={{ focusable: false, scrollEnabled: false, style: { height: 300, backgroundColor: 'transparent' } }}
+															/>
 														</View>
+													</VStack>
+												</View>
 
-														{monthlySummary.totalReferenceInCents > 0 ? (
-															<View className={`${compactCardClassName} px-4 py-4`}>
-																<VStack className="gap-3">
-																	<MandatoryExpensePaymentBulletChart
-																		valueInCents={shouldHideValues ? 0 : monthlySummary.receivedTotalInCents}
-																		targetInCents={shouldHideValues ? 1 : monthlySummary.totalReferenceInCents}
-																		isDarkMode={isDarkMode}
-																		shouldHideValues={shouldHideValues}
-																		subjectLabel="recebimentos de ganhos obrigatórios"
-																	/>
-																</VStack>
-															</View>
-														) : null}
+												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+													<VStack className="gap-2">
+														<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
+															Dias de recebimento
+														</Text>
+														<View style={{ height: 320 }}>
+															<MandatoryExpensesScatterChart
+																data={mandatoryGainsScatterData}
+																isDarkMode={isDarkMode}
+																subjectLabel="recebimentos de ganhos obrigatórios"
+																dom={{ focusable: false, scrollEnabled: false, style: { height: 320, backgroundColor: 'transparent' } }}
+															/>
+														</View>
+													</VStack>
+												</View>
+											</HStack>
+										) : null}
 
-														{gains.length > 0 ? (
-															<HStack className="gap-4 web:flex-row web:flex-wrap">
-																<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
-																	<VStack className="gap-2">
-																		<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
-																			Ganhos por categoria
-																		</Text>
-																		<View style={{ height: 300 }}>
-																			<MandatoryExpensesRadarChart
-																				data={mandatoryGainsRadarData}
-																				isDarkMode={isDarkMode}
-																				shouldHideValues={shouldHideValues}
-																				subjectLabel="ganhos obrigatórios"
-																				valueLabel="Ganho obrigatório"
-																				dom={{ focusable: false, scrollEnabled: false, style: { height: 300, backgroundColor: 'transparent' } }}
-																			/>
-																		</View>
-																	</VStack>
-																</View>
-
-																<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
-																	<VStack className="gap-2">
-																		<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
-																			Dias de recebimento
-																		</Text>
-																		<View style={{ height: 320 }}>
-																			<MandatoryExpensesScatterChart
-																				data={mandatoryGainsScatterData}
-																				isDarkMode={isDarkMode}
-																				subjectLabel="recebimentos de ganhos obrigatórios"
-																				dom={{ focusable: false, scrollEnabled: false, style: { height: 320, backgroundColor: 'transparent' } }}
-																			/>
-																		</View>
-																	</VStack>
-																</View>
-															</HStack>
-														) : null}
-
-														<HStack className="flex-wrap gap-3">
+										<HStack className="flex-wrap gap-3">
 											<Button
 												className={`${submitButtonClassName} min-w-[220px] flex-1`}
 												onPress={() => void handleExportMonthlySummaryPdf()}
@@ -1369,19 +1369,19 @@ export default function MandatoryGainsListScreen() {
 																				/>
 																			</View>
 																			<View className={webStyles.movementCopy}>
-																			<RNText numberOfLines={1} className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}>
-																			{gain.name}
-																		</RNText>
-																			<RNText numberOfLines={1} className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}>
-																			{tagLabel}
-																		</RNText>
-																			{gain.installmentLabel ? (
-																				<RNText numberOfLines={1} className="mt-0.5 text-[11px] font-bold leading-4" style={{ color: tone.accentColor }}>
-																					{gain.installmentLabel}
+																				<RNText numberOfLines={1} className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}>
+																					{gain.name}
 																				</RNText>
-																			) : null}
+																				<RNText numberOfLines={1} className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}>
+																					{tagLabel}
+																				</RNText>
+																				{gain.installmentLabel ? (
+																					<RNText numberOfLines={1} className="mt-0.5 text-[11px] font-bold leading-4" style={{ color: tone.accentColor }}>
+																						{gain.installmentLabel}
+																					</RNText>
+																				) : null}
+																			</View>
 																		</View>
-																	</View>
 
 																		<View className={webStyles.movementAmount}>
 																			<RNText className={`${webStyles.amount} tabular-nums`} style={{ color: tone.amountColor }}>
@@ -1450,9 +1450,9 @@ export default function MandatoryGainsListScreen() {
 																							...(gain.installmentLabel ? [{ label: 'Fim', value: formatMandatoryInstallmentDateLabel(gain.installmentEndDate ?? null) }] : []),
 																						].map(detail => (
 																							<View key={`${gain.id}-${detail.label}`} className={webStyles.detailItem}>
-																							<RNText className={webStyles.detailLabel}>{detail.label}</RNText>
-																							<RNText className={webStyles.detailText}>{detail.value}</RNText>
-																						</View>
+																								<RNText className={webStyles.detailLabel}>{detail.label}</RNText>
+																								<RNText className={webStyles.detailText}>{detail.value}</RNText>
+																							</View>
 																						))}
 																					</View>
 
@@ -1465,7 +1465,7 @@ export default function MandatoryGainsListScreen() {
 
 																					<View className="mt-3 flex-row flex-wrap gap-4">
 																						<Pressable
-												onPress={() => handleCalendarAction('register', gain)}
+																							onPress={() => handleCalendarAction('register', gain)}
 																							disabled={isGainCompleted}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Registrar recebimento de ${gain.name}`}
@@ -1508,13 +1508,13 @@ export default function MandatoryGainsListScreen() {
 																							<RNText className="text-xs font-semibold text-white">Excluir</RNText>
 																						</Pressable>
 																					</View>
+																				</View>
 																			</View>
-																			</View>
-																	</AnimatedContent>
+																		</AnimatedContent>
 																	) : null}
 																</View>
 															</View>
-													);
+														);
 													})}
 												</View>
 											</VStack>

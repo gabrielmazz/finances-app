@@ -1009,262 +1009,262 @@ export default function AddRegisterExpensesScreen() {
 							}}
 						>
 							<View className={webDashboardClassNames.sheetInner}>
-									<View
-										className={`${webExpenseClassNames.formSurface} ${cardBackground} rounded-[28px]`}
-										style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
-									>
-										<View className={webExpenseClassNames.formScroll}>
-											<View className="w-full">
-												<View className={webExpenseClassNames.fieldGrid}>
-													<VStack className={fieldColumn}>
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome da despesa</Text>
-														<Input isDisabled={isFormBusy} className={inputClassName}>
-															<InputField
-																accessibilityLabel="Nome da despesa"
-																ref={expenseNameInputRef}
-																placeholder="Ex.: Mercado, aluguel ou transporte…"
-																autoComplete="off"
-																value={expenseName}
-																onChangeText={setExpenseName}
-																onFocus={() => handleInputFocus('expense-name')}
-																onSubmitEditing={() => expenseValueInputRef.current?.focus?.()}
-																autoCapitalize="sentences"
-																autoCorrect={false}
-																returnKeyType="next"
-																className={inputField}
-															/>
-														</Input>
-													</VStack>
-													<VStack className={fieldColumn}>
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Valor da despesa</Text>
-														<Input isDisabled={isExpenseValueDisabled} className={inputClassName}>
-															<InputField
-																accessibilityLabel="Valor da despesa"
-																ref={expenseValueInputRef}
-																placeholder="R$ 0,00"
-																autoComplete="off"
-																keyboardType="numeric"
-																value={expenseValueDisplay}
-																onChangeText={handleValueChange}
-																onFocus={() => handleInputFocus('expense-value')}
-																returnKeyType="next"
-																className={inputField}
-															/>
-														</Input>
-													</VStack>
-													<VStack className={webExpenseClassNames.fieldFull}>
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data da despesa</Text>
-														<DatePickerField
-															accessibilityLabel="Data da despesa"
-															value={expenseDate}
-															onChange={setExpenseDate}
-															triggerClassName={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}
-															inputClassName={inputField}
-															placeholder="Selecione a data da despesa"
-															isDisabled={isExpenseDateDisabled}
+								<View
+									className={`${webExpenseClassNames.formSurface} ${cardBackground} rounded-[28px]`}
+									style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
+								>
+									<View className={webExpenseClassNames.formScroll}>
+										<View className="w-full">
+											<View className={webExpenseClassNames.fieldGrid}>
+												<VStack className={fieldColumn}>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome da despesa</Text>
+													<Input isDisabled={isFormBusy} className={inputClassName}>
+														<InputField
+															accessibilityLabel="Nome da despesa"
+															ref={expenseNameInputRef}
+															placeholder="Ex.: Mercado, aluguel ou transporte…"
+															autoComplete="off"
+															value={expenseName}
+															onChangeText={setExpenseName}
+															onFocus={() => handleInputFocus('expense-name')}
+															onSubmitEditing={() => expenseValueInputRef.current?.focus?.()}
+															autoCapitalize="sentences"
+															autoCorrect={false}
+															returnKeyType="next"
+															className={inputField}
 														/>
-													</VStack>
-													<VStack className={webExpenseClassNames.fieldFull}>
-									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Observação</Text>
-															<Popover
-																placement="bottom"
-																size="md"
-																offset={4}
-																shouldFlip
-																focusScope={false}
-																trapFocus={false}
-																trigger={(triggerProps) => (
-																	<Pressable
-																		{...triggerProps}
-																		accessibilityRole="button"
-																		accessibilityLabel="Informações sobre a observação"
-																	>
-																		<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} />
-																	</Pressable>
-																)}
-															>
-																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[280px]" style={infoCardStyle}>
-																	<PopoverBody className="px-3 py-3">
-																		<Text className={`${bodyText} text-xs leading-5`}>
-																			Campo opcional. Use para explicar o motivo, local ou detalhe útil da despesa.
-																		</Text>
-																	</PopoverBody>
-																</PopoverContent>
-															</Popover>
-														</View>
-														<Textarea
-															isDisabled={isExplanationDisabled}
-															className={`${textareaContainerClassName} ${webExpenseClassNames.fieldTextarea}`}
-														>
-															<TextareaInput
-																accessibilityLabel="Observação da despesa"
-																ref={expenseExplanationInputRef}
-																placeholder="Adicione uma observação, se necessário…"
-																autoComplete="off"
-																value={explanationExpense ?? ''}
-																onChangeText={setExplanationExpense}
-																onFocus={() => handleInputFocus('expense-explanation')}
-																editable={!isExplanationDisabled}
-																className={`${inputField} pt-2`}
-															/>
-														</Textarea>
-													</VStack>
-
-													<VStack className={webExpenseClassNames.fieldFull}>
-									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText} !mb-0`}>Formato de pagamento</Text>
-															<Popover
-																placement="bottom"
-																size="md"
-																offset={4}
-																shouldFlip
-																focusScope={false}
-																trapFocus={false}
-																trigger={(triggerProps) => (
-																	<Pressable
-																		{...triggerProps}
-																		accessibilityRole="button"
-																		accessibilityLabel="Informações sobre o formato de pagamento"
-																	>
-																		<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} />
-																	</Pressable>
-																)}
-															>
-																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[300px]" style={infoCardStyle}>
-																	<PopoverBody className="px-3 py-3">
-																		<Text className={`${bodyText} text-xs leading-5`}>
-																			Pagamentos em dinheiro não ficam vinculados a um banco. Para pagamentos bancários,
-																			selecione a conta logo abaixo.
-																		</Text>
-																	</PopoverBody>
-																</PopoverContent>
-															</Popover>
-														</View>
-														<View className={`${cardClassName} w-full max-w-[1120px] self-center pt-6 pb-6`}>
-															<RadioGroup className="w-full max-w-[1120px] self-center" value={valuesRadioMoneyFormat} onChange={handleRadioMoneyFormatChange}>
-																<View className="w-full flex-row flex-wrap gap-5">
-																	<Radio
-																		value="Pagamento em Banco"
-																		className={switchRadioClassName}
-																		isDisabled={isMoneyFormatSelectionDisabled}
-																	>
-																		<RadioIndicator className={switchRadioIndicatorClassName}>
-																			<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-																		</RadioIndicator>
-																		<RadioLabel className={`${switchRadioLabelClassName} ${bodyText} text-sm`}>
-																			Pagamento em Banco
-																		</RadioLabel>
-																	</Radio>
-																	<Radio
-																		value="Pagamento em Dinheiro"
-																		className={switchRadioClassName}
-																		isDisabled={isMoneyFormatSelectionDisabled}
-																	>
-																		<RadioIndicator className={switchRadioIndicatorClassName}>
-																			<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-																		</RadioIndicator>
-																		<RadioLabel className={`${switchRadioLabelClassName} ${bodyText} text-sm`}>
-																			Pagamento em Dinheiro
-																		</RadioLabel>
-																	</Radio>
-																</View>
-															</RadioGroup>
-															{valuesRadioMoneyFormat === 'Pagamento em Banco' ? (
-																<VStack className="mt-4 w-full">
-																	<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco</Text>
-																	<BankActionsheetSelector
-																		options={banks}
-																		selectedId={selectedBankId}
-																		selectedLabel={selectedBankLabel}
-																		selectedOption={selectedBankOption}
-																		onSelect={handleSelectBank}
-																		isDisabled={isBankSelectDisabled}
-																		isDarkMode={isDarkMode}
-																		bodyTextClassName={bodyText}
-																		helperTextClassName={helperText}
-																		triggerClassName={fieldBankContainerClassName}
-																		placeholder="Selecione o banco vinculado"
-																		sheetTitle="Escolha o banco da despesa"
-																		emptyMessage="Nenhum banco disponível."
-																		triggerHint={bankHelperMessage}
-																		disabledHint={bankHelperMessage}
-																		accessibilityLabel="Selecionar banco da despesa"
-																	/>
-																</VStack>
-															) : (
-																<Text className={`${helperText} mt-3 text-xs`}>{bankHelperMessage}</Text>
+													</Input>
+												</VStack>
+												<VStack className={fieldColumn}>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Valor da despesa</Text>
+													<Input isDisabled={isExpenseValueDisabled} className={inputClassName}>
+														<InputField
+															accessibilityLabel="Valor da despesa"
+															ref={expenseValueInputRef}
+															placeholder="R$ 0,00"
+															autoComplete="off"
+															keyboardType="numeric"
+															value={expenseValueDisplay}
+															onChangeText={handleValueChange}
+															onFocus={() => handleInputFocus('expense-value')}
+															returnKeyType="next"
+															className={inputField}
+														/>
+													</Input>
+												</VStack>
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Data da despesa</Text>
+													<DatePickerField
+														accessibilityLabel="Data da despesa"
+														value={expenseDate}
+														onChange={setExpenseDate}
+														triggerClassName={`${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`}
+														inputClassName={inputField}
+														placeholder="Selecione a data da despesa"
+														isDisabled={isExpenseDateDisabled}
+													/>
+												</VStack>
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+														<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Observação</Text>
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={4}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={(triggerProps) => (
+																<Pressable
+																	{...triggerProps}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre a observação"
+																>
+																	<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+																</Pressable>
 															)}
-														</View>
-													</VStack>
-
-													<VStack className={webExpenseClassNames.fieldFull}>
-														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Categoria</Text>
-														{isTagSelectionLocked ? (
-															<View className={cardClassName}>
-																<HStack className="items-center gap-3">
-																	<View className="h-10 w-10 items-center justify-center rounded-2xl border border-yellow-400/30 bg-yellow-400/10">
-																		<TagIcon
-																			iconFamily={selectedTagOption?.iconFamily}
-																			iconName={selectedTagOption?.iconName}
-																			iconStyle={selectedTagOption?.iconStyle}
-																			size={18}
-																			color={isDarkMode ? '#FCD34D' : '#D97706'}
-																		/>
-																	</View>
-																	<Text className={`${bodyText} flex-1 text-sm`}>
-																		{selectedTagLabel ?? 'Categoria definida automaticamente'}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[280px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={`${bodyText} text-xs leading-5`}>
+																		Campo opcional. Use para explicar o motivo, local ou detalhe útil da despesa.
 																	</Text>
-																</HStack>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</View>
+													<Textarea
+														isDisabled={isExplanationDisabled}
+														className={`${textareaContainerClassName} ${webExpenseClassNames.fieldTextarea}`}
+													>
+														<TextareaInput
+															accessibilityLabel="Observação da despesa"
+															ref={expenseExplanationInputRef}
+															placeholder="Adicione uma observação, se necessário…"
+															autoComplete="off"
+															value={explanationExpense ?? ''}
+															onChangeText={setExplanationExpense}
+															onFocus={() => handleInputFocus('expense-explanation')}
+															editable={!isExplanationDisabled}
+															className={`${inputField} pt-2`}
+														/>
+													</Textarea>
+												</VStack>
+
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+														<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Formato de pagamento</Text>
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={4}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={(triggerProps) => (
+																<Pressable
+																	{...triggerProps}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre o formato de pagamento"
+																>
+																	<Info size={14} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+																</Pressable>
+															)}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[300px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={`${bodyText} text-xs leading-5`}>
+																		Pagamentos em dinheiro não ficam vinculados a um banco. Para pagamentos bancários,
+																		selecione a conta logo abaixo.
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</View>
+													<View className={`${cardClassName} w-full max-w-[1120px] self-center pt-6 pb-6`}>
+														<RadioGroup className="w-full max-w-[1120px] self-center" value={valuesRadioMoneyFormat} onChange={handleRadioMoneyFormatChange}>
+															<View className="w-full flex-row flex-wrap gap-5">
+																<Radio
+																	value="Pagamento em Banco"
+																	className={switchRadioClassName}
+																	isDisabled={isMoneyFormatSelectionDisabled}
+																>
+																	<RadioIndicator className={switchRadioIndicatorClassName}>
+																		<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+																	</RadioIndicator>
+																	<RadioLabel className={`${switchRadioLabelClassName} ${bodyText} text-sm`}>
+																		Pagamento em Banco
+																	</RadioLabel>
+																</Radio>
+																<Radio
+																	value="Pagamento em Dinheiro"
+																	className={switchRadioClassName}
+																	isDisabled={isMoneyFormatSelectionDisabled}
+																>
+																	<RadioIndicator className={switchRadioIndicatorClassName}>
+																		<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+																	</RadioIndicator>
+																	<RadioLabel className={`${switchRadioLabelClassName} ${bodyText} text-sm`}>
+																		Pagamento em Dinheiro
+																	</RadioLabel>
+																</Radio>
 															</View>
+														</RadioGroup>
+														{valuesRadioMoneyFormat === 'Pagamento em Banco' ? (
+															<VStack className="mt-4 w-full">
+																<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco</Text>
+																<BankActionsheetSelector
+																	options={banks}
+																	selectedId={selectedBankId}
+																	selectedLabel={selectedBankLabel}
+																	selectedOption={selectedBankOption}
+																	onSelect={handleSelectBank}
+																	isDisabled={isBankSelectDisabled}
+																	isDarkMode={isDarkMode}
+																	bodyTextClassName={bodyText}
+																	helperTextClassName={helperText}
+																	triggerClassName={fieldBankContainerClassName}
+																	placeholder="Selecione o banco vinculado"
+																	sheetTitle="Escolha o banco da despesa"
+																	emptyMessage="Nenhum banco disponível."
+																	triggerHint={bankHelperMessage}
+																	disabledHint={bankHelperMessage}
+																	accessibilityLabel="Selecionar banco da despesa"
+																/>
+															</VStack>
 														) : (
-															<TagActionsheetSelector
-																options={tags}
-																selectedId={selectedTagId}
-																selectedLabel={selectedTagLabel}
-																selectedOption={selectedTagOption}
-																onSelect={handleSelectTag}
-																isDisabled={isTagSelectDisabled}
-																isDarkMode={isDarkMode}
-																bodyTextClassName={bodyText}
-																helperTextClassName={helperText}
-																triggerClassName={fieldContainerCardClassName}
-																placeholder="Selecione a categoria da despesa"
-																sheetTitle="Escolha a categoria da despesa"
-																emptyMessage="Nenhuma categoria de despesa disponível."
-																triggerHint={tagHelperMessage}
-																disabledHint={tagHelperMessage}
-																accessibilityLabel="Escolher categoria de despesa"
-																onCreatePress={handleOpenAddTagScreen}
-																createActionLabel="Adicionar categoria de despesa"
-																isCreateDisabled={isFormBusy || isTagSelectionLocked}
-															/>
+															<Text className={`${helperText} mt-3 text-xs`}>{bankHelperMessage}</Text>
 														)}
-													</VStack>
-												</View>
-												{isEditing && isLoadingExisting ? (
-													<Text className={`${helperText} mt-5 text-sm`}>
-														Carregando informações da despesa selecionada...
-													</Text>
-												) : null}
-												<Button
-													className={`${submitButtonClassName} ${webExpenseClassNames.submit}`}
-													onPress={() => void handleSubmit()}
-													isDisabled={isSubmitDisabled}
-												>
-													{isFormBusy ? (
-														<ButtonSpinner color={isDarkMode ? '#0F172A' : '#FFFFFF'} />
+													</View>
+												</VStack>
+
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Categoria</Text>
+													{isTagSelectionLocked ? (
+														<View className={cardClassName}>
+															<HStack className="items-center gap-3">
+																<View className="h-10 w-10 items-center justify-center rounded-2xl border border-yellow-400/30 bg-yellow-400/10">
+																	<TagIcon
+																		iconFamily={selectedTagOption?.iconFamily}
+																		iconName={selectedTagOption?.iconName}
+																		iconStyle={selectedTagOption?.iconStyle}
+																		size={18}
+																		color={isDarkMode ? '#FCD34D' : '#D97706'}
+																	/>
+																</View>
+																<Text className={`${bodyText} flex-1 text-sm`}>
+																	{selectedTagLabel ?? 'Categoria definida automaticamente'}
+																</Text>
+															</HStack>
+														</View>
 													) : (
-														<ButtonText className={submitButtonTextClassName}>
-															{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}
-														</ButtonText>
+														<TagActionsheetSelector
+															options={tags}
+															selectedId={selectedTagId}
+															selectedLabel={selectedTagLabel}
+															selectedOption={selectedTagOption}
+															onSelect={handleSelectTag}
+															isDisabled={isTagSelectDisabled}
+															isDarkMode={isDarkMode}
+															bodyTextClassName={bodyText}
+															helperTextClassName={helperText}
+															triggerClassName={fieldContainerCardClassName}
+															placeholder="Selecione a categoria da despesa"
+															sheetTitle="Escolha a categoria da despesa"
+															emptyMessage="Nenhuma categoria de despesa disponível."
+															triggerHint={tagHelperMessage}
+															disabledHint={tagHelperMessage}
+															accessibilityLabel="Escolher categoria de despesa"
+															onCreatePress={handleOpenAddTagScreen}
+															createActionLabel="Adicionar categoria de despesa"
+															isCreateDisabled={isFormBusy || isTagSelectionLocked}
+														/>
 													)}
-												</Button>
+												</VStack>
 											</View>
+											{isEditing && isLoadingExisting ? (
+												<Text className={`${helperText} mt-5 text-sm`}>
+													Carregando informações da despesa selecionada...
+												</Text>
+											) : null}
+											<Button
+												className={`${submitButtonClassName} ${webExpenseClassNames.submit}`}
+												onPress={() => void handleSubmit()}
+												isDisabled={isSubmitDisabled}
+											>
+												{isFormBusy ? (
+													<ButtonSpinner color={isDarkMode ? '#0F172A' : '#FFFFFF'} />
+												) : (
+													<ButtonText className={submitButtonTextClassName}>
+														{isEditing ? 'Atualizar despesa' : 'Registrar despesa'}
+													</ButtonText>
+												)}
+											</Button>
 										</View>
 									</View>
+								</View>
 							</View>
 						</View>
 					</View>

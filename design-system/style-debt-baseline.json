@@ -1,0 +1,746 @@
+{
+  "components/ui/grid/index.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/input/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 34,
+    "useScreenStyles": 0
+  },
+  "components/ui/form-control/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/select/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 20,
+    "useScreenStyles": 0
+  },
+  "components/ui/select/select-actionsheet.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 6,
+    "useScreenStyles": 0
+  },
+  "components/ui/icon/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/icon/index.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/alert/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/tabs/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/tabs/TabsAnimatedIndicator.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/menu/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 12,
+    "useScreenStyles": 0
+  },
+  "components/ui/image/index.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/drawer/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/ui/chatAi/index.tsx": {
+    "inlineStyleProps": 5,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/checkbox/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 21,
+    "useScreenStyles": 0
+  },
+  "components/ui/textarea/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 9,
+    "useScreenStyles": 0
+  },
+  "components/ui/accordion/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 4,
+    "useScreenStyles": 0
+  },
+  "components/ui/popover/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 3,
+    "useScreenStyles": 0
+  },
+  "components/ui/switch/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 7,
+    "useScreenStyles": 0
+  },
+  "components/ui/skeleton/index.tsx": {
+    "inlineStyleProps": 5,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/table/styles.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 9,
+    "useScreenStyles": 0
+  },
+  "components/ui/button/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 94,
+    "useScreenStyles": 0
+  },
+  "components/ui/gluestack-ui-provider/index.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/gluestack-ui-provider/index.web.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/gluestack-ui-provider/index.next15.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/ui/radio/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 18,
+    "useScreenStyles": 0
+  },
+  "components/ui/modal/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 6,
+    "useScreenStyles": 0
+  },
+  "components/ui/actionsheet/index.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 0
+  },
+  "components/shared/banks/bank-card-surface.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 14,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/navigation/web-screen-hero.native.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/navigation/navigator.native.tsx": {
+    "inlineStyleProps": 7,
+    "rawHexLiterals": 14,
+    "arbitraryTailwindValues": 6,
+    "useScreenStyles": 0
+  },
+  "components/mobile/recurring/date-calendar.native.tsx": {
+    "inlineStyleProps": 33,
+    "rawHexLiterals": 44,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "components/mobile/recurring/time-picker-field.native.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/mobile/feedback/notifier-alert.native.tsx": {
+    "inlineStyleProps": 4,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/banks/bank-actionsheet-selector.native.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/shared/date-picker.native.tsx": {
+    "inlineStyleProps": 4,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/mobile/assistant/assistant-cards.native.tsx": {
+    "inlineStyleProps": 89,
+    "rawHexLiterals": 50,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/assistant/assistant-route-boundary.native.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/mobile/categories/category-availability-selector.native.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/mobile/categories/tag-actionsheet-selector.native.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/recurring/mandatory-expenses-scatter-chart.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/recurring/mandatory-expenses-radar-chart.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 6,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 6,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/investments/investment-evolution-chart.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/reports/financial-forecast-chart.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/annotations/annotation-markdown-editor.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 12,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/dashboard/home-expense-line-chart.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/dashboard/home-activity-heatmap.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 8,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/dashboard/home-expense-chart.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/dashboard/home-investment-chart.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/navigation/StaggeredMenu.css": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 47,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/navigation/web-screen-hero.web.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 4,
+    "useScreenStyles": 0
+  },
+  "components/web/navigation/web-route-transition.web.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/navigation/StaggeredMenu.jsx": {
+    "inlineStyleProps": 4,
+    "rawHexLiterals": 7,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/recurring/date-calendar.web.tsx": {
+    "inlineStyleProps": 24,
+    "rawHexLiterals": 35,
+    "arbitraryTailwindValues": 12,
+    "useScreenStyles": 1
+  },
+  "components/web/recurring/time-picker-field.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/web/feedback/notifier-alert.web.tsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/banks/bank-actionsheet-selector.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/shared/loader.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 1,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/shared/web-select-field.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/web/shared/date-picker.web.tsx": {
+    "inlineStyleProps": 4,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/web/assistant/assistant-route-boundary.web.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "components/web/assistant/assistant-cards.web.tsx": {
+    "inlineStyleProps": 89,
+    "rawHexLiterals": 46,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/motion/AnimatedContent.jsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/categories/category-availability-selector.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/categories/tag-actionsheet-selector.web.tsx": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/visuals/Carousel.css": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 11,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/visuals/Grainient.jsx": {
+    "inlineStyleProps": 1,
+    "rawHexLiterals": 3,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/visuals/Carousel.jsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/web/visuals/StrokeText.jsx": {
+    "inlineStyleProps": 4,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "design-system/web-dashboard.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 12,
+    "useScreenStyles": 0
+  },
+  "design-system/mantine.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 1,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "design-system/tokens.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 64,
+    "arbitraryTailwindValues": 8,
+    "useScreenStyles": 0
+  },
+  "hooks/useBankIcons.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 25,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "hooks/useScreenStyle.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 5,
+    "useScreenStyles": 1
+  },
+  "hooks/useTagIcons.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 1,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "screens/mobile/AppTestsScreen.tsx": {
+    "inlineStyleProps": 5,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterMonthlyBalanceScreen.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 7,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/BankMovementsScreen.tsx": {
+    "inlineStyleProps": 80,
+    "rawHexLiterals": 137,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterUserScreen.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/LumusAssistantScreen.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 8,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/LocalAnnotationsScreen.tsx": {
+    "inlineStyleProps": 7,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRescueScreen.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/CategoryAnalysisScreen.tsx": {
+    "inlineStyleProps": 29,
+    "rawHexLiterals": 38,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterGainScreen.tsx": {
+    "inlineStyleProps": 15,
+    "rawHexLiterals": 8,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddUserRelationScreen.tsx": {
+    "inlineStyleProps": 8,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/TransferScreen.tsx": {
+    "inlineStyleProps": 8,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddFinanceScreen.tsx": {
+    "inlineStyleProps": 9,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/FinancialListScreen.tsx": {
+    "inlineStyleProps": 56,
+    "rawHexLiterals": 18,
+    "arbitraryTailwindValues": 6,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/ScreenSettingsScreen.tsx": {
+    "inlineStyleProps": 7,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddMandatoryExpensesScreen.tsx": {
+    "inlineStyleProps": 9,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/ConfigurationsScreen.tsx": {
+    "inlineStyleProps": 11,
+    "rawHexLiterals": 8,
+    "arbitraryTailwindValues": 5,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterBankScreen.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 22,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/MandatoryExpensesListScreen.tsx": {
+    "inlineStyleProps": 55,
+    "rawHexLiterals": 34,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterTagScreen.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/LoginScreen.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 5,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/FinancialForecastScreen.tsx": {
+    "inlineStyleProps": 29,
+    "rawHexLiterals": 20,
+    "arbitraryTailwindValues": 3,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/MandatoryGainsListScreen.tsx": {
+    "inlineStyleProps": 54,
+    "rawHexLiterals": 33,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/HomeScreen.tsx": {
+    "inlineStyleProps": 99,
+    "rawHexLiterals": 89,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddRegisterExpensesScreen.tsx": {
+    "inlineStyleProps": 11,
+    "rawHexLiterals": 6,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/mobile/AddMandatoryGainsScreen.tsx": {
+    "inlineStyleProps": 9,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/web/BankMovementsScreen.web.tsx": {
+    "inlineStyleProps": 62,
+    "rawHexLiterals": 126,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterMonthlyBalanceScreen.web.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 7,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddUserRelationScreen.web.tsx": {
+    "inlineStyleProps": 8,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddMandatoryGainsScreen.web.tsx": {
+    "inlineStyleProps": 9,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRescueScreen.web.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterTagScreen.web.tsx": {
+    "inlineStyleProps": 6,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/MandatoryGainsListScreen.web.tsx": {
+    "inlineStyleProps": 31,
+    "rawHexLiterals": 24,
+    "arbitraryTailwindValues": 12,
+    "useScreenStyles": 1
+  },
+  "screens/web/TransferScreen.web.tsx": {
+    "inlineStyleProps": 8,
+    "rawHexLiterals": 2,
+    "arbitraryTailwindValues": 3,
+    "useScreenStyles": 1
+  },
+  "screens/web/CategoryAnalysisScreen.web.tsx": {
+    "inlineStyleProps": 27,
+    "rawHexLiterals": 39,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/HomeScreen.web.tsx": {
+    "inlineStyleProps": 57,
+    "rawHexLiterals": 42,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 1
+  },
+  "screens/web/LoginScreen.web.tsx": {
+    "inlineStyleProps": 7,
+    "rawHexLiterals": 9,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "screens/web/FinancialForecastScreen.web.tsx": {
+    "inlineStyleProps": 29,
+    "rawHexLiterals": 20,
+    "arbitraryTailwindValues": 4,
+    "useScreenStyles": 1
+  },
+  "screens/web/ScreenSettingsScreen.web.tsx": {
+    "inlineStyleProps": 7,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
+  },
+  "screens/web/FinancialListScreen.web.tsx": {
+    "inlineStyleProps": 56,
+    "rawHexLiterals": 18,
+    "arbitraryTailwindValues": 7,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterUserScreen.web.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "screens/web/MandatoryExpensesListScreen.web.tsx": {
+    "inlineStyleProps": 35,
+    "rawHexLiterals": 25,
+    "arbitraryTailwindValues": 7,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterGainScreen.web.tsx": {
+    "inlineStyleProps": 13,
+    "rawHexLiterals": 20,
+    "arbitraryTailwindValues": 4,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterExpensesScreen.web.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 16,
+    "arbitraryTailwindValues": 3,
+    "useScreenStyles": 1
+  },
+  "screens/web/AddMandatoryExpensesScreen.web.tsx": {
+    "inlineStyleProps": 9,
+    "rawHexLiterals": 4,
+    "arbitraryTailwindValues": 1,
+    "useScreenStyles": 1
+  },
+  "utils/annotationRichText.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 1,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "utils/mandatoryPeriodSummaryPdf.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 38,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "utils/categoryAnalysisPdf.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 38,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "utils/localNotifications.ts": {
+    "inlineStyleProps": 0,
+    "rawHexLiterals": 1,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  }
+}

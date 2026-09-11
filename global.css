@@ -1,4 +1,44 @@
-@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    min-height: 100%;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    @apply bg-slate-50 font-sans;
+    text-rendering: optimizeLegibility;
+  }
+
+  html.dark body {
+    @apply bg-slate-950;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms;
+      animation-iteration-count: 1;
+      scroll-behavior: auto;
+      transition-duration: 0.01ms;
+    }
+  }
+}

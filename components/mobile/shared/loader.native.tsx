@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
 import Svg, { Circle, Polygon, Rect } from 'react-native-svg';
+
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPolygon = Animated.createAnimatedComponent(Polygon);
@@ -47,15 +49,15 @@ const Loader = () => {
 	});
 
 	return (
-		<View style={styles.wrapper}>
-			<View style={styles.loader}>
-				<Svg viewBox="0 0 80 80" style={styles.svg}>
+		<View className="flex-row items-center justify-center" accessibilityRole="progressbar" accessibilityLabel="Carregando">
+			<View className="mx-2 h-touch w-touch items-center justify-center">
+				<Svg viewBox="0 0 80 80" width="100%" height="100%">
 					<AnimatedCircle
 						r={32}
 						cx={40}
 						cy={40}
 						fill="none"
-						stroke="#2f3545"
+						stroke={LUMUS_RUNTIME_COLORS.dark.surfaceMuted}
 						strokeWidth={10}
 						strokeLinecap="round"
 						strokeLinejoin="round"
@@ -65,12 +67,12 @@ const Loader = () => {
 				</Svg>
 			</View>
 
-			<View style={[styles.loader, styles.triangle]}>
-				<Svg viewBox="0 0 86 80" style={styles.svg}>
+			<View className="mx-2 h-touch w-control items-center justify-center">
+				<Svg viewBox="0 0 86 80" width="100%" height="100%">
 					<AnimatedPolygon
 						points="43 8 79 72 7 72"
 						fill="none"
-						stroke="#2f3545"
+						stroke={LUMUS_RUNTIME_COLORS.dark.surfaceMuted}
 						strokeWidth={10}
 						strokeLinecap="round"
 						strokeLinejoin="round"
@@ -80,15 +82,15 @@ const Loader = () => {
 				</Svg>
 			</View>
 
-			<View style={styles.loader}>
-				<Svg viewBox="0 0 80 80" style={styles.svg}>
+			<View className="mx-2 h-touch w-touch items-center justify-center">
+				<Svg viewBox="0 0 80 80" width="100%" height="100%">
 					<AnimatedRect
 						x={8}
 						y={8}
 						width={64}
 						height={64}
 						fill="none"
-						stroke="#2f3545"
+						stroke={LUMUS_RUNTIME_COLORS.dark.surfaceMuted}
 						strokeWidth={10}
 						rx={8}
 						strokeDasharray="192 64 192 64"
@@ -99,27 +101,5 @@ const Loader = () => {
 		</View>
 	);
 };
-
-const styles = StyleSheet.create({
-	wrapper: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
-	loader: {
-		width: 44,
-		height: 44,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginHorizontal: 8,
-	},
-	triangle: {
-		width: 48,
-	},
-	svg: {
-		width: '100%',
-		height: '100%',
-	},
-});
 
 export default Loader;

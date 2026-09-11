@@ -336,9 +336,9 @@ export default function LoginScreen() {
 					}
 				>
 					<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-						<View className={`flex-1 ${isSplitLayout ? 'flex-row min-h-[680px]' : 'flex-col'}`}>
+						<View className={`flex-1 ${isSplitLayout ? 'min-h-login-shell flex-row' : 'flex-col'}`}>
 							<View
-								className={`w-full items-center justify-center overflow-hidden ${isSplitLayout ? 'flex-[1.14] rounded-br-[32px] rounded-tr-[32px]' : 'min-h-[360px]'}`}
+								className={`w-full items-center justify-center overflow-hidden ${isSplitLayout ? 'flex-login-identity rounded-br-hero rounded-tr-hero' : 'shrink-0'}`}
 								style={{ height: identityHeight }}
 							>
 								<View className="relative flex-1 w-full items-center justify-center">
@@ -420,12 +420,12 @@ export default function LoginScreen() {
 								</View>
 							</View>
 
-								<View
-									className={`${cardBackground} flex-[0.86] justify-center px-8 py-[42px] ${!isSplitLayout ? '-mt-7 rounded-tl-[32px] rounded-tr-[32px] pt-12' : ''}`}
-								>
-								<View className="w-full max-w-[420px] flex-1 self-center">
+							<View
+								className={`${cardBackground} justify-center px-8 ${isSplitLayout ? 'flex-login-form py-10.5' : '-mt-7 min-h-login-card flex-none rounded-tl-hero rounded-tr-hero pb-6 pt-12'}`}
+							>
+								<View className="w-full max-w-login-form flex-1 self-center">
 									<View className="flex-1 justify-center">
-										<VStack className="mb-10 gap-2">
+										<VStack className="mb-10 shrink-0 gap-2">
 											<Text
 												className={`${helperText} text-xs font-semibold uppercase tracking-widest`}
 											>

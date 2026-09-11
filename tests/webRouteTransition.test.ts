@@ -28,7 +28,7 @@ describe('transição de rotas Web', () => {
 
 	it('mantém o Grainient do wallpaper da Home contido no hero inteiro', () => {
 		const source = fs.readFileSync(path.join(process.cwd(), 'screens/web/HomeScreen.web.tsx'), 'utf8');
-		const styles = fs.readFileSync(path.join(process.cwd(), 'hooks/useScreenStyle.ts'), 'utf8');
+		const styles = fs.readFileSync(path.join(process.cwd(), 'design-system/web-dashboard.ts'), 'utf8');
 
 		expect(source).toContain('home-hero-grainient');
 		expect(styles).toContain("hero: 'absolute inset-x-0 top-0 w-screen overflow-hidden'");

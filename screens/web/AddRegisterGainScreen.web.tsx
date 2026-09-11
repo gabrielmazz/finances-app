@@ -186,7 +186,7 @@ const getSuggestedDateByDueDay = (dueDay: number, usesBusinessDays = false) =>
 	);
 
 export default function AddRegisterGainScreen() {
-	
+
 	const { width } = useWindowDimensions();
 	const isDesktop = width >= 1024;
 	const compact = width < 720;
@@ -1020,29 +1020,29 @@ export default function AddRegisterGainScreen() {
 			submitLockRef.current = false;
 			setIsSubmitting(false);
 		}
-		}, [
-			editingGainId,
-			explanationGain,
-			gainDate,
-			gainName,
-			moneyFormat,
-			gainValueCents,
-			isEditing,
-			isSubmitting,
-			linkedMandatoryGainId,
-			paymentFormat,
-			selectedBankId,
-			selectedTagId,
-			pendingInvestmentAdjustment,
-			isDarkMode,
-			isBankSelectionLocked,
-			shouldShowPaymentFormatSelection,
-			templateData,
-			parsedGainDate,
-			resetNewGainForm,
-			applyPostSubmitBehavior,
-			showSuccessfulGainNotification,
-		]);
+	}, [
+		editingGainId,
+		explanationGain,
+		gainDate,
+		gainName,
+		moneyFormat,
+		gainValueCents,
+		isEditing,
+		isSubmitting,
+		linkedMandatoryGainId,
+		paymentFormat,
+		selectedBankId,
+		selectedTagId,
+		pendingInvestmentAdjustment,
+		isDarkMode,
+		isBankSelectionLocked,
+		shouldShowPaymentFormatSelection,
+		templateData,
+		parsedGainDate,
+		resetNewGainForm,
+		applyPostSubmitBehavior,
+		showSuccessfulGainNotification,
+	]);
 
 	React.useEffect(() => {
 		if (!editingGainId) {
@@ -1422,225 +1422,134 @@ export default function AddRegisterGainScreen() {
 							}}
 						>
 							<View className={webDashboardClassNames.sheetInner}>
-									<View
-										className={webExpenseClassNames.formSurface + ' ' + cardBackground + ' rounded-[28px]'}
-										style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
-									>
-										<View className={webExpenseClassNames.formScroll}>
-											<View className="w-full">
-												<View className={webExpenseClassNames.fieldGrid}>
-													<VStack className={fieldColumn}>
-														<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Nome do ganho</Text>
-														<Input
-															isDisabled={isTemplateLocked || isFormBusy}
-															className={inputClassName}
-														>
-															<InputField
-																accessibilityLabel="Nome do ganho"
-																ref={gainNameInputRef}
-																placeholder="Ex.: salário, venda ou trabalho freelance…"
-																autoComplete="off"
-																value={gainName}
-																onChangeText={setGainName}
-																onFocus={() => handleInputFocus('gain-name')}
-																onSubmitEditing={() => gainValueInputRef.current?.focus?.()}
-																autoCapitalize="sentences"
-																autoCorrect={false}
-																returnKeyType="next"
-																className={inputField}
-															/>
-														</Input>
-													</VStack>
-
-													<VStack className={fieldColumn}>
-														<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Valor do ganho</Text>
-														<Input
-															isDisabled={gainName.trim().length === 0 || isFormBusy}
-															className={inputClassName}
-														>
-															<InputField
-																accessibilityLabel="Valor do ganho"
-																ref={gainValueInputRef}
-																placeholder="R$ 0,00"
-																autoComplete="off"
-																keyboardType="numeric"
-																value={gainValueDisplay}
-																onChangeText={handleValueChange}
-																onFocus={() => handleInputFocus('gain-value')}
-																returnKeyType="next"
-																className={inputField}
-															/>
-														</Input>
-													</VStack>
-
-													<VStack className={webExpenseClassNames.fieldFull}>
-														<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Data do ganho</Text>
-														<DatePickerField
-															accessibilityLabel="Data do ganho"
-															value={gainDate}
-															onChange={setGainDate}
-															triggerClassName={inputClassName}
-															inputClassName={inputField}
-															placeholder="Selecione a data do ganho"
-															isDisabled={
-																isFormBusy ||
-																gainValueCents === null ||
-																gainValueCents === 0 ||
-																gainName.trim().length === 0
-															}
+								<View
+									className={webExpenseClassNames.formSurface + ' ' + cardBackground + ' rounded-[28px]'}
+									style={{ display: 'flex', flex: 1, flexDirection: 'column' }}
+								>
+									<View className={webExpenseClassNames.formScroll}>
+										<View className="w-full">
+											<View className={webExpenseClassNames.fieldGrid}>
+												<VStack className={fieldColumn}>
+													<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Nome do ganho</Text>
+													<Input
+														isDisabled={isTemplateLocked || isFormBusy}
+														className={inputClassName}
+													>
+														<InputField
+															accessibilityLabel="Nome do ganho"
+															ref={gainNameInputRef}
+															placeholder="Ex.: salário, venda ou trabalho freelance…"
+															autoComplete="off"
+															value={gainName}
+															onChangeText={setGainName}
+															onFocus={() => handleInputFocus('gain-name')}
+															onSubmitEditing={() => gainValueInputRef.current?.focus?.()}
+															autoCapitalize="sentences"
+															autoCorrect={false}
+															returnKeyType="next"
+															className={inputField}
 														/>
-													</VStack>
+													</Input>
+												</VStack>
 
-													<VStack className={webExpenseClassNames.fieldFull}>
-									<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-										<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
-																Observação
-															</Text>
-															<Popover
-																placement="bottom"
-																size="md"
-																offset={4}
-																shouldFlip
-																focusScope={false}
-																trapFocus={false}
-																trigger={(triggerProps) => (
-																	<Pressable
-																		{...triggerProps}
-																		accessibilityRole="button"
-																		accessibilityLabel="Informações sobre a observação do ganho"
-																	>
-																		<Info
-																			size={14}
-																			color={isDarkMode ? '#94A3B8' : '#64748B'}
-																		/>
-																	</Pressable>
-																)}
-															>
-																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[280px]" style={infoCardStyle}>
-																	<PopoverBody className="px-3 py-3">
-																		<Text className={bodyText + ' text-xs leading-5'}>
-																			Campo opcional. Use para registrar a origem, o
-																			contexto ou algum detalhe útil desta entrada.
-																		</Text>
-																	</PopoverBody>
-																</PopoverContent>
-															</Popover>
-														</View>
-														<Textarea
-															isDisabled={isExplanationDisabled}
-															className={textareaContainerClassName + ' ' + webExpenseClassNames.fieldTextarea}
-														>
-															<TextareaInput
-																accessibilityLabel="Observação do ganho"
-																ref={gainExplanationInputRef}
-																placeholder="Adicione uma observação, se necessário…"
-																autoComplete="off"
-																value={explanationGain ?? ''}
-																onChangeText={setExplanationGain}
-																onFocus={() => handleInputFocus('gain-explanation')}
-																editable={!isExplanationDisabled}
-																className={inputField + ' pt-2'}
-															/>
-														</Textarea>
-													</VStack>
+												<VStack className={fieldColumn}>
+													<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Valor do ganho</Text>
+													<Input
+														isDisabled={gainName.trim().length === 0 || isFormBusy}
+														className={inputClassName}
+													>
+														<InputField
+															accessibilityLabel="Valor do ganho"
+															ref={gainValueInputRef}
+															placeholder="R$ 0,00"
+															autoComplete="off"
+															keyboardType="numeric"
+															value={gainValueDisplay}
+															onChangeText={handleValueChange}
+															onFocus={() => handleInputFocus('gain-value')}
+															returnKeyType="next"
+															className={inputField}
+														/>
+													</Input>
+												</VStack>
 
-													{shouldShowPaymentFormatSelection ? (
-														<VStack className={webExpenseClassNames.fieldFull}>
-										<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-										<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
-																	Formato do ganho
-																</Text>
-																<Popover
-																	placement="bottom"
-																	size="md"
-																	offset={4}
-																	shouldFlip
-																	focusScope={false}
-																	trapFocus={false}
-																	trigger={(triggerProps) => (
-																		<Pressable
-																			{...triggerProps}
-																			accessibilityRole="button"
-																			accessibilityLabel="Informações sobre o formato do ganho"
-																		>
-																			<Info
-																				size={14}
-																				color={isDarkMode ? '#94A3B8' : '#64748B'}
-																			/>
-																		</Pressable>
-																	)}
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Data do ganho</Text>
+													<DatePickerField
+														accessibilityLabel="Data do ganho"
+														value={gainDate}
+														onChange={setGainDate}
+														triggerClassName={inputClassName}
+														inputClassName={inputField}
+														placeholder="Selecione a data do ganho"
+														isDisabled={
+															isFormBusy ||
+															gainValueCents === null ||
+															gainValueCents === 0 ||
+															gainName.trim().length === 0
+														}
+													/>
+												</VStack>
+
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+														<Text className={webExpenseClassNames.fieldInlineLabel + ' ' + bodyText}>
+															Observação
+														</Text>
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={4}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={(triggerProps) => (
+																<Pressable
+																	{...triggerProps}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre a observação do ganho"
 																>
-																	<PopoverBackdrop className="bg-transparent" />
-																	<PopoverContent className="max-w-[300px]" style={infoCardStyle}>
-																		<PopoverBody className="px-3 py-3">
-																			<Text className={bodyText + ' text-xs leading-5'}>
-																				Selecione se este ganho representa uma renda
-																				variável ou um pagamento externo.
-																			</Text>
-																		</PopoverBody>
-																	</PopoverContent>
-																</Popover>
-															</View>
-															<View className={cardClassName + ' w-full max-w-[1120px] self-center pt-6 pb-6'}>
-																<CheckboxGroup value={paymentFormat} onChange={setPaymentFormat}>
-																	<View className="w-full flex-row flex-wrap gap-5">
-																		<Checkbox
-																			value="Variable"
-																			className={checkboxClassName}
-																			isDisabled={
-																				gainName.trim().length === 0 ||
-																				gainValueCents === null ||
-																				gainValueCents === 0 ||
-																				isFormBusy ||
-																				isExternalPaymentFormatSelected
-																			}
-																		>
-																			<CheckboxIndicator
-																				className={(checkboxIndicatorClassName + ' ' + (isVariablePaymentFormatSelected ? checkboxIndicatorCheckedClassName : '')).trim()}
-																				style={isVariablePaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
-																			>
-																				<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-																			</CheckboxIndicator>
-																			<CheckboxLabel
-																				className={(checkboxLabelClassName + ' ' + (isVariablePaymentFormatSelected ? checkboxLabelCheckedClassName : '') + ' text-sm').trim()}
-																			>
-																				Renda variável
-																			</CheckboxLabel>
-																		</Checkbox>
-																		<Checkbox
-																			value="External"
-																			className={checkboxClassName}
-																			isDisabled={
-																				gainName.trim().length === 0 ||
-																				gainValueCents === null ||
-																				gainValueCents === 0 ||
-																				isFormBusy ||
-																				isVariablePaymentFormatSelected
-																			}
-																		>
-																			<CheckboxIndicator
-																				className={(checkboxIndicatorClassName + ' ' + (isExternalPaymentFormatSelected ? checkboxIndicatorCheckedClassName : '')).trim()}
-																				style={isExternalPaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
-																			>
-																				<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-																			</CheckboxIndicator>
-																			<CheckboxLabel
-																				className={(checkboxLabelClassName + ' ' + (isExternalPaymentFormatSelected ? checkboxLabelCheckedClassName : '') + ' text-sm').trim()}
-																			>
-																				Pagamento externo
-																			</CheckboxLabel>
-																		</Checkbox>
-																	</View>
-																</CheckboxGroup>
-															</View>
-														</VStack>
-													) : null}
+																	<Info
+																		size={14}
+																		color={isDarkMode ? '#94A3B8' : '#64748B'}
+																	/>
+																</Pressable>
+															)}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[280px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={bodyText + ' text-xs leading-5'}>
+																		Campo opcional. Use para registrar a origem, o
+																		contexto ou algum detalhe útil desta entrada.
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</View>
+													<Textarea
+														isDisabled={isExplanationDisabled}
+														className={textareaContainerClassName + ' ' + webExpenseClassNames.fieldTextarea}
+													>
+														<TextareaInput
+															accessibilityLabel="Observação do ganho"
+															ref={gainExplanationInputRef}
+															placeholder="Adicione uma observação, se necessário…"
+															autoComplete="off"
+															value={explanationGain ?? ''}
+															onChangeText={setExplanationGain}
+															onFocus={() => handleInputFocus('gain-explanation')}
+															editable={!isExplanationDisabled}
+															className={inputField + ' pt-2'}
+														/>
+													</Textarea>
+												</VStack>
 
+												{shouldShowPaymentFormatSelection ? (
 													<VStack className={webExpenseClassNames.fieldFull}>
-								<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
-									<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText + ' !mb-0'}>
-																Formato de recebimento
+														<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+															<Text className={webExpenseClassNames.fieldInlineLabel + ' ' + bodyText}>
+																Formato do ganho
 															</Text>
 															<Popover
 																placement="bottom"
@@ -1653,7 +1562,7 @@ export default function AddRegisterGainScreen() {
 																	<Pressable
 																		{...triggerProps}
 																		accessibilityRole="button"
-																		accessibilityLabel="Informações sobre o formato de recebimento"
+																		accessibilityLabel="Informações sobre o formato do ganho"
 																	>
 																		<Info
 																			size={14}
@@ -1663,153 +1572,244 @@ export default function AddRegisterGainScreen() {
 																)}
 															>
 																<PopoverBackdrop className="bg-transparent" />
-																<PopoverContent className="max-w-[320px]" style={infoCardStyle}>
+																<PopoverContent className="max-w-[300px]" style={infoCardStyle}>
 																	<PopoverBody className="px-3 py-3">
 																		<Text className={bodyText + ' text-xs leading-5'}>
-																			Escolha onde este ganho foi recebido. Em dinheiro,
-																			o valor não fica vinculado a banco; em banco, selecione
-																			a conta que recebeu a entrada.
+																			Selecione se este ganho representa uma renda
+																			variável ou um pagamento externo.
 																		</Text>
 																	</PopoverBody>
 																</PopoverContent>
 															</Popover>
 														</View>
 														<View className={cardClassName + ' w-full max-w-[1120px] self-center pt-6 pb-6'}>
-															<RadioGroup
-																className="w-full max-w-[1120px] self-center"
-																value={valuesRadioMoneyFormat}
-																onChange={handleRadioMoneyFormatChange}
-															>
+															<CheckboxGroup value={paymentFormat} onChange={setPaymentFormat}>
 																<View className="w-full flex-row flex-wrap gap-5">
-																	<Radio
-																		value="Recebimento em Banco"
-																		className={switchRadioClassName}
-																		isDisabled={isMoneyFormatSelectionDisabled}
+																	<Checkbox
+																		value="Variable"
+																		className={checkboxClassName}
+																		isDisabled={
+																			gainName.trim().length === 0 ||
+																			gainValueCents === null ||
+																			gainValueCents === 0 ||
+																			isFormBusy ||
+																			isExternalPaymentFormatSelected
+																		}
 																	>
-																		<RadioIndicator className={switchRadioIndicatorClassName}>
-																			<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-																		</RadioIndicator>
-																		<RadioLabel className={switchRadioLabelClassName + ' ' + bodyText + ' text-sm'}>
-																			Recebimento em Banco
-																		</RadioLabel>
-																	</Radio>
-																	<Radio
-																		value="Recebimento em Dinheiro"
-																		className={switchRadioClassName}
-																		isDisabled={isMoneyFormatSelectionDisabled}
+																		<CheckboxIndicator
+																			className={(checkboxIndicatorClassName + ' ' + (isVariablePaymentFormatSelected ? checkboxIndicatorCheckedClassName : '')).trim()}
+																			style={isVariablePaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
+																		>
+																			<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
+																		</CheckboxIndicator>
+																		<CheckboxLabel
+																			className={(checkboxLabelClassName + ' ' + (isVariablePaymentFormatSelected ? checkboxLabelCheckedClassName : '') + ' text-sm').trim()}
+																		>
+																			Renda variável
+																		</CheckboxLabel>
+																	</Checkbox>
+																	<Checkbox
+																		value="External"
+																		className={checkboxClassName}
+																		isDisabled={
+																			gainName.trim().length === 0 ||
+																			gainValueCents === null ||
+																			gainValueCents === 0 ||
+																			isFormBusy ||
+																			isVariablePaymentFormatSelected
+																		}
 																	>
-																		<RadioIndicator className={switchRadioIndicatorClassName}>
-																			<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
-																		</RadioIndicator>
-																		<RadioLabel className={switchRadioLabelClassName + ' ' + bodyText + ' text-sm'}>
-																			Recebimento em Dinheiro
-																		</RadioLabel>
-																	</Radio>
+																		<CheckboxIndicator
+																			className={(checkboxIndicatorClassName + ' ' + (isExternalPaymentFormatSelected ? checkboxIndicatorCheckedClassName : '')).trim()}
+																			style={isExternalPaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
+																		>
+																			<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
+																		</CheckboxIndicator>
+																		<CheckboxLabel
+																			className={(checkboxLabelClassName + ' ' + (isExternalPaymentFormatSelected ? checkboxLabelCheckedClassName : '') + ' text-sm').trim()}
+																		>
+																			Pagamento externo
+																		</CheckboxLabel>
+																	</Checkbox>
 																</View>
-															</RadioGroup>
-															{valuesRadioMoneyFormat === 'Recebimento em Banco' ? (
-																<VStack className="mt-4 w-full">
-																	<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Banco</Text>
-																	{isBankSelectionLocked ? (
-																		<View className={cardClassName}>
-																			<Text className={bodyText + ' text-sm'}>
-																				{lockedBankName}
-																			</Text>
-																		</View>
-																	) : (
-																		<BankActionsheetSelector
-																			options={banks}
-																			selectedId={selectedBankId}
-																			selectedLabel={selectedBankLabel}
-																			selectedOption={selectedBankOption}
-																			onSelect={handleSelectBank}
-																			isDisabled={isBankSelectDisabled}
-																			isDarkMode={isDarkMode}
-																			bodyTextClassName={bodyText}
-																			helperTextClassName={helperText}
-																			triggerClassName={fieldBankContainerClassName}
-																			placeholder="Selecione o banco vinculado"
-																			sheetTitle="Escolha o banco do ganho"
-																			emptyMessage="Nenhum banco disponível."
-																			triggerHint={bankHelperMessage}
-																			disabledHint={bankHelperMessage}
-																			accessibilityLabel="Selecionar banco do ganho"
-																		/>
-																	)}
-																</VStack>
-															) : (
-																<Text className={helperText + ' mt-3 text-xs'}>{bankHelperMessage}</Text>
-															)}
+															</CheckboxGroup>
 														</View>
 													</VStack>
-
-													<VStack className={webExpenseClassNames.fieldFull}>
-														<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Categoria</Text>
-														{isTagSelectionLocked ? (
-															<View className={cardClassName}>
-																<HStack className="items-center gap-3">
-																	<View className="h-10 w-10 items-center justify-center rounded-2xl border border-yellow-400/30 bg-yellow-400/10">
-																		<TagIcon
-																			iconFamily={selectedTagOption?.iconFamily}
-																			iconName={selectedTagOption?.iconName}
-																			iconStyle={selectedTagOption?.iconStyle}
-																			size={18}
-																			color={isDarkMode ? '#FCD34D' : '#D97706'}
-																		/>
-																	</View>
-																	<Text className={bodyText + ' flex-1 text-sm'}>
-																		{selectedTagLabel ?? 'Categoria definida automaticamente'}
-																	</Text>
-																</HStack>
-															</View>
-														) : (
-															<TagActionsheetSelector
-																options={tags}
-																selectedId={selectedTagId}
-																selectedLabel={selectedTagLabel}
-																selectedOption={selectedTagOption}
-																onSelect={handleSelectTag}
-																isDisabled={isTagSelectDisabled}
-																isDarkMode={isDarkMode}
-																bodyTextClassName={bodyText}
-																helperTextClassName={helperText}
-																triggerClassName={fieldContainerCardClassName}
-																placeholder="Selecione a categoria do ganho"
-																sheetTitle="Escolha a categoria do ganho"
-																emptyMessage="Nenhuma categoria de ganho disponível."
-																triggerHint={tagHelperMessage}
-																disabledHint={tagHelperMessage}
-																accessibilityLabel="Escolher categoria de ganho"
-																onCreatePress={handleOpenAddTagScreen}
-																createActionLabel="Adicionar categoria de ganho"
-																isCreateDisabled={isAddTagButtonDisabled}
-															/>
-														)}
-													</VStack>
-												</View>
-
-												{isEditing && isLoadingExisting ? (
-													<Text className={helperText + ' mt-5 text-sm'}>
-														Carregando informações do ganho selecionado...
-													</Text>
 												) : null}
 
-												<Button
-													className={submitButtonClassName + ' ' + webExpenseClassNames.submit}
-													onPress={() => void handleSubmit()}
-													isDisabled={isSubmitDisabled}
-												>
-													{isFormBusy ? (
-														<ButtonSpinner color={isDarkMode ? '#0F172A' : '#FFFFFF'} />
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<View className={`${webExpenseClassNames.sectionLabel} mb-2`}>
+														<Text className={webExpenseClassNames.fieldInlineLabel + ' ' + bodyText}>
+															Formato de recebimento
+														</Text>
+														<Popover
+															placement="bottom"
+															size="md"
+															offset={4}
+															shouldFlip
+															focusScope={false}
+															trapFocus={false}
+															trigger={(triggerProps) => (
+																<Pressable
+																	{...triggerProps}
+																	accessibilityRole="button"
+																	accessibilityLabel="Informações sobre o formato de recebimento"
+																>
+																	<Info
+																		size={14}
+																		color={isDarkMode ? '#94A3B8' : '#64748B'}
+																	/>
+																</Pressable>
+															)}
+														>
+															<PopoverBackdrop className="bg-transparent" />
+															<PopoverContent className="max-w-[320px]" style={infoCardStyle}>
+																<PopoverBody className="px-3 py-3">
+																	<Text className={bodyText + ' text-xs leading-5'}>
+																		Escolha onde este ganho foi recebido. Em dinheiro,
+																		o valor não fica vinculado a banco; em banco, selecione
+																		a conta que recebeu a entrada.
+																	</Text>
+																</PopoverBody>
+															</PopoverContent>
+														</Popover>
+													</View>
+													<View className={cardClassName + ' w-full max-w-[1120px] self-center pt-6 pb-6'}>
+														<RadioGroup
+															className="w-full max-w-[1120px] self-center"
+															value={valuesRadioMoneyFormat}
+															onChange={handleRadioMoneyFormatChange}
+														>
+															<View className="w-full flex-row flex-wrap gap-5">
+																<Radio
+																	value="Recebimento em Banco"
+																	className={switchRadioClassName}
+																	isDisabled={isMoneyFormatSelectionDisabled}
+																>
+																	<RadioIndicator className={switchRadioIndicatorClassName}>
+																		<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+																	</RadioIndicator>
+																	<RadioLabel className={switchRadioLabelClassName + ' ' + bodyText + ' text-sm'}>
+																		Recebimento em Banco
+																	</RadioLabel>
+																</Radio>
+																<Radio
+																	value="Recebimento em Dinheiro"
+																	className={switchRadioClassName}
+																	isDisabled={isMoneyFormatSelectionDisabled}
+																>
+																	<RadioIndicator className={switchRadioIndicatorClassName}>
+																		<RadioIcon as={CircleIcon} className={switchRadioIconClassName} />
+																	</RadioIndicator>
+																	<RadioLabel className={switchRadioLabelClassName + ' ' + bodyText + ' text-sm'}>
+																		Recebimento em Dinheiro
+																	</RadioLabel>
+																</Radio>
+															</View>
+														</RadioGroup>
+														{valuesRadioMoneyFormat === 'Recebimento em Banco' ? (
+															<VStack className="mt-4 w-full">
+																<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Banco</Text>
+																{isBankSelectionLocked ? (
+																	<View className={cardClassName}>
+																		<Text className={bodyText + ' text-sm'}>
+																			{lockedBankName}
+																		</Text>
+																	</View>
+																) : (
+																	<BankActionsheetSelector
+																		options={banks}
+																		selectedId={selectedBankId}
+																		selectedLabel={selectedBankLabel}
+																		selectedOption={selectedBankOption}
+																		onSelect={handleSelectBank}
+																		isDisabled={isBankSelectDisabled}
+																		isDarkMode={isDarkMode}
+																		bodyTextClassName={bodyText}
+																		helperTextClassName={helperText}
+																		triggerClassName={fieldBankContainerClassName}
+																		placeholder="Selecione o banco vinculado"
+																		sheetTitle="Escolha o banco do ganho"
+																		emptyMessage="Nenhum banco disponível."
+																		triggerHint={bankHelperMessage}
+																		disabledHint={bankHelperMessage}
+																		accessibilityLabel="Selecionar banco do ganho"
+																	/>
+																)}
+															</VStack>
+														) : (
+															<Text className={helperText + ' mt-3 text-xs'}>{bankHelperMessage}</Text>
+														)}
+													</View>
+												</VStack>
+
+												<VStack className={webExpenseClassNames.fieldFull}>
+													<Text className={webExpenseClassNames.fieldLabel + ' ' + bodyText}>Categoria</Text>
+													{isTagSelectionLocked ? (
+														<View className={cardClassName}>
+															<HStack className="items-center gap-3">
+																<View className="h-10 w-10 items-center justify-center rounded-2xl border border-yellow-400/30 bg-yellow-400/10">
+																	<TagIcon
+																		iconFamily={selectedTagOption?.iconFamily}
+																		iconName={selectedTagOption?.iconName}
+																		iconStyle={selectedTagOption?.iconStyle}
+																		size={18}
+																		color={isDarkMode ? '#FCD34D' : '#D97706'}
+																	/>
+																</View>
+																<Text className={bodyText + ' flex-1 text-sm'}>
+																	{selectedTagLabel ?? 'Categoria definida automaticamente'}
+																</Text>
+															</HStack>
+														</View>
 													) : (
-														<ButtonText className={submitButtonTextClassName}>
-															{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}
-														</ButtonText>
+														<TagActionsheetSelector
+															options={tags}
+															selectedId={selectedTagId}
+															selectedLabel={selectedTagLabel}
+															selectedOption={selectedTagOption}
+															onSelect={handleSelectTag}
+															isDisabled={isTagSelectDisabled}
+															isDarkMode={isDarkMode}
+															bodyTextClassName={bodyText}
+															helperTextClassName={helperText}
+															triggerClassName={fieldContainerCardClassName}
+															placeholder="Selecione a categoria do ganho"
+															sheetTitle="Escolha a categoria do ganho"
+															emptyMessage="Nenhuma categoria de ganho disponível."
+															triggerHint={tagHelperMessage}
+															disabledHint={tagHelperMessage}
+															accessibilityLabel="Escolher categoria de ganho"
+															onCreatePress={handleOpenAddTagScreen}
+															createActionLabel="Adicionar categoria de ganho"
+															isCreateDisabled={isAddTagButtonDisabled}
+														/>
 													)}
-												</Button>
+												</VStack>
 											</View>
+
+											{isEditing && isLoadingExisting ? (
+												<Text className={helperText + ' mt-5 text-sm'}>
+													Carregando informações do ganho selecionado...
+												</Text>
+											) : null}
+
+											<Button
+												className={submitButtonClassName + ' ' + webExpenseClassNames.submit}
+												onPress={() => void handleSubmit()}
+												isDisabled={isSubmitDisabled}
+											>
+												{isFormBusy ? (
+													<ButtonSpinner color={isDarkMode ? '#0F172A' : '#FFFFFF'} />
+												) : (
+													<ButtonText className={submitButtonTextClassName}>
+														{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}
+													</ButtonText>
+												)}
+											</Button>
 										</View>
 									</View>
+								</View>
 							</View>
 						</View>
 					</View>

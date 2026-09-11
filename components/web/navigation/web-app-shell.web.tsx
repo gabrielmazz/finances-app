@@ -1,7 +1,6 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { useAppTheme } from '@/contexts/ThemeContext';
 import WebRouteTransition from '@/components/uiverse/navigation/web-route-transition';
 type WebAppShellProps = React.PropsWithChildren<{
 	isAuthenticated: boolean;
@@ -12,34 +11,16 @@ type WebAppShellProps = React.PropsWithChildren<{
  * continua centralizando rotas e visibilidade, agora em painel sobreposto.
  */
 export default function WebAppShell({ children, isAuthenticated }: WebAppShellProps) {
-	const { isDarkMode } = useAppTheme();
 	const usesWorkspaceBackground = isAuthenticated;
 
 	return (
 		<View
-			style={[
-				styles.frame,
-				usesWorkspaceBackground && { backgroundColor: isDarkMode ? '#020617' : '#f8fafc' },
-			]}
+			className={`flex-1 ${usesWorkspaceBackground ? 'bg-slate-50 dark:bg-slate-950' : ''}`}
 		>
-			<View style={styles.workspace}>
-				<View style={styles.content}>{children}</View>
+			<View className="min-w-0 flex-1">
+				<View className="min-w-0 flex-1">{children}</View>
 			</View>
 			{usesWorkspaceBackground ? <WebRouteTransition /> : null}
 		</View>
 	);
 }
-
-const styles = StyleSheet.create({
-	frame: {
-		flex: 1,
-	},
-	workspace: {
-		flex: 1,
-		minWidth: 0,
-	},
-	content: {
-		flex: 1,
-		minWidth: 0,
-	},
-});

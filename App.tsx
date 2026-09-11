@@ -9,7 +9,7 @@ export default function App() {
 		'Arimo': require('./assets/Fonts/Arimo-VariableFont_wght.ttf'),
 		'IBMPlexSans': require('./assets/Fonts/IBMPlexSans-VariableFont_wdth,wght.ttf'),
 		'Metamorphous': require('./assets/Fonts/Metamorphous-Regular.ttf'),
-		'Obitron': require('./assets/Fonts/Obitron-VariableFont_wght.ttf'),
+		'Orbitron': require('./assets/Fonts/Orbitron-VariableFont_wght.ttf'),
 		'Raleway': require('./assets/Fonts/Raleway-VariableFont_wght.ttf'),
 	});
 

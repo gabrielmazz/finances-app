@@ -44,7 +44,7 @@ export default function MandatoryExpensePaymentBulletChart({
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
-			<style>{'html, body { background-color: transparent !important; }'}</style>
+			<style>{'html, body { background-color: transparent; }'}</style>
 			<div role="img" aria-label={accessibilityLabel} style={{ width: '100%' }}>
 				<BulletChart
 					value={value}

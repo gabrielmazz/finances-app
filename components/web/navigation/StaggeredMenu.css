@@ -109,8 +109,8 @@
   will-change: transform;
 }
 
-.sm-line {
-  display: none !important;
+.staggered-menu-wrapper .sm-line {
+  display: none;
 }
 
 .staggered-menu-panel {

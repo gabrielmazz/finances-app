@@ -159,7 +159,6 @@ export function TimePickerField({
 				accessibilityRole="combobox"
 				accessibilityLabel={accessibilityLabel}
 				accessibilityState={{ disabled: isDisabled, expanded: isPickerOpen }}
-				style={webTimePickerClassNames.triggerStyle}
 				className={`${resolvedTriggerClassName} ${webTimePickerClassNames.trigger} flex-row items-center justify-between overflow-hidden ${isDisabled ? 'opacity-40' : ''}`}
 			>
 				<Text
@@ -169,9 +168,9 @@ export function TimePickerField({
 					{hasValidValue ? value : placeholder}
 				</Text>
 				{isPickerOpen ? (
-					<ChevronUpIcon className={webTimePickerClassNames.icon} style={webTimePickerClassNames.iconStyle} aria-hidden />
+					<ChevronUpIcon className={webTimePickerClassNames.icon} aria-hidden />
 				) : (
-					<ChevronDownIcon className={webTimePickerClassNames.icon} style={webTimePickerClassNames.iconStyle} aria-hidden />
+					<ChevronDownIcon className={webTimePickerClassNames.icon} aria-hidden />
 				)}
 			</WebPressable>
 
