@@ -118,12 +118,16 @@ const buttonStyle = tva({
   ],
 });
 
+const primaryLinkTextClassName =
+  'text-yellow-700 data-[hover=true]:text-yellow-800 data-[active=true]:text-yellow-900';
+const primaryDarkTextClassName =
+  'dark:text-yellow-300 dark:data-[hover=true]:text-yellow-200';
+
 const buttonTextStyle = tva({
   base: 'text-typography-0 font-semibold web:select-none',
   parentVariants: {
     action: {
-      primary:
-        'text-yellow-700 data-[hover=true]:text-yellow-800 data-[active=true]:text-yellow-900 dark:text-yellow-300 dark:data-[hover=true]:text-yellow-200',
+      primary: '',
       secondary:
         'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
       positive:
@@ -150,7 +154,7 @@ const buttonTextStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
@@ -171,10 +175,14 @@ const buttonTextStyle = tva({
         'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
     },
     {
+      variant: 'link',
+      action: 'primary',
+      class: `${primaryLinkTextClassName} ${primaryDarkTextClassName}`,
+    },
+    {
       variant: 'outline',
       action: 'primary',
-      class:
-        'text-primary-500 data-[hover=true]:text-primary-500 data-[active=true]:text-primary-500',
+      class: `text-primary-500 data-[hover=true]:text-primary-500 data-[active=true]:text-primary-500 ${primaryDarkTextClassName}`,
     },
     {
       variant: 'outline',
@@ -214,8 +222,7 @@ const buttonIconStyle = tva({
       xl: 'h-5 w-5',
     },
     action: {
-      primary:
-        'text-yellow-700 data-[hover=true]:text-yellow-800 data-[active=true]:text-yellow-900 dark:text-yellow-300 dark:data-[hover=true]:text-yellow-200',
+      primary: '',
       secondary:
         'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
       positive:
@@ -227,10 +234,20 @@ const buttonIconStyle = tva({
   },
   parentCompoundVariants: [
     {
+      variant: 'link',
+      action: 'primary',
+      class: `${primaryLinkTextClassName} ${primaryDarkTextClassName}`,
+    },
+    {
+      variant: 'outline',
+      action: 'primary',
+      class: `${primaryLinkTextClassName} ${primaryDarkTextClassName}`,
+    },
+    {
       variant: 'solid',
       action: 'primary',
       class:
-        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',

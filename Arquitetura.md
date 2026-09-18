@@ -108,15 +108,16 @@ Firebase (Auth + Firestore + AI Logic)
 
 | Camada | Tecnologia |
 |---|---|
-| Framework | Expo ~54 / React Native 0.81 |
-| Routing | Expo Router ~6 (file-based) |
+| Framework | Expo 57 / React Native 0.86 |
+| Routing | Expo Router 57 (file-based) |
 | Web | React Native Web + export estático Expo em `dist/` |
 | Hosting Web | Firebase Hosting do projeto `finances-app-e8685` |
 | Backend | Firebase 12.16 (Auth + Firestore + AI Logic web) |
 | IA Android | React Native Firebase 25.1 (AI + App Check + Remote Config) |
 | Design System | Tailwind 3 + NativeWind 4 + Gluestack UI, com tokens semânticos em `design-system/` |
-| Linguagem | TypeScript 5.9 (strict mode) |
-| React | 19.1.0 |
+| Linguagem | TypeScript 6.0.3 (strict mode) |
+| React | 19.2.3 |
+| Node.js | >=22.13.0 |
 
 ### Estrutura de Pastas
 
@@ -274,6 +275,22 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Ações primárias com texto branco em 2026-09-14: os botões sólidos mantêm `lumus-accent` (`#FACC15`) no fundo e usam foreground branco no texto e nos ícones; os estilos sólidos não herdam o amarelo reservado a links/contornos. A combinação mede 1,53:1 de contraste e a legibilidade fica reduzida. `npm run lint:styles`, `npm run check` (38 suítes/222 testes), `npm run web:export` e `git diff --check` passaram; decisão e limitação documentadas em [[Sistema de Temas]], [[Componentes UI]] e [[Auditoria de Design]].
+
+- Correção do warning DOM no Login Web em 2026-09-14: `screens/web/LoginScreen.web.tsx` removeu o `accessibilityRole` específico de React Native do componente `Heading`, que já renderiza um `<h4>` semântico no navegador. A hierarquia acessível e a apresentação permanecem iguais; Android/iOS e autenticação não mudaram. `npm run lint:styles`, `npm run typecheck` e `npm run web:export` passaram. Vault alinhado em [[Versão Web]] e [[Componentes UI]].
+
+- Correções dos avisos DOM na Home Web em 2026-09-14: o gráfico Mantine configura a cor dos eixos em `styles.root['--chart-text-color']`, sem encaminhar `textColor`; a superfície de cartão bancário usa `boxShadow` no navegador; wrappers visuais usam classes `pointer-events-*`; e o shimmer do `Skeleton` desativa `useNativeDriver` somente na Web. As alternativas nativas mantêm sombras e animação por driver nativo. `npm run lint:styles`, typecheck, export Web, renderização isolada do gráfico/Pressable e `git diff --check` passaram. Vault alinhado em [[Dashboard Home]], [[Versão Web]] e [[Componentes UI]].
+
+- Correção da hidratação na Home Web em 2026-09-14: o botão de expandir/recolher movimentações não envolve mais o `InfoTip`; os dois gatilhos DOM ficam lado a lado e mantêm seus próprios rótulos e ações. Vault alinhado em [[Dashboard Home]].
+
+- Atualização para Expo SDK 57 em 2026-09-14: `expo@57.0.22`, React Native `0.86.3`, React/React DOM `19.2.3` e Expo Router `57.0.21`; Node mínimo documentado como `22.13.0`. A navegação migrou `useIsFocused` para `expo-router`, os imports diretos de React Navigation foram removidos, `@expo/vector-icons` passou a dependência explícita e `expo-system-ui` preserva `userInterfaceStyle`. `app.json` moveu a splash nativa para o plugin `expo-splash-screen` e removeu `edgeToEdgeEnabled`; Android foi regenerado com prebuild limpo. Expo Doctor (21/21), dependências, `npm run check` (38 suítes/222 testes) e exports Web/Android passaram. A compilação Gradle e o smoke test em aparelho não foram executados neste ambiente; não há Android SDK configurado. Um novo development build é necessário para testar os módulos nativos do projeto; vault alinhado em [[MOC - Lumus Finanças]], [[Componentes UI]], [[Versão Web]] e [[Auditoria de Design]].
+
+- Foco dos campos reforçado em 2026-09-14: `Input`, `Select`, `Textarea` e os adaptadores Mantine usam um anel sólido `lumus-accent` junto da borda semântica `lumus-focus`; os erros permanecem vermelhos. `LoginScreen.web.tsx` agora herda o foco compartilhado sem suprimir o anel. `npm run check` passou com 38 suítes/222 testes e `npm run web:export` compilou; vault alinhado em [[Sistema de Temas]], [[Componentes UI]], [[Versão Web]] e [[Auditoria de Design]].
+
+- Correção do foco mobile em 2026-09-14: campos nativos mantêm borda neutra em repouso e recebem contorno `lumus-accent` de 2 px enquanto focados ou com picker/action sheet aberto; a Web mantém seu anel. Classes de foco foram limitadas aos controles interativos para que cards preservem apenas a borda neutra. Erros continuam vermelhos. Type-check, 38 suítes/222 testes, exports Web e Android foram aprovados; a validação visual em aparelho permanece pendente. Vault alinhado em [[Sistema de Temas]], [[Componentes UI]], [[Versão Web]] e [[Auditoria de Design]].
+
+- Alinhamento do carrossel bancário da Home Web em 2026-09-14: `HomeScreen.web.tsx` mede a largura útil da coluna de bancos e limita o carrossel a esse espaço, mantendo os cartões centralizados dentro da coluna quando investimentos também são exibidos. A composição nativa e os dados/actions do carrossel permanecem inalterados. Vault alinhado em [[Dashboard Home]].
+
 - Remoção do card de resumo da tela Web de movimentos bancários em 2026-09-06: `screens/web/BankMovementsScreen.web.tsx` inicia o conteúdo diretamente pelo painel de filtros em largura total, sem alterar a variante mobile, os cálculos financeiros, o resumo filtrado ou os totais gerais usados na exportação PDF. Vault alinhado em [[Gerenciamento de Bancos]] e [[Versão Web]].
 
 - Ajuste de contraste das Tabs da análise por categoria na Web em 2026-09-06: `CategoryAnalysisScreen.web.tsx` usa o amarelo `bg-yellow-400` (`#FACC15`) no estado ativo e mantém os rótulos **Gastos**/**Ganhos** em branco também no estado inativo; ícones inativos, foco/hover, controles Mantine, moldura `notTintedCardClassName`, relatório carregado e variante nativa permanecem alinhados ao sistema. Vault alinhado em [[Análise por Categoria]], [[Componentes UI]] e [[Versão Web]].
@@ -281,7 +298,6 @@ GOOGLE_SERVICES_JSON=
 - Conversão da tela de movimentos bancários para uma composição Web própria em 2026-09-06: `app/web/bank-movements.tsx` agora aponta para `screens/web/BankMovementsScreen.web.tsx`; o arquivo Web contém a composição completa do extrato, resolve o hero com wallpaper, `Grainient`, `StrokeText` e ilustração animada, oferece `bank-actionsheet-selector.tsx` quando a rota chega sem `bankId` e preserva loaders, cálculos em centavos, filtros, PDF e ações do extrato. `screens/mobile/BankMovementsScreen.tsx` permanece nativo e sem regras exclusivas do navegador. Caixa segue uma visão própria. Vault alinhado em [[Gerenciamento de Bancos]] e [[Versão Web]].
 - Compactação e alinhamento horizontal do formulário Web de movimentos bancários em 2026-09-06: `screens/web/BankMovementsScreen.web.tsx` mantém hero e sheet dentro de um único `ScrollView`, usa a sobreposição proporcional de 64px dos formulários Web, elimina o espaço vertical duplicado antes do primeiro painel, aplica um respiro interno superior `pt-7` equivalente ao formulário de despesas, deixa os filtros sem card externo para que os inputs mantenham apenas seus próprios contornos, usa Tabs do Mantine no tipo de movimentação com os valores atuais `all`/`gain`/`expense`, usa `TagsInput` do Mantine para o filtro de tags com múltiplos IDs controlados, opções contextuais, contagem, ícones, pills com texto branco centralizado e remoção, mantém a altura base do campo em 48px como os inputs de `AddRegisterExpensesScreen.web.tsx`, aplica o espaçamento vertical de 8px e o placeholder `slate-500` do padrão dos inputs Web, aplica `webExpenseClassNames.fieldLabel` aos labels dos filtros e do modal de investimento para manter a mesma tipografia utilitária de `AddRegisterExpensesScreen.web.tsx`, reduz padding/gaps do painel e usa o frame interno como única origem do recuo lateral, mantendo painel, resumo e seletores com gutters simétricos; Android/iOS preservam o espaçamento original.
 - Superfície dos Tabs Web alinhada ao sistema em 2026-09-06: `BankMovementsScreen.web.tsx` e `CategoryAnalysisScreen.web.tsx` removem o preenchimento navy específico `#081120`, usam a lista Mantine transparente e acomodam os controles em `notTintedCardClassName`, preservando borda, raio, estado amarelo, foco e contraste por tema.
-- Compatibilidade do `TagsInput` Mantine na Web em 2026-09-06: `utils/reactNativeCompat.ts` fornece uma implementação estável de `React.useEffectEvent` quando ausente no React 19.1 usado pelo Expo 54, permitindo que `@mantine/core`/`@mantine/hooks` 9.5 funcionem no seletor de tags sem atualizar React/React Native ou alterar a variante mobile.
 - Indicador de rolagem do extrato Web em 2026-09-06: o `ScrollView` principal mantém a rolagem por mouse, touchpad e teclado, mas oculta o scrollbar persistente do navegador (`showsVerticalScrollIndicator={false}`); listas internas de seletores continuam roláveis.
 
 - Correção do recorte do calendário Web em 2026-09-02: `components/web/recurring/date-calendar.web.tsx` passou a aplicar `borderRadius` e `overflow: hidden` no wrapper da célula que combina feriado com gasto/ganho, mantendo a divisão do SVG contida na bolinha mesmo quando o navegador não aplica o `ClipPath` interno. Dados, ações, contratos e a variante nativa permanecem inalterados. Vault alinhado em [[Componentes UI]], [[Versão Web]], [[Despesas Fixas]] e [[Receitas Fixas]].

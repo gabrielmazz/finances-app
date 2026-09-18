@@ -466,10 +466,10 @@ export default function LoginScreen() {
 									
 								>
 									{isSubmitting ? (
-										<ButtonSpinner color={isDarkMode ? '#ffffff' : '#0f172a'} />
+										<ButtonSpinner color="#FFFFFF" />
 									) : (
 										<ButtonText
-											className={`${isDarkMode ? 'text-white' : 'text-slate-900'} text-center`}
+											className="text-center text-white"
 										>
 											Entrar
 										</ButtonText>

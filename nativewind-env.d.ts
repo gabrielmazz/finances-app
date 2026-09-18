@@ -2,7 +2,7 @@
 /// <reference path="./types/assets.d.ts" />
 /// <reference path="./types/svg.d.ts" />
 
-// React Native 0.81 declares the props consumed by JSX in the concrete
+// React Native 0.86 declares the props consumed by JSX in the concrete
 // component modules below. NativeWind augments the `react-native` barrel,
 // but TypeScript does not carry that augmentation into these re-exported
 // interfaces, which makes valid `className` props appear as errors.

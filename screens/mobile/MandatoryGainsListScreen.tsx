@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, TextInput, View, StatusBar, TouchableOpacity } from 'react-native';
+import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -10,6 +10,7 @@ import { Text } from '@/components/ui/text';
 import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
 import { VStack } from '@/components/ui/vstack';
+import { Input, InputField } from '@/components/ui/input';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
 import Navigator from '@/components/uiverse/navigation/navigator';
@@ -300,6 +301,7 @@ export default function MandatoryGainsListScreen() {
 		tintedCardClassName,
 		topSummaryCardClassName,
 		modalContentClassName,
+		fieldContainerClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
 		skeletonMutedBaseColor,
@@ -1058,14 +1060,8 @@ export default function MandatoryGainsListScreen() {
 
 		return submitButtonClassName;
 	}, [actionModalCopy.action, isDarkMode, submitButtonClassName]);
-	const actionConfirmButtonTextClassName = React.useMemo(() => {
-		if (actionModalCopy.action === 'primary') {
-			return isDarkMode ? 'text-slate-900' : 'text-white';
-		}
-
-		return 'text-white';
-	}, [actionModalCopy.action, isDarkMode]);
-	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
+	const actionConfirmButtonTextClassName = 'text-white';
+	const actionSpinnerColor = '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
 
@@ -1638,13 +1634,14 @@ export default function MandatoryGainsListScreen() {
 							{pendingAction?.type === 'register' && typeof pendingAction.gain.installmentTotal === 'number' ? (
 								<VStack className="mt-4 gap-2">
 									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
-									<TextInput
-										value={receiptInstallmentCount}
-										onChangeText={value => setReceiptInstallmentCount(value.replace(/\D/g, '').slice(0, 3))}
-										keyboardType="number-pad"
-										accessibilityLabel="Quantidade de parcelas a receber"
-										className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-									/>
+									<Input className={fieldContainerClassName}>
+										<InputField
+											value={receiptInstallmentCount}
+											onChangeText={value => setReceiptInstallmentCount(value.replace(/\D/g, '').slice(0, 3))}
+											keyboardType="number-pad"
+											accessibilityLabel="Quantidade de parcelas a receber"
+										/>
+									</Input>
 									<Text className={helperText}>
 										Restam {pendingAction.gain.remainingInstallments ?? 0} parcela(s).
 									</Text>

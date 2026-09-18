@@ -82,22 +82,25 @@ graph TD
 
 | Tecnologia | Versão | Uso |
 |---|---|---|
-| Expo | ~54.0.36 | Framework mobile |
-| React Native | 0.81.5 | Runtime mobile |
-| Expo Router | ~6.0.23 | Navegação file-based |
+| Expo | 57.0.22 | Framework mobile |
+| React Native | 0.86.3 | Runtime mobile |
+| Expo Router | 57.0.21 | Navegação file-based |
+| @expo/vector-icons | 15.1.1 | Ícones nativos usados nas telas |
+| expo-system-ui | ~57.0.4 | Aparência automática no Android |
 | React Native Web | incluído no Expo | Runtime compartilhado para navegador |
 | Firebase | 12.16 | Auth + Firestore + AI Logic web |
 | Firebase Hosting | projeto `finances-app-e8685` | Serve a SPA Web exportada em `dist/` |
 | React Native Firebase | 25.1 | AI Logic, App Check e Remote Config Android |
 | Zod | 4.4 | Validação dos comandos do assistente |
-| Expo Audio / Speech | 1.1 / 14.0 | Gravação temporária e TTS local do assistente |
+| Expo Audio / Speech | 57.0.5 / 57.0.3 | Gravação temporária e TTS local do assistente |
 | Tailwind CSS | 3.4.18 | Fonte canônica de tokens e utilitários visuais |
 | Gluestack UI | 3.0.12 | Primitives do design system |
 | NativeWind | 4.2.1 | Integração Tailwind para React Native e Web |
 | Mantine Charts + Recharts | 8.3.18 / 3.7.0 | Gráficos de previsão e evolução de investimentos via Expo DOM |
-| react-native-webview | 13.15.0 | Ponte nativa dos Expo DOM Components |
-| React | 19.1.0 | UI layer |
-| TypeScript | 5.9 | Type safety (strict) |
+| react-native-webview | 13.16.1 | Ponte nativa dos Expo DOM Components |
+| React | 19.2.3 | UI layer |
+| TypeScript | 6.0.3 | Type safety (strict) |
+| Node.js | >=22.13.0 | Toolchain Expo |
 | Lucide React Native | 0.552+ | Ícones vetoriais |
 | react-native-notifier | 2.0 | Alertas in-app |
 | react-native-gifted-charts | 1.4+ | Gráficos |

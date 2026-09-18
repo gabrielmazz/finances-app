@@ -34,7 +34,7 @@ cssInterop(PrimitiveIcon, {
 });
 
 const inputStyle = tva({
-  base: 'min-h-touch flex-row items-center overflow-hidden rounded-control border border-slate-200 bg-white content-center data-[hover=true]:border-slate-400 data-[focus=true]:border-lumus-focus data-[focus=true]:web:ring-2 data-[focus=true]:web:ring-lumus-focus/35 data-[disabled=true]:opacity-40 dark:border-slate-800 dark:bg-slate-950',
+  base: 'min-h-touch flex-row items-center overflow-hidden rounded-control border border-slate-200 bg-white content-center web:border web:border-slate-200 data-[hover=true]:web:border-slate-400 data-[focus=true]:border-lumus-accent native:data-[focus=true]:border-2 data-[focus=true]:web:ring-2 data-[focus=true]:web:ring-lumus-accent data-[invalid=true]:border-error-700 native:data-[invalid=true]:border-2 data-[disabled=true]:opacity-40 dark:border-slate-800 dark:bg-slate-950 dark:web:border-slate-800',
 
   variants: {
     size: {
@@ -46,13 +46,13 @@ const inputStyle = tva({
 
     variant: {
       underlined:
-        'rounded-none border-b data-[invalid=true]:border-b-2 data-[invalid=true]:border-error-700 data-[invalid=true]:hover:border-error-700 data-[invalid=true]:data-[focus=true]:border-error-700 data-[invalid=true]:data-[focus=true]:hover:border-error-700 data-[invalid=true]:data-[disabled=true]:hover:border-error-700',
+        'rounded-none web:border-0 web:border-b data-[invalid=true]:border-error-700 data-[invalid=true]:hover:web:border-error-700 data-[invalid=true]:data-[focus=true]:border-error-700 data-[invalid=true]:data-[focus=true]:hover:web:border-error-700 data-[invalid=true]:data-[disabled=true]:hover:web:border-error-700',
 
       outline:
-        'rounded-control border data-[invalid=true]:border-error-700 data-[invalid=true]:web:ring-2 data-[invalid=true]:web:ring-error-500/30',
+        'rounded-control web:border data-[invalid=true]:border-error-700 data-[invalid=true]:web:ring-2 data-[invalid=true]:web:ring-error-500/30',
 
       rounded:
-        'rounded-full border data-[invalid=true]:border-error-700 data-[invalid=true]:hover:border-error-700 data-[invalid=true]:data-[focus=true]:border-error-700 data-[invalid=true]:data-[focus=true]:hover:border-error-700 data-[invalid=true]:data-[disabled=true]:hover:border-error-700 data-[focus=true]:web:ring-1 data-[focus=true]:web:ring-inset data-[focus=true]:web:ring-indicator-primary data-[invalid=true]:web:ring-1 data-[invalid=true]:web:ring-inset data-[invalid=true]:web:ring-indicator-error data-[invalid=true]:data-[focus=true]:hover:web:ring-1 data-[invalid=true]:data-[focus=true]:hover:web:ring-inset data-[invalid=true]:data-[focus=true]:hover:web:ring-indicator-error data-[invalid=true]:data-[disabled=true]:hover:web:ring-1 data-[invalid=true]:data-[disabled=true]:hover:web:ring-inset data-[invalid=true]:data-[disabled=true]:hover:web:ring-indicator-error',
+        'rounded-full web:border data-[invalid=true]:border-error-700 data-[invalid=true]:hover:web:border-error-700 data-[invalid=true]:data-[focus=true]:border-error-700 data-[invalid=true]:data-[focus=true]:hover:web:border-error-700 data-[invalid=true]:data-[disabled=true]:hover:web:border-error-700 data-[invalid=true]:web:ring-1 data-[invalid=true]:web:ring-inset data-[invalid=true]:web:ring-indicator-error data-[invalid=true]:data-[focus=true]:hover:web:ring-1 data-[invalid=true]:data-[focus=true]:hover:web:ring-inset data-[invalid=true]:data-[focus=true]:hover:web:ring-indicator-error data-[invalid=true]:data-[disabled=true]:hover:web:ring-1 data-[invalid=true]:data-[disabled=true]:hover:web:ring-inset data-[invalid=true]:data-[disabled=true]:web:ring-indicator-error',
     },
   },
 });

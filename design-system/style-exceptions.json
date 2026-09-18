@@ -25,10 +25,10 @@
   },
   {
     "files": ["components/shared/banks/bank-card-surface.tsx"],
-    "reason": "A cor do cartão é um dado do banco e alimenta gradientes SVG e sombra nativa em runtime.",
-    "limitation": "Cores arbitrárias de dados não podem ser enumeradas como classes Tailwind.",
+    "reason": "A cor do cartão é um dado do banco e alimenta gradientes SVG e sombra por plataforma em runtime.",
+    "limitation": "Cores arbitrárias de dados não podem ser enumeradas como classes Tailwind; React Native Web exige boxShadow em vez dos props de sombra legados.",
     "risk": "Uma cor escolhida pelo usuário pode produzir contraste insuficiente.",
-    "alternative": "O construtor de paleta calcula luminância e mantém toda a geometria em NativeWind.",
+    "alternative": "O construtor de paleta calcula luminância, mantém a geometria em NativeWind e usa boxShadow no Web com os props shadow* apenas no nativo.",
     "owner": "banking-ui"
   },
   {

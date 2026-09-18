@@ -115,13 +115,13 @@ export const LUMUS_CLASS_NAMES = {
 	label: 'text-slate-700 dark:text-slate-300',
 	inputText: 'text-slate-900 placeholder:text-slate-500 dark:text-slate-100 dark:placeholder:text-slate-500',
 	focusRing:
-		'focus-visible:border-lumus-focus focus-visible:ring-2 focus-visible:ring-lumus-focus/35 data-[focus=true]:border-lumus-focus data-[focus-visible=true]:ring-2 data-[focus-visible=true]:ring-lumus-focus/35',
+		'web:focus:border-lumus-accent web:focus:ring-2 web:focus:ring-lumus-accent web:focus-visible:border-lumus-accent web:focus-visible:ring-2 web:focus-visible:ring-lumus-accent data-[focus=true]:border-lumus-accent data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-accent',
 	control:
 		'min-h-control rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	controlCompact:
-		'h-10 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
+		'h-10 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:border web:border-slate-200 dark:web:border-slate-800',
 	textarea:
-		'h-24 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:h-textarea',
+		'h-24 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:border web:border-slate-200 dark:web:border-slate-800 web:h-textarea',
 	card: 'rounded-card border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	cardTinted:
 		'rounded-control border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/80',
@@ -129,8 +129,8 @@ export const LUMUS_CLASS_NAMES = {
 	modal: 'rounded-modal border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	drawer: 'rounded-l-modal border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	primaryButton:
-		'min-h-touch rounded-control border border-transparent bg-lumus-accent text-lumus-on-accent data-[hover=true]:bg-lumus-accent-hover data-[active=true]:bg-lumus-accent-pressed focus-visible:ring-2 focus-visible:ring-lumus-focus focus-visible:ring-offset-2 disabled:opacity-50 data-[disabled=true]:opacity-50',
-	primaryButtonText: 'font-bold text-lumus-on-accent',
+		'min-h-touch rounded-control border border-transparent bg-lumus-accent text-white data-[hover=true]:bg-lumus-accent-hover data-[active=true]:bg-lumus-accent-pressed focus-visible:ring-2 focus-visible:ring-lumus-focus focus-visible:ring-offset-2 disabled:opacity-50 data-[disabled=true]:opacity-50',
+	primaryButtonText: 'font-bold text-white',
 	secondaryButton:
 		'min-h-touch rounded-control border border-slate-300 bg-slate-200 text-slate-700 data-[hover=true]:bg-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:data-[hover=true]:bg-slate-700',
 	errorText: 'text-red-600 dark:text-red-400',

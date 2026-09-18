@@ -1103,14 +1103,8 @@ export default function MandatoryGainsListScreen() {
 
 		return submitButtonClassName;
 	}, [actionModalCopy.action, isDarkMode, submitButtonClassName]);
-	const actionConfirmButtonTextClassName = React.useMemo(() => {
-		if (actionModalCopy.action === 'primary') {
-			return isDarkMode ? 'text-slate-900' : 'text-white';
-		}
-
-		return 'text-white';
-	}, [actionModalCopy.action, isDarkMode]);
-	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
+	const actionConfirmButtonTextClassName = 'text-white';
+	const actionSpinnerColor = '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
 	const visibleHeroHeight = heroHeight - 64;

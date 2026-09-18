@@ -2,6 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "types": ["jest", "node", "nativewind/types"],
     "typeRoots": [
       "./types",
       "./node_modules/@types"

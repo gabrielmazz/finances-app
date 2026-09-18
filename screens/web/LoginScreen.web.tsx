@@ -91,8 +91,6 @@ export default function LoginScreen() {
 	const isLocallyRateLimited = loginCooldownRemainingMs > 0;
 	const isLoginDisabled =
 		isSubmitting || isLocallyRateLimited || normalizedEmail.length === 0 || password.length === 0;
-	const webFieldContainerClassName = `${fieldContainerClassName} web:data-[focus=true]:ring-0`;
-
 	const keyboardScrollOffset = useCallback(
 		(key: FocusableInputKey) => (key === 'password' ? 180 : 140),
 		[],
@@ -432,7 +430,6 @@ export default function LoginScreen() {
 												Acesse sua conta
 											</Text>
 											<Heading
-												accessibilityRole="header"
 												className={`${headingText} text-[28px]`}
 											>
 												Bem-vindo de volta
@@ -449,7 +446,7 @@ export default function LoginScreen() {
 													Email
 												</FormControlLabelText>
 											</FormControlLabel>
-											<Input className={webFieldContainerClassName}>
+											<Input className={fieldContainerClassName}>
 												<InputField
 													accessibilityLabel="Email"
 													ref={emailInputRef}
@@ -481,7 +478,7 @@ export default function LoginScreen() {
 													Senha
 												</FormControlLabelText>
 											</FormControlLabel>
-											<Input className={webFieldContainerClassName}>
+											<Input className={fieldContainerClassName}>
 												<InputField
 													accessibilityLabel="Senha"
 													ref={passwordInputRef}
@@ -521,9 +518,9 @@ export default function LoginScreen() {
 											disabled={isLoginDisabled}
 										>
 											{isSubmitting ? (
-												<ButtonSpinner color="#0f172a" />
+												<ButtonSpinner color="#FFFFFF" />
 											) : (
-												<ButtonText className="text-center text-slate-900">Entrar</ButtonText>
+												<ButtonText className="text-center text-white">Entrar</ButtonText>
 											)}
 										</Button>
 

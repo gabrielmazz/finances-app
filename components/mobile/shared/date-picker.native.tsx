@@ -175,7 +175,7 @@ export function DatePickerField({
 		handleSelect(new Date());
 	}, [handleSelect]);
 
-	const triggerFocusedClassName = isOpen ? (isDarkMode ? 'border-yellow-300' : 'border-[#FFE000]') : '';
+	const triggerFocusedClassName = isOpen ? 'border-2 border-lumus-accent' : '';
 	const resolvedTriggerClassName = `${triggerClassName ?? fieldContainerClassName} ${triggerFocusedClassName}`.trim();
 	const resolvedInputClassName = inputClassName ?? defaultInputClassName;
 	const monthNavigationContainerClassName = isDarkMode

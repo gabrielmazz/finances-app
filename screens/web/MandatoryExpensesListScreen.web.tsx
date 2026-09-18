@@ -1260,14 +1260,8 @@ export default function MandatoryExpensesListScreen() {
 
 		return submitButtonClassName;
 	}, [actionModalCopy.action, isDarkMode, submitButtonClassName]);
-	const actionConfirmButtonTextClassName = React.useMemo(() => {
-		if (actionModalCopy.action === 'primary') {
-			return isDarkMode ? 'text-slate-900' : 'text-white';
-		}
-
-		return 'text-white';
-	}, [actionModalCopy.action, isDarkMode]);
-	const actionSpinnerColor = actionModalCopy.action === 'primary' && isDarkMode ? '#0F172A' : '#FFFFFF';
+	const actionConfirmButtonTextClassName = 'text-white';
+	const actionSpinnerColor = '#FFFFFF';
 
 	const isModalOpen = Boolean(pendingAction);
 	// As telas Web com sheet sobreposto ocultam os 64 px finais do hero; a lista mantém a mesma altura visual.

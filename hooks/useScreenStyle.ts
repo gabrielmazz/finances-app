@@ -90,7 +90,7 @@ export function useScreenStyles() {
 		fieldBankContainerClassName: `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.focusRing}`,
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace: `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.focusRing}`,
-		fieldContainerCardClassName: `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.focusRing} py-2`,
+		fieldContainerCardClassName: `${LUMUS_CLASS_NAMES.control} web:focus:border-lumus-accent web:focus:ring-2 web:focus:ring-lumus-accent web:focus-visible:border-lumus-accent web:focus-visible:ring-2 web:focus-visible:ring-lumus-accent py-2`,
 		textareaContainerClassName: `${LUMUS_CLASS_NAMES.textarea} ${LUMUS_CLASS_NAMES.focusRing}`,
 		sectionCardClassName: LUMUS_CLASS_NAMES.card,
 		dividerClassName: LUMUS_CLASS_NAMES.divider,
