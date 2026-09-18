@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   type DimensionValue,
   type LayoutChangeEvent,
   View,
@@ -59,7 +60,7 @@ const Skeleton = React.forwardRef<React.ComponentRef<typeof View>, SkeletonProps
           toValue: 1,
           duration: 1200,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         })
       );
 
@@ -107,13 +108,13 @@ const Skeleton = React.forwardRef<React.ComponentRef<typeof View>, SkeletonProps
       >
         {layoutWidth > 0 ? (
           <Animated.View
-            pointerEvents="none"
             style={{
               position: 'absolute',
               top: 0,
               bottom: 0,
               left: -shimmerWidth,
               width: shimmerWidth,
+              pointerEvents: 'none',
               transform: [{ translateX }],
             }}
           >

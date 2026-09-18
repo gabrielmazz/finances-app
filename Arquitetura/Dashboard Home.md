@@ -100,7 +100,7 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 
 ## Observações importantes
 
-- A seção de investimentos da Home só aparece durante carregamento, em erro ou quando a carteira carregada possui investimentos. Quando a consulta termina com uma carteira vazia, a seção é omitida; na Web desktop, os cartões bancários são centralizados.
+- A seção de investimentos da Home só aparece durante carregamento, em erro ou quando a carteira carregada possui investimentos. Quando a consulta termina com uma carteira vazia, a seção é omitida e os cartões bancários ficam centralizados; na Web, o carrossel respeita a largura útil da coluna de bancos para não invadir a seção de investimentos.
 - Em grupos migrados para o razão financeiro, a carteira da Home é montada a partir das contas `financialAccounts` com `kind: 'investment'`; ela exibe o saldo confirmado do razão sem inventar uma projeção CDI legada.
 
 - A Home Web está em migração gradual para Tailwind/NativeWind. A composição visual deve evitar novos blocos `StyleSheet.create()` e preservar `webDashboardPalette` para tokens dinâmicos de tema.
@@ -117,7 +117,8 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - A função `HomeFirebase.ts` é a mais complexa do projeto — agrega dados de múltiplas coleções
 - O carrossel de bancos usa `react-native-reanimated-carousel` no Android/iOS e o `components/web/visuals/Carousel.jsx` baseado no React Bits na versão Web; ambos exibem a mesma coleção de bancos e Dinheiro e preservam a navegação para os movimentos da conta
 - Gráficos usam `react-native-gifted-charts`
-- O gráfico Web de gastos usa `@mantine/charts` e mostra somente dias com lançamentos; ele não cria previsões nem persiste agregados novos
+- O gráfico Web de gastos usa `@mantine/charts` e mostra somente dias com lançamentos; ele não cria previsões nem persiste agregados novos. A cor dos eixos usa `styles.root['--chart-text-color']` com variáveis de tema Mantine, pois `textColor` é repassado ao DOM pelo Mantine 9.5.1.
+- O título expansível de últimas movimentações e o `InfoTip` da seção são botões DOM irmãos; não envolver o gatilho do popover no `Pressable` que expande a timeline.
 - O heatmap Web usa `@mantine/charts`, não registra telemetria e somente resume lançamentos financeiros já confirmados no Firestore
 - Sem uma taxa CDI vigente, o card da Home conserva o valor-base/sincronizado do investimento em vez de inventar rendimento
 - A leitura do histórico CDI tem regra própria em `firestore.rules`, com acesso por `personId`; a falta de permissão ou de uma taxa vigente não impede a carteira de investimentos de carregar

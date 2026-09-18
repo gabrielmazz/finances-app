@@ -85,8 +85,14 @@ export default function HomeExpenseLineChart({
 					tickLine="none"
 					gridAxis="y"
 					strokeDasharray="4 4"
-					textColor={isDarkMode ? 'gray.4' : 'gray.6'}
 					gridColor={isDarkMode ? 'dark.4' : 'gray.2'}
+					styles={{
+						root: {
+							'--chart-text-color': isDarkMode
+								? 'var(--mantine-color-gray-4)'
+								: 'var(--mantine-color-gray-6)',
+						},
+					}}
 					valueFormatter={value =>
 						shouldHideValues ? '••••' : formatCurrency(value)
 					}

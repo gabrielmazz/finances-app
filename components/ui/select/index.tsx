@@ -24,7 +24,7 @@ import {
   ActionsheetSectionList,
   ActionsheetSectionHeaderText,
 } from './select-actionsheet';
-import { Pressable, View, TextInput } from 'react-native';
+import { Platform, Pressable, View, TextInput } from 'react-native';
 
 const SelectTriggerWrapper = React.forwardRef<
   React.ComponentRef<typeof Pressable>,
@@ -52,7 +52,7 @@ const selectStyle = tva({
 });
 
 const selectTriggerStyle = tva({
-  base: 'min-h-touch flex-row items-center overflow-hidden rounded-control border border-slate-200 bg-white data-[hover=true]:border-slate-400 data-[focus=true]:border-lumus-focus data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-focus/35 data-[disabled=true]:opacity-40 dark:border-slate-800 dark:bg-slate-950',
+  base: 'min-h-touch flex-row items-center overflow-hidden rounded-control border border-slate-200 bg-white web:border web:border-slate-200 data-[focus=true]:border-lumus-accent native:data-[focus=true]:border-2 data-[focus=true]:web:ring-2 data-[focus=true]:web:ring-lumus-accent web:focus:ring-2 web:focus:ring-lumus-accent data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-accent data-[invalid=true]:border-error-700 native:data-[invalid=true]:border-2 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-950 dark:web:border-slate-800',
   variants: {
     size: {
       xl: 'h-12',
@@ -62,11 +62,11 @@ const selectTriggerStyle = tva({
     },
     variant: {
       underlined:
-        'border-0 border-b rounded-none data-[hover=true]:border-primary-700 data-[focus=true]:border-primary-700 data-[focus=true]:web:shadow-[inset_0_-1px_0_0] data-[focus=true]:web:shadow-primary-700 data-[invalid=true]:border-error-700 data-[invalid=true]:web:shadow-error-700',
+        'web:border-0 web:border-b rounded-none web:hover:border-lumus-accent',
       outline:
-        'data-[invalid=true]:border-error-700 data-[invalid=true]:web:ring-2 data-[invalid=true]:web:ring-error-500/30',
+        '',
       rounded:
-        'rounded-full data-[focus=true]:border-primary-700 data-[focus=true]:web:shadow-[inset_0_0_0_1px] data-[focus=true]:web:shadow-primary-700 data-[invalid=true]:border-error-700 data-[invalid=true]:web:shadow-error-700',
+        'rounded-full',
     },
   },
 });
@@ -136,13 +136,26 @@ type ISelectProps = VariantProps<typeof selectStyle> &
 const Select = React.forwardRef<
   React.ComponentRef<typeof UISelect>,
   ISelectProps
->(function Select({ className, ...props }, ref) {
+>(function Select({ className, isFocused, onOpen, onClose, ...props }, ref) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const handleOpen = React.useCallback(() => {
+    setIsOpen(true);
+    onOpen?.();
+  }, [onOpen]);
+  const handleClose = React.useCallback(() => {
+    setIsOpen(false);
+    onClose?.();
+  }, [onClose]);
+
   return (
     <UISelect
       className={selectStyle({
         class: className,
       })}
       ref={ref}
+      isFocused={Platform.OS === 'web' ? isFocused : Boolean(isFocused || isOpen)}
+      onOpen={handleOpen}
+      onClose={handleClose}
       {...props}
     />
   );

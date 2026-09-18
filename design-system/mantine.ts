@@ -96,7 +96,7 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 			transition: 'border-color 150ms ease, box-shadow 150ms ease',
 			'&:focus-within': {
 				borderColor: colors.focus,
-				boxShadow: `0 0 0 2px ${isDarkMode ? 'rgba(253,224,71,0.22)' : 'rgba(202,138,4,0.20)'}`,
+				boxShadow: `0 0 0 2px ${colors.accent}`,
 			},
 		},
 		inputField: {

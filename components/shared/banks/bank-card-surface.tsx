@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, {
 	Circle,
 	Defs,
@@ -165,7 +165,7 @@ const BankCardPattern = React.memo(({ palette }: { palette: BankCardPalette }) =
 	);
 
 	return (
-		<View pointerEvents="none" className="absolute inset-0">
+		<View className="pointer-events-none absolute inset-0">
 			<Svg width="100%" height="100%" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice">
 				<Defs>
 					<SvgRadialGradient id={gradientId} cx="396" cy="281" r="514" gradientUnits="userSpaceOnUse">
@@ -196,18 +196,23 @@ export const BankCardSurface = ({
 	className,
 	style,
 	contentContainerStyle,
-}: BankCardSurfaceProps) => (
-	<View
-		className={cn('relative overflow-hidden rounded-section shadow-card', className)}
-		style={[
-			{
-				backgroundColor: palette.baseColor,
-				shadowColor: palette.shadowColor,
-			},
-			style,
-		]}
-	>
-		<BankCardPattern palette={palette} />
-		<View className="flex-1 p-4.5" style={contentContainerStyle}>{children}</View>
-	</View>
-);
+}: BankCardSurfaceProps) => {
+	const isWeb = Platform.OS === 'web';
+	const shadowStyle: ViewStyle = isWeb
+		? { boxShadow: `0px 8px 24px ${palette.shadowColor}` }
+		: { shadowColor: palette.shadowColor };
+
+	return (
+		<View
+			className={cn(
+				'relative overflow-hidden rounded-section',
+				isWeb ? 'shadow-none' : 'shadow-card',
+				className,
+			)}
+			style={[{ backgroundColor: palette.baseColor }, shadowStyle, style]}
+		>
+			<BankCardPattern palette={palette} />
+			<View className="flex-1 p-4.5" style={contentContainerStyle}>{children}</View>
+		</View>
+	);
+};

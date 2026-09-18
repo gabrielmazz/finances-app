@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import { createPopover } from '@gluestack-ui/core/popover/creator';
-import { Pressable, View, ViewStyle } from 'react-native';
+import { Platform, Pressable, View, ViewStyle } from 'react-native';
 import {
 	Motion,
 	AnimatePresence,
@@ -102,7 +102,7 @@ const Popover = React.forwardRef<React.ComponentRef<typeof UIPopover>, IPopoverP
 				{...props}
 				className={popoverStyle({ size, class: className })}
 				context={{ size }}
-				pointerEvents="box-none"
+				{...(Platform.OS === 'web' ? {} : { pointerEvents: 'box-none' as const })}
 			/>
 		);
 	},

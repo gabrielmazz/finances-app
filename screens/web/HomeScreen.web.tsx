@@ -476,6 +476,7 @@ export default function HomeScreen() {
 	const cardBackground = surfaceBackground;
 	const currentUserId = user?.uid ?? null;
 	const [userName, setUserName] = React.useState<string | null>(null);
+	const [bankSectionWidth, setBankSectionWidth] = React.useState<number | null>(null);
 	React.useEffect(() => {
 		let isActive = true;
 		const loadUserName = async () => {
@@ -524,6 +525,11 @@ export default function HomeScreen() {
 	);
 	const compact = width < 720;
 	const desktop = width >= 1024;
+	const requestedBankCarouselWidth = compact ? width : 610;
+	const bankCarouselWidth = Math.max(
+		Math.min(bankSectionWidth ?? requestedBankCarouselWidth, requestedBankCarouselWidth),
+		1,
+	);
 	const monthLabel = React.useMemo(
 		() =>
 			new Intl.DateTimeFormat("pt-BR", {
@@ -675,7 +681,7 @@ export default function HomeScreen() {
 							resizeMode="cover"
 						/>
 						<View
-							pointerEvents="none"
+							className="pointer-events-none"
 							style={{
 								position: "absolute",
 								top: 0,
@@ -755,6 +761,12 @@ export default function HomeScreen() {
 								>
 									<View
 										className={`${webStyles.section} ${desktop ? webStyles.columnSection : ''} ${desktop ? webStyles.bankSection : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.bankSectionCentered : ''}`}
+										onLayout={(event) => {
+											const nextWidth = Math.round(event.nativeEvent.layout.width);
+											setBankSectionWidth((current) =>
+												current === nextWidth ? current : nextWidth,
+											);
+										}}
 									>
 										<View className={webStyles.sectionHeading}>
 											<Text
@@ -785,7 +797,7 @@ export default function HomeScreen() {
 										) : (
 											<Carousel
 												items={bankItems}
-												baseWidth={compact ? width : 610}
+												baseWidth={bankCarouselWidth}
 												className="bank-carousel"
 												autoplay={false}
 												loop={bankItems.length > 1}
@@ -1067,32 +1079,34 @@ export default function HomeScreen() {
 								</View>
 
 								<View className={webStyles.section}>
-									<Pressable
-										onPress={() => setIsMovementsExpanded((current) => !current)}
-										accessibilityRole="button"
-										accessibilityLabel="Expandir ou recolher últimas movimentações"
-										accessibilityState={{ expanded: isMovementsExpanded }}
-									>
-										<View className={webStyles.sectionHeading}>
-											<View className={webStyles.headingWithTip}>
+									<View className={webStyles.sectionHeading}>
+										<View className={webStyles.headingWithTip}>
+											<Pressable
+												onPress={() => setIsMovementsExpanded((current) => !current)}
+												accessibilityRole="button"
+												accessibilityLabel="Expandir ou recolher últimas movimentações"
+												accessibilityState={{ expanded: isMovementsExpanded }}
+												className="py-1.5"
+											>
 												<Text
-													className={webStyles.sectionHeadingText} style={{ color: webDashboardPalette.primaryText }}
+													className={webStyles.sectionHeadingText}
+													style={{ color: webDashboardPalette.primaryText }}
 												>
 													Últimas Movimentações
 												</Text>
-												<InfoTip label="Informações sobre últimas movimentações">
-													Resumo de despesas, ganhos, transferências e
-													sincronizações de investimento. Clique em uma
-													movimentação para ver detalhes.
-												</InfoTip>
-											</View>
-											{isMovementsExpanded ? (
-												<ChevronUp size={19} color="#94A3B8" />
-											) : (
-												<ChevronDown size={19} color="#94A3B8" />
-											)}
+											</Pressable>
+											<InfoTip label="Informações sobre últimas movimentações">
+												Resumo de despesas, ganhos, transferências e
+												sincronizações de investimento. Clique em uma
+												movimentação para ver detalhes.
+											</InfoTip>
 										</View>
-									</Pressable>
+										{isMovementsExpanded ? (
+											<ChevronUp size={19} color="#94A3B8" />
+										) : (
+											<ChevronDown size={19} color="#94A3B8" />
+										)}
+									</View>
 									{isMovementsExpanded ? (
 										movements.loading &&
 											movements.data.timelineMovements.length === 0 ? (
@@ -1214,8 +1228,7 @@ export default function HomeScreen() {
 																		>
 																			<View className={webStyles.movementDetail}>
 																				<View
-																					pointerEvents="none"
-																					className={webStyles.movementDetailGrainient}
+																					className={`${webStyles.movementDetailGrainient} pointer-events-none`}
 																				>
 																					<Grainient
 																						className="movement-detail-grainient"

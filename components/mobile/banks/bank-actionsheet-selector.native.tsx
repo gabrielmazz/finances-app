@@ -106,6 +106,7 @@ export default function BankActionsheetSelector({
 	const headingClassName = isDarkMode ? 'text-slate-100' : 'text-slate-900';
 	const itemTextClassName = isDarkMode ? 'mx-0 text-slate-100' : 'mx-0 text-slate-900';
 	const chevronColor = isDisabled ? '#94A3B8' : isDarkMode ? '#FCD34D' : '#D97706';
+	const triggerFocusClassName = isOpen ? 'border-2 border-lumus-accent' : '';
 	const selectedName = resolvedSelectedOption?.name ?? selectedLabel ?? null;
 	const selectedDescription = resolvedSelectedOption?.description ?? null;
 
@@ -143,7 +144,7 @@ export default function BankActionsheetSelector({
 				accessibilityRole="button"
 				accessibilityLabel={accessibilityLabel}
 				accessibilityState={{ disabled: isDisabled, expanded: isOpen }}
-				className={`w-full ${triggerClassName} px-4 py-3 ${isDisabled ? 'opacity-60' : ''}`}
+				className={`w-full ${triggerClassName} ${triggerFocusClassName} px-4 py-3 ${isDisabled ? 'opacity-60' : ''}`}
 			>
 				<HStack className="items-center justify-between gap-3">
 					<HStack className="min-w-0 flex-1 items-center gap-3">

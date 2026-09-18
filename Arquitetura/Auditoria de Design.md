@@ -2,9 +2,30 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — ações primárias com texto branco, 2026-09-14
+
+- **Achado:** o amarelo claro `#FACC15` com texto branco tem contraste de 1,53:1.
+- **Correção:** conforme a preferência visual definida para os botões primários, o fundo mantém exatamente `lumus-accent` (`#FACC15`) e texto/ícones ficam brancos nos temas claro/escuro. O estilo sólido foi separado das cores amarelas específicas de links/contornos para que `dark:text-yellow-300` não sobrescreva o branco.
+- **Validação:** `npm run lint:styles`, `npm run check` (38 suítes/222 testes), `npm run web:export` e `git diff --check` passaram; export Web contém `bg-lumus-accent` e `text-white`.
+- **Risco residual:** contraste reduzido permanece por decisão visual; sem captura visual autenticada ou renderização em Android/iOS nesta execução.
+
+## Checkpoint — foco dos campos, 2026-09-14
+
+- **Achado:** o anel compartilhado usava `lumus-focus` a 35% e os campos do login Web removiam o anel com `ring-0`; o `Select` arredondado também desviava para o azul `primary`.
+- **Correção:** os campos Gluestack usam o anel sólido `lumus-accent` com borda `lumus-focus`; `Select` mantém o amarelo, adaptadores Mantine usam o mesmo anel e o login herda o estilo compartilhado. Estados inválidos continuam vermelhos.
+- **Validação:** lint de estilos, type-check do app/backend e 38 suítes/222 testes aprovados em `npm run check`; `npm run web:export` compilou e incluiu as classes do anel.
+- **Risco residual:** não houve smoke visual em navegador nem conferência em dispositivos Android/iOS nesta execução.
+
+## Checkpoint — foco mobile e bordas neutras dos campos, 2026-09-14
+
+- **Achado:** os estados `focus` sem escopo se propagavam a contêineres e cards; ao remover o contorno amarelo indevido, a borda neutra dos campos nativos também havia sido removida, dificultando identificar inputs em repouso.
+- **Correção:** estados pseudo de foco ficaram restritos à Web; inputs nativos usam borda neutra em repouso e contorno `lumus-accent` de 2 px ao focar. Selects e campos de data/horário/banco/categoria indicam quando estão abertos, e cards estáticos mantêm somente sua borda neutra.
+- **Validação:** `npm run check` (38 suítes/222 testes), lint de estilos, export Web, export Android e `git diff --check` passaram.
+- **Risco residual:** Android/iOS não foram renderizados em aparelho ou simulador neste host.
+
 ## Escopo e linha de base
 
-- **Aplicação:** Expo Router 6, React Native 0.81, React 19.1, Gluestack UI 3, NativeWind 4.2.1 e Tailwind CSS 3.4.18.
+- **Aplicação:** Expo Router 57, React Native 0.86, React 19.2.3, Gluestack UI 3, NativeWind 4.2.1 e Tailwind CSS 3.4.18.
 - **Plataformas:** web responsiva, Android e iOS.
 - **Princípio de migração:** Tailwind/NativeWind é a fonte canônica de apresentação. Objetos nativos e CSS permanecem apenas em fronteiras que não aceitam `className`, com registro na seção de exceções.
 - **Compatibilidade:** a atualização para NativeWind 5/Tailwind 4 permanece fora do escopo porque o histórico do projeto registra tela branca nessa combinação. A padronização usa a base estável instalada.
@@ -217,7 +238,7 @@ As exceções de runtime do hook são altura calculada do hero, safe area e core
 | vazio/retry/sucesso | inventário de branches e testes funcionais | presente nas telas principais; sem screenshot autenticada |
 | conteúdo longo/valores grandes | código usa wrapping, privacidade e formatadores financeiros | auditado em código; não coberto visualmente em todas as telas |
 | toque | tokens `touch=44px` e `control=48px` | aprovado nos primitives migrados |
-| contraste de ação primária | amarelo com `lumus-on-accent` escuro | corrigido |
+| contraste de ação primária | amarelo `lumus-accent` com texto branco (1,53:1) | preferência visual atual; legibilidade reduzida |
 | reduced motion | media query global e `useReducedMotion`/`matchMedia` nos efeitos | aprovado em código; preferência não emulada visualmente |
 
 ## Registro de achados e correções
@@ -235,6 +256,8 @@ As exceções de runtime do hook são altura calculada do hero, safe area e core
 | DS-009 | validação visual | P2 | projeto | sem Storybook/snapshots | smoke visual mínimo | regressão tardia | matriz, inspeção CUA e teste de regressão do login | 390×844 e 1440×900 | telas autenticadas/mobile nativo pendentes |
 | DS-010 | efeitos | P3 | Aurora | nenhum consumidor | código com proprietário | peso/manutenção | removido | export web | nenhum |
 | DS-011 | login web móvel | P1 | `LoginScreen.web.tsx` | descrição terminava em 502px e Email iniciava em 473px | fluxo empilhado sem shrink | conteúdo sobreposto | tokens `login-card/login-shell/login-form`, `flex-none`, `shrink-0` | após: Email em 542px, 40px de folga, sem overflow | screenshot foi apenas do estado público |
+| DS-012 | todas, web/Android/iOS | P1 | tokens e Button Gluestack | no tema escuro, `dark:text-yellow-300` prevalecia sobre `text-white`; `#FACC15`/branco mede 1,53:1 | manter o amarelo vivo e garantir texto branco em botão sólido | rótulos primários pareciam amarelos claros | classes de texto sólido separadas das variantes link/outline; fundo `lumus-accent` inalterado | style lint, `npm run check` (38/222) e export Web aprovados; contraste 1,53:1 registrado | contraste baixo aceito pela preferência visual; renderização nativa e screenshot autenticada não verificadas |
+| DS-013 | campos e cards mobile | P1 | tokens, `Input`, `Select`, `Textarea` e seletores nativos | estado `focus` genérico era aplicado também aos contêineres/card; ao conter o amarelo, campos nativos perderam também a borda que os identifica em repouso | limitar foco aos controles, restaurar borda neutra nos campos e reservar o amarelo para foco | campos sem contorno eram difíceis de identificar e cards podiam herdar foco indevido | pseudo-estados de foco limitados à Web; campos nativos com borda neutra em repouso e contorno `lumus-accent` de 2 px no foco; cards preservam contorno neutro; pickers e action sheets indicam abertura com o mesmo amarelo | `npm run check` (38 suítes/222 testes), lint de estilos e exports Web/Android | Android/iOS não renderizados neste host; validar visualmente em aparelho |
 
 ## Exceções ao Tailwind
 
@@ -263,7 +286,7 @@ Estilos estáticos legados nas telas não são exceções aceitas. Eles aparecem
 | Antes | Depois |
 |---|---|
 | hook era uma segunda fonte visual | hook é fachada de runtime; classes ficam no design system |
-| amarelo + texto branco na ação primária | amarelo + texto slate escuro com estados compartilhados |
+| amarelo `#FACC15` + texto branco (1,53:1) | ação primária mantém `#FACC15` e texto branco conforme preferência visual atual |
 | `StyleSheet.create`, `!important` e CSS sem controle | zero `StyleSheet.create`/`!important`; quatro CSS de efeitos registrados |
 | componentes bancários duplicados | implementação compartilhada |
 | fontes Orbitron/Geist quebradas ou não empacotadas | nomes válidos e Arimo local canônica |

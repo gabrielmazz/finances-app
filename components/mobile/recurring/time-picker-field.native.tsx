@@ -104,7 +104,7 @@ export function TimePickerField({
 		[onChange],
 	);
 
-	const focusedClassName = isPickerOpen ? (isDarkMode ? 'border-yellow-300' : 'border-[#FFE000]') : '';
+	const focusedClassName = isPickerOpen ? 'border-2 border-lumus-accent' : '';
 	const resolvedTriggerClassName = [triggerClassName ?? fieldContainerClassName, focusedClassName]
 		.filter(Boolean)
 		.join(' ');

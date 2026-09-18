@@ -16,7 +16,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import '@/utils/reactNativeCompat';
 import '@mantine/core/styles.css';
 import { MantineProvider, Pill, TagsInput, Tabs as MantineTabs, type OptionsFilter } from '@mantine/core';
 import {
