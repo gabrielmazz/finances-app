@@ -8,7 +8,7 @@ const loadAppConfig = (existingFiles: string[]) => {
 	return require('../app.config.ts').default;
 };
 
-const ANDROID_FIREBASE_BUILD_PROFILES = ['preview', 'production', 'production-apk'] as const;
+const ANDROID_FIREBASE_BUILD_PROFILES = ['development', 'preview', 'production', 'production-apk'] as const;
 
 describe('configuração nativa Firebase para builds EAS Android', () => {
 	afterEach(() => {
@@ -41,13 +41,14 @@ describe('configuração nativa Firebase para builds EAS Android', () => {
 		expect(config.plugins).toContain('@react-native-firebase/app');
 	});
 
-	it('não exige nem inclui Firebase nativo no build Android development, que usa o Emulator', () => {
+	it('inclui Firebase nativo no build Android development para a ponte híbrida de AI Logic', () => {
 		const buildProfile = 'development';
 		process.env.EAS_BUILD_PROFILE = buildProfile;
 		process.env.EAS_BUILD_PLATFORM = 'android';
-		const config = loadAppConfig([])({ config: {} });
-		expect(config.android?.googleServicesFile).toBeUndefined();
-		expect(config.plugins).not.toContain('@react-native-firebase/app');
+		process.env.GOOGLE_SERVICES_JSON = '/tmp/google-services.json';
+		const config = loadAppConfig(['/tmp/google-services.json'])({ config: {} });
+		expect(config.android?.googleServicesFile).toBe('/tmp/google-services.json');
+		expect(config.plugins).toContain('@react-native-firebase/app');
 	});
 
 	it('associa cada perfil EAS ao ambiente que fornece o arquivo Firebase', () => {
@@ -58,6 +59,8 @@ describe('configuração nativa Firebase para builds EAS Android', () => {
 		expect(easConfig.build.production.environment).toBe('production');
 		expect(easConfig.build['production-apk'].environment).toBe('production');
 		expect(easConfig.build.development.env.EXPO_PUBLIC_FIREBASE_TARGET).toBe('emulator');
+		expect(easConfig.build.development.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID).toBe('finances-app-e8685');
+		expect(easConfig.build.development.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER).toBe('debug');
 		expect(easConfig.build.preview.extends).toBe('production');
 		expect(easConfig.build.preview.env.EXPO_PUBLIC_FIREBASE_TARGET).toBe('production');
 		expect(easConfig.build.preview.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER).toBe('debug');

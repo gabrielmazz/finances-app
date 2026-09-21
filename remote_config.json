@@ -1,0 +1,42 @@
+{
+  "parameters": {
+    "lumus_ai_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "valueType": "BOOLEAN"
+    },
+    "lumus_ai_model": {
+      "defaultValue": {
+        "value": "gemini-3.8-flash"
+      },
+      "valueType": "STRING"
+    },
+    "lumus_ai_max_context_turns": {
+      "defaultValue": {
+        "value": "12"
+      },
+      "valueType": "NUMBER"
+    },
+    "lumus_ai_max_actions": {
+      "defaultValue": {
+        "value": "20"
+      },
+      "valueType": "NUMBER"
+    },
+    "lumus_ai_max_tool_calls": {
+      "defaultValue": {
+        "value": "8"
+      },
+      "valueType": "NUMBER"
+    },
+    "lumus_ai_max_requests_per_minute": {
+      "defaultValue": {
+        "value": "10"
+      },
+      "valueType": "NUMBER"
+    }
+  },
+  "conditions": [],
+  "parameterGroups": {}
+}

@@ -4,6 +4,7 @@ import {
 	createAssistantAiGateway,
 	normalizeAssistantAiConfig,
 	resolveAndroidAssistantAppCheckProvider,
+	shouldAttachAssistantAuthToken,
 	type AssistantPlatformAdapter,
 	type AssistantPlatformResponse,
 } from '@/services/lumusAssistant/assistantGatewayCore';
@@ -54,6 +55,20 @@ describe('Lumus Assistant AI gateway', () => {
 			maxToolCalls: 8,
 			maxRequestsPerMinute: 10,
 		});
+	});
+
+	it.each([
+		'gemini-3.5-flash',
+		'gemini-3.8-flash-preview',
+		'gemini-3.8-flash-latest',
+		'gemini-3.8-flash-image',
+		'gemini-2.5-flash',
+	])('rejects an unvalidated or unstable Remote Config model: %s', model => {
+		expect(normalizeAssistantAiConfig({ model }).model).toBe(DEFAULT_ASSISTANT_AI_CONFIG.model);
+	});
+
+	it('accepts the explicit stable model selected for this release', () => {
+		expect(normalizeAssistantAiConfig({ model: 'gemini-3.8-flash' }).model).toBe('gemini-3.8-flash');
 	});
 
 	it('passes only the twelve most recent turns and caps model actions at twenty', async () => {
@@ -154,6 +169,11 @@ describe('Lumus Assistant AI gateway', () => {
 		expect(resolveAndroidAssistantAppCheckProvider(false, 'debug')).toBe('debug');
 		expect(resolveAndroidAssistantAppCheckProvider(false, 'playIntegrity')).toBe('playIntegrity');
 		expect(resolveAndroidAssistantAppCheckProvider(false)).toBe('playIntegrity');
+	});
+
+	it('does not attach an Auth Emulator token to the production AI Logic project', () => {
+		expect(shouldAttachAssistantAuthToken(true)).toBe(false);
+		expect(shouldAttachAssistantAuthToken(false)).toBe(true);
 	});
 
 	it('sanitizes deterministic-report narratives produced by the model', async () => {

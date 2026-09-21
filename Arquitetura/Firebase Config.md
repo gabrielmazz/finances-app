@@ -3,12 +3,12 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.4.2
+versao: 1.4.4
 ---
 
 # Firebase Config
 
-Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase distintos e resolve o adaptador de persistência pela plataforma, sem alterar o modelo Firestore, as regras financeiras ou o fluxo de criação de usuários.
+Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase de negócio e, somente no desenvolvimento Web, um terceiro app restrito à ponte de IA. Resolve o adaptador de persistência pela plataforma sem alterar o modelo Firestore, as regras financeiras ou o fluxo de criação de usuários.
 
 ## Como funciona
 
@@ -51,7 +51,9 @@ DB --> CF["backend/ (callable Functions do razão)"]
 
 ### Alvos isolados
 
-`utils/firebaseRuntime.ts` é o único resolvedor de ambiente. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions nas portas 9099, 8080 e 5001. Os emuladores escutam em `0.0.0.0`; o script usa `adb reverse` no Android Emulator e o IP LAN privado para dispositivos físicos. Computador e celular devem estar na mesma rede e o firewall deve permitir essas portas. O fluxo `npm run dev:local` força `expo start --go --lan`; `npm run dev:local:web` inicia a mesma configuração no navegador; o modo `--dev-client` permanece disponível separadamente para validar módulos nativos. O seed imprime no terminal as credenciais da conta demo local, que não existem em produção, e grava essa conta com `adminUser: true` para permitir testar os fluxos administrativos.
+`utils/firebaseRuntime.ts` é o único resolvedor do alvo dos dados financeiros. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions nas portas 9099, 8080 e 5001. Os emuladores escutam em `0.0.0.0`; o script usa `adb reverse` no Android Emulator e o IP LAN privado para dispositivos físicos. Computador e celular devem estar na mesma rede e o firewall deve permitir essas portas. O fluxo `npm run dev:local` força `expo start --go --lan`; `npm run dev:local:web` inicia a mesma configuração no navegador; o modo `--dev-client` permanece disponível separadamente para validar módulos nativos. O seed imprime no terminal as credenciais da conta demo local, que não existem em produção, e grava essa conta com `adminUser: true` para permitir testar os fluxos administrativos.
+
+AI Logic e Remote Config não fazem parte dos produtos emulados. Por isso, no alvo Emulator existe uma ponte híbrida restrita a AI Logic, App Check e Remote Config: o navegador cria o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT` com os identificadores públicos de `finances-app-e8685`, e o Android usa o app nativo do `google-services.json`. Auth, Firestore e Functions do negócio continuam integralmente em `demo-lumus-financas`; a ponte não exporta `db`, `auth` nem `functions` remotos e nunca grava dados financeiros no projeto real.
 
 `development` só aceita `emulator`. Os perfis instaláveis `preview`, `production` e `production-apk` só aceitam `production`, com o project ID `finances-app-e8685` e todas as credenciais; assim, um APK de preview não aponta para `127.0.0.1` no próprio aparelho. O preview usa App Check `debug`, enquanto produção e `production-apk` usam Play Integrity. Combinações inválidas falham antes de inicializar o SDK. O alias padrão da CLI continua sendo o demo project; deploys devem informar `--project production`.
 
@@ -74,7 +76,7 @@ EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER
 EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN
 ```
 
-As credenciais de produção são validadas pelo resolvedor antes da inicialização do SDK. O modo Emulator usa somente a configuração sintética e o host local.
+As credenciais de produção são validadas pelo resolvedor antes da inicialização do SDK financeiro. No modo Emulator, o app principal usa somente a configuração sintética e o host local; os mesmos identificadores públicos podem ser lidos separadamente pelo adaptador Web da IA para formar a ponte híbrida. Chave Gemini, token App Check e segredo de servidor não fazem parte dessa configuração pública.
 
 ## Exports
 
@@ -113,15 +115,19 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 
 ## Firebase AI Logic
 
-- Web usa `firebase/ai`, o app primário JS autenticado e `ReCaptchaEnterpriseProvider`.
+- Web usa `firebase/ai` e `ReCaptchaEnterpriseProvider`. Em produção, usa o app primário JS; no alvo Emulator, usa somente para IA o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT` do projeto remoto.
 - Android usa módulos `@react-native-firebase` 25.1 alinhados para `app`, `app-check`, `ai`, `auth` e `remote-config`.
-- O Auth/Firestore financeiro continua no SDK JS. O adaptador Android fornece ao SDK nativo da IA somente `getIdToken()` do usuário atual.
+- O Auth/Firestore financeiro continua no SDK JS. Fora do alvo Emulator, o adaptador Android fornece ao SDK nativo da IA somente `getIdToken()` do usuário atual. No modo híbrido, o usuário local continua obrigatório, mas o token de Auth emitido por `demo-lumus-financas` não é anexado à chamada do projeto remoto.
 - App Check Android usa provider `debug` em development/preview e Play Integrity em produção.
 - Enforcement deve ser ativado para Firebase AI Logic. Não ativar para Firestore nesta etapa porque o cliente Android financeiro continua no SDK JS.
 - Antes de liberar a disponibilidade do Lumus IA no Android, o adaptador inicializa o App Check e solicita um token string não vazio. Falha nesse preflight deixa somente o assistente indisponível como erro de App Check/configuração; não invalida nem pede novo login para a sessão financeira do Firebase JS. `refreshAvailability()` força nova resolução de Remote Config e repete o preflight sob ação explícita do usuário.
 - Remote Config controla kill switch, modelo e limites descritos em [[Assistente Lumus]]. Falha de fetch usa padrões locais limitados.
+- O template `remote_config.json` está ligado a `firebase.json` e foi publicado em 2026-09-21 como versão remota 1 no projeto `finances-app-e8685`. A versão usa `gemini-3.8-flash`, limites 12/20/8/10 e os mesmos padrões locais do cliente; `gemini-3.5-flash`, variantes preview/experimental/`-latest` e modelos multimodais não são aceitos como fallback conversacional.
+- A Firebase CLI confirmou os apps `1:909478123750:web:bfe59f4e4d9682d20a4327` e `1:909478123750:android:abdf321566d172470a4327`. O `google-services.json` local também foi conferido contra o project ID e package Android e continua fora do Git.
+- O Console foi conferido em 2026-09-21: o projeto continua no plano Spark, a Gemini Developer API está ativa, Agent Platform não está ativada, Android usa Play Integrity, Web usa reCAPTCHA Enterprise e ambos aparecem como **Registrado (aplicado)** para AI Logic. O enforcement do Firestore permanece desativado/fora desta entrega. A lista de domínios autorizados do Authentication não carregou no Console e ainda precisa de verificação manual antes do smoke test Web.
 - A site key `EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY` é pública e serve somente ao reCAPTCHA Enterprise; não é chave Gemini.
 - Não existe Cloud Function nem processo permanente: o aplicativo chama o serviço somente sob ação do usuário.
+- App Check Debug continua enforced também no desenvolvimento. Se o SDK ainda não tiver um token cadastrado, a tela mantém o compositor bloqueado e **Tentar novamente** refaz o preflight após o cadastro no Console.
 
 ## Web e Firebase Hosting
 
@@ -134,7 +140,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 ## Configuração Expo nativa
 
 - `app.config.ts` preserva a base de `app.json` e mantém somente as decisões dinâmicas: configura `expo-audio` e resolve o arquivo Android do Firebase. O próprio plugin de áudio materializa `RECORD_AUDIO` e `MODIFY_AUDIO_SETTINGS`; `expo-asset` é dependência peer direta, não plugin de configuração.
-- `android.googleServicesFile` usa `GOOGLE_SERVICES_JSON` quando fornecido pelo EAS ou `./google-services.json` local. `@react-native-firebase/app` entra na lista de plugins somente quando um desses caminhos existe. Os perfis EAS Android `preview`, `production` e `production-apk` recusam o build sem o arquivo, pois todos apontam para produção e precisam conter Firebase AI/App Check/Remote Config. O perfil `development` permanece isolado no Emulator, onde o Lumus IA é indisponível, e não exige o arquivo nativo.
+- `android.googleServicesFile` usa `GOOGLE_SERVICES_JSON` quando fornecido pelo EAS ou `./google-services.json` local. `@react-native-firebase/app` entra na lista de plugins somente quando um desses caminhos existe. Os perfis EAS Android `development`, `preview`, `production` e `production-apk` recusam o build sem o arquivo. No development, o arquivo habilita somente AI Logic/App Check/Remote Config nativos enquanto os dados permanecem no Emulator; preview e produção usam a configuração remota completa.
 - `google-services.json` e `GoogleService-Info.plist` ficam no `.gitignore`.
 - Esta entrega nativa do assistente é Android. `app.config.ts` não habilita o plugin durante `EAS_BUILD_PLATFORM=ios`; um futuro build iOS com React Native Firebase também deverá fornecer `ios.googleServicesFile` antes de remover essa proteção.
 - Qualquer alteração de `expo-audio` ou React Native Firebase requer novo development build; Expo Go não suporta o adaptador Android.
@@ -153,8 +159,9 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 
 - Variáveis via `EXPO_PUBLIC_*` (acessíveis no bundle client-side)
 - `firebase` versão exata 12.16.0 (modular SDK); módulos React Native Firebase na versão exata 25.1.0
-- O perfil EAS `development` usa somente o Emulator e deve ser aberto pelo script local, que inicia/semeia a Suite e aplica `adb reverse`. O `preview` herda as credenciais públicas de `production`, usa o ambiente EAS `preview`, exige `GOOGLE_SERVICES_JSON` nesse ambiente e gera APK com App Check `debug`. `production-apk` estende `production`, usa o ambiente EAS `production` e gera um APK interno com Play Integrity para validar a mesma configuração do AAB destinado à Play Store.
+- O perfil EAS `development` usa o Emulator para Auth/Firestore/Functions e a ponte remota somente para AI Logic/App Check/Remote Config; deve ser aberto pelo script local, que inicia/semeia a Suite e aplica `adb reverse`. Ele exige `GOOGLE_SERVICES_JSON` no ambiente EAS `development` e usa App Check Debug. O `preview` herda as credenciais públicas de `production`, usa o ambiente EAS `preview`, exige o mesmo arquivo nesse ambiente e gera APK com App Check `debug`. `production-apk` estende `production`, usa o ambiente EAS `production` e gera um APK interno com Play Integrity para validar a mesma configuração do AAB destinado à Play Store.
 - Projeto EAS: `faae4c50-3b7d-456a-9bfb-e778efd29638`
+- A EAS CLI não estava autenticada na auditoria de 2026-09-21; por isso, a variável de arquivo remota e nenhum build novo foram verificados.
 
 ## Observações importantes
 

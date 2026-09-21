@@ -3,7 +3,7 @@ tags: [ia, firebase-ai-logic, gemini, assistente, voz, privacidade, financas]
 relacionado: [[Firebase Config]], [[Navegação]], [[Privacidade de Valores]], [[Componentes UI]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]]
 status: ativo
 tipo: feature
-versao: 1.0.12
+versao: 1.0.14
 ---
 
 # Assistente Lumus
@@ -43,6 +43,7 @@ graph TD
    O aviso oferece nova tentativa que atua somente sobre a agenda local e nunca repete o commit financeiro.
 11. O comando local “Limpar conversa” é interceptado antes da IA e apaga imediatamente a sessão em memória sem revogar o consentimento.
 12. Quando a disponibilidade Android falha por App Check ou configuração, o aviso do chat oferece **Tentar novamente**. A ação `refreshAvailability()` mostra estado de verificação, força nova resolução de Remote Config e executa outro preflight; ela atualiza somente configuração/disponibilidade e não limpa consentimento, conversa nem a sessão financeira.
+13. Em desenvolvimento, Auth, Firestore e Functions permanecem no projeto sintético `demo-lumus-financas` do Emulator Suite. Como AI Logic e Remote Config não possuem emuladores locais, somente AI Logic, App Check e Remote Config usam o app remoto `finances-app-e8685`, com App Check Debug. A tela identifica explicitamente esse modo híbrido; nenhum dado é lido ou gravado no Firestore remoto.
 
 ## Ações suportadas
 
@@ -103,12 +104,15 @@ Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do 
 - `firebase/ai` com `GoogleAIBackend`.
 - `firebase/app-check` inicializado com `ReCaptchaEnterpriseProvider` antes da primeira chamada de IA.
 - A site key pública fica em `EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY`; ela não é uma chave Gemini.
+- No alvo Emulator, um app Firebase nomeado `LUMUS_ASSISTANT_DEVELOPMENT` usa os identificadores públicos do projeto remoto somente para AI Logic, App Check e Remote Config. O `app` primário e o `SECONDARY` continuam ligados ao Auth/Firestore/Functions locais.
+- Em localhost, o SDK ativa o App Check Debug, gera um token quando nenhum foi fornecido e mantém o assistente indisponível até conseguir emitir um token válido. O token deve ser cadastrado no Console e nunca versionado.
 
 ### Android
 
 - `@react-native-firebase/ai`, `app-check` e `remote-config` em versões alinhadas.
 - App Check usa `debug` somente em desenvolvimento/preview e Play Integrity em produção. `EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER` explicita o provider do perfil; o token de debug é fornecido separadamente e cadastrado no console.
 - Auth e Firestore existentes continuam no Firebase JS. O adaptador nativo expõe ao SDK de IA apenas uma fachada com `getIdToken()` do usuário atual.
+- No alvo Emulator, o app continua exigindo um usuário autenticado localmente, mas não envia o ID token de `demo-lumus-financas` ao AI Logic de `finances-app-e8685`. A chamada remota é atestada pelo App Check Debug; em preview/produção, a fachada de Auth volta a acompanhar a chamada normalmente.
 - `google-services.json` fica fora do Git e entra localmente ou por `GOOGLE_SERVICES_JSON` no EAS. Todo build EAS Android (`development`, `preview`, `production` e `production-apk`) falha cedo sem esse arquivo; assim, não é possível instalar um client EAS que abra o app sem conter os módulos nativos da IA. Fora do EAS, o plugin `@react-native-firebase/app` continua condicional para que Expo Go e o app-base preservem o diagnóstico de indisponibilidade.
 - A disponibilidade nativa só fica positiva depois de inicializar o App Check e obter um token string não vazio. Falhas nesse preflight mantêm o restante do aplicativo e a sessão financeira disponíveis e mostram o diagnóstico de App Check/configuração no painel do assistente; o usuário pode disparar novo preflight pelo botão **Tentar novamente**.
 
@@ -117,13 +121,15 @@ Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do 
 | Chave | Padrão | Limite local |
 |---|---:|---:|
 | `lumus_ai_enabled` | `true` | kill switch |
-| `lumus_ai_model` | `gemini-3.5-flash` | nome `gemini-*` validado |
+| `lumus_ai_model` | `gemini-3.8-flash` | versão estável explícita; rejeita legado, preview/experimental/`-latest` e modalidades não conversacionais |
 | `lumus_ai_max_context_turns` | `12` | 2–12 |
 | `lumus_ai_max_actions` | `20` | 1–20 |
 | `lumus_ai_max_tool_calls` | `8` | 1–8 |
 | `lumus_ai_max_requests_per_minute` | `10` | 1–10 |
 
 Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não existe fallback pago: cota esgotada interrompe somente o assistente.
+
+O arquivo `remote_config.json` foi publicado em 2026-09-21 como versão 1 no projeto `finances-app-e8685`. O mesmo modelo está no fallback Web/Android. A configuração de geração mantém somente `maxOutputTokens` (e `responseMimeType` na transcrição), pois os parâmetros amostrais antigos foram removidos para compatibilidade com Gemini 3.x.
 
 ## Consentimento e proteção de dados
 
@@ -161,7 +167,8 @@ Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não e
 - O acesso fica no menu do botão **Home** do `navigator.tsx` enquanto **Lumus IA** estiver visível neste aparelho. O switch em [[Visibilidade de Rotas]] pode ocultá-lo; nesse estado o `Stack.Protected` também bloqueia `/lumus-assistant` por deep link ou navegação programática.
 - A conversa usa as primitivas compostas `Conversation`, `ConversationContent`, `ConversationEmptyState`, `Message` e `PromptInput` de `components/ui/chatAi`, adaptadas do Chat AI do Gluestack à versão estável usada pelo app. Mensagens e cartões financeiros continuam sob controle do Lumus; o componente não cria persistência nem executa ações.
 - O `PromptInputTextarea` interno usa `Input` e `InputField` do Gluestack, os mesmos primitivos nativos usados nos formulários. Ele fica fixo no rodapé do painel, imediatamente acima do `navigator.tsx`; somente o histórico é rolável. No Android, `softwareKeyboardLayoutMode: "resize"` redimensiona a janela nativamente, sem um segundo `KeyboardAvoidingView`; no iOS, o `KeyboardAvoidingView` preserva o comportamento equivalente. O compositor e o navigator permanecem no fluxo inferior redimensionado, sem cobrir o texto digitado.
-- Quando a disponibilidade Android estiver pendente, o aviso no histórico mantém o diagnóstico e oferece **Tentar novamente**. O botão fica desabilitado e mostra **Verificando…** durante `isRefreshingAvailability`, evitando tentativas concorrentes.
+- Quando a disponibilidade estiver pendente no Android ou Web, o aviso no histórico mantém o diagnóstico e oferece **Tentar novamente**. O botão fica desabilitado e mostra **Verificando…** durante `isRefreshingAvailability`, evitando tentativas concorrentes.
+- No alvo Emulator, um card informativo diferencia os serviços financeiros locais dos três serviços remotos necessários à IA, evitando que o modo híbrido seja confundido com leitura ou escrita em produção.
 - O compositor segue a escala dos formulários: campo textual, microfone e envio partem de `h-10` (40px); os controles de ícone usam também `w-10` e `rounded-2xl`. A composição reutiliza as classes de `useScreenStyles()` e deixa `style` apenas para geometria calculada em tempo de execução, como hero, insets e espaço do teclado.
 - O `Drawer` de configurações usa o `Switch` padrão de `components/ui/switch` para a leitura automática; suas cores vêm de `useScreenStyles()` e o ícone de informação abre um `Popover` com a explicação da leitura local. A revogação ocupa um card próprio com ação destrutiva à direita, fecha o drawer e preserva o fluxo existente de abortar a chamada, limpar a sessão e interromper o TTS.
 - Ao abrir a rota, o hero e o painel aparecem antes da consulta de preferências, Remote Config e disponibilidade. O estado **Preparando o Lumus IA** é interno ao painel; ele não substitui a tela inteira nem deixa a navegação em `Suspense`.
@@ -169,7 +176,9 @@ Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não e
 ## Testes
 
 - `tests/lumusAssistant.test.ts` cobre centavos, datas fixas em São Paulo, Zod, campos ausentes, dependências, handles por sessão, estados, privacidade, limites, erros — incluindo a diferença entre sessão realmente inválida e App Check/configuração — e o cenário de 18/19 de julho de 2026.
-- `tests/lumusAssistantGateway.test.ts` cobre limites do Remote Config, resumo ativo + 12 turnos, 20 ações, chamada exclusiva, cota por UID, ponte de token Auth, seleção Debug/Play Integrity e narrativa sanitizada.
+- `tests/lumusAssistantGateway.test.ts` cobre limites do Remote Config, validação/fallback de modelos, resumo ativo + 12 turnos, 20 ações, chamada exclusiva, cota por UID, ponte de token Auth, seleção Debug/Play Integrity e narrativa sanitizada.
+- `tests/lumusAssistantWebPlatform.test.ts` cobre App Check ausente/configurado, autenticação obrigatória, Remote Config carregado ou indisponível, modelo legado, ordem App Check→AI, resposta válida e function calling devolvido apenas como rascunho.
+- O mesmo teste Web cobre o app dedicado da ponte híbrida e confirma que a instância de AI Logic usa `finances-app-e8685` enquanto a configuração financeira principal permanece fora desse adaptador.
 - `tests/lumusAssistantNativePlatform.test.ts` garante que o Expo Go não avalie `RNFBAppModule` durante o bootstrap e bloqueie chamadas da IA antes do carregamento nativo.
 - `tests/lumusAssistantAppCheck.test.ts` cobre o preflight do App Check: disponibilidade somente quando o provider emite token string não vazio e bloqueio para falha, token vazio, ausente ou inválido.
 - `tests/lumusAssistantLayout.test.ts` cobre o hero regular, a compactação quando o teclado reduz o viewport e a geometria segura para alturas muito pequenas.
@@ -178,13 +187,14 @@ Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não e
 
 ## Configuração externa obrigatória
 
-1. Registrar `com.gabrielmazz.lumusfinances` no mesmo projeto Firebase e fornecer `google-services.json`. `GOOGLE_SERVICES_JSON` deve existir como variável de arquivo nos ambientes EAS `development`, `preview` e `production` antes de gerar qualquer build Android; as variáveis públicas sozinhas não incluem os módulos nativos Firebase.
-2. Cadastrar SHA-256, Play Integrity e tokens de debug.
-3. Validar a site key Enterprise e os domínios web permitidos.
-4. Habilitar Firebase AI Logic com Gemini Developer API e usuários autenticados.
-5. Criar/publicar as chaves de Remote Config.
-6. Ativar enforcement de App Check para Firebase AI Logic, não para Firestore nesta etapa.
-7. Auditar e implantar regras Firestore que limitem escrita ao proprietário.
+1. Os apps Web e Android já foram confirmados no projeto `finances-app-e8685`, e o `google-services.json` local corresponde ao package Android. É obrigatório manter `GOOGLE_SERVICES_JSON` como variável de arquivo nos ambientes EAS `development`, `preview` e `production` antes dos builds usados no smoke test; a EAS CLI não estava autenticada nesta auditoria.
+2. Para testar localmente, iniciar a Suite com `npm run dev:local` ou `npm run dev:local:web`. No Android, abrir o bundle com um development client que contenha React Native Firebase; Expo Go continua exibindo indisponibilidade. Cadastrar no Console o token App Check Debug emitido pelo navegador/emulador e usar **Tentar novamente** na tela.
+3. Play Integrity está registrado; ainda confirmar o SHA-256 e os tokens de debug usados por builds development/preview.
+4. reCAPTCHA Enterprise está registrado; ainda confirmar a site key e os domínios Web permitidos, pois a lista de domínios do Authentication não carregou no Console.
+5. Firebase AI Logic está ativo com Gemini Developer API no plano Spark; Agent Platform permanece desativada. O código exige usuário autenticado antes de criar o modelo, mas o modo global **usuários autenticados** do AI Logic não está aplicado. Se esse modo for habilitado, o fluxo híbrido deverá receber uma estratégia explícita de Auth do projeto remoto em vez do token do Emulator.
+6. Remote Config publicado como versão 1 em 2026-09-21; preservar `remote_config.json` como fonte versionada do template.
+7. App Check aparece como **Registrado (aplicado)** para Web e Android no AI Logic; Firestore permanece sem enforcement nesta etapa.
+8. Auditar e implantar regras Firestore que limitem escrita ao proprietário.
 
 ## Observações importantes
 
