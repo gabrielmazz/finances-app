@@ -72,6 +72,14 @@
     "owner": "data-visualization"
   },
   {
+    "files": ["screens/web/AddFinanceScreen.web.tsx"],
+    "reason": "O hero Web combina a altura calculada do viewport com camadas absolutas exigidas pelo canvas Grainient e pela imagem de fundo do React Native Web.",
+    "limitation": "A altura do hero e o posicionamento das camadas dependem de dimensões em runtime que as classes NativeWind não conseguem resolver.",
+    "risk": "Uma alteração no shell ou no canvas pode desalojar a sobreposição entre hero e sheet.",
+    "alternative": "As cores e a geometria estática permanecem nos tokens e contratos Web; o style fica restrito à composição de runtime.",
+    "owner": "web-investments"
+  },
+  {
     "files": ["design-system/mantine.ts"],
     "reason": "Mantine expõe classNames, CSS variables e styles para partes internas que não recebem classes NativeWind diretamente.",
     "limitation": "Tabs, NumberInput, TagsInput e Pill resolvem estados internos por contratos próprios da biblioteca.",

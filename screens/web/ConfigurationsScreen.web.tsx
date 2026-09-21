@@ -1,6 +1,5 @@
 import React from 'react';
-import { ScrollView, View, StatusBar, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, Pressable } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 
 // Importações relacionadas ao Gluestack UI
@@ -47,7 +46,6 @@ import { auth } from '@/FirebaseConfig';
 
 // Componentes do Uiverse
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
 import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
@@ -1700,7 +1698,7 @@ export default function ConfigurationsScreen() {
 				<Box className={`${notTintedCardClassName} px-4 py-4`}>
 					<VStack className="gap-4">
 						<HStack className="items-center gap-4">
-							<View
+							<Box
 								className="shrink-0 items-center justify-center"
 								style={{
 									width: CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE,
@@ -1712,7 +1710,7 @@ export default function ConfigurationsScreen() {
 									height={CONFIGURATION_ACCORDION_ILLUSTRATION_SIZE}
 									className="opacity-90"
 								/>
-							</View>
+							</Box>
 							<VStack className="min-w-0 flex-1 gap-1">
 								<Text className="text-base font-semibold">
 									{item.cardTitle ?? item.title}
@@ -1962,17 +1960,16 @@ export default function ConfigurationsScreen() {
 		void fetchUserName();
 	}, [userId]);
 
-	// A permissão administrativa só controla a seção de usuários. Bloqueá-la
-	// não deve substituir toda a central de configurações por um skeleton.
+	// A permissão administrativa só controla a seção de usuários. A página Web
+	// mantém os controles disponíveis enquanto essa checagem termina.
 	const isInitialLoading = false;
 	const managedRecordsCount = userData.length + bankData.length + tagData.length;
 
 	return (
-		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-			<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-					<View className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
+		<Box className="flex-1 w-screen" style={{ backgroundColor: surfaceBackground }}>
+			<Box className="flex-1 w-screen" style={{ backgroundColor: surfaceBackground }}>
+				<Box className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
+					<Box className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`} style={{ height: heroHeight }}>
 						<Image
 							source={LoginWallpaper}
 							alt="Background da tela de configurações"
@@ -1988,7 +1985,7 @@ export default function ConfigurationsScreen() {
 					illustrationWidth="38%"
 					illustrationHeight="38%"
 				/>
-					</View>
+					</Box>
 
 					<ScrollView
 						keyboardShouldPersistTaps="handled"
@@ -2022,7 +2019,7 @@ export default function ConfigurationsScreen() {
 									Informações do usuário
 								</Heading>
 
-								<View className="flex-row flex-wrap gap-3">
+								<Box className="flex-row flex-wrap gap-3">
 									<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
 										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Acesso</Text>
 										<Text className="mt-2 text-lg font-semibold">
@@ -2035,7 +2032,7 @@ export default function ConfigurationsScreen() {
 											{isAdmin ? managedRecordsCount : relatedUserData.length}
 										</Text>
 									</Box>
-								</View>
+								</Box>
 
 								<VStack className="gap-4">
 
@@ -2057,7 +2054,7 @@ export default function ConfigurationsScreen() {
 										<HStack className="items-end gap-3">
 											<VStack className="flex-1 gap-2">
 												<Text className={`${bodyText} ml-1 text-sm`}>ID do usuário</Text>
-														<View className="flex-1">
+														<Box className="flex-1">
 													<Input className={fieldContainerClassName} isDisabled>
 														<InputField
 															placeholder="ID do usuário"
@@ -2067,7 +2064,7 @@ export default function ConfigurationsScreen() {
 															className={inputField}
 														/>
 													</Input>
-												</View>
+												</Box>
 											</VStack>
 											<ConfigurationActionButton
 												icon={CopyIcon}
@@ -2113,7 +2110,7 @@ export default function ConfigurationsScreen() {
 												<AccordionHeader>
 													<AccordionTrigger className="px-0">
 														{({ isExpanded }: { isExpanded: boolean }) => (
-															<View className="flex-row items-center justify-between w-full">
+															<Box className="flex-row items-center justify-between w-full">
 																<AccordionTitleText className="font-semibold leading-5">
 																	{item.title}
 																</AccordionTitleText>
@@ -2121,7 +2118,7 @@ export default function ConfigurationsScreen() {
 																	as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
 																	className={helperText}
 																/>
-															</View>
+															</Box>
 														)}
 													</AccordionTrigger>
 												</AccordionHeader>
@@ -2377,7 +2374,7 @@ export default function ConfigurationsScreen() {
 																				>
 																					<TableData useRNView className={tableContentCellClassName}>
 																						<HStack className="min-w-0 items-start gap-3">
-																							<View className={`${notTintedCardClassName} h-11 w-11 items-center justify-center`}>
+																							<Box className={`${notTintedCardClassName} h-11 w-11 items-center justify-center`}>
 																								<TagIcon
 																									iconFamily={tag.iconFamily}
 																									iconName={tag.iconName}
@@ -2385,7 +2382,7 @@ export default function ConfigurationsScreen() {
 																									size={20}
 																									color={isDarkMode ? '#FCD34D' : '#D97706'}
 																								/>
-																							</View>
+																							</Box>
 																							<VStack className="min-w-0 flex-1 gap-1">
 																								<Text className="text-sm font-semibold" numberOfLines={1}>
 																									{tag.name}
@@ -2653,17 +2650,7 @@ export default function ConfigurationsScreen() {
 							</VStack>
 						)}
 					</ScrollView>
-				</View>
-
-				<View
-					style={{
-						marginHorizontal: -18,
-						paddingBottom: 0,
-						flexShrink: 0,
-					}}
-				>
-					<Navigator defaultValue={2} />
-				</View>
+				</Box>
 
 				<CategoryAvailabilitySelector
 					mode="preset"
@@ -2710,7 +2697,7 @@ export default function ConfigurationsScreen() {
 						</ModalFooter>
 					</ModalContent>
 				</Modal>
-			</View>
-		</SafeAreaView>
+			</Box>
+		</Box>
 	);
 }

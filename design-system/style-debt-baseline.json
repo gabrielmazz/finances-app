@@ -713,6 +713,12 @@
     "arbitraryTailwindValues": 3,
     "useScreenStyles": 1
   },
+  "screens/web/AddFinanceScreen.web.tsx": {
+    "inlineStyleProps": 8,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
   "screens/web/AddMandatoryExpensesScreen.web.tsx": {
     "inlineStyleProps": 9,
     "rawHexLiterals": 4,

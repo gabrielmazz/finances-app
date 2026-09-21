@@ -489,7 +489,7 @@ function DateCalendar({
 			<Box className={`${compactCardClassName} overflow-hidden px-2`}>
 				<HStack className="justify-between items-start gap-3 mb-4">
 					<VStack className="flex-1">
-						<Heading className="text-lg uppercase tracking-widest ">Calendário de Vencimentos</Heading>
+						<Heading className={webDashboardClassNames.sectionHeadingText}>Calendário de Vencimentos</Heading>
 						<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1">{visibleMonthLabel}</Text>
 					</VStack>
 				</HStack>
