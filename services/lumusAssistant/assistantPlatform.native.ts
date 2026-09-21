@@ -13,6 +13,7 @@ import {
 	createAssistantAiGateway,
 	normalizeAssistantAiConfig,
 	resolveAndroidAssistantAppCheckProvider,
+	shouldAttachAssistantAuthToken,
 	type AssistantPlatformAdapter,
 	type AssistantPlatformResponse,
 } from '@/services/lumusAssistant/assistantGatewayCore';
@@ -55,20 +56,20 @@ const assertSupportedNativeRuntime = () => {
 	if (isExpoGoAssistantRuntime()) {
 		throw new Error('Ambiente não suportado: o Lumus IA no Android exige um development build e não funciona no Expo Go.');
 	}
-	if (isFirebaseEmulatorRuntime()) {
-		throw new Error('Lumus IA não está disponível no Firebase Emulator Suite.');
-	}
 };
 
 const loadNativeFirebaseModules = async (): Promise<NativeFirebaseModules> => {
 	assertSupportedNativeRuntime();
 	if (!nativeFirebaseModulesPromise) {
-		nativeFirebaseModulesPromise = Promise.all([
-			import('@react-native-firebase/app'),
-			import('@react-native-firebase/app-check'),
-			import('@react-native-firebase/ai'),
-			import('@react-native-firebase/remote-config'),
-		]).then(([app, appCheck, ai, remoteConfig]) => ({ app, appCheck, ai, remoteConfig }));
+		// Keep evaluation behind the Expo Go/runtime guard. Static require targets
+		// remain visible to Metro, but RN Firebase JS/native bindings are only
+		// evaluated after a compatible development client is confirmed.
+		nativeFirebaseModulesPromise = Promise.resolve().then(() => ({
+			app: require('@react-native-firebase/app') as NativeFirebaseModules['app'],
+			appCheck: require('@react-native-firebase/app-check') as NativeFirebaseModules['appCheck'],
+			ai: require('@react-native-firebase/ai') as NativeFirebaseModules['ai'],
+			remoteConfig: require('@react-native-firebase/remote-config') as NativeFirebaseModules['remoteConfig'],
+		}));
 	}
 	try {
 		return await nativeFirebaseModulesPromise;
@@ -133,10 +134,6 @@ const ensureNativeAppCheck = async () => {
 const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig> => {
 	if (isExpoGoAssistantRuntime()) {
 		return normalizeAssistantAiConfig({});
-	}
-	if (isFirebaseEmulatorRuntime()) {
-		remoteConfigLoaded = false;
-		return normalizeAssistantAiConfig({ enabled: false });
 	}
 	if (Platform.OS !== 'android') {
 		return normalizeAssistantAiConfig({ enabled: false });
@@ -203,6 +200,23 @@ const assertAuthenticatedAssistantUser = () => {
 	throw error;
 };
 
+const getNativeAiService = async () => {
+	const app = await getConfiguredNativeApp();
+	const appCheck = await ensureNativeAppCheck();
+	const { ai: nativeAi } = await loadNativeFirebaseModules();
+	const ai = nativeAi.getAI(app, {
+		backend: new nativeAi.GoogleAIBackend(),
+		appCheck,
+		// The local Auth emulator issues tokens for demo-lumus-financas, while
+		// google-services.json identifies finances-app-e8685. Sending that token
+		// to AI Logic would mix project identities. The screen still requires an
+		// authenticated emulator user; only the incompatible cloud Auth header is
+		// omitted in this development-only hybrid path.
+		...(shouldAttachAssistantAuthToken(isFirebaseEmulatorRuntime()) ? { auth: createAuthFacade() } : {}),
+	});
+	return { ai, nativeAi };
+};
+
 const adapter: AssistantPlatformAdapter = {
 	getConfig: readRemoteConfig,
 	async getAvailability(): Promise<AssistantAiAvailability> {
@@ -211,10 +225,6 @@ const adapter: AssistantPlatformAdapter = {
 		if (isExpoGo) {
 			const config = normalizeAssistantAiConfig({ enabled: false });
 			return { available: false, platform: 'android', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'O Lumus IA no Android exige um development build. O restante do aplicativo pode ser testado no Expo Go.' };
-		}
-		if (isFirebaseEmulatorRuntime()) {
-			const config = normalizeAssistantAiConfig({ enabled: false });
-			return { available: false, platform: Platform.OS === 'android' ? 'android' : 'unsupported', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'Lumus IA não está disponível no Firebase Emulator Suite.' };
 		}
 		let nativeConfigured = false;
 		let appCheckConfigured = false;
@@ -258,19 +268,12 @@ const adapter: AssistantPlatformAdapter = {
 	},
 	async createChat(input) {
 		assertAuthenticatedAssistantUser();
-		const app = await getConfiguredNativeApp();
-		const appCheck = await ensureNativeAppCheck();
-		const { ai: nativeAi } = await loadNativeFirebaseModules();
-		const ai = nativeAi.getAI(app, {
-			backend: new nativeAi.GoogleAIBackend(),
-			appCheck,
-			auth: createAuthFacade(),
-		});
+		const { ai, nativeAi } = await getNativeAiService();
 		const model = nativeAi.getGenerativeModel(ai, {
 			model: input.model,
 			systemInstruction: input.systemInstruction,
 			tools: [{ functionDeclarations: input.functionDeclarations as unknown as FunctionDeclaration[] }],
-			generationConfig: { temperature: 0.15, topP: 0.8, maxOutputTokens: 2_048 },
+			generationConfig: { maxOutputTokens: 2_048 },
 		});
 		const chat = model.startChat({
 			history: input.history.map(item => ({ role: item.role, parts: [{ text: item.text }] })),
@@ -289,17 +292,14 @@ const adapter: AssistantPlatformAdapter = {
 	},
 	async transcribe(request: AssistantTranscriptionRequest) {
 		assertAuthenticatedAssistantUser();
-		const app = await getConfiguredNativeApp();
-		const appCheck = await ensureNativeAppCheck();
-		const { ai: nativeAi } = await loadNativeFirebaseModules();
 		const estimatedBytes = Math.floor((request.base64Audio.length * 3) / 4);
 		if (estimatedBytes > 20 * 1024 * 1024 || request.durationMs > 60_500) {
 			throw new Error('O áudio excede o limite de 60 segundos ou 20 MB.');
 		}
-		const ai = nativeAi.getAI(app, { backend: new nativeAi.GoogleAIBackend(), appCheck, auth: createAuthFacade() });
+		const { ai, nativeAi } = await getNativeAiService();
 		const model = nativeAi.getGenerativeModel(ai, {
 			model: request.config.model,
-			generationConfig: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 1_024 },
+			generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1_024 },
 		});
 		const result = await model.generateContent(
 			[
@@ -316,14 +316,11 @@ const adapter: AssistantPlatformAdapter = {
 	},
 	async narrateReport(request: AssistantReportNarrationRequest) {
 		assertAuthenticatedAssistantUser();
-		const app = await getConfiguredNativeApp();
-		const appCheck = await ensureNativeAppCheck();
-		const { ai: nativeAi } = await loadNativeFirebaseModules();
-		const ai = nativeAi.getAI(app, { backend: new nativeAi.GoogleAIBackend(), appCheck, auth: createAuthFacade() });
+		const { ai, nativeAi } = await getNativeAiService();
 		const model = nativeAi.getGenerativeModel(ai, {
 			model: request.config.model,
 			systemInstruction: 'Você explica relatórios calculados pelo aplicativo Lumus e nunca altera dados.',
-			generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+			generationConfig: { maxOutputTokens: 512 },
 		});
 		const result = await model.generateContent(
 			buildReportNarrationInstruction(request.report),

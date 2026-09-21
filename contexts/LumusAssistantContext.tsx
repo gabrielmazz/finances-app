@@ -11,6 +11,7 @@ import type {
 	AssistantResolvedCatalog,
 } from '@/types/lumusAssistant';
 import { assistantAiGateway } from '@/services/lumusAssistant/assistantPlatform';
+import { DEFAULT_ASSISTANT_AI_CONFIG } from '@/services/lumusAssistant/assistantGatewayCore';
 import { financeCommandService } from '@/services/lumusAssistant/financeCommandService';
 import { assistantReportService } from '@/services/lumusAssistant/assistantReportService';
 import {
@@ -146,7 +147,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				platform: 'unsupported',
 				appCheckConfigured: false,
 				remoteConfigLoaded: false,
-				model: 'gemini-3.5-flash',
+				model: DEFAULT_ASSISTANT_AI_CONFIG.model,
 				reason: friendly.message,
 			});
 		} finally {
@@ -195,7 +196,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					platform: 'unsupported',
 					appCheckConfigured: false,
 					remoteConfigLoaded: false,
-					model: 'gemini-3.5-flash',
+					model: DEFAULT_ASSISTANT_AI_CONFIG.model,
 					reason: friendly.message,
 				});
 			})

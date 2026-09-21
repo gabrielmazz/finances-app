@@ -25,7 +25,7 @@ import {
 
 export const DEFAULT_ASSISTANT_AI_CONFIG: AssistantAiConfig = {
 	enabled: true,
-	model: 'gemini-3.5-flash',
+	model: 'gemini-3.8-flash',
 	maxContextTurns: ASSISTANT_DEFAULT_CONTEXT_TURNS,
 	maxActionsPerResponse: ASSISTANT_DEFAULT_MAX_ACTIONS,
 	maxToolCalls: ASSISTANT_DEFAULT_MAX_TOOL_CALLS,
@@ -46,12 +46,21 @@ const clampInteger = (value: unknown, fallback: number, min: number, max: number
 	return Number.isFinite(parsed) ? Math.min(max, Math.max(min, Math.trunc(parsed))) : fallback;
 };
 
+const isStableAssistantModelName = (value: unknown): value is string => {
+	if (typeof value !== 'string') return false;
+	const match = /^gemini-(\d+)(?:\.(\d+))?-(?:flash|flash-lite)$/i.exec(value.trim());
+	if (!match) return false;
+	const major = Number(match[1]);
+	const minor = Number(match[2] ?? 0);
+	return major > 3 || (major === 3 && minor >= 8);
+};
+
 export const normalizeAssistantAiConfig = (
 	value: Partial<AssistantAiConfig>,
 ): AssistantAiConfig => ({
 	enabled: typeof value.enabled === 'boolean' ? value.enabled : DEFAULT_ASSISTANT_AI_CONFIG.enabled,
 	model:
-		typeof value.model === 'string' && /^gemini-[a-z0-9.-]+$/i.test(value.model.trim())
+		isStableAssistantModelName(value.model)
 			? value.model.trim()
 			: DEFAULT_ASSISTANT_AI_CONFIG.model,
 	maxContextTurns: clampInteger(value.maxContextTurns, DEFAULT_ASSISTANT_AI_CONFIG.maxContextTurns, 2, 12),
@@ -95,6 +104,9 @@ export const resolveAndroidAssistantAppCheckProvider = (
 	isDevelopment: boolean,
 	configuredProvider?: string,
 ) => isDevelopment || configuredProvider?.trim() === 'debug' ? 'debug' as const : 'playIntegrity' as const;
+
+export const shouldAttachAssistantAuthToken = (usesFirebaseEmulator: boolean) =>
+	!usesFirebaseEmulator;
 
 export const createAssistantAuthTokenBridge = (
 	getCurrentUser: () => { getIdToken(forceRefresh?: boolean): Promise<string> } | null,

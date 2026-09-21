@@ -88,6 +88,7 @@ import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { ASSISTANT_MAX_INPUT_CHARACTERS } from '@/utils/lumusAssistant';
+import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import {
 	deleteAssistantTemporaryAudio,
 	readAssistantAudioFile,
@@ -382,6 +383,7 @@ export default function LumusAssistantScreen() {
 	}, [assistant]);
 	const isVoiceControlDisabled = !assistant.availability?.available || isTranscribing || assistant.isSending;
 	const isSubmitDisabled = !composerText.trim() || assistant.isSending || !assistant.availability?.available;
+	const isHybridDevelopment = isFirebaseEmulatorRuntime();
 	const composerControlClassName = 'h-10 w-10 items-center justify-center rounded-2xl';
 	const voiceButtonClassName = recorderState.isRecording
 		? `${composerControlClassName} bg-error-500`
@@ -464,24 +466,30 @@ export default function LumusAssistantScreen() {
 										keyboardDismissMode="on-drag"
 									>
 										<VStack className="w-full max-w-[760px] self-center px-6 pb-8 pt-2" space="lg">
+										{isHybridDevelopment ? (
+											<HStack className={`${sectionCardClassName} rounded-2xl p-3`} space="sm">
+												<Icon as={Info} size="lg" className="text-yellow-500" />
+												<Text size="xs" className={`flex-1 leading-5 ${helperText}`}>
+													Modo de desenvolvimento híbrido: Auth, Firestore e Functions usam o Emulator Suite. Somente AI Logic, App Check e Remote Config acessam o projeto Firebase na nuvem.
+												</Text>
+											</HStack>
+										) : null}
 										{!assistant.availability?.available ? (
 											<HStack className={`${warningCardClassName} p-3`} space="sm">
 												<Icon as={TriangleAlert} size="lg" className="text-warning-500" />
 												<VStack className="flex-1" space="xs">
 													<Text className={warningTextClassName}>{assistant.availability?.reason ?? 'O assistente ainda não está configurado. O restante do Lumus continua funcionando.'}</Text>
-													{assistant.availability?.platform === 'android' ? (
-														<Pressable
-															accessibilityRole="button"
-															accessibilityLabel="Tentar verificar a configuração do Lumus IA novamente"
-															disabled={assistant.isRefreshingAvailability}
-															onPress={() => void assistant.refreshAvailability()}
-															className="self-start rounded-xl py-1 disabled:opacity-40"
-														>
-															<Text bold size="xs" className={warningTextClassName}>
-																{assistant.isRefreshingAvailability ? 'Verificando…' : 'Tentar novamente'}
-															</Text>
-														</Pressable>
-													) : null}
+													<Pressable
+														accessibilityRole="button"
+														accessibilityLabel="Tentar verificar a configuração do Lumus IA novamente"
+														disabled={assistant.isRefreshingAvailability}
+														onPress={() => void assistant.refreshAvailability()}
+														className="self-start rounded-xl py-1 disabled:opacity-40"
+													>
+														<Text bold size="xs" className={warningTextClassName}>
+															{assistant.isRefreshingAvailability ? 'Verificando…' : 'Tentar novamente'}
+														</Text>
+													</Pressable>
 												</VStack>
 											</HStack>
 										) : null}

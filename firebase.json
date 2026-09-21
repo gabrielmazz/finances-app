@@ -25,6 +25,9 @@
       }
     ]
   },
+  "remoteconfig": {
+    "template": "remote_config.json"
+  },
   "emulators": {
     "auth": {
       "host": "0.0.0.0",
