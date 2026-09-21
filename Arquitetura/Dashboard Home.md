@@ -10,6 +10,8 @@ versao: 1.5.3
 
 Tela principal do app após login. Exibe uma visão consolidada de todas as contas bancárias, resumo de entradas/saídas, linha do tempo de movimentos e portfólio de investimentos do usuário.
 
+Na composição Web, os títulos de seção — **Meus Bancos e Dinheiro**, **Investimentos**, **Gastos por dia**, **Atividade no ano**, **Próximos compromissos** e **Últimas Movimentações** — usam o contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText`, alinhado ao cabeçalho **Calendário de Vencimentos**.
+
 ## Como funciona
 
 ```mermaid
@@ -46,7 +48,8 @@ graph TD
 9. A Home Web exibe um `Sparkline` compacto ao lado de cada total mensal. O card de ganhos usa os totais dos três últimos meses de entradas; o card de gastos usa os totais dos três últimos meses de saídas. O gráfico detalhado `Gastos por dia` permanece abaixo em um Expo DOM separado, com uma série por mês. O snapshot consulta o caminho do razão financeiro pós-corte ou as coleções legadas conforme o grupo, mantendo centavos/exclusões e substituindo as curvas compactas por uma linha neutra quando a privacidade está ativa.
 10. A Home Web também exibe `Atividade no ano`: um `Heatmap` Mantine do primeiro ao último dia do ano atual. Cada quadrado conta lançamentos financeiros confirmados naquele dia; no legado, a perna de entrada de uma transferência é ignorada para que uma transferência conte uma vez. No razão financeiro, cada `ledgerTransaction` é uma única ação.
 11. Acima de `Últimas Movimentações`, a Home Web exibe `Próximos compromissos` em duas colunas. Cada coluna mostra até três gastos e ganhos obrigatórios pendentes, priorizando o próximo ciclo não concluído, respeitando dia útil/feriado, parcelas ativas e privacidade de valores. O agregado usa a mesma leitura compartilhada da Home para grupos legados e migrados.
-12. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens. Os saldos legados são consultados em lote com o último snapshot por banco e movimentos posteriores ao corte, sem reler todo o histórico para cada card.
+12. Na composição Web, `Gastos por dia`, `Atividade no ano` e `Próximos compromissos` não possuem moldura externa; os labels, os gráficos e os cards internos das colunas de compromissos permanecem inalterados. O padding estrutural continua vindo de `WEB_DASHBOARD_CLASS_NAMES`, sem borda ou raio de card nesses três blocos.
+13. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens. Os saldos legados são consultados em lote com o último snapshot por banco e movimentos posteriores ao corte, sem reler todo o histórico para cada card.
 
 ## Container de Abas
 

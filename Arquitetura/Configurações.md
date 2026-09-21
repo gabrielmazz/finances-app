@@ -3,7 +3,7 @@ tags: [configuracoes, tema, usuario, settings]
 relacionado: [[Sistema de Temas]], [[Privacidade de Valores]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Autenticação]], [[Gerenciamento de Usuários]], [[Gerenciamento de Tags]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.10.0
+versao: 1.11.0
 ---
 
 # Configurações
@@ -12,7 +12,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 
 ## Como funciona
 
-1. `ConfigurationsScreen.tsx` é renderizado na aba 2 do container `home.tsx`
+1. `ConfigurationsScreen.tsx` é renderizado na aba 2 do container mobile; `ConfigurationsScreen.web.tsx` é a composição independente selecionada pelo container Web.
 2. Exibe opções agrupadas em seções:
    - **Aparência**: Toggle de tema claro/escuro
    - **Privacidade**: Toggle de visibilidade de valores financeiros
@@ -36,7 +36,8 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 
 ## Arquivos principais
 
-- `screens/mobile/ConfigurationsScreen.tsx` — Componente principal
+- `screens/mobile/ConfigurationsScreen.tsx` — Composição Android/iOS
+- `screens/web/ConfigurationsScreen.web.tsx` — Composição exclusiva do navegador, sem barra de navegação nativa
 - `screens/mobile/ScreenSettingsScreen.tsx` / `screens/web/ScreenSettingsScreen.web.tsx` — Configuração de comportamento pós-registro e visibilidade de rotas por tela, com composição independente por plataforma
 - `app/mobile/home.tsx` — Container de abas que inclui Configurações como tab 2
 - `app/mobile/screen-settings.tsx` / `app/web/screen-settings.tsx` — Rotas da tela de configurações das telas por plataforma
@@ -89,3 +90,4 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 - Os toggles "Modo escuro" e "Ocultar valores" devem manter o switch preso ao extremo direito da linha mesmo quando houver texto auxiliar
 - O toggle "Modo escuro" deve explicar no popover que a preferência altera toda a interface e persiste entre sessões
 - O toggle "Ocultar valores" deve explicitar no popover que a ocultação é apenas visual
+- A checagem inicial de `adminUser` não deve bloquear a tela inteira: ela controla somente a presença da seção administrativa de usuários. Carregamentos de coleções permanecem contextuais ao accordion aberto.

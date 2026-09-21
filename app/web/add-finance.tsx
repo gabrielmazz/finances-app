@@ -1,1 +1,1 @@
-export { default } from '@/screens/mobile/AddFinanceScreen';
+export { default } from '@/screens/web/AddFinanceScreen.web';

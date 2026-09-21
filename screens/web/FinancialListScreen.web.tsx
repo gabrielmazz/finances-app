@@ -5,11 +5,10 @@ import {
 	KeyboardAvoidingView,
 	Image as RNImage,
 	Platform,
+	Pressable,
 	RefreshControl,
 	ScrollView,
 	StatusBar,
-	TouchableOpacity,
-	useWindowDimensions,
 	View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -72,11 +71,16 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import {
+	showNotifierAlert,
+	type NotifierAlertType,
+} from '@/components/uiverse/feedback/notifier-alert';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
 import InvestmentEvolutionChart from '@/components/uiverse/investments/investment-evolution-chart';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
 import {
 	useValueVisibility,
 	HIDDEN_VALUE_PLACEHOLDER,
@@ -121,8 +125,12 @@ import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
-import { isWebDesktopLayout } from '@/utils/webLayout';
+import { WEB_EXPENSE_CLASS_NAMES } from '@/design-system/web-forms';
+import {
+	APP_ROUTE_PATHS,
+	navigateToHomeDashboard,
+	navigateToRoute,
+} from '@/utils/navigation';
 
 type FinanceInvestment = {
 	id: string;
@@ -156,19 +164,15 @@ type StandardizedFinancialInputProps = {
 
 type InvestmentTimelineTone = {
 	accentColor: string;
-	amountColor: string;
 	lineColor: string;
 	iconGradient: [string, string];
-	cardGradient: [string, string];
 };
 
 const INVESTMENT_TAG_LABEL = 'Investimento';
 const INVESTMENT_TIMELINE_TONE: InvestmentTimelineTone = {
 	accentColor: '#EC4899',
-	amountColor: '#60A5FA',
 	lineColor: 'rgba(96, 165, 250, 0.32)',
 	iconGradient: ['#DB2777', '#60A5FA'],
-	cardGradient: ['#BE185D', '#3B82F6'],
 };
 
 const formatCurrencyBRLRaw = (value: number) =>
@@ -197,7 +201,10 @@ const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 	{ value: '3y', label: redemptionTermLabels['3y'] },
 ];
 
-const performancePeriodOptions: { value: InvestmentPerformancePeriod; label: string }[] = [
+const performancePeriodOptions: {
+	value: InvestmentPerformancePeriod;
+	label: string;
+}[] = [
 	{ value: '30d', label: '30 dias' },
 	{ value: '6m', label: '6 meses' },
 	{ value: '12m', label: '12 meses' },
@@ -307,7 +314,11 @@ const mergeDateWithCurrentTime = (date: Date) => {
 
 const isDateTodayOrEarlier = (date: Date) => {
 	const now = new Date();
-	const selectedDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+	const selectedDay = new Date(
+		date.getFullYear(),
+		date.getMonth(),
+		date.getDate(),
+	);
 	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 	return selectedDay.getTime() <= today.getTime();
 };
@@ -357,10 +368,13 @@ const getInvestmentSummaryText = (
 	}
 
 	const simulatedValue = formatCurrencyBRL(
-		convertCentsToBRL(performance?.projectedValueInCents ?? resolveBaseValueInCents(investment)),
+		convertCentsToBRL(
+			performance?.projectedValueInCents ?? resolveBaseValueInCents(investment),
+		),
 	);
 	const periodGain = performance?.periodGainInCents ?? 0;
-	const periodPrefix = periodGain >= 0 ? 'ganho estimado de' : 'variação estimada de';
+	const periodPrefix =
+		periodGain >= 0 ? 'ganho estimado de' : 'variação estimada de';
 
 	if (
 		typeof investment.lastManualSyncValueInCents === 'number' &&
@@ -467,8 +481,6 @@ function FinancialListSkeleton({
 }
 
 export default function FinancialListScreenWeb() {
-	const { width: windowWidth } = useWindowDimensions();
-	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -506,7 +518,7 @@ export default function FinancialListScreenWeb() {
 	const handlePerformancePeriodChange = React.useCallback(
 		(nextPeriod: string) => {
 			const selectedOption = performancePeriodOptions.find(
-				option => option.value === nextPeriod,
+				(option) => option.value === nextPeriod,
 			);
 
 			if (selectedOption) {
@@ -517,7 +529,9 @@ export default function FinancialListScreenWeb() {
 	);
 	const [isCdiSettingsOpen, setIsCdiSettingsOpen] = React.useState(false);
 	const [cdiRateInput, setCdiRateInput] = React.useState('');
-	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(formatDateInput(new Date()));
+	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(
+		formatDateInput(new Date()),
+	);
 	const [isSavingCdiRate, setIsSavingCdiRate] = React.useState(false);
 
 	const [isLoading, setIsLoading] = React.useState(false);
@@ -539,25 +553,33 @@ export default function FinancialListScreenWeb() {
 	const [investmentForWithdrawalSync, setInvestmentForWithdrawalSync] =
 		React.useState<FinanceInvestment | null>(null);
 	const [withdrawSyncInput, setWithdrawSyncInput] = React.useState('');
-	const [withdrawSyncDate, setWithdrawSyncDate] = React.useState(formatDateInput(new Date()));
+	const [withdrawSyncDate, setWithdrawSyncDate] = React.useState(
+		formatDateInput(new Date()),
+	);
 	const [isSavingWithdrawalSync, setIsSavingWithdrawalSync] =
 		React.useState(false);
 	const [syncedWithdrawalValueInCents, setSyncedWithdrawalValueInCents] =
 		React.useState<number | null>(null);
 	const [withdrawInput, setWithdrawInput] = React.useState('');
-	const [withdrawalDate, setWithdrawalDate] = React.useState(formatDateInput(new Date()));
+	const [withdrawalDate, setWithdrawalDate] = React.useState(
+		formatDateInput(new Date()),
+	);
 	const [isSavingWithdrawal, setIsSavingWithdrawal] = React.useState(false);
 	const [investmentForDeposit, setInvestmentForDeposit] =
 		React.useState<FinanceInvestment | null>(null);
 	const [investmentForDepositSync, setInvestmentForDepositSync] =
 		React.useState<FinanceInvestment | null>(null);
 	const [depositSyncInput, setDepositSyncInput] = React.useState('');
-	const [depositSyncDate, setDepositSyncDate] = React.useState(formatDateInput(new Date()));
+	const [depositSyncDate, setDepositSyncDate] = React.useState(
+		formatDateInput(new Date()),
+	);
 	const [isSavingDepositSync, setIsSavingDepositSync] = React.useState(false);
 	const [syncedDepositValueInCents, setSyncedDepositValueInCents] =
 		React.useState<number | null>(null);
 	const [depositInput, setDepositInput] = React.useState('');
-	const [depositDate, setDepositDate] = React.useState(formatDateInput(new Date()));
+	const [depositDate, setDepositDate] = React.useState(
+		formatDateInput(new Date()),
+	);
 	const [isSavingDeposit, setIsSavingDeposit] = React.useState(false);
 	const [investmentForSync, setInvestmentForSync] =
 		React.useState<FinanceInvestment | null>(null);
@@ -565,6 +587,9 @@ export default function FinancialListScreenWeb() {
 	const [syncDate, setSyncDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingSync, setIsSavingSync] = React.useState(false);
 	const [expandedInvestmentIds, setExpandedInvestmentIds] = React.useState<
+		string[]
+	>([]);
+	const [renderedInvestmentIds, setRenderedInvestmentIds] = React.useState<
 		string[]
 	>([]);
 	const { shouldHideValues } = useValueVisibility();
@@ -590,17 +615,12 @@ export default function FinancialListScreenWeb() {
 		},
 		[shouldHideValues],
 	);
-	const timelinePalette = React.useMemo(
-		() => ({
-			title: isDarkMode ? '#F8FAFC' : '#0F172A',
-			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-		}),
-		[isDarkMode],
-	);
-
 	React.useEffect(() => {
 		const visibleIds = new Set(investments.map((investment) => investment.id));
 		setExpandedInvestmentIds((previousState) =>
+			previousState.filter((id) => visibleIds.has(id)),
+		);
+		setRenderedInvestmentIds((previousState) =>
 			previousState.filter((id) => visibleIds.has(id)),
 		);
 	}, [investments]);
@@ -638,9 +658,14 @@ export default function FinancialListScreenWeb() {
 			returnKeyType = 'done',
 			...inputProps
 		}: StandardizedFinancialInputProps) => (
-			<VStack className="mb-4">
-				<Text className={`${bodyText} mb-1 ml-1 text-sm`}>{label}</Text>
-				<Input className={fieldContainerClassName} isDisabled={isDisabled}>
+			<VStack className={WEB_EXPENSE_CLASS_NAMES.fieldFull}>
+				<Text className={`${WEB_EXPENSE_CLASS_NAMES.fieldLabel} ${bodyText}`}>
+					{label}
+				</Text>
+				<Input
+					className={`${fieldContainerClassName} ${WEB_EXPENSE_CLASS_NAMES.fieldInput}`}
+					isDisabled={isDisabled}
+				>
 					<InputField
 						{...inputProps}
 						autoCapitalize={autoCapitalize}
@@ -654,134 +679,154 @@ export default function FinancialListScreenWeb() {
 		[bodyText, fieldContainerClassName, inputField],
 	);
 
-	const loadData = React.useCallback(async (asRefresh = false) => {
-		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
-			return;
-		}
-
-		if (asRefresh) {
-			setIsRefreshing(true);
-		} else {
-			setIsLoading(true);
-		}
-		try {
-			const [investmentsResponse, banksResponse, cdiRatesResponse, activityResponse] = await Promise.all([
-				getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
-				getBanksWithUsersByPersonFirebase(currentUser.uid),
-				getInvestmentCdiRatesWithRelationsFirebase(currentUser.uid),
-				getFinanceInvestmentPortfolioActivityWithRelationsFirebase(currentUser.uid),
-			]);
-
-			if (
-				!investmentsResponse.success ||
-				!Array.isArray(investmentsResponse.data)
-			) {
-				throw new Error('Erro ao carregar investimentos.');
-			}
-			if (!banksResponse.success || !Array.isArray(banksResponse.data)) {
-				throw new Error('Erro ao carregar bancos.');
+	const loadData = React.useCallback(
+		async (asRefresh = false) => {
+			const currentUser = auth.currentUser;
+			if (!currentUser) {
+				showScreenAlert(
+					'Usuário não autenticado. Faça login novamente.',
+					'error',
+				);
+				return;
 			}
 
-			const normalizedBanks: BankMetadata[] = (
-				banksResponse.data as Array<Record<string, any>>
-			).map((bank) => ({
-				id: String(bank.id),
-				name:
-					typeof bank.name === 'string' && bank.name.trim().length > 0
-						? bank.name.trim()
-						: 'Banco sem nome',
-				colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
-			}));
+			if (asRefresh) {
+				setIsRefreshing(true);
+			} else {
+				setIsLoading(true);
+			}
+			try {
+				const [
+					investmentsResponse,
+					banksResponse,
+					cdiRatesResponse,
+					activityResponse,
+				] = await Promise.all([
+					getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
+					getBanksWithUsersByPersonFirebase(currentUser.uid),
+					getInvestmentCdiRatesWithRelationsFirebase(currentUser.uid),
+					getFinanceInvestmentPortfolioActivityWithRelationsFirebase(
+						currentUser.uid,
+					),
+				]);
 
-			const normalizedInvestments: FinanceInvestment[] = (
-				investmentsResponse.data as Array<Record<string, any>>
-			).map((investment) => {
-				const cdiPercentageInBasisPoints =
-					typeof investment.cdiPercentageInBasisPoints === 'number'
-						? Math.max(0, Math.round(investment.cdiPercentageInBasisPoints))
-						: normalizeCdiPercentageInBasisPoints(investment.cdiPercentage);
+				if (
+					!investmentsResponse.success ||
+					!Array.isArray(investmentsResponse.data)
+				) {
+					throw new Error('Erro ao carregar investimentos.');
+				}
+				if (!banksResponse.success || !Array.isArray(banksResponse.data)) {
+					throw new Error('Erro ao carregar bancos.');
+				}
 
-				const assetType = getInvestmentAssetType(investment.assetType);
-
-				return {
-					id: String(investment.id),
-					personId:
-						typeof investment.personId === 'string' && investment.personId.trim().length > 0
-							? investment.personId.trim()
-							: currentUser.uid,
+				const normalizedBanks: BankMetadata[] = (
+					banksResponse.data as Array<Record<string, any>>
+				).map((bank) => ({
+					id: String(bank.id),
 					name:
-						typeof investment.name === 'string' &&
-							investment.name.trim().length > 0
-							? investment.name.trim()
-							: 'Investimento sem nome',
-					initialValueInCents:
-						typeof investment.initialValueInCents === 'number'
-							? investment.initialValueInCents
-							: typeof investment.initialInvestedInCents === 'number'
-								? investment.initialInvestedInCents
-								: 0,
-					currentValueInCents:
-						typeof investment.currentValueInCents === 'number'
-							? investment.currentValueInCents
-							: typeof investment.lastManualSyncValueInCents === 'number'
-								? investment.lastManualSyncValueInCents
-								: typeof investment.initialValueInCents === 'number'
-									? investment.initialValueInCents
-									: 0,
-					cdiPercentage:
-						typeof investment.cdiPercentage === 'number'
-							? investment.cdiPercentage
-							: cdiPercentageInBasisPoints / 100,
-					cdiPercentageInBasisPoints,
-					assetType,
-					valuationMethod: getInvestmentValuationMethod(investment.valuationMethod, assetType),
-					redemptionTerm:
-						(investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
-					bankId: typeof investment.bankId === 'string' ? investment.bankId : '',
-					description:
-						typeof investment.description === 'string' &&
-							investment.description.trim().length > 0
-							? investment.description.trim()
-							: null,
-					investmentDateISO: normalizeDate(investment.date ?? investment.createdAt),
-					createdAtISO: normalizeDate(investment.createdAt),
-					lastManualSyncValueInCents:
-						typeof investment.lastManualSyncValueInCents === 'number'
-							? investment.lastManualSyncValueInCents
-							: null,
-					lastManualSyncAtISO: investment.lastManualSyncAt
-						? normalizeDate(investment.lastManualSyncAt)
-						: null,
-				} satisfies FinanceInvestment;
-			});
+						typeof bank.name === 'string' && bank.name.trim().length > 0
+							? bank.name.trim()
+							: 'Banco sem nome',
+					colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
+				}));
 
-			setBanksMap(
-				normalizedBanks.reduce<Record<string, BankMetadata>>((acc, bank) => {
-					acc[bank.id] = bank;
-					return acc;
-				}, {}),
-			);
-			setInvestments(normalizedInvestments);
-			setCdiRates(
-				cdiRatesResponse.success && Array.isArray(cdiRatesResponse.data)
-					? cdiRatesResponse.data
-					: [],
-			);
-			setPortfolioActivity(
-				activityResponse.success && activityResponse.data
-					? activityResponse.data
-					: emptyPortfolioActivity,
-			);
-		} catch (error) {
-			console.error('Erro ao carregar dados de investimentos:', error);
-			showScreenAlert('Não foi possível carregar os investimentos.', 'error');
-		} finally {
-			setIsLoading(false);
-			setIsRefreshing(false);
-		}
-	}, [showScreenAlert]);
+				const normalizedInvestments: FinanceInvestment[] = (
+					investmentsResponse.data as Array<Record<string, any>>
+				).map((investment) => {
+					const cdiPercentageInBasisPoints =
+						typeof investment.cdiPercentageInBasisPoints === 'number'
+							? Math.max(0, Math.round(investment.cdiPercentageInBasisPoints))
+							: normalizeCdiPercentageInBasisPoints(investment.cdiPercentage);
+
+					const assetType = getInvestmentAssetType(investment.assetType);
+
+					return {
+						id: String(investment.id),
+						personId:
+							typeof investment.personId === 'string' &&
+							investment.personId.trim().length > 0
+								? investment.personId.trim()
+								: currentUser.uid,
+						name:
+							typeof investment.name === 'string' &&
+							investment.name.trim().length > 0
+								? investment.name.trim()
+								: 'Investimento sem nome',
+						initialValueInCents:
+							typeof investment.initialValueInCents === 'number'
+								? investment.initialValueInCents
+								: typeof investment.initialInvestedInCents === 'number'
+									? investment.initialInvestedInCents
+									: 0,
+						currentValueInCents:
+							typeof investment.currentValueInCents === 'number'
+								? investment.currentValueInCents
+								: typeof investment.lastManualSyncValueInCents === 'number'
+									? investment.lastManualSyncValueInCents
+									: typeof investment.initialValueInCents === 'number'
+										? investment.initialValueInCents
+										: 0,
+						cdiPercentage:
+							typeof investment.cdiPercentage === 'number'
+								? investment.cdiPercentage
+								: cdiPercentageInBasisPoints / 100,
+						cdiPercentageInBasisPoints,
+						assetType,
+						valuationMethod: getInvestmentValuationMethod(
+							investment.valuationMethod,
+							assetType,
+						),
+						redemptionTerm:
+							(investment.redemptionTerm as RedemptionTerm) ?? 'anytime',
+						bankId:
+							typeof investment.bankId === 'string' ? investment.bankId : '',
+						description:
+							typeof investment.description === 'string' &&
+							investment.description.trim().length > 0
+								? investment.description.trim()
+								: null,
+						investmentDateISO: normalizeDate(
+							investment.date ?? investment.createdAt,
+						),
+						createdAtISO: normalizeDate(investment.createdAt),
+						lastManualSyncValueInCents:
+							typeof investment.lastManualSyncValueInCents === 'number'
+								? investment.lastManualSyncValueInCents
+								: null,
+						lastManualSyncAtISO: investment.lastManualSyncAt
+							? normalizeDate(investment.lastManualSyncAt)
+							: null,
+					} satisfies FinanceInvestment;
+				});
+
+				setBanksMap(
+					normalizedBanks.reduce<Record<string, BankMetadata>>((acc, bank) => {
+						acc[bank.id] = bank;
+						return acc;
+					}, {}),
+				);
+				setInvestments(normalizedInvestments);
+				setCdiRates(
+					cdiRatesResponse.success && Array.isArray(cdiRatesResponse.data)
+						? cdiRatesResponse.data
+						: [],
+				);
+				setPortfolioActivity(
+					activityResponse.success && activityResponse.data
+						? activityResponse.data
+						: emptyPortfolioActivity,
+				);
+			} catch (error) {
+				console.error('Erro ao carregar dados de investimentos:', error);
+				showScreenAlert('Não foi possível carregar os investimentos.', 'error');
+			} finally {
+				setIsLoading(false);
+				setIsRefreshing(false);
+			}
+		},
+		[showScreenAlert],
+	);
 
 	const handleRefresh = React.useCallback(async () => {
 		await loadData(true);
@@ -812,7 +857,9 @@ export default function FinancialListScreenWeb() {
 								typeof tag?.usageType === 'string' ? tag.usageType : undefined;
 							return (
 								normalizedName === INVESTMENT_TAG_LABEL.toLowerCase() &&
-								tagSupportsUsage(tagUsage, usageType, { allowUndefined: true }) &&
+								tagSupportsUsage(tagUsage, usageType, {
+									allowUndefined: true,
+								}) &&
 								String(tag?.personId) === currentUser.uid
 							);
 						},
@@ -849,7 +896,7 @@ export default function FinancialListScreenWeb() {
 	const portfolioAnalytics = React.useMemo(
 		() =>
 			buildInvestmentPortfolioAnalytics({
-				investments: investments.map(investment => {
+				investments: investments.map((investment) => {
 					const investmentDate = new Date(investment.investmentDateISO);
 					const createdAt = new Date(investment.createdAtISO);
 					const lastManualSyncAt = investment.lastManualSyncAtISO
@@ -865,7 +912,9 @@ export default function FinancialListScreenWeb() {
 						cdiPercentageInBasisPoints: investment.cdiPercentageInBasisPoints,
 						assetType: investment.assetType,
 						valuationMethod: investment.valuationMethod,
-						investmentDate: Number.isNaN(investmentDate.getTime()) ? null : investmentDate,
+						investmentDate: Number.isNaN(investmentDate.getTime())
+							? null
+							: investmentDate,
 						createdAt: Number.isNaN(createdAt.getTime()) ? null : createdAt,
 						lastManualSyncAt:
 							lastManualSyncAt && !Number.isNaN(lastManualSyncAt.getTime())
@@ -892,12 +941,16 @@ export default function FinancialListScreenWeb() {
 	const ownCdiRateHistory = React.useMemo(
 		() =>
 			cdiRates
-				.filter(rate => rate.personId === currentUserId)
-				.sort((left, right) => right.effectiveFrom.getTime() - left.effectiveFrom.getTime()),
+				.filter((rate) => rate.personId === currentUserId)
+				.sort(
+					(left, right) =>
+						right.effectiveFrom.getTime() - left.effectiveFrom.getTime(),
+				),
 		[cdiRates, currentUserId],
 	);
 	const formatCurrencyInCents = React.useCallback(
-		(valueInCents: number) => formatCurrencyBRL(convertCentsToBRL(valueInCents)),
+		(valueInCents: number) =>
+			formatCurrencyBRL(convertCentsToBRL(valueInCents)),
 		[formatCurrencyBRL],
 	);
 
@@ -940,7 +993,10 @@ export default function FinancialListScreenWeb() {
 		const effectiveFrom = parseDateFromBR(cdiEffectiveDate);
 
 		if (!currentUser) {
-			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
+			showScreenAlert(
+				'Usuário não autenticado. Faça login novamente.',
+				'error',
+			);
 			return;
 		}
 		if (
@@ -952,7 +1008,10 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!effectiveFrom) {
-			showScreenAlert('Informe a data de vigência no formato DD/MM/AAAA.', 'warn');
+			showScreenAlert(
+				'Informe a data de vigência no formato DD/MM/AAAA.',
+				'warn',
+			);
 			return;
 		}
 
@@ -989,11 +1048,18 @@ export default function FinancialListScreenWeb() {
 	}, []);
 	const handleToggleInvestmentCard = React.useCallback(
 		(investmentId: string) => {
-			setExpandedInvestmentIds((previousState) =>
-				previousState.includes(investmentId)
-					? previousState.filter((id) => id !== investmentId)
-					: [...previousState, investmentId],
-			);
+			setExpandedInvestmentIds((previousState) => {
+				if (previousState.includes(investmentId)) {
+					return previousState.filter((id) => id !== investmentId);
+				}
+
+				setRenderedInvestmentIds((rendered) =>
+					rendered.includes(investmentId)
+						? rendered
+						: [...rendered, investmentId],
+				);
+				return [...previousState, investmentId];
+			});
 		},
 		[],
 	);
@@ -1018,7 +1084,9 @@ export default function FinancialListScreenWeb() {
 			setEditInitialInput(
 				formatCurrencyBRLRaw(convertCentsToBRL(investment.initialValueInCents)),
 			);
-			setEditCdiInput(formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints));
+			setEditCdiInput(
+				formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints),
+			);
 			setEditTerm(investment.redemptionTerm);
 			setEditBankId(investment.bankId);
 			setEditDescription(investment.description ?? '');
@@ -1174,7 +1242,10 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (syncedDepositValueInCents === null) {
-			showScreenAlert('Sincronize o valor da data informada antes de adicionar.', 'warn');
+			showScreenAlert(
+				'Sincronize o valor da data informada antes de adicionar.',
+				'warn',
+			);
 			return;
 		}
 
@@ -1189,10 +1260,14 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!isDateTodayOrEarlier(parsedDepositDate)) {
-			showScreenAlert('A data do aporte deve ser hoje ou uma data anterior.', 'warn');
+			showScreenAlert(
+				'A data do aporte deve ser hoje ou uma data anterior.',
+				'warn',
+			);
 			return;
 		}
-		const depositDateWithCurrentTime = mergeDateWithCurrentTime(parsedDepositDate);
+		const depositDateWithCurrentTime =
+			mergeDateWithCurrentTime(parsedDepositDate);
 
 		const targetInvestment = investmentForDeposit;
 		const personId = auth.currentUser?.uid;
@@ -1237,7 +1312,10 @@ export default function FinancialListScreenWeb() {
 			}
 
 			await loadData();
-			showScreenAlert('Aporte registrado e investimento atualizado.', 'success');
+			showScreenAlert(
+				'Aporte registrado e investimento atualizado.',
+				'success',
+			);
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível registrar o aporte agora.', 'error');
@@ -1270,10 +1348,15 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!isDateTodayOrEarlier(parsedDepositSyncDate)) {
-			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			showScreenAlert(
+				'A data da sincronização deve ser hoje ou uma data anterior.',
+				'warn',
+			);
 			return;
 		}
-		const depositSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedDepositSyncDate);
+		const depositSyncDateWithCurrentTime = mergeDateWithCurrentTime(
+			parsedDepositSyncDate,
+		);
 
 		setIsSavingDepositSync(true);
 		try {
@@ -1284,7 +1367,8 @@ export default function FinancialListScreenWeb() {
 				personId: auth.currentUser?.uid ?? null,
 				bankId: investmentForDepositSync.bankId,
 				investmentNameSnapshot: investmentForDepositSync.name,
-				bankNameSnapshot: banksMap[investmentForDepositSync.bankId]?.name ?? null,
+				bankNameSnapshot:
+					banksMap[investmentForDepositSync.bankId]?.name ?? null,
 				reason: 'deposit',
 				date: depositSyncDateWithCurrentTime,
 			});
@@ -1305,7 +1389,14 @@ export default function FinancialListScreenWeb() {
 		} finally {
 			setIsSavingDepositSync(false);
 		}
-	}, [banksMap, depositSyncDate, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
+	}, [
+		banksMap,
+		depositSyncDate,
+		depositSyncInput,
+		investmentForDepositSync,
+		loadData,
+		showScreenAlert,
+	]);
 
 	const handleOpenWithdrawalModal = React.useCallback(
 		(investment: FinanceInvestment) => {
@@ -1359,10 +1450,15 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!isDateTodayOrEarlier(parsedWithdrawSyncDate)) {
-			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			showScreenAlert(
+				'A data da sincronização deve ser hoje ou uma data anterior.',
+				'warn',
+			);
 			return;
 		}
-		const withdrawSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedWithdrawSyncDate);
+		const withdrawSyncDateWithCurrentTime = mergeDateWithCurrentTime(
+			parsedWithdrawSyncDate,
+		);
 
 		setIsSavingWithdrawalSync(true);
 		try {
@@ -1374,7 +1470,8 @@ export default function FinancialListScreenWeb() {
 				personId: auth.currentUser?.uid ?? null,
 				bankId: investmentForWithdrawalSync.bankId,
 				investmentNameSnapshot: investmentForWithdrawalSync.name,
-				bankNameSnapshot: banksMap[investmentForWithdrawalSync.bankId]?.name ?? null,
+				bankNameSnapshot:
+					banksMap[investmentForWithdrawalSync.bankId]?.name ?? null,
 				reason: 'withdrawal',
 				date: withdrawSyncDateWithCurrentTime,
 			});
@@ -1388,14 +1485,24 @@ export default function FinancialListScreenWeb() {
 			setInvestmentForWithdrawal(investmentForWithdrawalSync);
 			setInvestmentForWithdrawalSync(null);
 			setWithdrawInput('');
-			showScreenAlert('Valor sincronizado! Agora informe quanto deseja resgatar.', 'success');
+			showScreenAlert(
+				'Valor sincronizado! Agora informe quanto deseja resgatar.',
+				'success',
+			);
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível sincronizar agora.', 'error');
 		} finally {
 			setIsSavingWithdrawalSync(false);
 		}
-	}, [banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncDate, withdrawSyncInput]);
+	}, [
+		banksMap,
+		investmentForWithdrawalSync,
+		loadData,
+		showScreenAlert,
+		withdrawSyncDate,
+		withdrawSyncInput,
+	]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
@@ -1413,13 +1520,20 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!isDateTodayOrEarlier(parsedWithdrawalDate)) {
-			showScreenAlert('A data do resgate deve ser hoje ou uma data anterior.', 'warn');
+			showScreenAlert(
+				'A data do resgate deve ser hoje ou uma data anterior.',
+				'warn',
+			);
 			return;
 		}
-		const withdrawalDateWithCurrentTime = mergeDateWithCurrentTime(parsedWithdrawalDate);
+		const withdrawalDateWithCurrentTime =
+			mergeDateWithCurrentTime(parsedWithdrawalDate);
 
 		if (syncedWithdrawalValueInCents === null) {
-			showScreenAlert('Sincronize o valor da data informada antes de continuar o resgate.', 'warn');
+			showScreenAlert(
+				'Sincronize o valor da data informada antes de continuar o resgate.',
+				'warn',
+			);
 			return;
 		}
 
@@ -1428,7 +1542,10 @@ export default function FinancialListScreenWeb() {
 			syncedWithdrawalValueInCents ??
 			resolveBaseValueInCents(investmentForWithdrawal);
 		if (withdrawCents > availableCents) {
-			showScreenAlert('O valor de resgate não pode ser maior que o valor sincronizado.', 'warn');
+			showScreenAlert(
+				'O valor de resgate não pode ser maior que o valor sincronizado.',
+				'warn',
+			);
 			return;
 		}
 
@@ -1474,7 +1591,10 @@ export default function FinancialListScreenWeb() {
 			}
 
 			await loadData();
-			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
+			showScreenAlert(
+				'Resgate registrado e investimento atualizado.',
+				'success',
+			);
 		} catch (error) {
 			console.error(error);
 			showScreenAlert('Não foi possível preparar o resgate agora.', 'error');
@@ -1525,7 +1645,10 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 		if (!isDateTodayOrEarlier(parsedSyncDate)) {
-			showScreenAlert('A data da sincronização deve ser hoje ou uma data anterior.', 'warn');
+			showScreenAlert(
+				'A data da sincronização deve ser hoje ou uma data anterior.',
+				'warn',
+			);
 			return;
 		}
 		const syncDateWithCurrentTime = mergeDateWithCurrentTime(parsedSyncDate);
@@ -1556,7 +1679,14 @@ export default function FinancialListScreenWeb() {
 		} finally {
 			setIsSavingSync(false);
 		}
-	}, [banksMap, investmentForSync, loadData, showScreenAlert, syncDate, syncInput]);
+	}, [
+		banksMap,
+		investmentForSync,
+		loadData,
+		showScreenAlert,
+		syncDate,
+		syncInput,
+	]);
 
 	const isInitialLoading = isLoading && investments.length === 0;
 
@@ -1572,475 +1702,497 @@ export default function FinancialListScreenWeb() {
 				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
 			/>
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
+				<ScrollView
+					keyboardShouldPersistTaps="handled"
+					className={webDashboardClassNames.fill}
+					contentContainerStyle={{ flexGrow: 1, paddingBottom: 48 }}
+					showsVerticalScrollIndicator={false}
+					refreshControl={
+						<RefreshControl
+							refreshing={isRefreshing}
+							onRefresh={() => void handleRefresh()}
+							tintColor="#FACC15"
+						/>
+					}
+				>
 					<View
-						className={`absolute top-0 left-0 right-0 ${cardBackground}`}
-						style={{ height: heroHeight }}
+						className={webDashboardClassNames.fill}
+						style={{ backgroundColor: surfaceBackground, position: 'relative' }}
 					>
-						<RNImage
-							source={LoginWallpaper}
-							accessibilityLabel="Background da lista de investimentos"
-							style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }}
-							resizeMode="cover"
-						/>
-						<WebScreenHero
-							title="Meus investimentos"
-							Illustration={FinancialListIllustration}
-							isDarkMode={isDarkMode}
-							topPadding={insets.top + 24}
-						/>
-					</View>
-
-					<ScrollView
-						keyboardShouldPersistTaps="handled"
-						className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
-						style={{ marginTop: heroHeight - 64 }}
-						contentContainerStyle={{ paddingBottom: 48 }}
-						refreshControl={
-							<RefreshControl
-								refreshing={isRefreshing}
-								onRefresh={() => void handleRefresh()}
-								tintColor="#FACC15"
+						<View
+							className={`${webDashboardClassNames.hero} ${cardBackground}`}
+							style={{ height: heroHeight }}
+						>
+							<RNImage
+								source={LoginWallpaper}
+								accessibilityLabel="Background da lista de investimentos"
+								className={webDashboardClassNames.heroImage}
+								style={{
+									width: '100%',
+									height: '100%',
+								}}
+								resizeMode="cover"
 							/>
-						}
-					>
-						<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4 gap-4`}>
-							<Heading
-								className="text-lg uppercase tracking-widest "
-								size="lg"
+							<WebScreenHero
+								title="Meus investimentos"
+								Illustration={FinancialListIllustration}
+								isDarkMode={isDarkMode}
+								topPadding={insets.top + 24}
+							/>
+						</View>
+
+						<View
+							className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+							style={{
+								marginTop: heroHeight - 64,
+								backgroundColor: surfaceBackground,
+								position: 'relative',
+								zIndex: 3,
+							}}
+						>
+							<View className={webDashboardClassNames.sheetInner}>
+							<VStack
+								className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} gap-4 pt-4`}
 							>
-								Visão da carteira
-							</Heading>
-							{isInitialLoading ? (
-								<VStack className="gap-4">
-									<View className="flex-row flex-wrap gap-3">
-										{Array.from({ length: 3 }).map((_, index) => (
+									<Heading
+										className="text-lg uppercase tracking-widest "
+										size="lg"
+									>
+										Visão da carteira
+									</Heading>
+									{isInitialLoading ? (
+										<VStack className="gap-4">
+											<View className="flex-row flex-wrap gap-3">
+												{Array.from({ length: 3 }).map((_, index) => (
+													<Skeleton
+														key={`financial-list-summary-${index}`}
+														className="h-24 min-w-[145px] flex-1 rounded-2xl"
+														baseColor={skeletonMutedBaseColor}
+														highlightColor={skeletonMutedHighlightColor}
+													/>
+												))}
+											</View>
 											<Skeleton
-												key={`financial-list-summary-${index}`}
-												className="h-24 min-w-[145px] flex-1 rounded-2xl"
+												className="h-16 rounded-[24px]"
 												baseColor={skeletonMutedBaseColor}
 												highlightColor={skeletonMutedHighlightColor}
 											/>
-										))}
-									</View>
-									<Skeleton
-										className="h-16 rounded-[24px]"
-										baseColor={skeletonMutedBaseColor}
-										highlightColor={skeletonMutedHighlightColor}
-									/>
-								</VStack>
-							) : (
-								<VStack className="gap-4">
-									<Box className={`${topSummaryCardClassName} px-4 py-4`}>
-										<VStack className="gap-3">
-											<HStack className="items-start justify-between gap-3">
-												<VStack className="flex-1 gap-1">
-													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-														CDI anual de referência
-													</Text>
-													<Heading size="xl" className="text-violet-600 dark:text-violet-300">
-														{activeCdiRate
-															? `${formatBasisPointsAsPercentage(activeCdiRate.annualRateInBasisPoints)}% a.a.`
-															: 'Não configurado'}
-													</Heading>
-												</VStack>
-												<Button variant="link" action="primary" onPress={handleOpenCdiSettings}>
-													<ButtonIcon as={SettingsIcon} size="sm" />
-													<ButtonText>Configurar</ButtonText>
-												</Button>
-											</HStack>
-											<Text className={`${helperText} text-xs leading-5`}>
-												{activeCdiRate
-													? `Vigente desde ${formatDateInput(activeCdiRate.effectiveFrom)} • ${ownCdiRateHistory.length} taxa${ownCdiRateHistory.length === 1 ? '' : 's'} no histórico.`
-													: 'Defina uma taxa de referência para ativar as projeções de renda fixa CDI.'}
-											</Text>
 										</VStack>
-									</Box>
-
-									{portfolioAnalytics.unconfiguredInvestmentIds.length > 0 ? (
-										<Box className={`${tintedCardClassName} px-4 py-3`}>
-											<HStack className="items-center justify-between gap-3">
-												<Text className={`${bodyText} flex-1 text-sm leading-5`}>
-													{portfolioAnalytics.unconfiguredInvestmentIds.length === 1
-														? '1 investimento está sem taxa CDI vigente; a projeção usa o último valor confirmado.'
-														: `${portfolioAnalytics.unconfiguredInvestmentIds.length} investimentos estão sem taxa CDI vigente; as projeções usam o último valor confirmado.`}
-												</Text>
-												<Button variant="link" action="primary" onPress={handleOpenCdiSettings}>
-													<ButtonText>Resolver</ButtonText>
-												</Button>
-											</HStack>
-										</Box>
-									) : null}
-
-									<View
-										style={{
-											flexDirection: isDesktopWeb ? 'row' : 'column',
-											alignItems: 'stretch',
-											gap: 16,
-										}}
-									>
-										<VStack
-											className="gap-4"
-											style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
-										>
-											<View className="flex-row flex-wrap gap-3">
-												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-														Patrimônio estimado
-													</Text>
-													<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-300">
-														{formatCurrencyInCents(portfolioAnalytics.projectedValueInCents)}
-													</Text>
-												</Box>
-												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-														Rendimento acumulado
-													</Text>
-													<Text
-														className={`mt-2 text-2xl font-bold ${portfolioAnalytics.totalGainInCents >= 0
-															? 'text-emerald-600 dark:text-emerald-400'
-															: 'text-rose-600 dark:text-rose-400'
-															}`}
-													>
-														{formatCurrencyInCents(portfolioAnalytics.totalGainInCents)}
-													</Text>
-												</Box>
-												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-														Aplicado líquido
-													</Text>
-													<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-300">
-														{formatCurrencyInCents(portfolioAnalytics.netAppliedInCents)}
-													</Text>
-												</Box>
-												<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-													<Text className={`${helperText} text-xs uppercase tracking-wide`}>
-														Próximo dia
-													</Text>
-													<Text className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-300">
-														{formatCurrencyInCents(portfolioAnalytics.dailyYieldInCents)}
-													</Text>
-												</Box>
-											</View>
-
-											<VStack className="gap-2">
-												<Text className={`${bodyText} text-sm font-semibold`}>
-													Rentabilidade por período
-												</Text>
-												<Box className={`${notTintedCardClassName} p-1.5`}>
-													<Tabs
-														value={performancePeriod}
-														onValueChange={handlePerformancePeriodChange}
-													>
-														<TabsList>
-															{performancePeriodOptions.map(option => (
-																<TabsTrigger
-																	key={option.value}
-																	value={option.value}
-																	className="flex-1 px-1"
-																>
-																	<TabsTriggerText className="text-xs">
-																		{option.label}
-																	</TabsTriggerText>
-																</TabsTrigger>
-															))}
-															<TabsIndicator />
-														</TabsList>
-													</Tabs>
-												</Box>
-											</VStack>
-										</VStack>
-
-										{investments.length > 0 ? (
-											<Box
-												className={`${notTintedCardClassName} px-4 py-4`}
-												style={isDesktopWeb ? { flex: 1.2, minWidth: 0 } : undefined}
-											>
-												<VStack className="gap-1">
-													<HStack className="items-center gap-2">
-														<Icon
-															as={CalendarDaysIcon}
-															size="md"
-															className={isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}
-														/>
-														<Heading size="md">Evolução da carteira</Heading>
+									) : (
+										<VStack className="gap-4">
+											<Box className={`${topSummaryCardClassName} px-4 py-4`}>
+												<VStack className="gap-3">
+													<HStack className="items-start justify-between gap-3">
+														<VStack className="flex-1 gap-1">
+															<Text
+																className={`${helperText} text-xs uppercase tracking-wide`}
+															>
+																CDI anual de referência
+															</Text>
+															<Heading
+																size="xl"
+																className="text-violet-600 dark:text-violet-300"
+															>
+																{activeCdiRate
+																	? `${formatBasisPointsAsPercentage(activeCdiRate.annualRateInBasisPoints)}% a.a.`
+																	: 'Não configurado'}
+															</Heading>
+														</VStack>
+														<Button
+															variant="link"
+															action="primary"
+															onPress={handleOpenCdiSettings}
+														>
+															<ButtonIcon as={SettingsIcon} size="sm" />
+															<ButtonText>Configurar</ButtonText>
+														</Button>
 													</HStack>
 													<Text className={`${helperText} text-xs leading-5`}>
-														Comparação entre capital líquido aplicado e patrimônio estimado no período selecionado.
+														{activeCdiRate
+															? `Vigente desde ${formatDateInput(activeCdiRate.effectiveFrom)} • ${ownCdiRateHistory.length} taxa${ownCdiRateHistory.length === 1 ? '' : 's'} no histórico.`
+															: 'Defina uma taxa de referência para ativar as projeções de renda fixa CDI.'}
 													</Text>
 												</VStack>
-												<View style={{ height: 292, marginTop: 6 }}>
-													<InvestmentEvolutionChart
-														data={portfolioAnalytics.evolution}
-														isDarkMode={isDarkMode}
-														shouldHideValues={shouldHideValues}
-														dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
-													/>
-												</View>
 											</Box>
-										) : null}
-									</View>
-								</VStack>
-							)}
 
-							<Button
-								className={`${submitButtonClassName}`}
-								onPress={handleNavigateToAdd}
-							>
-								<ButtonIcon as={AddIcon} size="sm" />
-								<ButtonText>Adicionar um novo investimento</ButtonText>
-								{isLoading && <ButtonSpinner />}
-							</Button>
+											{portfolioAnalytics.unconfiguredInvestmentIds.length >
+											0 ? (
+												<Box className={`${tintedCardClassName} px-4 py-3`}>
+															<HStack className="items-center justify-between gap-3">
+														<Text
+															className={`${bodyText} flex-1 text-sm leading-5`}
+														>
+															{portfolioAnalytics.unconfiguredInvestmentIds
+																.length === 1
+																? '1 investimento está sem taxa CDI vigente; a projeção usa o último valor confirmado.'
+																: `${portfolioAnalytics.unconfiguredInvestmentIds.length} investimentos estão sem taxa CDI vigente; as projeções usam o último valor confirmado.`}
+														</Text>
+														<Button
+															variant="link"
+															action="primary"
+															onPress={handleOpenCdiSettings}
+														>
+															<ButtonText>Resolver</ButtonText>
+														</Button>
+															</HStack>
+													</Box>
+											) : null}
 
-
-							{isInitialLoading ? (
-								<FinancialListSkeleton
-									skeletonBaseColor={skeletonBaseColor}
-									skeletonHighlightColor={skeletonHighlightColor}
-								/>
-							) : investments.length === 0 ? (
-								<Box
-									className={`${compactCardClassName} items-center px-5 py-6`}
-								>
-									<Text className={`text-center ${helperText}`}>
-										Você ainda não salvou nenhum investimento.
-									</Text>
-									<Button
-										variant="link"
-										action="primary"
-										onPress={handleNavigateToAdd}
-										className="mt-2"
-									>
-										<ButtonText>Registrar agora</ButtonText>
-									</Button>
-								</Box>
-							) : (
-								<VStack className="gap-2">
-									<View style={{ marginTop: 10 }}>
-										{investments.map((investment, index) => {
-											const performance = portfolioAnalytics.itemsByInvestmentId[investment.id];
-											const simulatedValueInCents =
-												performance?.projectedValueInCents ?? resolveBaseValueInCents(investment);
-											const dailyYieldInCents = performance?.dailyYieldInCents ?? 0;
-											const bankInfo = banksMap[investment.bankId];
-											const lastSyncLabel = getInvestmentManualSyncLabel(
-												investment,
-												formatCurrencyBRL,
-											);
-											const summaryText = getInvestmentSummaryText(
-												investment,
-												performance,
-												formatCurrencyBRL,
-											);
-											const isExpanded = expandedInvestmentIds.includes(
-												investment.id,
-											);
-											const badgeLabel = getInvestmentBadgeLabel(
-												investment.name,
-											);
-											const primaryInvestmentActions = [
-												{
-													key: 'deposit',
-													label: 'Aportar',
-													icon: AddIcon,
-													onPress: () => handleOpenDepositModal(investment),
-												},
-												{
-													key: 'withdrawal',
-													label: 'Resgatar',
-													icon: ArrowDownIcon,
-													onPress: () => handleOpenWithdrawalModal(investment),
-												},
-												{
-													key: 'sync',
-													label: 'Sincronizar',
-													icon: RepeatIcon,
-													onPress: () => handleOpenManualSyncModal(investment),
-												},
-											];
-											const secondaryInvestmentActions = [
-												{
-													key: 'edit',
-													label: 'Editar',
-													icon: EditIcon,
-													onPress: () => handleOpenEditModal(investment),
-												},
-												{
-													key: 'delete',
-													label: 'Excluir',
-													icon: TrashIcon,
-													onPress: () => handleRequestDelete(investment),
-												},
-											];
-											const bankAccentColor =
-												typeof bankInfo?.colorHex === 'string' &&
-													bankInfo.colorHex.trim().length > 0
-													? bankInfo.colorHex
-													: INVESTMENT_TIMELINE_TONE.accentColor;
-
-											return (
-												<View
-													key={investment.id}
-													style={{ flexDirection: 'row' }}
-												>
-													<View
-														style={{
-															alignItems: 'center',
-															width: '7%'
-														}}
-													>
-														<View
-															style={{
-																width: 14,
-																height: 14,
-																borderRadius: 999,
-																backgroundColor:
-																	INVESTMENT_TIMELINE_TONE.accentColor,
-																borderWidth: 2,
-																borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																shadowColor:
-																	INVESTMENT_TIMELINE_TONE.accentColor,
-																shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																shadowRadius: 8,
-																shadowOffset: { width: 0, height: 4 },
-																elevation: 2,
-															}}
-														/>
-														{index < investments.length - 1 ? (
-															<View
-																style={{
-																	flex: 1,
-																	width: 3,
-																	borderRadius: 999,
-																	marginVertical: 2,
-																	backgroundColor:
-																		INVESTMENT_TIMELINE_TONE.lineColor,
-																}}
-															/>
-														) : (
-															<View />
-														)}
+										<VStack space="lg">
+											<VStack space="lg">
+												<View className="flex-row flex-wrap gap-3">
+														<Box
+															className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+														>
+															<Text
+																className={`${helperText} text-xs uppercase tracking-wide`}
+															>
+																Patrimônio estimado
+															</Text>
+															<Text className="mt-2 text-2xl font-bold text-violet-600 dark:text-violet-300">
+																{formatCurrencyInCents(
+																	portfolioAnalytics.projectedValueInCents,
+																)}
+															</Text>
+														</Box>
+														<Box
+															className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+														>
+															<Text
+																className={`${helperText} text-xs uppercase tracking-wide`}
+															>
+																Rendimento acumulado
+															</Text>
+															<Text
+																className={`mt-2 text-2xl font-bold ${
+																	portfolioAnalytics.totalGainInCents >= 0
+																		? 'text-emerald-600 dark:text-emerald-400'
+																		: 'text-rose-600 dark:text-rose-400'
+																}`}
+															>
+																{formatCurrencyInCents(
+																	portfolioAnalytics.totalGainInCents,
+																)}
+															</Text>
+														</Box>
+														<Box
+															className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+														>
+															<Text
+																className={`${helperText} text-xs uppercase tracking-wide`}
+															>
+																Aplicado líquido
+															</Text>
+															<Text className="mt-2 text-2xl font-bold text-sky-600 dark:text-sky-300">
+																{formatCurrencyInCents(
+																	portfolioAnalytics.netAppliedInCents,
+																)}
+															</Text>
+														</Box>
+														<Box
+															className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}
+														>
+															<Text
+																className={`${helperText} text-xs uppercase tracking-wide`}
+															>
+																Próximo dia
+															</Text>
+															<Text className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-300">
+																{formatCurrencyInCents(
+																	portfolioAnalytics.dailyYieldInCents,
+																)}
+															</Text>
+														</Box>
 													</View>
 
-													<View style={{ width: '93%', paddingBottom: 14 }}>
-														<TouchableOpacity
-															activeOpacity={0.85}
-															onPress={() =>
-																handleToggleInvestmentCard(investment.id)
-															}
-															style={{ width: '100%' }}
+													<VStack className="gap-2">
+										<Text
+											className={`${webDashboardClassNames.sectionHeadingText} ${bodyText}`}
+										>
+															Rentabilidade por período
+														</Text>
+														<Box className={`${notTintedCardClassName} p-1.5`}>
+															<Tabs
+																value={performancePeriod}
+																onValueChange={handlePerformancePeriodChange}
+															>
+																<TabsList>
+																	{performancePeriodOptions.map((option) => (
+																		<TabsTrigger
+																			key={option.value}
+																			value={option.value}
+																			className="flex-1 px-1"
+																		>
+																			<TabsTriggerText className="text-xs">
+																				{option.label}
+																			</TabsTriggerText>
+																		</TabsTrigger>
+																	))}
+																	<TabsIndicator />
+																</TabsList>
+														</Tabs>
+														</Box>
+												</VStack>
+											</VStack>
+
+							{investments.length > 0 ? (
+								<VStack className="gap-2">
+									<Text className={`${helperText} uppercase mt-1`}>
+										Evolução da carteira
+									</Text>
+									<View style={{ height: 292 }}>
+										<InvestmentEvolutionChart
+											data={portfolioAnalytics.evolution}
+											isDarkMode={isDarkMode}
+											shouldHideValues={shouldHideValues}
+											dom={{
+												focusable: false,
+												scrollEnabled: true,
+												style: {
+													height: 292,
+													backgroundColor: 'transparent',
+												},
+										}}
+										/>
+									</View>
+						</VStack>
+					) : null}
+												</VStack>
+										</VStack>
+									)}
+
+									<Button
+										className={`${submitButtonClassName}`}
+										onPress={handleNavigateToAdd}
+									>
+										<ButtonIcon as={AddIcon} size="sm" />
+										<ButtonText>Adicionar um novo investimento</ButtonText>
+										{isLoading && <ButtonSpinner />}
+									</Button>
+
+									{isInitialLoading ? (
+										<FinancialListSkeleton
+											skeletonBaseColor={skeletonBaseColor}
+											skeletonHighlightColor={skeletonHighlightColor}
+										/>
+									) : investments.length === 0 ? (
+										<Box
+											className={`${compactCardClassName} items-center px-5 py-6`}
+										>
+											<Text className={`text-center ${helperText}`}>
+												Você ainda não salvou nenhum investimento.
+											</Text>
+											<Button
+												variant="link"
+												action="primary"
+												onPress={handleNavigateToAdd}
+												className="mt-2"
+											>
+												<ButtonText>Registrar agora</ButtonText>
+											</Button>
+										</Box>
+									) : (
+										<VStack className="gap-2">
+											<View className={webDashboardClassNames.timeline}>
+												{investments.map((investment, index) => {
+													const performance =
+														portfolioAnalytics.itemsByInvestmentId[
+															investment.id
+														];
+													const simulatedValueInCents =
+														performance?.projectedValueInCents ??
+														resolveBaseValueInCents(investment);
+													const dailyYieldInCents =
+														performance?.dailyYieldInCents ?? 0;
+													const bankInfo = banksMap[investment.bankId];
+													const lastSyncLabel = getInvestmentManualSyncLabel(
+														investment,
+														formatCurrencyBRL,
+													);
+													const summaryText = getInvestmentSummaryText(
+														investment,
+														performance,
+														formatCurrencyBRL,
+													);
+													const isExpanded = expandedInvestmentIds.includes(
+														investment.id,
+													);
+													const badgeLabel = getInvestmentBadgeLabel(
+														investment.name,
+													);
+													const primaryInvestmentActions = [
+														{
+															key: 'deposit',
+															label: 'Aportar',
+															icon: AddIcon,
+															onPress: () => handleOpenDepositModal(investment),
+														},
+														{
+															key: 'withdrawal',
+															label: 'Resgatar',
+															icon: ArrowDownIcon,
+															onPress: () =>
+																handleOpenWithdrawalModal(investment),
+														},
+														{
+															key: 'sync',
+															label: 'Sincronizar',
+															icon: RepeatIcon,
+															onPress: () =>
+																handleOpenManualSyncModal(investment),
+														},
+													];
+													const secondaryInvestmentActions = [
+														{
+															key: 'edit',
+															label: 'Editar',
+															icon: EditIcon,
+															onPress: () => handleOpenEditModal(investment),
+														},
+														{
+															key: 'delete',
+															label: 'Excluir',
+															icon: TrashIcon,
+															onPress: () => handleRequestDelete(investment),
+														},
+													];
+													const investmentActions = [
+														...primaryInvestmentActions,
+														...secondaryInvestmentActions,
+													];
+													const bankAccentColor =
+														typeof bankInfo?.colorHex === 'string' &&
+														bankInfo.colorHex.trim().length > 0
+															? bankInfo.colorHex
+															: INVESTMENT_TIMELINE_TONE.accentColor;
+
+													return (
+														<View
+															key={investment.id}
+															className={webDashboardClassNames.timelineRow}
 														>
-															<HStack className="items-center justify-between gap-3">
-																<HStack
-																	className="items-center gap-3"
-																	style={{ flex: 1 }}
-																>
-																	<LinearGradient
-																		colors={
-																			INVESTMENT_TIMELINE_TONE.iconGradient
+															<View
+																className={webDashboardClassNames.timelineRail}
+															>
+																<View
+																	className={webDashboardClassNames.timelineDot}
+																	style={{
+																		backgroundColor:
+																			INVESTMENT_TIMELINE_TONE.accentColor,
+																	}}
+																/>
+																{index < investments.length - 1 ? (
+																	<View
+																		className={
+																			webDashboardClassNames.timelineLine
 																		}
-																		start={{ x: 0, y: 0 }}
-																		end={{ x: 1, y: 1 }}
 																		style={{
-																			width: 44,
-																			height: 44,
-																			borderRadius: 16,
-																			alignItems: 'center',
-																			justifyContent: 'center',
-																			flexShrink: 0,
-																			position: 'relative',
+																			backgroundColor:
+																				INVESTMENT_TIMELINE_TONE.lineColor,
 																		}}
-																	>
-																		<Text
-																			style={{
-																				color: '#FFFFFF',
-																				fontSize: 18,
-																				fontWeight: '700',
-																			}}
-																		>
-																			{badgeLabel}
-																		</Text>
-																		<View
-																			style={{
-																				position: 'absolute',
-																				right: 6,
-																				bottom: 6,
-																				width: 8,
-																				height: 8,
-																				borderRadius: 999,
-																				backgroundColor: bankAccentColor,
-																				borderWidth: 1,
-																				borderColor: 'rgba(255,255,255,0.9)',
-																			}}
-																		/>
-																	</LinearGradient>
-
-																	<View style={{ flex: 1 }}>
-																		<Text
-																			numberOfLines={1}
-																			style={{
-																				color: timelinePalette.title,
-																				fontSize: 15,
-																				fontWeight: '700',
-																			}}
-																		>
-																			{investment.name}
-																		</Text>
-																		<Text
-																			numberOfLines={1}
-																			style={{
-																				marginTop: 2,
-																				color: timelinePalette.subtitle,
-																				fontSize: 12,
-																				lineHeight: 18,
-																			}}
-																		>
-																			{bankInfo?.name ?? 'Banco não informado'}
-																		</Text>
+																	/>
+																) : null}
 																	</View>
-																</HStack>
 
-																<HStack className="items-center gap-2">
-																	<VStack className="items-end">
-																		<Text
-																			style={{
-																				color:
-																					INVESTMENT_TIMELINE_TONE.amountColor,
-																				fontSize: 15,
-																				fontWeight: '700',
-																			}}
-																		>
-																			{formatCurrencyBRL(
-																				convertCentsToBRL(
-																					resolveBaseValueInCents(investment),
-																				),
-																			)}
-																		</Text>
-																		<HStack className="mt-1 items-center gap-1">
-																			<Icon
-																				as={CalendarDaysIcon}
-																				size="xs"
-																				className={
-																					isDarkMode
-																						? 'text-slate-500'
-																						: 'text-slate-400'
+																	<View
+																className={webDashboardClassNames.timelineBody}
+															>
+																<Pressable
+																	onPress={() =>
+																		handleToggleInvestmentCard(investment.id)
+																	}
+																	accessibilityRole="button"
+																	accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${investment.name}`}
+																	accessibilityState={{ expanded: isExpanded }}
+																	className={`${webDashboardClassNames.movementHeader} min-h-touch cursor-pointer rounded-2xl py-1 focus-visible:ring-2 focus-visible:ring-lumus-focus`}
+																>
+																	<View className="w-full flex-row items-center justify-between gap-3">
+																		<HStack className="min-w-0 flex-1 items-center gap-3">
+																			<LinearGradient
+																				colors={
+																					INVESTMENT_TIMELINE_TONE.iconGradient
 																				}
-																			/>
-																			<Text
+																				start={{ x: 0, y: 0 }}
+																				end={{ x: 1, y: 1 }}
 																				style={{
-																					color: timelinePalette.subtitle,
-																					fontSize: 11,
+																					width: 44,
+																					height: 44,
+																					borderRadius: 16,
+																					alignItems: 'center',
+																					justifyContent: 'center',
+																					flexShrink: 0,
+																					position: 'relative',
 																				}}
 																			>
-																				{
-																					redemptionTermLabels[
-																					investment.redemptionTerm
-																					]
-																				}
-																			</Text>
-																		</HStack>
-																	</VStack>
+																				<Text
+																					style={{
+																						color: '#FFFFFF',
+																						fontSize: 18,
+																						fontWeight: '700',
+																					}}
+																				>
+																					{badgeLabel}
+																				</Text>
+																				<View
+																					style={{
+																						position: 'absolute',
+																						right: 6,
+																						bottom: 6,
+																						width: 8,
+																						height: 8,
+																						borderRadius: 999,
+																						backgroundColor: bankAccentColor,
+																						borderWidth: 1,
+																						borderColor:
+																							'rgba(255,255,255,0.9)',
+																					}}
+																				/>
+																			</LinearGradient>
 
+																			<View className="min-w-0 flex-1">
+															<Text
+																isTruncated
+																className={`${webDashboardClassNames.movementName} ${bodyText}`}
+																				>
+																					{investment.name}
+																				</Text>
+															<Text
+																isTruncated
+																className={`${webDashboardClassNames.movementSubtitle} ${helperText}`}
+																				>
+																					{bankInfo?.name ??
+																						'Banco não informado'}
+																				</Text>
+																			</View>
+																		</HStack>
+
+															<View className={webDashboardClassNames.movementAmount}>
+																<Text
+																					className={`${webDashboardClassNames.amount} text-lumus-income-light dark:text-lumus-income-dark`}
+																				>
+																					{formatCurrencyBRL(
+																						convertCentsToBRL(
+																							resolveBaseValueInCents(
+																								investment,
+																							),
+																						),
+																					)}
+																				</Text>
+																				<HStack className="mt-1 items-center gap-1">
+																					<Icon
+																						as={CalendarDaysIcon}
+																						size="xs"
+																						className="text-slate-500"
+																					/>
+																					<Text
+																						className={`${webDashboardClassNames.dateText} ${helperText}`}
+																					>
+																						{
+																							redemptionTermLabels[
+																								investment.redemptionTerm
+																							]
+																			}
+																	</Text>
 																	<Icon
 																		as={
 																			isExpanded
@@ -2048,298 +2200,254 @@ export default function FinancialListScreenWeb() {
 																				: ChevronDownIcon
 																		}
 																		size="sm"
-																		className={
-																			isDarkMode
-																				? 'text-slate-400'
-																				: 'text-slate-500'
-																		}
+																		className="text-slate-500"
 																	/>
-																</HStack>
-															</HStack>
-														</TouchableOpacity>
-
-														{isExpanded ? (
-															<LinearGradient
-																colors={INVESTMENT_TIMELINE_TONE.cardGradient}
-																start={{ x: 0, y: 0 }}
-																end={{ x: 1, y: 1 }}
-																style={{
-																	marginTop: 10,
-																	marginRight: 16,
-																	borderRadius: 20,
-																	paddingHorizontal: 16,
-																	paddingVertical: 14,
-																}}
-															>
-																<VStack className="gap-3">
-																	<HStack className="items-start justify-between gap-4">
-																		<VStack className="flex-1">
-																			<Text
-																				style={{
-																					fontSize: 10,
-																					fontWeight: '700',
-																					letterSpacing: 0.4,
-																					color: 'rgba(255,255,255,0.74)',
-																					textTransform: 'uppercase',
-																				}}
-																			>
-																				Resumo
-																			</Text>
-																			<Text
-																				style={{
-																					fontSize: 13,
-																					lineHeight: 19,
-																					color: '#FFFFFF',
-																					textAlign: 'justify',
-																				}}
-																			>
-																				{summaryText}
-																			</Text>
-																		</VStack>
-
-
 																	</HStack>
+															</View>
+																	</View>
+																</Pressable>
 
-																	<View
-																		style={{
-																			flexDirection: 'row',
-																			flexWrap: 'wrap',
-																			columnGap: 14,
-																			rowGap: 10,
-																		}}
+																{renderedInvestmentIds.includes(
+																	investment.id,
+																) ? (
+																	<AnimatedContent
+																		key={`${investment.id}:detail`}
+																		trigger="mount"
+																		visible={isExpanded}
+																		distance={18}
+																		duration={0.36}
+																		disappearDuration={0.28}
+																		disappearScale={1}
+																		ease="power3.out"
+																		initialOpacity={0}
+																		animateOpacity
+																		scale={1}
+																		className={
+																			webDashboardClassNames.movementDetailAnimation
+																		}
+																		onDisappearanceComplete={() =>
+																			setRenderedInvestmentIds((rendered) =>
+																				rendered.filter(
+																					(id) => id !== investment.id,
+																				),
+																			)
+																		}
 																	>
-																		{[
-																			{
-																				label: 'Valor inicial',
-																				value: formatCurrencyBRL(
-																					convertCentsToBRL(
-																						investment.initialValueInCents,
-																					),
-																				),
-																			},
-																			{
-																				label: 'Patrimônio estimado',
-																				value:
-																					formatCurrencyBRL(
-																						convertCentsToBRL(simulatedValueInCents),
-																					),
-																			},
-																			{
-																				label: 'Próximo dia',
-																				value: formatCurrencyBRL(
-																					convertCentsToBRL(dailyYieldInCents),
-																				),
-																			},
-																			{
-																				label: 'Produto',
-																				value: investmentAssetTypeLabels[investment.assetType],
-																			},
-																			{
-																				label: 'Percentual CDI',
-																				value:
-																					investment.valuationMethod === 'cdi'
-																						? `${formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints)}%`
-																						: 'Atualização manual',
-																			},
-																			{
-																				label: 'Banco',
-																				value:
-																					bankInfo?.name ??
-																					'Banco não informado',
-																			},
-																			{
-																				label: 'Liquidez',
-																				value:
-																					redemptionTermLabels[
-																					investment.redemptionTerm
-																					],
-																			},
-																		].map((item) => (
+																		<View
+																			className={
+																				webDashboardClassNames.movementDetail
+																			}
+																		>
 																			<View
-																				key={`${investment.id}-${item.label}`}
-																				style={{ width: '46%', minWidth: 128 }}
+																				pointerEvents="none"
+																				className={
+																					webDashboardClassNames.movementDetailGrainient
+																				}
 																			>
-																				<Text
-																					style={{
-																						fontSize: 10,
-																						fontWeight: '700',
-																						letterSpacing: 0.4,
-																						color: 'rgba(255,255,255,0.72)',
-																						textTransform: 'uppercase',
-																					}}
-																				>
-																					{item.label}
-																				</Text>
-																				<Text
-																					style={{
-																						marginTop: 3,
-																						fontSize: 13,
-																						lineHeight: 18,
-																						color: '#FFFFFF',
-																					}}
-																				>
-																					{item.value}
-																				</Text>
+																				<Grainient
+																					className="investment-detail-grainient"
+																					timeSpeed={0.1}
+																					warpStrength={0.8}
+																					warpFrequency={3.5}
+																					warpSpeed={1.6}
+																					warpAmplitude={90}
+																					blendSoftness={0.2}
+																					grainAmount={0.06}
+																					grainScale={3}
+																					grainAnimated
+																					contrast={1.12}
+																					zoom={1.05}
+																					color1={
+																						INVESTMENT_TIMELINE_TONE
+																							.iconGradient[0]
+																					}
+																					color2={
+																						INVESTMENT_TIMELINE_TONE.accentColor
+																					}
+																					color3={
+																						INVESTMENT_TIMELINE_TONE
+																							.iconGradient[1]
+																					}
+																				/>
 																			</View>
-																		))}
-																	</View>
-
-																	<View style={{ paddingTop: 2 }}>
-																		<Text
-																			style={{
-																				fontSize: 10,
-																				fontWeight: '700',
-																				letterSpacing: 0.4,
-																				color: 'rgba(255,255,255,0.72)',
-																				textTransform: 'uppercase',
-																			}}
-																		>
-																			Sincronização manual
-																		</Text>
-																		<Text
-																			style={{
-																				marginTop: 6,
-																				fontSize: 13,
-																				lineHeight: 18,
-																				color: '#FFFFFF',
-																			}}
-																		>
-																			{lastSyncLabel}
-																		</Text>
-																		<Text
-																			style={{
-																				marginTop: 4,
-																				fontSize: 11,
-																				lineHeight: 16,
-																				color: 'rgba(255,255,255,0.72)',
-																			}}
-																		>
-																			Cadastrado em{' '}
-																			{formatDateToBR(investment.createdAtISO)}
-																		</Text>
-																	</View>
-
-																	{investment.description ? (
-																		<View style={{ paddingTop: 2 }}>
-																			<Text
-																				style={{
-																					fontSize: 10,
-																					fontWeight: '700',
-																					letterSpacing: 0.4,
-																					color: 'rgba(255,255,255,0.72)',
-																					textTransform: 'uppercase',
-																				}}
+																			<View
+																				className={
+																					webDashboardClassNames.movementDetailContent
+																				}
 																			>
-																				Descrição
-																			</Text>
-																			<Text
-																				style={{
-																					marginTop: 6,
-																					fontSize: 13,
-																					lineHeight: 18,
-																					color: '#FFFFFF',
-																				}}
-																			>
-																				{investment.description}
-																			</Text>
-																		</View>
-																	) : null}
+																				<VStack className="gap-3">
+																					<HStack className="items-start justify-between gap-4">
+																						<VStack className="flex-1">
+																							<Text
+																								className={
+																									webDashboardClassNames.detailLabel
+																								}
+																							>
+																								Resumo
+																							</Text>
+																							<Text
+																								className={
+																									webDashboardClassNames.detailText
+																								}
+																							>
+																								{summaryText}
+																							</Text>
+																						</VStack>
+																					</HStack>
 
-																	<View style={{ paddingTop: 2, gap: 2 }}>
-																		<View
-																			style={{
-																				flexDirection: 'row',
-																				columnGap: 12,
-																			}}
-																		>
-																			{primaryInvestmentActions.map((action) => (
-																				<TouchableOpacity
-																					key={`${investment.id}-${action.key}`}
-																					activeOpacity={0.85}
-																					onPress={action.onPress}
-																					style={{
-																						width: '31%',
-																						minHeight: 30,
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 4,
-																					}}
-																				>
-																					<Icon
-																						as={action.icon}
-																						size="sm"
-																						className="text-white"
-																					/>
-																					<Text
-																						className="text-xs font-semibold text-white"
-																						style={{ flexShrink: 1 }}
-																					>
-																						{action.label}
-																					</Text>
-																				</TouchableOpacity>
-																			))}
-																		</View>
+															<View className={webDashboardClassNames.detailGrid}>
+																						{[
+																							{
+																								label: 'Valor inicial',
+																								value: formatCurrencyBRL(
+																									convertCentsToBRL(
+																										investment.initialValueInCents,
+																									),
+																								),
+																							},
+																							{
+																								label: 'Patrimônio estimado',
+																								value: formatCurrencyBRL(
+																									convertCentsToBRL(
+																										simulatedValueInCents,
+																									),
+																								),
+																							},
+																							{
+																								label: 'Próximo dia',
+																								value: formatCurrencyBRL(
+																									convertCentsToBRL(
+																										dailyYieldInCents,
+																									),
+																								),
+																							},
+																							{
+																								label: 'Produto',
+																								value:
+																									investmentAssetTypeLabels[
+																										investment.assetType
+																									],
+																							},
+																							{
+																								label: 'Percentual CDI',
+																								value:
+																									investment.valuationMethod ===
+																									'cdi'
+																										? `${formatBasisPointsAsPercentage(investment.cdiPercentageInBasisPoints)}%`
+																										: 'Atualização manual',
+																							},
+																							{
+																								label: 'Banco',
+																								value:
+																									bankInfo?.name ??
+																									'Banco não informado',
+																							},
+																							{
+																								label: 'Liquidez',
+																								value:
+																									redemptionTermLabels[
+																										investment.redemptionTerm
+																									],
+																							},
+																						].map((item) => (
+																	<View
+																		key={`${investment.id}-${item.label}`}
+																		className={webDashboardClassNames.detailItem}
+																	>
+																		<Text className={webDashboardClassNames.detailLabel}>
+																									{item.label}
+																								</Text>
+																		<Text className={webDashboardClassNames.detailText}>
+																									{item.value}
+																								</Text>
+																							</View>
+																						))}
+																					</View>
 
-																		<View
-																			style={{
-																				flexDirection: 'row',
-																				columnGap: 12,
-																			}}
-																		>
-																			{secondaryInvestmentActions.map((action) => (
-																				<TouchableOpacity
-																					key={`${investment.id}-${action.key}`}
-																					activeOpacity={0.85}
-																					onPress={action.onPress}
-																					style={{
-																						width: '31%',
-																						minHeight: 30,
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 4,
-																					}}
-																				>
-																					<Icon
-																						as={action.icon}
-																						size="sm"
-																						className="text-white"
-																					/>
-																					<Text
-																						className="text-xs font-semibold text-white"
-																						style={{ flexShrink: 1 }}
-																					>
-																						{action.label}
-																					</Text>
-																				</TouchableOpacity>
-																			))}
+															<View className={webDashboardClassNames.detailSection}>
+																<Text className={webDashboardClassNames.detailLabel}>
+																							Sincronização manual
+																						</Text>
+																<Text className={webDashboardClassNames.detailText}>
+																							{lastSyncLabel}
+																						</Text>
+																<Text className={webDashboardClassNames.detailHelper}>
+																							Cadastrado em{' '}
+																							{formatDateToBR(
+																								investment.createdAtISO,
+																							)}
+																						</Text>
+																					</View>
+
+															{investment.description ? (
+																<View className={webDashboardClassNames.detailSection}>
+																	<Text className={webDashboardClassNames.detailLabel}>
+																								Descrição
+																							</Text>
+																	<Text className={webDashboardClassNames.detailText}>
+																								{investment.description}
+																							</Text>
+																						</View>
+																					) : null}
+
+															<View className={webDashboardClassNames.detailActions}>
+																	{investmentActions.map(
+																								(action) => (
+																									<Pressable
+																										key={`${investment.id}-${action.key}`}
+																										onPress={action.onPress}
+																										accessibilityRole="button"
+																										accessibilityLabel={`${action.label} em ${investment.name}`}
+																			className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
+																									>
+																										<Icon
+																											as={action.icon}
+																											size="sm"
+																											className="text-white"
+																										/>
+																										<Text
+																			className="text-xs font-semibold text-white"
+																										>
+																											{action.label}
+																										</Text>
+																									</Pressable>
+																	),
+																)}
+																</View>
+																				</VStack>
+																			</View>
 																		</View>
-																	</View>
-																</VStack>
-															</LinearGradient>
-														) : null}
-													</View>
-												</View>
-											);
-										})}
-									</View>
+																	</AnimatedContent>
+																) : null}
+															</View>
+														</View>
+													);
+												})}
+											</View>
+										</VStack>
+									)}
 								</VStack>
-							)}
-						</VStack>
-					</ScrollView>
-				</View>
+							</View>
+						</View>
+					</View>
+				</ScrollView>
 
-				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+				<View
+					style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}
+				>
 					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
 				</View>
-				<Modal isOpen={isCdiSettingsOpen} onClose={handleCloseCdiSettings}>
+				<Modal
+					size="md"
+					isOpen={isCdiSettingsOpen}
+					onClose={handleCloseCdiSettings}
+				>
 					<ModalBackdrop />
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
-						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalContent className={modalContentClassName}>
 							<ModalHeader>
 								<ModalTitle>Taxa CDI anual</ModalTitle>
 								<ModalCloseButton onPress={handleCloseCdiSettings} />
@@ -2352,18 +2460,23 @@ export default function FinancialListScreenWeb() {
 								>
 									<VStack className="gap-2">
 										<Text className={`${bodyText} text-sm leading-5`}>
-											Cadastre a taxa anual de referência e sua data de vigência. A carteira aplica cada alteração somente a partir da data informada, sem criar transações.
+											Cadastre a taxa anual de referência e sua data de
+											vigência. A carteira aplica cada alteração somente a
+											partir da data informada, sem criar transações.
 										</Text>
 										{renderStandardizedInput({
 											label: 'CDI anual (%)',
 											value: cdiRateInput,
-											onChangeText: text => setCdiRateInput(sanitizeNumberInput(text)),
+											onChangeText: (text) =>
+												setCdiRateInput(sanitizeNumberInput(text)),
 											placeholder: 'Ex: 13,75',
 											keyboardType: 'decimal-pad',
 											isDisabled: isSavingCdiRate,
 										})}
 										<VStack className="mb-2 gap-1">
-											<Text className={`${bodyText} ml-1 text-sm`}>Vigência da taxa</Text>
+											<Text className={`${bodyText} ml-1 text-sm`}>
+												Vigência da taxa
+											</Text>
 											<DatePickerField
 												accessibilityLabel="Selecionar início de vigência da taxa CDI"
 												value={cdiEffectiveDate}
@@ -2375,29 +2488,41 @@ export default function FinancialListScreenWeb() {
 										</VStack>
 
 										<VStack className="mt-2 gap-2">
-											<Text className={`${bodyText} text-sm font-semibold`}>Histórico salvo</Text>
+											<Text className={`${bodyText} text-sm font-semibold`}>
+												Histórico salvo
+											</Text>
 											{ownCdiRateHistory.length === 0 ? (
 												<Box className={`${tintedCardClassName} px-3 py-3`}>
 													<Text className={`${helperText} text-xs leading-5`}>
-														Nenhuma taxa foi cadastrada ainda. Enquanto não houver uma taxa vigente, a projeção conserva o valor sincronizado.
+														Nenhuma taxa foi cadastrada ainda. Enquanto não
+														houver uma taxa vigente, a projeção conserva o valor
+														sincronizado.
 													</Text>
 												</Box>
 											) : (
-												ownCdiRateHistory.slice(0, 6).map(rate => (
+												ownCdiRateHistory.slice(0, 6).map((rate) => (
 													<HStack
 														key={rate.id}
 														className={`${notTintedCardClassName} items-center justify-between px-3 py-3`}
 													>
 														<VStack className="gap-1">
-															<Text className={`${bodyText} text-sm font-semibold`}>
-																{formatBasisPointsAsPercentage(rate.annualRateInBasisPoints)}% a.a.
+															<Text
+																className={`${bodyText} text-sm font-semibold`}
+															>
+																{formatBasisPointsAsPercentage(
+																	rate.annualRateInBasisPoints,
+																)}
+																% a.a.
 															</Text>
 															<Text className={`${helperText} text-xs`}>
-																Vigente desde {formatDateInput(rate.effectiveFrom)}
+																Vigente desde{' '}
+																{formatDateInput(rate.effectiveFrom)}
 															</Text>
 														</VStack>
 														{activeCdiRate?.id === rate.id ? (
-															<Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Atual</Text>
+															<Text className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+																Atual
+															</Text>
 														) : null}
 													</HStack>
 												))
@@ -2433,13 +2558,17 @@ export default function FinancialListScreenWeb() {
 						</ModalContent>
 					</KeyboardAvoidingView>
 				</Modal>
-				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
+				<Modal
+					size="md"
+					isOpen={Boolean(editingInvestment)}
+					onClose={closeEditModal}
+				>
 					<ModalBackdrop />
 					<KeyboardAvoidingView
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
-						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+						<ModalContent className={modalContentClassName}>
 							<ModalHeader>
 								<ModalTitle>Editar investimento</ModalTitle>
 								<ModalCloseButton onPress={closeEditModal} />
@@ -2540,8 +2669,8 @@ export default function FinancialListScreenWeb() {
 														value={
 															editBankId
 																? (bankOptions.find(
-																	(bank) => bank.id === editBankId,
-																)?.name ?? '')
+																		(bank) => bank.id === editBankId,
+																	)?.name ?? '')
 																: ''
 														}
 														className={inputField}
@@ -2621,11 +2750,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentForDepositSync)}
 					onClose={handleCloseDepositSyncModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Sincronização</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDepositSyncModal} />
@@ -2647,7 +2777,9 @@ export default function FinancialListScreenWeb() {
 								isDisabled: isSavingDepositSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									Data da sincronização
+								</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização do aporte"
 									value={depositSyncDate}
@@ -2687,11 +2819,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentForDeposit)}
 					onClose={handleCloseDepositModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Adicionar ao investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDepositModal} />
@@ -2725,7 +2858,9 @@ export default function FinancialListScreenWeb() {
 								isDisabled: isSavingDeposit,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do aporte</Text>
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									Data do aporte
+								</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data do aporte"
 									value={depositDate}
@@ -2765,11 +2900,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentForWithdrawalSync)}
 					onClose={handleCloseWithdrawalSyncModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Sincronizar antes de resgatar</ModalTitle>
 							<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
@@ -2791,7 +2927,9 @@ export default function FinancialListScreenWeb() {
 								isDisabled: isSavingWithdrawalSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									Data da sincronização
+								</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização do resgate"
 									value={withdrawSyncDate}
@@ -2831,11 +2969,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentForWithdrawal)}
 					onClose={handleCloseWithdrawalModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Resgatar investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseWithdrawalModal} />
@@ -2869,7 +3008,9 @@ export default function FinancialListScreenWeb() {
 								isDisabled: isSavingWithdrawal,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do resgate</Text>
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									Data do resgate
+								</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data do resgate"
 									value={withdrawalDate}
@@ -2909,11 +3050,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentForSync)}
 					onClose={handleCloseManualSyncModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Sincronizar valor real</ModalTitle>
 							<ModalCloseButton onPress={handleCloseManualSyncModal} />
@@ -2935,7 +3077,9 @@ export default function FinancialListScreenWeb() {
 								isDisabled: isSavingSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									Data da sincronização
+								</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização manual"
 									value={syncDate}
@@ -2975,11 +3119,12 @@ export default function FinancialListScreenWeb() {
 				</Modal>
 
 				<Modal
+					size="md"
 					isOpen={Boolean(investmentPendingDeletion)}
 					onClose={handleCloseDeleteModal}
 				>
 					<ModalBackdrop />
-					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalContent className={modalContentClassName}>
 						<ModalHeader>
 							<ModalTitle>Excluir investimento</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDeleteModal} />

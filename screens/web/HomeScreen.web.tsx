@@ -953,7 +953,7 @@ export default function HomeScreen() {
 
 
 								<View
-									className={webStyles.expenseChartSection} style={{ borderColor: webDashboardPalette.border }}
+									className={webStyles.expenseChartSection}
 								>
 									<View className={webStyles.sectionHeading}>
 										<View className={webStyles.headingWithTip}>
@@ -988,7 +988,7 @@ export default function HomeScreen() {
 								</View>
 
 								<View
-									className={webStyles.activityHeatmapSection} style={{ borderColor: webDashboardPalette.border }}
+									className={webStyles.activityHeatmapSection}
 								>
 									<View className={webStyles.sectionHeading}>
 										<View className={webStyles.headingWithTip}>
@@ -1028,7 +1028,7 @@ export default function HomeScreen() {
 								</View>
 
 								<View
-									className={webStyles.mandatorySection} style={{ borderColor: webDashboardPalette.border }}
+									className={webStyles.mandatorySection}
 								>
 									<View className={webStyles.sectionHeading}>
 										<View className={webStyles.headingWithTip}>

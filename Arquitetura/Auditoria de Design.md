@@ -2,6 +2,69 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — Home Web sem cards externos, 2026-09-19
+
+- **Achado:** `Gastos por dia`, `Atividade no ano` e `Próximos compromissos` ainda apresentavam uma moldura externa, embora os gráficos, labels e cards internos já expressassem a hierarquia necessária.
+- **Correção:** `HomeScreen.web.tsx` mantém os conteúdos e estados originais e remove somente `border`/`rounded-section` dos três wrappers; o padding estrutural permanece, e os cards de cada coluna de compromissos não foram alterados.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` continua falhando por dívidas já existentes no dashboard/configurações e na linha de base de `useScreenStyles`.
+- **Risco residual:** não houve sessão autenticada disponível para inspeção visual com dados reais nem medição de Core Web Vitals; o Chrome DevTools MCP não está configurado.
+
+## Checkpoint — padronização dos labels de seção Web, 2026-09-19
+
+- **Achado:** os títulos da Home Web e o label **Rentabilidade por período** usavam combinações diferentes de tamanho, peso e espaçamento, enquanto **Calendário de Vencimentos** já estabelecia uma hierarquia clara para cabeçalhos de seção.
+- **Correção:** `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` agora centraliza `text-lg font-bold uppercase tracking-widest`; a Home aplica o contrato às seis seções citadas, a carteira aplica-o em **Rentabilidade por período** e `date-calendar.web.tsx` explicita o mesmo contrato no cabeçalho de referência. Nenhum conteúdo, estado, ação ou fluxo financeiro foi alterado.
+- **Validação:** `npm run typecheck`, `npm run typecheck:backend`, `npm run test -- --runInBand` (38 suítes/222 testes), `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` e o gate `npm run check` continuam bloqueados somente pela dívida preexistente de `ConfigurationsScreen.web.tsx` e pela linha de base de `useScreenStyles`.
+- **Risco residual:** não há Chrome DevTools MCP disponível para captura autenticada, medição de Core Web Vitals ou inspeção visual em runtime; a revisão desta fase fica limitada ao código e ao build estático.
+
+## Checkpoint — separação do cabeçalho da carteira Web, 2026-09-19
+
+- **Achado:** o cabeçalho recolhido da timeline de investimentos agrupava visualmente valor, liquidez e chevron, reduzindo a separação entre identidade e metadados observada na timeline de gastos obrigatórios.
+- **Correção:** `FinancialListScreen.web.tsx` passou a usar uma linha de largura total, com identidade flexível à esquerda e `movementAmount` ancorado à direita; liquidez e chevron ficam juntos na linha inferior do bloco de valor.
+- **Validação:** `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua limitado às dívidas preexistentes de `ConfigurationsScreen.web.tsx` e da linha de base de `useScreenStyles`.
+- **Risco residual:** não houve sessão autenticada nem Chrome DevTools MCP disponível para inspeção visual com dados reais.
+
+## Checkpoint — tamanho responsivo dos modais da carteira Web, 2026-09-19
+
+- **Achado:** os oito modais de `FinancialListScreen.web.tsx` recebiam `max-w-[360px]` diretamente em `ModalContent`, comprimindo formulários longos e ignorando o tamanho responsivo do componente compartilhado.
+- **Correção:** a variante Web passou a declarar `Modal size="md"` e usa somente `modalContentClassName`; os diálogos ocupam aproximadamente 80% da viewport, limitados a 510px, enquanto Android/iOS continuam com a composição nativa compacta.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` continua limitado às dívidas preexistentes em `ConfigurationsScreen.web.tsx` e na linha de base de `useScreenStyles`.
+- **Risco residual:** não houve sessão autenticada nem Chrome DevTools MCP disponível para inspeção visual e medição de Core Web Vitals.
+
+## Checkpoint — gráfico sem moldura externa na carteira Web, 2026-09-19
+
+- **Achado:** o gráfico de evolução ainda carregava um `Box` externo, um título com ícone e um subtítulo que duplicavam a informação visual e mantinham uma moldura desnecessária ao redor do `AreaChart`.
+- **Correção:** `FinancialListScreen.web.tsx` mantém o gráfico em sua linha exclusiva, mas renderiza somente a superfície transparente do `InvestmentEvolutionChart`; o `AreaChart`, suas séries, legenda, tooltip, privacidade e rolagem horizontal permanecem inalterados.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` continua condicionado à dívida preexistente de `screens/web/ConfigurationsScreen.web.tsx` e da linha de base de `useScreenStyles`; o Chrome DevTools MCP segue indisponível para Core Web Vitals.
+- **Risco residual:** não houve sessão autenticada disponível para inspeção visual com dados reais.
+
+## Checkpoint — label utilitário do gráfico da carteira Web, 2026-09-19
+
+- **Achado:** após retirar o cabeçalho descritivo do gráfico, faltava a identificação compacta usada pelos gráficos da lista de despesas obrigatórias.
+- **Correção:** `FinancialListScreen.web.tsx` adicionou o label **Evolução da carteira** com `helperText`, caixa alta e `mt-1`, seguido por `gap-2`, no mesmo formato de `MandatoryExpensesListScreen.web.tsx`. O gráfico continua sem card externo e sem subtítulo.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram; `npm run lint:styles` permanece limitado à dívida preexistente da central de configurações e da linha de base de `useScreenStyles`.
+- **Risco residual:** não houve sessão autenticada disponível para inspeção visual com dados reais.
+
+## Checkpoint — hierarquia vertical da carteira Web, 2026-09-18
+
+- **Achado:** no desktop, o resumo de indicadores e o card de evolução ocupavam colunas lado a lado, reduzindo a largura disponível para o gráfico e enfraquecendo a leitura sequencial da carteira.
+- **Correção:** `FinancialListScreen.web.tsx` passou a manter os indicadores — patrimônio estimado, rendimento acumulado, aplicado líquido e próximo dia — e as tabs de rentabilidade acima; o gráfico de evolução agora ocupa uma linha exclusiva abaixo. A alteração é estrutural apenas: dados, privacidade, série Expo DOM, cálculos em centavos e ações Firebase permanecem iguais.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` continua falhando somente pela dívida preexistente de `screens/web/ConfigurationsScreen.web.tsx` e da linha de base de `useScreenStyles`; a carteira não adicionou ocorrências. A medição de Core Web Vitals não foi feita porque o Chrome DevTools MCP não está configurado neste ambiente.
+- **Risco residual:** não houve sessão autenticada para inspeção visual com dados reais; a avaliação fica limitada ao código e ao export Web.
+
+## Checkpoint — carteira Web, 2026-09-18
+
+- **Achado:** a timeline de investimentos preservava a estrutura de toque e o gradiente estático da composição mobile, enquanto os formulários dos modais não consumiam o contrato de labels Web. Isso deixava foco de teclado, expansão e hierarquia visual diferentes das demais listas convertidas.
+- **Correção:** `FinancialListScreen.web.tsx` passou a reutilizar o trilho, a superfície expansível `Grainient`, a entrada/saída `AnimatedContent`, o foco `lumus-focus` e o alvo de 44 px da timeline Web de despesas obrigatórias. A rolagem passou para o contêiner externo e a `sheet` é uma `View`, replicando o encaixe imediato entre hero e formulário de `AddRegisterExpensesScreen.web.tsx` e `AddRegisterGainScreen.web.tsx`; o bloco interno usa `pt-4`, equivalente aos 16px do encaixe de `MandatoryGainsListScreen.web.tsx`, sem o excesso de `pt-7`. Os campos reutilizáveis dos modais recebem `WEB_EXPENSE_CLASS_NAMES`; loaders Firebase, privacidade, cálculos em centavos e os sete fluxos operacionais foram preservados.
+- **Validação:** `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` não introduz dívida na carteira; o comando ainda falha pela variante pré-existente `screens/web/ConfigurationsScreen.web.tsx`, fora deste escopo.
+- **Risco residual:** não houve sessão autenticada disponível para inspeção visual dos dados reais ou medição de Core Web Vitals; o ambiente não expõe o MCP Chrome DevTools requerido para a coleta.
+
+## Checkpoint — Configurações Web e carregamento contextual, 2026-09-18
+
+- **Achado:** `/web/home?tab=2` reutilizava a tela mobile; além disso, a consulta de `adminUser` substituía toda a central por um skeleton, embora apenas a seção de usuários dependa dessa permissão.
+- **Correção:** criada `screens/web/ConfigurationsScreen.web.tsx` e selecionada explicitamente por `HomeTabsScreen.web.tsx`. A variante Web não monta o navigator inferior nativo. Nas duas plataformas, a central permanece disponível durante a checagem de administrador e os carregamentos das coleções permanecem no accordion correspondente.
+- **Validação:** lint de estilos identificou a nova variante como dívida a registrar/refatorar por ter partido da composição canônica. A referência preexistente a `TouchableOpacity` na carteira foi substituída durante a padronização seguinte; `npm run typecheck` e `npm run web:export` passam.
+- **Risco residual:** a composição Web ainda compartilha contratos visuais legados da central (uso da fachada `useScreenStyles` e estilos de fronteira React Native Web); uma redução dessa dívida requer extrair os contratos de tabela/shell, fora desta correção funcional.
+
 ## Checkpoint — ações primárias com texto branco, 2026-09-14
 
 - **Achado:** o amarelo claro `#FACC15` com texto branco tem contraste de 1,53:1.
@@ -55,7 +118,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Registrar categoria | mobile | `/mobile/add-register-tag` | `screens/mobile/AddRegisterTagScreen.tsx` | formulário, busca e grade de ícones | `useScreenStyles`, NativeWind | Estados de seleção locais | P2 |
 | Gasto obrigatório | mobile | `/mobile/add-mandatory-expenses` | `screens/mobile/AddMandatoryExpensesScreen.tsx` | formulário, parcelas, lembrete | `useScreenStyles`, NativeWind, estilos de picker | Densidade e estados complexos sem variante única | P1 |
 | Ganho obrigatório | mobile | `/mobile/add-mandatory-gains` | `screens/mobile/AddMandatoryGainsScreen.tsx` | formulário, parcelas, lembrete | `useScreenStyles`, NativeWind, estilos de picker | Densidade e estados complexos sem variante única | P1 |
-| Investimento | mobile/web fallback | `/mobile/add-finance`, `/web/add-finance` | `screens/mobile/AddFinanceScreen.tsx` | formulário financeiro, seletores | `useScreenStyles`, NativeWind | Variante web não dedicada | P2 |
+| Investimento | mobile | `/mobile/add-finance` | `screens/mobile/AddFinanceScreen.tsx` | formulário financeiro, seletores | `useScreenStyles`, NativeWind | Contratos de input duplicados | P2 |
 | Saque | mobile | `/mobile/add-rescue` | `screens/mobile/AddRescueScreen.tsx` | formulário, banco, data | `useScreenStyles`, NativeWind | Classes de formulário repetidas | P1 |
 | Relacionar usuário | mobile | `/mobile/add-user-relation` | `screens/mobile/AddUserRelationScreen.tsx` | formulário, popovers | `useScreenStyles`, NativeWind | Classes de formulário repetidas | P2 |
 | Testes do app | mobile/web fallback | `/mobile/app-tests`, `/web/app-tests` | `screens/mobile/AppTestsScreen.tsx` | ações administrativas | `useScreenStyles`, NativeWind | Variante web não dedicada | P3 |
@@ -73,6 +136,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Registrar usuário | web | `/web/add-register-user` | `screens/web/AddRegisterUserScreen.web.tsx` | formulário, hero | `useScreenStyles`, NativeWind | Repetição com telas de cadastro | P1 |
 | Registrar despesa | web | `/web/add-register-expenses` | `screens/web/AddRegisterExpensesScreen.web.tsx` | formulário, hero, select | `useScreenStyles`, NativeWind, styles DOM | Input e tipografia locais | P1 |
 | Registrar ganho | web | `/web/add-register-gain` | `screens/web/AddRegisterGainScreen.web.tsx` | formulário, hero, select | `useScreenStyles`, NativeWind, styles DOM | Input e tipografia locais | P1 |
+| Investimento | web | `/web/add-finance` | `screens/web/AddFinanceScreen.web.tsx` | formulário, hero, seletor e saldo bancário | tokens Web, NativeWind, animação DOM | Hero e estados de saldo; banco/saldo alinhados em linha no desktop | P2 |
 | Registrar categoria | web | `/web/add-register-tag` | `screens/web/AddRegisterTagScreen.web.tsx` | formulário, busca de ícones | `useScreenStyles`, NativeWind | Estados de seleção locais | P2 |
 | Gasto obrigatório | web | `/web/add-mandatory-expenses` | `screens/web/AddMandatoryExpensesScreen.web.tsx` | formulário, Mantine, calendário | `useScreenStyles`, NativeWind, Mantine styles | Duas fontes visuais no formulário | P1 |
 | Ganho obrigatório | web | `/web/add-mandatory-gains` | `screens/web/AddMandatoryGainsScreen.web.tsx` | formulário, Mantine, calendário | `useScreenStyles`, NativeWind, Mantine styles | Duas fontes visuais no formulário | P1 |

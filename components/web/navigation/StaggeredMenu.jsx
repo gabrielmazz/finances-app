@@ -594,6 +594,10 @@ export const StaggeredMenu = ({
                         }
                         event.preventDefault();
                         if (it.disabled) return;
+                        // Fecha a rail antes da troca de rota. A navegação pode desmontar
+                        // este componente imediatamente; manter o estado aberto faria o
+                        // próximo Navigator Web nascer expandido.
+                        closeMenu();
                         it.onSelect?.();
                       }}
                     >

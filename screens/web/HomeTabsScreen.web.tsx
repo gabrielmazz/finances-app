@@ -2,7 +2,7 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 
 import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import AddRegisterExpensesScreen from '@/screens/web/AddRegisterExpensesScreen.web';
-import ConfigurationsScreen from '@/screens/mobile/ConfigurationsScreen';
+import ConfigurationsScreen from '@/screens/web/ConfigurationsScreen.web';
 import HomeScreen from '@/screens/web/HomeScreen.web';
 import {
 	HOME_DASHBOARD_ROUTE,

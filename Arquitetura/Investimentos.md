@@ -3,12 +3,14 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.6
+versao: 1.6.8
 ---
 
 # Investimentos
 
 Módulo de gestão da carteira de investimentos. Hoje o fluxo operacional suporta renda fixa atrelada ao CDI, com aportes, resgates, sincronização manual e acompanhamento por rentabilidade. O modelo de dados já reserva classes para Tesouro Direto, ações e fundos sem aplicar uma precificação automática indevida a esses ativos.
+
+Na carteira Web, o label **Rentabilidade por período** usa o mesmo contrato tipográfico de **Calendário de Vencimentos**, preservando a hierarquia visual entre as telas sem alterar as tabs ou os cálculos.
 
 ## Como funciona
 
@@ -31,6 +33,7 @@ graph TD
 2. Novos documentos recebem `assetType: 'fixed_income'` e `valuationMethod: 'cdi'`. Os tipos futuros possíveis são `treasury`, `stock` e `fund`; enquanto não houver fonte de precificação específica, eles devem usar `valuationMethod: 'manual'` e manter o valor sincronizado.
 3. A data da aplicação é a origem da curva de acompanhamento. O `createdAt` só é fallback para documentos legados.
 4. A criação continua bloqueada quando o banco selecionado não tem saldo suficiente e aplica [[Comportamento Pós-Registro]] após o feedback de sucesso.
+5. No navegador, `/web/add-finance` resolve `AddFinanceScreen.web.tsx`: mantém a mesma validação em centavos, consulta de bancos/saldo, Firebase e pós-registro, mas aplica o shell Web com wallpaper, `Grainient`, título `StrokeText`, ilustração animada e grade responsiva dos cadastros financeiros.
 
 ### Taxa CDI configurável e histórico
 
@@ -69,14 +72,14 @@ graph LR
 
 ### Painel de carteira
 
-`FinancialListScreen.tsx` mantém a timeline expansível de cada investimento e adiciona uma visão consolidada acima da lista:
+`FinancialListScreen.tsx` mantém a timeline expansível de cada investimento e adiciona uma visão consolidada acima da lista. No navegador, `FinancialListScreen.web.tsx` preserva os mesmos dados e ações, mas usa o shell Web, controles com foco explícito e a transição de abertura/fechamento `AnimatedContent` sobre a superfície `Grainient`, como as listas Web recorrentes. A composição mantém os indicadores e as tabs de rentabilidade no bloco superior e apresenta o gráfico de evolução em uma linha exclusiva abaixo, sem card, título ou subtítulo externo e sem dividir a coluna lateral no desktop:
 
 1. Taxa CDI anual vigente, atalho de configuração e histórico por vigência.
 2. Patrimônio estimado, rendimento acumulado, aplicado líquido e rendimento do próximo dia.
 3. Tabs controladas de 30 dias, 6 meses, 12 meses ou todo o histórico para rentabilidade do período. Os quatro gatilhos dividem igualmente a largura disponível, centralizam os rótulos e ficam dentro de um card `notTintedCardClassName`; o indicador amarelo marca o período ativo sem alterar o cálculo e a visualização locais.
-4. O título **Evolução da carteira** exibe o ícone de calendário em amarelo adaptado ao tema, no mesmo padrão visual de **Evolução do saldo** da previsão. O gráfico Mantine `AreaChart`, em Expo DOM, compara capital líquido aplicado contra patrimônio estimado somente pelas linhas e pontos, sem preenchimento de área ao fundo. Ele segue o padrão visual do gráfico de previsão — pontos sempre visíveis com o mesmo tamanho, linha de 3px, grade vertical, tipografia padrão dos eixos, fundo transparente nos dois temas, sem contorno de foco ao toque e largura/rolagem horizontal apenas para séries com mais de sete pontos — preservando as duas curvas e a legenda da carteira.
+4. O gráfico Mantine `AreaChart`, em Expo DOM, compara capital líquido aplicado contra patrimônio estimado somente pelas linhas e pontos, sem preenchimento de área ao fundo. Na Web, ele usa apenas o label utilitário em caixa alta de `MandatoryExpensesListScreen.web.tsx`, sem card, título descritivo ou subtítulo externo. Ele segue o padrão visual do gráfico de previsão — pontos sempre visíveis com o mesmo tamanho, linha de 3px, grade vertical, tipografia padrão dos eixos, fundo transparente nos dois temas, sem contorno de foco ao toque e largura/rolagem horizontal apenas para séries com mais de sete pontos — preservando as duas curvas e a legenda da carteira.
 5. Resumo de alocação por banco e ganho correspondente.
-6. Em cada card expandido: produto, percentual contratado do CDI, patrimônio estimado, próximo dia, liquidez, sincronização e ações existentes.
+6. Em cada card expandido: produto, percentual contratado do CDI, patrimônio estimado, próximo dia, liquidez, sincronização e ações existentes. Na Web, a grade e as ações usam as mesmas classes da timeline de [[Despesas Fixas]]: os dados ficam em duas colunas quando houver espaço e as ações fluem em uma única linha com quebra responsiva.
 
 O gráfico é explicitamente estimado. A sincronização manual continua sendo o caminho para alinhar a carteira ao extrato/corretora.
 
@@ -96,8 +99,8 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 
 ## Arquivos principais
 
-- `screens/mobile/AddFinanceScreen.tsx` — Cadastro de renda fixa CDI com percentual em pontos-base
-- `screens/mobile/FinancialListScreen.tsx` — Painel, taxa CDI, timeline e ações operacionais
+- `screens/mobile/AddFinanceScreen.tsx` / `screens/web/AddFinanceScreen.web.tsx` — Cadastro de renda fixa CDI por plataforma, com percentual em pontos-base
+- `screens/mobile/FinancialListScreen.tsx` / `screens/web/FinancialListScreen.web.tsx` — Painel, taxa CDI, timeline e ações operacionais por plataforma
 - `functions/FinancesFirebase.ts` — CRUD, sincronizações e leitura de aportes/resgates/sincronizações da carteira
 - `functions/InvestmentCdiRateFirebase.ts` — Persistência e leitura compartilhada do histórico de CDI
 - `utils/investmentPortfolio.ts` — Tipos de ativos, projeção em ponto fixo, indicadores e série do gráfico
@@ -125,7 +128,7 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 - O cálculo é para acompanhamento. Impostos, IOF, feriados bancários, marcação a mercado, índices de preço e eventos corporativos não são simulados.
 - A arquitetura futura não deve reutilizar o cálculo CDI para Tesouro, ações ou fundos. Cada `valuationMethod` precisa de uma fonte e regras próprias antes de ser habilitado na criação.
 - Um valor sincronizado prevalece sobre estimativas anteriores e deixa a visualização mais próxima do extrato real.
-- Os modais de taxa CDI, edição, aporte, resgate, sincronização e exclusão usam o limite padrão de 360px do sistema; formulários extensos preservam área rolável e proteção contra o teclado.
+- Na Web, os modais de taxa CDI, edição, aporte, resgate, sincronização e exclusão usam `Modal size="md"`, ocupando cerca de 80% da viewport até o limite compartilhado de 510px; formulários extensos preservam área rolável e proteção contra o teclado. Android/iOS mantêm os diálogos compactos da variante nativa.
 - O leitor de atividade consolida movimentos relacionados no dispositivo. Se o volume crescer muito, a próxima evolução deve criar agregados mensais por investimento sem alterar as fórmulas acima.
 
 ## Integração com o Assistente Lumus

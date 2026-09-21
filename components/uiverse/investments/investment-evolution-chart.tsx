@@ -34,7 +34,8 @@ export default function InvestmentEvolutionChart({
 }: InvestmentEvolutionChartProps) {
 	const textColor = isDarkMode ? 'gray.4' : 'gray.6';
 	const gridColor = isDarkMode ? 'dark.4' : 'gray.2';
-	const chartWidth = data.length > 7 ? Math.max(520, 82 + data.length * 64) : undefined;
+	const chartWidth =
+		data.length > 7 ? Math.max(520, 82 + data.length * 64) : undefined;
 
 	return (
 		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
@@ -57,8 +58,16 @@ export default function InvestmentEvolutionChart({
 						data={data}
 						dataKey="label"
 						series={[
-							{ name: 'netAppliedInCents', label: 'Capital líquido', color: 'blue.5' },
-							{ name: 'projectedValueInCents', label: 'Patrimônio estimado', color: 'violet.5' },
+							{
+								name: 'netAppliedInCents',
+								label: 'Capital líquido',
+								color: 'blue.5',
+							},
+							{
+								name: 'projectedValueInCents',
+								label: 'Patrimônio estimado',
+								color: 'violet.5',
+							},
 						]}
 						fillOpacity={0}
 						curveType="monotone"
@@ -72,14 +81,19 @@ export default function InvestmentEvolutionChart({
 						tickLine="none"
 						gridAxis="y"
 						strokeDasharray="4 4"
-						textColor={textColor}
+						styles={{ root: { '--chart-text-color': textColor } }}
 						gridColor={gridColor}
-						valueFormatter={value => (shouldHideValues ? '••••' : formatCurrency(value))}
+						valueFormatter={(value) =>
+							shouldHideValues ? '••••' : formatCurrency(value)
+						}
 						xAxisProps={{ axisLine: false, tickLine: false }}
 						yAxisProps={{ axisLine: false, tickLine: false, width: 78 }}
 						legendProps={{ verticalAlign: 'bottom', height: 30 }}
 						tooltipProps={{
-							cursor: { stroke: isDarkMode ? '#475569' : '#CBD5E1', strokeWidth: 1 },
+							cursor: {
+								stroke: isDarkMode ? '#475569' : '#CBD5E1',
+								strokeWidth: 1,
+							},
 						}}
 					/>
 				</div>

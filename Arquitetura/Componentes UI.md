@@ -10,6 +10,8 @@ versao: 2.5.0
 
 O design system tem uma fundação canônica em `tailwind.config.js` e `design-system/`, primitives do **Gluestack UI** estilizados com **NativeWind** e componentes de domínio em `components/uiverse/`. Telas consomem tokens, contratos de classe e variantes compartilhadas; não definem uma linguagem visual própria. Exceções para APIs sem `className` usam adaptadores registrados em `design-system/style-exceptions.json`.
 
+O contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` centraliza a tipografia dos títulos de seção Web (`text-lg font-bold uppercase tracking-widest`), tendo **Calendário de Vencimentos** como referência visual compartilhada pela Home e pela carteira.
+
 ## Resolução por plataforma
 
 As telas importam o caminho lógico sem extensão. Os adaptadores em `components/uiverse/` encaminham automaticamente para `components/web/` no navegador e `components/mobile/` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport mobile para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.
@@ -245,7 +247,7 @@ graph LR
 - `tag-actionsheet-selector.tsx` aceita ação de criação opcional para manter o atalho de nova categoria dentro do próprio ActionSheet, inclusive quando a lista de categorias está vazia
 - `tag-actionsheet-selector.tsx` respeita `isDisabled` como bloqueio total de abertura do ActionSheet; a ação de criação interna não deve contornar as regras de liberação calculadas pela tela
 - Filtros de categoria em telas administrativas, como [[Configurações]], também devem reutilizar `tag-actionsheet-selector.tsx` quando abrirem uma lista de opções de categoria/tipo
-- `bank-actionsheet-selector.tsx` deve ser usado em fluxos de criação/edição operacional que selecionam banco, usando `iconKey`/`colorHex` quando existirem e fallback por iniciais quando o banco ainda não tem ícone configurado; seu trigger deve usar `fieldBankContainerClassName` para comportar ícone, nome e texto auxiliar sem comprimir o layout
+- `bank-actionsheet-selector.tsx` deve ser usado em fluxos de criação/edição operacional que selecionam banco, usando `iconKey`/`colorHex` quando existirem e fallback por iniciais quando o banco ainda não tem ícone configurado; seu trigger deve usar `fieldBankContainerClassName` para comportar ícone, nome e texto auxiliar sem comprimir o layout.
 - No Web, `components/ui/actionsheet/index.tsx` limita o `ActionsheetContent` a `1120px`, centralizado e com `w-full` até esse limite; backdrop permanece em viewport inteira. `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` devem manter trigger e lista fluidos dentro dessa superfície. Essa adaptação é exclusiva da apresentação Web e preserva o comportamento nativo.
 - `RadioGroup` mantém apenas o espaçamento base; cada tela deve definir o limite do próprio contêiner. Na composição Web de despesas, o grupo usa `w-full max-w-[1120px] self-center` para acompanhar a largura útil da superfície principal sem ocupar a viewport inteira.
 - `web-screen-hero.tsx` / `.web.tsx` centraliza o cabeçalho animado das telas convertidas para Web. A variante Web combina wallpaper, `Grainient`, `StrokeText` e `AnimatedContent`; a variante nativa mantém o cabeçalho Gluestack estático. A superfície externa do formulário não deve receber uma borda adicional apenas para a composição Web.

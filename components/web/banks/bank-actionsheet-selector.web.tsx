@@ -162,11 +162,11 @@ export default function BankActionsheetSelector({
 							>
 								{selectedName ?? placeholder}
 							</Text>
-							<Text className={`${helperTextClassName} text-xs leading-4`} numberOfLines={1}>
-								{isDisabled
-									? disabledHint
-									: selectedDescription ?? (selectedName ? 'Toque para alterar o banco.' : triggerHint)}
-							</Text>
+								<Text className={`${helperTextClassName} text-xs leading-4`} numberOfLines={1}>
+									{isDisabled
+										? disabledHint
+										: selectedDescription ?? (selectedName ? 'Toque para alterar o banco.' : triggerHint)}
+								</Text>
 						</VStack>
 					</HStack>
 					<ChevronDown size={18} color={chevronColor} />
