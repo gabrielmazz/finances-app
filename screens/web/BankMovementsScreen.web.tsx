@@ -22,10 +22,10 @@ import Grainient from '@/components/web/visuals/Grainient';
 import {
 	getMantineTabsStyles,
 	getMantineTagsInputStyles,
-	MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES,
-	MANTINE_TABS_CLASS_NAMES,
+	MANTINE_MOVEMENT_TABS_CLASS_NAMES,
+	MANTINE_MOVEMENT_TABS_CSS_VARIABLES,
+	MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLE,
 	MANTINE_TAGS_INPUT_CLASS_NAMES,
-	MANTINE_TABS_CSS_VARIABLES,
 	MANTINE_SELECTED_PILL_SLOT_STYLES,
 	MANTINE_SELECTED_PILL_STYLE,
 } from '@/design-system/mantine';
@@ -1199,14 +1199,7 @@ export default function BankMovementsScreen() {
 
 	const movementFilterPalette = React.useMemo(
 		() => ({
-			selectedBackground: '#FACC15',
-			selectedBorder: '#FACC15',
-			selectedIconClassName: 'text-lumus-on-accent',
-			selectedTextClassName: 'text-lumus-on-accent',
-			unselectedBackground: isDarkMode ? 'transparent' : '#FFFFFF',
-			unselectedBorder: isDarkMode ? '#1E293B' : '#E2E8F0',
 			unselectedIconClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
-			unselectedTextClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
 		}),
 		[isDarkMode],
 	);
@@ -1403,7 +1396,7 @@ export default function BankMovementsScreen() {
 	const getMovementTagLabel = React.useCallback(
 		(movement: MovementRecord) => {
 			if (!movement.tagId) {
-				return 'Sem tag associada';
+				return 'Sem categoria associada';
 			}
 
 			return tagMetadataById[movement.tagId]?.name?.trim() || movement.tagId;
@@ -1421,7 +1414,7 @@ export default function BankMovementsScreen() {
 
 	const fetchMovements = React.useCallback(async (asRefresh = false) => {
 		if (!activeBankId && !isCashView) {
-			setErrorMessage('Escolha um banco para consultar as movimentações.');
+			setErrorMessage(null);
 			setMovements([]);
 			return;
 		}
@@ -1905,7 +1898,7 @@ export default function BankMovementsScreen() {
 							] as const;
 						}
 					} catch (error) {
-						console.error('Erro ao buscar dados da tag:', error);
+						console.error('Erro ao buscar dados da categoria:', error);
 					}
 
 					return [tagId, { name: null, icon: null }] as const;
@@ -1939,7 +1932,7 @@ export default function BankMovementsScreen() {
 		return movements.filter(movement => movement.type === movementFilter);
 	}, [movementFilter, movements]);
 
-	// Mantém o filtro de tags alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
+	// Mantém o filtro de categorias alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
 	const availableTagFilters = React.useMemo<AvailableTagFilterOption[]>(() => {
 		const tagCounts = new Map<string, number>();
 
@@ -2102,7 +2095,7 @@ export default function BankMovementsScreen() {
 		if (selectedTagFilterOptions.length > 0) {
 			return selectedTagFilterOptions.length === 1
 				? `Resumo de ${selectedTagFilterOptions[0].label}`
-				: `Resumo de ${selectedTagFilterOptions.length} tags`;
+				: `Resumo de ${selectedTagFilterOptions.length} categorias`;
 		}
 
 		if (movementFilter === 'gain') {
@@ -2123,16 +2116,16 @@ export default function BankMovementsScreen() {
 		if (selectedTagFilterOptions.length > 0 && movementFilter !== 'all') {
 			const tagLabel =
 				selectedTagFilterOptions.length === 1
-					? `a tag ${selectedTagFilterOptions[0].label}`
-					: `as tags ${selectedTagFilterOptions.map(option => option.label).join(', ')}`;
+					? `a categoria ${selectedTagFilterOptions[0].label}`
+					: `as categorias ${selectedTagFilterOptions.map(option => option.label).join(', ')}`;
 			return `${movementCountLabel} Filtro ativo: ${movementFilter === 'gain' ? 'ganhos' : 'gastos'} com ${tagLabel}.`;
 		}
 
 		if (selectedTagFilterOptions.length > 0) {
 			const tagLabel =
 				selectedTagFilterOptions.length === 1
-					? `tag ${selectedTagFilterOptions[0].label}`
-					: `tags ${selectedTagFilterOptions.map(option => option.label).join(', ')}`;
+					? `categoria ${selectedTagFilterOptions[0].label}`
+					: `categorias ${selectedTagFilterOptions.map(option => option.label).join(', ')}`;
 			return `${movementCountLabel} Filtro ativo: ${tagLabel}.`;
 		}
 
@@ -2172,8 +2165,8 @@ export default function BankMovementsScreen() {
 					? 'Ganhos'
 					: 'Gastos';
 		const tagFilterLabel = selectedTagFilterOptions.length > 0
-			? `Tags: ${selectedTagFilterOptions.map(option => option.label).join(', ')}`
-			: 'Todas as tags';
+			? `Categorias: ${selectedTagFilterOptions.map(option => option.label).join(', ')}`
+			: 'Todas as categorias';
 		const periodLabel = `${startDateInput} a ${endDateInput}`;
 		const generatedAtLabel = new Intl.DateTimeFormat('pt-BR', {
 			day: '2-digit',
@@ -2202,7 +2195,7 @@ export default function BankMovementsScreen() {
 			{
 				label: 'Movimentações carregadas',
 				value: String(movements.length),
-				helper: 'Antes dos filtros de tipo e tag.',
+				helper: 'Antes dos filtros de tipo e categoria.',
 			},
 		];
 
@@ -2885,7 +2878,7 @@ export default function BankMovementsScreen() {
 													<BankActionsheetSelector
 														options={bankOptions}
 														selectedId={activeBankId || null}
-														selectedLabel={routeBankName}
+														selectedLabel={activeBankId ? bankName : null}
 														selectedOption={selectedBankOption}
 														onSelect={handleSelectBank}
 														isDarkMode={isDarkMode}
@@ -2941,8 +2934,8 @@ export default function BankMovementsScreen() {
 															variant="pills"
 															radius="md"
 															color="yellow"
-															style={MANTINE_TABS_CSS_VARIABLES}
-															classNames={MANTINE_TABS_CLASS_NAMES}
+															style={MANTINE_MOVEMENT_TABS_CSS_VARIABLES}
+															classNames={MANTINE_MOVEMENT_TABS_CLASS_NAMES}
 															styles={movementFilterTabsStyles}
 														>
 															<MantineTabs.List grow aria-label="Tipo de movimentação">
@@ -2960,7 +2953,7 @@ export default function BankMovementsScreen() {
 																					size="sm"
 																					className={
 																						isSelected
-																							? movementFilterPalette.selectedIconClassName
+																							? 'text-white'
 																							: movementFilterPalette.unselectedIconClassName
 																					}
 																				/>
@@ -2999,24 +2992,24 @@ export default function BankMovementsScreen() {
 														acceptValueOnBlur={false}
 														clearable
 														clearButtonProps={{
-															'aria-label': 'Limpar todas as categorias',
-															styles: MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES,
+																	'aria-label': 'Limpar todas as categorias',
+																	style: MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLE,
 														}}
 														filter={tagInputFilter}
 														maxDropdownHeight={240}
 														disabled={isLoading || availableTagFilters.length === 0}
 														placeholder={
-															availableTagFilters.length > 0
-																? 'Selecione alguma categoria'
-																: 'Sem categorias disponíveis para este filtro'
+																	selectedTagFilterIds.length > 0
+																		? undefined
+																		: availableTagFilters.length > 0
+																			? 'Selecione alguma categoria'
+																			: 'Sem categorias disponíveis para este filtro'
 														}
 														classNames={MANTINE_TAGS_INPUT_CLASS_NAMES}
 														styles={tagInputStyles}
 														renderOption={({ option }) => {
 															const tagOption = availableTagFilters.find(item => item.id === String(option.value));
-															const iconColor = isDarkMode
-																? LUMUS_RUNTIME_COLORS.dark.textMuted
-																: LUMUS_RUNTIME_COLORS.light.textMuted;
+																const iconColor = LUMUS_RUNTIME_COLORS.light.surface;
 
 															return (
 																<span className="flex w-full items-center justify-between gap-2.5">
@@ -3049,9 +3042,8 @@ export default function BankMovementsScreen() {
 																	onRemove={onRemove}
 																	disabled={disabled}
 																	size="sm"
-													removeButtonProps={{
-														'aria-label': `Remover a categoria ${tagOption?.label ?? String(option.value)}`,
-																		style: { color: LUMUS_RUNTIME_COLORS.light.onAccent },
+																		removeButtonProps={{
+																			'aria-label': `Remover a categoria ${tagOption?.label ?? String(option.value)}`,
 																	}}
 																	style={MANTINE_SELECTED_PILL_STYLE}
 																	styles={MANTINE_SELECTED_PILL_SLOT_STYLES}
@@ -3064,34 +3056,12 @@ export default function BankMovementsScreen() {
 												</MantineProvider>
 											</VStack>
 
-											<Button
-												className={submitButtonClassName}
-												onPress={() => {
-													if (!isLoading) {
-														void fetchMovements();
-													}
-												}}
-												isDisabled={
-													isLoading ||
-													!parseDateFromBR(startDateInput) ||
-													!parseDateFromBR(endDateInput)
-												}
-											>
-												{isLoading ? (
-													<>
-														<ButtonSpinner />
-														<ButtonText>Carregando movimentações</ButtonText>
-													</>
-												) : (
-													<ButtonText>Buscar movimentações</ButtonText>
-												)}
-											</Button>
 										</VStack>
 									</VStack>
 
 									{errorMessage && (
 										<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-											<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
+											<Text accessibilityLiveRegion="polite" className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
 										</View>
 									)}
 
@@ -3346,7 +3316,7 @@ export default function BankMovementsScreen() {
 													</Text>
 												</View>
 											) : (
-												<View style={{ marginTop: 14 }}>
+												<View className={webDashboardClassNames.timeline}>
 													{visibleMovements.map((movement, index) => {
 														const movementTone = getMovementTone(movement);
 														const tagMetadata = movement.tagId ? tagMetadataById[movement.tagId] : null;
@@ -3370,10 +3340,10 @@ export default function BankMovementsScreen() {
 																value: formatMovementDate(movement.date),
 															},
 															{
-																label: 'Tag',
+																label: 'Categoria',
 																value:
 																	tagMetadata?.name ??
-																	(movement.tagId ? movement.tagId : 'Sem tag associada'),
+																	(movement.tagId ? movement.tagId : 'Sem categoria associada'),
 															},
 															{
 																label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
@@ -3386,8 +3356,8 @@ export default function BankMovementsScreen() {
 																	label: 'Valor anterior',
 																	value:
 																		typeof movement.investmentSyncPreviousValueInCents === 'number'
-																			? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
-																			: 'Não disponível',
+																			? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																			: null,
 																},
 																{
 																	label: 'Valor sincronizado',
@@ -3458,7 +3428,7 @@ export default function BankMovementsScreen() {
 																	: 'Excluir';
 														const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
 
-															return (
+														return (
 															<View key={movement.id} className={webDashboardClassNames.timelineRow}>
 																<View className={webDashboardClassNames.timelineRail}>
 																	<View
@@ -3481,70 +3451,70 @@ export default function BankMovementsScreen() {
 																		accessibilityState={{ expanded: isExpanded }}
 																		className={`${webDashboardClassNames.movementHeader} min-h-touch cursor-pointer rounded-2xl py-1 focus-visible:ring-2 focus-visible:ring-lumus-focus`}
 																	>
-																<HStack className={webDashboardClassNames.movementIdentity}>
-																				<View
-																					className={`${webDashboardClassNames.movementIcon} border border-white/10`}
-																					style={{ backgroundColor: movementTone.iconGradient[0] }}
-																				>
-																					<TagIcon
-																						iconFamily={movementIcon.iconFamily}
-																						iconName={movementIcon.iconName}
-																						iconStyle={movementIcon.iconStyle}
-																						size={18}
-																						color="#FFFFFF"
-																					/>
-																				</View>
+																		<HStack className={webDashboardClassNames.movementIdentity}>
+																			<View
+																				className={`${webDashboardClassNames.movementIcon} border border-white/10`}
+																				style={{ backgroundColor: movementTone.iconGradient[0] }}
+																			>
+																				<TagIcon
+																					iconFamily={movementIcon.iconFamily}
+																					iconName={movementIcon.iconName}
+																					iconStyle={movementIcon.iconStyle}
+																					size={18}
+																					color="#FFFFFF"
+																				/>
+																			</View>
 
-																				<View className={webDashboardClassNames.movementCopy}>
-																					<Text
-																						numberOfLines={1}
-																						className={`${webDashboardClassNames.movementName} ${bodyText}`}
-																					>
-																						{movement.name}
-																					</Text>
-																					<Text
-																						numberOfLines={1}
-																						className={`${webDashboardClassNames.movementSubtitle} ${helperText}`}
-																					>
-																						{getMovementSummarySubtitle(movement)}
-																					</Text>
-																				</View>
-																</HStack>
-
-																<View className={webDashboardClassNames.movementAmount}>
+																			<View className={webDashboardClassNames.movementCopy}>
 																				<Text
-																					className={`${webDashboardClassNames.amount} tabular-nums`}
-																					style={{ color: movementTone.amountColor }}
+																					isTruncated
+																					className={`${webDashboardClassNames.movementName} ${bodyText}`}
 																				>
-																					{formatSignedCurrencyBRL(movement)}
+																					{movement.name}
 																				</Text>
-																				{movement.isFinanceInvestmentSync ? (
-																					<Text
-																						className={`${webDashboardClassNames.dateText} ${helperText} mt-0.5 tabular-nums`}
-																						numberOfLines={1}
-																					>
-																						{formatDeltaCurrencyBRL(
-																							typeof movement.investmentSyncPreviousValueInCents === 'number'
-																								? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																								: null,
-																						)}
-																					</Text>
-																				) : null}
-																				<HStack className={webDashboardClassNames.movementDate}>
-																					<Icon as={CalendarDaysIcon} size="xs" className="text-slate-500" />
-																					<Text
-																						numberOfLines={1}
-																						className={`${webDashboardClassNames.dateText} ${helperText}`}
-																					>
-																						{formatMovementCompactDate(movement.date)}
-																					</Text>
-																					<Icon
-																						as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																						size="sm"
-																						className="text-slate-500"
-																					/>
-																				</HStack>
-																</View>
+																				<Text
+																					isTruncated
+																					className={`${webDashboardClassNames.movementSubtitle} ${helperText}`}
+																				>
+																					{getMovementSummarySubtitle(movement)}
+																				</Text>
+																			</View>
+																		</HStack>
+
+																		<View className={webDashboardClassNames.movementAmount}>
+																			<Text
+																				className={`${webDashboardClassNames.amount} tabular-nums`}
+																				style={{ color: movementTone.amountColor }}
+																			>
+																				{formatSignedCurrencyBRL(movement)}
+																			</Text>
+																			{movement.isFinanceInvestmentSync ? (
+																				<Text
+																					className={`${webDashboardClassNames.dateText} ${helperText} mt-0.5 tabular-nums`}
+																					isTruncated
+																				>
+																					{formatDeltaCurrencyBRL(
+																						typeof movement.investmentSyncPreviousValueInCents === 'number'
+																							? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																							: null,
+																					)}
+																				</Text>
+																			) : null}
+																			<HStack className={webDashboardClassNames.movementDate}>
+																				<Icon as={CalendarDaysIcon} size="xs" className="text-slate-500" />
+																				<Text
+																					isTruncated
+																					className={`${webDashboardClassNames.dateText} ${helperText}`}
+																				>
+																					{formatMovementCompactDate(movement.date)}
+																				</Text>
+																				<Icon
+																					as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																					size="sm"
+																					className="text-slate-500"
+																				/>
+																			</HStack>
+																		</View>
 																	</Pressable>
 
 																	{renderedMovementIds.includes(movement.id) ? (
@@ -3616,7 +3586,7 @@ export default function BankMovementsScreen() {
 																						</View>
 
 																						{movement.explanation?.trim() &&
-																						getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
+																							getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
 																							<View className={webDashboardClassNames.detailSection}>
 																								<Text className={webDashboardClassNames.detailLabel}>DESCRIÇÃO</Text>
 																								<Text className={webDashboardClassNames.detailText}>

@@ -158,11 +158,11 @@ export default function BankActionsheetSelector({
 						<VStack className="min-w-0 flex-1 justify-center gap-0.5">
 							<Text
 								className={`${selectedName ? bodyTextClassName : helperTextClassName} text-sm font-medium leading-5`}
-								numberOfLines={1}
+								isTruncated
 							>
 								{selectedName ?? placeholder}
 							</Text>
-								<Text className={`${helperTextClassName} text-xs leading-4`} numberOfLines={1}>
+								<Text className={`${helperTextClassName} text-xs leading-4`} isTruncated>
 									{isDisabled
 										? disabledHint
 										: selectedDescription ?? (selectedName ? 'Toque para alterar o banco.' : triggerHint)}

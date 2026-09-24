@@ -46,7 +46,7 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 
 - `global.css`: importa Geist e as camadas Tailwind 3; também define `color-scheme`, fundo base e redução de movimento para o navegador
 - `tailwind.config.js`: usa `nativewind/preset`, `darkMode: 'class'` e tokens CSS do Gluestack
-- Cores customizadas no Tailwind: escalas Gluestack e tokens semânticos `lumus-accent`, `lumus-accent-dark`, `lumus-accent-soft`, `lumus-on-accent`, `lumus-focus`, `lumus-surface-hover-dark`, `lumus-income-*` e `lumus-expense-*`; o estado ativo das Tabs Mantine também usa `shadow-lumus-accent`
+- Cores customizadas no Tailwind: escalas Gluestack e tokens semânticos `lumus-accent`, `lumus-accent-dark`, `lumus-accent-soft`, `lumus-on-accent`, `lumus-focus`, `lumus-surface-hover-dark`, `lumus-income-*` e `lumus-expense-*`; o contrato base de Tabs Mantine usa `shadow-lumus-accent`, enquanto o filtro de tipo do extrato bancário neutraliza essa sombra, fixa o fundo selecionado em `lumus-accent` (`#FACC15`) nos dois temas e usa texto branco. O placeholder do campo Mantine de categorias usa o token resolvido `#505D74`.
 - Persistência via `@react-native-async-storage/async-storage` com chave dedicada
 
 ## Observações importantes
