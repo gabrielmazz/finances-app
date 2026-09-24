@@ -82,9 +82,9 @@
   {
     "files": ["design-system/mantine.ts"],
     "reason": "Mantine expõe classNames, CSS variables e styles para partes internas que não recebem classes NativeWind diretamente.",
-    "limitation": "Tabs, NumberInput, TagsInput e Pill resolvem estados internos por contratos próprios da biblioteca.",
+    "limitation": "O prop styles aceita propriedades inline sem pseudo-seletores; Tabs e TagsInput expõem estados internos por atributos próprios.",
     "risk": "Uma atualização do Mantine pode renomear slots ou variáveis.",
-    "alternative": "Concentrar o adaptador em um único módulo e consumir os mesmos tokens semânticos do Tailwind.",
+    "alternative": "Concentrar o adaptador em um único módulo, aplicar estados por classNames com variantes data-* e consumir tokens semânticos do Tailwind.",
     "owner": "design-system"
   },
   {

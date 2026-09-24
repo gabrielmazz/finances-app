@@ -428,7 +428,7 @@
   "design-system/mantine.ts": {
     "inlineStyleProps": 0,
     "rawHexLiterals": 1,
-    "arbitraryTailwindValues": 0,
+    "arbitraryTailwindValues": 5,
     "useScreenStyles": 0
   },
   "design-system/tokens.ts": {

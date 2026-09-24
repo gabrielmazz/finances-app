@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "apple-design": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design/SKILL.md",
+      "computedHash": "0190417d092a0df447b000154e39733ea6d97efad6d3bec8a6ce3845aeb88914"
+    },
     "automation-scripts": {
       "source": "miles990/claude-software-skills",
       "sourceType": "github",
@@ -55,6 +61,12 @@
       "skillPath": ".agents/skills/gluestack-ui-v5/SKILL.md",
       "computedHash": "2d7e2ed985d31d2d058d62d3e14c56e3e159c4417d12afc0b22f0ce9702fa0a1"
     },
+    "hyperframes": {
+      "source": "heygen-com/hyperframes",
+      "sourceType": "github",
+      "skillPath": "skills/hyperframes/SKILL.md",
+      "computedHash": "e5af70941bf549de80c37d87de72a2873a3093123271f871a30490abecddadef"
+    },
     "hyperframes-animation": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",
@@ -102,6 +114,12 @@
       "sourceType": "github",
       "skillPath": "skills/react-native-patterns/SKILL.md",
       "computedHash": "f109f2aabfaae343dd3b81195812f431d12a22ce63c32c0457515f9097fa38ea"
+    },
+    "search-first": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/search-first/SKILL.md",
+      "computedHash": "c82ffe228acdc70bb4d641d391f811d3d3ea5ba467b9ffe88e6dc4cd71c7b416"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",

@@ -37,7 +37,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 ## Arquivos principais
 
 - `screens/mobile/ConfigurationsScreen.tsx` — Composição Android/iOS
-- `screens/web/ConfigurationsScreen.web.tsx` — Composição exclusiva do navegador, sem barra de navegação nativa
+- `screens/web/ConfigurationsScreen.web.tsx` — Composição exclusiva do navegador, com o `Navigator` Web compartilhado (rail desktop ou navegação compacta)
 - `screens/mobile/ScreenSettingsScreen.tsx` / `screens/web/ScreenSettingsScreen.web.tsx` — Configuração de comportamento pós-registro e visibilidade de rotas por tela, com composição independente por plataforma
 - `app/mobile/home.tsx` — Container de abas que inclui Configurações como tab 2
 - `app/mobile/screen-settings.tsx` / `app/web/screen-settings.tsx` — Rotas da tela de configurações das telas por plataforma

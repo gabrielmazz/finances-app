@@ -1247,7 +1247,7 @@ export default function HomeScreen() {
 													{...triggerProps}
 													hitSlop={8}
 													accessibilityRole="button"
-													accessibilityLabel="Informações sobre o formato de pagamento"
+													accessibilityLabel="Informações sobre bancos e dinheiro"
 												>
 													<Info
 														size={14}
@@ -1316,11 +1316,13 @@ export default function HomeScreen() {
 															paddingHorizontal: bankCarouselItemSpacing / 2,
 														}}
 													>
-														<TouchableOpacity
-															activeOpacity={0.94}
-															style={{ flex: 1 }}
-															onPress={() => handleOpenBankCarouselItem(item)}
-														>
+															<TouchableOpacity
+																activeOpacity={0.94}
+																accessibilityRole="button"
+																accessibilityLabel={`Abrir ${item.name}`}
+																style={{ flex: 1 }}
+																onPress={() => handleOpenBankCarouselItem(item)}
+															>
 															<BankCardSurface palette={cardPalette} style={{ flex: 1 }}>
 																<VStack className="flex-1 justify-between">
 																	<VStack className="gap-1">
@@ -1437,7 +1439,7 @@ export default function HomeScreen() {
 													{...triggerProps}
 													hitSlop={8}
 													accessibilityRole="button"
-													accessibilityLabel="Informações sobre o formato de pagamento"
+													accessibilityLabel="Informações sobre investimentos"
 												>
 													<Info
 														size={14}
@@ -1631,6 +1633,8 @@ export default function HomeScreen() {
 
 													<Pressable
 														onPress={handlePressInvestmentChart}
+														accessibilityRole="button"
+														accessibilityLabel="Detalhes da distribuição de investimentos"
 														style={{
 															position: 'absolute',
 															top: 0,
@@ -1710,7 +1714,14 @@ export default function HomeScreen() {
 
 							<View className="mb-6">
 								<HStack className="items-start justify-between gap-3">
-									<TouchableOpacity activeOpacity={0.85} onPress={handleToggleMovements} style={{ flex: 1 }}>
+									<TouchableOpacity
+										activeOpacity={0.85}
+										onPress={handleToggleMovements}
+										accessibilityRole="button"
+										accessibilityLabel="Expandir ou recolher últimas movimentações"
+										accessibilityState={{ expanded: isMovementsExpanded }}
+										style={{ flex: 1 }}
+									>
 										<VStack className="">
 											<HStack className="gap-1 items-center">
 												<Heading
@@ -1731,7 +1742,7 @@ export default function HomeScreen() {
 															{...triggerProps}
 															hitSlop={8}
 															accessibilityRole="button"
-															accessibilityLabel="Informações sobre o formato de pagamento"
+															accessibilityLabel="Informações sobre últimas movimentações"
 														>
 															<Info
 																size={14}
@@ -1758,6 +1769,9 @@ export default function HomeScreen() {
 									<TouchableOpacity
 										activeOpacity={0.85}
 										onPress={handleToggleMovements}
+										accessibilityRole="button"
+										accessibilityLabel="Expandir ou recolher últimas movimentações"
+										accessibilityState={{ expanded: isMovementsExpanded }}
 										style={{
 											minWidth: 28,
 											paddingLeft: 8,
@@ -1875,11 +1889,14 @@ export default function HomeScreen() {
 														</View>
 
 														<View style={{ width: '93%', paddingBottom: 14 }}>
-															<TouchableOpacity
-																activeOpacity={0.85}
-																onPress={() => handleToggleTimelineStatus(timelineItemKey)}
-																style={{ width: '100%' }}
-															>
+														<TouchableOpacity
+															activeOpacity={0.85}
+															onPress={() => handleToggleTimelineStatus(timelineItemKey)}
+															accessibilityRole="button"
+															accessibilityLabel={`Detalhes de ${movement.name}`}
+															accessibilityState={{ expanded: isTimelineItemExpanded }}
+															style={{ width: '100%' }}
+														>
 																<HStack className="items-center justify-between gap-3">
 																	<HStack className="items-center gap-3" style={{ flex: 1 }}>
 																		<LinearGradient

@@ -9,7 +9,27 @@ import {
 export const MANTINE_TABS_CLASS_NAMES = {
 	root: 'w-full',
 	list: 'w-full',
-	tab: 'flex-1 justify-center',
+	tab: [
+		'flex-1 justify-center text-lumus-on-accent',
+		'data-[active]:bg-lumus-accent dark:data-[active]:bg-lumus-accent-dark',
+		'data-[active]:text-lumus-on-accent data-[active]:shadow-lumus-accent',
+		'hover:bg-white dark:hover:bg-lumus-surface-hover-dark hover:text-slate-900 dark:hover:text-slate-100',
+		'focus-visible:outline-2 focus-visible:outline-lumus-focus focus-visible:outline-offset-2',
+		'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40',
+	].join(' '),
+} as const;
+
+export const MANTINE_TAGS_INPUT_CLASS_NAMES = {
+	input:
+		'border-slate-200 dark:border-slate-800 web:focus-within:border-lumus-focus dark:web:focus-within:border-lumus-accent-dark web:focus-within:ring-2 web:focus-within:ring-lumus-accent dark:web:focus-within:ring-lumus-accent-dark',
+	inputField: 'placeholder:text-center placeholder:text-slate-500 dark:placeholder:text-slate-500',
+	option: [
+		'text-slate-900 dark:text-slate-100',
+		'data-[combobox-selected]:bg-lumus-accent-soft dark:data-[combobox-selected]:bg-lumus-accent-dark/15',
+		'data-[combobox-selected]:text-lumus-on-accent dark:data-[combobox-selected]:text-slate-100',
+		'hover:bg-slate-50 dark:hover:bg-lumus-surface-hover-dark',
+		'focus-visible:outline-2 focus-visible:outline-lumus-focus focus-visible:-outline-offset-2',
+	].join(' '),
 } as const;
 
 export const MANTINE_TABS_CSS_VARIABLES = {
@@ -17,9 +37,7 @@ export const MANTINE_TABS_CSS_VARIABLES = {
 	'--tabs-text-color': LUMUS_RUNTIME_COLORS.light.onAccent,
 } as CSSProperties;
 
-export const getMantineTabsStyles = (isDarkMode: boolean) => {
-	const colors = isDarkMode ? LUMUS_RUNTIME_COLORS.dark : LUMUS_RUNTIME_COLORS.light;
-
+export const getMantineTabsStyles = (_isDarkMode: boolean) => {
 	return {
 		list: {
 			gap: 6,
@@ -37,7 +55,6 @@ export const getMantineTabsStyles = (isDarkMode: boolean) => {
 			paddingInline: 16,
 			border: 'none',
 			borderRadius: 13,
-			color: colors.onAccent,
 			fontSize: 14,
 			fontFamily: LUMUS_FONT_STACKS.sans,
 			fontWeight: 600,
@@ -45,24 +62,6 @@ export const getMantineTabsStyles = (isDarkMode: boolean) => {
 			lineHeight: 1.2,
 			transition:
 				'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease',
-			'&[data-active]': {
-				backgroundColor: colors.accent,
-				border: 'none',
-				boxShadow: '0 6px 18px rgba(250,204,21,0.22)',
-				color: colors.onAccent,
-			},
-			'&:hover:not([data-disabled]):not([data-active])': {
-				backgroundColor: isDarkMode ? 'rgba(148,163,184,0.12)' : colors.surface,
-				color: colors.text,
-			},
-			'&:focus-visible': {
-				outline: `2px solid ${colors.focus}`,
-				outlineOffset: 2,
-			},
-			'&[data-disabled]': {
-				cursor: 'not-allowed',
-				opacity: 0.4,
-			},
 		},
 		tabSection: {
 			position: 'absolute',
@@ -89,15 +88,10 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 		input: {
 			minHeight: 48,
 			borderRadius: 16,
-			borderColor: colors.border,
 			backgroundColor: 'transparent',
 			color: colors.text,
 			padding: 3,
 			transition: 'border-color 150ms ease, box-shadow 150ms ease',
-			'&:focus-within': {
-				borderColor: colors.focus,
-				boxShadow: `0 0 0 2px ${colors.accent}`,
-			},
 		},
 		inputField: {
 			minHeight: 36,
@@ -105,10 +99,6 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 			fontFamily: LUMUS_FONT_STACKS.sans,
 			fontSize: 14,
 			lineHeight: '20px',
-			'&::placeholder': {
-				color: colors.textMuted,
-				opacity: 1,
-			},
 		},
 		pillsList: { gap: 6, padding: 0 },
 		pill: {
@@ -134,23 +124,11 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 			display: 'flex',
 			alignItems: 'center',
 			borderRadius: 10,
-			color: colors.text,
 			fontFamily: LUMUS_FONT_STACKS.sans,
 			fontSize: 14,
 			minHeight: 42,
 			padding: '10px 12px',
 			transition: 'background-color 150ms ease, color 150ms ease',
-			'&[data-combobox-selected]': {
-				backgroundColor: isDarkMode ? 'rgba(250,204,21,0.16)' : '#FEF9C3',
-				color: colors.text,
-			},
-			'&:hover': {
-				backgroundColor: isDarkMode ? 'rgba(148,163,184,0.12)' : colors.surfaceMuted,
-			},
-			'&:focus-visible': {
-				outline: `2px solid ${colors.focus}`,
-				outlineOffset: -2,
-			},
 		},
 	} as const;
 };
@@ -159,14 +137,21 @@ export const MANTINE_SELECTED_PILL_STYLE = {
 	alignItems: 'center',
 	justifyContent: 'center',
 	backgroundColor: LUMUS_RUNTIME_COLORS.light.accent,
-	color: LUMUS_RUNTIME_COLORS.light.onAccent,
+	color: LUMUS_RUNTIME_COLORS.light.surface,
 	fontWeight: 700,
 	textAlign: 'center',
 } as const;
 
 export const MANTINE_SELECTED_PILL_SLOT_STYLES = {
-	label: { color: LUMUS_RUNTIME_COLORS.light.onAccent, flex: 1, textAlign: 'center' },
+	label: { color: LUMUS_RUNTIME_COLORS.light.surface, flex: 1, textAlign: 'center' },
 	remove: { color: LUMUS_RUNTIME_COLORS.light.onAccent },
+} as const;
+
+export const MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES = {
+	root: {
+		color: LUMUS_RUNTIME_COLORS.light.surface,
+		backgroundColor: 'transparent',
+	},
 } as const;
 
 export const getMantineNumberInputClassNames = (
