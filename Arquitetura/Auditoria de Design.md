@@ -2,6 +2,24 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — timeline de movimentos bancários Web, 2026-09-24
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | `BankMovementsScreen.web.tsx` tinha um card de movimento com hierarquia e expansão diferentes das listas Web de despesas obrigatórias e investimentos. | A lista passou a usar os contratos de trilho, cabeçalho, identidade, valor/data e painel expansível de `WEB_DASHBOARD_CLASS_NAMES`, com `AnimatedContent` e `Grainient`; paletas, filtros, metadados e ações financeiras foram preservados. A variante mobile permaneceu intacta. | Validação estática e export Web serão registrados ao concluir esta correção. | A inspeção visual com movimentos reais requer sessão autenticada no navegador, indisponível nesta execução. |
+
+## Checkpoint — Home Web e inventário Mobile, 2026-09-24
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | `design-system/web-dashboard.ts`: os três blocos de gráficos/compromissos tinham `px-3` ou `px-4`, estreitando o conteúdo em relação a bancos e movimentações. | Removido apenas o padding horizontal de `expenseChartSection`, `activityHeatmapSection` e `mandatorySection`; largura total e molduras internas preservadas. | `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. | Gráfico e heatmap podem precisar de rolagem própria em larguras estreitas; confirmar no navegador autenticado. |
+| P2 | `screens/mobile/HomeScreen.tsx`: três ícones de ajuda anunciavam “formato de pagamento”, texto sem relação com a seção. | Rótulos específicos de bancos, investimentos e movimentações. | `npm run typecheck` passou; leitura com TalkBack/VoiceOver pendente. | Alvos de ajuda de 14 px mais `hitSlop={8}` podem ficar abaixo de 44 px. |
+| P2 | `screens/mobile/HomeScreen.tsx`: banco, gráfico e expansão da timeline não expunham ação/estado suficiente ao leitor de tela. | Adicionados papel, nome e estado expandido onde aplicável. | `npm run typecheck` passou; leitura com TalkBack/VoiceOver pendente. | Cabeçalho expansível ainda contém um popover aninhado; conferir ordem de foco e ativação. |
+
+As referências reutilizáveis desta fase estão em [[Exemplo Home Web]] e [[Exemplo Home Mobile]]. A Home não contém inputs de texto; a padronização dos campos de formulário usa [[Componentes UI]].
+
+`npm run lint:styles` continua bloqueado pelas alterações já presentes em `ConfigurationsScreen.web.tsx` e pela linha de base global de `useScreenStyles` (55 consumidores contra 54). O Chrome DevTools MCP não está configurado nesta sessão; não foram medidos Core Web Vitals.
+
 ## Checkpoint — Home Web sem cards externos, 2026-09-19
 
 - **Achado:** `Gastos por dia`, `Atividade no ano` e `Próximos compromissos` ainda apresentavam uma moldura externa, embora os gráficos, labels e cards internos já expressassem a hierarquia necessária.

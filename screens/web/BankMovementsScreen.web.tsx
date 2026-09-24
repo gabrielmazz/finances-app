@@ -12,16 +12,19 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import '@mantine/core/styles.css';
 import { MantineProvider, Pill, TagsInput, Tabs as MantineTabs, type OptionsFilter } from '@mantine/core';
+import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import Grainient from '@/components/web/visuals/Grainient';
 import {
 	getMantineTabsStyles,
 	getMantineTagsInputStyles,
+	MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES,
 	MANTINE_TABS_CLASS_NAMES,
+	MANTINE_TAGS_INPUT_CLASS_NAMES,
 	MANTINE_TABS_CSS_VARIABLES,
 	MANTINE_SELECTED_PILL_SLOT_STYLES,
 	MANTINE_SELECTED_PILL_STYLE,
@@ -1040,6 +1043,7 @@ export default function BankMovementsScreen() {
 	);
 	const [isPeriodTimelineExpanded, setIsPeriodTimelineExpanded] = React.useState(true);
 	const [expandedMovementIds, setExpandedMovementIds] = React.useState<string[]>([]);
+	const [renderedMovementIds, setRenderedMovementIds] = React.useState<string[]>([]);
 	const [tagMetadataById, setTagMetadataById] = React.useState<Record<string, MovementTagMetadata>>({});
 	const [bankOptions, setBankOptions] = React.useState<BankOption[]>([]);
 	// A rota pode ser aberta pelo menu sem contexto. Mantemos a escolha local para
@@ -2033,6 +2037,7 @@ export default function BankMovementsScreen() {
 	React.useEffect(() => {
 		const visibleIds = new Set(visibleMovements.map(movement => movement.id));
 		setExpandedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
+		setRenderedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [visibleMovements]);
 
 	// Separa os totais fixos do banco dos totais filtrados do período, seguindo [[Gerenciamento de Bancos]].
@@ -2379,12 +2384,18 @@ export default function BankMovementsScreen() {
 	}, []);
 
 	const handleToggleMovementCard = React.useCallback((movementId: string) => {
-		setExpandedMovementIds(previousState =>
-			previousState.includes(movementId)
-				? previousState.filter(id => id !== movementId)
-				: [...previousState, movementId],
+		if (expandedMovementIds.includes(movementId)) {
+			setExpandedMovementIds(previousState => previousState.filter(id => id !== movementId));
+			return;
+		}
+
+		setRenderedMovementIds(rendered =>
+			rendered.includes(movementId) ? rendered : [...rendered, movementId],
 		);
-	}, []);
+		setExpandedMovementIds(previousState =>
+			previousState.includes(movementId) ? previousState : [...previousState, movementId],
+		);
+	}, [expandedMovementIds]);
 
 	const handleInvestmentInitialInputChange = React.useCallback((value: string) => {
 		setEditInvestmentInitialInput(formatCurrencyInputValue(value).display);
@@ -2793,6 +2804,7 @@ export default function BankMovementsScreen() {
 		setSelectedBankId(bank.id);
 		setSelectedTagFilterIds([]);
 		setExpandedMovementIds([]);
+		setRenderedMovementIds([]);
 		setErrorMessage(null);
 	}, []);
 	const screenTitle = isCashView
@@ -2965,35 +2977,40 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack>
-												<HStack className="mb-2 items-center justify-between gap-3">
-													<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Tags</Text>
+												<HStack className="items-center justify-between gap-3">
+													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Categorias</Text>
 													<Text className={`${helperText} text-xs`}>
 														{selectedTagFilterOptions.length === 1
 															? `${selectedTagFilterOptions[0].movementCount} item(ns)`
 															: selectedTagFilterOptions.length > 1
-																? `${selectedTagFilterOptions.length} tags selecionadas`
+																? `${selectedTagFilterOptions.length} categorias selecionadas`
 																: availableTagFilters.length === 0
-																	? 'Sem tags neste filtro'
-																	: `${availableTagFilters.length} tag(ns)`}
+																	? 'Sem categorias neste filtro'
+																	: `${availableTagFilters.length} categoria(s)`}
 													</Text>
 												</HStack>
 
 												<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
 													<TagsInput
-														aria-label="Filtrar movimentações por tag"
+														aria-label="Filtrar movimentações por categoria"
 														data={tagInputData}
 														value={selectedTagFilterIds}
 														onChange={handleTagInputChange}
 														acceptValueOnBlur={false}
 														clearable
+														clearButtonProps={{
+															'aria-label': 'Limpar todas as categorias',
+															styles: MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES,
+														}}
 														filter={tagInputFilter}
 														maxDropdownHeight={240}
 														disabled={isLoading || availableTagFilters.length === 0}
 														placeholder={
 															availableTagFilters.length > 0
-																? 'Selecione uma tag'
-																: 'Sem tags disponíveis para este filtro'
+																? 'Selecione alguma categoria'
+																: 'Sem categorias disponíveis para este filtro'
 														}
+														classNames={MANTINE_TAGS_INPUT_CLASS_NAMES}
 														styles={tagInputStyles}
 														renderOption={({ option }) => {
 															const tagOption = availableTagFilters.find(item => item.id === String(option.value));
@@ -3032,8 +3049,8 @@ export default function BankMovementsScreen() {
 																	onRemove={onRemove}
 																	disabled={disabled}
 																	size="sm"
-																	removeButtonProps={{
-																		'aria-label': `Remover a tag ${tagOption?.label ?? String(option.value)}`,
+													removeButtonProps={{
+														'aria-label': `Remover a categoria ${tagOption?.label ?? String(option.value)}`,
 																		style: { color: LUMUS_RUNTIME_COLORS.light.onAccent },
 																	}}
 																	style={MANTINE_SELECTED_PILL_STYLE}
@@ -3441,65 +3458,33 @@ export default function BankMovementsScreen() {
 																	: 'Excluir';
 														const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
 
-														return (
-															<View key={movement.id} style={{ flexDirection: 'row' }}>
-																<View
-																	style={{
-																		alignItems: 'center',
-																		width: '7%',
-																		paddingTop: 6,
-																	}}
-																>
+															return (
+															<View key={movement.id} className={webDashboardClassNames.timelineRow}>
+																<View className={webDashboardClassNames.timelineRail}>
 																	<View
-																		style={{
-																			width: 14,
-																			height: 14,
-																			borderRadius: 999,
-																			backgroundColor: movementTone.accentColor,
-																			borderWidth: 2,
-																			borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																			shadowColor: movementTone.accentColor,
-																			shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																			shadowRadius: 8,
-																			shadowOffset: { width: 0, height: 4 },
-																			elevation: 2,
-																		}}
+																		className={webDashboardClassNames.timelineDot}
+																		style={{ backgroundColor: movementTone.accentColor }}
 																	/>
 																	{index < visibleMovements.length - 1 ? (
 																		<View
-																			style={{
-																				flex: 1,
-																				width: 3,
-																				borderRadius: 999,
-																				marginVertical: 2,
-																				backgroundColor: movementTone.lineColor,
-																			}}
+																			className={webDashboardClassNames.timelineLine}
+																			style={{ backgroundColor: movementTone.lineColor }}
 																		/>
-																	) : (
-																		<View />
-																	)}
+																	) : null}
 																</View>
 
-																<View style={{ width: '93%', paddingBottom: 14 }}>
-																	<TouchableOpacity
-																		activeOpacity={0.85}
+																<View className={webDashboardClassNames.timelineBody}>
+																	<Pressable
 																		onPress={() => handleToggleMovementCard(movement.id)}
-																		style={{ width: '100%' }}
+																		accessibilityRole="button"
+																		accessibilityLabel={`${isExpanded ? 'Recolher' : 'Expandir'} detalhes de ${movement.name}`}
+																		accessibilityState={{ expanded: isExpanded }}
+																		className={`${webDashboardClassNames.movementHeader} min-h-touch cursor-pointer rounded-2xl py-1 focus-visible:ring-2 focus-visible:ring-lumus-focus`}
 																	>
-																		<HStack className="items-center justify-between gap-3">
-																			<HStack className="items-center gap-3" style={{ flex: 1 }}>
-																				<LinearGradient
-																					colors={movementTone.iconGradient}
-																					start={{ x: 0, y: 0 }}
-																					end={{ x: 1, y: 1 }}
-																					style={{
-																						width: 44,
-																						height: 44,
-																						borderRadius: 16,
-																						alignItems: 'center',
-																						justifyContent: 'center',
-																						flexShrink: 0,
-																					}}
+																<HStack className={webDashboardClassNames.movementIdentity}>
+																				<View
+																					className={`${webDashboardClassNames.movementIcon} border border-white/10`}
+																					style={{ backgroundColor: movementTone.iconGradient[0] }}
 																				>
 																					<TagIcon
 																						iconFamily={movementIcon.iconFamily}
@@ -3508,282 +3493,182 @@ export default function BankMovementsScreen() {
 																						size={18}
 																						color="#FFFFFF"
 																					/>
-																				</LinearGradient>
+																				</View>
 
-																				<View style={{ flex: 1 }}>
+																				<View className={webDashboardClassNames.movementCopy}>
 																					<Text
 																						numberOfLines={1}
-																						style={{
-																							color: timelinePalette.title,
-																							fontSize: 15,
-																							fontWeight: '700',
-																						}}
+																						className={`${webDashboardClassNames.movementName} ${bodyText}`}
 																					>
 																						{movement.name}
 																					</Text>
 																					<Text
 																						numberOfLines={1}
-																						style={{
-																							marginTop: 2,
-																							color: timelinePalette.subtitle,
-																							fontSize: 12,
-																							lineHeight: 18,
-																						}}
+																						className={`${webDashboardClassNames.movementSubtitle} ${helperText}`}
 																					>
 																						{getMovementSummarySubtitle(movement)}
 																					</Text>
 																				</View>
-																			</HStack>
+																</HStack>
 
-																			<HStack className="items-center gap-2">
-																				<VStack className="items-end">
-																					<Text
-																						style={{
-																							color: movementTone.amountColor,
-																							fontSize: 15,
-																							fontWeight: '700',
-																						}}
-																					>
-																						{formatSignedCurrencyBRL(movement)}
-																					</Text>
-																					{movement.isFinanceInvestmentSync ? (
-																						<Text
-																							style={{
-																								marginTop: 2,
-																								color: timelinePalette.subtitle,
-																								fontSize: 11,
-																							}}
-																						>
-																							{formatDeltaCurrencyBRL(
-																								typeof movement.investmentSyncPreviousValueInCents === 'number'
-																									? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																									: null,
-																							)}
-																						</Text>
-																					) : null}
-																					<HStack className="mt-1 items-center gap-1">
-																						<Icon
-																							as={CalendarDaysIcon}
-																							size="xs"
-																							className={
-																								isDarkMode
-																									? 'text-slate-500'
-																									: 'text-slate-400'
-																							}
-																						/>
-																						<Text
-																							style={{
-																								color: timelinePalette.subtitle,
-																								fontSize: 11,
-																							}}
-																						>
-																							{formatMovementCompactDate(movement.date)}
-																						</Text>
-																					</HStack>
-																				</VStack>
-
-																				<Icon
-																					as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																					size="sm"
-																					className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-																				/>
-																			</HStack>
-																		</HStack>
-																	</TouchableOpacity>
-
-																	{isExpanded ? (
-																		<LinearGradient
-																			colors={movementTone.cardGradient}
-																			start={{ x: 0, y: 0 }}
-																			end={{ x: 1, y: 1 }}
-																			style={{
-																				marginTop: 10,
-																				marginRight: 16,
-																				borderRadius: 20,
-																				paddingHorizontal: 16,
-																				paddingVertical: 14,
-																			}}
-																		>
-																			<VStack className="gap-3">
-																				<HStack className="items-start justify-between gap-4">
-																					<VStack className="flex-1">
-																						<Text
-																							style={{
-																								fontSize: 10,
-																								fontWeight: '700',
-																								letterSpacing: 0.4,
-																								color: 'rgba(255,255,255,0.74)',
-																								textTransform: 'uppercase',
-																							}}
-																						>
-																							Resumo
-																						</Text>
-																						<Text
-																							style={{
-																								fontSize: 13,
-																								lineHeight: 19,
-																								color: '#FFFFFF',
-																							}}
-																						>
-																							{getMovementDetailMessage(movement)}
-																						</Text>
-																					</VStack>
-
-																					<VStack className="items-end">
-																						<Text
-																							style={{
-																								fontSize: 10,
-																								fontWeight: '700',
-																								letterSpacing: 0.4,
-																								color: 'rgba(255,255,255,0.74)',
-																								textTransform: 'uppercase',
-																							}}
-																						>
-																							Valor
-																						</Text>
-																						<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																							{formatSignedCurrencyBRL(movement)}
-																						</Heading>
-																					</VStack>
-																				</HStack>
-
-																				<View
-																					style={{
-																						flexDirection: 'row',
-																						flexWrap: 'wrap',
-																						columnGap: 14,
-																						rowGap: 10,
-																					}}
+																<View className={webDashboardClassNames.movementAmount}>
+																				<Text
+																					className={`${webDashboardClassNames.amount} tabular-nums`}
+																					style={{ color: movementTone.amountColor }}
 																				>
-																					{metadataItems.map(item => (
-																						<View
-																							key={`${movement.id}-${item.label}`}
-																							style={{
-																								width: '46%',
-																								minWidth: 128,
-																							}}
-																						>
-																							<Text
-																								style={{
-																									fontSize: 10,
-																									fontWeight: '700',
-																									letterSpacing: 0.4,
-																									color: 'rgba(255,255,255,0.72)',
-																									textTransform: 'uppercase',
-																								}}
-																							>
-																								{item.label}
-																							</Text>
-																							<Text
-																								style={{
-																									marginTop: 3,
-																									fontSize: 13,
-																									lineHeight: 18,
-																									color: '#FFFFFF',
-																								}}
-																							>
-																								{item.value}
+																					{formatSignedCurrencyBRL(movement)}
+																				</Text>
+																				{movement.isFinanceInvestmentSync ? (
+																					<Text
+																						className={`${webDashboardClassNames.dateText} ${helperText} mt-0.5 tabular-nums`}
+																						numberOfLines={1}
+																					>
+																						{formatDeltaCurrencyBRL(
+																							typeof movement.investmentSyncPreviousValueInCents === 'number'
+																								? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																								: null,
+																						)}
+																					</Text>
+																				) : null}
+																				<HStack className={webDashboardClassNames.movementDate}>
+																					<Icon as={CalendarDaysIcon} size="xs" className="text-slate-500" />
+																					<Text
+																						numberOfLines={1}
+																						className={`${webDashboardClassNames.dateText} ${helperText}`}
+																					>
+																						{formatMovementCompactDate(movement.date)}
+																					</Text>
+																					<Icon
+																						as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+																						size="sm"
+																						className="text-slate-500"
+																					/>
+																				</HStack>
+																</View>
+																	</Pressable>
+
+																	{renderedMovementIds.includes(movement.id) ? (
+																		<AnimatedContent
+																			key={`${movement.id}:detail`}
+																			trigger="mount"
+																			visible={isExpanded}
+																			distance={18}
+																			duration={0.36}
+																			disappearDuration={0.28}
+																			disappearScale={1}
+																			ease="power3.out"
+																			initialOpacity={0}
+																			animateOpacity
+																			scale={1}
+																			className={webDashboardClassNames.movementDetailAnimation}
+																			onDisappearanceComplete={() =>
+																				setRenderedMovementIds(rendered =>
+																					rendered.filter(id => id !== movement.id),
+																				)
+																			}
+																		>
+																			<View className={webDashboardClassNames.movementDetail}>
+																				<View
+																					pointerEvents="none"
+																					className={webDashboardClassNames.movementDetailGrainient}
+																				>
+																					<Grainient
+																						className="movement-detail-grainient"
+																						timeSpeed={0.1}
+																						warpStrength={0.8}
+																						warpFrequency={3.5}
+																						warpSpeed={1.6}
+																						warpAmplitude={90}
+																						blendSoftness={0.2}
+																						grainAmount={0.06}
+																						grainScale={3}
+																						grainAnimated
+																						contrast={1.12}
+																						zoom={1.05}
+																						color1={movementTone.cardGradient[0]}
+																						color2={movementTone.accentColor}
+																						color3={movementTone.cardGradient[1]}
+																					/>
+																				</View>
+																				<View className={webDashboardClassNames.movementDetailContent}>
+																					<VStack className="gap-3">
+																						<View className={webDashboardClassNames.detailSection}>
+																							<Text className={webDashboardClassNames.detailLabel}>RESUMO</Text>
+																							<Text className={webDashboardClassNames.detailText}>
+																								{getMovementDetailMessage(movement)}
 																							</Text>
 																						</View>
-																					))}
+
+																						<View className={webDashboardClassNames.detailGrid}>
+																							{metadataItems.map(item => (
+																								<View
+																									key={`${movement.id}-${item.label}`}
+																									className={webDashboardClassNames.detailItem}
+																								>
+																									<Text className={webDashboardClassNames.detailLabel}>
+																										{item.label}
+																									</Text>
+																									<Text className={webDashboardClassNames.detailText}>
+																										{item.value}
+																									</Text>
+																								</View>
+																							))}
+																						</View>
+
+																						{movement.explanation?.trim() &&
+																						getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
+																							<View className={webDashboardClassNames.detailSection}>
+																								<Text className={webDashboardClassNames.detailLabel}>DESCRIÇÃO</Text>
+																								<Text className={webDashboardClassNames.detailText}>
+																									{movement.explanation.trim()}
+																								</Text>
+																							</View>
+																						) : null}
+
+																						<View className={webDashboardClassNames.detailActions}>
+																							{canEditMovement ? (
+																								<Pressable
+																									onPress={() => handleRequestMovementAction('edit', movement)}
+																									accessibilityRole="button"
+																									accessibilityLabel={`Editar ${movement.name}`}
+																									className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
+																								>
+																									<Icon as={EditIcon} size="sm" className="text-white" />
+																									<Text className="text-xs font-semibold text-white">Editar</Text>
+																								</Pressable>
+																							) : null}
+
+																							{movement.isCashRescue ? (
+																								<Pressable
+																									onPress={() =>
+																										handleRequestMovementAction('revert-cash-rescue', movement)
+																									}
+																									accessibilityRole="button"
+																									accessibilityLabel={`Reivindicar saque de ${movement.name}`}
+																									className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
+																								>
+																									<Icon as={RepeatIcon} size="sm" className="text-white" />
+																									<Text className="text-xs font-semibold text-white">Reivindicar</Text>
+																								</Pressable>
+																							) : null}
+
+																							<Pressable
+																								onPress={() => handleRequestMovementAction('delete', movement)}
+																								accessibilityRole="button"
+																								accessibilityLabel={`${secondaryActionLabel} ${movement.name}`}
+																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
+																								style={{ opacity: usesUndoAction || canDeleteMovement ? 1 : 0.72 }}
+																							>
+																								<Icon as={secondaryActionIcon} size="sm" className="text-white" />
+																								<Text className="text-xs font-semibold text-white">
+																									{secondaryActionLabel}
+																								</Text>
+																							</Pressable>
+																						</View>
+																					</VStack>
 																				</View>
-
-																				{movement.explanation?.trim() &&
-																					getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
-																					<View
-																						style={{
-																							paddingTop: 2,
-																						}}
-																					>
-																						<Text
-																							style={{
-																								fontSize: 10,
-																								fontWeight: '700',
-																								letterSpacing: 0.4,
-																								color: 'rgba(255,255,255,0.72)',
-																								textTransform: 'uppercase',
-																							}}
-																						>
-																							Descrição
-																						</Text>
-																						<Text
-																							style={{
-																								marginTop: 6,
-																								fontSize: 13,
-																								lineHeight: 18,
-																								color: '#FFFFFF',
-																							}}
-																						>
-																							{movement.explanation.trim()}
-																						</Text>
-																					</View>
-																				) : null}
-
-																				<HStack
-																					className="flex-wrap gap-4"
-																					style={{
-																						paddingTop: 2,
-																					}}
-																				>
-																					{canEditMovement ? (
-																						<TouchableOpacity
-																							activeOpacity={0.85}
-																							onPress={() => handleRequestMovementAction('edit', movement)}
-																							style={{
-																								flexDirection: 'row',
-																								alignItems: 'center',
-																								gap: 8,
-																								paddingVertical: 8,
-																							}}
-																						>
-																							<Icon as={EditIcon} size="sm" className="text-white" />
-																							<Text className="text-xs font-semibold text-white">Editar</Text>
-																						</TouchableOpacity>
-																					) : null}
-
-																					{movement.isCashRescue ? (
-																						<TouchableOpacity
-																							activeOpacity={0.85}
-																							onPress={() =>
-																								handleRequestMovementAction(
-																									'revert-cash-rescue',
-																									movement,
-																								)
-																							}
-																							style={{
-																								flexDirection: 'row',
-																								alignItems: 'center',
-																								gap: 8,
-																								paddingVertical: 8,
-																							}}
-																						>
-																							<Icon as={RepeatIcon} size="sm" className="text-white" />
-																							<Text className="text-xs font-semibold text-white">
-																								Reivindicar
-																							</Text>
-																						</TouchableOpacity>
-																					) : null}
-
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() => handleRequestMovementAction('delete', movement)}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																							opacity:
-																								usesUndoAction || canDeleteMovement ? 1 : 0.72,
-																						}}
-																					>
-																						<Icon as={secondaryActionIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">
-																							{secondaryActionLabel}
-																						</Text>
-																					</TouchableOpacity>
-																				</HStack>
-																			</VStack>
-																		</LinearGradient>
+																			</View>
+																		</AnimatedContent>
 																	) : null}
 																</View>
 															</View>

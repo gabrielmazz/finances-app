@@ -23,9 +23,12 @@ module.exports = {
       colors: {
         lumus: {
           accent: '#FACC15',
+          'accent-dark': '#FDE047',
+          'accent-soft': '#FEF9C3',
           'accent-hover': '#FDE047',
           'accent-pressed': '#EAB308',
           'on-accent': '#0F172A',
+          'surface-hover-dark': 'rgba(148,163,184,0.12)',
           focus: '#CA8A04',
           'income-light': '#059669',
           'income-dark': '#34D399',
@@ -307,6 +310,7 @@ module.exports = {
       boxShadow: {
         card: '0 8px 24px rgba(15, 23, 42, 0.08)',
         overlay: '0 18px 48px rgba(2, 6, 23, 0.24)',
+        'lumus-accent': '0 6px 18px rgba(250,204,21,0.22)',
         'hard-1': '-2px 2px 8px 0px rgba(38, 38, 38, 0.20)',
         'hard-2': '0px 3px 10px 0px rgba(38, 38, 38, 0.20)',
         'hard-3': '2px 2px 8px 0px rgba(38, 38, 38, 0.20)',

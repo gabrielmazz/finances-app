@@ -12,6 +12,8 @@ O design system tem uma fundação canônica em `tailwind.config.js` e `design-s
 
 O contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` centraliza a tipografia dos títulos de seção Web (`text-lg font-bold uppercase tracking-widest`), tendo **Calendário de Vencimentos** como referência visual compartilhada pela Home e pela carteira.
 
+Para a revisão tela a tela, [[Exemplo Home Web]] registra largura, tipografia e estados da composição Web; [[Exemplo Home Mobile]] inventaria gestos, botões, popovers e modal da composição nativa. A Home não tem campos de texto: exemplos de inputs de formulário devem partir dos contratos de formulário, não do dashboard.
+
 ## Resolução por plataforma
 
 As telas importam o caminho lógico sem extensão. Os adaptadores em `components/uiverse/` encaminham automaticamente para `components/web/` no navegador e `components/mobile/` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport mobile para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.

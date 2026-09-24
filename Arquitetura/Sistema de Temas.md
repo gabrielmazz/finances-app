@@ -46,7 +46,7 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 
 - `global.css`: importa Geist e as camadas Tailwind 3; também define `color-scheme`, fundo base e redução de movimento para o navegador
 - `tailwind.config.js`: usa `nativewind/preset`, `darkMode: 'class'` e tokens CSS do Gluestack
-- Cores customizadas no Tailwind: escalas Gluestack e tokens semânticos `lumus-accent`, `lumus-on-accent`, `lumus-focus`, `lumus-income-*` e `lumus-expense-*`
+- Cores customizadas no Tailwind: escalas Gluestack e tokens semânticos `lumus-accent`, `lumus-accent-dark`, `lumus-accent-soft`, `lumus-on-accent`, `lumus-focus`, `lumus-surface-hover-dark`, `lumus-income-*` e `lumus-expense-*`; o estado ativo das Tabs Mantine também usa `shadow-lumus-accent`
 - Persistência via `@react-native-async-storage/async-storage` com chave dedicada
 
 ## Observações importantes
@@ -59,5 +59,6 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 - `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` é o contrato Web para títulos de seção: `text-lg font-bold uppercase tracking-widest`, alinhado ao cabeçalho do calendário recorrente e reutilizado na Home e na carteira.
 - A ação primária sólida mantém o amarelo `lumus-accent` (`#FACC15`) e usa texto branco nos dois temas, conforme a preferência visual atual. Essa combinação mede 1,53:1 de contraste e tem legibilidade reduzida; os demais usos de `lumus-accent` preservam o foreground escuro `lumus-on-accent`. Na Web, inputs usam borda e anel `lumus-accent` ao receber foco; no Android/iOS, os campos mantêm borda neutra em repouso e mostram contorno `lumus-accent` de 2 px somente enquanto focados. Estados inválidos continuam com contorno vermelho, e cards preservam bordas neutras sem herdar o foco dos campos.
 - `script/check_style_architecture.js` bloqueia crescimento de estilos inline, cores brutas, valores arbitrários, novos consumidores do hook, CSS isolado, `StyleSheet.create`, `!important`, `transition-all` e utilitários Tailwind com prefixo `!`.
+- O `styles` prop do Mantine aceita estilos inline simples, sem pseudo-seletores; estados internos de Tabs e TagsInput usam `classNames` com variantes `data-*` no adaptador `design-system/mantine.ts`.
 - Os estados selecionados de checkbox que representam ação principal devem manter o amarelo padrão do sistema, mesmo quando o componente base do Gluestack usar a cor `primary` do tema
 - O toggle de tema em `Configurações` deve manter o mesmo alinhamento estrutural do toggle de privacidade, com label e popover no bloco esquerdo e `Switch` fixo à direita

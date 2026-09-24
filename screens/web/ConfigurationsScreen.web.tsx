@@ -47,6 +47,7 @@ import { auth } from '@/FirebaseConfig';
 // Componentes do Uiverse
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
 import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
 import type { TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
@@ -2650,6 +2651,7 @@ export default function ConfigurationsScreen() {
 							</VStack>
 						)}
 					</ScrollView>
+					<Navigator defaultValue={2} />
 				</Box>
 
 				<CategoryAvailabilitySelector
