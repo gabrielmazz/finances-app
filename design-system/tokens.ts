@@ -6,6 +6,8 @@
  * third-party APIs that cannot consume `className`.
  */
 
+const CATEGORY_PLACEHOLDER_COLOR = '#505D74';
+
 export const LUMUS_RUNTIME_COLORS = {
 	light: {
 		canvas: '#F8FAFC',
@@ -15,6 +17,7 @@ export const LUMUS_RUNTIME_COLORS = {
 		border: '#E2E8F0',
 		text: '#0F172A',
 		textMuted: '#64748B',
+		categoryPlaceholder: CATEGORY_PLACEHOLDER_COLOR,
 		accent: '#FACC15',
 		accentStrong: '#CA8A04',
 		onAccent: '#0F172A',
@@ -37,6 +40,7 @@ export const LUMUS_RUNTIME_COLORS = {
 		border: '#1E293B',
 		text: '#F8FAFC',
 		textMuted: '#94A3B8',
+		categoryPlaceholder: CATEGORY_PLACEHOLDER_COLOR,
 		accent: '#FDE047',
 		accentStrong: '#FACC15',
 		onAccent: '#0F172A',

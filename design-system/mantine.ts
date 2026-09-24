@@ -22,19 +22,30 @@ export const MANTINE_TABS_CLASS_NAMES = {
 export const MANTINE_TAGS_INPUT_CLASS_NAMES = {
 	input:
 		'border-slate-200 dark:border-slate-800 web:focus-within:border-lumus-focus dark:web:focus-within:border-lumus-accent-dark web:focus-within:ring-2 web:focus-within:ring-lumus-accent dark:web:focus-within:ring-lumus-accent-dark',
-	inputField: 'placeholder:text-center placeholder:text-slate-500 dark:placeholder:text-slate-500',
+	inputField: 'text-left placeholder:text-left',
 	option: [
-		'text-slate-900 dark:text-slate-100',
-		'data-[combobox-selected]:bg-lumus-accent-soft dark:data-[combobox-selected]:bg-lumus-accent-dark/15',
-		'data-[combobox-selected]:text-lumus-on-accent dark:data-[combobox-selected]:text-slate-100',
-		'hover:bg-slate-50 dark:hover:bg-lumus-surface-hover-dark',
-		'focus-visible:outline-2 focus-visible:outline-lumus-focus focus-visible:-outline-offset-2',
+		'text-white',
+		'data-[combobox-selected]:outline-2 data-[combobox-selected]:outline-white data-[combobox-selected]:-outline-offset-2',
+		'focus-visible:outline-2 focus-visible:outline-white focus-visible:-outline-offset-2',
 	].join(' '),
 } as const;
 
 export const MANTINE_TABS_CSS_VARIABLES = {
 	'--tabs-color': LUMUS_RUNTIME_COLORS.light.accent,
 	'--tabs-text-color': LUMUS_RUNTIME_COLORS.light.onAccent,
+} as CSSProperties;
+
+export const MANTINE_MOVEMENT_TABS_CLASS_NAMES = {
+	...MANTINE_TABS_CLASS_NAMES,
+	tab: cn(
+		MANTINE_TABS_CLASS_NAMES.tab.replace('dark:data-[active]:bg-lumus-accent-dark', ''),
+		'data-[active]:bg-lumus-accent dark:data-[active]:bg-lumus-accent data-[active]:text-white data-[active]:shadow-none',
+	),
+} as const;
+
+export const MANTINE_MOVEMENT_TABS_CSS_VARIABLES = {
+	...MANTINE_TABS_CSS_VARIABLES,
+	'--tabs-text-color': LUMUS_RUNTIME_COLORS.light.surface,
 } as CSSProperties;
 
 export const getMantineTabsStyles = (_isDarkMode: boolean) => {
@@ -86,11 +97,14 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 	return {
 		root: { width: '100%' },
 		input: {
+			display: 'flex',
+			alignItems: 'center',
 			minHeight: 48,
 			borderRadius: 16,
 			backgroundColor: 'transparent',
 			color: colors.text,
-			padding: 3,
+			paddingInlineStart: 12,
+			paddingBlock: 4,
 			transition: 'border-color 150ms ease, box-shadow 150ms ease',
 		},
 		inputField: {
@@ -99,8 +113,9 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 			fontFamily: LUMUS_FONT_STACKS.sans,
 			fontSize: 14,
 			lineHeight: '20px',
+			'--input-placeholder-color': colors.categoryPlaceholder,
 		},
-		pillsList: { gap: 6, padding: 0 },
+		pillsList: { width: '100%', alignItems: 'center', gap: 6, padding: 0 },
 		pill: {
 			display: 'inline-flex',
 			alignItems: 'center',
@@ -114,8 +129,8 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 		},
 		dropdown: {
 			borderRadius: 16,
-			borderColor: colors.border,
-			backgroundColor: colors.elevatedSurface,
+			borderColor: LUMUS_RUNTIME_COLORS.light.accent,
+			backgroundColor: LUMUS_RUNTIME_COLORS.light.accent,
 			boxShadow: '0 12px 30px rgba(2,6,23,0.22)',
 			padding: 6,
 			overflow: 'hidden',
@@ -123,6 +138,8 @@ export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 		option: {
 			display: 'flex',
 			alignItems: 'center',
+			backgroundColor: LUMUS_RUNTIME_COLORS.light.accent,
+			color: LUMUS_RUNTIME_COLORS.light.surface,
 			borderRadius: 10,
 			fontFamily: LUMUS_FONT_STACKS.sans,
 			fontSize: 14,
@@ -144,14 +161,13 @@ export const MANTINE_SELECTED_PILL_STYLE = {
 
 export const MANTINE_SELECTED_PILL_SLOT_STYLES = {
 	label: { color: LUMUS_RUNTIME_COLORS.light.surface, flex: 1, textAlign: 'center' },
-	remove: { color: LUMUS_RUNTIME_COLORS.light.onAccent },
+	remove: { color: LUMUS_RUNTIME_COLORS.light.surface },
 } as const;
 
-export const MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLES = {
-	root: {
-		color: LUMUS_RUNTIME_COLORS.light.surface,
-		backgroundColor: 'transparent',
-	},
+export const MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLE = {
+	color: LUMUS_RUNTIME_COLORS.light.surface,
+	background: 'transparent',
+	pointerEvents: 'all',
 } as const;
 
 export const getMantineNumberInputClassNames = (

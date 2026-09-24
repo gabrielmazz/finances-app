@@ -2,11 +2,41 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — extrato bancário Web e mobile, 2026-09-24
+
+**Correção complementar do warning React:** quatro textos da timeline Web e dois textos do seletor Web de banco passavam `numberOfLines={1}` ao `Text` Gluestack, que renderiza um `<span>` e encaminha a prop desconhecida ao DOM. Esses seis usos agora recebem `isTruncated`, preservando a intenção de uma linha pelo contrato Web. A variante nativa continua usando `numberOfLines`. `npm run typecheck` e `git diff --check` passaram; `npm run lint:styles` continua limitado às pendências anteriores de Configurações Web e `useScreenStyles`.
+
+**Inventário:** `/web/bank-movements` usa `screens/web/BankMovementsScreen.web.tsx` com Mantine `Tabs`/`TagsInput`, seletores compartilhados, resumo, timeline e PDF; `/mobile/bank-movements` usa `screens/mobile/BankMovementsScreen.tsx` com Gluestack/NativeWind, botões nativos de tipo, categorias em rolagem, resumo, timeline e PDF. Ambas as rotas aceitam banco e período, e a visão de Caixa não requer seleção de banco. Referências: [[Exemplo Home Web]], [[Exemplo Home Mobile]], [[Gerenciamento de Bancos]], [[Sistema de Temas]].
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A tab Web ativa projetava sombra amarela sob o card; ícone e texto selecionados podiam divergir. | Variante das `Tabs` Mantine sem sombra ativa, com ícone, label e variável de texto em branco. | `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. | Branco sobre amarelo tem contraste baixo; conferir leitura em ambos os temas no navegador autenticado. |
+| P2 | O campo de categorias Web usava placeholder `slate-500` e padding interno extra, destoando do formulário de despesas. | Token resolvido `#505D74` no adaptador Mantine, sem padding extra; label e altura base seguem os contratos dos inputs Web. | TypeScript e export Web passaram. | Conferir visualmente placeholder, foco, seleção múltipla e conteúdo longo no navegador. |
+| P2 | O placeholder do filtro de categorias ficava centralizado horizontalmente; pills encostavam na borda e o menu escuro mantinha ícones apagados. O X de limpar herdava o fundo cinza inline do Mantine. | Placeholder e pills recuados à esquerda e centrados verticalmente; placeholder oculto com seleção; menu e opções `#FACC15` com texto, contagens e ícones brancos; X individuais brancos e botão de limpar transparente. | Inspeção dos estilos Mantine e checagens TypeScript/Web. | Conferir contraste e estados de foco, hover e múltiplas categorias no navegador autenticado. |
+| P2 | A busca já ocorria ao entrar e ao mudar banco/período, mas havia outro botão de consulta nas duas telas; a ausência de banco criava um card de erro e o seletor Web podia exibir “Banco selecionado” sem conta escolhida. | Removidos os dois botões. Sem banco, a consulta aguarda a seleção, limpa o erro e mostra o placeholder do seletor; erros reais de data, autenticação e rede continuam visíveis. | Fluxo `useFocusEffect(fetchMovements)` e seletor compartilhado inspecionados; TypeScript passou. | Conferir troca rápida de banco/período com sessão real. |
+| P2 | Textos da tela, detalhes e PDF alternavam “tag” e “categoria”. | Terminologia visível padronizada em “categoria”; `tagId` e consultas Firestore permanecem no contrato de dados. | Busca textual e TypeScript passaram. | Nomes de campos internos ainda usam `tag` por compatibilidade. |
+| P2 | Os três botões de tipo no mobile tinham `maxWidth: 104` e, após a equalização da largura, ficaram sem separação horizontal; no tema escuro o selecionado não exibia texto/ícone brancos. | Cada botão ocupa uma fração igual da largura com `gap-1` entre eles; conteúdo selecionado branco e estado `selected` acessível. | TypeScript passou. | Conferir fonte ampliada e largura estreita em aparelho. |
+| P3 | Erros assíncronos e categorias nativas não indicavam todos os estados ao leitor de tela. | Erros anunciam mudanças de forma educada; tipos e categorias nativos expõem nome e estado selecionado/desabilitado. | Revisão estática de estados e TypeScript passaram. | TalkBack/VoiceOver e teclado Web não puderam ser exercitados nesta execução. |
+
+**Estados revisados:** normal, carregando, lista vazia, falha, período inválido, seleção desabilitada durante consulta, categoria sem opções, foco/pressionado, movimento expandido, exportação e texto extenso. O loading permanece na timeline após a remoção do botão. O novo estado Mantine e o token do placeholder foram registrados na linha de base de estilos; `npm run lint:styles` segue bloqueado somente por `ConfigurationsScreen.web.tsx` e pela linha de base global de `useScreenStyles` (55/54). O Chrome DevTools MCP não está disponível, então não houve captura autenticada ou medição de Core Web Vitals; Android/iOS também não foram renderizados em aparelho.
+
 ## Checkpoint — timeline de movimentos bancários Web, 2026-09-24
 
 | Severidade | Achado e causa | Correção | Validação | Risco residual |
 |---|---|---|---|---|
-| P2 | `BankMovementsScreen.web.tsx` tinha um card de movimento com hierarquia e expansão diferentes das listas Web de despesas obrigatórias e investimentos. | A lista passou a usar os contratos de trilho, cabeçalho, identidade, valor/data e painel expansível de `WEB_DASHBOARD_CLASS_NAMES`, com `AnimatedContent` e `Grainient`; paletas, filtros, metadados e ações financeiras foram preservados. A variante mobile permaneceu intacta. | Validação estática e export Web serão registrados ao concluir esta correção. | A inspeção visual com movimentos reais requer sessão autenticada no navegador, indisponível nesta execução. |
+| P2 | `BankMovementsScreen.web.tsx` tinha um card de movimento com hierarquia e expansão diferentes das listas Web de despesas obrigatórias e investimentos. | A lista passou a usar os contratos de trilho, cabeçalho, identidade, valor/data e painel expansível de `WEB_DASHBOARD_CLASS_NAMES`, com `AnimatedContent` e `Grainient`; paletas, filtros, metadados e ações financeiras foram preservados. A variante mobile permaneceu intacta. | `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` não apontou nova dívida no extrato, mas ainda falha por ocorrências existentes em `ConfigurationsScreen.web.tsx` e pela linha de base de `useScreenStyles`. | A inspeção visual com movimentos reais requer sessão autenticada no navegador, indisponível nesta execução. |
+
+## Checkpoint — remoção do card bancário mobile, 2026-09-24
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | `BankMovementsScreen.tsx` mostrava um card colorido com banco, período, saldo e totais gerais antes dos filtros, duplicando contexto já indicado pelo título e pelo resumo do extrato. | Removido o card e sua coluna responsiva; os filtros ocupam a largura disponível, o resumo filtrado continua na tela e os totais gerais continuam no PDF. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` não apontou nova dívida nessa tela, mas segue falhando pelas ocorrências preexistentes em `ConfigurationsScreen.web.tsx` e pela linha de base de `useScreenStyles`. | Não houve inspeção visual em aparelho nesta execução. |
+
+## Checkpoint — seletor de banco no extrato mobile, 2026-09-24
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | `BankMovementsScreen.tsx` dependia do `bankId` da rota, impedindo escolher ou trocar de conta sem sair da tela. | Reutilizado `BankActionsheetSelector` antes dos filtros de período. A rota mantém o banco inicial; sem `bankId`, o seletor permite escolher uma conta ativa. A troca atualiza o título e recarrega o extrato, preservando período/tipo e zerando a tag selecionada. Caixa continua sem seletor. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua bloqueado por dívidas em `design-system/mantine.ts`, `design-system/tokens.ts`, `ConfigurationsScreen.web.tsx` e pelo limite global de `useScreenStyles`; nenhum desses arquivos foi alterado nesta correção. | A inspeção visual em aparelho não foi feita nesta execução. |
 
 ## Checkpoint — Home Web e inventário Mobile, 2026-09-24
 

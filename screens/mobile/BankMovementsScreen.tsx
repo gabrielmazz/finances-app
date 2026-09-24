@@ -7,13 +7,13 @@ import {
 	ScrollView,
 	StatusBar,
 	TouchableOpacity,
-	useWindowDimensions,
 	View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 // Componentes de UI
 import { Heading } from '@/components/ui/heading';
@@ -92,8 +92,8 @@ import {
 	updateFinanceInvestmentFirebase,
 } from '@/functions/FinancesFirebase';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
 import {
-	BankCardSurface,
 	CASH_CARD_COLOR,
 	buildBankCardPalette,
 } from '@/components/uiverse/banks/bank-card-surface';
@@ -194,20 +194,17 @@ type AvailableTagFilterOption = {
 	movementCount: number;
 };
 
-type BankOption = {
-	id: string;
-	name: string;
-};
+type BankOption = BankActionsheetOption;
 
 const movementFilterOptions: Array<{
 	value: MovementFilter;
 	label: string;
 	icon: typeof ChevronsUpDownIcon;
 }> = [
-	{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
-	{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
-	{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
-];
+		{ value: 'gain', label: 'Ganhos', icon: ArrowUpIcon },
+		{ value: 'expense', label: 'Gastos', icon: ArrowDownIcon },
+		{ value: 'all', label: 'Todos', icon: ChevronsUpDownIcon },
+	];
 
 const redemptionOptions: { value: RedemptionTerm; label: string }[] = [
 	{ value: 'anytime', label: redemptionTermLabels.anytime },
@@ -813,7 +810,7 @@ const buildPeriodSummaryPdfHtml = ({
 						</div>
 
 						${movements.length > 0
-							? `
+			? `
 								<table>
 									<thead>
 										<tr>
@@ -829,7 +826,7 @@ const buildPeriodSummaryPdfHtml = ({
 									</tbody>
 								</table>
 							`
-							: '<div class="empty-state">Nenhuma movimentação foi registrada para o período e filtros informados.</div>'}
+			: '<div class="empty-state">Nenhuma movimentação foi registrada para o período e filtros informados.</div>'}
 					</section>
 
 					<div class="footer">
@@ -941,9 +938,6 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 };
 
 export default function BankMovementsScreen() {
-	const { width: windowWidth } = useWindowDimensions();
-	const isDesktopWeb = windowWidth >= 1024 && Platform.OS === 'web';
-
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -951,6 +945,7 @@ export default function BankMovementsScreen() {
 		bodyText,
 		helperText,
 		inputField,
+		fieldBankContainerClassName,
 		fieldContainerClassName,
 		fieldContainerCardClassName,
 		textareaContainerClassName,
@@ -992,7 +987,7 @@ export default function BankMovementsScreen() {
 		return bankId === 'cash' || bankId === 'cash-transactions';
 	}, [bankId, cashViewParam]);
 
-	const bankName = React.useMemo(() => {
+	const routeBankName = React.useMemo(() => {
 		if (isCashView) {
 			return 'Transações em dinheiro';
 		}
@@ -1007,6 +1002,19 @@ export default function BankMovementsScreen() {
 			return value;
 		}
 	}, [searchParams.bankName, isCashView]);
+	const [bankOptions, setBankOptions] = React.useState<BankOption[]>([]);
+	const [isLoadingBankOptions, setIsLoadingBankOptions] = React.useState(false);
+	const [selectedBankId, setSelectedBankId] = React.useState(bankId);
+	const selectedBankOption = React.useMemo(
+		() => bankOptions.find(option => option.id === selectedBankId) ?? null,
+		[bankOptions, selectedBankId],
+	);
+	const activeBankId = selectedBankId;
+	const bankName = isCashView ? 'Transações em dinheiro' : selectedBankOption?.name ?? routeBankName;
+
+	React.useEffect(() => {
+		setSelectedBankId(bankId);
+	}, [bankId]);
 
 	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
 
@@ -1030,7 +1038,6 @@ export default function BankMovementsScreen() {
 	const [isPeriodTimelineExpanded, setIsPeriodTimelineExpanded] = React.useState(true);
 	const [expandedMovementIds, setExpandedMovementIds] = React.useState<string[]>([]);
 	const [tagMetadataById, setTagMetadataById] = React.useState<Record<string, MovementTagMetadata>>({});
-	const [bankOptions, setBankOptions] = React.useState<BankOption[]>([]);
 	const [editingFinanceMovement, setEditingFinanceMovement] = React.useState<MovementRecord | null>(null);
 	const [editInvestmentName, setEditInvestmentName] = React.useState('');
 	const [editInvestmentInitialInput, setEditInvestmentInitialInput] = React.useState('');
@@ -1169,10 +1176,10 @@ export default function BankMovementsScreen() {
 
 	const movementFilterPalette = React.useMemo(
 		() => ({
-			selectedBackground: '#FACC15',
-			selectedBorder: '#FACC15',
-			selectedIconClassName: isDarkMode ? 'text-slate-900' : 'text-white',
-			selectedTextClassName: isDarkMode ? 'text-slate-900' : 'text-white',
+			selectedBackground: isDarkMode ? LUMUS_RUNTIME_COLORS.dark.accent : LUMUS_RUNTIME_COLORS.light.accent,
+			selectedBorder: isDarkMode ? LUMUS_RUNTIME_COLORS.dark.accent : LUMUS_RUNTIME_COLORS.light.accent,
+			selectedIconClassName: 'text-white',
+			selectedTextClassName: 'text-white',
 			unselectedBackground: isDarkMode ? 'transparent' : '#FFFFFF',
 			unselectedBorder: isDarkMode ? '#1E293B' : '#E2E8F0',
 			unselectedIconClassName: isDarkMode ? 'text-slate-400' : 'text-slate-500',
@@ -1365,7 +1372,7 @@ export default function BankMovementsScreen() {
 	const getMovementTagLabel = React.useCallback(
 		(movement: MovementRecord) => {
 			if (!movement.tagId) {
-				return 'Sem tag associada';
+				return 'Sem categoria associada';
 			}
 
 			return tagMetadataById[movement.tagId]?.name?.trim() || movement.tagId;
@@ -1381,9 +1388,22 @@ export default function BankMovementsScreen() {
 		}
 	}, []);
 
+	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
+		if (bank.id === activeBankId) {
+			return;
+		}
+
+		setSelectedBankId(bank.id);
+		setSelectedTagFilterId(null);
+		setExpandedMovementIds([]);
+		setMovements([]);
+		setMonthlyInitialBalanceInCents(null);
+		setErrorMessage(null);
+	}, [activeBankId]);
+
 	const fetchMovements = React.useCallback(async (asRefresh = false) => {
-		if (!bankId && !isCashView) {
-			setErrorMessage('Nenhum banco foi informado.');
+		if (!activeBankId && !isCashView) {
+			setErrorMessage(null);
 			setMovements([]);
 			return;
 		}
@@ -1433,7 +1453,7 @@ export default function BankMovementsScreen() {
 				})
 				: getBankMovementsByPeriodFirebase({
 					personId: currentUser.uid,
-					bankId,
+					bankId: activeBankId,
 					startDate: normalizedStart,
 					endDate: normalizedEnd,
 				});
@@ -1442,7 +1462,7 @@ export default function BankMovementsScreen() {
 				? Promise.resolve(null)
 				: getFinanceInvestmentsByPeriodFirebase({
 					personId: currentUser.uid,
-					bankId,
+					bankId: activeBankId,
 					startDate: normalizedStart,
 					endDate: normalizedEnd,
 				});
@@ -1451,7 +1471,7 @@ export default function BankMovementsScreen() {
 				? Promise.resolve(null)
 				: getFinanceInvestmentSyncEventsByPeriodFirebase({
 					personId: currentUser.uid,
-					bankId,
+					bankId: activeBankId,
 					startDate: normalizedStart,
 					endDate: normalizedEnd,
 				});
@@ -1461,7 +1481,7 @@ export default function BankMovementsScreen() {
 				? Promise.resolve(null)
 				: getMonthlyBalanceFirebaseRelatedToUser({
 					personId: currentUser.uid,
-					bankId,
+					bankId: activeBankId,
 					year: now.getFullYear(),
 					month: now.getMonth() + 1,
 				});
@@ -1674,8 +1694,8 @@ export default function BankMovementsScreen() {
 						: null,
 				investmentSyncReason:
 					syncEvent?.reason === 'manual' ||
-					syncEvent?.reason === 'deposit' ||
-					syncEvent?.reason === 'withdrawal'
+						syncEvent?.reason === 'deposit' ||
+						syncEvent?.reason === 'withdrawal'
 						? syncEvent.reason
 						: 'manual',
 			}));
@@ -1712,7 +1732,7 @@ export default function BankMovementsScreen() {
 			setIsLoading(false);
 			setIsRefreshing(false);
 		}
-	}, [bankId, endDateInput, isCashView, startDateInput]);
+	}, [activeBankId, endDateInput, isCashView, startDateInput]);
 
 	useFocusEffect(
 		React.useCallback(() => {
@@ -1720,8 +1740,7 @@ export default function BankMovementsScreen() {
 		}, [fetchMovements]),
 	);
 
-	// Busca a cor do banco selecionado para renderizar o card-resumo com a mesma
-	// paleta visual usada no card da tela inicial.
+	// Busca a cor do banco selecionado para compor a paleta do resumo exportado em PDF.
 	React.useEffect(() => {
 		let isMounted = true;
 
@@ -1732,7 +1751,7 @@ export default function BankMovementsScreen() {
 			};
 		}
 
-		if (!bankId) {
+		if (!activeBankId) {
 			setBankAccentColorHex(null);
 			return () => {
 				isMounted = false;
@@ -1741,7 +1760,7 @@ export default function BankMovementsScreen() {
 
 		const fetchBankAccentColor = async () => {
 			try {
-				const bankResult = await getBankDataFirebase(bankId);
+				const bankResult = await getBankDataFirebase(activeBankId);
 				if (!isMounted) {
 					return;
 				}
@@ -1768,7 +1787,7 @@ export default function BankMovementsScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [bankId, isCashView]);
+	}, [activeBankId, isCashView]);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -1776,10 +1795,13 @@ export default function BankMovementsScreen() {
 
 		if (isCashView || !currentUser) {
 			setBankOptions([]);
+			setIsLoadingBankOptions(false);
 			return () => {
 				isMounted = false;
 			};
 		}
+
+		setIsLoadingBankOptions(true);
 
 		const loadBankOptions = async () => {
 			try {
@@ -1800,15 +1822,21 @@ export default function BankMovementsScreen() {
 							typeof bankItem.name === 'string' && bankItem.name.trim().length > 0
 								? bankItem.name.trim()
 								: 'Banco sem nome',
+						iconKey: typeof bankItem.iconKey === 'string' ? bankItem.iconKey : null,
+						colorHex: typeof bankItem.colorHex === 'string' ? bankItem.colorHex : null,
 					}))
 					.filter((bankItem) => bankItem.id.trim().length > 0)
 					.sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
 
 				setBankOptions(nextOptions);
 			} catch (error) {
-				console.error('Erro ao carregar bancos para edição do investimento:', error);
+				console.error('Erro ao carregar bancos disponíveis para movimentações:', error);
 				if (isMounted) {
 					setBankOptions([]);
+				}
+			} finally {
+				if (isMounted) {
+					setIsLoadingBankOptions(false);
 				}
 			}
 		};
@@ -1865,7 +1893,7 @@ export default function BankMovementsScreen() {
 							] as const;
 						}
 					} catch (error) {
-						console.error('Erro ao buscar dados da tag:', error);
+						console.error('Erro ao buscar dados da categoria:', error);
 					}
 
 					return [tagId, { name: null, icon: null }] as const;
@@ -1899,7 +1927,7 @@ export default function BankMovementsScreen() {
 		return movements.filter(movement => movement.type === movementFilter);
 	}, [movementFilter, movements]);
 
-	// Mantém o filtro de tags alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
+	// Mantém o filtro de categorias alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
 	const availableTagFilters = React.useMemo<AvailableTagFilterOption[]>(() => {
 		const tagCounts = new Map<string, number>();
 
@@ -2029,11 +2057,11 @@ export default function BankMovementsScreen() {
 			visibleMovements.length === 1 ? '1 movimentação encontrada.' : `${visibleMovements.length} movimentações encontradas.`;
 
 		if (selectedTagFilterOption && movementFilter !== 'all') {
-			return `${movementCountLabel} Filtro ativo: ${movementFilter === 'gain' ? 'ganhos' : 'gastos'} com a tag ${selectedTagFilterOption.label}.`;
+			return `${movementCountLabel} Filtro ativo: ${movementFilter === 'gain' ? 'ganhos' : 'gastos'} com a categoria ${selectedTagFilterOption.label}.`;
 		}
 
 		if (selectedTagFilterOption) {
-			return `${movementCountLabel} Filtro ativo: tag ${selectedTagFilterOption.label}.`;
+			return `${movementCountLabel} Filtro ativo: categoria ${selectedTagFilterOption.label}.`;
 		}
 
 		if (movementFilter === 'gain') {
@@ -2072,8 +2100,8 @@ export default function BankMovementsScreen() {
 					? 'Ganhos'
 					: 'Gastos';
 		const tagFilterLabel = selectedTagFilterOption
-			? `Tag: ${selectedTagFilterOption.label}`
-			: 'Todas as tags';
+			? `Categoria: ${selectedTagFilterOption.label}`
+			: 'Todas as categorias';
 		const periodLabel = `${startDateInput} a ${endDateInput}`;
 		const generatedAtLabel = new Intl.DateTimeFormat('pt-BR', {
 			day: '2-digit',
@@ -2102,7 +2130,7 @@ export default function BankMovementsScreen() {
 			{
 				label: 'Movimentações carregadas',
 				value: String(movements.length),
-				helper: 'Antes dos filtros de tipo e tag.',
+				helper: 'Antes dos filtros de tipo e categoria.',
 			},
 		];
 
@@ -2625,9 +2653,9 @@ export default function BankMovementsScreen() {
 			? 'transferência'
 			: pendingAction.movement.type === 'sync'
 				? 'sincronização'
-			: pendingAction.movement.type === 'gain'
-				? 'ganho'
-				: 'despesa';
+				: pendingAction.movement.type === 'gain'
+					? 'ganho'
+					: 'despesa';
 
 		if (pendingAction.type === 'edit-standard-movement') {
 			return {
@@ -2694,7 +2722,11 @@ export default function BankMovementsScreen() {
 
 	const isModalOpen = Boolean(pendingAction);
 	const confirmButtonAction = actionModalCopy.confirmAction;
-	const screenTitle = isCashView ? 'Movimentações em dinheiro' : `Movimentações do banco ${bankName}`;
+	const screenTitle = isCashView
+		? 'Movimentações em dinheiro'
+		: activeBankId
+			? `Movimentações do banco ${bankName}`
+			: 'Movimentações bancárias';
 
 	return (
 		<SafeAreaView
@@ -2750,111 +2782,34 @@ export default function BankMovementsScreen() {
 						>
 							<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
-								<View
-									style={{
-										flexDirection: isDesktopWeb ? 'row' : 'column',
-										alignItems: 'stretch',
-										gap: isDesktopWeb ? 24 : 0,
-									}}
-								>
-									<VStack
-										className="mb-4"
-										style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
-									>
-										<BankCardSurface palette={summaryCardPalette}>
-										<VStack className="flex-1 gap-5">
-											<HStack className="items-start justify-between gap-4">
-												<VStack className="flex-1 gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: summaryCardPalette.textSecondary }}
-													>
-														{isCashView ? 'Carteira' : 'Banco'}
-													</Text>
-													<Heading size="lg" style={{ color: summaryCardPalette.textPrimary }}>
-														{bankName}
-													</Heading>
-												</VStack>
-
-												<VStack className="items-end gap-1">
-													<Text
-														className="text-xs uppercase tracking-wide"
-														style={{ color: summaryCardPalette.textSecondary }}
-													>
-														Período
-													</Text>
-													<Text
-														className="text-xs font-medium text-right"
-														style={{ color: summaryCardPalette.textPrimary }}
-													>
-														{startDateInput} a {endDateInput}
-													</Text>
-												</VStack>
-											</HStack>
-
-											<VStack className="gap-1">
-												<Text
-													className="text-xs uppercase tracking-wide"
-													style={{ color: summaryCardPalette.textSecondary }}
-												>
-													{summaryPrimaryBalanceLabel}
-												</Text>
-												<Heading size="xl" style={{ color: summaryCardPalette.textPrimary }}>
-													{summaryPrimaryBalanceValue}
-												</Heading>
-												<Text
-													className="text-xs"
-													style={{ color: summaryCardPalette.textSecondary }}
-												>
-													{summaryPrimaryBalanceHelper}
-												</Text>
-											</VStack>
-
-											<View>
-												<VStack className="gap-1">
-													<HStack className="justify-between">
-														<Text style={{ color: summaryCardPalette.textSecondary }}>Ganhos totais</Text>
-														<Text
-															className="font-semibold"
-															style={{ color: summaryCardPalette.gainColor }}
-														>
-															{formatCurrencyBRL(allMovementsTotals.totalGains)}
-														</Text>
-													</HStack>
-													<HStack className="justify-between">
-														<Text style={{ color: summaryCardPalette.textSecondary }}>Despesas totais</Text>
-														<Text
-															className="font-semibold"
-															style={{ color: summaryCardPalette.expenseColor }}
-														>
-															{formatCurrencyBRL(allMovementsTotals.totalExpenses)}
-														</Text>
-													</HStack>
-													<HStack className="justify-between">
-														<Text style={{ color: summaryCardPalette.textSecondary }}>
-															Saldo geral do período
-														</Text>
-														<Text
-															className="font-semibold"
-															style={{ color: summaryCardPalette.textPrimary }}
-														>
-															{formatCurrencyBRL(allMovementsBalanceInCents)}
-														</Text>
-													</HStack>
-												</VStack>
-											</View>
-										</VStack>
-
-									</BankCardSurface>
-									</VStack>
-
-									<VStack
-										className="mb-4"
-										style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
-									>
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Filtros do período</Text>
-									<View className={`${fieldContainerCardClassName} px-4 py-4`}>
+								<VStack className="mb-4">
+									<View>
 										<VStack className="gap-4">
+											{!isCashView ? (
+												<VStack className="mb-1">
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco</Text>
+													<BankActionsheetSelector
+														options={bankOptions}
+														selectedId={activeBankId || null}
+														selectedLabel={activeBankId ? bankName : null}
+														selectedOption={selectedBankOption}
+														onSelect={handleSelectBank}
+														isDisabled={isLoadingBankOptions || isLoading || isRefreshing}
+														isDarkMode={isDarkMode}
+														bodyTextClassName={bodyText}
+														helperTextClassName={helperText}
+														triggerClassName={fieldBankContainerClassName}
+														placeholder="Escolha o banco para consultar"
+														sheetTitle="Escolher banco"
+														emptyMessage="Nenhum banco ativo está disponível. Cadastre um banco para consultar movimentos."
+														triggerHint="Selecione a conta que deseja consultar."
+														disabledHint={
+															isLoadingBankOptions ? 'Carregando bancos...' : 'Aguarde o carregamento das movimentações.'
+														}
+														accessibilityLabel="Escolher banco para consultar movimentações"
+													/>
+												</VStack>
+											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
 													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
@@ -2884,7 +2839,7 @@ export default function BankMovementsScreen() {
 												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
 													Tipo de movimentação
 												</Text>
-												<HStack className="gap-2 justify-center">
+											<HStack className="w-full gap-1">
 													{movementFilterOptions.map(option => {
 														const isSelected = movementFilter === option.value;
 														const iconClassName = isSelected
@@ -2899,10 +2854,12 @@ export default function BankMovementsScreen() {
 																key={option.value}
 																onPress={() => setMovementFilter(option.value)}
 																disabled={isLoading}
+																accessibilityRole="tab"
+																accessibilityLabel={option.label}
+																accessibilityState={{ selected: isSelected, disabled: isLoading }}
 																activeOpacity={0.85}
 																style={{
 																	flex: 1,
-																	maxWidth: 104,
 																	height: 55,
 																	borderRadius: 20,
 																	alignItems: 'center',
@@ -2931,13 +2888,13 @@ export default function BankMovementsScreen() {
 
 											<VStack>
 												<HStack className="items-center justify-between gap-3">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Tags</Text>
+													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categorias</Text>
 													<Text className={`${helperText} text-xs`}>
 														{selectedTagFilterOption
 															? `${selectedTagFilterOption.movementCount} item(ns)`
 															: availableTagFilters.length === 0
-																? 'Sem tags neste filtro'
-																: `${availableTagFilters.length} tag(ns)`}
+																? 'Sem categorias neste filtro'
+																: `${availableTagFilters.length} categoria(s)`}
 													</Text>
 												</HStack>
 
@@ -2951,7 +2908,7 @@ export default function BankMovementsScreen() {
 															{[
 																{
 																	id: null,
-																	label: 'Todas as tags',
+																	label: 'Todas as categorias',
 																	icon: null,
 																	movementCount: movementsMatchingMovementFilter.length,
 																},
@@ -2973,10 +2930,13 @@ export default function BankMovementsScreen() {
 
 																return (
 																	<TouchableOpacity
-																		key={option.id ?? 'all-tags'}
+																		key={option.id ?? 'all-categories'}
 																		activeOpacity={0.85}
 																		onPress={() => setSelectedTagFilterId(option.id)}
 																		disabled={isLoading}
+																		accessibilityRole="button"
+																		accessibilityLabel={`Filtrar por ${option.label}`}
+																		accessibilityState={{ selected: isSelected, disabled: isLoading }}
 																		style={{
 																			flexDirection: 'row',
 																			alignItems: 'center',
@@ -3062,43 +3022,20 @@ export default function BankMovementsScreen() {
 														}}
 													>
 														<Text className={`${helperText} text-xs`}>
-															As tags disponíveis aparecem aqui conforme o tipo e o período carregados.
+															As categorias disponíveis aparecem aqui conforme o tipo e o período carregados.
 														</Text>
 													</View>
 												)}
 											</VStack>
 
-											<Button
-												className={submitButtonClassName}
-												onPress={() => {
-													if (!isLoading) {
-														void fetchMovements();
-													}
-												}}
-												isDisabled={
-													isLoading ||
-													!parseDateFromBR(startDateInput) ||
-													!parseDateFromBR(endDateInput)
-												}
-											>
-												{isLoading ? (
-													<>
-														<ButtonSpinner />
-														<ButtonText>Carregando movimentações</ButtonText>
-													</>
-												) : (
-													<ButtonText>Buscar movimentações</ButtonText>
-												)}
-											</Button>
 										</VStack>
 
 									</View>
-									</VStack>
-								</View>
+								</VStack>
 
 								{errorMessage && (
 									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
-										<Text className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
+										<Text accessibilityLiveRegion="polite" className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
 									</View>
 								)}
 
@@ -3256,7 +3193,7 @@ export default function BankMovementsScreen() {
 											onPress={handleTogglePeriodTimeline}
 											style={{ flex: 1 }}
 										>
-										
+
 											<VStack className="px-2 pb-3">
 												<HStack className="gap-1 items-center">
 													<Heading
@@ -3378,10 +3315,10 @@ export default function BankMovementsScreen() {
 															value: formatMovementDate(movement.date),
 														},
 														{
-															label: 'Tag',
+															label: 'Categoria',
 															value:
 																tagMetadata?.name ??
-																(movement.tagId ? movement.tagId : 'Sem tag associada'),
+																(movement.tagId ? movement.tagId : 'Sem categoria associada'),
 														},
 														{
 															label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
@@ -3856,172 +3793,172 @@ export default function BankMovementsScreen() {
 											Ajuste os dados do investimento sem sair da tela de movimentações.
 										</Text>
 										<VStack>
-									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Nome do investimento
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentName}
-												onChangeText={setEditInvestmentName}
-												placeholder="Digite o nome do investimento"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
+											<VStack className="mb-4">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Nome do investimento
+												</Text>
+												<Input
+													className={fieldContainerClassName}
+													isDisabled={isSavingFinanceMovement}
+												>
+													<InputField
+														value={editInvestmentName}
+														onChangeText={setEditInvestmentName}
+														placeholder="Digite o nome do investimento"
+														className={inputField}
+													/>
+												</Input>
+											</VStack>
 
-									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Valor inicial
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentInitialInput}
-												onChangeText={handleInvestmentInitialInputChange}
-												placeholder="Digite o valor inicial"
-												keyboardType="numeric"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
+											<VStack className="mb-4">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Valor inicial
+												</Text>
+												<Input
+													className={fieldContainerClassName}
+													isDisabled={isSavingFinanceMovement}
+												>
+													<InputField
+														value={editInvestmentInitialInput}
+														onChangeText={handleInvestmentInitialInputChange}
+														placeholder="Digite o valor inicial"
+														keyboardType="numeric"
+														className={inputField}
+													/>
+												</Input>
+											</VStack>
 
-									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											CDI (%)
-										</Text>
-										<Input
-											className={fieldContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<InputField
-												value={editInvestmentCdiInput}
-												onChangeText={(text) =>
-													setEditInvestmentCdiInput(sanitizeNumberInput(text))
-												}
-												placeholder="Digite o percentual do CDI"
-												keyboardType="decimal-pad"
-												className={inputField}
-											/>
-										</Input>
-									</VStack>
+											<VStack className="mb-4">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													CDI (%)
+												</Text>
+												<Input
+													className={fieldContainerClassName}
+													isDisabled={isSavingFinanceMovement}
+												>
+													<InputField
+														value={editInvestmentCdiInput}
+														onChangeText={(text) =>
+															setEditInvestmentCdiInput(sanitizeNumberInput(text))
+														}
+														placeholder="Digite o percentual do CDI"
+														keyboardType="decimal-pad"
+														className={inputField}
+													/>
+												</Input>
+											</VStack>
 
-									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Prazo de resgate
-										</Text>
-										<Select
-											selectedValue={editInvestmentTerm}
-											onValueChange={(value) =>
-												setEditInvestmentTerm(value as RedemptionTerm)
-											}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={fieldContainerClassName}
-											>
-												<SelectInput
-													value={redemptionTermLabels[editInvestmentTerm]}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{redemptionOptions.map((option) => (
-														<SelectItem
-															key={option.value}
-															label={option.label}
-															value={option.value}
-														/>
-													))}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
-									</VStack>
-
-									<VStack className="mb-4">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Banco
-										</Text>
-										<Select
-											selectedValue={editInvestmentBankId ?? undefined}
-											onValueChange={(value) => setEditInvestmentBankId(value)}
-											isDisabled={
-												isSavingFinanceMovement || bankOptions.length === 0
-											}
-										>
-											<SelectTrigger
-												variant="outline"
-												size="md"
-												className={fieldContainerClassName}
-											>
-												<SelectInput
-													placeholder="Selecione o banco"
-													value={
-														editInvestmentBankId
-															? (bankOptions.find(
-																(bankItem) => bankItem.id === editInvestmentBankId,
-															)?.name ?? '')
-															: ''
+											<VStack className="mb-4">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Prazo de resgate
+												</Text>
+												<Select
+													selectedValue={editInvestmentTerm}
+													onValueChange={(value) =>
+														setEditInvestmentTerm(value as RedemptionTerm)
 													}
-													className={inputField}
-												/>
-												<SelectIcon />
-											</SelectTrigger>
-											<SelectPortal>
-												<SelectBackdrop />
-												<SelectContent>
-													<SelectDragIndicatorWrapper>
-														<SelectDragIndicator />
-													</SelectDragIndicatorWrapper>
-													{bankOptions.length > 0 ? (
-														bankOptions.map((bankItem) => (
-															<SelectItem
-																key={bankItem.id}
-																label={bankItem.name}
-																value={bankItem.id}
-															/>
-														))
-													) : (
-														<SelectItem
-															label="Nenhum banco disponível"
-															value="no-bank"
-															isDisabled
+													isDisabled={isSavingFinanceMovement}
+												>
+													<SelectTrigger
+														variant="outline"
+														size="md"
+														className={fieldContainerClassName}
+													>
+														<SelectInput
+															value={redemptionTermLabels[editInvestmentTerm]}
+															className={inputField}
 														/>
-													)}
-												</SelectContent>
-											</SelectPortal>
-										</Select>
-									</VStack>
+														<SelectIcon />
+													</SelectTrigger>
+													<SelectPortal>
+														<SelectBackdrop />
+														<SelectContent>
+															<SelectDragIndicatorWrapper>
+																<SelectDragIndicator />
+															</SelectDragIndicatorWrapper>
+															{redemptionOptions.map((option) => (
+																<SelectItem
+																	key={option.value}
+																	label={option.label}
+																	value={option.value}
+																/>
+															))}
+														</SelectContent>
+													</SelectPortal>
+												</Select>
+											</VStack>
 
-									<VStack className="mb-1">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Descrição
-										</Text>
-										<Textarea
-											className={textareaContainerClassName}
-											isDisabled={isSavingFinanceMovement}
-										>
-											<TextareaInput
-												value={editInvestmentDescription}
-												onChangeText={setEditInvestmentDescription}
-												placeholder="Adicione um contexto para este investimento"
-												className={inputField}
-											/>
-										</Textarea>
-									</VStack>
+											<VStack className="mb-4">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Banco
+												</Text>
+												<Select
+													selectedValue={editInvestmentBankId ?? undefined}
+													onValueChange={(value) => setEditInvestmentBankId(value)}
+													isDisabled={
+														isSavingFinanceMovement || bankOptions.length === 0
+													}
+												>
+													<SelectTrigger
+														variant="outline"
+														size="md"
+														className={fieldContainerClassName}
+													>
+														<SelectInput
+															placeholder="Selecione o banco"
+															value={
+																editInvestmentBankId
+																	? (bankOptions.find(
+																		(bankItem) => bankItem.id === editInvestmentBankId,
+																	)?.name ?? '')
+																	: ''
+															}
+															className={inputField}
+														/>
+														<SelectIcon />
+													</SelectTrigger>
+													<SelectPortal>
+														<SelectBackdrop />
+														<SelectContent>
+															<SelectDragIndicatorWrapper>
+																<SelectDragIndicator />
+															</SelectDragIndicatorWrapper>
+															{bankOptions.length > 0 ? (
+																bankOptions.map((bankItem) => (
+																	<SelectItem
+																		key={bankItem.id}
+																		label={bankItem.name}
+																		value={bankItem.id}
+																	/>
+																))
+															) : (
+																<SelectItem
+																	label="Nenhum banco disponível"
+																	value="no-bank"
+																	isDisabled
+																/>
+															)}
+														</SelectContent>
+													</SelectPortal>
+												</Select>
+											</VStack>
+
+											<VStack className="mb-1">
+												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+													Descrição
+												</Text>
+												<Textarea
+													className={textareaContainerClassName}
+													isDisabled={isSavingFinanceMovement}
+												>
+													<TextareaInput
+														value={editInvestmentDescription}
+														onChangeText={setEditInvestmentDescription}
+														placeholder="Adicione um contexto para este investimento"
+														className={inputField}
+													/>
+												</Textarea>
+											</VStack>
 										</VStack>
 									</ScrollView>
 								</ModalBody>
