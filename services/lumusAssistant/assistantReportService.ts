@@ -9,8 +9,13 @@ import { getCategoryAnalysisFirebase } from '@/functions/CategoryAnalysisFirebas
 import { getFinancialForecastFirebase } from '@/functions/FinancialForecastFirebase';
 import { getMandatoryExpensesWithRelationsFirebase } from '@/functions/MandatoryExpenseFirebase';
 import { getMandatoryGainsWithRelationsFirebase } from '@/functions/MandatoryGainFirebase';
+import { getFinancialLedgerContextFirebase } from '@/functions/FinancialLedgerFirebase';
+import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { findAssistantCatalogItem } from '@/services/lumusAssistant/assistantCatalogService';
-import { createAssistantId, formatCycleKey, formatCents } from '@/utils/lumusAssistant';
+import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { createAssistantId, formatCycleKey, formatCents, formatIsoDate, parseIsoDateAtLocalNoon } from '@/utils/lumusAssistant';
+import { db } from '@/FirebaseConfig';
+import { collection, getDocs, orderBy, query, Timestamp, where } from 'firebase/firestore';
 
 const getMonthLabel = (date: Date) =>
 	new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
@@ -33,6 +38,95 @@ const createBaseReport = (
 });
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+
+type RankedMovement = { name: string; valueInCents: number; date: Date };
+
+const readDate = (value: unknown): Date | null => {
+	const date = value instanceof Date ? value : value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function'
+		? value.toDate() : null;
+	return date instanceof Date && Number.isFinite(date.getTime()) ? date : null;
+};
+
+const createExtremumMovementReport = async (
+	personId: string,
+	request: AssistantReportRequest,
+): Promise<AssistantReport> => {
+	const kind = request.kind.endsWith('_gain') ? 'gain' : 'expense';
+	const isSmallest = request.kind.startsWith('smallest_');
+	const currentCycle = formatCycleKey(new Date());
+	const period = request.period?.trim() || currentCycle;
+	if (!/^(19|20)\d{2}-(0[1-9]|1[0-2])$/.test(period) || period > currentCycle) {
+		throw new Error('Informe um mês válido que não esteja no futuro.');
+	}
+	const [year, month] = period.split('-').map(Number);
+	const start = parseIsoDateAtLocalNoon(`${period}-01`, '00:00');
+	const nextMonth = `${month === 12 ? year + 1 : year}-${String(month === 12 ? 1 : month + 1).padStart(2, '0')}-01`;
+	const end = parseIsoDateAtLocalNoon(nextMonth, '00:00');
+	if (!start || !end) throw new Error('Não foi possível interpretar o mês informado.');
+	const upperBound = period === currentCycle ? new Date(Math.min(end.getTime(), Date.now())) : end;
+	const ledgerContext = await getFinancialLedgerContextFirebase(personId);
+	const candidates: RankedMovement[] = [];
+	if (ledgerContext) {
+		const snapshot = await getDocs(query(
+			collection(db, 'ledgerTransactions'),
+			where('groupId', '==', ledgerContext.groupId),
+			where('effectiveAt', '>=', Timestamp.fromDate(start)),
+			where('effectiveAt', '<', Timestamp.fromDate(upperBound)),
+			orderBy('effectiveAt', 'desc'),
+		));
+		for (const document of snapshot.docs) {
+			const item = document.data();
+			if (item.kind !== (kind === 'expense' ? 'expense' : 'income')) continue;
+			const date = readDate(item.effectiveAt);
+			const legs = Array.isArray(item.legs) ? item.legs as Array<Record<string, unknown>> : [];
+			const amount = legs.find(leg => typeof leg.accountId === 'string' &&
+				typeof leg.deltaInCents === 'number' && (kind === 'expense' ? leg.deltaInCents < 0 : leg.deltaInCents > 0))?.deltaInCents;
+			if (!date || typeof amount !== 'number' || !Number.isSafeInteger(amount)) continue;
+			candidates.push({
+				name: typeof item.note === 'string' && item.note.trim() ? item.note.trim() : kind === 'expense' ? 'Despesa sem nome' : 'Ganho sem nome',
+				valueInCents: Math.abs(amount), date,
+			});
+		}
+	} else {
+		const related = await getRelatedUsersIDsFirebase(personId);
+		if (!related.success) throw new Error('Não foi possível conferir os dados relacionados.');
+		const allowedPersonIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
+		const snapshots = await Promise.all(Array.from({ length: Math.ceil(allowedPersonIds.length / 30) }, (_, index) =>
+			getDocs(query(
+				collection(db, kind === 'expense' ? 'expenses' : 'gains'),
+				where('personId', 'in', allowedPersonIds.slice(index * 30, (index + 1) * 30)),
+				where('date', '>=', Timestamp.fromDate(start)),
+				where('date', '<', Timestamp.fromDate(upperBound)),
+			)),
+		));
+		for (const document of snapshots.flatMap(snapshot => snapshot.docs)) {
+			const item = document.data();
+			const date = readDate(item.date);
+			if (!date || !Number.isSafeInteger(item.valueInCents) || item.valueInCents <= 0 ||
+				!shouldIncludeMovementInGainExpenseTotals(item)) continue;
+			candidates.push({
+				name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : kind === 'expense' ? 'Despesa sem nome' : 'Ganho sem nome',
+				valueInCents: item.valueInCents, date,
+			});
+		}
+	}
+	candidates.sort((left, right) => (isSmallest ? left.valueInCents - right.valueInCents : right.valueInCents - left.valueInCents)
+		|| right.date.getTime() - left.date.getTime());
+	const label = getMonthLabel(new Date(Date.UTC(year, month - 1, 15, 12)));
+	const title = `${isSmallest ? 'Menor' : 'Maior'} ${kind === 'expense' ? 'despesa' : 'ganho'}`;
+	const report = createBaseReport(request, title, label);
+	const selected = candidates[0];
+	if (!selected) {
+		report.deterministicSummary = kind === 'expense'
+			? `Não encontrei despesas registradas em ${label}.`
+			: `Não encontrei ganhos registrados em ${label}.`;
+		return report;
+	}
+	const dateLabel = formatIsoDate(selected.date).split('-').reverse().join('/');
+	report.metrics = [{ label: kind === 'expense' ? 'Valor da despesa' : 'Valor do ganho', valueInCents: selected.valueInCents }];
+	report.deterministicSummary = `Seu ${isSmallest ? 'menor' : 'maior'} ${kind === 'expense' ? 'gasto' : 'ganho'} em ${label} foi ${selected.name}: ${formatCents(selected.valueInCents)}, em ${dateLabel}.`;
+	return report;
+};
 
 const groupMovementsByDay = (movements: HomeTimelineMovement[]) => {
 	const grouped = new Map<string, number>();
@@ -280,6 +374,11 @@ const createInvestmentReport = async (
 export const assistantReportService: AssistantReportService = {
 	async createReport(personId, request, catalog) {
 		switch (request.kind) {
+			case 'largest_expense':
+			case 'largest_gain':
+			case 'smallest_expense':
+			case 'smallest_gain':
+				return createExtremumMovementReport(personId, request);
 			case 'monthly_overview':
 				return createMonthlyOverview(personId, request);
 			case 'bank_movements':

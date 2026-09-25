@@ -3,12 +3,12 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.4.5
+versao: 1.4.7
 ---
 
 # Firebase Config
 
-Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase de negócio e, somente no desenvolvimento Web, um terceiro app restrito à ponte de IA. Resolve o adaptador de persistência pela plataforma, mantendo Auth e dados financeiros separados da ponte remota.
+Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase de negócio e, somente no desenvolvimento Web, um terceiro app restrito à ponte de IA. No Expo Go, o adapter JavaScript usa os identificadores do app Web apenas para chamadas HTTPS de AI Logic/App Check, sem inicializar um app de negócio remoto. Resolve o adaptador de persistência pela plataforma, mantendo Auth e dados financeiros separados da ponte remota.
 
 ## Como funciona
 
@@ -57,7 +57,7 @@ AI Logic e Remote Config não fazem parte dos produtos emulados. Por isso, no al
 
 `development` só aceita `emulator`. Os perfis instaláveis `preview`, `production` e `production-apk` só aceitam `production`, com o project ID `finances-app-e8685` e todas as credenciais; assim, um APK de preview não aponta para `127.0.0.1` no próprio aparelho. O preview usa App Check `debug`, enquanto produção e `production-apk` usam Play Integrity. Combinações inválidas falham antes de inicializar o SDK. O alias padrão da CLI continua sendo o demo project; deploys devem informar `--project production`.
 
-O snapshot de ambiente usado no cliente acessa cada `process.env.EXPO_PUBLIC_*` diretamente antes de chamar o resolvedor. Esse formato é obrigatório para o Metro incorporar os valores no bundle. Uma release local sem `TARGET` explícito usa produção somente quando todas as credenciais obrigatórias existem e o project ID é o canônico; Metro em desenvolvimento continua escolhendo o Emulator. Não voltar a passar `process.env` inteiro ou a ler essas chaves apenas por índice dinâmico, pois o bundle instalado ficaria sem configuração e falharia antes de substituir a splash nativa.
+O snapshot de ambiente usado no cliente acessa cada identificador Firebase `EXPO_PUBLIC_*` diretamente antes de chamar o resolvedor. Esse formato é obrigatório para o Metro incorporar os valores no bundle. `EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN` é exceção: `app.config.ts` só o inclui em `expo.extra` em desenvolvimento com alvo Emulator (incluindo o perfil EAS `development`), e Web/Android/Expo Go leem o valor daí. Perfis preview/produção e exports com alvo de produção não recebem esse campo. Uma release local sem `TARGET` explícito usa produção somente quando todas as credenciais obrigatórias existem e o project ID é o canônico; Metro em desenvolvimento continua escolhendo o Emulator. Não voltar a passar `process.env` inteiro ou a ler identificadores Firebase apenas por índice dinâmico, pois o bundle instalado ficaria sem configuração e falharia antes de substituir a splash nativa.
 
 ### Variáveis de Ambiente
 ```
@@ -76,9 +76,11 @@ EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER
 EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN
 ```
 
-As credenciais de produção são validadas pelo resolvedor antes da inicialização do SDK financeiro. No modo Emulator, o app principal usa somente a configuração sintética e o host local; os mesmos identificadores públicos podem ser lidos separadamente pelo adaptador Web da IA para formar a ponte híbrida. Chave Gemini, token App Check e segredo de servidor não fazem parte dessa configuração pública.
+As credenciais de produção são validadas pelo resolvedor antes da inicialização do SDK financeiro. No modo Emulator, o app principal usa somente a configuração sintética e o host local; os mesmos identificadores públicos podem ser lidos separadamente pelos adapters de IA para formar a ponte híbrida. O token App Check Debug é dado de desenvolvimento incluído somente na configuração local restrita; chave Gemini e segredo de servidor não fazem parte da configuração cliente.
 
 ## Exports
+
+As consultas pontuais do Lumus para maior despesa/ganho usam `expenses`/`gains` com `personId` e intervalo de `date` no esquema legado, ou `ledgerTransactions` com `groupId` e `effectiveAt` após o cutover. Os índices compostos do legado estão versionados em `firestore.indexes.json`; o índice do razão já constava no template. Publicar índices em projeto remoto exige procedimento separado e autorização, sem alterar o isolamento Emulator/ponte de IA descrito acima.
 
 ```typescript
 export const app: FirebaseApp;           // App primário
@@ -116,6 +118,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 ## Firebase AI Logic
 
 - Web usa `firebase/ai` e `ReCaptchaEnterpriseProvider`. Em produção, usa o app primário JS; no alvo Emulator, usa somente para IA o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT` do projeto remoto.
+- Expo Go Android usa o adapter JavaScript `assistantPlatform.expoGo.ts` para AI Logic e App Check sob `__DEV__` + alvo Emulator. Auth, Firestore e Functions continuam na configuração Firebase JS apontada ao Emulator. Remote Config fica nos defaults locais. Esse transporte REST segue o protocolo do Firebase AI Logic, pois o SDK oficial JS não declara AI Logic para React Native e o SDK React Native Firebase exige módulos nativos ausentes do Expo Go.
 - Android usa módulos `@react-native-firebase` 25.1 alinhados para `app`, `app-check`, `ai`, `auth` e `remote-config`.
 - O Auth/Firestore financeiro continua no SDK JS. Fora do alvo Emulator, o adaptador Android fornece ao SDK nativo da IA somente `getIdToken()` do usuário atual. No modo híbrido, o usuário local continua obrigatório, mas o token de Auth emitido por `demo-lumus-financas` não é anexado à chamada do projeto remoto.
 - App Check Android usa provider `debug` em development/preview e Play Integrity em produção.
@@ -145,8 +148,10 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - `android.googleServicesFile` usa `GOOGLE_SERVICES_JSON` quando fornecido pelo EAS ou `./google-services.json` local. `@react-native-firebase/app` entra na lista de plugins somente quando um desses caminhos existe. Os perfis EAS Android `development`, `preview`, `production` e `production-apk` recusam o build sem o arquivo. No development, o arquivo habilita somente AI Logic/App Check/Remote Config nativos enquanto os dados permanecem no Emulator; preview e produção usam a configuração remota completa.
 - `google-services.json` e `GoogleService-Info.plist` ficam no `.gitignore`.
 - Esta entrega nativa do assistente é Android. `app.config.ts` não habilita o plugin durante `EAS_BUILD_PLATFORM=ios`; um futuro build iOS com React Native Firebase também deverá fornecer `ios.googleServicesFile` antes de remover essa proteção.
-- Qualquer alteração de `expo-audio` ou React Native Firebase requer novo development build; Expo Go não suporta o adaptador Android.
-- Provider e tela do assistente montam diretamente para não bloquear a entrada em `/lumus-assistant`. Somente os módulos React Native Firebase continuam com importação tardia, depois da checagem de runtime; Expo Go ou configuração Firebase ausente exibem indisponibilidade dentro do painel da tela. A boundary local recupera erro inesperado sem derrubar o Stack, Login ou Home.
+- Alterações no adaptador Android React Native Firebase exigem novo development build; Expo Go não contém esses módulos nativos. Para teste local no Expo Go, `assistantPlatform.expoGo.ts` usa somente APIs JavaScript incluídas no host, com `fetch` ao Firebase AI Logic e troca de App Check Debug em memória. O caminho é bloqueado fora de `__DEV__` e do alvo Emulator; os dados financeiros seguem usando os SDKs JS e os emuladores locais.
+- Expo Go não inicializa Firebase Remote Config; esse runtime usa os defaults locais de modelo e limites e não recebe atualizações remotas do kill switch. O app instalado Web ou nativo mantém o fetch/activate de Remote Config. O comando `npm run start:expo-go` força Expo Go quando `expo-dev-client` também está instalado.
+- A [instalação pública do Expo Go para iOS](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/) não aceita projetos Expo SDK 55 ou superior; o projeto está no SDK 57. A rota iOS do adapter pode ser usada num host compatível via TestFlight/EAS Go, mas exige instalar esse host.
+- Provider e tela do assistente montam diretamente para não bloquear a entrada em `/lumus-assistant`. Somente os módulos React Native Firebase são carregados tarde no runtime nativo compatível; configuração ausente ou falha do App Check Debug aparece como indisponibilidade dentro do painel. A boundary local recupera erro inesperado sem derrubar o Stack, Login ou Home.
 
 ## Configuração
 

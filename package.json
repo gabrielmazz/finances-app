@@ -4,6 +4,7 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
+    "start:expo-go": "npm run dev:local",
     "version:set": "node script/update_app_version.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

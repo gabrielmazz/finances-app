@@ -22,6 +22,14 @@ const resolveGoogleServicesFile = () => {
 export default ({ config }: ConfigContext): ExpoConfig => {
 	const base = appJson.expo as ExpoConfig;
 	const buildProfile = process.env.EAS_BUILD_PROFILE ?? '';
+	const firebaseTarget = process.env.EXPO_PUBLIC_FIREBASE_TARGET ?? '';
+	const isLocalAssistantDevelopment = firebaseTarget === 'emulator' && (
+		buildProfile === 'development' ||
+		(!buildProfile && process.env.EXPO_PUBLIC_APP_ENV === 'development')
+	);
+	const appCheckDebugToken = isLocalAssistantDevelopment
+		? process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN?.trim()
+		: undefined;
 	const requiresNativeFirebase = ['development', 'preview', 'production', 'production-apk'].includes(buildProfile);
 	const googleServicesFile = resolveGoogleServicesFile();
 	const androidGoogleServicesFile = process.env.EAS_BUILD_PLATFORM === 'ios'
@@ -40,9 +48,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 		);
 	}
 
+	const extra = { ...base.extra, ...config.extra };
+	delete extra.lumusAssistantAppCheckDebugToken;
+	if (appCheckDebugToken) {
+		extra.lumusAssistantAppCheckDebugToken = appCheckDebugToken;
+	}
+
 	return {
 		...config,
 		...base,
+		extra,
 		android: {
 			...base.android,
 			...(androidGoogleServicesFile ? { googleServicesFile: androidGoogleServicesFile } : {}),

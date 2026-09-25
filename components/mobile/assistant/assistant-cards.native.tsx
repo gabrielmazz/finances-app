@@ -3,9 +3,11 @@ import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 
+import { Button, ButtonText } from '@/components/ui/button';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { AssistantInlineField } from '@/components/uiverse/assistant/assistant-inline-field';
+import type { AssistantFieldOption } from '@/components/uiverse/assistant/assistant-inline-field.types';
 import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 import type {
 	AssistantDraftAction,
@@ -34,6 +36,17 @@ const DATE_FIELDS = new Set(['date', 'effectiveFrom', 'installmentStartDate', 'i
 const formatAssistantDate = (value: string) => {
 	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 	return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+};
+
+const formatDraftFieldInput = (key: string, value: unknown, hideValues: boolean) => {
+	const isRate = key === 'cdiPercentageInBasisPoints' || key === 'annualRateInBasisPoints';
+	if (hideValues && (MONEY_FIELDS.has(key) || isRate)) return '';
+	if (DATE_FIELDS.has(key) && typeof value === 'string') return formatAssistantDate(value);
+	if (typeof value === 'number' && (MONEY_FIELDS.has(key) || isRate)) return String(value / 100).replace('.', ',');
+	if (value === null || value === undefined) return '';
+	if (typeof value === 'boolean') return String(value);
+	if (Array.isArray(value)) return value.join(', ');
+	return String(value);
 };
 
 const STATIC_CHOICES: Record<string, Array<{ value: unknown; label: string }>> = {
@@ -263,76 +276,97 @@ export const AssistantDraftCard = ({
 	onEdit(patch: Record<string, unknown>): Promise<void>;
 	onReview(): void;
 	onBack(): void;
-	onConfirm(): Promise<void>;
+	onConfirm(): Promise<boolean>;
 	onCancel(): void;
 }) => {
-	const [editingKey, setEditingKey] = React.useState<string | null>(null);
-	const [editValue, setEditValue] = React.useState('');
-	const [editError, setEditError] = React.useState<string | null>(null);
-	const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 	const payloadEntries = Object.entries(draft.payload).filter(([, value]) => value !== undefined);
+	const [fieldValues, setFieldValues] = React.useState<Record<string, string>>(() => Object.fromEntries(
+		payloadEntries.map(([key, value]) => [key, formatDraftFieldInput(key, value, hideValues)]),
+	));
+	const fieldValuesRef = React.useRef(fieldValues);
+	const dirtyFieldsRef = React.useRef(new Set<string>());
+	const pendingEditsRef = React.useRef(new Map<string, Promise<boolean>>());
+	const editQueueRef = React.useRef(Promise.resolve());
+	const pendingEditCountRef = React.useRef(0);
+	const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
+	const [isSavingEdit, setIsSavingEdit] = React.useState(false);
+	React.useEffect(() => {
+		const currentValues = fieldValuesRef.current;
+		const nextValues = Object.fromEntries(payloadEntries.map(([key, value]) => [
+			key,
+			dirtyFieldsRef.current.has(key)
+				? currentValues[key] ?? formatDraftFieldInput(key, value, hideValues)
+				: formatDraftFieldInput(key, value, hideValues),
+		]));
+		fieldValuesRef.current = nextValues;
+		setFieldValues(nextValues);
+	}, [draft.payload, hideValues]);
 	const statusLabel: Record<AssistantDraftAction['status'], string> = {
 		draft: 'Rascunho', needs_input: 'Faltam informações', ready: 'Pronto para revisar', confirming: 'Aguardando sua confirmação',
 		executing: 'Salvando', succeeded: 'Concluído', failed: 'Falhou', cancelled: 'Cancelado', stale: 'Dados alterados',
 	};
-	const saveEdit = async () => {
-		if (!editingKey) return;
-		const definition = getFieldDefinition(draft.kind, editingKey);
-		const parsed = parseFieldInput(definition, editValue);
-		if (parsed === null || parsed === undefined) {
-			setEditError('Confira o formato deste campo.');
-			return;
-		}
-		setIsSavingEdit(true);
-		setEditError(null);
-		try {
-			await onEdit({ [editingKey]: parsed });
-			setEditingKey(null);
-			setEditValue('');
-		} catch {
-			setEditError('Não foi possível atualizar este campo. Confira e tente novamente.');
-		} finally {
-			setIsSavingEdit(false);
-		}
+	const updateFieldValue = (key: string, value: string) => {
+		const nextValues = { ...fieldValuesRef.current, [key]: value };
+		fieldValuesRef.current = nextValues;
+		dirtyFieldsRef.current.add(key);
+		setFieldValues(nextValues);
+		setFieldErrors(current => {
+			if (!(key in current)) return current;
+			const next = { ...current };
+			delete next[key];
+			return next;
+		});
 	};
-	const saveChoiceEdit = async (value: unknown) => {
-		if (!editingKey) return;
+	const persistFieldPatch = (key: string, patch: Record<string, unknown>) => {
+		const pending = pendingEditsRef.current.get(key);
+		if (pending) return pending;
+		pendingEditCountRef.current += 1;
 		setIsSavingEdit(true);
-		setEditError(null);
-		try {
-			await onEdit({ [editingKey]: value });
-			setEditingKey(null);
-			setEditValue('');
-		} catch {
-			setEditError('Não foi possível atualizar este campo. Confira e tente novamente.');
-		} finally {
-			setIsSavingEdit(false);
-		}
+		const queued = editQueueRef.current.then(() => onEdit(patch));
+		editQueueRef.current = queued.then(() => undefined, () => undefined);
+		const result = queued.then(() => {
+			dirtyFieldsRef.current.delete(key);
+			setFieldErrors(current => {
+				if (!(key in current)) return current;
+				const next = { ...current };
+				delete next[key];
+				return next;
+			});
+			return true;
+		}, () => {
+			setFieldErrors(current => ({ ...current, [key]: 'Não foi possível atualizar este campo. Confira e tente novamente.' }));
+			return false;
+		}).finally(() => {
+			pendingEditsRef.current.delete(key);
+			pendingEditCountRef.current -= 1;
+			setIsSavingEdit(pendingEditCountRef.current > 0);
+		});
+		pendingEditsRef.current.set(key, result);
+		return result;
 	};
-	const startEdit = (key: string, value: unknown) => {
+	const saveField = (key: string) => {
+		if (!dirtyFieldsRef.current.has(key)) return Promise.resolve(true);
 		const definition = getFieldDefinition(draft.kind, key);
-		const isRate = key === 'cdiPercentageInBasisPoints' || key === 'annualRateInBasisPoints';
-		const isMaskedNumber = hideValues && (MONEY_FIELDS.has(key) || isRate);
-		setEditingKey(key);
-		setEditError(null);
-		setEditValue(
-			isMaskedNumber
-				? ''
-				: definition.kind === 'date' && typeof value === 'string'
-					? formatAssistantDate(value)
-					: typeof value === 'number' && (MONEY_FIELDS.has(key) || isRate)
-						? String(value / 100).replace('.', ',')
-						: String(value ?? ''),
-		);
+		const parsed = parseFieldInput(definition, fieldValuesRef.current[key] ?? '');
+		if (parsed === null || parsed === undefined) {
+			setFieldErrors(current => ({ ...current, [key]: 'Confira o formato deste campo.' }));
+			return Promise.resolve(false);
+		}
+		return persistFieldPatch(key, { [key]: parsed });
 	};
-	const cancelEdit = () => {
-		setEditingKey(null);
-		setEditValue('');
-		setEditError(null);
+	const saveDirtyFields = async () => {
+		for (const key of dirtyFieldsRef.current) {
+			if (!await saveField(key)) return false;
+		}
+		return true;
 	};
+	const reviewDraft = async () => {
+		if (await saveDirtyFields()) onReview();
+	};
+	const saveChoice = (key: string, value: unknown) => persistFieldPatch(key, { [key]: value });
 
 	return (
-		<View className={draft.status === 'confirming' ? ASSISTANT_CLASS_NAMES.cardAttention : ASSISTANT_CLASS_NAMES.card}>
+		<View className={ASSISTANT_CLASS_NAMES.draftCard}>
 			<View className={ASSISTANT_CLASS_NAMES.cardBody}>
 				<View className={ASSISTANT_CLASS_NAMES.cardHeader}>
 					<View className={ASSISTANT_CLASS_NAMES.cardMark}>
@@ -346,8 +380,7 @@ export const AssistantDraftCard = ({
 
 				{payloadEntries.map(([key, value]) => {
 					const definition = getFieldDefinition(draft.kind, key);
-					const isEditing = editingKey === key;
-					const choices: Array<{ value: unknown; label: string; description?: string }> = definition.choiceSource
+					const choices: AssistantFieldOption[] = definition.choiceSource
 						? (catalog[definition.choiceSource] ?? [])
 							.filter(item => item.ownerScope !== 'related_read_only')
 							.filter(item => !(['sourceBankRef', 'targetBankRef'].includes(definition.key)) || item.realId !== null)
@@ -360,17 +393,15 @@ export const AssistantDraftCard = ({
 							key={key}
 							definition={{ ...definition, key }}
 							valueLabel={formatPayloadValue(key, value, catalog, hideValues)}
+							value={fieldValues[key] ?? ''}
 							choices={choices}
-							canEdit={['ready', 'needs_input', 'failed'].includes(draft.status) && (!editingKey || isEditing)}
-							isEditing={isEditing}
+							canEdit={['ready', 'needs_input', 'failed'].includes(draft.status)}
 							isSaving={isSavingEdit}
-							editValue={editValue}
-							error={isEditing ? editError : null}
-							onStartEdit={() => startEdit(key, value)}
-							onChangeEditValue={setEditValue}
-							onSave={() => void saveEdit()}
-							onSelectChoice={choice => void saveChoiceEdit(choice)}
-							onCancel={cancelEdit}
+							isDarkMode={isDarkMode}
+							error={fieldErrors[key] ?? null}
+							onChangeValue={nextValue => updateFieldValue(key, nextValue)}
+							onBlur={() => void saveField(key)}
+							onSelectChoice={choice => void saveChoice(key, choice)}
 						/>
 					);
 				})}
@@ -394,22 +425,36 @@ export const AssistantDraftCard = ({
 							<Text className="font-bold text-amber-900 dark:text-amber-100">Confirme somente este registro. Uma resposta “sim” no chat não salva nada.</Text>
 						</View>
 						<View className={ASSISTANT_CLASS_NAMES.cardActions}>
-							<Pressable onPress={onBack} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.choiceText}>Voltar</Text></Pressable>
-							<Pressable onPress={() => void onConfirm()} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="font-extrabold text-lumus-on-accent">Confirmar agora</Text></Pressable>
+							<Button variant="outline" onPress={onBack} className={ASSISTANT_CLASS_NAMES.secondaryAction}>
+								<ButtonText>Voltar</ButtonText>
+							</Button>
+							<Button onPress={() => void onConfirm()} className={ASSISTANT_CLASS_NAMES.primaryAction}>
+								<ButtonText className={ASSISTANT_CLASS_NAMES.primaryActionText}>Confirmar agora</ButtonText>
+							</Button>
 						</View>
 					</View>
 				) : draft.status === 'ready' ? (
 					<View className={ASSISTANT_CLASS_NAMES.cardActions}>
-						<Pressable onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Cancelar</Text></Pressable>
-						<Pressable disabled={isDependencyPending} onPress={onReview} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="text-center font-extrabold text-lumus-on-accent">{isDependencyPending ? 'Aguardando ação anterior' : 'Revisar e confirmar'}</Text></Pressable>
+						<Button variant="outline" isDisabled={isSavingEdit} onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button isDisabled={isDependencyPending || isSavingEdit} onPress={() => void reviewDraft()} className={ASSISTANT_CLASS_NAMES.primaryAction}>
+							<ButtonText className={ASSISTANT_CLASS_NAMES.primaryActionText}>{isDependencyPending ? 'Aguardando ação anterior' : 'Revisar e confirmar'}</ButtonText>
+						</Button>
 					</View>
 				) : draft.status === 'failed' && draft.missingFields.length === 0 ? (
 					<View className={ASSISTANT_CLASS_NAMES.cardActions}>
-						<Pressable onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Cancelar</Text></Pressable>
-						<Pressable onPress={onReview} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="text-center font-extrabold text-lumus-on-accent">Revisar e tentar de novo</Text></Pressable>
+						<Button variant="outline" isDisabled={isSavingEdit} onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button isDisabled={isSavingEdit} onPress={() => void reviewDraft()} className={ASSISTANT_CLASS_NAMES.primaryAction}>
+							<ButtonText className={ASSISTANT_CLASS_NAMES.primaryActionText}>Revisar e tentar de novo</ButtonText>
+						</Button>
 					</View>
 				) : ['needs_input', 'failed', 'stale'].includes(draft.status) ? (
-					<Pressable onPress={onCancel} className="min-h-touch self-start justify-center rounded-xl"><Text className="font-bold text-error-600 dark:text-error-400">Cancelar este rascunho</Text></Pressable>
+					<Button variant="outline" action="negative" size="sm" isDisabled={isSavingEdit} onPress={onCancel} className={ASSISTANT_CLASS_NAMES.dangerAction}>
+						<ButtonText>Cancelar este rascunho</ButtonText>
+					</Button>
 				) : null}
 			</View>
 		</View>

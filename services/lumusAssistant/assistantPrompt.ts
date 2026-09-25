@@ -101,7 +101,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS = [
 	{
 		name: 'request_financial_report',
 		description:
-			'Solicita um relatório determinístico calculado pelo Lumus. Use para resumo, análise, pesquisa ou previsão; nunca calcule totais por conta própria.',
+			'Solicita uma resposta financeira calculada pelo Lumus. Escolha o tipo mais específico para a pergunta; nunca calcule valores por conta própria.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -109,6 +109,10 @@ export const ASSISTANT_FUNCTION_DECLARATIONS = [
 					type: 'string',
 					enum: [
 						'monthly_overview',
+						'largest_expense',
+						'largest_gain',
+						'smallest_expense',
+						'smallest_gain',
 						'bank_movements',
 						'cash_movements',
 						'transaction_search',
@@ -118,7 +122,7 @@ export const ASSISTANT_FUNCTION_DECLARATIONS = [
 						'investment_portfolio',
 					],
 				},
-				period: stringField('Período YYYY-MM, quando aplicável.'),
+				period: stringField('Maior ou menor despesa/ganho: mês YYYY-MM (omita para mês atual). Previsão: 3, 6 ou 12 meses.'),
 				bankRef: stringField('Identificador temporário do banco, quando aplicável.'),
 				categoryRef: stringField('Identificador temporário da categoria, quando aplicável.'),
 				query: stringField('Texto curto de pesquisa, quando aplicável.'),
@@ -167,7 +171,7 @@ Regras inegociáveis:
 6. Para editar, excluir, desfazer, pagar ou receber, use recordRef do catálogo. Se houver ambiguidade, deixe recordRef ausente.
 7. Transferências, recorrências e investimentos usam os comandos específicos; não proponha edição genérica dos lançamentos vinculados.
 8. Dados marcados related_read_only podem aparecer em relatório, mas nunca podem ser alvo de ação.
-9. Para resumo, análise, busca ou previsão, chame request_financial_report. Não calcule totais.
+9. Responda normalmente a perguntas gerais que não dependem dos dados da conta. Se a pergunta exige dados financeiros da conta, chame request_financial_report e escolha o tipo mais específico. Maior gasto usa largest_expense; menor gasto usa smallest_expense; maior ganho usa largest_gain; menor ganho usa smallest_gain. Use monthly_overview somente quando a pessoa pedir um panorama do mês. Não calcule valores nem descreva resultados antes de receber os dados do aplicativo.
 10. Não dê recomendação de investimento, promessa de retorno ou orientação financeira profissional.
 11. Não gere HTML, Markdown complexo ou código. A resposta textual deve ter no máximo quatro parágrafos curtos.
 12. Limite-se a no máximo 20 ações.
@@ -185,8 +189,11 @@ Preserve nomes, valores, datas e negações. Não interprete como ação, não c
 
 export const buildReportNarrationInstruction = (
 	report: AssistantReportNarrationRequest['report'],
-) => `Explique este relatório financeiro em português do Brasil, com linguagem simples e no máximo três parágrafos curtos.
-Use exclusivamente as métricas fornecidas. Não recalcule valores, não acrescente números, não dê recomendação financeira e não gere HTML, código ou Markdown complexo.
+	question?: string,
+) => `Responda à pergunta da pessoa em português do Brasil, com linguagem simples e no máximo três parágrafos curtos. Vá direto ao ponto. Se o relatório não trouxer os dados necessários para responder, diga isso claramente sem inventar uma resposta.
+Use exclusivamente as métricas e o resumo fornecidos. Não recalcule valores, não acrescente números, não dê recomendação financeira e não gere HTML, código ou Markdown complexo.
+
+Pergunta: ${JSON.stringify(question ?? 'Explique este relatório.')}
 
 Relatório calculado pelo Lumus:
 ${JSON.stringify(report)}`;

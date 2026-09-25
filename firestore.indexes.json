@@ -4,6 +4,22 @@
       "collectionGroup": "expenses",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "personId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gains",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "personId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "expenses",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "tagId", "order": "ASCENDING" },
         { "fieldPath": "personId", "order": "ASCENDING" }
       ]

@@ -2,6 +2,94 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — bloquear novos comandos durante paginação do Lumus IA, 2026-09-25
+
+**Inventário:** os comandos de texto, voz e sugestões convergem para o compositor nas telas Web e mobile; perguntas e inputs do cartão usam callbacks próprios.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O compositor continuava aceitando novos prompts enquanto um grupo paginado ainda aguardava preenchimento, revisão ou confirmação. | Durante a paginação ativa, o compositor, o microfone e as sugestões ficam desabilitados; `send()` recusa chamadas nesse estado. Os controles dentro do cartão e da pergunta ativa seguem aceitando os dados da ação em andamento. | Typecheck, exports Web/Android e `git diff --check` passaram. | Falta conferir visualmente o estado desabilitado e a reativação após a última ação em sessão autenticada. |
+
+## Checkpoint — ocultar paginação de pedidos concluídos no Lumus IA, 2026-09-25
+
+**Inventário:** `AssistantPaginationDock` recebe os grupos de cartões e os estados atuais dos rascunhos das telas Web e mobile.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A paginação considerava apenas o número de ações do grupo; grupos totalmente concluídos ou cancelados mantinham a faixa visível durante comandos posteriores. | A faixa agora inclui somente grupos com mais de uma ação e ao menos um rascunho ainda aberto. Quando o grupo termina, sua paginação desaparece; pedidos em andamento preservam a navegação. | `npm run typecheck`, exports Web/Android e `git diff --check` passaram. O lint de estilos continua apontando as pendências globais já registradas. | Falta conferir a transição visual após o último commit em sessão autenticada no navegador e em aparelho. |
+
+## Checkpoint — respostas inline nos cartões do Lumus IA, 2026-09-25
+
+**Inventário:** `LumusAssistantContext` mantém perguntas de campos ausentes e atualiza rascunhos pela ação alvo; as telas Web e mobile exibem mensagens e os cartões resultantes.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Cada etapa respondida continuava como cartão no histórico; respostas válidas digitadas também apareciam como mensagens comuns, embora o valor já estivesse no rascunho. | Web e mobile ocultam perguntas respondidas. Respostas válidas reconhecidas no compositor atualizam o rascunho sem gerar uma mensagem de usuário; seleções e texto atualizam o `clientActionId` da pergunta, e o cartão principal exibe o campo escolhido. A pergunta ativa continua disponível e respostas inválidas continuam visíveis com o aviso de correção. | `npm run typecheck`, export Web, export Android e `git diff --check` passaram. `npm run lint:styles` falha somente nas pendências já registradas em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Falta conferir a interação visual em sessão autenticada no navegador e em aparelho. |
+
+## Checkpoint — ocultação do indicador de rolagem do chat, 2026-09-25
+
+**Inventário:** o histórico do chat usa `ConversationContent`, uma primitiva compartilhada que encaminha propriedades para o `ScrollView` React Native/Web.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P3 | A barra vertical continuava visível ao rolar conversas longas. | `showsVerticalScrollIndicator={false}` foi aplicado ao histórico nas telas Web e mobile. O conteúdo continua rolável por gesto e mouse. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua apontando a dívida existente em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Falta conferir o indicador oculto em navegador e aparelho. |
+
+## Checkpoint — remoção das bordas ao redor do histórico do Lumus IA, 2026-09-25
+
+**Inventário:** a conversa Web tinha uma borda inferior no cabeçalho e a faixa de paginação compartilhada tinha uma borda superior, delimitando o histórico rolável.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P3 | As duas linhas emolduravam a área rolável e criavam divisores antes e depois das mensagens. | Removidos `border-b` do cabeçalho Web e `border-t` da faixa de paginação. A rolagem, o conteúdo e os controles permanecem iguais. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua apontando a dívida existente em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Falta conferir a área rolável visualmente em navegador e aparelho. |
+
+## Checkpoint — revisão sequencial dos cartões do Lumus IA, 2026-09-25
+
+**Inventário:** `LumusAssistantScreen.tsx` e `LumusAssistantScreen.web.tsx` usam `AssistantPaginationDock` e `AssistantDraftPages`, com edição e confirmação fornecidas por `LumusAssistantContext`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A faixa permitia abrir qualquer cartão do grupo e confirmar fora da ordem; somente um cartão ficava visível, mas a próxima etapa não era guiada. | A paginação destaca a próxima ação disponível, desabilita as futuras, mantém perguntas ligadas ao cartão correspondente e avança após commit confirmado. Ações concluídas podem ser reabertas para consulta; falhas mantêm a etapa atual; cancelamentos removem dependentes e liberam a próxima ação disponível. O grupo fica bloqueado enquanto a atualização pós-commit do catálogo termina. | `npm run typecheck`, export Web e export Android passaram; `git diff --check` passou. `npm run lint:styles` continua falhando somente por dívida preexistente em `ConfigurationsScreen.web.tsx` e pela linha de base de `useScreenStyles` (55/54). | Falta inspecionar o fluxo com dados reais em navegador autenticado e aparelho Android/iOS; exports validam o empacotamento, não a interação visual. |
+
+## Checkpoint — superfície da paginação do Lumus IA, 2026-09-25
+
+**Inventário:** a faixa de paginação compartilhada recebia fundos `bg-slate-50` no tema claro e `dark:bg-slate-900` (#0f172a) no tema escuro.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P3 | O fundo próprio da faixa escura criava uma placa visual atrás da paginação enquanto o usuário interagia com os cartões. | Removidas as classes de fundo da faixa; ela herda a superfície do painel. Borda superior, botões, espaçamento e cores da paginação permanecem iguais. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua apontando a dívida existente em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Falta conferência visual autenticada em navegador e aparelho. |
+
+## Checkpoint — envio do compositor pelo teclado, 2026-09-25
+
+**Inventário:** Web usa Mantine `Textarea`; mobile usa `PromptInputTextarea` multilinha do Gluestack, que encaminha props ao `TextInput` do React Native.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Enter criava uma quebra de linha no lugar de enviar o prompt. | Na Web, Enter envia e Shift+Enter insere quebra, com proteção durante composição IME. No mobile, `submitBehavior="submit"` e `returnKeyType="send"` chamam o mesmo fluxo `send()` usado pelo botão. | `git diff --check` passou. `npm run typecheck` reporta TS2322 em `assistant-draft-pages.tsx:186`, fora dos arquivos alterados nesta fase. O lint de estilos continua apontando a dívida já registrada em Configurações e no baseline global; não houve inspeção interativa de teclado. | Validar Enter, Shift+Enter, IME e a ação mobile em navegador/aparelho reais. |
+
+## Checkpoint — cor do placeholder do Lumus IA Web, 2026-09-25
+
+**Inventário:** o `Textarea` Mantine da rota Web usa classes compartilhadas e um tema Mantine; no tema escuro, uma classe própria definia o placeholder como branco.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O placeholder branco destoava do cinza solicitado para os campos Web. | O placeholder agora usa `#5A6A7F` em qualquer tema, fornecido pelo token `textPlaceholder` via `--input-placeholder-color` do Mantine. A cor do texto digitado e os estados de foco permanecem iguais. | `npm run typecheck` e `git diff --check` passaram; o lint de estilos continua apontando dívida preexistente em `ConfigurationsScreen.web.tsx` e no baseline de `useScreenStyles` (55/54). | Falta conferir a cor computada na rota autenticada em navegador. |
+
+## Checkpoint — remoção do divisor acima do compositor Lumus IA, 2026-09-25
+
+**Inventário:** os contratos compartilhados `composerDock` e `webComposerDock` desenhavam uma borda superior em toda a largura, entre o histórico e o campo de texto.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P3 | A linha superior do dock separava visualmente o input do chat sem necessidade. | Removidas as classes de borda superior dos docks mobile e Web; espaçamento, fundo, moldura do input e controles permanecem iguais. | `npm run lint:styles` e `npm run typecheck` executados; resultados registrados no contexto ativo. | Não houve inspeção visual autenticada em navegador ou aparelho. |
+
+## Checkpoint — largura do compositor Lumus IA Web/mobile, 2026-09-25
+
+**Inventário:** Web e mobile envolvem a caixa de texto e os botões numa moldura própria; a textarea Web já usa `flex-1 min-w-0`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A moldura tinha limite máximo e `self-center`, mas não declarava `w-full`; podia encolher à largura intrínseca dos controles, deixando o input de texto estreito. | As duas telas agora dão `w-full` à moldura e mantêm seus limites máximos responsivos. O campo Web preenche o espaço restante entre microfone e envio; o input Gluestack mobile permanece dentro da mesma moldura estendida. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` segue apontando somente dívida de `ConfigurationsScreen.web.tsx` e o baseline de `useScreenStyles` (55/54). A conferência visual autenticada ainda não foi executada. | Falta confirmar em navegador e dispositivo a geometria nos estados normal, focado e com texto longo. |
+
 ## Checkpoint — atividade visível enquanto o Lumus responde, 2026-09-25
 
 | Severidade | Achado e causa | Correção | Validação | Risco residual |
