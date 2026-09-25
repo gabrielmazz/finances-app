@@ -53,6 +53,19 @@ export const ASSISTANT_DRAFT_STATUSES = [
 
 export type AssistantDraftStatus = (typeof ASSISTANT_DRAFT_STATUSES)[number];
 
+/** Etapas locais e observáveis do processamento; não representam raciocínio privado do modelo. */
+export type AssistantSendStage =
+	| 'loading_data'
+	| 'interpreting_request'
+	| 'preparing_actions'
+	| 'building_report'
+	| 'writing_report';
+
+export type AssistantSendProgress = {
+	active: AssistantSendStage;
+	completed: AssistantSendStage[];
+};
+
 export type AssistantFieldKind =
 	| 'text'
 	| 'money'
@@ -233,8 +246,8 @@ export type AssistantMessage =
 			answerLabel?: string;
 	  })
 	| (AssistantMessageBase & {
-			type: 'draft';
-			actionId: string;
+			type: 'drafts';
+			actionIds: string[];
 	  })
 	| (AssistantMessageBase & {
 			type: 'report';
@@ -289,6 +302,7 @@ export type AssistantAiConversationResponse = {
 	actions: AssistantModelActionProposal[];
 	reportRequest?: AssistantReportRequest;
 	toolCallCount: number;
+	fallbackModel?: string;
 };
 
 export type AssistantTranscriptionRequest = {

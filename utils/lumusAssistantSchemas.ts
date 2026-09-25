@@ -402,12 +402,19 @@ export const getFieldDefinition = (
 	if (fieldKey === 'categoryRef') {
 		choiceSource = CATEGORY_CATALOG_BY_ACTION[kind];
 	}
+	const settlementQuestion = fieldKey === 'recordRef'
+		? kind === 'pay_mandatory_expense'
+			? { label: 'Gasto obrigatório', question: 'Qual gasto obrigatório pendente você quer pagar?' }
+			: kind === 'receive_mandatory_gain'
+				? { label: 'Ganho obrigatório', question: 'Qual ganho obrigatório pendente você quer receber?' }
+				: null
+		: null;
 
 	return {
 		key: fieldKey,
-		label: base.label,
+		label: settlementQuestion?.label ?? base.label,
 		kind: base.kind,
-		question: base.question,
+		question: settlementQuestion?.question ?? base.question,
 		choiceSource,
 		allowApplyToSimilar: base.allowApplyToSimilar,
 	};

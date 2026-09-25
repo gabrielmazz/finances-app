@@ -15,6 +15,7 @@ import {
 	createAssistantId,
 	createAssistantOpaqueHandle,
 	formatCents,
+	formatCycleKey,
 	inferAssistantDependencyReferences,
 	updateAssistantDraftPayload,
 } from '@/utils/lumusAssistant';
@@ -333,6 +334,21 @@ export const findAssistantCatalogItem = (
 	return byLabel.length === 1 ? byLabel[0] ?? null : null;
 };
 
+export const getPendingMandatoryCatalogItems = (
+	catalog: AssistantResolvedCatalog,
+	type: 'expense' | 'gain',
+	cycle = formatCycleKey(new Date()),
+): AssistantResolvedCatalogItem[] => {
+	const source = type === 'expense' ? 'mandatoryExpenses' : 'mandatoryGains';
+	const completedCycleField = type === 'expense' ? 'lastPaymentCycle' : 'lastReceiptCycle';
+	return (catalog[source] ?? []).filter(item => {
+		if (item.ownerScope === 'related_read_only' || item.data?.[completedCycleField] === cycle) return false;
+		const total = item.data?.installmentTotal;
+		const completed = item.data?.installmentsCompleted;
+		return typeof total !== 'number' || typeof completed !== 'number' || completed < total;
+	});
+};
+
 const REFERENCE_FIELDS = ['bankRef', 'sourceBankRef', 'targetBankRef', 'categoryRef', 'investmentRef', 'recordRef'] as const;
 
 const resolveReferenceSource = (
@@ -343,8 +359,16 @@ const resolveReferenceSource = (
 const withChoices = (
 	field: AssistantMissingField,
 	catalog: AssistantResolvedCatalog,
+	draft: AssistantDraftAction,
 ): AssistantMissingField => {
-	const options = field.choiceSource ? catalog[field.choiceSource] ?? [] : [];
+	const settlementType = draft.kind === 'pay_mandatory_expense' ? 'expense'
+		: draft.kind === 'receive_mandatory_gain' ? 'gain' : null;
+	const date = draft.payload.date;
+	const cycle = typeof date === 'string' && /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(date)
+		? date.slice(0, 7) : formatCycleKey(new Date());
+	const options = field.key === 'recordRef' && settlementType
+		? getPendingMandatoryCatalogItems(catalog, settlementType, cycle)
+		: field.choiceSource ? catalog[field.choiceSource] ?? [] : [];
 	const filtered =
 		field.key === 'sourceBankRef' || field.key === 'targetBankRef'
 			? options.filter(item => item.realId !== null)
@@ -365,7 +389,7 @@ const addMissingField = (
 	if (draft.missingFields.some(field => field.key === fieldKey)) {
 		return draft;
 	}
-	const field = withChoices(getFieldDefinition(draft.kind, fieldKey), catalog);
+	const field = withChoices(getFieldDefinition(draft.kind, fieldKey), catalog, draft);
 	return {
 		...draft,
 		status: 'needs_input' as const,
@@ -379,7 +403,7 @@ export const enrichAssistantDraft = (
 ): AssistantDraftAction => {
 	let next: AssistantDraftAction = {
 		...draft,
-		missingFields: draft.missingFields.map(field => withChoices(field, catalog)),
+		missingFields: draft.missingFields.map(field => withChoices(field, catalog, draft)),
 	};
 
 	for (const field of REFERENCE_FIELDS) {

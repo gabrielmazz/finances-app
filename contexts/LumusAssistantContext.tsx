@@ -8,6 +8,8 @@ import type {
 	AssistantAiConfig,
 	AssistantDraftAction,
 	AssistantMessage,
+	AssistantSendProgress,
+	AssistantSendStage,
 	AssistantResolvedCatalog,
 } from '@/types/lumusAssistant';
 import { assistantAiGateway } from '@/services/lumusAssistant/assistantPlatform';
@@ -15,6 +17,7 @@ import { DEFAULT_ASSISTANT_AI_CONFIG } from '@/services/lumusAssistant/assistant
 import { financeCommandService } from '@/services/lumusAssistant/financeCommandService';
 import { assistantReportService } from '@/services/lumusAssistant/assistantReportService';
 import {
+	getPendingMandatoryCatalogItems,
 	resetAssistantCatalogSession,
 	toAssistantModelCatalog,
 } from '@/services/lumusAssistant/assistantCatalogService';
@@ -22,8 +25,12 @@ import { assistantPreferencesStorage } from '@/utils/assistantPreferencesStorage
 import {
 	createAssistantId,
 	buildAssistantActiveDraftSummary,
+	findNextAssistantQuestion,
+	formatIsoDate,
+	getMandatorySettlementIntent,
 	isAssistantClearConversationCommand,
 	maskFinancialValuesInText,
+	moveAssistantDraftGroupToEnd,
 	parseAssistantQuestionAnswer,
 	sanitizeAssistantInput,
 	transitionAssistantDraft,
@@ -40,6 +47,7 @@ type LumusAssistantContextValue = {
 	isBootstrapping: boolean;
 	isRefreshingAvailability: boolean;
 	isSending: boolean;
+	sendingProgress: AssistantSendProgress | null;
 	consentGranted: boolean;
 	autoReadEnabled: boolean;
 	speakingMessageId: string | null;
@@ -76,19 +84,6 @@ const createMessage = <T extends NewAssistantMessage>(message: T): T & Pick<Assi
 	createdAt: new Date().toISOString(),
 });
 
-const findNextQuestion = (drafts: AssistantDraftAction[]) => {
-	const firstDraft = drafts.find(draft => draft.status === 'needs_input' && draft.missingFields.length > 0);
-	if (!firstDraft) return null;
-	const field = firstDraft.missingFields[0]!;
-	const targetActionIds = drafts
-		.filter(draft =>
-			draft.status === 'needs_input' &&
-			draft.missingFields.some(candidate => candidate.key === field.key),
-		)
-		.map(draft => draft.clientActionId);
-	return { field, targetActionIds };
-};
-
 export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
 	const { user, isAuthReady } = useAuth();
 	const { shouldHideValues } = useValueVisibility();
@@ -100,6 +95,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	const [isBootstrapping, setIsBootstrapping] = React.useState(true);
 	const [isRefreshingAvailability, setIsRefreshingAvailability] = React.useState(false);
 	const [isSending, setIsSending] = React.useState(false);
+	const [sendingProgress, setSendingProgress] = React.useState<AssistantSendProgress | null>(null);
 	const [consentGranted, setConsentGranted] = React.useState(false);
 	const [autoReadEnabled, updateAutoReadEnabled] = React.useState(false);
 	const [speakingMessageId, setSpeakingMessageId] = React.useState<string | null>(null);
@@ -129,7 +125,21 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		setDrafts([]);
 		setCatalog({});
 		setIsSending(false);
+		setSendingProgress(null);
 		setRevocationEpoch(value => value + 1);
+	}, []);
+
+	const advanceSendingProgress = React.useCallback((active: AssistantSendStage) => {
+		setSendingProgress(current => {
+			if (!current) return { active, completed: [] };
+			if (current.active === active) return current;
+			return {
+				active,
+				completed: current.completed.includes(current.active)
+					? current.completed
+					: [...current.completed, current.active],
+			};
+		});
 	}, []);
 
 	const refreshAvailability = React.useCallback(async () => {
@@ -209,16 +219,25 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		return () => { cancelled = true; };
 	}, [clearSession, isAuthReady, user?.uid]);
 
-	const appendNextQuestion = React.useCallback((nextDrafts: AssistantDraftAction[]) => {
-		const next = findNextQuestion(nextDrafts);
-		if (!next) return;
+	const appendNextQuestion = React.useCallback((nextDrafts: AssistantDraftAction[], answeredActionId?: string) => {
+		const next = findNextAssistantQuestion(nextDrafts);
+		if (!next) {
+			if (answeredActionId) setMessages(current => moveAssistantDraftGroupToEnd(current, answeredActionId));
+			return;
+		}
 		setMessages(current => {
 			const hasOpenQuestion = current.some(message => message.type === 'question' && !message.answeredAt);
 			if (hasOpenQuestion) return current;
+			const actionId = next.targetActionIds[0];
+			const group = current.find(message => message.type === 'drafts' && actionId && message.actionIds.includes(actionId));
+			const position = group?.type === 'drafts' && actionId ? group.actionIds.indexOf(actionId) : -1;
+			const questionText = group?.type === 'drafts' && group.actionIds.length > 1 && position >= 0
+				? `Ação ${position + 1} de ${group.actionIds.length} · ${next.field.question}`
+				: next.field.question;
 			return [...current, createMessage({
 				type: 'question',
 				role: 'assistant',
-				text: next.field.question,
+				text: questionText,
 				field: next.field,
 				targetActionIds: next.targetActionIds,
 			})];
@@ -277,21 +296,60 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					? { ...message, answeredAt: new Date().toISOString(), answerLabel: parsedAnswer.label }
 					: message,
 			));
-			queueMicrotask(() => appendNextQuestion(nextDrafts));
+			queueMicrotask(() => appendNextQuestion(nextDrafts, targetIds[0]));
 			return;
 		}
 		setMessages(current => [...current, userMessage]);
 		setIsSending(true);
+		setSendingProgress({ active: 'loading_data', completed: [] });
 		const controller = new AbortController();
 		activeAbortRef.current = controller;
 		try {
 			const nextCatalog = await financeCommandService.loadCatalog(uid);
 			if (controller.signal.aborted || accountRef.current !== uid) return;
+			catalogRef.current = nextCatalog;
 			setCatalog(nextCatalog);
+			const settlementType = getMandatorySettlementIntent(text);
+			if (settlementType) {
+				const today = new Date();
+				const todayIso = formatIsoDate(today);
+				const pending = getPendingMandatoryCatalogItems(nextCatalog, settlementType, todayIso.slice(0, 7));
+				if (pending.length === 0) {
+					setMessages(current => [...current, createMessage({
+						type: 'text', role: 'assistant',
+						text: settlementType === 'expense'
+							? 'Não encontrei gastos obrigatórios pendentes neste mês para a sua conta.'
+							: 'Não encontrei ganhos obrigatórios pendentes neste mês para a sua conta.',
+					})]);
+					return;
+				}
+				advanceSendingProgress('preparing_actions');
+				const prepared = await financeCommandService.prepareActions(uid, [{
+					kind: settlementType === 'expense' ? 'pay_mandatory_expense' : 'receive_mandatory_gain',
+					payload: { date: todayIso },
+			}], nextCatalog);
+				if (controller.signal.aborted || accountRef.current !== uid) return;
+				const mergedDrafts = [...draftsRef.current, ...prepared.actions];
+				draftsRef.current = mergedDrafts;
+				setDrafts(mergedDrafts);
+				setMessages(current => [
+					...current,
+					createMessage({
+						type: 'text', role: 'assistant',
+						text: settlementType === 'expense'
+							? 'Escolha o gasto pendente que deseja pagar. Depois, selecione onde registrar o pagamento e confirme o cartão.'
+							: 'Escolha o ganho pendente que deseja receber. Depois, selecione onde registrar o recebimento e confirme o cartão.',
+					}),
+					createMessage({ type: 'drafts', role: 'assistant', actionIds: prepared.actions.map(action => action.clientActionId) }),
+				]);
+				queueMicrotask(() => appendNextQuestion(mergedDrafts));
+				return;
+			}
 			const turns = messagesRef.current
 				.filter((message): message is Extract<AssistantMessage, { type: 'text' }> => message.type === 'text')
 				.map(message => ({ role: message.role === 'assistant' ? 'assistant' as const : 'user' as const, text: message.text, createdAt: message.createdAt }))
 				.slice(-config.maxContextTurns);
+			advanceSendingProgress('interpreting_request');
 			const response = await assistantAiGateway.converse({
 				requestScope: uid,
 				text,
@@ -305,6 +363,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			});
 			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const assistantText = createMessage({ type: 'text', role: 'assistant', text: response.text });
+			if (response.actions.length > 0) advanceSendingProgress('preparing_actions');
 			const prepared = response.actions.length > 0
 				? await financeCommandService.prepareActions(uid, response.actions, nextCatalog)
 				: { actions: [] as AssistantDraftAction[], catalog: nextCatalog };
@@ -315,12 +374,20 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			setMessages(current => [
 				...current,
 				assistantText,
-				...prepared.actions.map(action => createMessage({ type: 'draft', role: 'assistant', actionId: action.clientActionId })),
+				...(response.fallbackModel ? [createMessage({
+					type: 'warning', role: 'assistant',
+					text: 'O modelo principal estava indisponível. Usei uma alternativa gratuita para esta resposta.',
+				})] : []),
+				...(prepared.actions.length > 0 ? [createMessage({
+					type: 'drafts', role: 'assistant', actionIds: prepared.actions.map(action => action.clientActionId),
+				})] : []),
 			]);
 			if (response.reportRequest) {
+				advanceSendingProgress('building_report');
 				try {
 					const report = await assistantReportService.createReport(uid, response.reportRequest, nextCatalog);
 					try {
+						advanceSendingProgress('writing_report');
 						report.narrative = await assistantAiGateway.narrateReport({
 							requestScope: uid,
 							report,
@@ -349,10 +416,13 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		} finally {
 			if (activeAbortRef.current === controller) {
 				activeAbortRef.current = null;
-				if (accountRef.current === uid) setIsSending(false);
+				if (accountRef.current === uid) {
+					setIsSending(false);
+					setSendingProgress(null);
+				}
 			}
 		}
-	}, [appendNextQuestion, autoReadEnabled, clearSession, config, consentGranted, isSending, shouldHideValues, speak, user?.uid]);
+	}, [advanceSendingProgress, appendNextQuestion, autoReadEnabled, clearSession, config, consentGranted, isSending, shouldHideValues, speak, user?.uid]);
 
 	const answerQuestion = React.useCallback(async (
 		messageId: string,
@@ -380,7 +450,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				? { ...message, answeredAt: new Date().toISOString(), answerLabel: label }
 				: message,
 		));
-		queueMicrotask(() => appendNextQuestion(nextDrafts));
+		queueMicrotask(() => appendNextQuestion(nextDrafts, targetIds[0]));
 	}, [appendNextQuestion, user?.uid]);
 
 	const editDraft = React.useCallback(async (actionId: string, patch: Record<string, unknown>) => {
@@ -392,23 +462,27 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		const nextDrafts = draftsRef.current.map(item => item.clientActionId === actionId ? updated : item);
 		draftsRef.current = nextDrafts;
 		setDrafts(nextDrafts);
-		appendNextQuestion(nextDrafts);
+		appendNextQuestion(nextDrafts, actionId);
 	}, [appendNextQuestion, user?.uid]);
 
 	const beginConfirmation = React.useCallback((actionId: string) => {
-		setDrafts(current => current.map(draft =>
+		const nextDrafts = draftsRef.current.map(draft =>
 			draft.clientActionId === actionId && (draft.status === 'ready' || draft.status === 'failed')
 				? transitionAssistantDraft(draft, 'confirming')
 				: draft,
-		));
+		);
+		draftsRef.current = nextDrafts;
+		setDrafts(nextDrafts);
 	}, []);
 
 	const cancelConfirmation = React.useCallback((actionId: string) => {
-		setDrafts(current => current.map(draft =>
+		const nextDrafts = draftsRef.current.map(draft =>
 			draft.clientActionId === actionId && draft.status === 'confirming'
 				? transitionAssistantDraft(draft, 'ready')
 				: draft,
-		));
+		);
+		draftsRef.current = nextDrafts;
+		setDrafts(nextDrafts);
 	}, []);
 
 	const executeDraft = React.useCallback(async (actionId: string) => {
@@ -601,6 +675,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		isBootstrapping,
 		isRefreshingAvailability,
 		isSending,
+		sendingProgress,
 		consentGranted,
 		autoReadEnabled,
 		speakingMessageId,
@@ -624,7 +699,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	}), [
 		answerQuestion, autoReadEnabled, availability, beginConfirmation, cancelConfirmation,
 		cancelDraft, catalog, clearSession, config, consentGranted, drafts, editDraft, executeDraft,
-		grantConsent, isBootstrapping, isRefreshingAvailability, isSending, messages, refreshAvailability, revokeConsent, revocationEpoch,
+		grantConsent, isBootstrapping, isRefreshingAvailability, isSending, messages, refreshAvailability, revokeConsent, revocationEpoch, sendingProgress,
 		retryNotification, sendMessage, setAutoReadEnabled, speak, speakingMessageId, stopSpeaking, transcribeAudio,
 	]);
 

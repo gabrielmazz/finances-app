@@ -80,12 +80,28 @@
     "owner": "web-investments"
   },
   {
+    "files": ["screens/web/LumusAssistantScreen.web.tsx"],
+    "reason": "O hero do assistente segue a composição Web de despesas; a imagem React Native requer posicionamento e dimensões explícitos, enquanto altura/safe area do hero e sobreposição do sheet dependem do viewport.",
+    "limitation": "O tamanho do hero e a dimensão da imagem precisam acompanhar o viewport no runtime.",
+    "risk": "Mudanças no empilhamento podem expor o fundo do shell ou ocultar a animação sobre o wallpaper.",
+    "alternative": "A geometria fixa permanece nas classes compartilhadas; os estilos inline ficam limitados à imagem e aos valores calculados do viewport.",
+    "owner": "assistant-ui"
+  },
+  {
     "files": ["design-system/mantine.ts"],
     "reason": "Mantine expõe classNames, CSS variables e styles para partes internas que não recebem classes NativeWind diretamente.",
     "limitation": "O prop styles aceita propriedades inline sem pseudo-seletores; Tabs e TagsInput expõem estados internos por atributos próprios.",
     "risk": "Uma atualização do Mantine pode renomear slots ou variáveis.",
     "alternative": "Concentrar o adaptador em um único módulo, aplicar estados por classNames com variantes data-* e consumir tokens semânticos do Tailwind.",
     "owner": "design-system"
+  },
+  {
+    "files": ["components/uiverse/categories/category-analysis-bank-donut-chart.tsx"],
+    "reason": "O DonutChart Mantine é isolado em Expo DOM; a camada HTML central depende do tamanho dinâmico do gráfico e de posicionamento absoluto.",
+    "limitation": "O NativeWind da tela não estiliza de forma confiável elementos HTML dentro do documento Expo DOM; Mantine e Recharts recebem dimensões/cores por props.",
+    "risk": "A camada central pode perder alinhamento se a geometria do gráfico for alterada sem atualizar seu tamanho responsivo.",
+    "alternative": "Manter styles restritos à geometria do wrapper e à tipografia central, usando dimensões recebidas e cores de LUMUS_RUNTIME_COLORS.",
+    "owner": "data-visualization"
   },
   {
     "files": ["app.json"],

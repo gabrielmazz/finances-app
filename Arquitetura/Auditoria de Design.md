@@ -2,6 +2,68 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — atividade visível enquanto o Lumus responde, 2026-09-25
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O chat mostrava apenas “Organizando com cuidado…”, sem indicar se estava consultando o catálogo, aguardando o modelo ou preparando cartões/relatórios. O componente de referência animava frases de raciocínio pré-escritas e era específico de Web. | `LumusAssistantContext` agora acompanha as etapas acionadas pelos serviços. `AssistantActivityTrace` reutiliza a ideia visual de uma trilha expansível para exibir a etapa atual e as concluídas em Web e mobile. Não apresenta pensamento interno nem cria etapas fictícias; o estado é transitório, sem valores ou conteúdo do pedido. | `npm run typecheck`, `npm run web:export`, `npx expo export --platform android`, `npx expo export --platform ios` e `git diff --check` passaram. `npm run lint:styles` continua bloqueado pelas pendências registradas em `ConfigurationsScreen.web.tsx` e pelo baseline global de `useScreenStyles` (55/54); o componente novo não aumentou as métricas. | Inspeção visual autenticada em navegador e dispositivo ainda necessária; export estático não comprova foco, leitores de tela nem animação em runtime. Não foi gerado development client novo porque nenhuma dependência nativa foi adicionada. |
+
+## Checkpoint — feixe animado no compositor do Lumus IA, 2026-09-25
+
+**Inventário:** Web e mobile têm composições próprias do compositor. O npm `border-beam@1.4.1` envolve um elemento HTML e exige React DOM; o upstream mantém o port React Native em beta, ainda não publicado. O projeto já tem `react-native-svg` e Reanimated, sem Skia.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A moldura atual tinha apenas o foco amarelo do campo; o pacote sugerido cobre Web, mas não pode ser importado por Android/iOS. | `assistant-composer-frame.web.tsx` usa `BorderBeam` em tom dourado fixo, com intensidade moderada, somente em foco. O adaptador nativo percorre o contorno com um traço SVG/Reanimated usando dependências já instaladas. Ambos desativam animação com preferência de movimento reduzido e não interceptam os toques do compositor. | Typecheck, exports Web/Android/iOS e `git diff --check` passaram. Lint de estilos continua restrito à dívida de `ConfigurationsScreen.web.tsx` e ao baseline `useScreenStyles` (55/54). | Falta conferir a intensidade e a geometria em navegador e aparelho real; os exports não validam o movimento em execução. O pacote Web depende de suporte CSS `@property` dos navegadores atuais. |
+
+`border-beam` é MIT e não traz dependências runtime; nenhuma dependência nativa nova foi adicionada. O feixe móvel reutiliza o Reanimated e `react-native-svg` que já estavam instalados. A adaptação está em [[Assistente Lumus]] e [[Componentes UI]].
+
+## Checkpoint — edição inline dos cartões do Lumus IA Web/mobile, 2026-09-25
+
+**Inventário:** as rotas `/web/lumus-assistant` e `/mobile/lumus-assistant` usam adaptadores de cartão separados (`components/web/assistant/assistant-cards.web.tsx` e `components/mobile/assistant/assistant-cards.native.tsx`) com o contrato visual `ASSISTANT_CLASS_NAMES`. O formulário de despesas Web já usa `Input`, `DatePickerField` e seletores de banco/categoria.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Campos do cartão apareciam como texto; tocar no lápis abria um editor separado no fim do cartão e usava entrada genérica até para datas, números e referências. O glifo pequeno também não se parecia claramente com um lápis. | Criado `AssistantInlineField` compartilhado: lápis Lucide com alvo de 44 px; cada linha troca seu próprio valor pelo controle correspondente (texto/textarea, moeda/número, calendário, horário ou `Select` de opções). Labels, alturas, bordas, superfícies, tipografia e foco dos campos editáveis reutilizam `LUMUS_FORM_CLASS_NAMES` de `AddRegisterExpensesScreen.web.tsx`. Banco/categoria usam labels do catálogo opaco e recusam texto livre quando não há opções. Salvar chama apenas `financeCommandService.updateDraft`; nenhuma escrita financeira foi adicionada. Valores monetários ocultos não são mostrados ao abrir edição. Removidos os divisores entre campos; o espaçamento do cartão mantém a separação visual. | 10 suítes do assistente (91 testes), `npm run typecheck`, export Web, export Android e `git diff --check` passaram anteriormente; nesta atualização, `git diff --check` passou. O lint de estilos continua falhando por pendências em `ConfigurationsScreen.web.tsx` e pela linha de base global de `useScreenStyles` (55/54). | Falta inspecionar em navegador autenticado e dispositivo. Os exports não exercitam foco, abertura dos seletores, teclado ou layout em execução. |
+
+## Checkpoint — largura e animação do wallpaper no Lumus IA Web, 2026-09-25
+
+**Inventário:** `AddRegisterExpensesScreen.web.tsx` preenche a viewport com os contratos `w-screen` de `WEB_DASHBOARD_CLASS_NAMES` e sobrepõe a imagem com o `Grainient` animado. O Lumus IA usava `w-full` no wrapper do hero e no shell e, na tentativa anterior, sua camada compartilhada de `Grainient` foi removida.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O hero do Lumus não declarava largura de viewport como o cadastro de despesas, deixando o fundo escuro do shell visível ao lado do wallpaper; remover o `Grainient` também havia eliminado sua animação. | O shell e o hero agora usam `w-screen`; a imagem `RNImage`, o `Grainient` por cima a 62%, `StrokeText` e `AnimatedContent` seguem a composição de despesas. A ilustração própria do Lumus é preservada. Os overlays animados retirados da Home e formulários também foram restaurados. | Typecheck, export Web e `git diff --check` passaram. `npm run lint:styles` continua limitado a `ConfigurationsScreen.web.tsx` e ao limite global de `useScreenStyles` (55/54); não foi executada a suíte de testes. | Inspeção visual autenticada no navegador ainda pendente; confirmar a largura do wallpaper e a animação na rota Lumus IA. |
+
+## Checkpoint — compositor Mantine no Lumus IA Web, 2026-09-25
+
+**Inventário:** o compositor de `/web/lumus-assistant` estava montado com as primitivas Gluestack `PromptInput` e `PromptInputTextarea`; o contrato Web aplicava `focus-within` à superfície completa. A variante mobile usa os mesmos contratos gerais de layout, mas mantém o campo Gluestack.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Ao focar o texto, `focus-within` desenhava borda e anel amarelos ao redor de todo o compositor. A composição da tela Web não usava diretamente os campos Mantine já adotados em outras telas Web. | Removido o foco da superfície externa. O compositor Web agora usa Mantine `Textarea`, com tema via `MantineProvider` e anel amarelo aplicado somente ao campo; texto digitado e placeholder ficam brancos no tema escuro. Mobile permanece no Gluestack. | `npm run typecheck` e `git diff --check` passaram na etapa do compositor; as validações desta revisão de cor ficam registradas no contexto ativo. `npm run lint:styles` continua falhando somente pelas pendências preexistentes em `ConfigurationsScreen.web.tsx` e pelo limite global de `useScreenStyles` (55/54); o compositor não elevou essa dívida. | Inspeção visual autenticada no navegador ainda não executada nesta fase. |
+
+## Checkpoint — balão de mensagem do Lumus IA Web/mobile, 2026-09-25
+
+**Inventário:** as variantes `/web/lumus-assistant` e `/mobile/lumus-assistant` renderizam as mensagens da pessoa com `AssistantTextBubble` em adaptadores separados e compartilham `ASSISTANT_CLASS_NAMES`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O balão enviado pela pessoa usava `yellow-100/900`, separado do amarelo semântico de marca; o texto claro do tema escuro também deixaria de contrastar se o fundo passasse ao amarelo da marca. | O fundo agora usa `lumus-accent`/`lumus-accent-dark` e o texto usa `lumus-on-accent` por uma classe compartilhada entre Web e mobile. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua falhando somente pelas pendências preexistentes em `ConfigurationsScreen.web.tsx` e pelo limite global de `useScreenStyles` (55/54); os arquivos do assistente não elevaram essa dívida. | Inspeção visual autenticada no navegador e em dispositivo Android/iOS não executada nesta fase. |
+
+## Checkpoint — análise por categoria Web/mobile, 2026-09-25
+
+**Inventário:** `/web/category-analysis` usa `screens/web/CategoryAnalysisScreen.web.tsx`; `/mobile/category-analysis` usa `screens/mobile/CategoryAnalysisScreen.tsx`. A tela compartilha os dados e a privacidade, mas cada variante monta seus próprios controles e gráfico. A categoria aparecia antes das tabs no mobile; o gráfico Web usava `react-native-gifted-charts`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | As tabs Web usavam uma variante Mantine diferente do extrato, com sombra ativa e comportamento de texto/ícone divergente; no mobile, a categoria vinha antes do tipo de movimento e o conteúdo selecionado podia ficar preto. | A Web reutiliza os mesmos contratos Mantine do extrato. No mobile, gastos/ganhos passam para o primeiro controle e o ícone/rótulo selecionados ficam brancos; o seletor de categoria vem em seguida. | `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. | Inspeção visual em navegador autenticado e aparelho Android/iOS não executada nesta fase. |
+| P2 | O gráfico de distribuição Web com `PieChart` Gifted apresentava falha na composição Web. | Criado `category-analysis-bank-donut-chart.tsx` em Expo DOM com `DonutChart` Mantine; dados permanecem em centavos e o total/tooltip respeitam **Ocultar valores**. O mobile mantém o gráfico nativo. | Typecheck, export Web e diff-check passaram. | Confirmar tamanho, tooltip e labels de contas longos com dados reais no navegador. |
+| P2 | Hero, sheet, card de categoria, skeleton e estados vazios combinavam raios de 24/28px com superfícies de 16px. | Superfícies, seletor, sheet, skeletons e estados vazios foram alinhados a 16px nas duas variantes; raios circulares de badges e indicadores permanecem. | Typecheck, export Web e revisão estática passaram. | A conferência visual em telas estreitas e aparelhos não foi executada nesta fase. |
+
+**Estados revisados:** relatório carregando, erro, ausência de categorias, ausência de movimentos, categoria com um ou ambos os tipos, alternância desabilitada, tema claro/escuro e valores ocultos. O gráfico e a lista continuam mostrando placeholders quando a privacidade está ativa.
+
+`npm run lint:styles` continua bloqueado pela dívida preexistente de `screens/web/ConfigurationsScreen.web.tsx` e pelo limite global de consumidores de `useScreenStyles` (55/54); esta correção não aumentou as métricas de estilo. Não foi feita inspeção visual autenticada no navegador nem em dispositivo Android/iOS.
+
 ## Checkpoint — extrato bancário Web e mobile, 2026-09-24
 
 **Correção complementar do warning React:** quatro textos da timeline Web e dois textos do seletor Web de banco passavam `numberOfLines={1}` ao `Text` Gluestack, que renderiza um `<span>` e encaminha a prop desconhecida ao DOM. Esses seis usos agora recebem `isTruncated`, preservando a intenção de uma linha pelo contrato Web. A variante nativa continua usando `numberOfLines`. `npm run typecheck` e `git diff --check` passaram; `npm run lint:styles` continua limitado às pendências anteriores de Configurações Web e `useScreenStyles`.
@@ -155,7 +217,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Login | mobile | `/mobile/login` | `screens/mobile/LoginScreen.tsx` | Gluestack, formulário, wallpaper | `useScreenStyles`, NativeWind, estilos dinâmicos | Tokens e estados distribuídos | P1 |
 | Home | mobile | `/mobile/home` | `screens/mobile/HomeScreen.tsx` | cards bancários, gráficos, carrossel, modais | `useScreenStyles`, NativeWind, estilos de gráficos | Paleta paralela e estilos de biblioteca locais | P1 |
 | Abas da Home | mobile | `/mobile/home` | `screens/mobile/HomeTabsScreen.tsx` | navegador, dashboard, configurações | NativeWind e navigator | Shell diverge da web | P2 |
-| Lumus IA | mobile | `/mobile/lumus-assistant` | `screens/mobile/LumusAssistantScreen.tsx` | chat, drawer, modal, áudio | `useScreenStyles`, NativeWind | Estados extensos sem contrato visual único | P2 |
+| Lumus IA | mobile/web | `/mobile/lumus-assistant`, `/web/lumus-assistant` | `screens/mobile/LumusAssistantScreen.tsx`, `screens/web/LumusAssistantScreen.web.tsx` | chat, drawer, modal, áudio | `ASSISTANT_CLASS_NAMES`, NativeWind; runtime somente para geometria/SDK | Contrato visual unificado; smoke autenticado e métricas runtime ainda pendentes | P2 |
 | Análise por categoria | mobile | `/mobile/category-analysis` | `screens/mobile/CategoryAnalysisScreen.tsx` | filtros, gráfico, seletor | `useScreenStyles`, NativeWind, styles de gráfico | Cores e dimensões de gráfico locais | P2 |
 | Previsão financeira | mobile | `/mobile/financial-forecast` | `screens/mobile/FinancialForecastScreen.tsx` | filtros, gráfico, cards | `useScreenStyles`, NativeWind, styles de gráfico | Estados e gráficos parcialmente locais | P2 |
 | Anotações | mobile/web fallback | `/mobile/annotations`, `/web/annotations` | `screens/mobile/LocalAnnotationsScreen.tsx` | `FlatList`, editor, modal | `useScreenStyles`, NativeWind | Única lista virtualizada; editor web possui CSS próprio | P2 |
@@ -336,7 +398,7 @@ As exceções de runtime do hook são altura calculada do hero, safe area e core
 | Obrigatórios | código web/mobile; testes de parcelas, lembretes e sugestões | calendário, time picker, gráficos | vazio, carregando, confirmação, erro e lembrete | `StyleSheet` no calendário e styles Mantine locais | calendário em classes; conteúdo do ScrollView e Mantine centralizados | modal, calendário, tabs e NumberInput | APIs de picker/gráfico registradas |
 | Listas e movimentos | código web/mobile; testes de ledger, migração e resumo | cards, tabelas/listas, modais, gráficos | retry, loading, vazio, detalhes e privacidade | arquivos grandes e duplicação entre plataformas | tokens, tabs, paletas e cartão compartilhado | shell, tabs, primitives e superfícies críticas | virtualização e estilos estáticos legados são P2; sem captura autenticada |
 | Relatórios | código web/mobile; testes de forecast, categoria e investimentos | charts e filtros | números negativos, datas e privacidade | bibliotecas exigem props de cor/tamanho | paleta de gráficos centralizada | containers e estados compartilhados | canvas/SVG continuam como exceção |
-| Assistente | código web/mobile; 9 suítes funcionais relacionadas | cards, drawer, áudio, gráficos | erro/retry, confirmação explícita, loading, privacidade | grande volume de estilos de paleta em runtime | tokens globais e primitives corrigidos | controles base | cards do assistente ainda concentram dívida P2 registrada por arquivo |
+| Assistente | código web/mobile; suítes funcionais relacionadas | cards, drawer, áudio, gráficos | erro/retry, confirmação explícita, loading, privacidade | composição Web reutilizava a tela mobile; cards e controles tinham grande volume de estilos de paleta e alvos de 40px | tela Web própria, contrato `design-system/assistant.ts`, compositor agrupado, alvos de 44px e migração dos principais cards para NativeWind | shell, cards, composer, estados e ações | gráficos ainda exigem styles/cores resolvidas; smoke autenticado, Chrome DevTools e dispositivo nativo pendentes |
 | Configurações e utilitários | código mobile/web fallback; testes de rotas | switches, selects, modais | disabled e confirmação | variantes locais e tela extensa | primitives canônicos e navegação tokenizada | controles compartilhados | telas fallback não foram renderizadas separadamente |
 
 ### Estados e acessibilidade

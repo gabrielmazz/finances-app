@@ -19,7 +19,7 @@ Os componentes customizados do Lumus Finanças são organizados por sistema func
 | Compartilhado | `components/uiverse/shared/` | bootstrap e formulários | `date-picker`, `loader` e dismiss de teclado têm arquivos Web e nativos independentes, sem compartilhar handlers de foco ou animação |
 | Feedback | `components/uiverse/feedback/` | todas as telas com feedback | o par nativo/Web do notifier mantém uma API única; não criar outro toast |
 | Bancos | `components/uiverse/banks/` e `components/shared/banks/` | Home, movimentos, registros, transferências e resgate | o selector tem pares Web/nativo; o card visualmente equivalente usa uma implementação compartilhada e adaptadores finos |
-| Categorias | `components/uiverse/categories/` | registros, análise e configurações | disponibilidade e seleção têm pares Web/nativo e preservam a mesma ordenação, seleção e ação de criação |
+| Categorias | `components/uiverse/categories/` | registros, análise e configurações | disponibilidade e seleção têm pares Web/nativo; `category-analysis-bank-donut-chart` encapsula o `DonutChart` Mantine em Expo DOM com props serializáveis |
 | Recorrências | `components/uiverse/recurring/` | despesas/receitas fixas | `date-calendar` tem pares Web/nativo; calendário de ciclos, horários e progresso preservam `YYYY-MM`, HH:MM e a indisponibilidade de agendamento no Web |
 | Dashboard | `components/uiverse/dashboard/` | Home | gráficos Web continuam Expo DOM e recebem somente props serializáveis |
 | Relatórios | `components/uiverse/reports/` | previsão de fluxo de caixa | o gráfico permanece Expo DOM; a tela continua responsável por dados e privacidade |

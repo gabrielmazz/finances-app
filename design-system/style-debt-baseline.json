@@ -623,6 +623,12 @@
     "arbitraryTailwindValues": 1,
     "useScreenStyles": 1
   },
+  "screens/web/LumusAssistantScreen.web.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
   "screens/web/AddMandatoryGainsScreen.web.tsx": {
     "inlineStyleProps": 9,
     "rawHexLiterals": 4,
@@ -751,6 +757,12 @@
   },
   "components/uiverse/banks/bank-movements-daily-area-chart.tsx": {
     "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "components/uiverse/categories/category-analysis-bank-donut-chart.tsx": {
+    "inlineStyleProps": 4,
     "rawHexLiterals": 0,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 0

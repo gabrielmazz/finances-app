@@ -8,6 +8,8 @@ import { MantineProvider } from '@mantine/core';
 
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { AssistantInlineField } from '@/components/uiverse/assistant/assistant-inline-field';
+import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 import type {
 	AssistantDraftAction,
 	AssistantMessage,
@@ -30,50 +32,11 @@ const MONEY_FIELDS = new Set([
 	'syncedValueInCents',
 	'initialBalanceInCents',
 ]);
+const DATE_FIELDS = new Set(['date', 'effectiveFrom', 'installmentStartDate', 'installmentEndDate']);
 
-const FIELD_LABELS: Record<string, string> = {
-	name: 'Nome',
-	valueInCents: 'Valor',
-	date: 'Data',
-	time: 'Horário',
-	bankRef: 'Banco',
-	sourceBankRef: 'Banco de origem',
-	targetBankRef: 'Banco de destino',
-	categoryRef: 'Categoria',
-	recordRef: 'Registro',
-	investmentRef: 'Investimento',
-	explanation: 'Observação',
-	description: 'Descrição',
-	cycle: 'Mês',
-	dueDay: 'Vencimento',
-	usesBusinessDays: 'Somente dias úteis',
-	reminderEnabled: 'Lembrete',
-	reminderDaysBefore: 'Dias antes',
-	reminderOnDueDate: 'Lembrar no vencimento',
-	reminderTime: 'Horário do lembrete',
-	installmentTotal: 'Parcelas',
-	initialValueInCents: 'Valor inicial',
-	currentValueInCents: 'Valor atual',
-	syncedValueInCents: 'Valor sincronizado',
-	cdiPercentageInBasisPoints: '% do CDI',
-	annualRateInBasisPoints: 'Taxa CDI anual',
-	effectiveFrom: 'Vigência da taxa',
-	assetType: 'Tipo de investimento',
-	valuationMethod: 'Forma de valorização',
-	redemptionTerm: 'Prazo de resgate',
-	bankName: 'Nome do banco',
-	initialBalanceInCents: 'Saldo inicial',
-	initialBalanceCycle: 'Mês do saldo',
-	categoryName: 'Nome da categoria',
-	usageType: 'Uso da categoria',
-	installmentStartDate: 'Início das parcelas',
-	installmentEndDate: 'Fim das parcelas',
-	paymentFormats: 'Tipo do ganho',
-	isMandatoryExpense: 'Usar em gastos obrigatórios',
-	isMandatoryGain: 'Usar em ganhos obrigatórios',
-	showInBothLists: 'Mostrar nas listas obrigatórias',
-	colorHex: 'Cor',
-	iconKey: 'Ícone',
+const formatAssistantDate = (value: string) => {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+	return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 };
 
 const STATIC_CHOICES: Record<string, Array<{ value: unknown; label: string }>> = {
@@ -147,6 +110,7 @@ const formatPayloadValue = (
 	catalog: AssistantResolvedCatalog,
 	hideValues: boolean,
 ) => {
+	if (DATE_FIELDS.has(key) && typeof value === 'string') return formatAssistantDate(value);
 	if (MONEY_FIELDS.has(key) && typeof value === 'number') {
 		return hideValues ? '••••' : formatCents(value);
 	}
@@ -217,44 +181,37 @@ export const AssistantQuestionCard = ({
 	};
 
 	return (
-		<View style={{ borderRadius: 22, borderWidth: 1, borderColor: palette.yellow, backgroundColor: palette.card, padding: 16, gap: 12 }}>
-			<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+		<View className={ASSISTANT_CLASS_NAMES.cardAttention}>
+			<View className={ASSISTANT_CLASS_NAMES.cardBody}>
+			<View className={ASSISTANT_CLASS_NAMES.cardHeader}>
 				<Ionicons name="help-circle" size={20} color={palette.yellow} />
-				<Text style={{ color: palette.text, fontWeight: '800', flex: 1 }}>{message.text}</Text>
+				<Text className={ASSISTANT_CLASS_NAMES.cardTitle}>{message.text}</Text>
 			</View>
 			{message.answeredAt ? (
-				<View style={{ borderRadius: 14, backgroundColor: palette.input, padding: 12 }}>
-					<Text style={{ color: palette.muted }}>Resposta: {shouldMaskAnswer ? '••••' : message.answerLabel}</Text>
+				<View className={ASSISTANT_CLASS_NAMES.mutedInset}>
+					<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Resposta: {shouldMaskAnswer ? '••••' : message.answerLabel}</Text>
 				</View>
 			) : (
 				<>
 					{choices.length > 0 ? (
-						<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+						<View className={ASSISTANT_CLASS_NAMES.choiceRow}>
 							{choices.map(choice => (
 								<Pressable
 									key={choice.value}
 									disabled={submitting || choice.disabled}
 									onPress={() => void submit(choice.value, choice.label)}
-									style={({ pressed }) => ({
-										borderRadius: 16,
-										borderWidth: 1,
-										borderColor: palette.border,
-										backgroundColor: palette.input,
-										paddingHorizontal: 12,
-										paddingVertical: 9,
-										opacity: pressed || choice.disabled ? 0.6 : 1,
-									})}
+									className={ASSISTANT_CLASS_NAMES.choice}
 								>
-									<Text style={{ color: palette.text, fontWeight: '700' }}>{choice.label}</Text>
-									{choice.description ? <Text style={{ color: palette.muted, fontSize: 11 }}>{choice.description}</Text> : null}
+									<Text className={ASSISTANT_CLASS_NAMES.choiceText}>{choice.label}</Text>
+									{choice.description ? <Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{choice.description}</Text> : null}
 								</Pressable>
 							))}
 						</View>
 					) : (
-						<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+						<View className="flex-row items-center gap-2">
 							<Input
 								isDisabled={submitting}
-								style={{ flex: 1, minHeight: 46, borderRadius: 16, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.input }}
+								className="min-h-control flex-1 rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950"
 							>
 								<InputField
 									value={input}
@@ -262,27 +219,29 @@ export const AssistantQuestionCard = ({
 									placeholder={message.field.kind === 'money' ? 'Ex.: 50,00' : message.field.kind === 'date' ? 'Ex.: 18/07/2026' : 'Digite aqui'}
 									placeholderTextColor={palette.muted}
 									keyboardType={message.field.kind === 'money' || message.field.kind === 'number' ? 'decimal-pad' : 'default'}
-									style={{ color: palette.text, paddingHorizontal: 12 }}
+									className="px-3 text-slate-900 dark:text-slate-100"
 								/>
 							</Input>
 							<Pressable
+								accessibilityLabel="Enviar resposta"
 								disabled={submitting}
 								onPress={() => void submit(input)}
-								style={{ width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.yellow }}
+								className={ASSISTANT_CLASS_NAMES.sendButton}
 							>
 								<Ionicons name="arrow-forward" size={20} color="#0f172a" />
 							</Pressable>
 						</View>
 					)}
 					{message.field.allowApplyToSimilar && message.targetActionIds.length > 1 ? (
-						<Pressable onPress={() => setApplyToSimilar(value => !value)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+						<Pressable onPress={() => setApplyToSimilar(value => !value)} className="min-h-touch flex-row items-center gap-2">
 							<Ionicons name={applyToSimilar ? 'checkbox' : 'square-outline'} size={20} color={palette.yellow} />
-							<Text style={{ color: palette.muted }}>Aplicar também aos {message.targetActionIds.length - 1} semelhantes</Text>
+							<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Aplicar também aos {message.targetActionIds.length - 1} semelhantes</Text>
 						</Pressable>
 					) : null}
-					{error ? <Text style={{ color: '#ef4444', fontSize: 12 }}>{error}</Text> : null}
+					{error ? <Text className="text-xs text-error-600 dark:text-error-400">{error}</Text> : null}
 				</>
 			)}
+			</View>
 		</View>
 	);
 };
@@ -310,19 +269,11 @@ export const AssistantDraftCard = ({
 	onConfirm(): Promise<void>;
 	onCancel(): void;
 }) => {
-	const palette = cardPalette(isDarkMode);
 	const [editingKey, setEditingKey] = React.useState<string | null>(null);
 	const [editValue, setEditValue] = React.useState('');
+	const [editError, setEditError] = React.useState<string | null>(null);
+	const [isSavingEdit, setIsSavingEdit] = React.useState(false);
 	const payloadEntries = Object.entries(draft.payload).filter(([, value]) => value !== undefined);
-	const editingDefinition = editingKey ? getFieldDefinition(draft.kind, editingKey) : null;
-	const editingChoices: Array<{ value: unknown; label: string; description?: string }> = editingDefinition?.choiceSource
-		? (catalog[editingDefinition.choiceSource] ?? [])
-			.filter(item => item.ownerScope !== 'related_read_only')
-			.filter(item => !(['sourceBankRef', 'targetBankRef'].includes(editingDefinition.key)) || item.realId !== null)
-			.map(item => ({ value: item.handle, label: item.label, description: item.description }))
-		: editingDefinition?.kind === 'boolean'
-			? [{ value: true, label: 'Sim' }, { value: false, label: 'Não' }]
-			: (STATIC_CHOICES[editingKey ?? ''] ?? []);
 	const statusLabel: Record<AssistantDraftAction['status'], string> = {
 		draft: 'Rascunho', needs_input: 'Faltam informações', ready: 'Pronto para revisar', confirming: 'Aguardando sua confirmação',
 		executing: 'Salvando', succeeded: 'Concluído', failed: 'Falhou', cancelled: 'Cancelado', stale: 'Dados alterados',
@@ -331,116 +282,137 @@ export const AssistantDraftCard = ({
 		if (!editingKey) return;
 		const definition = getFieldDefinition(draft.kind, editingKey);
 		const parsed = parseFieldInput(definition, editValue);
-		if (parsed === null || parsed === undefined) return;
-		await onEdit({ [editingKey]: parsed });
-		setEditingKey(null);
-		setEditValue('');
+		if (parsed === null || parsed === undefined) {
+			setEditError('Confira o formato deste campo.');
+			return;
+		}
+		setIsSavingEdit(true);
+		setEditError(null);
+		try {
+			await onEdit({ [editingKey]: parsed });
+			setEditingKey(null);
+			setEditValue('');
+		} catch {
+			setEditError('Não foi possível atualizar este campo. Confira e tente novamente.');
+		} finally {
+			setIsSavingEdit(false);
+		}
 	};
 	const saveChoiceEdit = async (value: unknown) => {
 		if (!editingKey) return;
-		await onEdit({ [editingKey]: value });
+		setIsSavingEdit(true);
+		setEditError(null);
+		try {
+			await onEdit({ [editingKey]: value });
+			setEditingKey(null);
+			setEditValue('');
+		} catch {
+			setEditError('Não foi possível atualizar este campo. Confira e tente novamente.');
+		} finally {
+			setIsSavingEdit(false);
+		}
+	};
+	const startEdit = (key: string, value: unknown) => {
+		const definition = getFieldDefinition(draft.kind, key);
+		const isRate = key === 'cdiPercentageInBasisPoints' || key === 'annualRateInBasisPoints';
+		const isMaskedNumber = hideValues && (MONEY_FIELDS.has(key) || isRate);
+		setEditingKey(key);
+		setEditError(null);
+		setEditValue(
+			isMaskedNumber
+				? ''
+				: definition.kind === 'date' && typeof value === 'string'
+					? formatAssistantDate(value)
+					: typeof value === 'number' && (MONEY_FIELDS.has(key) || isRate)
+						? String(value / 100).replace('.', ',')
+						: String(value ?? ''),
+		);
+	};
+	const cancelEdit = () => {
 		setEditingKey(null);
 		setEditValue('');
+		setEditError(null);
 	};
 
 	return (
-		<View style={{ borderRadius: 24, borderWidth: 1, borderColor: draft.status === 'confirming' ? palette.yellow : palette.border, backgroundColor: palette.card, overflow: 'hidden' }}>
-			<View style={{ padding: 16, gap: 12 }}>
-				<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-					<View style={{ width: 38, height: 38, borderRadius: 14, backgroundColor: isDarkMode ? '#422006' : '#fef9c3', alignItems: 'center', justifyContent: 'center' }}>
+		<View className={draft.status === 'confirming' ? ASSISTANT_CLASS_NAMES.cardAttention : ASSISTANT_CLASS_NAMES.card}>
+			<View className={ASSISTANT_CLASS_NAMES.cardBody}>
+				<View className={ASSISTANT_CLASS_NAMES.cardHeader}>
+					<View className={ASSISTANT_CLASS_NAMES.cardMark}>
 						<Ionicons name="sparkles" size={19} color={isDarkMode ? '#fde047' : '#ca8a04'} />
 					</View>
-					<View style={{ flex: 1 }}>
-						<Text style={{ color: palette.text, fontWeight: '900', fontSize: 16 }}>{ASSISTANT_ACTION_LABELS[draft.kind]}</Text>
-						<Text style={{ color: palette.muted, fontSize: 12 }}>{statusLabel[draft.status]}</Text>
+					<View className="min-w-0 flex-1">
+						<Text className={ASSISTANT_CLASS_NAMES.cardTitle}>{ASSISTANT_ACTION_LABELS[draft.kind]}</Text>
+						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{statusLabel[draft.status]}</Text>
 					</View>
 				</View>
 
-				{payloadEntries.map(([key, value]) => (
-					<View key={key} style={{ borderBottomWidth: 1, borderBottomColor: palette.border, paddingBottom: 9 }}>
-						<Text style={{ color: palette.muted, fontSize: 11, fontWeight: '700' }}>{FIELD_LABELS[key] ?? key}</Text>
-						<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-							<Text style={{ color: palette.text, flex: 1 }}>{formatPayloadValue(key, value, catalog, hideValues)}</Text>
-							{['ready', 'needs_input', 'failed'].includes(draft.status) ? (
-								<Pressable onPress={() => {
-									setEditingKey(key);
-									const isRate = key === 'cdiPercentageInBasisPoints' || key === 'annualRateInBasisPoints';
-									setEditValue(
-										typeof value === 'number' && (MONEY_FIELDS.has(key) || isRate)
-											? String(value / 100).replace('.', ',')
-											: String(value ?? ''),
-									);
-								}}>
-									<Ionicons name="pencil" size={16} color={palette.muted} />
-								</Pressable>
-							) : null}
-						</View>
-					</View>
-				))}
-
-				{editingKey ? (
-					<View style={{ gap: 8, backgroundColor: palette.input, borderRadius: 16, padding: 10 }}>
-						<Text style={{ color: palette.text, fontWeight: '700' }}>Editar {FIELD_LABELS[editingKey] ?? editingKey}</Text>
-						{editingChoices.length > 0 ? (
-							<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-								{editingChoices.map(choice => (
-									<Pressable
-										key={`${editingKey}-${String(choice.value)}`}
-										onPress={() => void saveChoiceEdit(choice.value)}
-										style={{ borderRadius: 12, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 10, paddingVertical: 8 }}
-									>
-										<Text style={{ color: palette.text, fontWeight: '700' }}>{choice.label}</Text>
-										{choice.description ? <Text style={{ color: palette.muted, fontSize: 10 }}>{choice.description}</Text> : null}
-									</Pressable>
-								))}
-							</View>
-						) : (
-							<Input style={{ minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.input }}>
-								<InputField value={editValue} onChangeText={setEditValue} placeholderTextColor={palette.muted} style={{ color: palette.text, paddingHorizontal: 10 }} />
-							</Input>
-						)}
-						<View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-							<Pressable onPress={() => setEditingKey(null)} style={{ padding: 8 }}><Text style={{ color: palette.muted }}>Cancelar</Text></Pressable>
-							{editingChoices.length === 0 ? <Pressable onPress={() => void saveEdit()} style={{ borderRadius: 12, backgroundColor: palette.yellow, paddingHorizontal: 14, paddingVertical: 8 }}><Text style={{ color: '#0f172a', fontWeight: '800' }}>Salvar</Text></Pressable> : null}
-						</View>
-					</View>
-				) : null}
+				{payloadEntries.map(([key, value]) => {
+					const definition = getFieldDefinition(draft.kind, key);
+					const isEditing = editingKey === key;
+					const choices: Array<{ value: unknown; label: string; description?: string }> = definition.choiceSource
+						? (catalog[definition.choiceSource] ?? [])
+							.filter(item => item.ownerScope !== 'related_read_only')
+							.filter(item => !(['sourceBankRef', 'targetBankRef'].includes(definition.key)) || item.realId !== null)
+							.map(item => ({ value: item.handle, label: item.label, description: item.description }))
+						: definition.kind === 'boolean'
+							? [{ value: true, label: 'Sim' }, { value: false, label: 'Não' }]
+							: STATIC_CHOICES[key] ?? [];
+					return (
+						<AssistantInlineField
+							key={key}
+							definition={{ ...definition, key }}
+							valueLabel={formatPayloadValue(key, value, catalog, hideValues)}
+							choices={choices}
+							canEdit={['ready', 'needs_input', 'failed'].includes(draft.status) && (!editingKey || isEditing)}
+							isEditing={isEditing}
+							isSaving={isSavingEdit}
+							editValue={editValue}
+							error={isEditing ? editError : null}
+							onStartEdit={() => startEdit(key, value)}
+							onChangeEditValue={setEditValue}
+							onSave={() => void saveEdit()}
+							onSelectChoice={choice => void saveChoiceEdit(choice)}
+							onCancel={cancelEdit}
+						/>
+					);
+				})}
 
 				{draft.missingFields.length > 0 ? (
-					<View style={{ borderRadius: 14, backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', padding: 10 }}>
-						<Text style={{ color: palette.muted }}>Ainda falta: {draft.missingFields.map(field => field.label).join(', ')}</Text>
+					<View className={ASSISTANT_CLASS_NAMES.mutedInset}>
+						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Ainda falta: {draft.missingFields.map(field => field.label).join(', ')}</Text>
 					</View>
 				) : null}
-				{draft.warnings.map((warning, index) => <Text key={`${warning}-${index}`} style={{ color: '#f59e0b', fontSize: 12 }}>{warning}</Text>)}
-				{draft.error ? <Text style={{ color: '#ef4444', fontSize: 12 }}>{draft.error}</Text> : null}
+				{draft.warnings.map((warning, index) => <Text key={`${warning}-${index}`} className="text-xs text-amber-700 dark:text-amber-300">{warning}</Text>)}
+				{draft.error ? <Text className="text-xs text-error-600 dark:text-error-400">{draft.error}</Text> : null}
 				{isDependencyPending ? (
-					<View style={{ borderRadius: 14, backgroundColor: isDarkMode ? '#1e293b' : '#f1f5f9', padding: 10 }}>
-						<Text style={{ color: palette.muted }}>Este cartão será liberado depois que a ação necessária for concluída.</Text>
+					<View className={ASSISTANT_CLASS_NAMES.mutedInset}>
+						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Este cartão será liberado depois que a ação necessária for concluída.</Text>
 					</View>
 				) : null}
 
 				{draft.status === 'confirming' ? (
-					<View style={{ gap: 10 }}>
-						<View style={{ borderRadius: 16, backgroundColor: isDarkMode ? '#422006' : '#fffbeb', padding: 12 }}>
-							<Text style={{ color: isDarkMode ? '#fde68a' : '#92400e', fontWeight: '700' }}>Confirme somente este registro. Uma resposta “sim” no chat não salva nada.</Text>
+					<View className="gap-2.5">
+						<View className={ASSISTANT_CLASS_NAMES.confirmationInset}>
+							<Text className="font-bold text-amber-900 dark:text-amber-100">Confirme somente este registro. Uma resposta “sim” no chat não salva nada.</Text>
 						</View>
-						<View style={{ flexDirection: 'row', gap: 8 }}>
-							<Pressable onPress={onBack} style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 12, alignItems: 'center' }}><Text style={{ color: palette.text, fontWeight: '700' }}>Voltar</Text></Pressable>
-							<Pressable onPress={() => void onConfirm()} style={{ flex: 1.5, borderRadius: 16, backgroundColor: palette.yellow, padding: 12, alignItems: 'center' }}><Text style={{ color: '#0f172a', fontWeight: '900' }}>Confirmar agora</Text></Pressable>
+						<View className={ASSISTANT_CLASS_NAMES.cardActions}>
+							<Pressable onPress={onBack} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.choiceText}>Voltar</Text></Pressable>
+							<Pressable onPress={() => void onConfirm()} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="font-extrabold text-lumus-on-accent">Confirmar agora</Text></Pressable>
 						</View>
 					</View>
 				) : draft.status === 'ready' ? (
-					<View style={{ flexDirection: 'row', gap: 8 }}>
-						<Pressable onPress={onCancel} style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 11, alignItems: 'center' }}><Text style={{ color: palette.muted, fontWeight: '700' }}>Cancelar</Text></Pressable>
-						<Pressable disabled={isDependencyPending} onPress={onReview} style={{ flex: 1.6, borderRadius: 16, backgroundColor: palette.yellow, padding: 11, alignItems: 'center', opacity: isDependencyPending ? 0.45 : 1 }}><Text style={{ color: '#0f172a', fontWeight: '900' }}>{isDependencyPending ? 'Aguardando ação anterior' : 'Revisar e confirmar'}</Text></Pressable>
+					<View className={ASSISTANT_CLASS_NAMES.cardActions}>
+						<Pressable onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Cancelar</Text></Pressable>
+						<Pressable disabled={isDependencyPending} onPress={onReview} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="text-center font-extrabold text-lumus-on-accent">{isDependencyPending ? 'Aguardando ação anterior' : 'Revisar e confirmar'}</Text></Pressable>
 					</View>
 				) : draft.status === 'failed' && draft.missingFields.length === 0 ? (
-					<View style={{ flexDirection: 'row', gap: 8 }}>
-						<Pressable onPress={onCancel} style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: palette.border, padding: 11, alignItems: 'center' }}><Text style={{ color: palette.muted, fontWeight: '700' }}>Cancelar</Text></Pressable>
-						<Pressable onPress={onReview} style={{ flex: 1.6, borderRadius: 16, backgroundColor: palette.yellow, padding: 11, alignItems: 'center' }}><Text style={{ color: '#0f172a', fontWeight: '900' }}>Revisar e tentar de novo</Text></Pressable>
+					<View className={ASSISTANT_CLASS_NAMES.cardActions}>
+						<Pressable onPress={onCancel} className={ASSISTANT_CLASS_NAMES.secondaryAction}><Text className={ASSISTANT_CLASS_NAMES.cardMeta}>Cancelar</Text></Pressable>
+						<Pressable onPress={onReview} className={ASSISTANT_CLASS_NAMES.primaryAction}><Text className="text-center font-extrabold text-lumus-on-accent">Revisar e tentar de novo</Text></Pressable>
 					</View>
 				) : ['needs_input', 'failed', 'stale'].includes(draft.status) ? (
-					<Pressable onPress={onCancel} style={{ alignSelf: 'flex-start', paddingVertical: 6 }}><Text style={{ color: '#ef4444', fontWeight: '700' }}>Cancelar este rascunho</Text></Pressable>
+					<Pressable onPress={onCancel} className="min-h-touch self-start justify-center rounded-xl"><Text className="font-bold text-error-600 dark:text-error-400">Cancelar este rascunho</Text></Pressable>
 				) : null}
 			</View>
 		</View>
@@ -531,16 +503,16 @@ export const AssistantReportCard = ({
 }) => {
 	const palette = cardPalette(isDarkMode);
 	return (
-		<View style={{ borderRadius: 24, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.card, padding: 16, gap: 14 }}>
+		<View className={`${ASSISTANT_CLASS_NAMES.card} ${ASSISTANT_CLASS_NAMES.cardBody}`}>
 			<View>
-				<Text style={{ color: palette.text, fontWeight: '900', fontSize: 17 }}>{report.title}</Text>
-				<Text style={{ color: palette.muted, fontSize: 12 }}>{report.periodLabel} · atualizado {new Date(report.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text>
-				<Text style={{ color: palette.muted, fontSize: 11 }}>{report.scopeLabel}</Text>
+				<Text className={ASSISTANT_CLASS_NAMES.cardTitle}>{report.title}</Text>
+				<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{report.periodLabel} · atualizado {new Date(report.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</Text>
+				<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{report.scopeLabel}</Text>
 			</View>
-			<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+			<View className={ASSISTANT_CLASS_NAMES.metricGrid}>
 				{report.metrics.map(metric => (
-					<View key={metric.label} style={{ minWidth: '46%', flexGrow: 1, borderRadius: 16, backgroundColor: palette.input, padding: 10 }}>
-						<Text style={{ color: palette.muted, fontSize: 11 }}>{metric.label}</Text>
+					<View key={metric.label} className={ASSISTANT_CLASS_NAMES.metric}>
+						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{metric.label}</Text>
 						<Text style={{ color: metric.tone === 'positive' ? '#22c55e' : metric.tone === 'negative' ? '#ef4444' : palette.text, fontWeight: '900' }}>
 							{hideValues ? '••••' : metric.valueInCents !== undefined ? formatCents(metric.valueInCents) : metric.displayValue ?? metric.value}
 						</Text>
@@ -548,12 +520,12 @@ export const AssistantReportCard = ({
 				))}
 			</View>
 			<AssistantChart report={report} hideValues={hideValues} isDarkMode={isDarkMode} />
-			{report.narrative ? <Text style={{ color: palette.text }}>{hideValues ? maskFinancialValuesInText(report.narrative) : report.narrative}</Text> : null}
-			<Text style={{ color: palette.text }}>{hideValues ? maskFinancialValuesInText(report.deterministicSummary) : report.deterministicSummary}</Text>
-			{report.notes.map(note => <Text key={note} style={{ color: palette.muted, fontSize: 12 }}>• {note}</Text>)}
-			<Pressable onPress={isSpeaking ? onStop : onSpeak} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+			{report.narrative ? <Text className="leading-6 text-slate-800 dark:text-slate-200">{hideValues ? maskFinancialValuesInText(report.narrative) : report.narrative}</Text> : null}
+			<Text className="leading-6 text-slate-800 dark:text-slate-200">{hideValues ? maskFinancialValuesInText(report.deterministicSummary) : report.deterministicSummary}</Text>
+			{report.notes.map(note => <Text key={note} className={ASSISTANT_CLASS_NAMES.cardMeta}>• {note}</Text>)}
+			<Pressable accessibilityLabel={isSpeaking ? 'Parar leitura do resumo' : 'Ouvir resumo'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 				<Ionicons name={isSpeaking ? 'stop-circle-outline' : 'volume-medium-outline'} size={16} color={palette.muted} />
-				<Text style={{ color: palette.muted, fontSize: 11 }}>{isSpeaking ? 'Parar' : 'Ouvir resumo'}</Text>
+				<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{isSpeaking ? 'Parar' : 'Ouvir resumo'}</Text>
 			</Pressable>
 		</View>
 	);
@@ -581,18 +553,18 @@ export const AssistantTextBubble = ({
 	const tone = message.type === 'error' ? '#ef4444' : message.type === 'warning' ? '#f59e0b' : message.type === 'success' ? '#22c55e' : palette.yellow;
 	const text = hideValues ? maskFinancialValuesInText(message.text) : message.text;
 	return (
-		<View style={{ maxWidth: '88%', alignSelf: isUser ? 'flex-end' : 'flex-start', borderRadius: 22, borderBottomRightRadius: isUser ? 6 : 22, borderBottomLeftRadius: isUser ? 22 : 6, backgroundColor: isUser ? (isDarkMode ? '#854d0e' : '#fef08a') : palette.card, borderWidth: isUser ? 0 : 1, borderColor: message.type === 'text' ? palette.border : tone, padding: 13, gap: 7 }}>
-			<Text style={{ color: isUser ? '#422006' : palette.text, lineHeight: 20 }}>{text}</Text>
+		<View className={isUser ? ASSISTANT_CLASS_NAMES.userBubble : ASSISTANT_CLASS_NAMES.assistantBubble}>
+			<Text className={isUser ? ASSISTANT_CLASS_NAMES.userBubbleText : 'leading-5 text-slate-800 dark:text-slate-200'}>{text}</Text>
 			{!isUser ? (
-				<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-					<Pressable onPress={isSpeaking ? onStop : onSpeak} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+				<View className={ASSISTANT_CLASS_NAMES.bubbleActions}>
+					<Pressable accessibilityLabel={isSpeaking ? 'Parar leitura' : 'Ouvir resposta'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 						<Ionicons name={isSpeaking ? 'stop-circle-outline' : 'volume-medium-outline'} size={16} color={palette.muted} />
-						<Text style={{ color: palette.muted, fontSize: 11 }}>{isSpeaking ? 'Parar' : 'Ouvir'}</Text>
+						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{isSpeaking ? 'Parar' : 'Ouvir'}</Text>
 					</Pressable>
 					{onRetry ? (
-						<Pressable onPress={onRetry} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+						<Pressable onPress={onRetry} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 							<Ionicons name="refresh" size={15} color={tone} />
-							<Text style={{ color: tone, fontSize: 11, fontWeight: '700' }}>Tentar lembrete novamente</Text>
+							<Text className="text-xs font-bold text-amber-700 dark:text-amber-300">Tentar lembrete novamente</Text>
 						</Pressable>
 					) : null}
 				</View>

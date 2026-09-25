@@ -5,6 +5,7 @@ export type AssistantFriendlyErrorCode =
 	| 'quota'
 	| 'unavailable'
 	| 'invalid-response'
+	| 'invalid-request'
 	| 'busy'
 	| 'disabled'
 	| 'unsupported'
@@ -115,10 +116,10 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 	if (text.includes('assistantauthenticationerror')) {
 		return new AssistantFriendlyError('authentication', 'Sua sessão precisa ser renovada. Entre novamente para usar o Lumus IA.');
 	}
-	if (text.includes('assistantratelimiterror') || text.includes('429') || text.includes('resource_exhausted') || text.includes('quota')) {
+	if (text.includes('assistantratelimiterror') || status === 429 || text.includes('429') || text.includes('resource_exhausted') || text.includes('quota')) {
 		return new AssistantFriendlyError('quota', 'O limite gratuito do assistente foi atingido por enquanto. Seus outros recursos continuam funcionando.', true);
 	}
-	if (text.includes('503') || text.includes('unavailable') || text.includes('overloaded')) {
+	if ((status !== undefined && status >= 500) || text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('high demand')) {
 		return new AssistantFriendlyError('unavailable', 'O assistente está indisponível neste momento. Tente novamente mais tarde.', true);
 	}
 	if (
@@ -141,6 +142,7 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 		if (/\bmodel\b|models\//.test(text)) {
 			return new AssistantFriendlyError('model', 'O modelo do Lumus IA está indisponível. Tente novamente mais tarde.', true);
 		}
+		return new AssistantFriendlyError('configuration', 'O serviço solicitado pelo Lumus IA não foi encontrado. Tente novamente mais tarde.');
 	}
 	if (
 		CONFIGURATION_ERROR_CODES.has(code)
@@ -154,6 +156,9 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 			'O Lumus IA não pôde ser autorizado. Verifique a configuração do Firebase e do App Check; sua sessão do aplicativo continua ativa.',
 			true,
 		);
+	}
+	if (status === 400 || status === 422) {
+		return new AssistantFriendlyError('invalid-request', 'O assistente recusou esta solicitação. Tente novamente mais tarde.', true);
 	}
 	if (text.includes('network') || text.includes('fetch') || text.includes('offline') || text.includes('internet')) {
 		return new AssistantFriendlyError('network', 'Sem conexão com o assistente. Confira sua internet e tente novamente.', true);

@@ -12,20 +12,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PieChart } from 'react-native-gifted-charts';
 import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
 import '@mantine/core/styles.css';
 import { MantineProvider, Tabs as MantineTabs } from '@mantine/core';
+import { cn } from '@/lib/utils';
 import {
+	getMantineChartStrokeColor,
 	getMantineTabsStyles,
-	MANTINE_TABS_CLASS_NAMES,
-	MANTINE_TABS_CSS_VARIABLES,
+	MANTINE_MOVEMENT_TABS_CLASS_NAMES,
+	MANTINE_MOVEMENT_TABS_CSS_VARIABLES,
 } from '@/design-system/mantine';
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import CategoryAnalysisBankDonutChart from '@/components/uiverse/categories/category-analysis-bank-donut-chart';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
@@ -267,13 +269,13 @@ const formatMovementDateLabel = (value: Date | null) => {
 const CategoryAnalysisSkeleton = () => (
 	<VStack className="gap-5">
 		<Skeleton className="h-12 w-full rounded-2xl" />
-		<Skeleton className="h-40 w-full rounded-3xl" />
+		<Skeleton className="h-40 w-full rounded-2xl" />
 		<HStack className="gap-3">
 			<Skeleton className="h-24 flex-1 rounded-2xl" />
 			<Skeleton className="h-24 flex-1 rounded-2xl" />
 		</HStack>
-		<Skeleton className="h-48 w-full rounded-3xl" />
-		<Skeleton className="h-40 w-full rounded-3xl" />
+		<Skeleton className="h-48 w-full rounded-2xl" />
+		<Skeleton className="h-40 w-full rounded-2xl" />
 	</VStack>
 );
 
@@ -306,10 +308,12 @@ export default function CategoryAnalysisScreenWeb() {
 		sectionCardClassName,
 		webDashboardClassNames,
 	} = useScreenStyles();
-
-	const chartWidth = React.useMemo(() => Math.max(Math.min(windowWidth - 108, 260), 190), [windowWidth]);
-	const chartRadius = React.useMemo(() => Math.max(Math.min(chartWidth / 2 - 16, 104), 78), [chartWidth]);
-	const chartInnerRadius = React.useMemo(() => Math.max(chartRadius - 34, 46), [chartRadius]);
+	const categoryCardClassName = sectionCardClassName.replace('rounded-card', 'rounded-2xl');
+	const categorySheetClassName = webDashboardClassNames.sheet.replace(
+		'rounded-t-sheet',
+		'rounded-t-2xl',
+	);
+	const chartSize = Math.max(Math.min(windowWidth - 140, 208), 156);
 
 	const palette = React.useMemo(
 		() => ({
@@ -322,7 +326,6 @@ export default function CategoryAnalysisScreenWeb() {
 			warning: isDarkMode ? '#FDE047' : '#CA8A04',
 			blue: isDarkMode ? '#38BDF8' : '#0284C7',
 			chartTrack: isDarkMode ? 'rgba(51, 65, 85, 0.72)' : '#E2E8F0',
-			chartCenter: isDarkMode ? '#081120' : '#FFFFFF',
 		}),
 		[isDarkMode],
 	);
@@ -475,7 +478,7 @@ export default function CategoryAnalysisScreenWeb() {
 			),
 		[activeBreakdown, selectedType],
 	);
-	const bankPieData = React.useMemo(
+	const bankDonutData = React.useMemo(
 		() =>
 			activeBreakdown.map((item, index) => {
 				const valueInCents = selectedType === 'expense' ? item.expenseInCents : item.gainInCents;
@@ -483,10 +486,9 @@ export default function CategoryAnalysisScreenWeb() {
 					item.colorHex ?? (item.isCash ? CASH_BREAKDOWN_COLOR : BANK_PIE_COLORS[index % BANK_PIE_COLORS.length]);
 
 				return {
-					value: Number((valueInCents / 100).toFixed(2)),
+					name: item.name,
+					valueInCents,
 					color,
-					gradientCenterColor: color,
-					text: item.name,
 				};
 			}),
 		[activeBreakdown, selectedType],
@@ -734,7 +736,11 @@ export default function CategoryAnalysisScreenWeb() {
 				</View>
 
 				<View
-					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-[3]`}
+					className={cn(
+						categorySheetClassName,
+						cardBackground,
+						'web:relative web:z-[3]',
+					)}
 					style={{ marginTop: heroHeight - 64 }}
 				>
 					<View
@@ -795,7 +801,7 @@ export default function CategoryAnalysisScreenWeb() {
 								{isLoading && !analysis ? (
 									<CategoryAnalysisSkeleton />
 								) : errorMessage ? (
-									<View className={`${sectionCardClassName} px-5 py-5`}>
+									<View className={`${categoryCardClassName} px-5 py-5`}>
 										<VStack className="gap-4">
 											<Text className={`${bodyText} text-sm leading-5`}>{errorMessage}</Text>
 											<Button className={submitButtonClassName} onPress={() => void loadAnalysis(false)}>
@@ -804,7 +810,7 @@ export default function CategoryAnalysisScreenWeb() {
 										</VStack>
 									</View>
 								) : !analysis || analysis.tags.length === 0 ? (
-									<View className={`${sectionCardClassName} px-5 py-5`}>
+									<View className={`${categoryCardClassName} px-5 py-5`}>
 										<Text className={`${bodyText} text-sm leading-5`}>
 											Nenhuma categoria foi encontrada. Cadastre tags e movimente gastos ou ganhos para gerar o relatório.
 										</Text>
@@ -823,8 +829,8 @@ export default function CategoryAnalysisScreenWeb() {
 													variant="pills"
 													radius="md"
 													color="yellow"
-													style={MANTINE_TABS_CSS_VARIABLES}
-													classNames={MANTINE_TABS_CLASS_NAMES}
+													style={MANTINE_MOVEMENT_TABS_CSS_VARIABLES}
+													classNames={MANTINE_MOVEMENT_TABS_CLASS_NAMES}
 													styles={movementTabsStyles}
 												>
 													<MantineTabs.List grow aria-label="Tipo de movimento">
@@ -871,7 +877,7 @@ export default function CategoryAnalysisScreenWeb() {
 												isDarkMode={isDarkMode}
 												bodyTextClassName={bodyText}
 												helperTextClassName={helperText}
-												triggerClassName={sectionCardClassName}
+												triggerClassName={categoryCardClassName}
 												placeholder="Selecione uma categoria"
 												sheetTitle="Categorias da análise"
 												emptyMessage="Nenhuma categoria disponível para análise."
@@ -890,7 +896,7 @@ export default function CategoryAnalysisScreenWeb() {
 											start={{ x: 0, y: 0 }}
 											end={{ x: 1, y: 1 }}
 											style={{
-												borderRadius: 24,
+												borderRadius: 16,
 												paddingHorizontal: 18,
 												paddingVertical: 18,
 											}}
@@ -902,7 +908,7 @@ export default function CategoryAnalysisScreenWeb() {
 															style={{
 																width: 46,
 																height: 46,
-																borderRadius: 17,
+																borderRadius: 16,
 																alignItems: 'center',
 																justifyContent: 'center',
 																backgroundColor: 'rgba(255,255,255,0.16)',
@@ -1052,31 +1058,14 @@ export default function CategoryAnalysisScreenWeb() {
 														{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
 															<>
 																<View className="items-center justify-center">
-																	<PieChart
-																		data={bankPieData}
-																		donut
-																		showGradient
-																		showText={false}
-																		radius={chartRadius}
-																		innerRadius={chartInnerRadius}
-																		innerCircleColor={palette.chartCenter}
-																		centerLabelComponent={() => (
-																			<VStack className="items-center px-2">
-																				<Text style={{ color: palette.subtitle, fontSize: 11, fontWeight: '700' }}>
-																					Total
-																				</Text>
-																				<Text
-																					style={{
-																						marginTop: 3,
-																						color: palette.title,
-																						fontSize: 14,
-																						fontWeight: '700',
-																					}}
-																				>
-																					{formatCurrencyBRL(breakdownTotalInCents)}
-																				</Text>
-																			</VStack>
-																		)}
+																	<CategoryAnalysisBankDonutChart
+																		data={bankDonutData}
+																		size={chartSize}
+																		totalInCents={breakdownTotalInCents}
+																		isDarkMode={isDarkMode}
+																		shouldHideValues={shouldHideValues}
+																		strokeColor={getMantineChartStrokeColor(isDarkMode)}
+																		accessibilityLabel={`Distribuição por conta de ${getMovementTypeLabel(selectedType).toLowerCase()}`}
 																	/>
 																</View>
 
@@ -1126,7 +1115,7 @@ export default function CategoryAnalysisScreenWeb() {
 														) : (
 															<View
 																style={{
-																	borderRadius: 18,
+																	borderRadius: 16,
 																	borderWidth: 1,
 																	borderColor: palette.border,
 																	backgroundColor: palette.emptySurface,
@@ -1156,7 +1145,7 @@ export default function CategoryAnalysisScreenWeb() {
 																			style={{
 																				width: 38,
 																				height: 38,
-																				borderRadius: 15,
+																				borderRadius: 16,
 																				alignItems: 'center',
 																				justifyContent: 'center',
 																				backgroundColor: selectedType === 'expense'
@@ -1193,7 +1182,7 @@ export default function CategoryAnalysisScreenWeb() {
 														) : (
 															<View
 																style={{
-																	borderRadius: 18,
+																	borderRadius: 16,
 																	borderWidth: 1,
 																	borderColor: palette.border,
 																	backgroundColor: palette.emptySurface,

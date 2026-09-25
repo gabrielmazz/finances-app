@@ -162,6 +162,7 @@ const toPlatformResponse = (result: Awaited<ReturnType<ReturnType<typeof getGene
 		text = '';
 	}
 	const functionCalls = (result.response.functionCalls() ?? []).map(call => ({
+		...(call.id ? { id: call.id } : {}),
 		name: call.name,
 		args: call.args && typeof call.args === 'object' ? (call.args as Record<string, unknown>) : {},
 	}));
@@ -241,6 +242,7 @@ const adapter: AssistantPlatformAdapter = {
 			async sendFunctionResponses(responses, signal?: AbortSignal) {
 				const parts: Part[] = responses.map(response => ({
 					functionResponse: {
+						...(response.id ? { id: response.id } : {}),
 						name: response.name,
 						response: response.response,
 					},

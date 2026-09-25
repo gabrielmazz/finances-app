@@ -355,6 +355,10 @@ service cloud.firestore {
 
     match /banks/{id} {
 
+      // Idempotent client transactions first read their deterministic document ID.
+      // A missing document has no owner data; existing documents keep owner checks below.
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -372,6 +376,8 @@ service cloud.firestore {
     // =========================================================
 
     match /expenses/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId
@@ -397,6 +403,8 @@ service cloud.firestore {
 
     match /gains/{id} {
 
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -420,6 +428,8 @@ service cloud.firestore {
     // =========================================================
 
     match /bankTransfers/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId
@@ -445,6 +455,8 @@ service cloud.firestore {
 
     match /cashRescues/{id} {
 
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -468,6 +480,8 @@ service cloud.firestore {
     // =========================================================
 
     match /monthlyBalances/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId
@@ -511,6 +525,8 @@ service cloud.firestore {
 
     match /financeInvestments/{id} {
 
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -534,6 +550,8 @@ service cloud.firestore {
     // =========================================================
 
     match /investmentCdiRates/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId
@@ -559,6 +577,8 @@ service cloud.firestore {
 
     match /tags/{id} {
 
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -576,6 +596,8 @@ service cloud.firestore {
     // =========================================================
 
     match /mandatoryExpenses/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId
@@ -601,6 +623,8 @@ service cloud.firestore {
 
     match /mandatoryGains/{id} {
 
+      allow get: if signedIn() && resource == null;
+
       allow read: if canReadLegacy(
         resource.data.personId
       );
@@ -624,6 +648,8 @@ service cloud.firestore {
     // =========================================================
 
     match /financeInvestmentSyncs/{id} {
+
+      allow get: if signedIn() && resource == null;
 
       allow read: if canReadLegacy(
         resource.data.personId

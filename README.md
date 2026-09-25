@@ -110,9 +110,9 @@ npm run web
 npm run dev:local:web
 ```
 
-`npm run dev:local` prepara dados de demonstração e pode apagar o estado local do Emulator. Use `npm run start` quando não quiser esse reset e confirme o alvo Firebase configurado no ambiente. O aplicativo usa Firebase; veja a configuração completa em [Arquitetura/Firebase Config.md](Arquitetura/Firebase%20Config.md).
+`npm run dev:local` prepara dados de demonstração e pode apagar o estado local do Emulator no início da execução. Se o processo Expo encerrar inesperadamente, o launcher tenta iniciá-lo novamente após 2 segundos e mantém a Suite Firebase ativa, sem executar o seed outra vez. Use `npm run start` quando não quiser esse reset e confirme o alvo Firebase configurado no ambiente. O aplicativo usa Firebase; veja a configuração completa em [Arquitetura/Firebase Config.md](Arquitetura/Firebase%20Config.md).
 
-Se a Suite Firebase já estiver aberta de uma execução anterior, encerre-a com `Ctrl+C` antes de executar `npm run dev:local` novamente. O fluxo padrão usa Expo Go; o assistente de IA no Android continua exigindo um development build.
+Pressione `Ctrl+C` para encerrar a sessão local; os emuladores iniciados por essa execução também serão encerrados. O fluxo padrão usa Expo Go; o assistente de IA no Android continua exigindo um development build.
 
 O seed local exibe no terminal as credenciais da conta demo `usuario@demo.lumus.local` / `lumus-demo-123`. Elas existem somente no Firebase Emulator e não são credenciais de produção.
 

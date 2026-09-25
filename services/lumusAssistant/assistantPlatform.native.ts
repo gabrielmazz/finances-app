@@ -26,7 +26,7 @@ import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
 import type { FirebaseAppCheckTypes } from '@react-native-firebase/app-check';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import type { FunctionDeclaration, Part } from '@react-native-firebase/ai';
+import type { Content, FunctionDeclaration, Part } from '@react-native-firebase/ai';
 import type { RemoteConfig } from '@react-native-firebase/remote-config';
 
 type NativeFirebaseModules = {
@@ -174,7 +174,7 @@ const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig
 	return configPromise;
 };
 
-const toPlatformResponse = (result: { response: { text(): string; functionCalls(): Array<{ name: string; args: object }> | undefined } }): AssistantPlatformResponse => {
+const toPlatformResponse = (result: { response: { text(): string; functionCalls(): Array<{ id?: string; name: string; args: object }> | undefined } }): AssistantPlatformResponse => {
 	let text = '';
 	try {
 		text = result.response.text();
@@ -184,6 +184,7 @@ const toPlatformResponse = (result: { response: { text(): string; functionCalls(
 	return {
 		text,
 		functionCalls: (result.response.functionCalls() ?? []).map(call => ({
+			...(call.id ? { id: call.id } : {}),
 			name: call.name,
 			args: call.args && typeof call.args === 'object' ? (call.args as Record<string, unknown>) : {},
 		})),
@@ -275,18 +276,30 @@ const adapter: AssistantPlatformAdapter = {
 			tools: [{ functionDeclarations: input.functionDeclarations as unknown as FunctionDeclaration[] }],
 			generationConfig: { maxOutputTokens: 2_048 },
 		});
-		const chat = model.startChat({
-			history: input.history.map(item => ({ role: item.role, parts: [{ text: item.text }] })),
-		});
+		let contents: Content[] = input.history.map(item => ({ role: item.role, parts: [{ text: item.text }] }));
+		const send = async (content: Content, signal?: AbortSignal) => {
+			const result = await model.generateContent({ contents: [...contents, content] }, { signal });
+			const modelContent = result.response.candidates?.[0]?.content;
+			contents = modelContent?.parts?.length
+				? [...contents, content, { role: 'model', parts: modelContent.parts }]
+				: [...contents, content];
+			return toPlatformResponse(result);
+		};
 		return {
 			async sendText(text: string, signal?: AbortSignal) {
-				return toPlatformResponse(await chat.sendMessage(text, { signal }));
+				return send({ role: 'user', parts: [{ text }] }, signal);
 			},
 			async sendFunctionResponses(responses, signal?: AbortSignal) {
 				const parts: Part[] = responses.map(response => ({
-					functionResponse: { name: response.name, response: response.response },
+					functionResponse: {
+						...(response.id ? { id: response.id } : {}),
+						name: response.name,
+						response: response.response,
+					},
 				}));
-				return toPlatformResponse(await chat.sendMessage(parts, { signal }));
+				// RN Firebase 25.x serializes chat.sendMessage(functionResponse) with
+				// role "function", which the current Gemini Developer API rejects.
+				return send({ role: 'user', parts }, signal);
 			},
 		};
 	},

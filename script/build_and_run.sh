@@ -58,6 +58,53 @@ run_doctor() {
 
 resolve_expo_cmd
 
+EMULATOR_PID=""
+EXPO_PID=""
+STOP_REQUESTED=0
+
+cleanup_emulators() {
+  if [[ -n "$EMULATOR_PID" ]]; then
+    kill "$EMULATOR_PID" 2>/dev/null || true
+    wait "$EMULATOR_PID" 2>/dev/null || true
+    EMULATOR_PID=""
+  fi
+}
+
+request_local_dev_shutdown() {
+  STOP_REQUESTED=1
+  if [[ -n "$EXPO_PID" ]]; then
+    kill -TERM "$EXPO_PID" 2>/dev/null || true
+  fi
+}
+
+run_expo_with_restart() {
+  local exit_code
+
+  trap request_local_dev_shutdown INT TERM
+
+  while [[ "$STOP_REQUESTED" -eq 0 ]]; do
+    EXPO_PUBLIC_APP_ENV=development \
+      EXPO_PUBLIC_FIREBASE_TARGET=emulator \
+      EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" \
+      "${EXPO_CMD[@]}" "$@" <&0 &
+    EXPO_PID=$!
+
+    if wait "$EXPO_PID"; then
+      exit_code=0
+    else
+      exit_code=$?
+    fi
+    EXPO_PID=""
+
+    if [[ "$STOP_REQUESTED" -eq 1 ]]; then
+      break
+    fi
+
+    echo "Expo encerrou (código $exit_code). Tentando iniciar novamente em 2 segundos; o Firebase Emulator continuará ativo."
+    sleep 2
+  done
+}
+
 start_local_emulators() {
   local emulator_log
   emulator_log="${TMPDIR:-/tmp}/lumus-firebase-emulators.log"
@@ -96,12 +143,6 @@ start_local_emulators() {
 
     npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions >"$emulator_log" 2>&1 &
     EMULATOR_PID=$!
-    cleanup_emulators() {
-      if [[ -n "$EMULATOR_PID" ]]; then
-        kill "$EMULATOR_PID" 2>/dev/null || true
-        wait "$EMULATOR_PID" 2>/dev/null || true
-      fi
-    }
     trap cleanup_emulators EXIT INT TERM
 
     for _ in {1..90}; do
@@ -145,22 +186,22 @@ firebase_client_host() { printf '%s' "${FIREBASE_CLIENT_HOST:-127.0.0.1}"; }
 case "$MODE" in
   start|run)
     start_local_emulators
-    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" "${EXPO_CMD[@]}" start --go --lan
+    run_expo_with_restart start --go --lan
     ;;
   --ios|ios)
     exec "${EXPO_CMD[@]}" start --ios
     ;;
   --android|android)
     start_local_emulators
-    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" "${EXPO_CMD[@]}" start --android
+    run_expo_with_restart start --android
     ;;
   --web|web)
     start_local_emulators
-    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" "${EXPO_CMD[@]}" start --web --lan
+    run_expo_with_restart start --web --lan
     ;;
   --dev-client|dev-client)
     start_local_emulators
-    EXPO_PUBLIC_APP_ENV=development EXPO_PUBLIC_FIREBASE_TARGET=emulator EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" "${EXPO_CMD[@]}" start --dev-client
+    run_expo_with_restart start --dev-client
     ;;
   --tunnel|tunnel)
     exec "${EXPO_CMD[@]}" start --tunnel

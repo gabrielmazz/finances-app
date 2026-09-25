@@ -2,7 +2,7 @@ type RemoteValues = Record<string, boolean | number | string>;
 
 type MockModelResponse = {
 	text: string;
-	functionCalls?: Array<{ name: string; args: Record<string, unknown> }>;
+	functionCalls?: Array<{ id?: string; name: string; args: Record<string, unknown> }>;
 };
 
 type WebMockOptions = {
@@ -254,6 +254,7 @@ describe('Lumus Assistant web platform', () => {
 				{
 					text: '',
 					functionCalls: [{
+						id: 'call-test-1',
 						name: 'prepare_financial_actions',
 						args: {
 							actions: [{
@@ -277,6 +278,7 @@ describe('Lumus Assistant web platform', () => {
 		expect(mocks.sendMessage.mock.calls[1]?.[0]).toEqual([
 			expect.objectContaining({
 				functionResponse: expect.objectContaining({
+					id: 'call-test-1',
 					name: 'prepare_financial_actions',
 					response: expect.objectContaining({ accepted: true, draftCount: 1 }),
 				}),

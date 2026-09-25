@@ -5,6 +5,9 @@ import {
 	buildAssistantDraft,
 	createAssistantOpaqueHandle,
 	canTransitionAssistantDraft,
+	getMandatorySettlementIntent,
+	moveAssistantDraftGroupToEnd,
+	orderAssistantMessagesForDisplay,
 	isAssistantClearConversationCommand,
 	inferAssistantDependencyReferences,
 	maskFinancialValuesInText,
@@ -22,11 +25,48 @@ import { mapAssistantError } from '@/utils/lumusAssistantErrors';
 import {
 	assistantActionSchemas,
 	getActionValidation,
+	getFieldDefinition,
 } from '@/utils/lumusAssistantSchemas';
 import { ASSISTANT_ACTION_KINDS } from '@/types/lumusAssistant';
 import { ASSISTANT_FUNCTION_DECLARATIONS } from '@/services/lumusAssistant/assistantPrompt';
+import type { AssistantMessage } from '@/types/lumusAssistant';
 
 describe('Lumus Assistant domain contracts', () => {
+	it('moves only the completed action group below its answered questions', () => {
+		const text = { id: 'intro', type: 'text', role: 'assistant', text: 'Escolha um pagamento.', createdAt: '' } as AssistantMessage;
+		const payment = { id: 'payment', type: 'drafts', role: 'assistant', actionIds: ['payment-1'], createdAt: '' } as AssistantMessage;
+		const other = { id: 'other', type: 'drafts', role: 'assistant', actionIds: ['other-1'], createdAt: '' } as AssistantMessage;
+		const first: Extract<AssistantMessage, { type: 'question' }> = { id: 'choose-payment', type: 'question', role: 'assistant', text: 'Qual gasto?', field: getFieldDefinition('pay_mandatory_expense', 'recordRef'), targetActionIds: ['payment-1'], createdAt: '' };
+		const second = { ...first, id: 'choose-bank', text: 'Qual conta?', field: getFieldDefinition('pay_mandatory_expense', 'bankRef') };
+
+		const withQuestions = [text, payment, other, { ...first, answeredAt: '2026-09-25' }, second];
+		expect(orderAssistantMessagesForDisplay(withQuestions).at(-1)?.id).toBe('choose-bank');
+		const fullyAnswered = [text, payment, other, { ...first, answeredAt: '2026-09-25' }, { ...second, answeredAt: '2026-09-25' }];
+		const readyForReview = moveAssistantDraftGroupToEnd(fullyAnswered, 'payment-1');
+		expect(readyForReview.map(message => message.id)).toEqual(['intro', 'other', 'choose-payment', 'choose-bank', 'payment']);
+		expect(readyForReview.filter(message => message.id === 'payment')).toHaveLength(1);
+	});
+
+	it('keeps an unanswered input below later messages and warnings', () => {
+		const question: Extract<AssistantMessage, { type: 'question' }> = {
+			id: 'question', type: 'question', role: 'assistant', text: 'Qual nome?',
+			field: getFieldDefinition('create_expense', 'name'), targetActionIds: ['expense-1'], createdAt: '',
+		};
+		const warning: AssistantMessage = { id: 'warning', type: 'warning', role: 'assistant', text: 'Escolha uma opção.', createdAt: '' };
+		const input: AssistantMessage = { id: 'input', type: 'text', role: 'user', text: 'Resposta inválida', createdAt: '' };
+		const ordered = orderAssistantMessagesForDisplay([question, input, warning]);
+		expect(ordered.map(message => message.id)).toEqual(['input', 'warning', 'question']);
+		expect(orderAssistantMessagesForDisplay([{ ...question, answeredAt: '2026-09-25' }, warning]).map(message => message.id))
+			.toEqual(['question', 'warning']);
+	});
+
+	it('routes broad pending payment and receipt requests to local selection', () => {
+		expect(getMandatorySettlementIntent('Quero realizar o pagamento de contas obrigatórias')).toBe('expense');
+		expect(getMandatorySettlementIntent('Quero receber meus ganhos obrigatórios pendentes')).toBe('gain');
+		expect(getMandatorySettlementIntent('Quero ver o relatório de contas obrigatórias a pagar')).toBeNull();
+		expect(getMandatorySettlementIntent('Não quero pagar contas obrigatórias')).toBeNull();
+	});
+
 	describe('money and dates', () => {
 		it.each([
 			['R$ 50,00', 5_000],
@@ -263,6 +303,10 @@ describe('Lumus Assistant domain contracts', () => {
 			[{ code: 503, message: 'unavailable' }, 'unavailable'],
 			[new Error('Firebase AppCheck rejected reCAPTCHA'), 'app-check'],
 			[{ code: 'ai/fetch-error', customErrorData: { status: 401 }, message: 'Unauthenticated request' }, 'configuration'],
+			[{ code: 'ai/fetch-error', customErrorData: { status: 400 }, message: 'Error fetching from Firebase AI: invalid request' }, 'invalid-request'],
+			[{ code: 'ai/fetch-error', customErrorData: { status: 404 }, message: 'Error fetching from Firebase AI' }, 'configuration'],
+			[{ code: 'ai/fetch-error', customErrorData: { status: 500 }, message: 'Error fetching from Firebase AI' }, 'unavailable'],
+			[{ code: 'ai/fetch-error', message: 'Error fetching: This model is currently experiencing high demand.' }, 'unavailable'],
 			[{ code: 'api-not-enabled', message: 'Firebase AI API is not enabled' }, 'configuration'],
 			[{ customErrorData: { status: 404 }, message: 'Model gemini-example not found' }, 'model'],
 			[{ customErrorData: { status: 404 }, message: 'Firebase AI Logic genai config not found' }, 'configuration'],

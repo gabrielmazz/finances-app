@@ -30,6 +30,18 @@ export const MANTINE_TAGS_INPUT_CLASS_NAMES = {
 	].join(' '),
 } as const;
 
+export const MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES = {
+	root: 'min-w-0 flex-1',
+	wrapper: 'w-full',
+	input: [
+		'min-h-touch max-h-32 resize-none rounded-2xl border-slate-200 bg-white px-3 py-2.5 text-base leading-5 text-slate-900 placeholder:text-slate-500',
+		'web:transition-colors web:focus:border-lumus-focus web:focus:ring-2 web:focus:ring-lumus-accent',
+		'dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-white',
+		'dark:web:focus:border-lumus-accent-dark dark:web:focus:ring-lumus-accent-dark',
+		'disabled:cursor-not-allowed disabled:opacity-50',
+	].join(' '),
+} as const;
+
 export const MANTINE_TABS_CSS_VARIABLES = {
 	'--tabs-color': LUMUS_RUNTIME_COLORS.light.accent,
 	'--tabs-text-color': LUMUS_RUNTIME_COLORS.light.onAccent,
@@ -90,6 +102,11 @@ export const getMantineTabsStyles = (_isDarkMode: boolean) => {
 		},
 	} as const;
 };
+
+export const getMantineChartStrokeColor = (isDarkMode: boolean) =>
+	isDarkMode
+		? LUMUS_RUNTIME_COLORS.dark.elevatedSurface
+		: LUMUS_RUNTIME_COLORS.light.surface;
 
 export const getMantineTagsInputStyles = (isDarkMode: boolean) => {
 	const colors = isDarkMode ? LUMUS_RUNTIME_COLORS.dark : LUMUS_RUNTIME_COLORS.light;
