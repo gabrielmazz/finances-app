@@ -78,7 +78,13 @@ import {
 } from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantActivityTrace } from '@/components/uiverse/assistant/assistant-activity-trace';
 import { AssistantComposerFrame } from '@/components/uiverse/assistant/assistant-composer-frame';
-import { AssistantDraftPages, AssistantPaginationDock } from '@/components/uiverse/assistant/assistant-draft-pages';
+import {
+	AssistantDraftPages,
+	AssistantPaginationDock,
+	getActiveAssistantDraftActionId,
+	getDisplayedAssistantDraftActionId,
+	isAssistantDraftGroupActive,
+} from '@/components/uiverse/assistant/assistant-draft-pages';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
@@ -88,7 +94,10 @@ import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 import { orderAssistantMessagesForDisplay } from '@/utils/lumusAssistant';
-import { MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES } from '@/design-system/mantine';
+import {
+	MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES,
+	MANTINE_ASSISTANT_TEXTAREA_STYLES,
+} from '@/design-system/mantine';
 import {
 	LUMUS_CLASS_NAMES,
 	LUMUS_FONT_STACKS,
@@ -214,6 +223,8 @@ export default function LumusAssistantScreenWeb() {
 	const [composerText, setComposerText] = React.useState('');
 	const [isComposerFocused, setIsComposerFocused] = React.useState(false);
 	const [selectedDraftActionByGroup, setSelectedDraftActionByGroup] = React.useState<Record<string, string>>({});
+	const [advancingDraftGroupIds, setAdvancingDraftGroupIds] = React.useState<string[]>([]);
+	const advancingDraftGroupIdsRef = React.useRef(new Set<string>());
 	const [isQuickPromptsModalOpen, setIsQuickPromptsModalOpen] = React.useState(false);
 	const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = React.useState(false);
 	const [isRevokeModalOpen, setIsRevokeModalOpen] = React.useState(false);
@@ -329,12 +340,18 @@ export default function LumusAssistantScreenWeb() {
 		}
 	}, [assistant.isSending, cleanupRecording, isTranscribing, recorder, recorderState.isRecording, stopRecording]);
 
+	const isDraftPaginationActive = advancingDraftGroupIds.length > 0 || assistant.messages.some(message =>
+		message.type === 'drafts' && isAssistantDraftGroupActive({ id: message.id, actionIds: message.actionIds }, assistant.drafts),
+	);
+	const isComposerDisabled = !assistant.availability?.available || assistant.isSending || isDraftPaginationActive;
+	const isVoiceControlDisabled = isComposerDisabled || isTranscribing;
+	const isSubmitDisabled = !composerText.trim() || isComposerDisabled;
 	const send = React.useCallback(async (text = composerText) => {
 		const trimmed = text.trim();
-		if (!trimmed || assistant.isSending || !assistant.availability?.available) return;
+		if (!trimmed || isComposerDisabled) return;
 		setComposerText('');
 		await assistant.sendMessage(trimmed);
-	}, [assistant, composerText]);
+	}, [assistant, composerText, isComposerDisabled]);
 
 	const selectQuickPrompt = React.useCallback((prompt: string) => {
 		setIsQuickPromptsModalOpen(false);
@@ -356,11 +373,10 @@ export default function LumusAssistantScreenWeb() {
 		await assistant.revokeConsent();
 	}, [assistant]);
 
-	const isVoiceControlDisabled = !assistant.availability?.available || isTranscribing || assistant.isSending;
-	const isSubmitDisabled = !composerText.trim() || assistant.isSending || !assistant.availability?.available;
 	const isHybridDevelopment = isFirebaseEmulatorRuntime();
 	const displayMessages = React.useMemo(
-		() => orderAssistantMessagesForDisplay(assistant.messages),
+		() => orderAssistantMessagesForDisplay(assistant.messages)
+			.filter(message => message.type !== 'question' || !message.answeredAt),
 		[assistant.messages],
 	);
 	const activeQuestion = displayMessages.find(
@@ -376,6 +392,28 @@ export default function LumusAssistantScreenWeb() {
 	const selectDraftAction = React.useCallback((groupId: string, actionId: string) => {
 		setSelectedDraftActionByGroup(current => ({ ...current, [groupId]: actionId }));
 	}, []);
+	const confirmDraft = React.useCallback(async (actionId: string) => {
+		const group = draftGroups.find(item => item.actionIds.includes(actionId));
+		if (!group) return assistant.executeDraft(actionId);
+		if (advancingDraftGroupIdsRef.current.has(group.id)) return false;
+		advancingDraftGroupIdsRef.current.add(group.id);
+		setAdvancingDraftGroupIds(current => current.includes(group.id) ? current : [...current, group.id]);
+		try {
+			const committed = await assistant.executeDraft(actionId);
+			if (!committed) return false;
+			const draftsAfterCommit = assistant.drafts.map(draft => draft.clientActionId === actionId
+				? { ...draft, status: 'succeeded' as const }
+				: draft);
+			const nextActionId = getActiveAssistantDraftActionId(group.actionIds, draftsAfterCommit);
+			if (nextActionId && nextActionId !== actionId) {
+				setSelectedDraftActionByGroup(current => ({ ...current, [group.id]: nextActionId }));
+			}
+			return true;
+		} finally {
+			advancingDraftGroupIdsRef.current.delete(group.id);
+			setAdvancingDraftGroupIds(current => current.filter(id => id !== group.id));
+		}
+	}, [assistant.drafts, assistant.executeDraft, draftGroups]);
 	React.useEffect(() => {
 		setSelectedDraftActionByGroup(current => {
 			const validGroupIds = new Set(draftGroups.map(group => group.id));
@@ -530,9 +568,9 @@ export default function LumusAssistantScreenWeb() {
 												<Icon as={Trash2} size="md" className={LUMUS_CLASS_NAMES.helper} />
 											</Pressable>
 											<Pressable
-												accessibilityLabel="Abrir sugestões de perguntas"
-												accessibilityRole="button"
-												disabled={!assistant.availability?.available || assistant.isSending}
+								accessibilityLabel="Abrir sugestões de perguntas"
+								accessibilityRole="button"
+								disabled={isComposerDisabled}
 												onPress={() => setIsQuickPromptsModalOpen(true)}
 												className={ASSISTANT_CLASS_NAMES.accentIconButton}
 											>
@@ -553,6 +591,7 @@ export default function LumusAssistantScreenWeb() {
 							<ConversationContent
 								ref={scrollViewRef}
 								className="flex-1"
+								showsVerticalScrollIndicator={false}
 								contentContainerClassName={ASSISTANT_CLASS_NAMES.webConversationContent}
 								keyboardShouldPersistTaps="handled"
 								onContentSizeChange={() => {
@@ -618,12 +657,14 @@ export default function LumusAssistantScreenWeb() {
 											content = <AssistantQuestionCard message={message} isDarkMode={isDarkMode} hideValues={shouldHideValues} onAnswer={(value, label, apply) => assistant.answerQuestion(message.id, value, label, apply)} />;
 										}
 										if (message.type === 'drafts') {
-										const storedSelection = selectedDraftActionByGroup[message.id];
-										const selectedActionId = activeQuestionActionId && message.actionIds.includes(activeQuestionActionId)
-											? activeQuestionActionId
-											: message.actionIds.includes(storedSelection ?? '') ? storedSelection : message.actionIds[0];
-										content = <AssistantDraftPages actionIds={message.actionIds} selectedActionId={selectedActionId} drafts={assistant.drafts} catalog={assistant.catalog} isDarkMode={isDarkMode} hideValues={shouldHideValues} onEdit={assistant.editDraft} onReview={assistant.beginConfirmation} onBack={assistant.cancelConfirmation} onConfirm={assistant.executeDraft} onCancel={assistant.cancelDraft} />;
-									}
+											const selectedActionId = getDisplayedAssistantDraftActionId(
+												message.actionIds,
+												assistant.drafts,
+												selectedDraftActionByGroup[message.id],
+												activeQuestionActionId,
+											);
+											content = <AssistantDraftPages actionIds={message.actionIds} selectedActionId={selectedActionId} activeQuestionActionId={activeQuestionActionId} drafts={assistant.drafts} catalog={assistant.catalog} isDarkMode={isDarkMode} hideValues={shouldHideValues} onEdit={assistant.editDraft} onReview={assistant.beginConfirmation} onBack={assistant.cancelConfirmation} onConfirm={confirmDraft} onCancel={assistant.cancelDraft} />;
+										}
 										if (message.type === 'report') {
 											const spokenSummary = [message.report.narrative, message.report.deterministicSummary]
 												.filter((value): value is string => Boolean(value))
@@ -648,6 +689,7 @@ export default function LumusAssistantScreenWeb() {
 								drafts={assistant.drafts}
 								selectedActionByGroup={selectedDraftActionByGroup}
 								activeQuestionActionId={activeQuestionActionId}
+								advancingActionGroupIds={advancingDraftGroupIds}
 								onSelect={selectDraftAction}
 							/>
 
@@ -656,12 +698,12 @@ export default function LumusAssistantScreenWeb() {
 					<PromptInputProvider
 						value={composerText}
 						onChangeText={setComposerText}
-						isDisabled={!assistant.availability?.available || assistant.isSending}
+						isDisabled={isComposerDisabled}
 					>
 						<AssistantComposerFrame
-							active={Boolean(isComposerFocused && assistant.availability?.available && !assistant.isSending)}
+							active={Boolean(isComposerFocused && assistant.availability?.available && !assistant.isSending && !isDraftPaginationActive)}
 							theme={isDarkMode ? 'dark' : 'light'}
-							className="max-w-4xl self-center"
+							className="w-full max-w-4xl self-center"
 						>
 						<PromptInput className={ASSISTANT_CLASS_NAMES.webComposer} onSubmit={({ text }) => void send(text)}>
 							<PromptInputFooter>
@@ -682,14 +724,20 @@ export default function LumusAssistantScreenWeb() {
 										maxRows={4}
 										value={composerText}
 										onChange={event => setComposerText(event.currentTarget.value)}
+										onKeyDown={event => {
+											if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+											event.preventDefault();
+											void send();
+										}}
 										onFocus={() => {
 										setIsComposerFocused(true);
 										focusComposer();
 										}}
 										onBlur={() => setIsComposerFocused(false)}
-										placeholder="Descreva o que aconteceu…"
-										disabled={!assistant.availability?.available || assistant.isSending}
+										placeholder={isDraftPaginationActive ? 'Conclua as ações do cartão antes de enviar outro comando' : 'Descreva o que aconteceu…'}
+										disabled={isComposerDisabled}
 										classNames={MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES}
+										styles={MANTINE_ASSISTANT_TEXTAREA_STYLES}
 									/>
 									<PromptInputSubmit
 										accessibilityLabel="Enviar mensagem"

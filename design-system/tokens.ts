@@ -7,6 +7,7 @@
  */
 
 const CATEGORY_PLACEHOLDER_COLOR = '#505D74';
+const TEXT_PLACEHOLDER_COLOR = '#5A6A7F';
 
 export const LUMUS_RUNTIME_COLORS = {
 	light: {
@@ -17,6 +18,7 @@ export const LUMUS_RUNTIME_COLORS = {
 		border: '#E2E8F0',
 		text: '#0F172A',
 		textMuted: '#64748B',
+		textPlaceholder: TEXT_PLACEHOLDER_COLOR,
 		categoryPlaceholder: CATEGORY_PLACEHOLDER_COLOR,
 		accent: '#FACC15',
 		accentStrong: '#CA8A04',
@@ -40,6 +42,7 @@ export const LUMUS_RUNTIME_COLORS = {
 		border: '#1E293B',
 		text: '#F8FAFC',
 		textMuted: '#94A3B8',
+		textPlaceholder: TEXT_PLACEHOLDER_COLOR,
 		categoryPlaceholder: CATEGORY_PLACEHOLDER_COLOR,
 		accent: '#FDE047',
 		accentStrong: '#FACC15',

@@ -337,5 +337,12 @@ describe('Lumus Assistant domain contracts', () => {
 				customErrorData: { errorDetails: [circular] },
 			})).not.toThrow();
 		});
+
+		it('does not mention a financial write when a read-only conversation fails', () => {
+			expect(mapAssistantError(new Error('unexpected local failure')).message).toBe('Não consegui responder agora. Tente novamente.');
+			expect(mapAssistantError({ code: 'ai/invalid-content' })).toMatchObject({
+				code: 'invalid-response', message: 'Não consegui continuar esta conversa. Limpe a conversa e tente novamente.',
+			});
+		});
 	});
 });

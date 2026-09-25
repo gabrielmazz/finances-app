@@ -177,6 +177,10 @@ export type AssistantConversationTurn = {
 
 export type AssistantReportKind =
 	| 'monthly_overview'
+	| 'largest_expense'
+	| 'largest_gain'
+	| 'smallest_expense'
+	| 'smallest_gain'
 	| 'bank_movements'
 	| 'cash_movements'
 	| 'transaction_search'
@@ -236,7 +240,9 @@ export type AssistantMessage =
 	| (AssistantMessageBase & {
 			type: 'text';
 			text: string;
-	  })
+			/** Respostas determinísticas de leitura ficam no chat, mas não voltam ao prompt. */
+			excludeFromModelHistory?: boolean;
+		  })
 	| (AssistantMessageBase & {
 			type: 'question';
 			text: string;
@@ -277,7 +283,8 @@ export type AssistantAiConfig = {
 
 export type AssistantAiAvailability = {
 	available: boolean;
-	platform: 'web' | 'android' | 'unsupported';
+	platform: 'web' | 'android' | 'ios' | 'unsupported';
+	runtime?: 'web' | 'native' | 'expo-go';
 	appCheckConfigured: boolean;
 	remoteConfigLoaded: boolean;
 	model: string;
@@ -318,6 +325,7 @@ export type AssistantTranscriptionRequest = {
 export type AssistantReportNarrationRequest = {
 	/** Escopo local de cota; nunca é enviado ao modelo. */
 	requestScope?: string;
+	question?: string;
 	report: Pick<
 		AssistantReport,
 		'kind' | 'title' | 'periodLabel' | 'scopeLabel' | 'metrics' | 'deterministicSummary' | 'notes'

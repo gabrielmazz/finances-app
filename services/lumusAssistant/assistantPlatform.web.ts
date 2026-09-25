@@ -1,4 +1,5 @@
 import { auth, app } from '@/FirebaseConfig';
+import Constants from 'expo-constants';
 import {
 	PRODUCTION_FIREBASE_PROJECT_ID,
 	isFirebaseEmulatorRuntime,
@@ -52,6 +53,7 @@ import {
 
 const SITE_KEY = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY?.trim() ?? '';
 const ASSISTANT_DEVELOPMENT_APP_NAME = 'LUMUS_ASSISTANT_DEVELOPMENT';
+const expoExtra = Constants.expoConfig?.extra as { lumusAssistantAppCheckDebugToken?: unknown } | undefined;
 
 let webAppCheck: AppCheck | null = null;
 let remoteConfigInstance: RemoteConfig | null = null;
@@ -98,7 +100,9 @@ const ensureWebAppCheck = (assistantApp: FirebaseApp) => {
 	if (!SITE_KEY) {
 		throw new Error('Firebase App Check reCAPTCHA Enterprise não configurado.');
 	}
-	const debugToken = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN?.trim();
+	const debugToken = typeof expoExtra?.lumusAssistantAppCheckDebugToken === 'string'
+		? expoExtra.lumusAssistantAppCheckDebugToken.trim()
+		: undefined;
 	if (isFirebaseEmulatorRuntime() || (process.env.NODE_ENV === 'development' && debugToken)) {
 		(globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
 			debugToken && debugToken.toLocaleLowerCase('pt-BR') !== 'true' ? debugToken : true;
@@ -296,7 +300,7 @@ const adapter: AssistantPlatformAdapter = {
 			generationConfig: { maxOutputTokens: 512 },
 		});
 		const result = await model.generateContent(
-			buildReportNarrationInstruction(request.report),
+			buildReportNarrationInstruction(request.report, request.question),
 			{ signal: request.signal },
 		);
 		return result.response.text();

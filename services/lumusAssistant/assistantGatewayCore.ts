@@ -126,6 +126,10 @@ export const createAssistantAuthTokenBridge = (
 
 const REPORT_KINDS = new Set<AssistantReportKind>([
 	'monthly_overview',
+	'largest_expense',
+	'largest_gain',
+	'smallest_expense',
+	'smallest_gain',
 	'bank_movements',
 	'cash_movements',
 	'transaction_search',
@@ -134,6 +138,40 @@ const REPORT_KINDS = new Set<AssistantReportKind>([
 	'pending_obligations',
 	'investment_portfolio',
 ]);
+
+const getExplicitExtremumKind = (text: string): AssistantReportKind | null => {
+	const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+	const smallest = /\bmenor\b|\bmais (?:baixo|baixa|barato|barata)\b/.test(normalized);
+	const largest = /\bmaior\b|\bmais (?:alto|alta|caro|cara)\b/.test(normalized);
+	const expense = /\b(?:gastos?|despesas?|compras?)\b/.test(normalized);
+	const gain = /\b(?:ganhos?|receitas?|entradas?)\b/.test(normalized);
+	if (smallest === largest || expense === gain) return null;
+	return `${smallest ? 'smallest' : 'largest'}_${expense ? 'expense' : 'gain'}` as AssistantReportKind;
+};
+
+const alignExplicitReportQuestion = (text: string, report: AssistantReportRequest | undefined) => {
+	if (!report || !['monthly_overview', 'transaction_search', 'largest_expense', 'largest_gain', 'smallest_expense', 'smallest_gain'].includes(report.kind)) return report;
+	const kind = getExplicitExtremumKind(text);
+	return kind ? { ...report, kind } : report;
+};
+
+// O SDK Firebase AI Logic exige histórico iniciado por user e alternando user/model.
+// Respostas determinísticas não entram no prompt, então perguntas órfãs são descartadas.
+const normalizeAssistantHistory = (turns: AssistantAiConversationRequest['turns'], maxTurns: number) => {
+	const pairs: Array<Array<{ role: 'user' | 'model'; text: string }>> = [];
+	let pendingUser: string | null = null;
+	for (const turn of turns) {
+		const text = sanitizeAssistantInput(turn.text);
+		if (!text) continue;
+		if (turn.role === 'user') {
+			pendingUser = text;
+		} else if (pendingUser) {
+			pairs.push([{ role: 'user', text: pendingUser }, { role: 'model', text }]);
+			pendingUser = null;
+		}
+	}
+	return pairs.slice(-Math.floor(maxTurns / 2)).flat();
+};
 
 const normalizeReportRequest = (args: Record<string, unknown>): AssistantReportRequest | undefined => {
 	if (typeof args.kind !== 'string' || !REPORT_KINDS.has(args.kind as AssistantReportKind)) {
@@ -211,10 +249,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 			return runExclusive(request.config, request.requestScope, async () => {
 				const converseWithModel = async (model: string): Promise<AssistantAiConversationResponse> => {
 					const maxTurns = Math.min(12, Math.max(2, request.config.maxContextTurns));
-					const history = request.turns.slice(-maxTurns).map(turn => ({
-						role: turn.role === 'assistant' ? ('model' as const) : ('user' as const),
-						text: sanitizeAssistantInput(turn.text),
-					}));
+					const history = normalizeAssistantHistory(request.turns, maxTurns);
 					const chat = await adapter.createChat({
 						model,
 						systemInstruction: buildAssistantSystemInstruction(request),
@@ -291,6 +326,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 						}
 					}
 
+					reportRequest = alignExplicitReportQuestion(text, reportRequest);
 					if (!finalText) {
 						finalText = actions.length > 0
 							? 'Preparei os registros. Vou pedir somente o que estiver faltando antes de mostrar cada confirmação.'

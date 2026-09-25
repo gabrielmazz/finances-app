@@ -23,6 +23,7 @@ import {
 } from '@/services/lumusAssistant/assistantPrompt';
 import { canObtainAssistantAppCheckToken } from '@/utils/lumusAssistantAppCheck';
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
+import { assistantExpoGoAdapter } from '@/services/lumusAssistant/assistantPlatform.expoGo';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
 import type { FirebaseAppCheckTypes } from '@react-native-firebase/app-check';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
@@ -44,17 +45,14 @@ let remoteConfigLoaded = false;
 let configPromise: Promise<AssistantAiConfig> | null = null;
 let nativeFirebaseModulesPromise: Promise<NativeFirebaseModules> | null = null;
 
-// Expo Go não contém os módulos RN Firebase. A checagem precisa acontecer antes
-// de qualquer import nativo, conforme a limitação registrada em [[Assistente Lumus]].
+// Expo Go não contém os módulos RN Firebase. Nessa execução o assistente usa o
+// transporte JavaScript isolado; os imports nativos seguem protegidos pela checagem.
 export const isExpoGoAssistantRuntime = () =>
 	Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 const assertSupportedNativeRuntime = () => {
 	if (Platform.OS !== 'android') {
 		throw new Error('Plataforma não suportada pelo Lumus IA nesta entrega.');
-	}
-	if (isExpoGoAssistantRuntime()) {
-		throw new Error('Ambiente não suportado: o Lumus IA no Android exige um development build e não funciona no Expo Go.');
 	}
 };
 
@@ -104,11 +102,17 @@ const ensureNativeAppCheck = async () => {
 		const configuredProvider = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER?.trim();
 		const selectedProvider = resolveAndroidAssistantAppCheckProvider(__DEV__, configuredProvider);
 		const useDebugProvider = selectedProvider === 'debug';
+		const configuredExtra = Constants.expoConfig?.extra as {
+			lumusAssistantAppCheckDebugToken?: unknown;
+		} | undefined;
+		const debugToken = typeof configuredExtra?.lumusAssistantAppCheckDebugToken === 'string'
+			? configuredExtra.lumusAssistantAppCheckDebugToken
+			: undefined;
 		provider.configure({
 			android: {
 				provider: selectedProvider,
-				...(useDebugProvider && process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN
-					? { debugToken: process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN }
+				...(useDebugProvider && debugToken
+					? { debugToken }
 					: {}),
 			},
 		});
@@ -219,17 +223,17 @@ const getNativeAiService = async () => {
 };
 
 const adapter: AssistantPlatformAdapter = {
-	getConfig: readRemoteConfig,
+	getConfig: forceRefresh => isExpoGoAssistantRuntime()
+		? assistantExpoGoAdapter.getConfig(forceRefresh)
+		: readRemoteConfig(forceRefresh),
 	async getAvailability(): Promise<AssistantAiAvailability> {
-		const platformSupported = Platform.OS === 'android';
-		const isExpoGo = platformSupported && isExpoGoAssistantRuntime();
-		if (isExpoGo) {
-			const config = normalizeAssistantAiConfig({ enabled: false });
-			return { available: false, platform: 'android', appCheckConfigured: false, remoteConfigLoaded: false, model: config.model, reason: 'O Lumus IA no Android exige um development build. O restante do aplicativo pode ser testado no Expo Go.' };
+		if (isExpoGoAssistantRuntime()) {
+			return assistantExpoGoAdapter.getAvailability();
 		}
+		const platformSupported = Platform.OS === 'android';
 		let nativeConfigured = false;
 		let appCheckConfigured = false;
-		if (platformSupported && !isExpoGo) {
+		if (platformSupported) {
 			try {
 				await getConfiguredNativeApp();
 				nativeConfigured = true;
@@ -249,13 +253,12 @@ const adapter: AssistantPlatformAdapter = {
 		return {
 			available: Boolean(platformSupported && nativeConfigured && appCheckConfigured && auth.currentUser && config.enabled),
 			platform: platformSupported ? 'android' : 'unsupported',
+			runtime: 'native',
 			appCheckConfigured,
 			remoteConfigLoaded,
 			model: config.model,
 			reason: !platformSupported
 				? 'Nesta entrega, o Lumus IA nativo está disponível no Android.'
-				: isExpoGo
-					? 'O Lumus IA no Android exige um development build. O restante do aplicativo pode ser testado no Expo Go.'
 				: !nativeConfigured
 					? 'Forneça google-services.json e gere um development build.'
 					: !appCheckConfigured
@@ -268,6 +271,9 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async createChat(input) {
+		if (isExpoGoAssistantRuntime()) {
+			return assistantExpoGoAdapter.createChat(input);
+		}
 		assertAuthenticatedAssistantUser();
 		const { ai, nativeAi } = await getNativeAiService();
 		const model = nativeAi.getGenerativeModel(ai, {
@@ -304,6 +310,9 @@ const adapter: AssistantPlatformAdapter = {
 		};
 	},
 	async transcribe(request: AssistantTranscriptionRequest) {
+		if (isExpoGoAssistantRuntime()) {
+			return assistantExpoGoAdapter.transcribe(request);
+		}
 		assertAuthenticatedAssistantUser();
 		const estimatedBytes = Math.floor((request.base64Audio.length * 3) / 4);
 		if (estimatedBytes > 20 * 1024 * 1024 || request.durationMs > 60_500) {
@@ -328,6 +337,9 @@ const adapter: AssistantPlatformAdapter = {
 		return parsed.transcript;
 	},
 	async narrateReport(request: AssistantReportNarrationRequest) {
+		if (isExpoGoAssistantRuntime()) {
+			return assistantExpoGoAdapter.narrateReport(request);
+		}
 		assertAuthenticatedAssistantUser();
 		const { ai, nativeAi } = await getNativeAiService();
 		const model = nativeAi.getGenerativeModel(ai, {
@@ -336,7 +348,7 @@ const adapter: AssistantPlatformAdapter = {
 			generationConfig: { maxOutputTokens: 512 },
 		});
 		const result = await model.generateContent(
-			buildReportNarrationInstruction(request.report),
+			buildReportNarrationInstruction(request.report, request.question),
 			{ signal: request.signal },
 		);
 		return result.response.text();

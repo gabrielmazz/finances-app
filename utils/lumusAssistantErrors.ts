@@ -160,6 +160,9 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 	if (status === 400 || status === 422) {
 		return new AssistantFriendlyError('invalid-request', 'O assistente recusou esta solicitação. Tente novamente mais tarde.', true);
 	}
+	if (code === 'ai/invalid-content' || text.includes('valid previous roles')) {
+		return new AssistantFriendlyError('invalid-response', 'Não consegui continuar esta conversa. Limpe a conversa e tente novamente.', true);
+	}
 	if (text.includes('network') || text.includes('fetch') || text.includes('offline') || text.includes('internet')) {
 		return new AssistantFriendlyError('network', 'Sem conexão com o assistente. Confira sua internet e tente novamente.', true);
 	}
@@ -170,8 +173,8 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 		return new AssistantFriendlyError('unsupported', 'O Lumus IA ainda não está disponível nesta plataforma.');
 	}
 	if (text.includes('json') || text.includes('response') || text.includes('resposta inválida') || text.includes('resposta invalida')) {
-		return new AssistantFriendlyError('invalid-response', 'A resposta da IA não pôde ser validada. Nenhum dado foi gravado.', true);
+		return new AssistantFriendlyError('invalid-response', 'Não consegui interpretar a resposta do assistente. Tente novamente.', true);
 	}
 
-	return new AssistantFriendlyError('unknown', 'Não foi possível concluir agora. Nenhum dado foi gravado.', true);
+	return new AssistantFriendlyError('unknown', 'Não consegui responder agora. Tente novamente.', true);
 };

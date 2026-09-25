@@ -62,7 +62,7 @@ type LumusAssistantContextValue = {
 	editDraft(actionId: string, patch: Record<string, unknown>): Promise<void>;
 	beginConfirmation(actionId: string): void;
 	cancelConfirmation(actionId: string): void;
-	executeDraft(actionId: string): Promise<void>;
+	executeDraft(actionId: string): Promise<boolean>;
 	cancelDraft(actionId: string): void;
 	retryNotification(actionId: string): Promise<void>;
 	clearConversation(): void;
@@ -273,9 +273,8 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		);
 		if (openQuestion) {
 			const parsedAnswer = parseAssistantQuestionAnswer(openQuestion.field, text);
-			setMessages(current => [...current, userMessage]);
 			if (!parsedAnswer) {
-				setMessages(current => [...current, createMessage({
+				setMessages(current => [...current, userMessage, createMessage({
 					type: 'warning',
 					role: 'assistant',
 					text: 'Não consegui associar essa resposta com segurança. Escolha uma opção do cartão ou escreva somente a informação pedida.',
@@ -346,9 +345,8 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				return;
 			}
 			const turns = messagesRef.current
-				.filter((message): message is Extract<AssistantMessage, { type: 'text' }> => message.type === 'text')
-				.map(message => ({ role: message.role === 'assistant' ? 'assistant' as const : 'user' as const, text: message.text, createdAt: message.createdAt }))
-				.slice(-config.maxContextTurns);
+				.filter((message): message is Extract<AssistantMessage, { type: 'text' }> => message.type === 'text' && !message.excludeFromModelHistory && message.id !== userMessage.id)
+				.map(message => ({ role: message.role === 'assistant' ? 'assistant' as const : 'user' as const, text: message.text, createdAt: message.createdAt }));
 			advanceSendingProgress('interpreting_request');
 			const response = await assistantAiGateway.converse({
 				requestScope: uid,
@@ -363,6 +361,9 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			});
 			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const assistantText = createMessage({ type: 'text', role: 'assistant', text: response.text });
+			const isTargetedInsight = response.reportRequest?.kind === 'largest_expense' || response.reportRequest?.kind === 'largest_gain'
+				|| response.reportRequest?.kind === 'smallest_expense' || response.reportRequest?.kind === 'smallest_gain';
+			let spokenMessage = assistantText;
 			if (response.actions.length > 0) advanceSendingProgress('preparing_actions');
 			const prepared = response.actions.length > 0
 				? await financeCommandService.prepareActions(uid, response.actions, nextCatalog)
@@ -373,7 +374,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			setDrafts(mergedDrafts);
 			setMessages(current => [
 				...current,
-				assistantText,
+				...(!isTargetedInsight ? [assistantText] : []),
 				...(response.fallbackModel ? [createMessage({
 					type: 'warning', role: 'assistant',
 					text: 'O modelo principal estava indisponível. Usei uma alternativa gratuita para esta resposta.',
@@ -386,10 +387,11 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				advanceSendingProgress('building_report');
 				try {
 					const report = await assistantReportService.createReport(uid, response.reportRequest, nextCatalog);
-					try {
+					if (!isTargetedInsight) try {
 						advanceSendingProgress('writing_report');
 						report.narrative = await assistantAiGateway.narrateReport({
 							requestScope: uid,
+							question: text,
 							report,
 							config,
 							signal: controller.signal,
@@ -398,7 +400,12 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 						// O resumo determinístico permanece disponível se a narrativa falhar ou atingir a cota.
 					}
 					if (!controller.signal.aborted && accountRef.current === uid) {
-						setMessages(current => [...current, createMessage({ type: 'report', role: 'assistant', report })]);
+						if (isTargetedInsight) {
+							spokenMessage = createMessage({ type: 'text', role: 'assistant', text: report.deterministicSummary, excludeFromModelHistory: true });
+							setMessages(current => [...current, spokenMessage]);
+						} else {
+							setMessages(current => [...current, createMessage({ type: 'report', role: 'assistant', report })]);
+						}
 					}
 				} catch {
 					if (!controller.signal.aborted && accountRef.current === uid) setMessages(current => [...current, createMessage({
@@ -408,7 +415,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			}
 			if (controller.signal.aborted || accountRef.current !== uid) return;
 			appendNextQuestion(mergedDrafts);
-			if (autoReadEnabled) void speak(assistantText.id, assistantText.text);
+			if (autoReadEnabled && (!isTargetedInsight || spokenMessage !== assistantText)) void speak(spokenMessage.id, spokenMessage.text);
 		} catch (error) {
 			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const friendly = mapAssistantError(error);
@@ -485,10 +492,10 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		setDrafts(nextDrafts);
 	}, []);
 
-	const executeDraft = React.useCallback(async (actionId: string) => {
+	const executeDraft = React.useCallback(async (actionId: string): Promise<boolean> => {
 		const uid = user?.uid;
 		const draft = draftsRef.current.find(item => item.clientActionId === actionId);
-		if (!uid || !draft || draft.status !== 'confirming' || executingActionIdsRef.current.has(actionId)) return;
+		if (!uid || !draft || draft.status !== 'confirming' || executingActionIdsRef.current.has(actionId)) return false;
 		const unmetDependency = draft.dependsOnActionIds.some(dependencyId =>
 			draftsRef.current.find(item => item.clientActionId === dependencyId)?.status !== 'succeeded',
 		);
@@ -496,19 +503,19 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			setMessages(current => [...current, createMessage({
 				type: 'warning', role: 'assistant', actionId, text: 'Confirme primeiro a ação indicada como dependência.',
 			})]);
-			return;
+			return false;
 		}
 		executingActionIdsRef.current.add(actionId);
 		try {
 			setDrafts(current => current.map(item => item.clientActionId === actionId ? transitionAssistantDraft(item, 'executing') : item));
 			const result = await financeCommandService.execute(uid, draft, catalogRef.current);
-			if (accountRef.current !== uid) return;
+			if (accountRef.current !== uid) return false;
 			if (!result.success) {
 				setDrafts(current => current.map(item => item.clientActionId === actionId
 					? { ...item, status: result.errorCode === 'stale' ? 'stale' : 'failed', error: result.message }
 					: item));
 				setMessages(current => [...current, createMessage({ type: 'error', role: 'assistant', actionId, text: result.message })]);
-				return;
+				return false;
 			}
 			const succeededDrafts = draftsRef.current.map(item => item.clientActionId === actionId
 				? {
@@ -534,7 +541,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			]);
 			try {
 				const nextCatalog = await financeCommandService.loadCatalog(uid);
-				if (accountRef.current !== uid) return;
+				if (accountRef.current !== uid) return false;
 				catalogRef.current = nextCatalog;
 				setCatalog(nextCatalog);
 				const nextDrafts = await Promise.all(succeededDrafts.map(async item => {
@@ -552,7 +559,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 						? financeCommandService.updateDraft(uid, item, patch, nextCatalog)
 						: item;
 				}));
-				if (accountRef.current !== uid) return;
+				if (accountRef.current !== uid) return false;
 				draftsRef.current = nextDrafts;
 				setDrafts(nextDrafts);
 			} catch {
@@ -561,6 +568,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					text: 'A operação foi salva, mas os cartões seguintes não puderam ser atualizados. Revise-os antes de continuar.',
 				})]);
 			}
+			return true;
 		} catch {
 			if (accountRef.current === uid) {
 				setDrafts(current => current.map(item => item.clientActionId === actionId
@@ -571,6 +579,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					text: 'Não foi possível confirmar se a operação foi salva. Confira seus registros antes de tentar novamente.',
 				})]);
 			}
+			return false;
 		} finally {
 			executingActionIdsRef.current.delete(actionId);
 		}

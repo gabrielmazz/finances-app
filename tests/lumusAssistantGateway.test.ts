@@ -9,6 +9,7 @@ import {
 	type AssistantPlatformAdapter,
 	type AssistantPlatformResponse,
 } from '@/services/lumusAssistant/assistantGatewayCore';
+import { buildReportNarrationInstruction } from '@/services/lumusAssistant/assistantPrompt';
 
 const availability = {
 	available: true,
@@ -42,6 +43,59 @@ const createAdapter = (
 });
 
 describe('Lumus Assistant AI gateway', () => {
+	it('corrects a largest-expense tool call when the user explicitly asked for the smallest expense', async () => {
+		const adapter = createAdapter({ text: '', functionCalls: [{
+			name: 'request_financial_report', args: { kind: 'largest_expense', period: '2026-09' },
+		}] });
+		const result = await createAssistantAiGateway(adapter).converse(request({ text: 'Qual foi meu menor gasto esse mês?' }));
+		expect(result.reportRequest).toEqual({ kind: 'smallest_expense', period: '2026-09' });
+	});
+
+	it('drops unanswered turns and the current user message before starting a new Firebase chat', async () => {
+		let history: Array<{ role: 'user' | 'model'; text: string }> = [];
+		const adapter = createAdapter();
+		adapter.createChat = async input => {
+			history = input.history;
+			return { sendText: async () => ({ text: 'Resposta.', functionCalls: [] }), sendFunctionResponses: async () => ({ text: '', functionCalls: [] }) };
+		};
+		await createAssistantAiGateway(adapter).converse(request({
+			text: 'Registre uma despesa',
+			turns: [
+				{ role: 'user', text: 'Qual foi meu maior gasto?', createdAt: '2026-09-25T12:00:00Z' },
+				{ role: 'user', text: 'Registre uma despesa', createdAt: '2026-09-25T12:01:00Z' },
+			],
+		}));
+		expect(history).toEqual([]);
+	});
+
+	it('asks the narration to answer the specific question only from calculated metrics', () => {
+		const instruction = buildReportNarrationInstruction({
+			kind: 'monthly_overview', title: 'Visão do mês', periodLabel: 'setembro de 2026',
+			scopeLabel: 'Minha conta', metrics: [], deterministicSummary: 'Resumo calculado.', notes: [],
+		}, 'Como foram meus gastos?');
+		expect(instruction).toContain('Como foram meus gastos?');
+		expect(instruction).toContain('Se o relatório não trouxer os dados necessários');
+	});
+
+	it('accepts a targeted largest-expense request without exposing account records to the model', async () => {
+		let toolResult: Record<string, unknown> | undefined;
+		const adapter = createAdapter();
+		adapter.createChat = async ({ functionDeclarations, systemInstruction }) => {
+			expect(JSON.stringify(functionDeclarations)).toContain('largest_expense');
+			expect(systemInstruction.toLocaleLowerCase('pt-BR')).toContain('maior gasto');
+			return {
+				sendText: async () => ({ text: '', functionCalls: [{ name: 'request_financial_report', args: { kind: 'largest_expense', period: '2026-07' } }] }),
+				sendFunctionResponses: async responses => {
+					toolResult = responses[0]?.response;
+					return { text: 'Vou consultar seus registros.', functionCalls: [] };
+				},
+			};
+		};
+		const result = await createAssistantAiGateway(adapter).converse(request({ text: 'Qual foi meu maior gasto em julho?' }));
+		expect(result.reportRequest).toEqual({ kind: 'largest_expense', period: '2026-07' });
+		expect(toolResult).toEqual({ accepted: true, message: 'O Lumus calculará o relatório de forma determinística.' });
+	});
+
 	it('caps every remotely configurable limit to the safe application maximum', () => {
 		expect(normalizeAssistantAiConfig({
 			model: 'invalid model',
