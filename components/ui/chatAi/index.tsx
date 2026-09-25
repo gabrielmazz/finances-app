@@ -91,14 +91,14 @@ export const ConversationEmptyState = ({
 	children,
 	style,
 }: ConversationEmptyStateProps) => (
-	<View style={[{ alignItems: 'center', gap: 14, paddingVertical: 10 }, style]}>
-		<View style={{ alignItems: 'center', gap: 5 }}>
+	<View className="items-center gap-3.5 py-2.5" style={style}>
+		{children}
+		<View className="items-center gap-1.5">
 			<Text className="text-center text-typography-900 text-2xl font-bold">{title}</Text>
 			{description ? (
 				<Text className="text-center text-typography-500 leading-5">{description}</Text>
 			) : null}
 		</View>
-		{children}
 	</View>
 );
 
@@ -110,11 +110,8 @@ export type MessageProps = Omit<ViewProps, 'role'> & {
 export const Message = ({ role, children, style, ...props }: MessageProps) => (
 	<View
 		{...props}
-		style={[
-			{ width: '100%' },
-			role === 'user' ? { alignItems: 'flex-end' } : { alignItems: 'stretch' },
-			style,
-		]}
+		className={role === 'user' ? 'w-full items-end' : 'w-full items-stretch'}
+		style={style}
 	>
 		{children}
 	</View>

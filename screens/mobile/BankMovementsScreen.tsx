@@ -13,7 +13,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 // Componentes de UI
 import { Heading } from '@/components/ui/heading';
@@ -195,6 +194,8 @@ type AvailableTagFilterOption = {
 };
 
 type BankOption = BankActionsheetOption;
+
+const MOVEMENT_FILTER_ACCENT = '#facc15';
 
 const movementFilterOptions: Array<{
 	value: MovementFilter;
@@ -1178,8 +1179,8 @@ export default function BankMovementsScreen() {
 
 	const movementFilterPalette = React.useMemo(
 		() => ({
-			selectedBackground: isDarkMode ? LUMUS_RUNTIME_COLORS.dark.accent : LUMUS_RUNTIME_COLORS.light.accent,
-			selectedBorder: isDarkMode ? LUMUS_RUNTIME_COLORS.dark.accent : LUMUS_RUNTIME_COLORS.light.accent,
+			selectedBackground: MOVEMENT_FILTER_ACCENT,
+			selectedBorder: MOVEMENT_FILTER_ACCENT,
 			selectedIconClassName: 'text-white',
 			selectedTextClassName: 'text-white',
 			unselectedBackground: isDarkMode ? 'transparent' : '#FFFFFF',
@@ -2936,16 +2937,12 @@ export default function BankMovementsScreen() {
 															].map(option => {
 																const isSelected = selectedTagFilterId === option.id;
 																const iconColor = isSelected
-																	? isDarkMode
-																		? '#0F172A'
-																		: '#FFFFFF'
+																	? '#FFFFFF'
 																	: isDarkMode
 																		? '#CBD5E1'
 																		: '#475569';
 																const labelColor = isSelected
-																	? isDarkMode
-																		? '#0F172A'
-																		: '#FFFFFF'
+																	? '#FFFFFF'
 																	: periodSummaryPalette.title;
 
 																return (
@@ -3019,9 +3016,7 @@ export default function BankMovementsScreen() {
 																				className="text-center text-[11px] font-semibold"
 																				style={{
 																					color: isSelected
-																						? isDarkMode
-																							? '#0F172A'
-																							: '#FFFFFF'
+																						? '#FFFFFF'
 																						: isDarkMode
 																							? '#CBD5E1'
 																							: '#475569',
@@ -3181,6 +3176,10 @@ export default function BankMovementsScreen() {
 
 									<Button
 										className={`${submitButtonClassName} mt-4`}
+										style={{
+											backgroundColor: MOVEMENT_FILTER_ACCENT,
+											borderColor: MOVEMENT_FILTER_ACCENT,
+										}}
 										onPress={() => {
 											void handleExportPeriodSummaryPdf();
 										}}

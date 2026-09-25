@@ -2,7 +2,7 @@ import React from 'react';
 
 import { AssistantRouteBoundary } from '@/components/uiverse/assistant/assistant-route-boundary';
 import { LumusAssistantProvider } from '@/contexts/LumusAssistantContext';
-import LumusAssistantScreen from '@/screens/mobile/LumusAssistantScreen';
+import LumusAssistantScreen from '@/screens/web/LumusAssistantScreen.web';
 
 export default function LumusAssistantRoute() {
 	return (

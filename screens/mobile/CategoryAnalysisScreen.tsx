@@ -13,6 +13,7 @@ import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-gifted-charts';
 import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { cn } from '@/lib/utils';
 
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
@@ -262,13 +263,13 @@ const formatMovementDateLabel = (value: Date | null) => {
 const CategoryAnalysisSkeleton = () => (
 	<VStack className="gap-5">
 		<Skeleton className="h-12 w-full rounded-2xl" />
-		<Skeleton className="h-40 w-full rounded-3xl" />
+		<Skeleton className="h-40 w-full rounded-2xl" />
 		<HStack className="gap-3">
 			<Skeleton className="h-24 flex-1 rounded-2xl" />
 			<Skeleton className="h-24 flex-1 rounded-2xl" />
 		</HStack>
-		<Skeleton className="h-48 w-full rounded-3xl" />
-		<Skeleton className="h-40 w-full rounded-3xl" />
+		<Skeleton className="h-48 w-full rounded-2xl" />
+		<Skeleton className="h-40 w-full rounded-2xl" />
 	</VStack>
 );
 
@@ -302,6 +303,11 @@ export default function CategoryAnalysisScreen() {
 		sectionCardClassName,
 		webDashboardClassNames,
 	} = useScreenStyles();
+	const categoryCardClassName = sectionCardClassName.replace('rounded-card', 'rounded-2xl');
+	const categorySheetClassName = webDashboardClassNames.webSheet.replace(
+		'web:rounded-t-sheet',
+		'web:rounded-t-2xl',
+	);
 
 	const chartWidth = React.useMemo(() => Math.max(Math.min(windowWidth - 108, 260), 190), [windowWidth]);
 	const chartRadius = React.useMemo(() => Math.max(Math.min(chartWidth / 2 - 16, 104), 78), [chartWidth]);
@@ -714,7 +720,7 @@ export default function CategoryAnalysisScreen() {
 					<Image
 						source={LoginWallpaper}
 						alt="Background da análise por categoria"
-						className="w-full h-full rounded-b-3xl absolute"
+						className="w-full h-full rounded-b-2xl absolute"
 						resizeMode="cover"
 					/>
 
@@ -730,7 +736,11 @@ export default function CategoryAnalysisScreen() {
 				</View>
 
 				<View
-					className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
+					className={cn(
+						'flex-1 rounded-t-2xl px-6 pb-1',
+						cardBackground,
+						categorySheetClassName,
+					)}
 					style={{
 						marginTop: heroHeight - 64,
 					}}
@@ -793,7 +803,7 @@ export default function CategoryAnalysisScreen() {
 								{isLoading && !analysis ? (
 									<CategoryAnalysisSkeleton />
 								) : errorMessage ? (
-									<View className={`${sectionCardClassName} px-5 py-5`}>
+									<View className={`${categoryCardClassName} px-5 py-5`}>
 										<VStack className="gap-4">
 											<Text className={`${bodyText} text-sm leading-5`}>{errorMessage}</Text>
 											<Button className={submitButtonClassName} onPress={() => void loadAnalysis(false)}>
@@ -802,7 +812,7 @@ export default function CategoryAnalysisScreen() {
 										</VStack>
 									</View>
 								) : !analysis || analysis.tags.length === 0 ? (
-									<View className={`${sectionCardClassName} px-5 py-5`}>
+									<View className={`${categoryCardClassName} px-5 py-5`}>
 										<Text className={`${bodyText} text-sm leading-5`}>
 											Nenhuma categoria foi encontrada. Cadastre tags e movimente gastos ou ganhos para gerar o relatório.
 										</Text>
@@ -817,25 +827,6 @@ export default function CategoryAnalysisScreen() {
 											}}
 										>
 											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
-												<TagActionsheetSelector
-													options={tagSelectorOptions}
-													selectedId={selectedTagId}
-													selectedOption={selectedTagOption}
-													onSelect={handleSelectTag}
-													isDarkMode={isDarkMode}
-													bodyTextClassName={bodyText}
-													helperTextClassName={helperText}
-													triggerClassName={sectionCardClassName}
-													placeholder="Selecione uma categoria"
-													sheetTitle="Categorias da análise"
-													emptyMessage="Nenhuma categoria disponível para análise."
-													triggerHint="Toque para escolher a categoria do relatório."
-													disabledHint="Categorias indisponíveis no momento."
-													accessibilityLabel="Selecionar categoria para análise"
-												/>
-											</View>
-
-											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
 												<Box className={`${notTintedCardClassName} p-1.5`}>
 													<Tabs value={selectedType} onValueChange={handleSelectMovementType}>
 														<TabsList>
@@ -848,9 +839,11 @@ export default function CategoryAnalysisScreen() {
 																		<TabsTriggerIcon
 																			as={option === 'expense' ? TrendingDown : TrendingUp}
 																			size={16}
-																			color={isSelected ? '#0F172A' : palette.subtitle}
+																			color={isSelected ? '#FFFFFF' : palette.subtitle}
 																		/>
-																		<TabsTriggerText>{getMovementTypeLabel(option)}</TabsTriggerText>
+																		<TabsTriggerText className={isSelected ? 'text-white' : undefined}>
+																			{getMovementTypeLabel(option)}
+																		</TabsTriggerText>
 																	</TabsTrigger>
 																);
 															})}
@@ -858,6 +851,25 @@ export default function CategoryAnalysisScreen() {
 														</TabsList>
 													</Tabs>
 												</Box>
+											</View>
+
+											<View style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}>
+												<TagActionsheetSelector
+													options={tagSelectorOptions}
+													selectedId={selectedTagId}
+													selectedOption={selectedTagOption}
+													onSelect={handleSelectTag}
+													isDarkMode={isDarkMode}
+													bodyTextClassName={bodyText}
+													helperTextClassName={helperText}
+													triggerClassName={categoryCardClassName}
+													placeholder="Selecione uma categoria"
+													sheetTitle="Categorias da análise"
+													emptyMessage="Nenhuma categoria disponível para análise."
+													triggerHint="Toque para escolher a categoria do relatório."
+													disabledHint="Categorias indisponíveis no momento."
+													accessibilityLabel="Selecionar categoria para análise"
+												/>
 											</View>
 										</View>
 
@@ -870,7 +882,7 @@ export default function CategoryAnalysisScreen() {
 											start={{ x: 0, y: 0 }}
 											end={{ x: 1, y: 1 }}
 											style={{
-												borderRadius: 24,
+												borderRadius: 16,
 												paddingHorizontal: 18,
 												paddingVertical: 18,
 											}}
@@ -882,7 +894,7 @@ export default function CategoryAnalysisScreen() {
 															style={{
 																width: 46,
 																height: 46,
-																borderRadius: 17,
+																borderRadius: 16,
 																alignItems: 'center',
 																justifyContent: 'center',
 																backgroundColor: 'rgba(255,255,255,0.16)',
@@ -1106,7 +1118,7 @@ export default function CategoryAnalysisScreen() {
 														) : (
 															<View
 																style={{
-																	borderRadius: 18,
+																	borderRadius: 16,
 																	borderWidth: 1,
 																	borderColor: palette.border,
 																	backgroundColor: palette.emptySurface,
@@ -1136,7 +1148,7 @@ export default function CategoryAnalysisScreen() {
 																			style={{
 																				width: 38,
 																				height: 38,
-																				borderRadius: 15,
+																				borderRadius: 16,
 																				alignItems: 'center',
 																				justifyContent: 'center',
 																				backgroundColor: selectedType === 'expense'
@@ -1173,7 +1185,7 @@ export default function CategoryAnalysisScreen() {
 														) : (
 															<View
 																style={{
-																	borderRadius: 18,
+																	borderRadius: 16,
 																	borderWidth: 1,
 																	borderColor: palette.border,
 																	backgroundColor: palette.emptySurface,

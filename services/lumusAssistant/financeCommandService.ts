@@ -165,6 +165,7 @@ const assertFreshSnapshot = (
 const readOwnedItem = async (
 	context: ExecuteContext,
 	field: 'recordRef' | 'investmentRef',
+	options: { skipSnapshotCheck?: boolean } = {},
 ) => {
 	const item = resolveItem(context, field);
 	if (!item.collection || !item.realId) {
@@ -177,7 +178,7 @@ const readOwnedItem = async (
 	}
 	const data = snapshot.data() as FirestoreRecord;
 	assertOwned(data, context.personId);
-	assertFreshSnapshot(context.draft, item, data);
+	if (!options.skipSnapshotCheck) assertFreshSnapshot(context.draft, item, data);
 	return { item, reference, data };
 };
 
@@ -830,7 +831,9 @@ const completeRecurringCycle = async (
 	context: ExecuteContext,
 	type: 'expense' | 'gain',
 ): Promise<AssistantExecuteResult> => {
-	const template = await readOwnedItem(context, 'recordRef');
+	// [[Assistente Lumus]]: o retry do mesmo cartão consulta o lançamento idempotente
+	// na transação antes de comparar o snapshot do template já atualizado.
+	const template = await readOwnedItem(context, 'recordRef', { skipSnapshotCheck: true });
 	const expected = type === 'expense' ? 'mandatoryExpenses' : 'mandatoryGains';
 	if (template.item.collection !== expected) {
 		return fail('O registro obrigatório selecionado é inválido.', 'invalid-reference');
@@ -846,17 +849,22 @@ const completeRecurringCycle = async (
 	);
 	await runTransaction(db, async transaction => {
 		const currentTemplate = await readOwnedInTransaction(transaction, template.reference, context.personId);
+		const existingMovement = await transaction.get(movementRef);
+		if (existingMovement.exists()) {
+			const existingData = existingMovement.data() as FirestoreRecord;
+			assertOwned(existingData, context.personId);
+			if (existingData.assistantActionId !== context.draft.clientActionId) {
+				return fail('Este lançamento já pertence a outra operação.', 'duplicate-action');
+			}
+			return;
+		}
 		assertFreshSnapshot(context.draft, template.item, currentTemplate);
 		const lastCycleKey = type === 'expense' ? 'lastPaymentCycle' : 'lastReceiptCycle';
-		const linkedIdKey = type === 'expense' ? 'lastPaymentExpenseId' : 'lastReceiptGainId';
-		if (currentTemplate[lastCycleKey] === cycle && typeof currentTemplate[linkedIdKey] === 'string') {
-			const linked = await transaction.get(doc(db, movementCollection, currentTemplate[linkedIdKey] as string));
-			if (linked.exists() && linked.id !== movementRef.id) {
-				return fail(
-					type === 'expense' ? 'Este gasto já foi pago neste ciclo.' : 'Este ganho já foi recebido neste ciclo.',
-					'already-completed-cycle',
-				);
-			}
+		if (currentTemplate[lastCycleKey] === cycle) {
+			return fail(
+				type === 'expense' ? 'Este gasto já foi pago neste ciclo.' : 'Este ganho já foi recebido neste ciclo.',
+				'already-completed-cycle',
+			);
 		}
 		const installmentTotal =
 			typeof currentTemplate.installmentTotal === 'number' ? Math.max(1, Math.trunc(currentTemplate.installmentTotal)) : null;
@@ -867,35 +875,32 @@ const completeRecurringCycle = async (
 		if (installmentTotal !== null && completed >= installmentTotal) {
 			return fail('Todas as parcelas deste registro já foram concluídas.', 'installment-complete');
 		}
-		const existingMovement = await transaction.get(movementRef);
-		if (!existingMovement.exists()) {
-			const now = new Date();
-			const valueInCents =
-				typeof context.payload.valueInCents === 'number'
-					? context.payload.valueInCents
-					: typeof currentTemplate.valueInCents === 'number'
-						? currentTemplate.valueInCents
-						: fail('O valor do registro obrigatório é inválido.', 'invalid-payload');
-			const common = {
-				name: typeof currentTemplate.name === 'string' ? currentTemplate.name : type === 'expense' ? 'Gasto obrigatório' : 'Ganho obrigatório',
-				valueInCents,
-				tagId: typeof currentTemplate.tagId === 'string' ? currentTemplate.tagId : null,
-				bankId: bank.realId,
-				date,
-				personId: context.personId,
-				explanation: getOptionalString(context.payload, 'explanation') ?? (typeof currentTemplate.description === 'string' ? currentTemplate.description : null),
-				moneyFormat: bank.realId === null,
-				isBankTransfer: false,
-				investmentId: null,
-				investmentNameSnapshot: null,
-				assistantActionId: context.draft.clientActionId,
-				createdAt: now,
-				updatedAt: now,
-			};
-			transaction.set(movementRef, type === 'expense'
-				? { ...common, isInvestmentDeposit: false }
-				: { ...common, paymentFormats: [], isInvestmentRedemption: false });
-		}
+		const now = new Date();
+		const valueInCents =
+			typeof context.payload.valueInCents === 'number'
+				? context.payload.valueInCents
+				: typeof currentTemplate.valueInCents === 'number'
+					? currentTemplate.valueInCents
+					: fail('O valor do registro obrigatório é inválido.', 'invalid-payload');
+		const common = {
+			name: typeof currentTemplate.name === 'string' ? currentTemplate.name : type === 'expense' ? 'Gasto obrigatório' : 'Ganho obrigatório',
+			valueInCents,
+			tagId: typeof currentTemplate.tagId === 'string' ? currentTemplate.tagId : null,
+			bankId: bank.realId,
+			date,
+			personId: context.personId,
+			explanation: getOptionalString(context.payload, 'explanation') ?? (typeof currentTemplate.description === 'string' ? currentTemplate.description : null),
+			moneyFormat: bank.realId === null,
+			isBankTransfer: false,
+			investmentId: null,
+			investmentNameSnapshot: null,
+			assistantActionId: context.draft.clientActionId,
+			createdAt: now,
+			updatedAt: now,
+		};
+		transaction.set(movementRef, type === 'expense'
+			? { ...common, isInvestmentDeposit: false }
+			: { ...common, paymentFormats: [], isInvestmentRedemption: false });
 		const nextCompleted = installmentTotal === null ? completed : Math.min(installmentTotal, completed + 1);
 		transaction.update(template.reference, type === 'expense'
 			? {
@@ -1524,6 +1529,13 @@ export const financeCommandService: FinanceCommandService = {
 		} catch (error) {
 			if (error instanceof FinanceCommandError) {
 				return { success: false, message: error.message, errorCode: error.code };
+			}
+			if (error && typeof error === 'object' && 'code' in error && error.code === 'permission-denied') {
+				return {
+					success: false,
+					message: 'Não foi possível acessar os registros para concluir esta ação. Confira se está na conta correta e tente novamente.',
+					errorCode: 'permission-denied',
+				};
 			}
 			return {
 				success: false,

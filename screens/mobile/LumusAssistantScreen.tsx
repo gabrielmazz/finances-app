@@ -20,6 +20,7 @@ import {
 	Settings2,
 	ShieldCheck,
 	ShieldOff,
+	Sparkles,
 	Trash2,
 	TriangleAlert,
 	X,
@@ -79,15 +80,18 @@ import {
 } from '@/components/ui/chatAi';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import {
-	AssistantDraftCard,
 	AssistantQuestionCard,
 	AssistantReportCard,
 	AssistantTextBubble,
 } from '@/components/uiverse/assistant/assistant-cards';
+import { AssistantActivityTrace } from '@/components/uiverse/assistant/assistant-activity-trace';
+import { AssistantComposerFrame } from '@/components/uiverse/assistant/assistant-composer-frame';
+import { AssistantDraftPages, AssistantPaginationDock } from '@/components/uiverse/assistant/assistant-draft-pages';
 import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { ASSISTANT_MAX_INPUT_CHARACTERS } from '@/utils/lumusAssistant';
+import { ASSISTANT_MAX_INPUT_CHARACTERS, orderAssistantMessagesForDisplay } from '@/utils/lumusAssistant';
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import {
 	deleteAssistantTemporaryAudio,
@@ -135,42 +139,46 @@ const ConsentView = ({
 	onAccept(): Promise<void>;
 	isLoading: boolean;
 }) => {
-	const {
-		bodyText,
-		headingText,
-		helperText,
-		sectionCardClassName,
-		submitButtonClassName,
-		submitButtonTextClassName,
-	} = useScreenStyles();
+	const { bodyText, headingText, helperText, submitButtonClassName, submitButtonTextClassName } = useScreenStyles();
 
 	return (
 		<ScrollView className="flex-1 px-5">
-			<Box className="min-h-full w-full items-center justify-center py-5">
-				<VStack className={`${sectionCardClassName} w-full max-w-[680px] rounded-[28px] p-[22px]`} space="lg">
+			<Box className="min-h-full w-full items-center justify-center py-6">
+				<VStack className={ASSISTANT_CLASS_NAMES.consentCard} space="lg">
 					<VStack space="xs">
+						<Text className="text-xs font-bold uppercase tracking-widest text-yellow-700 dark:text-yellow-300">
+							Privacidade primeiro
+						</Text>
 						<Heading size="xl" className={headingText}>
-							Antes de conversar com o Lumus IA
+							Antes da primeira conversa
 						</Heading>
-						<Text className={`${helperText} leading-5`}>
+						<Text className={`${helperText} leading-6`}>
 							Para interpretar seus pedidos, o aplicativo envia ao Gemini o texto ou áudio escolhido e somente o contexto financeiro mínimo necessário.
 						</Text>
 					</VStack>
-				{CONSENT_ITEMS.map(({ icon, title, description }) => (
-					<HStack key={title} space="md">
-						<Icon as={icon} size="lg" className="text-yellow-500" />
-						<VStack className="flex-1" space="xs">
-							<Text bold className={bodyText}>{title}</Text>
-							<Text className={`${helperText} leading-5`}>{description}</Text>
-						</VStack>
-					</HStack>
-				))}
-				<Pressable onPress={() => void Linking.openURL('https://ai.google.dev/gemini-api/docs/pricing')}>
-					<Text bold className="text-yellow-600">Ler a tabela oficial de preços e uso de dados</Text>
-				</Pressable>
-				<Button size="md" className={`${submitButtonClassName} w-full`} isDisabled={isLoading} onPress={() => void onAccept()}>
-					{isLoading ? <ButtonSpinner /> : <ButtonText className={submitButtonTextClassName}>Entendi e quero usar</ButtonText>}
-				</Button>
+					<VStack space="sm">
+						{CONSENT_ITEMS.map(({ icon, title, description }) => (
+							<HStack key={title} className={ASSISTANT_CLASS_NAMES.consentItem}>
+								<Box className="h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-yellow-100 dark:bg-yellow-950">
+									<Icon as={icon} size="md" className="text-yellow-700 dark:text-yellow-300" />
+								</Box>
+								<VStack className="min-w-0 flex-1" space="xs">
+									<Text bold className={bodyText}>{title}</Text>
+									<Text size="sm" className={`${helperText} leading-5`}>{description}</Text>
+								</VStack>
+							</HStack>
+						))}
+					</VStack>
+					<Pressable
+						accessibilityRole="link"
+						onPress={() => void Linking.openURL('https://ai.google.dev/gemini-api/docs/pricing')}
+						className="min-h-touch self-start justify-center rounded-lg"
+					>
+						<Text bold size="sm" className="text-yellow-700 dark:text-yellow-300">Ver preços e política de uso de dados</Text>
+					</Pressable>
+					<Button size="md" className={`${submitButtonClassName} w-full`} isDisabled={isLoading} onPress={() => void onAccept()}>
+						{isLoading ? <ButtonSpinner /> : <ButtonText className={submitButtonTextClassName}>Aceitar e começar</ButtonText>}
+					</Button>
 				</VStack>
 			</Box>
 		</ScrollView>
@@ -179,13 +187,15 @@ const ConsentView = ({
 
 // [[Assistente Lumus]]: a rota já está aberta enquanto disponibilidade, preferências e Remote Config são resolvidos.
 const AssistantBootstrappingView = () => {
-	const { headingText, helperText, sectionCardClassName } = useScreenStyles();
+	const { headingText, helperText } = useScreenStyles();
 
 	return (
-		<Box className="flex-1 px-5 py-5">
+		<Box className="flex-1 px-5 py-6">
 			<Box className="flex-1 items-center justify-center">
-				<VStack className={`${sectionCardClassName} w-full max-w-[680px] items-center rounded-[28px] p-6`} space="md">
-					<ActivityIndicator size="large" color="#eab308" />
+				<VStack className={`${ASSISTANT_CLASS_NAMES.consentCard} items-center`} space="md">
+					<Box className={ASSISTANT_CLASS_NAMES.emptyMark}>
+						<ActivityIndicator size="large" color="#eab308" />
+					</Box>
 					<Heading size="lg" className={`text-center ${headingText}`}>
 						Preparando o Lumus IA
 					</Heading>
@@ -203,17 +213,10 @@ export default function LumusAssistantScreen() {
 		isDarkMode,
 		cardBackground,
 		headingText,
-		fieldContainerClassNameNotSpace,
 		heroHeight,
-		inputField,
 		insets,
-		submitButtonClassName,
-		submitButtonTextClassName,
 		bodyText,
 		helperText,
-		sectionCardClassName,
-		dividerClassName,
-		warningCardClassName,
 		warningTextClassName,
 		assistantAvailableTextClassName,
 		assistantUnavailableTextClassName,
@@ -227,6 +230,8 @@ export default function LumusAssistantScreen() {
 	const { shouldHideValues } = useValueVisibility();
 	const assistant = useLumusAssistant();
 	const [composerText, setComposerText] = React.useState('');
+	const [isComposerFocused, setIsComposerFocused] = React.useState(false);
+	const [selectedDraftActionByGroup, setSelectedDraftActionByGroup] = React.useState<Record<string, string>>({});
 	const [isQuickPromptsModalOpen, setIsQuickPromptsModalOpen] = React.useState(false);
 	const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = React.useState(false);
 	const [voiceError, setVoiceError] = React.useState<string | null>(null);
@@ -384,14 +389,47 @@ export default function LumusAssistantScreen() {
 	const isVoiceControlDisabled = !assistant.availability?.available || isTranscribing || assistant.isSending;
 	const isSubmitDisabled = !composerText.trim() || assistant.isSending || !assistant.availability?.available;
 	const isHybridDevelopment = isFirebaseEmulatorRuntime();
-	const composerControlClassName = 'h-10 w-10 items-center justify-center rounded-2xl';
+	const displayMessages = React.useMemo(
+		() => orderAssistantMessagesForDisplay(assistant.messages),
+		[assistant.messages],
+	);
+	const activeQuestion = displayMessages.find(
+		message => message.type === 'question' && !message.answeredAt,
+	);
+	const activeQuestionActionId = activeQuestion?.type === 'question' ? activeQuestion.targetActionIds[0] : undefined;
+	const draftGroups = React.useMemo(
+		() => displayMessages
+			.filter((message): message is Extract<typeof message, { type: 'drafts' }> => message.type === 'drafts')
+			.map(message => ({ id: message.id, actionIds: message.actionIds })),
+		[displayMessages],
+	);
+	const selectDraftAction = React.useCallback((groupId: string, actionId: string) => {
+		setSelectedDraftActionByGroup(current => ({ ...current, [groupId]: actionId }));
+	}, []);
+	React.useEffect(() => {
+		setSelectedDraftActionByGroup(current => {
+			const validGroupIds = new Set(draftGroups.map(group => group.id));
+			let next = current;
+			for (const groupId of Object.keys(current)) {
+				if (!validGroupIds.has(groupId)) {
+					if (next === current) next = { ...current };
+					delete next[groupId];
+				}
+			}
+			const questionGroup = draftGroups.find(group => group.actionIds.includes(activeQuestionActionId ?? ''));
+			if (questionGroup && current[questionGroup.id] !== activeQuestionActionId) {
+				if (next === current) next = { ...current };
+				next[questionGroup.id] = activeQuestionActionId!;
+			}
+			return next;
+		});
+	}, [activeQuestionActionId, draftGroups]);
 	const voiceButtonClassName = recorderState.isRecording
-		? `${composerControlClassName} bg-error-500`
-		: `${fieldContainerClassNameNotSpace} ${composerControlClassName}`;
-	const submitButtonControlClassName = `${submitButtonClassName} ${composerControlClassName}`;
+		? ASSISTANT_CLASS_NAMES.voiceButtonRecording
+		: ASSISTANT_CLASS_NAMES.voiceButton;
 
 	return (
-		<SafeAreaView className={`flex-1 ${cardBackground}`} edges={['left', 'right', 'bottom']}>
+		<SafeAreaView className={ASSISTANT_CLASS_NAMES.screen} edges={['left', 'right', 'bottom']}>
 			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 			<Box className={`flex-1 ${cardBackground}`} onLayout={handleViewportLayout}>
 				<Box className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: assistantViewportLayout.heroHeight }}>
@@ -427,24 +465,28 @@ export default function LumusAssistantScreen() {
 							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} />
 						) : (
 							<>
-								<Box className="w-full max-w-[760px] self-center px-6 pb-2 pt-3.5">
-									<HStack className="items-center justify-between">
-										<Text size="xs" bold className={assistant.availability?.available ? assistantAvailableTextClassName : assistantUnavailableTextClassName}>
-										{assistant.availability?.available ? 'Pronto para ajudar' : 'Configuração pendente'}
-										</Text>
-										<HStack space="xs">
-											<Pressable accessibilityLabel="Limpar conversa" onPress={assistant.clearConversation} className="h-10 w-10 items-center justify-center rounded-2xl">
+								<Box className={`${ASSISTANT_CLASS_NAMES.conversationFrame} px-4 pb-2 pt-3`}>
+									<HStack className={ASSISTANT_CLASS_NAMES.toolbar}>
+										<HStack className={ASSISTANT_CLASS_NAMES.statusPill}>
+											<Box className={assistant.availability?.available ? ASSISTANT_CLASS_NAMES.statusDotAvailable : ASSISTANT_CLASS_NAMES.statusDotUnavailable} />
+											<Text size="xs" bold className={assistant.availability?.available ? assistantAvailableTextClassName : assistantUnavailableTextClassName}>
+												{assistant.availability?.available ? 'Pronto para ajudar' : 'Configuração pendente'}
+											</Text>
+										</HStack>
+										<HStack className={ASSISTANT_CLASS_NAMES.toolbarActions}>
+											<Pressable accessibilityRole="button" accessibilityLabel="Limpar conversa" onPress={assistant.clearConversation} className={ASSISTANT_CLASS_NAMES.iconButton}>
 												<Icon as={Trash2} size="lg" className={helperText} />
 											</Pressable>
 											<Pressable
+												accessibilityRole="button"
 												accessibilityLabel="Abrir exemplos de perguntas"
 												disabled={!assistant.availability?.available || assistant.isSending}
 												onPress={() => setIsQuickPromptsModalOpen(true)}
-												className="h-10 w-10 items-center justify-center rounded-2xl disabled:opacity-40"
+												className={ASSISTANT_CLASS_NAMES.accentIconButton}
 											>
-												<Icon as={Lightbulb} size="lg" className="text-yellow-500" />
+												<Icon as={Lightbulb} size="lg" className="text-yellow-700 dark:text-yellow-300" />
 											</Pressable>
-											<Pressable accessibilityLabel="Abrir configurações do assistente" onPress={() => setIsSettingsDrawerOpen(true)} className="h-10 w-10 items-center justify-center rounded-2xl">
+											<Pressable accessibilityRole="button" accessibilityLabel="Abrir configurações do assistente" onPress={() => setIsSettingsDrawerOpen(true)} className={ASSISTANT_CLASS_NAMES.iconButton}>
 												<Icon as={Settings2} size="lg" className={helperText} />
 											</Pressable>
 										</HStack>
@@ -465,18 +507,18 @@ export default function LumusAssistantScreen() {
 										keyboardShouldPersistTaps="handled"
 										keyboardDismissMode="on-drag"
 									>
-										<VStack className="w-full max-w-[760px] self-center px-6 pb-8 pt-2" space="lg">
+										<VStack className={ASSISTANT_CLASS_NAMES.conversationContent} space="lg">
 										{isHybridDevelopment ? (
-											<HStack className={`${sectionCardClassName} rounded-2xl p-3`} space="sm">
-												<Icon as={Info} size="lg" className="text-yellow-500" />
-												<Text size="xs" className={`flex-1 leading-5 ${helperText}`}>
+											<HStack className={ASSISTANT_CLASS_NAMES.infoBanner}>
+												<Icon as={Info} size="lg" className="shrink-0 text-blue-600 dark:text-blue-300" />
+												<Text size="xs" className="min-w-0 flex-1 leading-5 text-blue-900 dark:text-blue-100">
 													Modo de desenvolvimento híbrido: Auth, Firestore e Functions usam o Emulator Suite. Somente AI Logic, App Check e Remote Config acessam o projeto Firebase na nuvem.
 												</Text>
 											</HStack>
 										) : null}
 										{!assistant.availability?.available ? (
-											<HStack className={`${warningCardClassName} p-3`} space="sm">
-												<Icon as={TriangleAlert} size="lg" className="text-warning-500" />
+											<HStack className={ASSISTANT_CLASS_NAMES.warningBanner}>
+												<Icon as={TriangleAlert} size="lg" className="shrink-0 text-warning-500" />
 												<VStack className="flex-1" space="xs">
 													<Text className={warningTextClassName}>{assistant.availability?.reason ?? 'O assistente ainda não está configurado. O restante do Lumus continua funcionando.'}</Text>
 													<Pressable
@@ -495,12 +537,16 @@ export default function LumusAssistantScreen() {
 										) : null}
 										{assistant.messages.length === 0 ? (
 											<ConversationEmptyState
-												title="Conte o que aconteceu"
-												description="Pode falar do seu jeito. Toque na lâmpada acima se quiser ver exemplos."
-											/>
+												title="O que você quer organizar?"
+												description="Descreva uma movimentação, peça uma análise ou toque na lâmpada para ver exemplos."
+											>
+												<Box className={ASSISTANT_CLASS_NAMES.emptyMark}>
+													<Icon as={Sparkles} size="xl" className="text-yellow-700 dark:text-yellow-300" />
+												</Box>
+											</ConversationEmptyState>
 										) : null}
 
-										{assistant.messages.map((message, index) => {
+										{displayMessages.map((message, index) => {
 											let content: React.ReactNode = null;
 											if (message.type === 'text' || message.type === 'success' || message.type === 'warning' || message.type === 'error') {
 												const notificationDraft = 'actionId' in message && message.actionId
@@ -511,13 +557,13 @@ export default function LumusAssistantScreen() {
 											if (message.type === 'question') {
 												content = <AssistantQuestionCard message={message} isDarkMode={isDarkMode} hideValues={shouldHideValues} onAnswer={(value, label, apply) => assistant.answerQuestion(message.id, value, label, apply)} />;
 											}
-											if (message.type === 'draft') {
-												const draft = assistant.drafts.find(item => item.clientActionId === message.actionId);
-												const isDependencyPending = Boolean(draft?.dependsOnActionIds.some(dependencyId =>
-													assistant.drafts.find(item => item.clientActionId === dependencyId)?.status !== 'succeeded',
-												));
-												content = draft ? <AssistantDraftCard draft={draft} catalog={assistant.catalog} isDarkMode={isDarkMode} hideValues={shouldHideValues} isDependencyPending={isDependencyPending} onEdit={patch => assistant.editDraft(draft.clientActionId, patch)} onReview={() => assistant.beginConfirmation(draft.clientActionId)} onBack={() => assistant.cancelConfirmation(draft.clientActionId)} onConfirm={() => assistant.executeDraft(draft.clientActionId)} onCancel={() => assistant.cancelDraft(draft.clientActionId)} /> : null;
-											}
+											if (message.type === 'drafts') {
+											const storedSelection = selectedDraftActionByGroup[message.id];
+											const selectedActionId = activeQuestionActionId && message.actionIds.includes(activeQuestionActionId)
+												? activeQuestionActionId
+												: message.actionIds.includes(storedSelection ?? '') ? storedSelection : message.actionIds[0];
+											content = <AssistantDraftPages actionIds={message.actionIds} selectedActionId={selectedActionId} drafts={assistant.drafts} catalog={assistant.catalog} isDarkMode={isDarkMode} hideValues={shouldHideValues} onEdit={assistant.editDraft} onReview={assistant.beginConfirmation} onBack={assistant.cancelConfirmation} onConfirm={assistant.executeDraft} onCancel={assistant.cancelDraft} />;
+										}
 											if (message.type === 'report') {
 												const spokenSummary = [message.report.narrative, message.report.deterministicSummary]
 													.filter((value): value is string => Boolean(value))
@@ -528,28 +574,41 @@ export default function LumusAssistantScreen() {
 										})}
 										{assistant.isSending ? (
 											<Message role="assistant">
-												<HStack className={`${sectionCardClassName} self-start rounded-2xl px-3.5 py-3`} space="sm">
-													<ActivityIndicator size="small" color="#eab308" />
-													<Text className={helperText}>Organizando com cuidado…</Text>
-												</HStack>
+												<AssistantActivityTrace
+													progress={assistant.sendingProgress ?? { active: 'loading_data', completed: [] }}
+													theme={isDarkMode ? 'dark' : 'light'}
+												/>
 											</Message>
 										) : null}
 
 										</VStack>
-									</ConversationContent>
-									<Box className="w-full max-w-[760px] self-center px-6 pb-2" style={{ flexShrink: 0 }}>
+										</ConversationContent>
+										<AssistantPaginationDock
+											groups={draftGroups}
+											drafts={assistant.drafts}
+											selectedActionByGroup={selectedDraftActionByGroup}
+											activeQuestionActionId={activeQuestionActionId}
+											onSelect={selectDraftAction}
+										/>
+										<Box className={ASSISTANT_CLASS_NAMES.composerDock}>
 										<PromptInputProvider
 											value={composerText}
 											onChangeText={setComposerText}
 											isDisabled={!assistant.availability?.available || assistant.isSending}
 										>
-											<PromptInput onSubmit={({ text }) => void send(text)}>
-												<PromptInputFooter className={`mt-1 border-t pt-2.5 ${dividerClassName}`}>
+										<AssistantComposerFrame
+											active={Boolean(isComposerFocused && assistant.availability?.available && !assistant.isSending)}
+											theme={isDarkMode ? 'dark' : 'light'}
+											className="max-w-3xl self-center"
+										>
+										<PromptInput className={ASSISTANT_CLASS_NAMES.composerShell} onSubmit={({ text }) => void send(text)}>
+											<PromptInputFooter>
 													{recorderState.isRecording ? <Text size="xs" className="mb-1.5 text-center text-error-500">Gravando… {Math.min(60, Math.round(recorderState.durationMillis / 1000))}s de 60s. Toque novamente para parar.</Text> : null}
 													{isTranscribing ? <Text size="xs" className={`mb-1.5 text-center ${helperText}`}>Transcrevendo. O texto aparecerá para você revisar antes do envio.</Text> : null}
 													{voiceError ? <Text size="xs" className="mb-1.5 text-center text-error-500">{voiceError}</Text> : null}
-													<PromptInputTools className="flex-row items-end gap-2">
-														<PromptInputButton
+												<PromptInputTools className={ASSISTANT_CLASS_NAMES.composerRow}>
+													<PromptInputButton
+														accessibilityLabel={recorderState.isRecording ? 'Parar gravação' : 'Gravar mensagem de voz'}
 															disabled={isVoiceControlDisabled}
 															onPress={() => recorderState.isRecording ? void stopRecording() : void startRecording()}
 															className={`${voiceButtonClassName} disabled:opacity-40`}
@@ -560,20 +619,27 @@ export default function LumusAssistantScreen() {
 															maxLength={ASSISTANT_MAX_INPUT_CHARACTERS}
 															multiline
 															textAlignVertical="top"
-															onFocus={focusComposer}
+															onFocus={() => {
+																setIsComposerFocused(true);
+																focusComposer();
+															}}
+															onBlur={() => setIsComposerFocused(false)}
 															placeholder="Digite ou use o microfone…"
-															containerClassName={`${fieldContainerClassNameNotSpace} min-h-10 max-h-30 flex-1`}
-															fieldClassName={inputField}
-														/>
-														<PromptInputSubmit
-															disabled={isSubmitDisabled}
-															className={`${submitButtonControlClassName} disabled:opacity-40`}
-														>
-															<Icon as={Send} size="md" className={submitButtonTextClassName} />
+														accessibilityLabel="Mensagem para o Lumus IA"
+														containerClassName={ASSISTANT_CLASS_NAMES.composerInput}
+														fieldClassName={ASSISTANT_CLASS_NAMES.composerField}
+													/>
+													<PromptInputSubmit
+														accessibilityLabel="Enviar mensagem"
+														disabled={isSubmitDisabled}
+														className={ASSISTANT_CLASS_NAMES.sendButton}
+													>
+														<Icon as={Send} size="md" className="text-lumus-on-accent" />
 														</PromptInputSubmit>
 													</PromptInputTools>
 												</PromptInputFooter>
-											</PromptInput>
+										</PromptInput>
+										</AssistantComposerFrame>
 										</PromptInputProvider>
 									</Box>
 								</Conversation>
@@ -585,7 +651,7 @@ export default function LumusAssistantScreen() {
 			</Box>
 			<Modal isOpen={isQuickPromptsModalOpen} onClose={() => setIsQuickPromptsModalOpen(false)} size="sm">
 				<ModalBackdrop />
-				<ModalContent className={modalContentClassName}>
+				<ModalContent className={`${modalContentClassName} rounded-3xl`}>
 					<ModalHeader>
 						<VStack className="flex-1" space="xs">
 							<ModalTitle className={headingText}>Exemplos para começar</ModalTitle>
@@ -596,13 +662,14 @@ export default function LumusAssistantScreen() {
 					<ModalBody>
 						<VStack className="pb-2" space="sm">
 							{QUICK_PROMPTS.map(prompt => (
-								<Pressable
-									key={prompt}
-									disabled={!assistant.availability?.available || assistant.isSending}
-									onPress={() => selectQuickPrompt(prompt)}
-									className={`${sectionCardClassName} flex-row items-center rounded-2xl p-3 disabled:opacity-40`}
-								>
-									<Icon as={CircleArrowRight} size="lg" className="mr-2 text-yellow-500" />
+							<Pressable
+								key={prompt}
+								accessibilityRole="button"
+								disabled={!assistant.availability?.available || assistant.isSending}
+								onPress={() => selectQuickPrompt(prompt)}
+								className={ASSISTANT_CLASS_NAMES.quickPrompt}
+							>
+								<Icon as={CircleArrowRight} size="lg" className="shrink-0 text-yellow-700 dark:text-yellow-300" />
 									<Text className={`flex-1 ${bodyText}`}>{prompt}</Text>
 								</Pressable>
 							))}
@@ -629,7 +696,7 @@ export default function LumusAssistantScreen() {
 					</DrawerHeader>
 					<DrawerBody className="mb-0">
 						<VStack space="lg">
-							<VStack className={`${sectionCardClassName} rounded-2xl p-4`} space="md">
+							<VStack className={`${ASSISTANT_CLASS_NAMES.panelMuted} rounded-2xl p-4`} space="md">
 								<HStack className="items-center justify-between gap-4">
 									<HStack className="ml-1 flex-1 items-center gap-1">
 										<Text size="sm" className={bodyText}>Ler respostas automaticamente</Text>
@@ -672,7 +739,7 @@ export default function LumusAssistantScreen() {
 								</HStack>
 							</VStack>
 
-							<VStack className={`${sectionCardClassName} rounded-2xl p-4`} space="md">
+							<VStack className="rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950" space="md">
 								<HStack className="items-center justify-between gap-4">
 									<Text bold className={`flex-1 ${bodyText}`}>Revogar consentimento e limpar conversa</Text>
 									<Button

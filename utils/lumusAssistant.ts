@@ -3,6 +3,7 @@ import type {
 	AssistantDraftAction,
 	AssistantDraftStatus,
 	AssistantMissingField,
+	AssistantMessage,
 	AssistantModelActionProposal,
 } from '@/types/lumusAssistant';
 import { getActionValidation, getFieldDefinition, isAssistantActionKind } from '@/utils/lumusAssistantSchemas';
@@ -12,6 +13,26 @@ export const ASSISTANT_MAX_INPUT_CHARACTERS = 4_000;
 export const ASSISTANT_DEFAULT_MAX_ACTIONS = 20;
 export const ASSISTANT_DEFAULT_MAX_TOOL_CALLS = 8;
 export const ASSISTANT_DEFAULT_CONTEXT_TURNS = 12;
+
+export const findNextAssistantQuestion = (drafts: AssistantDraftAction[]) => {
+	const firstDraft = drafts.find(draft => draft.status === 'needs_input' && draft.missingFields.length > 0);
+	if (!firstDraft) return null;
+	const field = firstDraft.missingFields[0]!;
+	const targetActionIds = drafts
+		.filter(draft => draft.status === 'needs_input' && draft.missingFields.some(candidate => candidate.key === field.key))
+		.map(draft => draft.clientActionId);
+	return { field, targetActionIds };
+};
+
+export const moveAssistantDraftGroupToEnd = (messages: AssistantMessage[], actionId: string): AssistantMessage[] => {
+	const group = messages.find(message => message.type === 'drafts' && message.actionIds.includes(actionId));
+	return group ? [...messages.filter(message => message !== group), group] : messages;
+};
+
+export const orderAssistantMessagesForDisplay = (messages: AssistantMessage[]): AssistantMessage[] => {
+	const openQuestion = messages.find(message => message.type === 'question' && !message.answeredAt);
+	return openQuestion ? [...messages.filter(message => message !== openQuestion), openQuestion] : messages;
+};
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
@@ -392,6 +413,20 @@ export const isAssistantClearConversationCommand = (text: string) => {
 		.replace(/[.!?]+$/g, '')
 		.trim();
 	return /^(?:limpar|apagar)(?:\s+a)?\s+conversa$/.test(normalized);
+};
+
+export const getMandatorySettlementIntent = (text: string): 'expense' | 'gain' | null => {
+	const normalized = text.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+	if (/\b(?:nao|nunca)\s+(?:quero\s+)?(?:pagar|quitar|receber|realizar)\b/.test(normalized)) return null;
+	if (/\b(?:relatorio|resumo|listar|liste|mostrar|mostre|consultar|ver)\b/.test(normalized)) return null;
+	const mandatory = /\b(?:obrigatori\w*|fix[oa]s?|recorrente\w*)\b/.test(normalized);
+	const payment = /\b(?:pagar|quitar)\b|\b(?:realizar|registrar|fazer)\s+(?:o\s+)?pagamento\b/.test(normalized);
+	const receipt = /\breceber\b|\b(?:realizar|registrar|fazer)\s+(?:o\s+)?recebimento\b/.test(normalized)
+		|| (/\bpendente\w*\b/.test(normalized) && /\brealizar\s+(?:os?\s+)?(?:ganhos?|receitas?)\b/.test(normalized));
+	if (!mandatory || payment === receipt) return null;
+	if (payment && /\b(?:contas?|gastos?|despesas?)\b/.test(normalized)) return 'expense';
+	if (receipt && /\b(?:ganhos?|receitas?)\b/.test(normalized)) return 'gain';
+	return null;
 };
 
 export const sanitizeAssistantModelText = (text: unknown) => {

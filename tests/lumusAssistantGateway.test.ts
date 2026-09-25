@@ -1,4 +1,5 @@
 import {
+	ASSISTANT_FREE_BACKUP_MODEL,
 	DEFAULT_ASSISTANT_AI_CONFIG,
 	createAssistantAuthTokenBridge,
 	createAssistantAiGateway,
@@ -69,6 +70,51 @@ describe('Lumus Assistant AI gateway', () => {
 
 	it('accepts the explicit stable model selected for this release', () => {
 		expect(normalizeAssistantAiConfig({ model: 'gemini-3.8-flash' }).model).toBe('gemini-3.8-flash');
+		expect(normalizeAssistantAiConfig({ model: ASSISTANT_FREE_BACKUP_MODEL }).model).toBe(ASSISTANT_FREE_BACKUP_MODEL);
+	});
+
+	it.each([500, 429])('uses one free backup after the primary model returns HTTP %s', async status => {
+		const models: string[] = [];
+		let responseId: string | undefined;
+		const adapter = createAdapter();
+		adapter.createChat = async input => {
+			models.push(input.model);
+			return {
+				sendText: async () => {
+					if (input.model === DEFAULT_ASSISTANT_AI_CONFIG.model) {
+						throw { code: 'fetch-error', customErrorData: { status }, message: 'Error fetching from Firebase AI' };
+					}
+					return { text: '', functionCalls: [{
+						id: 'call-1', name: 'prepare_financial_actions', args: { actions: [{
+							clientActionId: 'expense-1', kind: 'create_expense', payload: { name: 'Teste' },
+						}] },
+					}] };
+				},
+				sendFunctionResponses: async responses => {
+					responseId = responses[0]?.id;
+					return { text: 'Rascunho preparado.', functionCalls: [] };
+				},
+			};
+		};
+
+		const result = await createAssistantAiGateway(adapter).converse(request());
+
+		expect(models).toEqual([DEFAULT_ASSISTANT_AI_CONFIG.model, ASSISTANT_FREE_BACKUP_MODEL]);
+		expect(responseId).toBe('call-1');
+		expect(result.fallbackModel).toBe(ASSISTANT_FREE_BACKUP_MODEL);
+		expect(result.actions).toHaveLength(1);
+	});
+
+	it('does not substitute the model for an invalid request', async () => {
+		const adapter = createAdapter();
+		const createChat = jest.fn(async () => ({
+			sendText: async () => { throw { code: 'fetch-error', customErrorData: { status: 400 }, message: 'Invalid request' }; },
+			sendFunctionResponses: async () => ({ text: '', functionCalls: [] }),
+		}));
+		adapter.createChat = createChat;
+
+		await expect(createAssistantAiGateway(adapter).converse(request())).rejects.toMatchObject({ code: 'invalid-request' });
+		expect(createChat).toHaveBeenCalledTimes(1);
 	});
 
 	it('passes only the twelve most recent turns and caps model actions at twenty', async () => {

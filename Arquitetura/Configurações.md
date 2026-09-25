@@ -1,6 +1,6 @@
 ---
 tags: [configuracoes, tema, usuario, settings]
-relacionado: [[Sistema de Temas]], [[Privacidade de Valores]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Autenticação]], [[Gerenciamento de Usuários]], [[Gerenciamento de Tags]], [[Componentes UI]]
+relacionado: [[Sistema de Temas]], [[Privacidade de Valores]], [[Comportamento Pós-Registro]], [[Visibilidade de Rotas]], [[Autenticação]], [[Gerenciamento de Usuários]], [[Gerenciamento de Tags]], [[Componentes UI]], [[Assistente Lumus]]
 status: ativo
 tipo: feature
 versao: 1.11.0
@@ -22,6 +22,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 4. As tabelas administrativas reservam uma coluna fixa de ações à direita, com botões compactos por ícone centralizados e sem depender de rolagem horizontal para acessar as ações
 5. Os classnames compartilhados das tabelas desta tela são centralizados em `useScreenStyle.ts` para evitar duplicação na screen
 6. Quando uma listagem ultrapassa 5 registros, a tabela passa a exibir paginação numérica abaixo da listagem
+   O [[Assistente Lumus]] adota a seleção numérica para mostrar um cartão por vez quando uma resposta prepara várias ações; o estado e a confirmação continuam individuais por cartão.
 7. Todo feedback in-app desta tela usa `components/uiverse/feedback/notifier-alert.tsx`, incluindo cópia de ID, erros operacionais e confirmações de exclusão/desvínculo
 8. A tela usa modais de confirmação para ações destrutivas; a edição de categorias abre diretamente o formulário canônico pelo `tagId`
 9. Os cards de tema e privacidade mantêm o popover inline ao lado do título, helper contextual abaixo do label e o switch alinhado à direita para seguir o mesmo padrão de toggles usado nas telas de cadastro

@@ -32,6 +32,9 @@ export const DEFAULT_ASSISTANT_AI_CONFIG: AssistantAiConfig = {
 	maxRequestsPerMinute: 10,
 };
 
+// Supported by the Gemini Developer API free tier for function calling and audio input.
+export const ASSISTANT_FREE_BACKUP_MODEL = 'gemini-3.5-flash-lite';
+
 export const ASSISTANT_REMOTE_CONFIG_DEFAULTS = {
 	lumus_ai_enabled: true,
 	lumus_ai_model: DEFAULT_ASSISTANT_AI_CONFIG.model,
@@ -48,6 +51,7 @@ const clampInteger = (value: unknown, fallback: number, min: number, max: number
 
 const isStableAssistantModelName = (value: unknown): value is string => {
 	if (typeof value !== 'string') return false;
+	if (value.trim() === ASSISTANT_FREE_BACKUP_MODEL) return true;
 	const match = /^gemini-(\d+)(?:\.(\d+))?-(?:flash|flash-lite)$/i.exec(value.trim());
 	if (!match) return false;
 	const major = Number(match[1]);
@@ -70,6 +74,7 @@ export const normalizeAssistantAiConfig = (
 });
 
 export type AssistantPlatformFunctionCall = {
+	id?: string;
 	name: string;
 	args: Record<string, unknown>;
 };
@@ -82,7 +87,7 @@ export type AssistantPlatformResponse = {
 export interface AssistantPlatformChat {
 	sendText(text: string, signal?: AbortSignal): Promise<AssistantPlatformResponse>;
 	sendFunctionResponses(
-		responses: Array<{ name: string; response: Record<string, unknown> }>,
+		responses: Array<{ id?: string; name: string; response: Record<string, unknown> }>,
 		signal?: AbortSignal,
 	): Promise<AssistantPlatformResponse>;
 }
@@ -204,92 +209,110 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 			}
 
 			return runExclusive(request.config, request.requestScope, async () => {
-				const maxTurns = Math.min(12, Math.max(2, request.config.maxContextTurns));
-				const history = request.turns.slice(-maxTurns).map(turn => ({
-					role: turn.role === 'assistant' ? ('model' as const) : ('user' as const),
-					text: sanitizeAssistantInput(turn.text),
-				}));
-				const chat = await adapter.createChat({
-					model: request.config.model,
-					systemInstruction: buildAssistantSystemInstruction(request),
-					history,
-					functionDeclarations: ASSISTANT_FUNCTION_DECLARATIONS,
-				});
+				const converseWithModel = async (model: string): Promise<AssistantAiConversationResponse> => {
+					const maxTurns = Math.min(12, Math.max(2, request.config.maxContextTurns));
+					const history = request.turns.slice(-maxTurns).map(turn => ({
+						role: turn.role === 'assistant' ? ('model' as const) : ('user' as const),
+						text: sanitizeAssistantInput(turn.text),
+					}));
+					const chat = await adapter.createChat({
+						model,
+						systemInstruction: buildAssistantSystemInstruction(request),
+						history,
+						functionDeclarations: ASSISTANT_FUNCTION_DECLARATIONS,
+					});
 
-				let response = await chat.sendText(text, request.signal);
-				let toolCallCount = 0;
-				let reportRequest: AssistantReportRequest | undefined;
-				let actions = normalizeModelActionProposals([], request.config.maxActionsPerResponse);
-				let finalText = sanitizeAssistantModelText(response.text);
+					let response = await chat.sendText(text, request.signal);
+					let toolCallCount = 0;
+					let reportRequest: AssistantReportRequest | undefined;
+					let actions = normalizeModelActionProposals([], request.config.maxActionsPerResponse);
+					let finalText = sanitizeAssistantModelText(response.text);
 
-				while (response.functionCalls.length > 0 && toolCallCount < request.config.maxToolCalls) {
-					const functionResponses: Array<{ name: string; response: Record<string, unknown> }> = [];
-					for (const call of response.functionCalls) {
-						if (toolCallCount >= request.config.maxToolCalls) {
+					while (response.functionCalls.length > 0 && toolCallCount < request.config.maxToolCalls) {
+						const functionResponses: Array<{ id?: string; name: string; response: Record<string, unknown> }> = [];
+						for (const call of response.functionCalls) {
+							if (toolCallCount >= request.config.maxToolCalls) {
+								functionResponses.push({
+									...(call.id ? { id: call.id } : {}),
+									name: call.name,
+									response: { accepted: false, message: 'Limite de ferramentas atingido nesta resposta.' },
+								});
+								continue;
+							}
+							toolCallCount += 1;
+
+							if (call.name === 'prepare_financial_actions') {
+								const remainingActions = request.config.maxActionsPerResponse - actions.length;
+								const proposals = remainingActions > 0
+									? normalizeModelActionProposals(call.args.actions, remainingActions)
+									: [];
+								actions = [...actions, ...proposals].slice(0, request.config.maxActionsPerResponse);
+								functionResponses.push({
+									...(call.id ? { id: call.id } : {}),
+									name: call.name,
+									response: {
+										accepted: proposals.length > 0,
+										draftCount: proposals.length,
+										message: 'Rascunhos preparados. A confirmação ocorrerá somente nos cartões do aplicativo.',
+									},
+								});
+								continue;
+							}
+
+							if (call.name === 'request_financial_report') {
+								reportRequest = normalizeReportRequest(call.args) ?? reportRequest;
+								functionResponses.push({
+									...(call.id ? { id: call.id } : {}),
+									name: call.name,
+									response: {
+										accepted: Boolean(reportRequest),
+										message: reportRequest
+											? 'O Lumus calculará o relatório de forma determinística.'
+											: 'Solicitação de relatório inválida.',
+									},
+								});
+								continue;
+							}
+
 							functionResponses.push({
+								...(call.id ? { id: call.id } : {}),
 								name: call.name,
-								response: { accepted: false, message: 'Limite de ferramentas atingido nesta resposta.' },
+								response: { accepted: false, message: 'Ferramenta não permitida.' },
 							});
-							continue;
-						}
-						toolCallCount += 1;
-
-						if (call.name === 'prepare_financial_actions') {
-							const remainingActions = request.config.maxActionsPerResponse - actions.length;
-							const proposals = remainingActions > 0
-								? normalizeModelActionProposals(call.args.actions, remainingActions)
-								: [];
-							actions = [...actions, ...proposals].slice(0, request.config.maxActionsPerResponse);
-							functionResponses.push({
-								name: call.name,
-								response: {
-									accepted: proposals.length > 0,
-									draftCount: proposals.length,
-									message: 'Rascunhos preparados. A confirmação ocorrerá somente nos cartões do aplicativo.',
-								},
-							});
-							continue;
 						}
 
-						if (call.name === 'request_financial_report') {
-							reportRequest = normalizeReportRequest(call.args) ?? reportRequest;
-							functionResponses.push({
-								name: call.name,
-								response: {
-									accepted: Boolean(reportRequest),
-									message: reportRequest
-										? 'O Lumus calculará o relatório de forma determinística.'
-										: 'Solicitação de relatório inválida.',
-								},
-							});
-							continue;
+						if (functionResponses.length === 0) {
+							break;
 						}
-
-						functionResponses.push({
-							name: call.name,
-							response: { accepted: false, message: 'Ferramenta não permitida.' },
-						});
+						response = await chat.sendFunctionResponses(functionResponses, request.signal);
+						const responseText = sanitizeAssistantModelText(response.text);
+						if (responseText) {
+							finalText = responseText;
+						}
 					}
 
-					if (functionResponses.length === 0) {
-						break;
+					if (!finalText) {
+						finalText = actions.length > 0
+							? 'Preparei os registros. Vou pedir somente o que estiver faltando antes de mostrar cada confirmação.'
+							: reportRequest
+								? 'Vou montar esse resumo com os dados calculados pelo Lumus.'
+								: 'Não consegui transformar essa mensagem em uma ação segura. Tente informar o que aconteceu, o valor e a data.';
 					}
-					response = await chat.sendFunctionResponses(functionResponses, request.signal);
-					const responseText = sanitizeAssistantModelText(response.text);
-					if (responseText) {
-						finalText = responseText;
-					}
+
+					return { text: finalText, actions, reportRequest, toolCallCount };
+				};
+				try {
+					return await converseWithModel(request.config.model);
+				} catch (error) {
+					const code = mapAssistantError(error).code;
+					if (
+						request.signal?.aborted
+						|| request.config.model === ASSISTANT_FREE_BACKUP_MODEL
+						|| (code !== 'quota' && code !== 'unavailable')
+					) throw error;
+					const result = await converseWithModel(ASSISTANT_FREE_BACKUP_MODEL);
+					return { ...result, fallbackModel: ASSISTANT_FREE_BACKUP_MODEL };
 				}
-
-				if (!finalText) {
-					finalText = actions.length > 0
-						? 'Preparei os registros. Vou pedir somente o que estiver faltando antes de mostrar cada confirmação.'
-						: reportRequest
-							? 'Vou montar esse resumo com os dados calculados pelo Lumus.'
-							: 'Não consegui transformar essa mensagem em uma ação segura. Tente informar o que aconteceu, o valor e a data.';
-				}
-
-				return { text: finalText, actions, reportRequest, toolCallCount };
 			});
 		},
 		async transcribe(request: AssistantTranscriptionRequest) {
