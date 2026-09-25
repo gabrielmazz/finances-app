@@ -121,6 +121,9 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		executingActionIdsRef.current.clear();
 		resetAssistantCatalogSession(accountRef.current);
 		void Speech.stop();
+		messagesRef.current = [];
+		draftsRef.current = [];
+		catalogRef.current = {};
 		setSpeakingMessageId(null);
 		setMessages([]);
 		setDrafts([]);
@@ -266,6 +269,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					? financeCommandService.updateDraft(uid, draft, { [openQuestion.field.key]: parsedAnswer.value }, catalogRef.current)
 					: draft,
 			));
+			if (accountRef.current !== uid) return;
 			draftsRef.current = nextDrafts;
 			setDrafts(nextDrafts);
 			setMessages(current => current.map(message =>
@@ -282,7 +286,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		activeAbortRef.current = controller;
 		try {
 			const nextCatalog = await financeCommandService.loadCatalog(uid);
-			if (accountRef.current !== uid) return;
+			if (controller.signal.aborted || accountRef.current !== uid) return;
 			setCatalog(nextCatalog);
 			const turns = messagesRef.current
 				.filter((message): message is Extract<AssistantMessage, { type: 'text' }> => message.type === 'text')
@@ -299,12 +303,14 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				config,
 				signal: controller.signal,
 			});
-			if (accountRef.current !== uid) return;
+			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const assistantText = createMessage({ type: 'text', role: 'assistant', text: response.text });
 			const prepared = response.actions.length > 0
 				? await financeCommandService.prepareActions(uid, response.actions, nextCatalog)
 				: { actions: [] as AssistantDraftAction[], catalog: nextCatalog };
+			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const mergedDrafts = [...draftsRef.current, ...prepared.actions];
+			draftsRef.current = mergedDrafts;
 			setDrafts(mergedDrafts);
 			setMessages(current => [
 				...current,
@@ -315,33 +321,36 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				try {
 					const report = await assistantReportService.createReport(uid, response.reportRequest, nextCatalog);
 					try {
-							report.narrative = await assistantAiGateway.narrateReport({
-								requestScope: uid,
-								report,
+						report.narrative = await assistantAiGateway.narrateReport({
+							requestScope: uid,
+							report,
 							config,
 							signal: controller.signal,
 						});
 					} catch {
 						// O resumo determinístico permanece disponível se a narrativa falhar ou atingir a cota.
 					}
-					if (accountRef.current === uid) {
+					if (!controller.signal.aborted && accountRef.current === uid) {
 						setMessages(current => [...current, createMessage({ type: 'report', role: 'assistant', report })]);
 					}
 				} catch {
-					setMessages(current => [...current, createMessage({
+					if (!controller.signal.aborted && accountRef.current === uid) setMessages(current => [...current, createMessage({
 						type: 'warning', role: 'assistant', text: 'Não consegui atualizar esse relatório agora. Nenhum dado foi alterado.',
 					})]);
 				}
 			}
+			if (controller.signal.aborted || accountRef.current !== uid) return;
 			appendNextQuestion(mergedDrafts);
 			if (autoReadEnabled) void speak(assistantText.id, assistantText.text);
 		} catch (error) {
-			if (controller.signal.aborted) return;
+			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const friendly = mapAssistantError(error);
 			setMessages(current => [...current, createMessage({ type: 'error', role: 'assistant', text: friendly.message })]);
 		} finally {
-			if (activeAbortRef.current === controller) activeAbortRef.current = null;
-			if (accountRef.current === uid) setIsSending(false);
+			if (activeAbortRef.current === controller) {
+				activeAbortRef.current = null;
+				if (accountRef.current === uid) setIsSending(false);
+			}
 		}
 	}, [appendNextQuestion, autoReadEnabled, clearSession, config, consentGranted, isSending, shouldHideValues, speak, user?.uid]);
 
@@ -363,6 +372,8 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				? financeCommandService.updateDraft(uid, draft, { [question.field.key]: value }, catalogRef.current)
 				: draft,
 		));
+		if (accountRef.current !== uid) return;
+		draftsRef.current = nextDrafts;
 		setDrafts(nextDrafts);
 		setMessages(current => current.map(message =>
 			message.id === messageId && message.type === 'question'
@@ -377,7 +388,9 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		const draft = draftsRef.current.find(item => item.clientActionId === actionId);
 		if (!uid || !draft) return;
 		const updated = await financeCommandService.updateDraft(uid, draft, patch, catalogRef.current);
+		if (accountRef.current !== uid) return;
 		const nextDrafts = draftsRef.current.map(item => item.clientActionId === actionId ? updated : item);
+		draftsRef.current = nextDrafts;
 		setDrafts(nextDrafts);
 		appendNextQuestion(nextDrafts);
 	}, [appendNextQuestion, user?.uid]);
@@ -415,22 +428,15 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		try {
 			setDrafts(current => current.map(item => item.clientActionId === actionId ? transitionAssistantDraft(item, 'executing') : item));
 			const result = await financeCommandService.execute(uid, draft, catalogRef.current);
-		if (accountRef.current !== uid) return;
-		if (!result.success) {
-			setDrafts(current => current.map(item => item.clientActionId === actionId
-				? { ...item, status: result.errorCode === 'stale' ? 'stale' : 'failed', error: result.message }
-				: item));
-			setMessages(current => [...current, createMessage({ type: 'error', role: 'assistant', actionId, text: result.message })]);
-			return;
-		}
-		let nextCatalog = catalogRef.current;
-		try {
-			nextCatalog = await financeCommandService.loadCatalog(uid);
-			setCatalog(nextCatalog);
-		} catch {
-			// A escrita já foi concluída; uma próxima mensagem recarregará o catálogo.
-		}
-		let nextDrafts = draftsRef.current.map(item => item.clientActionId === actionId
+			if (accountRef.current !== uid) return;
+			if (!result.success) {
+				setDrafts(current => current.map(item => item.clientActionId === actionId
+					? { ...item, status: result.errorCode === 'stale' ? 'stale' : 'failed', error: result.message }
+					: item));
+				setMessages(current => [...current, createMessage({ type: 'error', role: 'assistant', actionId, text: result.message })]);
+				return;
+			}
+			const succeededDrafts = draftsRef.current.map(item => item.clientActionId === actionId
 				? {
 					...item,
 					status: 'succeeded' as const,
@@ -442,30 +448,55 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					},
 					error: undefined,
 				  }
-			: item);
-			nextDrafts = await Promise.all(nextDrafts.map(async item => {
-				if (!item.dependsOnActionIds.includes(actionId)) return item;
-				const patch: Record<string, unknown> = {};
-				for (const [key, value] of Object.entries(item.payload)) {
-					if (value !== `action:${actionId}`) continue;
-					const source = getFieldDefinition(item.kind, key).choiceSource;
-					const createdItem = source
-						? (nextCatalog[source] ?? []).find(candidate => candidate.data?.assistantActionId === actionId)
-						: undefined;
-					if (createdItem) patch[key] = createdItem.handle;
-				}
-				return Object.keys(patch).length > 0
-					? financeCommandService.updateDraft(uid, item, patch, nextCatalog)
-					: item;
-			}));
-		setDrafts(nextDrafts);
-		setMessages(current => [
-			...current,
-			createMessage({ type: 'success', role: 'assistant', actionId, text: result.message }),
-			...(result.notificationWarning
-				? [createMessage({ type: 'warning', role: 'assistant', actionId, text: result.notificationWarning })]
-				: []),
-		]);
+				: item);
+			draftsRef.current = succeededDrafts;
+			setDrafts(succeededDrafts);
+			setMessages(current => [
+				...current,
+				createMessage({ type: 'success', role: 'assistant', actionId, text: result.message }),
+				...(result.notificationWarning
+					? [createMessage({ type: 'warning', role: 'assistant', actionId, text: result.notificationWarning })]
+					: []),
+			]);
+			try {
+				const nextCatalog = await financeCommandService.loadCatalog(uid);
+				if (accountRef.current !== uid) return;
+				catalogRef.current = nextCatalog;
+				setCatalog(nextCatalog);
+				const nextDrafts = await Promise.all(succeededDrafts.map(async item => {
+					if (!item.dependsOnActionIds.includes(actionId)) return item;
+					const patch: Record<string, unknown> = {};
+					for (const [key, value] of Object.entries(item.payload)) {
+						if (value !== `action:${actionId}`) continue;
+						const source = getFieldDefinition(item.kind, key).choiceSource;
+						const createdItem = source
+							? (nextCatalog[source] ?? []).find(candidate => candidate.data?.assistantActionId === actionId)
+							: undefined;
+						if (createdItem) patch[key] = createdItem.handle;
+					}
+					return Object.keys(patch).length > 0
+						? financeCommandService.updateDraft(uid, item, patch, nextCatalog)
+						: item;
+				}));
+				if (accountRef.current !== uid) return;
+				draftsRef.current = nextDrafts;
+				setDrafts(nextDrafts);
+			} catch {
+				if (accountRef.current === uid) setMessages(current => [...current, createMessage({
+					type: 'warning', role: 'assistant', actionId,
+					text: 'A operação foi salva, mas os cartões seguintes não puderam ser atualizados. Revise-os antes de continuar.',
+				})]);
+			}
+		} catch {
+			if (accountRef.current === uid) {
+				setDrafts(current => current.map(item => item.clientActionId === actionId
+					? { ...item, status: 'failed', error: 'Não foi possível confirmar se a operação foi salva. Confira seus registros antes de tentar novamente.' }
+					: item));
+				setMessages(current => [...current, createMessage({
+					type: 'error', role: 'assistant', actionId,
+					text: 'Não foi possível confirmar se a operação foi salva. Confira seus registros antes de tentar novamente.',
+				})]);
+			}
 		} finally {
 			executingActionIdsRef.current.delete(actionId);
 		}

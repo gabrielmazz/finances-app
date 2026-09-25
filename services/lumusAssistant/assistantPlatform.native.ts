@@ -168,7 +168,7 @@ const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig
 			});
 		} catch {
 			remoteConfigLoaded = false;
-			return normalizeAssistantAiConfig({ enabled: false });
+			return normalizeAssistantAiConfig({});
 		}
 	})();
 	return configPromise;

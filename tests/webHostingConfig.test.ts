@@ -30,5 +30,7 @@ describe('configuração da versão Web no Firebase Hosting', () => {
 		expect(packageConfig.scripts['web:serve']).toContain('firebase-tools@latest emulators:start --project emulator --only hosting');
 		expect(packageConfig.scripts['web:deploy']).toContain('firebase-tools@latest deploy --project production --only hosting');
 		expect(packageConfig.scripts['web:deploy:preview']).toContain('firebase-tools@latest hosting:channel:deploy preview --project production');
+		expect(packageConfig.scripts['web:deploy']).toContain('EXPO_PUBLIC_APP_ENV=production EXPO_PUBLIC_FIREBASE_TARGET=production EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN=');
+		expect(packageConfig.scripts['web:deploy:preview']).toContain('EXPO_PUBLIC_APP_ENV=preview EXPO_PUBLIC_FIREBASE_TARGET=production EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN=');
 	});
 });

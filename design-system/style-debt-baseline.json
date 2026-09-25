@@ -748,5 +748,11 @@
     "rawHexLiterals": 1,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 0
+  },
+  "components/uiverse/banks/bank-movements-daily-area-chart.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
   }
 }

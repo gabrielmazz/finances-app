@@ -78,6 +78,7 @@ import {
 
 import Navigator from '@/components/uiverse/navigation/navigator';
 import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankMovementsDailyAreaChart from '@/components/uiverse/banks/bank-movements-daily-area-chart';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { auth } from '@/FirebaseConfig';
@@ -1054,6 +1055,8 @@ export default function BankMovementsScreen() {
 		[bankOptions, selectedBankId],
 	);
 	const activeBankId = selectedBankId;
+	const canUseMovementFilters = isCashView || Boolean(activeBankId);
+	const isMovementFilterDisabled = !canUseMovementFilters || isLoading;
 	const bankName = isCashView
 		? 'Transações em dinheiro'
 		: selectedBankOption?.name ?? routeBankName;
@@ -1404,13 +1407,20 @@ export default function BankMovementsScreen() {
 		[tagMetadataById],
 	);
 
-	const handleDateSelect = React.useCallback((formatted: string, type: 'start' | 'end') => {
-		if (type === 'start') {
-			setStartDateInput(formatted);
-		} else {
-			setEndDateInput(formatted);
-		}
-	}, []);
+	const handleDateSelect = React.useCallback(
+		(formatted: string, type: 'start' | 'end') => {
+			if (isMovementFilterDisabled) {
+				return;
+			}
+
+			if (type === 'start') {
+				setStartDateInput(formatted);
+			} else {
+				setEndDateInput(formatted);
+			}
+		},
+		[isMovementFilterDisabled],
+	);
 
 	const fetchMovements = React.useCallback(async (asRefresh = false) => {
 		if (!activeBankId && !isCashView) {
@@ -2008,12 +2018,16 @@ export default function BankMovementsScreen() {
 	);
 	const handleTagInputChange = React.useCallback(
 		(values: string[]) => {
+			if (isMovementFilterDisabled) {
+				return;
+			}
+
 			const nextTagIds = values
 				.map(resolveTagFilterId)
 				.filter((tagId): tagId is string => tagId !== null);
 			setSelectedTagFilterIds(nextTagIds);
 		},
-		[resolveTagFilterId],
+		[isMovementFilterDisabled, resolveTagFilterId],
 	);
 
 	const visibleMovements = React.useMemo(() => {
@@ -2026,6 +2040,80 @@ export default function BankMovementsScreen() {
 			movement => typeof movement.tagId === 'string' && selectedTagIds.has(movement.tagId),
 		);
 	}, [movementsMatchingMovementFilter, selectedTagFilterIds]);
+
+	const dailyMovementChartData = React.useMemo(() => {
+		// Mantém os mesmos filtros de categoria, centavos e exclusões do resumo (ver [[Gerenciamento de Bancos]]).
+		const periodStart = parseDateFromBR(startDateInput);
+		const periodEnd = parseDateFromBR(endDateInput);
+		if (!periodStart || !periodEnd) {
+			return [];
+		}
+
+		const startTimestamp = Date.UTC(
+			periodStart.getFullYear(),
+			periodStart.getMonth(),
+			periodStart.getDate(),
+		);
+		const endTimestamp = Date.UTC(
+			periodEnd.getFullYear(),
+			periodEnd.getMonth(),
+			periodEnd.getDate(),
+		);
+		const dayCount = Math.floor((endTimestamp - startTimestamp) / 86_400_000) + 1;
+		if (dayCount <= 0) {
+			return [];
+		}
+
+		const dailyTotals = new Map<string, { gainsInCents: number; expensesInCents: number }>();
+		for (const movement of visibleMovements) {
+			if (
+				!movement.date ||
+				!shouldIncludeMovementInGainExpenseTotals(movement) ||
+				(movement.type !== 'gain' && movement.type !== 'expense') ||
+				!Number.isSafeInteger(movement.valueInCents)
+			) {
+				continue;
+			}
+
+			const movementDateKey = [
+				movement.date.getFullYear(),
+				String(movement.date.getMonth() + 1).padStart(2, '0'),
+				String(movement.date.getDate()).padStart(2, '0'),
+			].join('-');
+			const totals = dailyTotals.get(movementDateKey) ?? { gainsInCents: 0, expensesInCents: 0 };
+			if (movement.type === 'gain') {
+				totals.gainsInCents += movement.valueInCents;
+			} else {
+				totals.expensesInCents += movement.valueInCents;
+			}
+			dailyTotals.set(movementDateKey, totals);
+		}
+
+		const isSingleMonth =
+			periodStart.getFullYear() === periodEnd.getFullYear() &&
+			periodStart.getMonth() === periodEnd.getMonth();
+		const isSingleYear = periodStart.getFullYear() === periodEnd.getFullYear();
+
+		return Array.from({ length: dayCount }, (_, index) => {
+			const date = new Date(startTimestamp + index * 86_400_000);
+			const year = date.getUTCFullYear();
+			const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+			const day = String(date.getUTCDate()).padStart(2, '0');
+			const dateKey = `${year}-${month}-${day}`;
+			const totals = dailyTotals.get(dateKey);
+			const label = isSingleMonth
+				? day
+				: isSingleYear
+					? `${day}/${month}`
+					: `${day}/${month}/${String(year).slice(-2)}`;
+
+			return {
+				day: label,
+				gainsInCents: totals?.gainsInCents ?? 0,
+				expensesInCents: totals?.expensesInCents ?? 0,
+			};
+		});
+	}, [endDateInput, startDateInput, visibleMovements]);
 
 	React.useEffect(() => {
 		const visibleIds = new Set(visibleMovements.map(movement => movement.id));
@@ -2141,7 +2229,7 @@ export default function BankMovementsScreen() {
 	}, [movementFilter, selectedTagFilterOptions, visibleMovements.length]);
 
 	const handleExportPeriodSummaryPdf = React.useCallback(async () => {
-		if (isExportingPdf || isLoading) {
+		if (isMovementFilterDisabled || isExportingPdf) {
 			return;
 		}
 
@@ -2328,7 +2416,7 @@ export default function BankMovementsScreen() {
 		getMovementTagLabel,
 		isCashView,
 		isExportingPdf,
-		isLoading,
+		isMovementFilterDisabled,
 		monthlyInitialBalanceInCents,
 		movementFilter,
 		movements.length,
@@ -2891,7 +2979,7 @@ export default function BankMovementsScreen() {
 														triggerHint="Selecione a conta que deseja consultar."
 														accessibilityLabel="Escolher banco para consultar movimentações"
 													/>
-												</VStack>
+							</VStack>
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
@@ -2902,7 +2990,7 @@ export default function BankMovementsScreen() {
 														triggerClassName={fieldContainerClassName}
 														inputClassName={inputField}
 														placeholder="Selecione a data inicial"
-														isDisabled={isLoading}
+														isDisabled={isMovementFilterDisabled}
 													/>
 												</VStack>
 
@@ -2914,7 +3002,7 @@ export default function BankMovementsScreen() {
 														triggerClassName={fieldContainerClassName}
 														inputClassName={inputField}
 														placeholder="Selecione a data final"
-														isDisabled={isLoading}
+														isDisabled={isMovementFilterDisabled}
 													/>
 												</VStack>
 											</HStack>
@@ -2927,6 +3015,10 @@ export default function BankMovementsScreen() {
 														<MantineTabs
 															value={movementFilter}
 															onChange={value => {
+																if (isMovementFilterDisabled) {
+																	return;
+																}
+
 																if (value === 'all' || value === 'gain' || value === 'expense') {
 																	setMovementFilter(value);
 																}
@@ -2946,7 +3038,7 @@ export default function BankMovementsScreen() {
 																		<MantineTabs.Tab
 																			key={option.value}
 																			value={option.value}
-																			disabled={isLoading}
+																			disabled={isMovementFilterDisabled}
 																			leftSection={
 																				<Icon
 																					as={option.icon}
@@ -2972,15 +3064,6 @@ export default function BankMovementsScreen() {
 											<VStack>
 												<HStack className="items-center justify-between gap-3">
 													<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Categorias</Text>
-													<Text className={`${helperText} text-xs`}>
-														{selectedTagFilterOptions.length === 1
-															? `${selectedTagFilterOptions[0].movementCount} item(ns)`
-															: selectedTagFilterOptions.length > 1
-																? `${selectedTagFilterOptions.length} categorias selecionadas`
-																: availableTagFilters.length === 0
-																	? 'Sem categorias neste filtro'
-																	: `${availableTagFilters.length} categoria(s)`}
-													</Text>
 												</HStack>
 
 												<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
@@ -2997,13 +3080,15 @@ export default function BankMovementsScreen() {
 														}}
 														filter={tagInputFilter}
 														maxDropdownHeight={240}
-														disabled={isLoading || availableTagFilters.length === 0}
+														disabled={isMovementFilterDisabled || availableTagFilters.length === 0}
 														placeholder={
-																	selectedTagFilterIds.length > 0
-																		? undefined
-																		: availableTagFilters.length > 0
-																			? 'Selecione alguma categoria'
-																			: 'Sem categorias disponíveis para este filtro'
+															!canUseMovementFilters
+																? 'Selecione um banco para filtrar categorias'
+																: selectedTagFilterIds.length > 0
+																	? undefined
+																: availableTagFilters.length > 0
+																	? 'Selecione alguma categoria'
+																	: 'Sem categorias disponíveis para este filtro'
 														}
 														classNames={MANTINE_TAGS_INPUT_CLASS_NAMES}
 														styles={tagInputStyles}
@@ -3187,7 +3272,7 @@ export default function BankMovementsScreen() {
 												void handleExportPeriodSummaryPdf();
 											}}
 											isDisabled={
-												isLoading ||
+												isMovementFilterDisabled ||
 												isExportingPdf ||
 												!parseDateFromBR(startDateInput) ||
 												!parseDateFromBR(endDateInput)
@@ -3203,7 +3288,7 @@ export default function BankMovementsScreen() {
 													<Icon
 														as={DownloadIcon}
 														size="sm"
-														className={isDarkMode ? 'text-slate-900' : 'text-white'}
+														className="text-white"
 													/>
 													<ButtonText>Baixar resumo em PDF</ButtonText>
 												</>
@@ -3211,6 +3296,29 @@ export default function BankMovementsScreen() {
 										</Button>
 									</VStack>
 
+
+									{(activeBankId || isCashView) &&
+									(isLoading || (!errorMessage && dailyMovementChartData.length > 0)) ? (
+										<VStack className="mb-4">
+											<VStack className="px-2 pb-1">
+												<Heading className={webDashboardClassNames.sectionHeadingText} size="lg">
+													Ganhos e despesas por dia
+												</Heading>
+											</VStack>
+
+											{isLoading ? (
+												<Text className={`${helperText} px-2 py-3`}>
+													Atualizando o gráfico do período...
+												</Text>
+											) : (
+												<BankMovementsDailyAreaChart
+													data={dailyMovementChartData}
+													isDarkMode={isDarkMode}
+													shouldHideValues={shouldHideValues}
+												/>
+											)}
+										</VStack>
+									) : null}
 
 									<VStack className="mb-4 mt-6">
 										<HStack className="items-start justify-between gap-3">
@@ -3304,10 +3412,7 @@ export default function BankMovementsScreen() {
 												<View
 													style={{
 														marginTop: 10,
-														borderRadius: 18,
-														borderWidth: 1,
-														borderColor: timelinePalette.cardBorder,
-														paddingHorizontal: 16,
+														paddingHorizontal: 8,
 														paddingVertical: 18,
 													}}
 												>

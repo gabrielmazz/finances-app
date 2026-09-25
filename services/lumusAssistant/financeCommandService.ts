@@ -1525,10 +1525,9 @@ export const financeCommandService: FinanceCommandService = {
 			if (error instanceof FinanceCommandError) {
 				return { success: false, message: error.message, errorCode: error.code };
 			}
-			console.error('[LumusAssistant] Falha ao executar comando financeiro:', error);
 			return {
 				success: false,
-				message: 'Não foi possível concluir esta operação. Nenhum commit parcial foi mantido.',
+				message: 'Não foi possível confirmar se a operação foi salva. Confira seus registros antes de tentar novamente.',
 				errorCode: 'transaction-failed',
 			};
 		}

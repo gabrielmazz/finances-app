@@ -433,16 +433,32 @@ export const prepareAssistantActions = async (
 	catalog?: AssistantResolvedCatalog,
 ): Promise<AssistantPrepareActionsResult> => {
 	const resolvedCatalog = catalog ?? (await loadAssistantResolvedCatalog(personId));
-	const usedIds = new Set<string>();
-	const allocatedProposals = proposals.slice(0, 20).map(proposal => {
-		let clientActionId = proposal.clientActionId?.trim() || createAssistantId('action');
-		while (usedIds.has(clientActionId)) {
-			clientActionId = createAssistantId('action');
+	// Model IDs are only local labels within one response. Reusing them across
+	// messages must never reuse a Firestore document ID. See [[Assistente Lumus]].
+	const inferredProposals = inferAssistantDependencyReferences(proposals.slice(0, 20));
+	const localIds = new Map<string, string>();
+	const allocatedProposals = inferredProposals.map(proposal => {
+		const clientActionId = createAssistantId('action');
+		if (proposal.clientActionId) {
+			localIds.set(proposal.clientActionId, clientActionId);
 		}
-		usedIds.add(clientActionId);
 		return { ...proposal, clientActionId };
 	});
-	const actions = inferAssistantDependencyReferences(allocatedProposals).map(proposal =>
+	const actions = allocatedProposals.map(proposal => ({
+		...proposal,
+		dependsOnActionIds: proposal.dependsOnActionIds?.flatMap(id => {
+			const localId = localIds.get(id);
+			return localId ? [localId] : [];
+		}),
+		payload: Object.fromEntries(Object.entries(proposal.payload).map(([key, value]) => {
+			const localId = typeof value === 'string' && value.startsWith('action:')
+				? localIds.get(value.slice(7))
+				: null;
+			return [key, typeof value === 'string' && value.startsWith('action:')
+				? (localId ? `action:${localId}` : undefined)
+				: value];
+		})),
+	})).map(proposal =>
 		enrichAssistantDraft(buildAssistantDraft(proposal), resolvedCatalog),
 	);
 	return { actions, catalog: resolvedCatalog };

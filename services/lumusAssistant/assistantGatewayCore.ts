@@ -225,21 +225,25 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 				while (response.functionCalls.length > 0 && toolCallCount < request.config.maxToolCalls) {
 					const functionResponses: Array<{ name: string; response: Record<string, unknown> }> = [];
 					for (const call of response.functionCalls) {
-						toolCallCount += 1;
-						if (toolCallCount > request.config.maxToolCalls) {
-							break;
+						if (toolCallCount >= request.config.maxToolCalls) {
+							functionResponses.push({
+								name: call.name,
+								response: { accepted: false, message: 'Limite de ferramentas atingido nesta resposta.' },
+							});
+							continue;
 						}
+						toolCallCount += 1;
 
 						if (call.name === 'prepare_financial_actions') {
-							const proposals = normalizeModelActionProposals(
-								call.args.actions,
-								request.config.maxActionsPerResponse - actions.length,
-							);
+							const remainingActions = request.config.maxActionsPerResponse - actions.length;
+							const proposals = remainingActions > 0
+								? normalizeModelActionProposals(call.args.actions, remainingActions)
+								: [];
 							actions = [...actions, ...proposals].slice(0, request.config.maxActionsPerResponse);
 							functionResponses.push({
 								name: call.name,
 								response: {
-									accepted: true,
+									accepted: proposals.length > 0,
 									draftCount: proposals.length,
 									message: 'Rascunhos preparados. A confirmação ocorrerá somente nos cartões do aplicativo.',
 								},

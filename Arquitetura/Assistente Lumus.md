@@ -38,7 +38,7 @@ graph TD
    Uma resposta digitada ou transcrita no compositor também preenche a pergunta aberta quando houver correspondência local inequívoca; isso não consome uma chamada de IA.
 7. Cada cartão passa por `ready → confirming → executing`. Só o botão **Confirmar agora** do próprio cartão permite a execução. Uma mensagem ou áudio dizendo “sim” nunca executa.
 8. Edições, exclusões e desfazimentos guardam fingerprint do documento. O serviço lê novamente o registro antes do commit e marca o cartão como `stale` quando os dados mudaram.
-9. IDs de documentos criados pelo assistente são derivados de `personId + clientActionId + operação`, reduzindo duplicação em toque duplo ou repetição após falha de rede.
+9. IDs de documentos criados pelo assistente são derivados de `personId + clientActionId + operação`. O `clientActionId` é gerado pelo aplicativo para cada novo cartão, nunca reutilizado diretamente do rótulo proposto pelo modelo; referências `action:` e dependências da mesma resposta são remapeadas juntas. Isso permite dois pedidos em mensagens diferentes com o mesmo rótulo do modelo e mantém a repetição segura da confirmação de um cartão.
 10. Notificações de recorrências são agendadas somente depois do commit financeiro. Falha local gera aviso sem reverter a escrita concluída.
    O aviso oferece nova tentativa que atua somente sobre a agenda local e nunca repete o commit financeiro.
 11. O comando local “Limpar conversa” é interceptado antes da IA e apaga imediatamente a sessão em memória sem revogar o consentimento.
@@ -91,11 +91,15 @@ Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do 
 - Entrada: 4.000 caracteres.
 - Resposta: no máximo 20 ações.
 - Loop de ferramentas: no máximo oito chamadas.
+- Se uma resposta do modelo trouxer mais chamadas que o limite, o aplicativo rejeita as excedentes e devolve uma resposta para cada chamada recebida antes de encerrar o ciclo. Ao atingir o limite de ações, novas propostas são rejeitadas sem informar falsamente que viraram rascunhos.
 - Contexto: resumo ativo e até 12 turnos recentes.
 - Ritmo local: no máximo 10 chamadas por minuto por UID autenticado.
 - Concorrência: uma chamada ativa por conversa.
 - Estados: `draft → needs_input → ready → confirming → executing → succeeded | failed | cancelled | stale`.
 - Erros de rede, App Check, autenticação, cota `429`, indisponibilidade `503` e resposta inválida viram mensagens sem detalhes internos e sem fallback pago. Somente um código Firebase que confirme token/sessão inválido, expirado, usuário desabilitado ou inexistente pede novo login; um `401`/`403` genérico, falha de App Check, integração nativa ou configuração pendente não é apresentado como sessão expirada.
+- Uma resposta `404` que identifique o modelo ou a configuração de AI Logic recebe diagnóstico próprio. A mensagem genérica de falha vem de `mapAssistantError()` no `catch` de `sendMessage()`; ela não identifica, por si, se a falha ocorreu na leitura do catálogo, na chamada do modelo ou na preparação do cartão. Sem status/código de uma execução real, a causa remota permanece indeterminada.
+- Após um commit confirmado, o cartão é marcado como concluído antes da atualização do catálogo e dos cartões dependentes. Se essa atualização falhar, a operação concluída permanece visível e surge um aviso; não se repete a escrita financeira automaticamente. Uma falha de transporte durante o commit tem resultado incerto e pede conferência dos registros antes de tentar novamente.
+- Respostas assíncronas de perguntas, edições, preparação de cartões e relatórios conferem a conta ativa antes de atualizar a sessão em memória. Conversas canceladas também conferem o sinal de aborto antes de publicar resultados; limpar a conversa ou trocar de usuário não restaura cartões de uma requisição antiga.
 
 ## Integração Firebase por plataforma
 
@@ -105,7 +109,7 @@ Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do 
 - `firebase/app-check` inicializado com `ReCaptchaEnterpriseProvider` antes da primeira chamada de IA.
 - A site key pública fica em `EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY`; ela não é uma chave Gemini.
 - No alvo Emulator, um app Firebase nomeado `LUMUS_ASSISTANT_DEVELOPMENT` usa os identificadores públicos do projeto remoto somente para AI Logic, App Check e Remote Config. O `app` primário e o `SECONDARY` continuam ligados ao Auth/Firestore/Functions locais.
-- Em localhost, o SDK ativa o App Check Debug, gera um token quando nenhum foi fornecido e mantém o assistente indisponível até conseguir emitir um token válido. O token deve ser cadastrado no Console e nunca versionado.
+- No alvo Emulator Web, o SDK ativa o App Check Debug inclusive no export local em modo production, gera um token quando nenhum foi fornecido e mantém o assistente indisponível até conseguir emitir um token válido. O token deve ser cadastrado no Console e nunca versionado; os scripts de deploy Web limpam esse token antes do export remoto.
 
 ### Android
 
@@ -127,9 +131,10 @@ Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do 
 | `lumus_ai_max_tool_calls` | `8` | 1–8 |
 | `lumus_ai_max_requests_per_minute` | `10` | 1–10 |
 
-Falha ao buscar Remote Config usa padrões seguros locais. No plano Spark não existe fallback pago: cota esgotada interrompe somente o assistente.
+Falha ao buscar ou inicializar Remote Config usa padrões seguros locais. Um valor de kill switch já ativado continua prevalecendo quando o fetch falha. No plano Spark não existe fallback pago: cota esgotada interrompe somente o assistente.
 
 O arquivo `remote_config.json` foi publicado em 2026-09-21 como versão 1 no projeto `finances-app-e8685`. O mesmo modelo está no fallback Web/Android. A configuração de geração mantém somente `maxOutputTokens` (e `responseMimeType` na transcrição), pois os parâmetros amostrais antigos foram removidos para compatibilidade com Gemini 3.x.
+Esse registro de publicação é histórico; o template versionado e um export Web não comprovam o valor remoto ativado nem o resultado de App Check em um dispositivo. A lista oficial consultada em 2026-09-24 confirma `gemini-3.8-flash` para chamadas de função e análise de áudio.
 
 ## Consentimento e proteção de dados
 
@@ -177,6 +182,8 @@ O arquivo `remote_config.json` foi publicado em 2026-09-21 como versão 1 no pro
 
 - `tests/lumusAssistant.test.ts` cobre centavos, datas fixas em São Paulo, Zod, campos ausentes, dependências, handles por sessão, estados, privacidade, limites, erros — incluindo a diferença entre sessão realmente inválida e App Check/configuração — e o cenário de 18/19 de julho de 2026.
 - `tests/lumusAssistantGateway.test.ts` cobre limites do Remote Config, validação/fallback de modelos, resumo ativo + 12 turnos, 20 ações, chamada exclusiva, cota por UID, ponte de token Auth, seleção Debug/Play Integrity e narrativa sanitizada.
+- `tests/lumusAssistantPreparation.test.ts` cobre IDs locais distintos entre mensagens, remapeamento de dependências e referência desconhecida convertida em pergunta.
+- `tests/lumusAssistantCommand.test.ts` usa Firestore isolado em memória para comprovar que confirmar o mesmo cartão duas vezes escreve uma vez e que um pedido posterior com o mesmo rótulo do modelo escreve um segundo documento.
 - `tests/lumusAssistantWebPlatform.test.ts` cobre App Check ausente/configurado, autenticação obrigatória, Remote Config carregado ou indisponível, modelo legado, ordem App Check→AI, resposta válida e function calling devolvido apenas como rascunho.
 - O mesmo teste Web cobre o app dedicado da ponte híbrida e confirma que a instância de AI Logic usa `finances-app-e8685` enquanto a configuração financeira principal permanece fora desse adaptador.
 - `tests/lumusAssistantNativePlatform.test.ts` garante que o Expo Go não avalie `RNFBAppModule` durante o bootstrap e bloqueie chamadas da IA antes do carregamento nativo.

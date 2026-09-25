@@ -10,6 +10,7 @@ export type AssistantFriendlyErrorCode =
 	| 'unsupported'
 	| 'permission'
 	| 'configuration'
+	| 'model'
 	| 'unknown';
 
 export class AssistantFriendlyError extends Error {
@@ -132,6 +133,14 @@ export const mapAssistantError = (error: unknown): AssistantFriendlyError => {
 	}
 	if (isExplicitAuthenticationFailure(details)) {
 		return new AssistantFriendlyError('authentication', 'Sua sessão precisa ser renovada. Entre novamente para usar o Lumus IA.');
+	}
+	if (status === 404 || /\b404\b/.test(text)) {
+		if (text.includes('genai config') || text.includes('firebase ai logic config')) {
+			return new AssistantFriendlyError('configuration', 'O serviço do Lumus IA ainda não está configurado. Tente novamente mais tarde.');
+		}
+		if (/\bmodel\b|models\//.test(text)) {
+			return new AssistantFriendlyError('model', 'O modelo do Lumus IA está indisponível. Tente novamente mais tarde.', true);
+		}
 	}
 	if (
 		CONFIGURATION_ERROR_CODES.has(code)

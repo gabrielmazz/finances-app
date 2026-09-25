@@ -3,7 +3,7 @@ tags: [web, expo, firebase-hosting, responsivo, arquitetura, relatorios]
 relacionado: [[Navegação]], [[Organização do Código]], [[Firebase Config]], [[Notificações]], [[Componentes UI]], [[Assistente Lumus]], [[Autenticação]]
 status: ativo
 tipo: arquitetura
-versao: 1.8.5
+versao: 1.8.6
 ---
 
 # Versão Web
@@ -13,6 +13,10 @@ O Lumus Finanças é uma aplicação universal Expo: Android e navegador compart
 Na carteira Web, os oito modais operacionais usam `Modal size="md"` e largura responsiva de até 510px; o navegador não aplica o limite compacto de 360px usado pela variante mobile.
 
 No extrato bancário Web, a consulta acompanha a escolha do banco e do período. As tabs de tipo não projetam sombra sob a seleção e mostram ícone e texto brancos; o campo de categorias usa placeholder `#505D74` à esquerda e centralizado verticalmente, com recuo interno; as opções do menu são amarelas (`#FACC15`) com conteúdo branco. Os textos de filtro, detalhe e PDF apresentam “categoria”, embora o identificador persistido continue `tagId`. Ver [[Gerenciamento de Bancos]] e [[Auditoria de Design]].
+
+Quando o extrato abre sem um banco selecionado, os campos de data, as tabs de tipo, o filtro de categorias e a exportação PDF ficam desativados até escolher um banco; o seletor de banco continua habilitado. A rota dedicada de Caixa já informa a conta e mantém esses controles disponíveis.
+
+Acima da timeline, `BankMovementsScreen.web.tsx` exibe `BankMovementsDailyAreaChart`, um `AreaChart` Mantine isolado em Expo DOM. Ele soma ganhos e despesas por dia no intervalo selecionado, mantém dias sem lançamentos em zero e acompanha os filtros ativos; a privacidade usa séries neutras e desativa tooltip/eixo numérico. A composição Android/iOS permanece sem o gráfico. Ver [[Gerenciamento de Bancos]] e [[Privacidade de Valores]].
 
 ## Como funciona
 
@@ -109,7 +113,7 @@ npm run web:deploy:preview
 npm run web:deploy
 ```
 
-`web:deploy` altera o Hosting remoto e só deve ser executado após revisar a versão de preview. Nenhuma chave secreta pode ser adicionada às variáveis `EXPO_PUBLIC_*`.
+`web:deploy:preview` e `web:deploy` forçam `APP_ENV`/`FIREBASE_TARGET` remotos e limpam `EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN` antes do export, mesmo quando o `.env` local aponta ao Emulator. `web:deploy` altera o Hosting remoto e só deve ser executado após revisar a versão de preview. Nenhuma chave secreta pode ser adicionada às variáveis `EXPO_PUBLIC_*`.
 
 ## Observações importantes
 
