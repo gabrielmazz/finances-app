@@ -108,6 +108,28 @@ describe('Lumus Assistant AI gateway', () => {
 		expect(result.text).toBe('Rascunhos preparados.');
 	});
 
+	it('responds to every function call when a model turn exceeds the tool limit', async () => {
+		const calls = Array.from({ length: 9 }, (_, index) => ({
+			name: 'request_financial_report',
+			args: { kind: 'monthly_overview', period: `2026-${String(index + 1).padStart(2, '0')}` },
+		}));
+		let returnedResponses: Array<{ name: string; response: Record<string, unknown> }> = [];
+		const adapter = createAdapter();
+		adapter.createChat = async () => ({
+			sendText: async () => ({ text: '', functionCalls: calls }),
+			sendFunctionResponses: async responses => {
+				returnedResponses = responses;
+				return { text: 'Relatórios recebidos.', functionCalls: [] };
+			},
+		});
+
+		const result = await createAssistantAiGateway(adapter).converse(request());
+
+		expect(result.toolCallCount).toBe(8);
+		expect(returnedResponses).toHaveLength(9);
+		expect(returnedResponses[8]?.response).toMatchObject({ accepted: false });
+	});
+
 	it('allows only one active request for the conversation', async () => {
 		let resolveFirst!: (response: AssistantPlatformResponse) => void;
 		const firstResponse = new Promise<AssistantPlatformResponse>(resolve => {

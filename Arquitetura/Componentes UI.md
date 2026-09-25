@@ -3,7 +3,7 @@ tags: [componentes, ui, gluestack, nativewind, design-system, web, responsivo]
 relacionado: [[Sistema de Temas]], [[Assistente Lumus]], [[Anotações Locais]], [[Hooks Customizados]], [[Notificações]], [[Previsão de Fluxo de Caixa]], [[Análise por Categoria]], [[Monitoramento de Investimentos]], [[Navegação]], [[Versão Web]], [[Organização do Código]], [[Componentes por Sistema]]
 status: ativo
 tipo: componente
-versao: 2.5.0
+versao: 2.5.1
 ---
 
 # Componentes UI
@@ -31,7 +31,7 @@ Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira del
 | `uiverse/navigation/` | Navegação e shell Web | `navigator`, `web-app-shell`, `web-route-transition`, `web-screen-hero` |
 | `uiverse/shared/` | Infraestrutura compartilhada | `loader`, `screen-dismiss-keyboard`, `date-picker` |
 | `uiverse/feedback/` | Feedback in-app | `notifier-alert`, `notifier-boundary` |
-| `uiverse/banks/` e `shared/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` compartilhado |
+| `uiverse/banks/` e `shared/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` compartilhado, gráfico de área diária do extrato Web |
 | `uiverse/categories/` | Categorias e disponibilidade | `tag-actionsheet-selector`, `category-availability-selector` |
 | `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart`, `mandatory-expenses-radar-chart`, `mandatory-expenses-scatter-chart` |
 | `uiverse/dashboard/` | Dashboard Home | gráficos de resumo e atividade da Home |
@@ -106,6 +106,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `home-expense-line-chart.tsx` | Expo DOM Component que encapsula `LineChart` de Mantine para os gastos diários dos últimos três meses, com dados serializáveis, fundo transparente e tooltip/eixos protegidos pela privacidade |
 | `home-activity-heatmap.tsx` | Expo DOM Component que encapsula `Heatmap` Mantine para as contagens diárias de lançamentos financeiros no ano atual, com meses, dias da semana e tooltip em português |
 | `investment-evolution-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine/Recharts para comparar capital líquido e patrimônio estimado somente pelas linhas, com pontos, grade e eixos no padrão visual do gráfico de previsão, fundo transparente, sem contorno de foco e rolagem horizontal para séries longas |
+| `bank-movements-daily-area-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine para comparar ganhos e despesas por dia no extrato Web; recebe dados serializáveis filtrados, usa cores de tema e neutraliza séries, eixo e tooltip quando os valores estão ocultos |
 | `components/mobile/recurring/date-calendar.native.tsx` / `components/web/recurring/date-calendar.web.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para mostrar valor previsto/real, `reminderSummary` para a configuração versionada do lembrete e `modalSize` para a largura responsiva do resumo diário Web |
 | `components/mobile/feedback/notifier-alert.native.tsx` / `components/web/feedback/notifier-alert.web.tsx` | Canal único de feedback in-app; Android/iOS usam `react-native-notifier` e o Web usa `Alert` do Mantine fixo no canto superior direito via portal no `document.body`, com entrada horizontal por `AnimatedContent` |
 | `components/mobile/navigation/web-screen-hero.native.tsx` / `components/web/navigation/web-screen-hero.web.tsx` | Cabeçalho das telas: o nativo usa Gluestack e a Web usa wallpaper, Grainient, StrokeText e animação DOM sem alterar o contrato da tela |

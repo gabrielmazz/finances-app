@@ -99,7 +99,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - `FirebaseConfig.ts` — Inicialização e exports Android/iOS
 - `FirebaseConfig.web.ts` — Inicialização Web com Auth em memória para os dois apps
 - `utils/firebaseAuthStorage.ts` — Persistência dual SecureStore/AsyncStorage (usado pelo app secundário)
-- `firebase.json` e `.firebaserc` — Configuração do Firebase Hosting e projeto padrão `finances-app-e8685`
+- `firebase.json` e `.firebaserc` — Configuração do Firebase Hosting e aliases do projeto demo (padrão) e do projeto remoto (`production`)
 - `types/firebase-auth.d.ts` — Type declarations Firebase
 
 ## Integrações
@@ -121,19 +121,20 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - App Check Android usa provider `debug` em development/preview e Play Integrity em produção.
 - Enforcement deve ser ativado para Firebase AI Logic. Não ativar para Firestore nesta etapa porque o cliente Android financeiro continua no SDK JS.
 - Antes de liberar a disponibilidade do Lumus IA no Android, o adaptador inicializa o App Check e solicita um token string não vazio. Falha nesse preflight deixa somente o assistente indisponível como erro de App Check/configuração; não invalida nem pede novo login para a sessão financeira do Firebase JS. `refreshAvailability()` força nova resolução de Remote Config e repete o preflight sob ação explícita do usuário.
-- Remote Config controla kill switch, modelo e limites descritos em [[Assistente Lumus]]. Falha de fetch usa padrões locais limitados.
-- O template `remote_config.json` está ligado a `firebase.json` e foi publicado em 2026-09-21 como versão remota 1 no projeto `finances-app-e8685`. A versão usa `gemini-3.8-flash`, limites 12/20/8/10 e os mesmos padrões locais do cliente; `gemini-3.5-flash`, variantes preview/experimental/`-latest` e modelos multimodais não são aceitos como fallback conversacional.
+- Remote Config controla kill switch, modelo e limites descritos em [[Assistente Lumus]]. Falha de fetch ou de inicialização usa os padrões locais limitados; um valor já ativado continua válido quando apenas o fetch falha.
+- O template `remote_config.json` está ligado a `firebase.json` e foi publicado em 2026-09-21 como versão remota 1 no projeto `finances-app-e8685`. A versão usa `gemini-3.8-flash`, limites 12/20/8/10 e os mesmos padrões locais do cliente; modelos fora da lista validada, variantes preview/experimental/`-latest` e modelos dedicados à geração de imagem/áudio não são aceitos como fallback conversacional. O `gemini-3.8-flash` é multimodal e aceita áudio como entrada.
+- A versão remota 1 é uma evidência histórica de 2026-09-21. Esta auditoria não leu o template atualmente ativado no Console; conferir seu valor e a resposta HTTP/App Check em Web e Android continua necessário para diagnosticar falhas remotas atuais.
 - A Firebase CLI confirmou os apps `1:909478123750:web:bfe59f4e4d9682d20a4327` e `1:909478123750:android:abdf321566d172470a4327`. O `google-services.json` local também foi conferido contra o project ID e package Android e continua fora do Git.
 - O Console foi conferido em 2026-09-21: o projeto continua no plano Spark, a Gemini Developer API está ativa, Agent Platform não está ativada, Android usa Play Integrity, Web usa reCAPTCHA Enterprise e ambos aparecem como **Registrado (aplicado)** para AI Logic. O enforcement do Firestore permanece desativado/fora desta entrega. A lista de domínios autorizados do Authentication não carregou no Console e ainda precisa de verificação manual antes do smoke test Web.
 - A site key `EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY` é pública e serve somente ao reCAPTCHA Enterprise; não é chave Gemini.
 - Não existe Cloud Function nem processo permanente: o aplicativo chama o serviço somente sob ação do usuário.
-- App Check Debug continua enforced também no desenvolvimento. Se o SDK ainda não tiver um token cadastrado, a tela mantém o compositor bloqueado e **Tentar novamente** refaz o preflight após o cadastro no Console.
+- App Check Debug continua enforced também no desenvolvimento. O export local com alvo Emulator ativa o provider de debug mesmo com o bundler em modo production. Se o SDK ainda não tiver um token cadastrado, a tela mantém o compositor bloqueado e **Tentar novamente** refaz o preflight após o cadastro no Console.
 
 ## Web e Firebase Hosting
 
 - `app.json` declara `web.output: "single"` e `userInterfaceStyle: "automatic"`. O export `npx expo export --platform web` gera os artefatos estáticos em `dist/`.
 - `firebase.json` preserva Functions, Firestore e emuladores existentes e acrescenta Hosting com `public: "dist"`, URLs limpas e rewrite de qualquer rota para `/index.html`. Isso permite que o Expo Router e `Stack.Protected` recebam deep links, sem criar Expo API Routes ou backend novo.
-- `.firebaserc` aponta o CLI para `finances-app-e8685`. Os comandos do projeto são `npm run web:export`, `npm run web:serve`, `npm run web:deploy:preview` e `npm run web:deploy`; o último altera o Hosting remoto e deve ocorrer somente depois da revisão do preview.
+- `.firebaserc` mantém o projeto demo como padrão e o alias `production` para `finances-app-e8685`. `npm run web:export` e `web:serve` usam o alvo local escolhido no ambiente; `web:deploy:preview` e `web:deploy` forçam o alvo financeiro remoto e limpam o token App Check Debug antes de exportar. Nenhum deploy foi executado nesta auditoria.
 - Configuração manual no Firebase Console, antes do primeiro deploy: adicionar `finances-app-e8685.web.app`, `finances-app-e8685.firebaseapp.com` e todo domínio próprio futuro à lista de domínios autorizados do Firebase Authentication. Registrar esses mesmos hosts no provider reCAPTCHA Enterprise do App Check para que o [[Assistente Lumus]] Web funcione em HTTPS.
 - A chave `EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY` continua sendo pública por definição de cliente. Não incluir chave Gemini, segredo de servidor ou credencial administrativa no bundle Web.
 

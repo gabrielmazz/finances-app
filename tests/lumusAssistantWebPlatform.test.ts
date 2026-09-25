@@ -9,6 +9,7 @@ type WebMockOptions = {
 	authenticated?: boolean;
 	emulator?: boolean;
 	fetchFails?: boolean;
+	configInitFails?: boolean;
 	remoteValues?: Partial<RemoteValues>;
 	responses?: MockModelResponse[];
 	siteKey?: string;
@@ -96,7 +97,10 @@ const installWebMocks = (options: WebMockOptions = {}) => {
 		fetchAndActivate,
 		getBoolean: jest.fn((_instance, key: string) => Boolean(remoteValues[key] ?? remoteConfig.defaultConfig[key])),
 		getNumber: jest.fn((_instance, key: string) => Number(remoteValues[key] ?? remoteConfig.defaultConfig[key])),
-		getRemoteConfig: jest.fn(() => remoteConfig),
+		getRemoteConfig: jest.fn(() => {
+			if (options.configInitFails) throw new Error('Remote Config indisponível');
+			return remoteConfig;
+		}),
 		getString: jest.fn((_instance, key: string) => String(remoteValues[key] ?? remoteConfig.defaultConfig[key] ?? '')),
 		isSupported: jest.fn(async () => true),
 	}));
@@ -187,6 +191,16 @@ describe('Lumus Assistant web platform', () => {
 
 	it('uses safe local defaults when Remote Config cannot be refreshed', async () => {
 		const mocks = installWebMocks({ fetchFails: true });
+
+		await expect(mocks.assistantAiGateway.getAvailability()).resolves.toMatchObject({
+			available: true,
+			remoteConfigLoaded: false,
+			model: 'gemini-3.8-flash',
+		});
+	});
+
+	it('uses local defaults when Remote Config cannot initialize', async () => {
+		const mocks = installWebMocks({ configInitFails: true });
 
 		await expect(mocks.assistantAiGateway.getAvailability()).resolves.toMatchObject({
 			available: true,

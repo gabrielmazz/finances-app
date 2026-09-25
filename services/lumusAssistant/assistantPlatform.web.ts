@@ -99,7 +99,7 @@ const ensureWebAppCheck = (assistantApp: FirebaseApp) => {
 		throw new Error('Firebase App Check reCAPTCHA Enterprise não configurado.');
 	}
 	const debugToken = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN?.trim();
-	if (process.env.NODE_ENV === 'development' && (debugToken || isFirebaseEmulatorRuntime())) {
+	if (isFirebaseEmulatorRuntime() || (process.env.NODE_ENV === 'development' && debugToken)) {
 		(globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
 			debugToken && debugToken.toLocaleLowerCase('pt-BR') !== 'true' ? debugToken : true;
 	}
@@ -148,7 +148,7 @@ const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig
 			});
 		} catch {
 			remoteConfigLoaded = false;
-			return normalizeAssistantAiConfig({ enabled: false });
+			return normalizeAssistantAiConfig({});
 		}
 	})();
 	return configPromise;

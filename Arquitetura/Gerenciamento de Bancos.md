@@ -3,7 +3,7 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.4
+versao: 1.7.5
 ---
 
 # Gerenciamento de Bancos
@@ -34,6 +34,9 @@ graph TD
     BMS --> FT[Filtro tipo: ganhos/gastos/todos]
     BMS --> FTG[Filtro por tag contextual]
     DP --> LOAD[Carrega movimentos do período]
+    LOAD --> CHART[Gráfico de área diário Web]
+    FT --> CHART
+    FTG --> CHART
     LOAD --> RESUMO[Resumo filtrado do período]
     RESUMO --> PDF[Exportação PDF do resumo filtrado]
     LOAD --> LIST[Lista de movimentos]
@@ -47,7 +50,7 @@ graph TD
 2. Filtra por data via `DatePicker` customizado
 3. Permite refinar a listagem por tipo (`ganhos`, `gastos` ou `todos`) e por categoria, usando apenas as categorias presentes nas movimentações carregadas para aquele banco/período. O dado persistido continua usando `tagId`.
 4. O card colorido com banco/carteira, período, saldo e totais gerais foi removido das telas nativa e Web para reduzir informação redundante; o resumo filtrado do período continua visível, e os dados gerais permanecem no PDF exportado. Na tela nativa, os filtros continuam agrupados na superfície compartilhada; na Web, cada input mantém seu próprio contorno sem um card externo
-5. Um resumo separado do período exibe ganhos, despesas, saldo líquido e quantidade de movimentações de acordo com os filtros ativos
+5. Um resumo separado do período exibe ganhos, despesas, saldo líquido e quantidade de movimentações de acordo com os filtros ativos. Na Web, acima da timeline, um `AreaChart` Mantine agrega ganhos e despesas por dia no intervalo selecionado, inclui os dias sem lançamentos com valor zero e acompanha os filtros de tipo/categoria.
 6. O resumo filtrado permite baixar um PDF estilizado do período ativo, incluindo dados do banco/dinheiro, totais gerais, totais filtrados e a lista de movimentações visíveis
 7. A lista pode ser recarregada manualmente por pull-to-refresh, preservando o período, o banco/dinheiro e os filtros locais
 8. Cada movimento exibe: data, descrição, categoria com ícone (via `<TagIcon />`), valor (entrada/saída colorido); despesas obrigatórias usam a paleta visual vermelha de despesa também no ícone, linha, card expandido e valor monetário. Na Web, a timeline reaproveita o contrato `WEB_DASHBOARD_CLASS_NAMES`, o cabeçalho expansível, `AnimatedContent` e `Grainient` usados nas listas Web de despesas obrigatórias e investimentos; a tela nativa mantém sua composição própria.
@@ -77,7 +80,8 @@ graph TD
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
 - `hooks/useBankIcons.tsx` — Catálogo de ícones/monogramas para bancos brasileiros
 - `screens/mobile/BankMovementsScreen.tsx` — Listagem de movimentos por período
-- `screens/web/BankMovementsScreen.web.tsx` — Composição Web completa do extrato, com hero animado, seletor de banco e resoluções Web dos componentes compartilhados
+- `screens/web/BankMovementsScreen.web.tsx` — Composição Web completa do extrato, com hero animado, seletor de banco, gráfico diário e resoluções Web dos componentes compartilhados
+- `components/uiverse/banks/bank-movements-daily-area-chart.tsx` — `AreaChart` Mantine em Expo DOM para comparar ganhos e despesas por dia
 - `functions/BankFirebase.ts` — CRUD de bancos e busca de movimentos
 - `utils/monthlyBalance.ts` — `computeMonthlyBankBalances()` + filtros de movimentos
 - `app/mobile/add-register-bank.tsx` — Rota de cadastro
@@ -111,12 +115,13 @@ graph TD
 
 - Transferências entre bancos geram dois movimentos (débito em um, crédito em outro) — ambos do tipo especial para não duplicar totais
 - A busca de movimentos bancários reforça transferências por metadados de origem/destino para exibir a saída no banco remetente e a entrada no banco recebedor, mesmo quando um registro antigo não é retornado apenas pelo `bankId`
-- As duas composições de `BankMovementsScreen` aceitam o banco por parâmetro de rota, mas permitem escolher outra conta ativa no `bank-actionsheet-selector.tsx` ou selecionar uma ao entrar sem `bankId`; a escolha recarrega automaticamente o período e limpa apenas filtros/expansões locais. A visão de Caixa não mostra esse seletor. Na ausência de banco, a consulta aguarda a seleção sem exibir um card de erro.
+- As duas composições de `BankMovementsScreen` aceitam o banco por parâmetro de rota, mas permitem escolher outra conta ativa no `bank-actionsheet-selector.tsx` ou selecionar uma ao entrar sem `bankId`; a escolha recarrega automaticamente o período e limpa apenas filtros/expansões locais. A visão de Caixa não mostra esse seletor. Na ausência de banco, a consulta aguarda a seleção sem exibir um card de erro. Até selecionar um banco, os campos de data, filtros de tipo/categoria e a exportação PDF ficam desativados, enquanto o seletor permanece disponível. A rota dedicada de Caixa já fornece o contexto da conta e mantém esses controles habilitados.
 - Cores dos bancos são misturadas com gradiente em `bank-card-surface.tsx`
 - O catálogo de ícones usa monogramas estilizados, não imagens oficiais externas; bancos sem `iconKey` caem no ícone genérico com iniciais do nome
 - Seletores de banco em telas de criação devem usar `bank-actionsheet-selector.tsx`, não o `Select` padrão, para manter ícone, busca visual por instituição e consistência com o seletor de categorias
 - Cadastros de banco, saques, transferências e saldos mensais seguem [[Comportamento Pós-Registro]] para retorno/limpeza e mantêm uma trava síncrona de submit enquanto o Firestore responde, evitando registros duplicados por toques repetidos
 - O filtro de categorias é contextual: as opções exibidas dependem do tipo selecionado e das movimentações já carregadas no período; na Web, `TagsInput` do Mantine apresenta essas opções em um input pesquisável, permite múltiplas seleções, mantém o filtro por IDs e usa a altura base de 48px alinhada aos demais inputs Web. O label segue `fieldLabel`; o placeholder `#505D74` fica à esquerda, centralizado verticalmente e com recuo interno. Ele some ao selecionar uma categoria. As categorias selecionadas também ficam recuadas e centralizadas verticalmente, com nome e X brancos; o botão para limpar tudo mostra somente um X branco, sem fundo. O menu usa `#FACC15` com texto, contagens e ícones brancos. A variante nativa usa opções em rolagem horizontal.
+- O gráfico diário Web agrega apenas ganhos/despesas incluídos nos totais financeiros, em centavos, usando a data civil local do movimento. A série contém cada dia do período selecionado e aplica os mesmos filtros de tipo e categoria do resumo; transferências e movimentos de investimento são excluídos pela regra compartilhada. **Ocultar valores** substitui os pontos por valores neutros e desativa eixo numérico e tooltip. Android/iOS não exibem esse gráfico.
 - As opções de tipo selecionadas exibem ícone e texto brancos sobre `#FACC15`; a tab Web não tem sombra abaixo. No mobile, os três controles dividem igualmente toda a largura do card com um pequeno espaçamento horizontal entre eles.
 - Textos de uma linha da timeline e do seletor de banco Web usam `isTruncated` no `Text` Gluestack; `numberOfLines` permanece reservado aos elementos nativos que aceitam essa prop, evitando o warning React no DOM.
 - A consulta ocorre ao entrar na tela e ao mudar banco ou período; não há botão separado de busca. O resumo filtrado muda com os filtros locais e os totais gerais continuam disponíveis no PDF.

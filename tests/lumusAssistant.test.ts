@@ -24,6 +24,7 @@ import {
 	getActionValidation,
 } from '@/utils/lumusAssistantSchemas';
 import { ASSISTANT_ACTION_KINDS } from '@/types/lumusAssistant';
+import { ASSISTANT_FUNCTION_DECLARATIONS } from '@/services/lumusAssistant/assistantPrompt';
 
 describe('Lumus Assistant domain contracts', () => {
 	describe('money and dates', () => {
@@ -84,6 +85,16 @@ describe('Lumus Assistant domain contracts', () => {
 
 		it('has a schema for every supported assistant action', () => {
 			expect(Object.keys(assistantActionSchemas).sort()).toEqual([...ASSISTANT_ACTION_KINDS].sort());
+		});
+
+		it('declares every action payload field to the model', () => {
+			const declaredFields = ASSISTANT_FUNCTION_DECLARATIONS[0].parameters.properties.actions.items.properties.payload.properties;
+			for (const schema of Object.values(assistantActionSchemas)) {
+				const shape = (schema as { shape: Record<string, unknown> }).shape;
+				for (const field of Object.keys(shape)) {
+					expect(declaredFields).toHaveProperty(field);
+				}
+			}
 		});
 
 		it('rejects calendar-invalid ISO dates at the schema boundary', () => {
@@ -253,6 +264,8 @@ describe('Lumus Assistant domain contracts', () => {
 			[new Error('Firebase AppCheck rejected reCAPTCHA'), 'app-check'],
 			[{ code: 'ai/fetch-error', customErrorData: { status: 401 }, message: 'Unauthenticated request' }, 'configuration'],
 			[{ code: 'api-not-enabled', message: 'Firebase AI API is not enabled' }, 'configuration'],
+			[{ customErrorData: { status: 404 }, message: 'Model gemini-example not found' }, 'model'],
+			[{ customErrorData: { status: 404 }, message: 'Firebase AI Logic genai config not found' }, 'configuration'],
 			[{ code: 'auth/user-token-expired', message: 'Firebase Auth token expired' }, 'authentication'],
 			[Object.assign(new Error('Usuário não autenticado.'), { name: 'AssistantAuthenticationError' }), 'authentication'],
 			[new Error('network offline'), 'network'],

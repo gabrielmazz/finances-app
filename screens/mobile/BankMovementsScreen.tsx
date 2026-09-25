@@ -1025,6 +1025,8 @@ export default function BankMovementsScreen() {
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
+	const canUseMovementFilters = isCashView || Boolean(activeBankId);
+	const isMovementFilterDisabled = !canUseMovementFilters || isLoading;
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
@@ -1380,13 +1382,31 @@ export default function BankMovementsScreen() {
 		[tagMetadataById],
 	);
 
-	const handleDateSelect = React.useCallback((formatted: string, type: 'start' | 'end') => {
-		if (type === 'start') {
-			setStartDateInput(formatted);
-		} else {
-			setEndDateInput(formatted);
-		}
-	}, []);
+	const handleDateSelect = React.useCallback(
+		(formatted: string, type: 'start' | 'end') => {
+			if (isMovementFilterDisabled) {
+				return;
+			}
+
+			if (type === 'start') {
+				setStartDateInput(formatted);
+			} else {
+				setEndDateInput(formatted);
+			}
+		},
+		[isMovementFilterDisabled],
+	);
+
+	const handleMovementFilterSelect = React.useCallback(
+		(value: MovementFilter) => {
+			if (isMovementFilterDisabled) {
+				return;
+			}
+
+			setMovementFilter(value);
+		},
+		[isMovementFilterDisabled],
+	);
 
 	const handleSelectBank = React.useCallback((bank: BankActionsheetOption) => {
 		if (bank.id === activeBankId) {
@@ -2076,7 +2096,7 @@ export default function BankMovementsScreen() {
 	}, [movementFilter, selectedTagFilterOption, visibleMovements.length]);
 
 	const handleExportPeriodSummaryPdf = React.useCallback(async () => {
-		if (isExportingPdf || isLoading) {
+		if (isMovementFilterDisabled || isExportingPdf) {
 			return;
 		}
 
@@ -2263,7 +2283,7 @@ export default function BankMovementsScreen() {
 		getMovementTagLabel,
 		isCashView,
 		isExportingPdf,
-		isLoading,
+		isMovementFilterDisabled,
 		monthlyInitialBalanceInCents,
 		movementFilter,
 		movements.length,
@@ -2808,7 +2828,7 @@ export default function BankMovementsScreen() {
 														}
 														accessibilityLabel="Escolher banco para consultar movimentações"
 													/>
-												</VStack>
+							</VStack>
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
@@ -2819,7 +2839,7 @@ export default function BankMovementsScreen() {
 														triggerClassName={fieldContainerClassName}
 														inputClassName={inputField}
 														placeholder="Selecione a data inicial"
-														isDisabled={isLoading}
+														isDisabled={isMovementFilterDisabled}
 													/>
 												</VStack>
 
@@ -2831,7 +2851,7 @@ export default function BankMovementsScreen() {
 														triggerClassName={fieldContainerClassName}
 														inputClassName={inputField}
 														placeholder="Selecione a data final"
-														isDisabled={isLoading}
+														isDisabled={isMovementFilterDisabled}
 													/>
 												</VStack>
 											</HStack>
@@ -2852,11 +2872,11 @@ export default function BankMovementsScreen() {
 														return (
 															<TouchableOpacity
 																key={option.value}
-																onPress={() => setMovementFilter(option.value)}
-																disabled={isLoading}
+																onPress={() => handleMovementFilterSelect(option.value)}
+																disabled={isMovementFilterDisabled}
 																accessibilityRole="tab"
 																accessibilityLabel={option.label}
-																accessibilityState={{ selected: isSelected, disabled: isLoading }}
+																accessibilityState={{ selected: isSelected, disabled: isMovementFilterDisabled }}
 																activeOpacity={0.85}
 																style={{
 																	flex: 1,
@@ -2871,7 +2891,7 @@ export default function BankMovementsScreen() {
 																	backgroundColor: isSelected
 																		? movementFilterPalette.selectedBackground
 																		: movementFilterPalette.unselectedBackground,
-																	opacity: isLoading ? 0.45 : 1,
+																	opacity: isMovementFilterDisabled ? 0.45 : 1,
 																}}
 															>
 																<VStack className="items-center gap-1">
@@ -2932,11 +2952,15 @@ export default function BankMovementsScreen() {
 																	<TouchableOpacity
 																		key={option.id ?? 'all-categories'}
 																		activeOpacity={0.85}
-																		onPress={() => setSelectedTagFilterId(option.id)}
-																		disabled={isLoading}
+																		onPress={() => {
+																			if (!isMovementFilterDisabled) {
+																				setSelectedTagFilterId(option.id);
+																			}
+																		}}
+																		disabled={isMovementFilterDisabled}
 																		accessibilityRole="button"
 																		accessibilityLabel={`Filtrar por ${option.label}`}
-																		accessibilityState={{ selected: isSelected, disabled: isLoading }}
+																		accessibilityState={{ selected: isSelected, disabled: isMovementFilterDisabled }}
 																		style={{
 																			flexDirection: 'row',
 																			alignItems: 'center',
@@ -2951,7 +2975,7 @@ export default function BankMovementsScreen() {
 																			backgroundColor: isSelected
 																				? movementFilterPalette.selectedBackground
 																				: movementFilterPalette.unselectedBackground,
-																			opacity: isLoading ? 0.45 : 1,
+																			opacity: isMovementFilterDisabled ? 0.45 : 1,
 																		}}
 																	>
 																		{option.icon?.iconName ? (
@@ -3161,7 +3185,7 @@ export default function BankMovementsScreen() {
 											void handleExportPeriodSummaryPdf();
 										}}
 										isDisabled={
-											isLoading ||
+											isMovementFilterDisabled ||
 											isExportingPdf ||
 											!parseDateFromBR(startDateInput) ||
 											!parseDateFromBR(endDateInput)
@@ -3177,7 +3201,7 @@ export default function BankMovementsScreen() {
 												<Icon
 													as={DownloadIcon}
 													size="sm"
-													className={isDarkMode ? 'text-slate-900' : 'text-white'}
+													className="text-white"
 												/>
 												<ButtonText>Baixar resumo em PDF</ButtonText>
 											</>
@@ -3279,10 +3303,7 @@ export default function BankMovementsScreen() {
 											<View
 												style={{
 													marginTop: 10,
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: timelinePalette.cardBorder,
-													paddingHorizontal: 16,
+													paddingHorizontal: 8,
 													paddingVertical: 18,
 												}}
 											>
