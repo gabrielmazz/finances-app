@@ -98,6 +98,7 @@ import {
 } from '@/components/uiverse/banks/bank-card-surface';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
@@ -2808,7 +2809,7 @@ export default function BankMovementsScreen() {
 										<VStack className="gap-4">
 											{!isCashView ? (
 												<VStack className="mb-1">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco</Text>
+													<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 													<BankActionsheetSelector
 														options={bankOptions}
 														selectedId={activeBankId || null}
@@ -2833,7 +2834,7 @@ export default function BankMovementsScreen() {
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data inicial</Text>
+													<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data inicial</Text>
 													<DatePickerField
 														value={startDateInput}
 														onChange={formatted => handleDateSelect(formatted, 'start')}
@@ -2845,7 +2846,7 @@ export default function BankMovementsScreen() {
 												</VStack>
 
 												<VStack className="flex-1">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data final</Text>
+													<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data final</Text>
 													<DatePickerField
 														value={endDateInput}
 														onChange={formatted => handleDateSelect(formatted, 'end')}
@@ -2857,7 +2858,7 @@ export default function BankMovementsScreen() {
 												</VStack>
 											</HStack>
 											<VStack>
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Tipo de movimentação
 												</Text>
 											<HStack className="w-full gap-1">
@@ -2908,8 +2909,8 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack>
-												<HStack className="items-center justify-between gap-3">
-													<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categorias</Text>
+												<HStack className="mb-2 ml-1 items-center justify-between gap-3">
+													<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Categorias</Text>
 													<Text className={`${helperText} text-xs`}>
 														{selectedTagFilterOption
 															? `${selectedTagFilterOption.movementCount} item(ns)`
@@ -3814,7 +3815,7 @@ export default function BankMovementsScreen() {
 										</Text>
 										<VStack>
 											<VStack className="mb-4">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Nome do investimento
 												</Text>
 												<Input
@@ -3831,7 +3832,7 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack className="mb-4">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Valor inicial
 												</Text>
 												<Input
@@ -3849,7 +3850,7 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack className="mb-4">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													CDI (%)
 												</Text>
 												<Input
@@ -3869,7 +3870,7 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack className="mb-4">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Prazo de resgate
 												</Text>
 												<Select
@@ -3909,7 +3910,7 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack className="mb-4">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Banco
 												</Text>
 												<Select
@@ -3964,7 +3965,7 @@ export default function BankMovementsScreen() {
 											</VStack>
 
 											<VStack className="mb-1">
-												<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Descrição
 												</Text>
 												<Textarea

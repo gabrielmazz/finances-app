@@ -1,3 +1,4 @@
+import { buildCategoryAnalysisMonths, calculateCategoryAnalysisMetric, formatCategoryAnalysisDate, getDefaultCategoryAnalysisRange, type CategoryAnalysisRange } from '@/utils/categoryAnalysis';
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
@@ -31,6 +32,11 @@ export type CategoryAnalysisMonthBucket = {
 	key: string;
 	label: string;
 	isCurrentMonth: boolean;
+	daysInMonth: number;
+	firstDay: number;
+	lastDay: number;
+	isComparisonMonth: boolean;
+	dailyMovementsByDay: Record<string, { expenseInCents: number; gainInCents: number }>;
 	expenseInCents: number;
 	gainInCents: number;
 	expenseCount: number;
@@ -78,7 +84,10 @@ export type CategoryAnalysisReport = {
 	expense: CategoryAnalysisMetric;
 	gain: CategoryAnalysisMetric;
 	bankBreakdown: CategoryAnalysisBankBreakdown[];
-	recentMovements: CategoryAnalysisRecentMovement[];
+	movements: CategoryAnalysisRecentMovement[];
+	historyPeriodLabel: string;
+	comparisonLabel: string;
+	currentPeriodLabel: string;
 };
 
 export type CategoryAnalysisData = {
@@ -96,13 +105,7 @@ type BankMetadata = {
 	colorHex: string | null;
 };
 
-type MonthReference = {
-	key: string;
-	label: string;
-	startDate: Date;
-	endDate: Date;
-	isCurrentMonth: boolean;
-};
+type MonthReference = ReturnType<typeof buildCategoryAnalysisMonths>[number];
 
 type NormalizedMovement = {
 	id: string;
@@ -119,7 +122,6 @@ type NormalizedMovement = {
 };
 
 const CASH_ANALYSIS_ID = 'cash-transactions';
-const STABLE_DELTA_PERCENT_THRESHOLD = 5;
 
 const normalizeDate = (value: unknown): Date | null => {
 	if (!value) {
@@ -155,33 +157,6 @@ const toMonthKey = (date: Date) => {
 	const year = date.getFullYear();
 	const month = String(date.getMonth() + 1).padStart(2, '0');
 	return `${year}-${month}`;
-};
-
-const toMonthLabel = (date: Date) =>
-	new Intl.DateTimeFormat('pt-BR', {
-		month: 'short',
-		year: '2-digit',
-	}).format(date);
-
-const buildMonthReferences = (baselineMonthCount: number) => {
-	const safeBaselineCount = Math.max(1, Math.min(Math.trunc(baselineMonthCount), 12));
-	const now = new Date();
-	const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-	return Array.from({ length: safeBaselineCount + 1 }).map((_, index): MonthReference => {
-		const offset = index - safeBaselineCount;
-		const startDate = new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth() + offset, 1);
-		const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
-		const isCurrentMonth = offset === 0;
-
-		return {
-			key: toMonthKey(startDate),
-			label: toMonthLabel(startDate),
-			startDate,
-			endDate,
-			isCurrentMonth,
-		};
-	});
 };
 
 const normalizeTagIconFamily = (value: unknown): TagIconFamily | null => {
@@ -241,60 +216,16 @@ const createEmptyMonthBuckets = (monthReferences: MonthReference[]) =>
 		key: month.key,
 		label: month.label,
 		isCurrentMonth: month.isCurrentMonth,
+		daysInMonth: month.daysInMonth,
+		firstDay: month.startDate.getDate(),
+		lastDay: month.endDate.getDate(),
+		isComparisonMonth: month.isComparisonMonth,
+		dailyMovementsByDay: {},
 		expenseInCents: 0,
 		gainInCents: 0,
 		expenseCount: 0,
 		gainCount: 0,
 	}));
-
-const createMetric = (
-	months: CategoryAnalysisMonthBucket[],
-	type: CategoryAnalysisMovementType,
-	baselineMonthCount: number,
-): CategoryAnalysisMetric => {
-	const currentMonth = months.find(month => month.isCurrentMonth);
-	const historyMonths = months.filter(month => !month.isCurrentMonth);
-	const currentInCents = type === 'expense'
-		? currentMonth?.expenseInCents ?? 0
-		: currentMonth?.gainInCents ?? 0;
-	const currentCount = type === 'expense'
-		? currentMonth?.expenseCount ?? 0
-		: currentMonth?.gainCount ?? 0;
-	const historicalTotalInCents = historyMonths.reduce(
-		(accumulator, month) =>
-			accumulator + (type === 'expense' ? month.expenseInCents : month.gainInCents),
-		0,
-	);
-	const historicalCount = historyMonths.reduce(
-		(accumulator, month) => accumulator + (type === 'expense' ? month.expenseCount : month.gainCount),
-		0,
-	);
-	const historicalAverageInCents = Math.round(historicalTotalInCents / baselineMonthCount);
-	const deltaInCents = currentInCents - historicalAverageInCents;
-	const deltaPercent =
-		historicalAverageInCents > 0
-			? Number(((deltaInCents / historicalAverageInCents) * 100).toFixed(1))
-			: null;
-
-	let status: CategoryAnalysisStatus = 'no-history';
-	if (historicalAverageInCents > 0 && typeof deltaPercent === 'number') {
-		if (Math.abs(deltaPercent) <= STABLE_DELTA_PERCENT_THRESHOLD) {
-			status = 'stable';
-		} else {
-			status = deltaInCents > 0 ? 'above' : 'below';
-		}
-	}
-
-	return {
-		currentInCents,
-		historicalAverageInCents,
-		deltaInCents,
-		deltaPercent,
-		status,
-		currentCount,
-		historicalCount,
-	};
-};
 
 const normalizeMovement = ({
 	docId,
@@ -356,40 +287,46 @@ const normalizeMovement = ({
 
 export async function getCategoryAnalysisFirebase(
 	personId: string,
-	baselineMonthCount = 3,
+	history: number | CategoryAnalysisRange = 3,
 ): Promise<{ success: true; data: CategoryAnalysisData } | { success: false; error: unknown }> {
 	try {
 		if (!personId) {
 			return { success: false, error: 'Usuário não informado.' };
 		}
 
-		const allowedPersonIds = await buildAllowedPersonIds(personId);
-		const monthReferences = buildMonthReferences(baselineMonthCount);
-		const effectiveBaselineMonthCount = monthReferences.filter(month => !month.isCurrentMonth).length;
+		const now = new Date();
+		const range = typeof history === 'number' ? getDefaultCategoryAnalysisRange(now, history) : history;
+		const monthReferences = buildCategoryAnalysisMonths(range, now);
+		const effectiveBaselineMonthCount = monthReferences.filter(month => month.isComparisonMonth).length;
 		const monthKeys = new Set(monthReferences.map(month => month.key));
+		const referencesByKey = new Map(monthReferences.map(month => [month.key, month]));
+		const allowedPersonIds = await buildAllowedPersonIds(personId);
 		const periodStart = monthReferences[0].startDate;
-		const periodEnd = monthReferences[monthReferences.length - 1].endDate;
+		const currentReference = monthReferences[monthReferences.length - 1];
+		const historyEnd = monthReferences[monthReferences.length - 2].endDate;
+		const historyPeriodLabel = `${formatCategoryAnalysisDate(range.startDate)} a ${formatCategoryAnalysisDate(range.endDate)}`;
+		const currentPeriodLabel = `Parcial até ${formatCategoryAnalysisDate(now)}`;
+		const comparisonLabel = effectiveBaselineMonthCount
+			? `Média de ${effectiveBaselineMonthCount} ${effectiveBaselineMonthCount === 1 ? 'mês completo' : 'meses completos'}, do dia 1 ao dia ${now.getDate()} (ou ao último dia do mês).`
+			: 'O histórico selecionado não contém meses completos para comparação.';
 
 		const tagsQuery = query(collection(db, 'tags'), where('personId', 'in', allowedPersonIds));
 		const banksQuery = query(collection(db, 'banks'), where('personId', 'in', allowedPersonIds));
-		const expensesQuery = query(
-			collection(db, 'expenses'),
-			where('personId', 'in', allowedPersonIds),
-			where('date', '>=', Timestamp.fromDate(periodStart)),
-			where('date', '<=', Timestamp.fromDate(periodEnd)),
-		);
-		const gainsQuery = query(
-			collection(db, 'gains'),
-			where('personId', 'in', allowedPersonIds),
-			where('date', '>=', Timestamp.fromDate(periodStart)),
-			where('date', '<=', Timestamp.fromDate(periodEnd)),
-		);
-
-		const [tagsSnapshot, banksSnapshot, expensesSnapshot, gainsSnapshot] = await Promise.all([
-			getDocs(tagsQuery),
-			getDocs(banksQuery),
-			getDocs(expensesQuery),
-			getDocs(gainsQuery),
+		const loadMovements = async (collectionName: 'expenses' | 'gains') => {
+			// Consulta o histórico escolhido e o mês atual, sem ler os meses do intervalo entre eles.
+			const snapshots = await Promise.all([
+				{ start: periodStart, end: historyEnd },
+				{ start: currentReference.startDate, end: now },
+			].map(period => getDocs(query(
+				collection(db, collectionName),
+				where('personId', 'in', allowedPersonIds),
+				where('date', '>=', Timestamp.fromDate(period.start)),
+				where('date', '<=', Timestamp.fromDate(period.end)),
+			))));
+			return snapshots.flatMap(snapshot => snapshot.docs);
+		};
+		const [tagsSnapshot, banksSnapshot, expenseDocs, gainDocs] = await Promise.all([
+			getDocs(tagsQuery), getDocs(banksQuery), loadMovements('expenses'), loadMovements('gains'),
 		]);
 
 		const bankMetadataById = banksSnapshot.docs.reduce<Record<string, BankMetadata>>((acc, bankDoc) => {
@@ -431,7 +368,7 @@ export async function getCategoryAnalysisFirebase(
 
 		const tagIds = new Set(tags.map(tag => tag.id));
 		const movements = [
-			...expensesSnapshot.docs
+			...expenseDocs
 				.map(docSnap =>
 					normalizeMovement({
 						docId: docSnap.id,
@@ -441,7 +378,7 @@ export async function getCategoryAnalysisFirebase(
 						monthKeys,
 					}),
 				),
-			...gainsSnapshot.docs
+			...gainDocs
 				.map(docSnap =>
 					normalizeMovement({
 						docId: docSnap.id,
@@ -451,7 +388,11 @@ export async function getCategoryAnalysisFirebase(
 						monthKeys,
 					}),
 				),
-		].filter((movement): movement is NormalizedMovement => Boolean(movement && tagIds.has(movement.tagId)));
+		].filter((movement): movement is NormalizedMovement => {
+			if (!movement?.date || !tagIds.has(movement.tagId)) return false;
+			const reference = referencesByKey.get(movement.monthKey ?? '');
+			return Boolean(reference && movement.date >= reference.startDate && movement.date <= reference.endDate);
+		});
 
 		const movementsByTagId = movements.reduce<Record<string, NormalizedMovement[]>>((acc, movement) => {
 			if (!acc[movement.tagId]) {
@@ -490,6 +431,22 @@ export async function getCategoryAnalysisFirebase(
 					months[monthIndex].gainCount += 1;
 				}
 
+				if (movement.date) {
+					const dayKey = String(movement.date.getDate());
+					const dailyTotals = months[monthIndex].dailyMovementsByDay[dayKey] ?? {
+						expenseInCents: 0,
+						gainInCents: 0,
+					};
+
+					if (movement.type === 'expense') {
+						dailyTotals.expenseInCents += movement.valueInCents;
+					} else {
+						dailyTotals.gainInCents += movement.valueInCents;
+					}
+
+					months[monthIndex].dailyMovementsByDay[dayKey] = dailyTotals;
+				}
+
 				if (movement.monthKey !== currentMonthKey) {
 					return;
 				}
@@ -522,15 +479,15 @@ export async function getCategoryAnalysisFirebase(
 				currentMonthLabel,
 				baselineMonthCount: effectiveBaselineMonthCount,
 				months,
-				expense: createMetric(months, 'expense', effectiveBaselineMonthCount),
-				gain: createMetric(months, 'gain', effectiveBaselineMonthCount),
+				expense: calculateCategoryAnalysisMetric(months, tagMovements, 'expense', now.getDate()),
+				gain: calculateCategoryAnalysisMetric(months, tagMovements, 'gain', now.getDate()),
 				bankBreakdown: Object.values(currentBreakdownById).sort(
 					(left, right) =>
 						right.expenseInCents + right.gainInCents - (left.expenseInCents + left.gainInCents),
 				),
-				recentMovements: [...tagMovements]
+				historyPeriodLabel, comparisonLabel, currentPeriodLabel,
+				movements: [...tagMovements]
 					.sort((left, right) => (right.date?.getTime() ?? 0) - (left.date?.getTime() ?? 0))
-					.slice(0, 8)
 					.map(movement => ({
 						id: movement.id,
 						type: movement.type,
@@ -573,7 +530,7 @@ export async function getCategoryAnalysisFirebase(
 				reportsByTagId,
 				defaultTagId: sortedTags[0]?.id ?? null,
 				baselineMonthCount: effectiveBaselineMonthCount,
-				generatedAt: new Date(),
+				generatedAt: now,
 			},
 		};
 	} catch (error) {

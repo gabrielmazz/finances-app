@@ -112,6 +112,21 @@ export const LUMUS_ALERT_COLORS = {
 	text: '#FFFFFF',
 } as const;
 
+export const LUMUS_MONTH_SERIES_COLORS = {
+	light: [
+		LUMUS_ALERT_COLORS.info,
+		LUMUS_NAVIGATION_COLORS.light.accent,
+		LUMUS_RUNTIME_COLORS.light.expense,
+		LUMUS_RUNTIME_COLORS.light.income,
+	],
+	dark: [
+		LUMUS_ALERT_COLORS.info,
+		LUMUS_NAVIGATION_COLORS.dark.accent,
+		LUMUS_RUNTIME_COLORS.dark.expense,
+		LUMUS_RUNTIME_COLORS.dark.income,
+	],
+} as const;
+
 export const LUMUS_CLASS_NAMES = {
 	screen: 'flex-1 bg-slate-50 dark:bg-slate-950',
 	surface: 'border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
@@ -128,7 +143,7 @@ export const LUMUS_CLASS_NAMES = {
 	controlCompact:
 		'h-10 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:border web:border-slate-200 dark:web:border-slate-800',
 	textarea:
-		'h-24 rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:border web:border-slate-200 dark:web:border-slate-800 web:h-textarea',
+		'h-textarea rounded-control border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 web:border web:border-slate-200 dark:web:border-slate-800',
 	card: 'rounded-card border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	cardTinted:
 		'rounded-control border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/80',
@@ -152,6 +167,7 @@ export const LUMUS_CLASS_NAMES = {
 
 export const LUMUS_FORM_CLASS_NAMES = {
 	label: `mb-2 ml-1 text-xs font-bold uppercase tracking-label ${LUMUS_CLASS_NAMES.label}`,
+	inlineLabel: `text-xs font-bold uppercase tracking-label ${LUMUS_CLASS_NAMES.label}`,
 	input: `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.inputText} ${LUMUS_CLASS_NAMES.focusRing} px-3 web:h-control web:bg-transparent`,
 	textarea: `${LUMUS_CLASS_NAMES.textarea} ${LUMUS_CLASS_NAMES.inputText} ${LUMUS_CLASS_NAMES.focusRing}`,
 	helper: `mt-2 text-sm ${LUMUS_CLASS_NAMES.helper}`,

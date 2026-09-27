@@ -53,6 +53,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -101,7 +102,6 @@ export default function AddRegisterBankScreen() {
 		heroHeight,
 		infoCardStyle,
 		insets,
-		labelText,
 		switchRadioClassName,
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
@@ -426,7 +426,7 @@ export default function AddRegisterBankScreen() {
                         >
                             <VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
                                 <VStack className="mb-4">
-                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome do banco</Text>
+                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome do banco</Text>
                                     <Input className={fieldContainerClassName}>
                                         <InputField
                                             ref={bankNameInputRef as any}
@@ -440,7 +440,7 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <VStack className="mb-4">
-                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Ícone do banco</Text>
+                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Ícone do banco</Text>
                                     <Pressable
                                         onPress={() => setIsBankIconSheetOpen(true)}
                                         accessibilityRole="button"
@@ -472,7 +472,7 @@ export default function AddRegisterBankScreen() {
                                 </VStack>
 
                                 <VStack className="mb-4">
-                                    <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Cor do banco (Opcional)</Text>
+                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Cor do banco (Opcional)</Text>
                                     <Select
                                         selectedValue={selectedColor ?? undefined}
                                         onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}

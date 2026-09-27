@@ -9,6 +9,9 @@ module.exports = {
 		'^.+\\.(ts|tsx|js|jsx)$': 'babel-jest',
 	},
 	moduleNameMapper: {
+		'^.*components/uiverse/assistant/assistant-composer-frame$': '<rootDir>/tests/mocks/assistantComposerFrame.js',
+		'\\.(css)$': '<rootDir>/tests/mocks/styleMock.js',
+		'\\.(svg|png|jpe?g|gif|webp)$': '<rootDir>/tests/mocks/assetMock.js',
 		'^@/(.*)$': '<rootDir>/$1',
 	},
 	setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],

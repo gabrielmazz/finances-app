@@ -7,7 +7,7 @@ export const WEB_EXPENSE_CLASS_NAMES = {
 	fieldHalf: 'lg:w-[calc(50%-8px)]',
 	fieldFull: 'w-full',
 	fieldLabel: LUMUS_FORM_CLASS_NAMES.label,
-	fieldInlineLabel: `text-xs font-bold uppercase tracking-label ${LUMUS_CLASS_NAMES.label}`,
+	fieldInlineLabel: LUMUS_FORM_CLASS_NAMES.inlineLabel,
 	fieldInput: LUMUS_FORM_CLASS_NAMES.input,
 	fieldTextarea: LUMUS_FORM_CLASS_NAMES.textarea,
 	fieldCard: LUMUS_FORM_CLASS_NAMES.section,

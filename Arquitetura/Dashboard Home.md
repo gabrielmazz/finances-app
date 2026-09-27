@@ -10,7 +10,7 @@ versao: 1.5.3
 
 Tela principal do app após login. Exibe uma visão consolidada de todas as contas bancárias, resumo de entradas/saídas, linha do tempo de movimentos e portfólio de investimentos do usuário.
 
-Na composição Web, os títulos de seção — **Meus Bancos e Dinheiro**, **Investimentos**, **Gastos por dia**, **Atividade no ano**, **Próximos compromissos** e **Últimas Movimentações** — usam o contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText`, alinhado ao cabeçalho **Calendário de Vencimentos**.
+Nas composições Web e mobile, os títulos de seção — **Meus Bancos e Dinheiro**, **Investimentos**, **Gastos por dia**, **Atividade no ano**, **Próximos compromissos** e **Últimas Movimentações** — usam o contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText`, alinhado ao cabeçalho **Calendário de Vencimentos**. Os rótulos internos dos detalhes da timeline também usam `WEB_DASHBOARD_CLASS_NAMES.detailLabel` nas duas plataformas.
 
 ## Como funciona
 

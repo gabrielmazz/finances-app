@@ -41,6 +41,7 @@ import TransferIllustration from '../../assets/UnDraw/transferScreen.svg';
 
 import { Info } from 'lucide-react-native';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -568,8 +569,8 @@ export default function TransferScreen() {
 								<HStack className="w-full web:flex-wrap" space="md">
 
 									<VStack className="mb-4 flex-1 web:min-w-[280px]">
-										<HStack className="mb-1 ml-1 gap-2">
-											<Text className={`${bodyText} text-sm`}>Banco de Origem</Text>
+										<HStack className="mb-2 ml-1 items-center gap-2">
+											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Banco de Origem</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -632,7 +633,7 @@ export default function TransferScreen() {
 									</VStack>
 
 									<VStack className="mb-4 flex-1 web:min-w-[280px]">
-										<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de destino</Text>
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco de destino</Text>
 										<BankActionsheetSelector
 											options={targetBankOptions}
 											selectedId={selectedTargetBankId}
@@ -694,7 +695,7 @@ export default function TransferScreen() {
 
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Valor</Text>
 									<Input className={fieldContainerClassName} isDisabled={isTransferValueDisabled}>
 										<InputField
 											ref={transferValueInputRef as any}
@@ -711,7 +712,7 @@ export default function TransferScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da transferência</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da transferência</Text>
 									<DatePickerField
 										value={transferDate}
 										onChange={handleDateSelect}
@@ -723,7 +724,7 @@ export default function TransferScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Descrição (opcional)</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Descrição (opcional)</Text>
 									<Textarea
 										className={textareaContainerClassName}
 										isDisabled={isTransferDescriptionDisabled}

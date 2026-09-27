@@ -35,6 +35,7 @@ graph TD
 - [[Autenticação]] — Login, AuthContext, Firebase Auth, sessão memory-only
 - [[Segurança de Login]] — Throttling, armazenamento seguro de credenciais
 - [[Gerenciamento de Usuários]] — Cadastro e relacionamento entre usuários
+- [[Perfil do Usuário]] — Dados pessoais, edição do nome e acesso aos vínculos
 
 ### Financeiro
 - [[Assistente Lumus]] — Conversa por texto/voz, formulários financeiros dinâmicos e relatórios com Firebase AI Logic

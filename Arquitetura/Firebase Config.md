@@ -30,15 +30,16 @@ DB --> CF["backend/ (callable Functions do razão)"]
 - Expõe: `app`, `auth` (Firebase Auth) e `db` (Firestore)
 - **Persistência memory-only**: no nativo, `memoryOnlyAuthStorage`; no navegador, `inMemoryPersistence` do SDK Firebase — ao fechar o app, a aba ou ao recarregar, a sessão é encerrada
 - Isso é intencional: o usuário volta para a tela de login a cada abertura do app
-- Usado para autenticação da sessão atual e todas as operações Firestore
+- Usado para autenticação da sessão atual e operações Firestore, exceto a criação do perfil da nova conta
 
 ### App Secundário
 - Inicializado com `initializeApp(firebaseConfig, 'SECONDARY')`
-- Expõe: `secondaryApp` e `secondaryAuth`
+- Expõe: `secondaryApp`, `secondaryAuth` e `secondaryDb`
 - No Android/iOS, usa `firebaseAuthStorage.ts` — SecureStore com fallback AsyncStorage — para as credenciais temporárias do fluxo de cadastro
 - No navegador, `FirebaseConfig.web.ts` usa `inMemoryPersistence` também para o secundário; nenhuma conta criada deixa sessão em Local Storage, IndexedDB ou cookie
 - Usado exclusivamente em `RegisterUserFirebase.ts` para criar novas contas sem afetar a sessão ativa
-- Após criar o usuário, o app secundário é deslogado
+- O perfil `users/{uid}` é gravado por `secondaryDb` antes do logout; assim a gravação usa o UID secundário exigido pelas regras. Tanto `db` quanto `secondaryDb` conectam ao Firestore Emulator no alvo local.
+- Após criar o usuário e seu perfil, o app secundário é deslogado
 
 ### Estratégia de Persistência
 
@@ -88,6 +89,7 @@ export const auth: Auth;                 // Auth memory-only
 export const db: Firestore;              // Firestore principal
 export const secondaryApp: FirebaseApp;  // App secundário
 export const secondaryAuth: Auth;        // Auth secundário (SecureStore nativo / memória Web)
+export const secondaryDb: Firestore;     // Perfil da conta recém-criada, sob seu próprio UID
 export const firebaseFunctions: Functions; // Functions já conectado ao alvo resolvido
 ```
 
@@ -180,3 +182,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - A inicialização verifica `getApps()` para evitar dupla-inicialização (hot reload / dev)
 - `createPrimaryAuthInstance` e `createSecondaryAuthInstance` tratam o caso de auth já inicializado com `try/catch` → fallback para `getAuth()`; no Web, o equivalente usa `initializeAuth(..., { persistence: inMemoryPersistence })`
 - App Check continua obrigatório para Firebase AI Logic, mas o enforcement não é estendido ao Firestore nesta etapa. O domínio do Hosting precisa estar autorizado no Console para evitar falha de App Check no navegador.
+
+## Persistência do perfil pessoal
+
+[[Perfil do Usuário]] usa `functions/UserProfileFirebase.ts` para ler a própria conta e atualizar apenas `name` e `updatedAt` com timestamp do servidor em `users/{uid}`. O e-mail visível vem de Auth, sem alterar credenciais ou permissões. Documentos antigos não exigem migração e as regras existentes já permitem essa atualização própria; não há deploy Firebase adicional para a feature. `backend/tests/userProfile.rules.test.ts` verifica o contrato num projeto isolado do Emulator.

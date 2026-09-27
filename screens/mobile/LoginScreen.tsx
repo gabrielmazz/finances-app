@@ -1,3 +1,7 @@
+import { useAccountAccess, type AccountAccessMode } from '@/hooks/useAccountAccess';
+import { AUTH_CLASS_NAMES } from '@/design-system/auth';
+import { cn } from '@/lib/utils';
+import { BackHandler, Pressable, AccessibilityInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,7 +27,7 @@ import {
 } from '@/components/ui/form-control';
 import { AlertCircleIcon, EyeIcon, EyeOffIcon } from '@/components/ui/icon';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button, ButtonSpinner } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
 import { Text } from '@/components/ui/text';
@@ -47,13 +51,14 @@ import {
 	normalizeEmailForAuth,
 	registerFailedLoginAttempt,
 } from '@/utils/loginSecurity';
+import { LUMUS_FORM_CLASS_NAMES, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 // Canal padronizado de alertas in-app conforme [[Notificações]]
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
-type FocusableInputKey = 'email' | 'password';
+type FocusableInputKey = 'name' | 'email' | 'password';
 
 
 export default function LoginScreen() {
@@ -109,6 +114,29 @@ export default function LoginScreen() {
 
 	const emailInputRef = useRef<any>(null);
 	const passwordInputRef = useRef<any>(null);
+	const nameInputRef = useRef<any>(null);
+	const loginPending = useRef(false);
+	const access = useAccountAccess({
+		email, password, setPassword, setEmailError, setPasswordError,
+		focusField: field => (field === 'name' ? nameInputRef : field === 'email' ? emailInputRef : passwordInputRef).current?.focus(),
+	});
+	const isBusy = isSubmitting || access.isSubmitting;
+	const changeAccessMode = (mode: AccountAccessMode) => {
+		if (loginPending.current || isBusy) return;
+		setShowPassword(false);
+		access.changeMode(mode);
+	};
+	const accessTitle = access.mode === 'register' ? 'Crie sua conta' : access.mode === 'reset' ? 'Redefina sua senha' : 'Bem-vindo de volta';
+	const accessDescription = access.mode === 'register'
+		? 'Informe seu nome, email e uma senha para começar.'
+		: access.mode === 'reset'
+			? 'Informe seu email para receber um link e escolher uma nova senha.'
+			: 'Entre para acompanhar o que importa nas suas finanças.';
+	const submitAccess = () => {
+		if (access.mode === 'login') void signIn();
+		else void access.submit();
+	};
+	const submitLabel = access.mode === 'register' ? 'Criar conta' : access.mode === 'reset' ? (access.isResetSent ? 'Link solicitado' : 'Enviar link de recuperação') : 'Entrar';
 
 	const normalizedEmail = useMemo(() => normalizeEmailForAuth(email), [email]);
 	const loginCooldownRemainingMs = useMemo(
@@ -117,7 +145,7 @@ export default function LoginScreen() {
 	);
 	const isLocallyRateLimited = loginCooldownRemainingMs > 0;
 	const isLoginDisabled =
-		isSubmitting || isLocallyRateLimited || normalizedEmail.length === 0 || password.length === 0;
+		isBusy || access.isResetSent || (access.mode === 'login' && isLocallyRateLimited);
 
 	const keyboardScrollOffset = useCallback(
 		(key: FocusableInputKey) => (key === 'password' ? 180 : 140),
@@ -128,6 +156,8 @@ export default function LoginScreen() {
 
 	const getInputRef = useCallback((key: FocusableInputKey) => {
 		switch (key) {
+			case 'name':
+				return nameInputRef;
 			case 'email':
 				return emailInputRef;
 			case 'password':
@@ -201,33 +231,33 @@ export default function LoginScreen() {
 	}, [email, password]);
 
 	const signIn = useCallback(async () => {
-		if (isSubmitting) {
+		if (loginPending.current || access.mode !== 'login' || access.isSubmitting) {
 			return;
 		}
 
 		const { nextEmail, isValid } = validateCredentials();
 		if (!isValid) {
+			(!isEmailFormatValid(nextEmail) ? emailInputRef : passwordInputRef).current?.focus();
 			return;
 		}
 
-		const throttleStatus = await getLoginThrottleStatus(nextEmail);
-		if (throttleStatus.isBlocked) {
-			setLoginCooldownUntil(throttleStatus.blockedUntil);
-			showNotifierAlert({
-				description: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
-					throttleStatus.remainingMs
-				)}.`,
-				type: 'warn',
-				isDarkMode,
-			});
-			return;
-		}
-
-		Keyboard.dismiss();
-
+		loginPending.current = true;
 		setIsSubmitting(true);
-
 		try {
+			const throttleStatus = await getLoginThrottleStatus(nextEmail);
+			if (throttleStatus.isBlocked) {
+				setLoginCooldownUntil(throttleStatus.blockedUntil);
+				showNotifierAlert({
+					description: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
+						throttleStatus.remainingMs
+					)}.`,
+					type: 'warn',
+					isDarkMode,
+				});
+				return;
+			}
+
+			Keyboard.dismiss();
 			const userCredential = await signInWithEmailAndPassword(auth, nextEmail, password);
 			await clearFailedLoginAttempts(nextEmail);
 			setLoginCooldownUntil(null);
@@ -284,9 +314,10 @@ export default function LoginScreen() {
 				});
 			}
 		} finally {
+			loginPending.current = false;
 			setIsSubmitting(false);
 		}
-	}, [isSubmitting, isDarkMode, validateCredentials]);
+	}, [access.mode, access.isSubmitting, isDarkMode, validateCredentials]);
 
 	const handleRefresh = useCallback(async () => {
 		setIsRefreshing(true);
@@ -322,7 +353,20 @@ export default function LoginScreen() {
 		}
 	}, [clockTick, loginCooldownUntil]);
 
-	const derivedCooldownMessage = isLocallyRateLimited
+	useEffect(() => {
+		if (access.mode !== 'login') AccessibilityInfo.announceForAccessibility(accessTitle);
+	}, [access.mode]);
+
+	useEffect(() => {
+		const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+			if (access.mode === 'login') return false;
+			changeAccessMode('login');
+			return true;
+		});
+		return () => subscription.remove();
+	}, [access.mode, isBusy]);
+
+	const derivedCooldownMessage = access.mode === 'login' && isLocallyRateLimited
 		? `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
 				loginCooldownRemainingMs
 		  )}.`
@@ -386,95 +430,184 @@ export default function LoginScreen() {
 
 								<VStack className="self-center items-center gap-2 mb-12">
 									<Heading className={`${headingText} text-xl text-center`}>
-										Bem-vindo de volta ao Lumus Finances!
+										{accessTitle}
 									</Heading>
 
 									<Text className={`${bodyText} text-base text-center`}>
-										Faça login para acessar sua conta e gerenciar suas finanças.
+										{accessDescription}
 									</Text>
 								</VStack>
 
-								<FormControl className="mb-4">
+								{access.feedback ? (
+									<View accessibilityLiveRegion="polite" role={access.feedback.type === 'error' ? 'alert' : 'status'}>
+										<Text className={access.feedback.type === 'error' ? AUTH_CLASS_NAMES.feedbackError : AUTH_CLASS_NAMES.feedbackSuccess}>
+											{access.feedback.message}
+										</Text>
+									</View>
+								) : null}
+								{access.mode === 'register' ? (
+									<FormControl className="mb-4" isInvalid={Boolean(access.nameError)} isRequired>
+										<FormControlLabel>
+											<FormControlLabelText className={LUMUS_FORM_CLASS_NAMES.label}>Nome</FormControlLabelText>
+										</FormControlLabel>
+										<Input className={fieldContainerClassName}>
+											<InputField
+												ref={nameInputRef}
+												aria-label="Nome"
+												nativeID="auth-name"
+												accessibilityLabel="Nome"
+												placeholder="Seu nome"
+												autoComplete="name"
+												textContentType="name"
+												returnKeyType="next"
+												value={access.name}
+												maxLength={100}
+												editable={!isBusy}
+												className={inputField}
+												onChangeText={value => { access.setName(value); access.setNameError(null); }}
+												onFocus={() => handleInputFocus('name')}
+												onSubmitEditing={() => emailInputRef.current?.focus()}
+											/>
+										</Input>
+										{access.nameError ? (
+											<FormControlError><FormControlErrorText nativeID="auth-name-error">{access.nameError}</FormControlErrorText></FormControlError>
+										) : null}
+									</FormControl>
+								) : null}
+								<FormControl className="mb-4" isInvalid={Boolean(emailError)} isRequired>
 									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} mb-1 ml-1 text-sm`}>
+										<FormControlLabelText className={LUMUS_FORM_CLASS_NAMES.label}>
 											Email
 										</FormControlLabelText>
 									</FormControlLabel>
 									<Input className={fieldContainerClassName}>
 										<InputField
+											aria-label="Email"
+											nativeID="auth-email"
+											accessibilityLabel="Email"
 											ref={emailInputRef}
+											editable={!isBusy}
 											placeholder="Digite seu email"
 											keyboardType="email-address"
 											autoCapitalize="none"
 											autoCorrect={false}
 											autoComplete="email"
 											textContentType="emailAddress"
-											returnKeyType="next"
+											returnKeyType={access.mode === 'reset' ? 'send' : 'next'}
 											value={email}
 											onChangeText={handleEmailChange}
 											onFocus={() => handleInputFocus('email')}
-											onSubmitEditing={() => passwordInputRef.current?.focus()}
+											onSubmitEditing={() => access.mode === 'reset' ? submitAccess() : passwordInputRef.current?.focus()}
 											className={inputField}
 										/>
 									</Input>
 									{emailError ? (
 										<FormControlError>
 											<FormControlErrorIcon as={AlertCircleIcon} />
-											<FormControlErrorText>{emailError}</FormControlErrorText>
+											<FormControlErrorText nativeID="auth-email-error">{emailError}</FormControlErrorText>
 										</FormControlError>
 									) : null}
 								</FormControl>
 
-								<FormControl className="mb-6">
-									<FormControlLabel>
-										<FormControlLabelText className={`${bodyText} mb-1 ml-1 text-sm`}>
-											Senha
-										</FormControlLabelText>
-									</FormControlLabel>
-									<Input className={fieldContainerClassName}>
-										<InputField
-											ref={passwordInputRef}
-											placeholder="Digite sua senha"
-											value={password}
-											onChangeText={handlePasswordChange}
-											onFocus={() => handleInputFocus('password')}
-											onSubmitEditing={() => void signIn()}
-											autoCapitalize="none"
-											autoCorrect={false}
-											autoComplete="password"
-											textContentType="password"
-											returnKeyType="done"
-											secureTextEntry={!showPassword}
-											className={inputField}
-										/>
-										<InputSlot className="pr-3" onPress={handleTogglePasswordVisibility}>
-											<InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
-										</InputSlot>
-									</Input>
-									{passwordError ? (
-										<FormControlError>
-											<FormControlErrorIcon as={AlertCircleIcon} />
-											<FormControlErrorText>{passwordError}</FormControlErrorText>
-										</FormControlError>
-									) : null}
-								</FormControl>
+								{access.mode !== 'reset' ? (
+									<FormControl className="mb-6" isInvalid={Boolean(passwordError)} isRequired>
+										<FormControlLabel>
+											<FormControlLabelText className={LUMUS_FORM_CLASS_NAMES.label}>
+												Senha
+											</FormControlLabelText>
+										</FormControlLabel>
+										<Input className={fieldContainerClassName}>
+											<InputField
+												aria-label="Senha"
+												nativeID="auth-password"
+												accessibilityLabel="Senha"
+												ref={passwordInputRef}
+												editable={!isBusy}
+												placeholder="Digite sua senha"
+												value={password}
+												onChangeText={handlePasswordChange}
+												onFocus={() => handleInputFocus('password')}
+												onSubmitEditing={submitAccess}
+												autoCapitalize="none"
+												autoCorrect={false}
+												autoComplete={access.mode === 'register' ? 'new-password' : 'current-password'}
+												textContentType={access.mode === 'register' ? 'newPassword' : 'password'}
+												returnKeyType="done"
+												secureTextEntry={!showPassword}
+												className={inputField}
+											/>
+											<InputSlot accessibilityRole="button" accessibilityLabel={showPassword ? 'Ocultar senha' : 'Mostrar senha'} className="min-h-12 min-w-12 items-center justify-center" disabled={isBusy}
+												onPress={handleTogglePasswordVisibility}>
+												<InputIcon as={showPassword ? EyeIcon : EyeOffIcon} />
+											</InputSlot>
+										</Input>
+										{passwordError ? (
+											<FormControlError>
+												<FormControlErrorIcon as={AlertCircleIcon} />
+												<FormControlErrorText nativeID="auth-password-error">{passwordError}</FormControlErrorText>
+											</FormControlError>
+										) : null}
+										{access.mode === 'register' ? (
+											<FormControlHelper>
+												<FormControlHelperText>Use pelo menos 6 caracteres.</FormControlHelperText>
+											</FormControlHelper>
+										) : null}
+									</FormControl>
+								) : null}
 
 								<Button
-									className={submitButtonClassName}
-									onPress={() => void signIn()}
+									className={cn(submitButtonClassName, 'h-12')}
+									onPress={submitAccess}
 									disabled={isLoginDisabled}
+									accessibilityLabel={isBusy ? 'Enviando…' : submitLabel}
+									accessibilityState={{ busy: isBusy, disabled: isLoginDisabled }}
 									
 								>
-									{isSubmitting ? (
-										<ButtonSpinner color="#FFFFFF" />
+									{isBusy ? (
+										<ButtonSpinner color={LUMUS_RUNTIME_COLORS.light.onAccent} />
 									) : (
-										<ButtonText
-											className="text-center text-white"
+										<Text
+											className={AUTH_CLASS_NAMES.submitText}
 										>
-											Entrar
-										</ButtonText>
+											{submitLabel}
+										</Text>
 									)}
 								</Button>
+
+								<View className="mt-4 flex-row flex-wrap items-center justify-between gap-2">
+									{access.mode === 'login' ? (
+										<>
+											<Pressable
+												accessibilityRole="button"
+												disabled={isBusy}
+												accessibilityState={{ disabled: isBusy }}
+												className={cn(AUTH_CLASS_NAMES.modeActionNative, isBusy && 'opacity-50')}
+												onPress={() => changeAccessMode('register')}
+											>
+												<Text className={AUTH_CLASS_NAMES.modeActionText}>Criar conta</Text>
+											</Pressable>
+											<Pressable
+												accessibilityRole="button"
+												disabled={isBusy}
+												accessibilityState={{ disabled: isBusy }}
+												className={cn(AUTH_CLASS_NAMES.modeActionNative, isBusy && 'opacity-50')}
+												onPress={() => changeAccessMode('reset')}
+											>
+												<Text className={AUTH_CLASS_NAMES.modeActionText}>Esqueci minha senha</Text>
+											</Pressable>
+										</>
+									) : (
+										<Pressable
+											accessibilityRole="button"
+											disabled={isBusy}
+											accessibilityState={{ disabled: isBusy }}
+											className={cn(AUTH_CLASS_NAMES.modeActionNative, isBusy && 'opacity-50')}
+											onPress={() => changeAccessMode('login')}
+										>
+											<Text className={AUTH_CLASS_NAMES.modeActionText}>Voltar para entrar</Text>
+										</Pressable>
+									)}
+								</View>
 
 								{derivedCooldownMessage ? (
 									<FormControl className="mt-4">

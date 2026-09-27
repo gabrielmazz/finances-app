@@ -416,7 +416,7 @@ export const buildCategoryAnalysisPdfHtml = ({
 						<div class="section-header">
 							<div>
 								<h2>Resumo da comparação</h2>
-								<p class="section-caption">Mês atual comparado com a média histórica recente.</p>
+								<p class="section-caption">Mês atual parcial comparado com os mesmos dias dos meses completos selecionados.</p>
 							</div>
 							<span class="badge">${escapeHtml(statusLabel)}</span>
 						</div>
@@ -476,8 +476,8 @@ export const buildCategoryAnalysisPdfHtml = ({
 					<section class="section">
 						<div class="section-header">
 							<div>
-								<h2>Movimentos recentes</h2>
-								<p class="section-caption">Movimentos recentes da categoria selecionada.</p>
+								<h2>Movimentações do recorte</h2>
+								<p class="section-caption">Todas as movimentações do tipo selecionado no histórico escolhido e no mês atual até a consulta.</p>
 							</div>
 							<span class="badge">${movements.length} item(ns)</span>
 						</div>

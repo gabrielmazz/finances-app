@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import {
 	LUMUS_CLASS_NAMES,
+	LUMUS_FORM_CLASS_NAMES,
 	LUMUS_LAYOUT_TOKENS,
 	LUMUS_RUNTIME_COLORS,
 } from '@/design-system/tokens';
@@ -74,7 +75,7 @@ export function useScreenStyles() {
 		[runtimeColors],
 	);
 
-	const fieldContainerClassName = `${LUMUS_CLASS_NAMES.controlCompact} ${LUMUS_CLASS_NAMES.focusRing} px-3 py-2 web:h-control web:bg-transparent`;
+	const fieldContainerClassName = LUMUS_FORM_CLASS_NAMES.input;
 	const submitButtonClassName = LUMUS_CLASS_NAMES.primaryButton;
 	const helperText = LUMUS_CLASS_NAMES.helper;
 
@@ -91,7 +92,7 @@ export function useScreenStyles() {
 		fieldContainerClassName,
 		fieldContainerClassNameNotSpace: `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.focusRing}`,
 		fieldContainerCardClassName: `${LUMUS_CLASS_NAMES.control} web:focus:border-lumus-accent web:focus:ring-2 web:focus:ring-lumus-accent web:focus-visible:border-lumus-accent web:focus-visible:ring-2 web:focus-visible:ring-lumus-accent py-2`,
-		textareaContainerClassName: `${LUMUS_CLASS_NAMES.textarea} ${LUMUS_CLASS_NAMES.focusRing}`,
+		textareaContainerClassName: LUMUS_FORM_CLASS_NAMES.textarea,
 		sectionCardClassName: LUMUS_CLASS_NAMES.card,
 		dividerClassName: LUMUS_CLASS_NAMES.divider,
 		warningCardClassName: 'rounded-control bg-warning-50 dark:bg-warning-950',

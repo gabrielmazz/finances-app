@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import {
 	Keyboard,
 	View,
@@ -32,8 +33,8 @@ import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/Re
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
-import { navigateToHomeDashboard } from '@/utils/navigation';
-
+import { APP_ROUTE_PATHS, navigateBackOrRoute, replaceToRoute } from '@/utils/navigation';
+import { LUMUS_CLASS_NAMES, LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -44,6 +45,7 @@ import AddUserRelationScreenIllustration from '../../assets/UnDraw/addUserRelati
 type FocusableInputKey = 'related-user-id';
 
 export default function AddUserRelationScreen() {
+	const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
 
 	const {
 			isDarkMode,
@@ -62,7 +64,6 @@ export default function AddUserRelationScreen() {
 			infoCardStyle,
 			insets,
 			webDashboardClassNames,
-			labelText,
 			switchRadioClassName,
 			switchRadioIndicatorClassName,
 			switchRadioIconClassName,
@@ -88,10 +89,11 @@ export default function AddUserRelationScreen() {
 		[isDarkMode],
 	);
 
-	const handleBackToHome = React.useCallback(() => {
-		navigateToHomeDashboard();
+	const handleBackToProfile = React.useCallback(() => {
+		if (fromProfile === '1') navigateBackOrRoute(APP_ROUTE_PATHS.profile);
+		else replaceToRoute(APP_ROUTE_PATHS.profile);
 		return true;
-	}, []);
+	}, [fromProfile]);
 
 	const resetRelationForm = React.useCallback(() => {
 		setRelatedUserId('');
@@ -255,9 +257,13 @@ export default function AddUserRelationScreen() {
 					>
 						<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
+							<Button variant="outline" className={`${LUMUS_CLASS_NAMES.secondaryButton} mb-4`} onPress={handleBackToProfile}>
+								<ButtonText className={LUMUS_CLASS_NAMES.body}>Voltar ao perfil</ButtonText>
+							</Button>
+
 							<VStack className="mb-4">
-								<HStack className="mb-1 ml-1 gap-1">
-											<Text className={`${bodyText} text-sm`}>ID do usuário</Text>
+								<HStack className="mb-2 ml-1 items-center gap-2">
+											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>ID do usuário</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -270,7 +276,7 @@ export default function AddUserRelationScreen() {
 														{...triggerProps}
 														hitSlop={8}
 														accessibilityRole="button"
-														accessibilityLabel="Informações sobre a observação da despesa"
+														accessibilityLabel="Sobre o vínculo entre usuários"
 													>
 														<Info
 															size={14}
@@ -285,7 +291,7 @@ export default function AddUserRelationScreen() {
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
 															Informe o ID do usuário que deseja vincular com você. 
-															Este vínculo permitirá compartilhar informações e dados financeiros. Lembrando, esse ID deve ser o mesmo registrado no banco, sendo possivel de conferir na tela de configurações do usuário.
+															O vínculo permite compartilhar gastos e ganhos. A outra pessoa pode copiar o ID dela em Meu perfil.
 														</Text>
 													</PopoverBody>
 												</PopoverContent>
@@ -323,7 +329,7 @@ export default function AddUserRelationScreen() {
 					flexShrink: 0,
 				}}
 			>
-				<Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
+				<Navigator defaultValue={2} onHardwareBack={handleBackToProfile} />
 			</View>
 		</View>
 		</SafeAreaView>

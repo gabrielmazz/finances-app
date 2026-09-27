@@ -3,7 +3,7 @@ tags: [privacidade, visibilidade, contexto, ui]
 relacionado: [[Dashboard Home]], [[Assistente Lumus]], [[Previsão de Fluxo de Caixa]], [[Monitoramento de Investimentos]], [[Sistema de Temas]], [[Configurações]]
 status: ativo
 tipo: feature
-versao: 1.3.1
+versao: 1.3.3
 ---
 
 # Privacidade de Valores
@@ -20,6 +20,7 @@ Toggle de privacidade que oculta todos os valores financeiros na interface, úti
 6. Exportações visuais geradas pelo app, como o PDF de resumo em `BankMovementsScreen.tsx`, devem usar o mesmo formatador visível ao usuário e manter os valores mascarados quando a preferência estiver ativa
 7. No [[Assistente Lumus]], mensagens, cartões, métricas e gráficos respeitam a preferência; o TTS recebe o texto já mascarado e o gráfico é substituído por um estado oculto
 8. O gráfico diário do extrato Web substitui os pontos por valores neutros e desativa eixo numérico e tooltip para não revelar montantes nem proporções
+9. O gráfico de linhas diárias da análise por categoria Web substitui os montantes por valores neutros e desativa tooltip, eixo numérico e camada de acessibilidade do gráfico
 
 ## Arquivos principais
 
@@ -27,6 +28,7 @@ Toggle de privacidade que oculta todos os valores financeiros na interface, úti
 - `screens/mobile/HomeScreen.tsx` — Principal consumidor (oculta saldos e valores)
 - `screens/mobile/BankMovementsScreen.tsx` — Oculta valores na tela e no PDF de resumo do período
 - `screens/web/BankMovementsScreen.web.tsx` / `components/uiverse/banks/bank-movements-daily-area-chart.tsx` — O gráfico diário usa dados neutros e oculta valores auxiliares
+- `components/uiverse/categories/category-analysis-monthly-line-chart.tsx` — Neutraliza as séries diárias e desativa elementos que poderiam revelar valores
 - `screens/mobile/ConfigurationsScreen.tsx` — Toggle de visibilidade nas configurações
 - `components/uiverse/assistant/assistant-cards.tsx` — Máscara de mensagens, cartões, relatórios e gráficos
 - `contexts/LumusAssistantContext.tsx` — Máscara o texto antes da leitura por voz
@@ -38,6 +40,7 @@ Toggle de privacidade que oculta todos os valores financeiros na interface, úti
 - [[Monitoramento de Investimentos]] — Indicadores, alocação, timeline e eixo/tooltip do gráfico de evolução respeitam a máscara visual
 - [[Gerenciamento de Bancos]] — Resumos e exportação PDF respeitam a preferência visual
 - [[Gerenciamento de Bancos]] — O gráfico diário Web neutraliza valores, eixo e tooltip
+- [[Análise por Categoria]] — O gráfico diário Web neutraliza valores, eixo, tooltip e camada de acessibilidade
 - [[Configurações]] — Toggle acessível pelo usuário
 - [[Sistema de Temas]] — Contexto paralelo com padrão similar de implementação
 - [[Assistente Lumus]] — Aplica a máscara à conversa e impede que o TTS fale valores ocultos

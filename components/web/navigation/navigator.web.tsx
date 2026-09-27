@@ -20,7 +20,7 @@ import {
 	Tags,
 	TrendingUp,
 	UserPlus,
-	UsersRound,
+	UserRound,
 } from 'lucide-react';
 import { Pressable, Text, useWindowDimensions, View } from 'react-native';
 
@@ -45,6 +45,7 @@ import { LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
 export type NavigatorProps = {
 	defaultValue?: number;
 	onHardwareBack?: () => boolean;
+	profileDisplayName?: string;
 };
 
 type NavigatorOption = {
@@ -114,7 +115,7 @@ const createGroups = (): NavigatorGroup[] => [
 			{ id: 'register-user', label: 'Novo usuário', icon: <UserPlus size={18} />, visibilityKey: 'addRegisterUser', matchPaths: [APP_ROUTE_PATHS.addRegisterUser], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterUser) },
 			{ id: 'register-bank', label: 'Novo banco', icon: <Building2 size={18} />, visibilityKey: 'addRegisterBank', matchPaths: [APP_ROUTE_PATHS.addRegisterBank], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterBank) },
 			{ id: 'register-tag', label: 'Nova categoria', icon: <Tags size={18} />, visibilityKey: 'addRegisterTag', matchPaths: [APP_ROUTE_PATHS.addRegisterTag], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag) },
-			{ id: 'add-user-relation', label: 'Relacionar usuário', icon: <UsersRound size={18} />, visibilityKey: 'addUserRelation', matchPaths: [APP_ROUTE_PATHS.addUserRelation], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation) },
+			{ id: 'profile', label: 'Meu perfil', icon: <UserRound size={18} />, matchPaths: [APP_ROUTE_PATHS.profile, APP_ROUTE_PATHS.addUserRelation], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.profile) },
 			{ id: 'app-tests', label: 'Testes do app', icon: <BadgeDollarSign size={18} />, visibilityKey: 'appTests', matchPaths: [APP_ROUTE_PATHS.appTests], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.appTests) },
 			{ id: 'screen-settings', label: 'Config. das telas', icon: <Settings2 size={18} />, matchPaths: [APP_ROUTE_PATHS.screenSettings], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.screenSettings) },
 			{ id: 'logout', label: 'Sair', icon: <LogOut size={18} />, onSelect: () => {} },
@@ -122,7 +123,7 @@ const createGroups = (): NavigatorGroup[] => [
 	},
 ];
 
-export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: NavigatorProps) {
+export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, profileDisplayName }: NavigatorProps) {
 	const pathname = normalizePathname(usePathname());
 	const params = useLocalSearchParams() as RouteParams;
 	const { user } = useAuth();
@@ -256,10 +257,10 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard }: N
 				menuButtonColor={navigationColors.button}
 				openMenuButtonColor={navigationColors.buttonOpen}
 				profile={{
-					name: profileName || user?.email?.split('@')[0] || 'Usuário',
+					name: profileDisplayName || profileName || user?.email?.split('@')[0] || 'Usuário',
 					subtitle: user?.email || '',
 					imageUrl: user?.photoURL || '',
-					initials: (profileName || user?.email || 'U').trim().charAt(0).toUpperCase(),
+					initials: (profileDisplayName || profileName || user?.email || 'U').trim().charAt(0).toUpperCase(),
 				}}
 				collapsedRail
 				displayItemNumbering={false}

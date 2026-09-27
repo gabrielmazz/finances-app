@@ -35,3 +35,5 @@ Preferência local que permite ocultar telas configuráveis neste aparelho. Toda
 - Ocultar não apaga a rota física nem seus dados; apenas remove o acesso neste dispositivo. Para Anotações e Testes do aplicativo, o valor inicial oculto é intencional até que o usuário libere a tela neste aparelho.
 - A preferência é local ao aparelho e permanece válida após trocar de conta.
 - Uma rota configurável nova deve ser registrada em `ROUTE_VISIBILITY_PATHS`, receber opção no navigator quando aplicável, aparecer em `ScreenSettingsScreen.tsx` e ser coberta por `Stack.Protected`.
+
+- [[Perfil do Usuário]] está sempre disponível à conta autenticada. A preferência `addUserRelation` agora controla o atalho dentro do perfil e o guard da rota de vínculo, sem esconder Meu perfil do menu.

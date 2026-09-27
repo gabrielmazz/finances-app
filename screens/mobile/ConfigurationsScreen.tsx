@@ -85,6 +85,7 @@ import { BankIcon } from '@/hooks/useBankIcons';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
 	isTagVisibleInMandatoryUsageList,
@@ -2042,7 +2043,7 @@ export default function ConfigurationsScreen() {
 									<VStack className="gap-3">
 
 										<VStack className="gap-2">
-											<Text className={`${bodyText} ml-1 text-sm`}>Email logado</Text>
+											<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Email logado</Text>
 											<Input className={fieldContainerClassName} isDisabled>
 												<InputField
 													placeholder="Email do usuário"
@@ -2056,7 +2057,7 @@ export default function ConfigurationsScreen() {
 
 										<HStack className="items-end gap-3">
 											<VStack className="flex-1 gap-2">
-												<Text className={`${bodyText} ml-1 text-sm`}>ID do usuário</Text>
+												<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>ID do usuário</Text>
 														<View className="flex-1">
 													<Input className={fieldContainerClassName} isDisabled>
 														<InputField
@@ -2338,7 +2339,7 @@ export default function ConfigurationsScreen() {
 															})}
 															<Box className={`${notTintedCardClassName} px-4 py-4`}>
 																<VStack className="gap-2">
-																	<Text className="text-sm font-semibold">Filtrar categorias por tipo</Text>
+																	<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Filtrar categorias por tipo</Text>
 																	<TagActionsheetSelector
 																		options={tagFilterOptions}
 																		selectedId={tagFilter}

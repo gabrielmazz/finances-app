@@ -77,6 +77,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 // Importação do SVG
 import AddMandatoryExpensesListIllustration from '../../assets/UnDraw/addMandatoryExpensesScreen.svg';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -1178,7 +1179,7 @@ export default function AddMandatoryExpensesScreen() {
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Nome da despesa</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Nome da despesa</Text>
 										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
 											<InputField
 												ref={expenseNameInputRef}
@@ -1195,7 +1196,7 @@ export default function AddMandatoryExpensesScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Valor mensal</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Valor mensal</Text>
 										<Input className={fieldContainerClassName} isDisabled={isValueFieldDisabled}>
 											<InputField
 												ref={expenseValueInputRef}
@@ -1212,7 +1213,7 @@ export default function AddMandatoryExpensesScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>{dueDayFieldLabel}</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>{dueDayFieldLabel}</Text>
 										<Input className={fieldContainerClassName} isDisabled={isDueDayFieldDisabled}>
 											<InputField
 												ref={dueDayInputRef}
@@ -1268,7 +1269,7 @@ export default function AddMandatoryExpensesScreen() {
 
 											{installmentsEnabled ? (
 												<VStack className="gap-3 pb-4">
-													<Text className={`${bodyText} ml-1 text-sm`}>Quantidade de parcelas</Text>
+													<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Quantidade de parcelas</Text>
 													<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
 																				<InputField
 																						ref={installmentsInputRef}
@@ -1282,7 +1283,7 @@ export default function AddMandatoryExpensesScreen() {
 																							/>
 																					</Input>
 																			<VStack className="gap-2">
-																				<Text className={`${bodyText} ml-1 text-sm`}>Valor total do parcelamento</Text>
+																				<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Valor total do parcelamento</Text>
 																				<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
 																					<InputField
 																						placeholder="Ex: R$ 500,00"
@@ -1297,7 +1298,7 @@ export default function AddMandatoryExpensesScreen() {
 																			</VStack>
 																			<HStack className="gap-3">
 														<VStack className="flex-1 gap-2">
-															<Text className={`${bodyText} ml-1 text-sm`}>Início das parcelas</Text>
+															<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Início das parcelas</Text>
 															<DatePickerField
 																value={installmentStartDate}
 																onChange={handleInstallmentStartDateChange}
@@ -1308,7 +1309,7 @@ export default function AddMandatoryExpensesScreen() {
 															/>
 														</VStack>
 														<VStack className="flex-1 gap-2">
-															<Text className={`${bodyText} ml-1 text-sm`}>Final das parcelas</Text>
+															<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Final das parcelas</Text>
 															<DatePickerField
 																value={installmentEndDate}
 																onChange={handleInstallmentEndDateChange}
@@ -1328,7 +1329,7 @@ export default function AddMandatoryExpensesScreen() {
 									</Box>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Observações</Text>
 										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
 											<TextareaInput
 												ref={descriptionInputRef}
@@ -1344,7 +1345,7 @@ export default function AddMandatoryExpensesScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Categoria</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Categoria</Text>
 										<TagActionsheetSelector
 											options={tagOptions}
 											selectedId={selectedTagId}
@@ -1386,7 +1387,7 @@ export default function AddMandatoryExpensesScreen() {
 											{reminderEnabled ? (
 												<VStack className="gap-4">
 													<VStack className="gap-2">
-														<Text className={`${bodyText} ml-1 text-sm`}>Começar a lembrar</Text>
+														<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Começar a lembrar</Text>
 														<Select
 															selectedValue={String(reminderDaysBefore)}
 															onValueChange={handleReminderDaysBeforeChange}
@@ -1439,8 +1440,8 @@ export default function AddMandatoryExpensesScreen() {
 													</HStack>
 
 												<VStack className="gap-2">
-													<HStack className="items-center gap-1">
-														<Text className={`${bodyText} ml-1 text-sm`}>Horário preferido</Text>
+													<HStack className="items-center gap-2 ml-1">
+														<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Horário preferido</Text>
 															<Popover
 																placement="bottom"
 																size="md"

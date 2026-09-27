@@ -48,7 +48,19 @@ describe('Lumus Assistant AI gateway', () => {
 			name: 'request_financial_report', args: { kind: 'largest_expense', period: '2026-09' },
 		}] });
 		const result = await createAssistantAiGateway(adapter).converse(request({ text: 'Qual foi meu menor gasto esse mês?' }));
-		expect(result.reportRequest).toEqual({ kind: 'smallest_expense', period: '2026-09' });
+		expect(result.reportRequests).toEqual([{ kind: 'smallest_expense', period: '2026-09' }]);
+	});
+
+	it('returns both expense extrema when the user asks for the largest and smallest in one question', async () => {
+		const adapter = createAdapter({ text: '', functionCalls: [{
+			name: 'request_financial_report', args: { kind: 'smallest_expense', period: '2026-09' },
+		}] });
+		const result = await createAssistantAiGateway(adapter).converse(request({ text: 'Qual foi o maior e o menor gasto que tive esse mês?' }));
+
+		expect(result.reportRequests).toEqual([
+			{ kind: 'largest_expense', period: '2026-09' },
+			{ kind: 'smallest_expense', period: '2026-09' },
+		]);
 	});
 
 	it('drops unanswered turns and the current user message before starting a new Firebase chat', async () => {
@@ -92,7 +104,7 @@ describe('Lumus Assistant AI gateway', () => {
 			};
 		};
 		const result = await createAssistantAiGateway(adapter).converse(request({ text: 'Qual foi meu maior gasto em julho?' }));
-		expect(result.reportRequest).toEqual({ kind: 'largest_expense', period: '2026-07' });
+		expect(result.reportRequests).toEqual([{ kind: 'largest_expense', period: '2026-07' }]);
 		expect(toolResult).toEqual({ accepted: true, message: 'O Lumus calculará o relatório de forma determinística.' });
 	});
 

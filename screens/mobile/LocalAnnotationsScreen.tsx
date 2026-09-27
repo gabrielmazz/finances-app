@@ -13,6 +13,7 @@ import { ArrowLeftIcon, AddIcon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { VStack } from '@/components/ui/vstack';
 import AnnotationMarkdownEditor from '@/components/uiverse/annotations/annotation-markdown-editor';
 import Navigator from '@/components/uiverse/navigation/navigator';
@@ -78,7 +79,6 @@ export default function LocalAnnotationsScreen() {
 		addTagButtonClassName,
 		bodyText,
 		cardBackground,
-		fieldContainerClassNameNotSpace,
 		headingText,
 		heroHeight,
 		insets,
@@ -279,7 +279,7 @@ export default function LocalAnnotationsScreen() {
 					</HStack>
 
 					<VStack space="sm" className="flex-1 pt-4">
-						<Input size="lg" className={fieldContainerClassNameNotSpace}>
+						<Input size="lg" className={LUMUS_FORM_CLASS_NAMES.input}>
 							<InputField
 								value={draftTitle}
 								onChangeText={setDraftTitle}

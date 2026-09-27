@@ -8,6 +8,7 @@ import type {
 	AssistantAiConfig,
 	AssistantDraftAction,
 	AssistantMessage,
+	AssistantReportRequest,
 	AssistantSendProgress,
 	AssistantSendStage,
 	AssistantResolvedCatalog,
@@ -83,6 +84,10 @@ const createMessage = <T extends NewAssistantMessage>(message: T): T & Pick<Assi
 	id: createAssistantId('message'),
 	createdAt: new Date().toISOString(),
 });
+
+const isTargetedInsightRequest = (request: AssistantReportRequest) =>
+	request.kind === 'largest_expense' || request.kind === 'largest_gain'
+	|| request.kind === 'smallest_expense' || request.kind === 'smallest_gain';
 
 export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
 	const { user, isAuthReady } = useAuth();
@@ -361,8 +366,8 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			});
 			if (controller.signal.aborted || accountRef.current !== uid) return;
 			const assistantText = createMessage({ type: 'text', role: 'assistant', text: response.text });
-			const isTargetedInsight = response.reportRequest?.kind === 'largest_expense' || response.reportRequest?.kind === 'largest_gain'
-				|| response.reportRequest?.kind === 'smallest_expense' || response.reportRequest?.kind === 'smallest_gain';
+			const reportRequests = response.reportRequests;
+			const isTargetedInsight = reportRequests.length > 0 && reportRequests.every(isTargetedInsightRequest);
 			let spokenMessage = assistantText;
 			if (response.actions.length > 0) advanceSendingProgress('preparing_actions');
 			const prepared = response.actions.length > 0
@@ -383,29 +388,37 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 					type: 'drafts', role: 'assistant', actionIds: prepared.actions.map(action => action.clientActionId),
 				})] : []),
 			]);
-			if (response.reportRequest) {
+			if (reportRequests.length > 0) {
 				advanceSendingProgress('building_report');
 				try {
-					const report = await assistantReportService.createReport(uid, response.reportRequest, nextCatalog);
-					if (!isTargetedInsight) try {
-						advanceSendingProgress('writing_report');
-						report.narrative = await assistantAiGateway.narrateReport({
-							requestScope: uid,
-							question: text,
-							report,
-							config,
-							signal: controller.signal,
-						});
-					} catch {
-						// O resumo determinístico permanece disponível se a narrativa falhar ou atingir a cota.
+					const targetedSummaries: string[] = [];
+					const reportMessages: AssistantMessage[] = [];
+					for (const reportRequest of reportRequests) {
+						const report = await assistantReportService.createReport(uid, reportRequest, nextCatalog);
+						if (isTargetedInsightRequest(reportRequest)) {
+							targetedSummaries.push(report.deterministicSummary);
+							continue;
+						}
+						try {
+							advanceSendingProgress('writing_report');
+							report.narrative = await assistantAiGateway.narrateReport({
+								requestScope: uid,
+								question: text,
+								report,
+								config,
+								signal: controller.signal,
+							});
+						} catch {
+							// O resumo determinístico permanece disponível se a narrativa falhar ou atingir a cota.
+						}
+						reportMessages.push(createMessage({ type: 'report', role: 'assistant', report }));
 					}
 					if (!controller.signal.aborted && accountRef.current === uid) {
-						if (isTargetedInsight) {
-							spokenMessage = createMessage({ type: 'text', role: 'assistant', text: report.deterministicSummary, excludeFromModelHistory: true });
+						if (targetedSummaries.length > 0) {
+							spokenMessage = createMessage({ type: 'text', role: 'assistant', text: targetedSummaries.join('\n'), excludeFromModelHistory: true });
 							setMessages(current => [...current, spokenMessage]);
-						} else {
-							setMessages(current => [...current, createMessage({ type: 'report', role: 'assistant', report })]);
 						}
+						if (reportMessages.length > 0) setMessages(current => [...current, ...reportMessages]);
 					}
 				} catch {
 					if (!controller.signal.aborted && accountRef.current === uid) setMessages(current => [...current, createMessage({

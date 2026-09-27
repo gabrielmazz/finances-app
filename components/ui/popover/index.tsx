@@ -57,11 +57,11 @@ const popoverStyle = tva({
 });
 
 const popoverBackdropStyle = tva({
-	base: 'absolute left-0 top-0 right-0 bottom-0 bg-transparent',
+	base: 'absolute left-0 top-0 right-0 bottom-0 bg-transparent web:pointer-events-auto',
 });
 
 const popoverContentStyle = tva({
-	base: 'rounded-2xl border border-outline-200 bg-background-0 shadow-hard-5',
+	base: 'rounded-2xl border border-outline-200 bg-background-0 shadow-hard-5 web:pointer-events-auto',
 	parentVariants: {
 		size: {
 			sm: 'min-w-[160px] max-w-[188px]',

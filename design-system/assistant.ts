@@ -81,7 +81,7 @@ export const ASSISTANT_CLASS_NAMES = {
 	metric: 'min-w-40 flex-1 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950',
 	assistantBubble: `max-w-xl self-start gap-2 px-4 py-3 ${assistantMessageSurface}`,
 	userBubble: 'max-w-xl self-end gap-2 rounded-3xl rounded-br-lg bg-lumus-accent px-4 py-3 dark:bg-lumus-accent-dark',
-	userBubbleText: 'leading-5 text-lumus-on-accent',
+	userBubbleText: 'leading-5 text-white',
 	bubbleActions: 'flex-row flex-wrap items-center gap-3',
 	bubbleAction: 'min-h-8 flex-row items-center gap-1.5 rounded-lg',
 	webLayout: 'relative flex-1 w-screen overflow-hidden bg-slate-50 dark:bg-slate-950',

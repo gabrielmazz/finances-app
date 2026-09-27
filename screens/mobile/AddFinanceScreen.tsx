@@ -55,6 +55,7 @@ import {
 } from '@/functions/BankFirebase';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -643,8 +644,8 @@ export default function AddFinanceScreen() {
 		accessibilityLabel: string,
 		description: string,
 	) => (
-		<HStack className="ml-1 items-center gap-2">
-			<Text className={`${bodyText} text-sm`}>{label}</Text>
+		<HStack className="mb-2 ml-1 items-center gap-2">
+			<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>{label}</Text>
 			<Popover
 				placement="bottom"
 				size="md"

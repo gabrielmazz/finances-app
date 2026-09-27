@@ -250,13 +250,12 @@ const NAV_GROUPS: NavigatorGroup[] = [
 				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addRegisterTag),
 			},
 			{
-				id: 'add-user-relation',
-				label: 'Relacionar usuário',
+				id: 'profile',
+				label: 'Meu perfil',
 				value: 2,
-				icon: 'people-outline',
-				visibilityKey: 'addUserRelation',
-				matchPaths: [APP_ROUTE_PATHS.addUserRelation],
-				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.addUserRelation),
+				icon: 'person-outline',
+				matchPaths: [APP_ROUTE_PATHS.profile, APP_ROUTE_PATHS.addUserRelation],
+				onSelect: () => navigateToRoute(APP_ROUTE_PATHS.profile),
 			},
 			{
 				id: 'app-tests',

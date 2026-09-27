@@ -66,6 +66,7 @@ import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVi
 import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
 	buildMandatoryPeriodSummaryPdfHtml,
@@ -1823,7 +1824,7 @@ export default function MandatoryExpensesListScreen() {
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
 							{pendingAction?.type === 'settle' ? (
 								<VStack className="mt-4 gap-2">
-									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Quantidade de parcelas</Text>
 									<Input className={fieldContainerClassName}>
 										<InputField
 											value={settlementInstallmentCount}

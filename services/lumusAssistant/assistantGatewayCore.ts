@@ -139,20 +139,25 @@ const REPORT_KINDS = new Set<AssistantReportKind>([
 	'investment_portfolio',
 ]);
 
-const getExplicitExtremumKind = (text: string): AssistantReportKind | null => {
+const getExplicitExtremumKinds = (text: string): AssistantReportKind[] => {
 	const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
-	const smallest = /\bmenor\b|\bmais (?:baixo|baixa|barato|barata)\b/.test(normalized);
-	const largest = /\bmaior\b|\bmais (?:alto|alta|caro|cara)\b/.test(normalized);
+	const smallest = /\bmenor(?:es)?\b|\bmais (?:baixo|baixa|barato|barata)s?\b/.test(normalized);
+	const largest = /\bmaior(?:es)?\b|\bmais (?:alto|alta|caro|cara)s?\b/.test(normalized);
 	const expense = /\b(?:gastos?|despesas?|compras?)\b/.test(normalized);
 	const gain = /\b(?:ganhos?|receitas?|entradas?)\b/.test(normalized);
-	if (smallest === largest || expense === gain) return null;
-	return `${smallest ? 'smallest' : 'largest'}_${expense ? 'expense' : 'gain'}` as AssistantReportKind;
+	if ((!smallest && !largest) || expense === gain) return [];
+	const extremums = [
+		...(largest ? ['largest'] : []),
+		...(smallest ? ['smallest'] : []),
+	];
+	return extremums.map(extremum => `${extremum}_${expense ? 'expense' : 'gain'}` as AssistantReportKind);
 };
 
-const alignExplicitReportQuestion = (text: string, report: AssistantReportRequest | undefined) => {
-	if (!report || !['monthly_overview', 'transaction_search', 'largest_expense', 'largest_gain', 'smallest_expense', 'smallest_gain'].includes(report.kind)) return report;
-	const kind = getExplicitExtremumKind(text);
-	return kind ? { ...report, kind } : report;
+const alignExplicitReportQuestions = (text: string, reports: AssistantReportRequest[]) => {
+	const kinds = getExplicitExtremumKinds(text);
+	if (kinds.length === 0) return reports;
+	const period = reports.find(report => report.period)?.period;
+	return kinds.map(kind => ({ kind, ...(period ? { period } : {}) }));
 };
 
 // O SDK Firebase AI Logic exige histórico iniciado por user e alternando user/model.
@@ -259,7 +264,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 
 					let response = await chat.sendText(text, request.signal);
 					let toolCallCount = 0;
-					let reportRequest: AssistantReportRequest | undefined;
+					let reportRequests: AssistantReportRequest[] = [];
 					let actions = normalizeModelActionProposals([], request.config.maxActionsPerResponse);
 					let finalText = sanitizeAssistantModelText(response.text);
 
@@ -295,7 +300,16 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 							}
 
 							if (call.name === 'request_financial_report') {
-								reportRequest = normalizeReportRequest(call.args) ?? reportRequest;
+								const reportRequest = normalizeReportRequest(call.args);
+								const isDuplicate = reportRequest && reportRequests.some(existing =>
+									existing.kind === reportRequest.kind
+									&& existing.period === reportRequest.period
+									&& existing.bankRef === reportRequest.bankRef
+									&& existing.categoryRef === reportRequest.categoryRef
+									&& existing.query === reportRequest.query);
+								if (reportRequest && !isDuplicate) {
+									reportRequests = [...reportRequests, reportRequest];
+								}
 								functionResponses.push({
 									...(call.id ? { id: call.id } : {}),
 									name: call.name,
@@ -326,16 +340,16 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 						}
 					}
 
-					reportRequest = alignExplicitReportQuestion(text, reportRequest);
+					reportRequests = alignExplicitReportQuestions(text, reportRequests);
 					if (!finalText) {
 						finalText = actions.length > 0
 							? 'Preparei os registros. Vou pedir somente o que estiver faltando antes de mostrar cada confirmação.'
-							: reportRequest
+							: reportRequests.length > 0
 								? 'Vou montar esse resumo com os dados calculados pelo Lumus.'
 								: 'Não consegui transformar essa mensagem em uma ação segura. Tente informar o que aconteceu, o valor e a data.';
 					}
 
-					return { text: finalText, actions, reportRequest, toolCallCount };
+					return { text: finalText, actions, reportRequests, toolCallCount };
 				};
 				try {
 					return await converseWithModel(request.config.model);

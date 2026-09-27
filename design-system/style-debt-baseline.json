@@ -766,5 +766,17 @@
     "rawHexLiterals": 0,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 0
+  },
+  "screens/mobile/PerfilPersonScreen.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "screens/web/PerfilPersonScreen.web.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
   }
 }
