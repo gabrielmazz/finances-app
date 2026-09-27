@@ -43,7 +43,20 @@ sequenceDiagram
 5. Durante a inicialização (`!isAuthReady || isLoadingTheme`), exibe o `AuthBootstrapScreen` com `<Loader />`
 6. `LoginScreen.tsx` chama `signInWithEmailAndPassword` com proteção de throttle via [[Segurança de Login]]
 7. A tela de login aceita pull-to-refresh para limpar erros locais e reconsultar o cooldown de tentativas do email digitado
-8. A interface tem implementações por plataforma: a partir de 768px, o navegador preenche toda a coluna esquerda com o painel de identidade em gradiente e o texto SVG animado **Finances**, na fonte padrão do sistema, centralizado sobre ele, enquanto centraliza verticalmente o conteúdo de acesso na coluna direita. Nessa composição desktop, a tela não rola; abaixo disso, os blocos se empilham e conservam a rolagem e o comportamento de teclado do mobile. Android e iOS preservam a composição mobile histórica com wallpaper, logo adaptado ao tema e cartão sobreposto, sem remover a proteção do teclado
+8. A interface tem implementações por plataforma: a partir de 768px, o navegador preenche toda a coluna esquerda com o painel de identidade em gradiente e o texto SVG animado **Finances**, na fonte padrão do sistema, centralizado sobre ele, enquanto centraliza verticalmente o conteúdo de acesso na coluna direita. Nessa composição desktop, a rolagem permanece disponível quando o formulário excede a altura útil; abaixo disso, os blocos se empilham e conservam a rolagem e o comportamento de teclado do mobile. Android e iOS preservam a composição mobile histórica com wallpaper, logo adaptado ao tema e cartão sobreposto, sem remover a proteção do teclado
+
+## Acesso, cadastro e recuperação no mesmo painel
+
+`LoginScreen.web.tsx` e `LoginScreen.tsx` alternam entre `login`, `register` e `reset` por estado local, compartilhado pelo hook `useAccountAccess`. Nenhuma rota ou tela nova é criada. `HomeScreen.web.tsx` e `HomeTabsScreen.tsx` continuam sendo o dashboard e seu contêiner autenticado, sem campos de acesso.
+
+- **Criar conta** substitui o formulário de login por nome, email e senha. Exige nome, email válido e senha com pelo menos seis caracteres; políticas adicionais são validadas pelo Firebase. A conta pública sempre recebe `adminUser: false`.
+- O cadastro usa `secondaryAuth` e salva `users/{uid}` via `secondaryDb`, autenticado pelo mesmo app secundário. Assim a regra de criação pelo próprio UID é respeitada sem autenticar a sessão primária. Se o perfil for rejeitado, tenta remover apenas a conta Auth recém-criada; falha nessa compensação informa cadastro incompleto. O `finally` encerra a sessão secundária.
+- Após o cadastro, o painel volta ao login, limpa a senha e mantém o email e a confirmação de sucesso. Apenas **Entrar** autentica a sessão primária e libera a Home.
+- **Esqueci minha senha** mostra somente o campo de email e envia `sendPasswordResetEmail` em português. A resposta é neutra, inclusive para `auth/user-not-found`; a nova senha é definida no link hospedado pelo Firebase. A solicitação permanece nesta tela.
+- Um envio concluído desabilita nova solicitação para o mesmo email enquanto esse for o último endereço enviado na instância montada; mudar de modo preserva esse estado. Isso evita repetições acidentais e não substitui os limites de abuso do Firebase.
+- **Voltar para entrar** retorna ao login localmente. Trocar de modo limpa senha/erros; pedidos pendentes bloqueiam troca e submissão concorrente. O throttle existente aplica-se somente ao login.
+- Web usa `UnstyledButton` do Mantine para as ações secundárias, labels HTML associados, nomes acessíveis explícitos no `InputField`, descrições de erro, título focado ao alternar e feedback anunciado. Mobile usa `Pressable`, mantém o teclado/rolagem e intercepta o voltar físico nos modos de cadastro/recuperação.
+- O tema e a identidade atuais permanecem; ações amarelas destes formulários usam texto escuro `lumus-on-accent`. A Web permite rolar em alturas pequenas e zoom para manter cadastro, erros e retorno acessíveis.
 
 ## AuthContext API
 
@@ -65,6 +78,9 @@ type AuthContextValue = {
 - `screens/web/LoginScreen.web.tsx` — Interface de login e painel de identidade responsivo do navegador
 - `app/index.tsx` — Entry `/` que redireciona para o login da plataforma atual
 - `app/web/index.web.tsx` / `app/mobile/index.native.tsx` — Login Web e Android/iOS
+- `hooks/useAccountAccess.ts` — Estado local, validação e envio de cadastro/recuperação
+- `design-system/auth.ts` — Contratos visuais das ações e feedback
+- `functions/RegisterUserFirebase.ts` — Cadastro e solicitação de recuperação
 - `utils/authSession.ts` — Classifica os códigos definitivos do Firebase Auth que exigem encerrar a sessão local
 - `utils/firebaseAuthStorage.ts` — Persistência segura para o app secundário
 

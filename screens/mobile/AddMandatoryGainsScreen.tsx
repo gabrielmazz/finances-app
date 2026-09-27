@@ -83,6 +83,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 // Importação do SVG
 import AddMandatoryGainListIllustration from '../../assets/UnDraw/addMandatoryGainsScreen.svg';
 import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -1186,7 +1187,7 @@ export default function AddMandatoryGainsScreen() {
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Nome do ganho</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Nome do ganho</Text>
 										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
 											<InputField
 												ref={gainNameInputRef}
@@ -1203,7 +1204,7 @@ export default function AddMandatoryGainsScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Valor previsto</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Valor previsto</Text>
 										<Input className={fieldContainerClassName} isDisabled={isValueFieldDisabled}>
 											<InputField
 												ref={gainValueInputRef}
@@ -1220,7 +1221,7 @@ export default function AddMandatoryGainsScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>{dueDayFieldLabel}</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>{dueDayFieldLabel}</Text>
 										<Input className={fieldContainerClassName} isDisabled={isDueDayFieldDisabled}>
 											<InputField
 												ref={dueDayInputRef}
@@ -1276,7 +1277,7 @@ export default function AddMandatoryGainsScreen() {
 
 											{installmentsEnabled ? (
 												<VStack className="gap-3 pb-2">
-													<Text className={`${bodyText} ml-1 text-sm`}>Quantidade de parcelas</Text>
+													<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Quantidade de parcelas</Text>
 													<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
 														<InputField
 															ref={installmentsInputRef}
@@ -1290,7 +1291,7 @@ export default function AddMandatoryGainsScreen() {
 														/>
 																					</Input>
 																					<VStack className="gap-2">
-																						<Text className={`${bodyText} ml-1 text-sm`}>Valor total do parcelamento</Text>
+																						<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Valor total do parcelamento</Text>
 																						<Input className={fieldContainerClassName} isDisabled={isInstallmentFieldDisabled}>
 																							<InputField
 																								placeholder="Ex: R$ 500,00"
@@ -1305,7 +1306,7 @@ export default function AddMandatoryGainsScreen() {
 																					</VStack>
 																					<HStack className="gap-3">
 														<VStack className="flex-1 gap-2">
-															<Text className={`${bodyText} ml-1 text-sm`}>Início das parcelas</Text>
+															<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Início das parcelas</Text>
 															<DatePickerField
 																value={installmentStartDate}
 																onChange={handleInstallmentStartDateChange}
@@ -1316,7 +1317,7 @@ export default function AddMandatoryGainsScreen() {
 															/>
 														</VStack>
 														<VStack className="flex-1 gap-2">
-															<Text className={`${bodyText} ml-1 text-sm`}>Final das parcelas</Text>
+															<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Final das parcelas</Text>
 															<DatePickerField
 																value={installmentEndDate}
 																onChange={handleInstallmentEndDateChange}
@@ -1336,7 +1337,7 @@ export default function AddMandatoryGainsScreen() {
 									</Box>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Observações</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Observações</Text>
 										<Textarea className={textareaContainerClassName} isDisabled={isDescriptionDisabled}>
 											<TextareaInput
 												ref={descriptionInputRef}
@@ -1352,7 +1353,7 @@ export default function AddMandatoryGainsScreen() {
 									</VStack>
 
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Categoria</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Categoria</Text>
 										<TagActionsheetSelector
 											options={tagOptions}
 											selectedId={selectedTagId}
@@ -1394,7 +1395,7 @@ export default function AddMandatoryGainsScreen() {
 							{reminderEnabled ? (
 								<VStack className="gap-2">
 									<VStack className="gap-2">
-										<Text className={`${bodyText} ml-1 text-sm`}>Começar a lembrar</Text>
+										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Começar a lembrar</Text>
 										<Select
 											selectedValue={String(reminderDaysBefore)}
 											onValueChange={handleReminderDaysBeforeChange}
@@ -1445,8 +1446,8 @@ export default function AddMandatoryGainsScreen() {
 										/>
 									</HStack>
 
-									<HStack className="items-center gap-1">
-														<Text className={`${bodyText} ml-1 text-sm`}>Horário preferido</Text>
+									<HStack className="items-center gap-2 ml-1">
+														<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Horário preferido</Text>
 														<Popover
 															placement="bottom"
 															size="md"

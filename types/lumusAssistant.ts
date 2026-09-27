@@ -307,7 +307,7 @@ export type AssistantAiConversationRequest = {
 export type AssistantAiConversationResponse = {
 	text: string;
 	actions: AssistantModelActionProposal[];
-	reportRequest?: AssistantReportRequest;
+	reportRequests: AssistantReportRequest[];
 	toolCallCount: number;
 	fallbackModel?: string;
 };

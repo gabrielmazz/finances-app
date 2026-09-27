@@ -67,6 +67,7 @@ import { Info } from 'lucide-react-native';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -203,7 +204,6 @@ export default function AddRegisterGainScreen() {
 		heroHeight,
 		infoCardStyle,
 		insets,
-		labelText,
 		switchRadioClassName,
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
@@ -1341,7 +1341,7 @@ export default function AddRegisterGainScreen() {
 						>
 							<VStack className="justify-between mt-4">
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome do ganho</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome do ganho</Text>
 									<Input className={fieldContainerClassName} isDisabled={isTemplateLocked || isFormBusy}>
 										<InputField
 											ref={gainNameInputRef}
@@ -1360,7 +1360,7 @@ export default function AddRegisterGainScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor do ganho</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Valor do ganho</Text>
 									<Input className={fieldContainerClassName} isDisabled={gainName.trim().length === 0}>
 										<InputField
 											ref={gainValueInputRef}
@@ -1378,7 +1378,7 @@ export default function AddRegisterGainScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do ganho</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do ganho</Text>
 									<DatePickerField
 										value={gainDate}
 										onChange={setGainDate}
@@ -1390,8 +1390,8 @@ export default function AddRegisterGainScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<HStack className="mb-1 ml-1 gap-2">
-										<Text className={`${bodyText} text-sm`}>Observação do ganho</Text>
+									<HStack className="mb-2 ml-1 items-center gap-2">
+										<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Observação do ganho</Text>
 										<Popover
 											placement="bottom"
 											size="md"
@@ -1440,8 +1440,8 @@ export default function AddRegisterGainScreen() {
 
 								{shouldShowPaymentFormatSelection && (
 									<VStack className="mb-4">
-										<HStack className="mb-1 ml-1 gap-2">
-											<Text className={`${bodyText} text-sm`}>Formato do ganho</Text>
+										<HStack className="mb-2 ml-1 items-center gap-2">
+											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Formato do ganho</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -1540,8 +1540,8 @@ export default function AddRegisterGainScreen() {
 								)}
 
 								<VStack className="mb-4">
-									<HStack className="mb-1 ml-1 gap-2">
-										<Text className={`${bodyText} text-sm`}>Formato de recebimento</Text>
+									<HStack className="mb-2 ml-1 items-center gap-2">
+										<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Formato de recebimento</Text>
 										<Popover
 											placement="bottom"
 											size="md"
@@ -1612,7 +1612,7 @@ export default function AddRegisterGainScreen() {
 
 										{valuesRadioMoneyFormat === 'Recebimento em Banco' && isBankSelectionLocked ? (
 											<VStack className="mt-4">
-												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 												<View className={`${fieldContainerCardClassName} px-4 py-3`}>
 													<Text className={`${bodyText} text-sm`}>
 														{lockedBankName ?? selectedBankLabel ?? 'Banco definido automaticamente'}
@@ -1621,7 +1621,7 @@ export default function AddRegisterGainScreen() {
 											</VStack>
 										) : valuesRadioMoneyFormat === 'Recebimento em Banco' ? (
 											<VStack className="mt-4">
-												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 												<BankActionsheetSelector
 													options={banks}
 													selectedId={selectedBankId}
@@ -1652,7 +1652,7 @@ export default function AddRegisterGainScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categoria</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Categoria</Text>
 									{isTagSelectionLocked ? (
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
 											<HStack className="items-center gap-3">

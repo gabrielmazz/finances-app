@@ -2,6 +2,71 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — aparência dos campos bloqueados no perfil, 2026-09-27
+
+**Inventário:** campos de e-mail e data de cadastro em `/web/profile` e `/mobile/profile`, comparados ao campo desabilitado de valor em `AddRegisterExpensesScreen.web.tsx`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Os campos não editáveis do perfil mantinham a mesma opacidade dos controles ativos, diferente do campo bloqueado dos formulários. O `readonly` no input de data também não garante que o seletor do navegador seja fechado. | E-mail mantém leitura/cópia com tratamento visual atenuado; data passa a `disabled` e recebe o mesmo estilo. Mobile usa a mesma opacidade reduzida nos campos read-only. | Typecheck e `git diff --check` passaram. `npm run lint:styles` reporta somente pendências preexistentes em `ConfigurationsScreen.web.tsx` e no baseline de `useScreenStyles` (55/54); sem testes automatizados. | Conferir visualmente os campos nos temas claro/escuro em sessão autenticada. |
+
+## Checkpoint — wallpaper responsivo do perfil, 2026-09-27
+
+**Inventário:** `/web/profile` e `/mobile/profile`, com composições independentes em `PerfilPersonScreen.web.tsx` e `PerfilPersonScreen.tsx`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | As duas telas fixavam o hero em `h-72`, divergindo das outras rotas em alturas de janela diferentes. Na Web, a imagem React Native dependia apenas de classes NativeWind, o que podia deixar o fundo escuro do shell visível na lateral. | Hero passa a seguir `max(28% da janela, 250 px) + safe area`; o sheet mantém sobreposição de 64 px. O shell Web ocupa a viewport e a imagem recebe limites/dimensões explícitos. O mobile mantém a composição nativa com o mesmo cálculo e recorte inferior arredondado. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` aponta somente a dívida preexistente em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54); testes automatizados não foram executados. | Sem inspeção visual autenticada após o ajuste; validar o wallpaper em viewports altos/baixos e nos dois temas. |
+
+## Checkpoint — labels da Home mobile, 2026-09-27
+
+**Inventário:** títulos das seções e detalhes da timeline no dashboard mobile; conferência com `HomeScreen.web.tsx` e o container `HomeTabsScreen.tsx`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | A Home mobile repetia estilos dos títulos e rótulos da timeline em vez de usar os contratos do dashboard. `HomeTabsScreen.tsx` não desenha conteúdo; escolhe a tela ativa. | Títulos e labels dos detalhes na `HomeScreen.tsx` agora usam `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` e `detailLabel`, como a Home Web. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` segue apontando a dívida conhecida de `ConfigurationsScreen.web.tsx` e o baseline 55/54 de `useScreenStyles`. | Sem renderização visual autenticada em Android/iOS nesta sessão. |
+
+## Checkpoint — cadastro e recuperação no painel de acesso, 2026-09-27
+
+**Inventário:** `/web` usa `LoginScreen.web.tsx`; `/mobile` usa `LoginScreen.tsx`. `HomeScreen.web.tsx` é dashboard autenticado e `HomeTabsScreen.tsx` apenas escolhe abas. Nenhuma nova rota foi criada. A Web mantém a identidade à esquerda e alterna os formulários à direita; a variante nativa mantém wallpaper/logo e cartão de acesso.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P1 | Cadastro público não tinha entrada e gravaria perfil com o Auth primário ausente. | Formulário local com conta padrão; criação por `secondaryAuth` e perfil por `secondaryDb`, sem ampliar regras. | Cadastro real e leitura do perfil no Emulator; testes de isolamento, falha e compensação. | Entrega real de email e configuração de produção não exercitadas. |
+| P2 | Não havia recuperação na tela inicial. | Estado local de email, envio do link Firebase e confirmação neutra; erro de rede/limite recuperável. | Envio real no Auth Emulator com código de recuperação emitido; testes de email inexistente e falhas. | A troca efetiva da senha ocorre no link do Firebase. |
+| P2 | O componente Gluestack sobrescrevia os nomes dos campos com “Input Field”; erros não tinham vínculo explícito. | `aria-label` explícito, labels HTML associados e `aria-describedby` na Web; nomes acessíveis no mobile, foco do primeiro inválido e anúncios de feedback. | Inspeção DOM e teste por nomes acessíveis no Chromium. | TalkBack/VoiceOver em aparelho não executados. |
+| P2 | O cadastro e suas mensagens podem ultrapassar viewports baixas. | Rolagem Web habilitada quando há overflow, preservando a composição em duas colunas. Ações secundárias de 48px; estado ocupado bloqueia edição/envio/troca. | Desktop e largura de 390px, cadastro inválido, sucesso, duplicidade, reset e retorno sem mudança de URL. | Execução interativa nativa pendente. |
+| P2 | O texto do botão amarelo herdava branco no hover do primitivo. | Texto e spinner usam `lumus-on-accent` no formulário de acesso, inclusive hover/pressed. | Contrato local em `design-system/auth.ts`; revisão visual. | Dívida de contraste em outras telas está fora desta alteração. |
+
+Typecheck e 25 testes passaram; exports Web/Android e smoke completo no Chromium com Emulator passaram sem `pageerror`. Uma segunda passagem confirmou temas claro/escuro, alternância por teclado, foco no título/primeiro campo, labels clicáveis, mostrar senha, texto escuro no hover e controles alcançáveis em larguras de 390/768/1024px com altura de 500px. A validação em aparelho Android/iOS permanece pendente. `npm run lint:styles` permanece limitado às pendências de `ConfigurationsScreen.web.tsx` e ao baseline global de `useScreenStyles` (55/54). O Chrome DevTools MCP não está disponível, portanto não foram medidos Core Web Vitals; a inspeção interativa usou Playwright/Chromium local. Ver [[Autenticação]] e [[Firebase Config]].
+
+## Checkpoint — alinhamento visual dos formulários mobile, 2026-09-27
+
+**Inventário:** revisão estática de campos nas rotas de login, perfil, cadastros de usuário/banco/despesa/ganho/categoria, gastos e ganhos obrigatórios, investimento, saque, saldo mensal, vínculo e transferência; filtros e modais em Movimentos Bancários, Lista Financeira e Configurações; busca de Configuração de Telas; título de Anotações Locais; período da Análise por Categoria; e campos de edição inline do Assistente Lumus. Perfil e editores inline do assistente já consumiam tokens de formulário. Foram revisadas entradas de texto/número, textarea, select, data/hora, selects multivalorados e seletores de banco/categoria.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P1 | Vários rótulos móveis ainda usavam corpo `text-sm` em vez da tipografia de label Web; os controles simples duplicavam classes no hook e o DatePicker nativo tinha outro label padrão. | `LUMUS_FORM_CLASS_NAMES.inlineLabel` foi compartilhado com `WEB_EXPENSE_CLASS_NAMES.fieldInlineLabel`; labels móveis usam `label`/`inlineLabel`; inputs, selects simples e textareas reutilizam os contratos centrais. Textareas também passaram a 112px, a altura usada pela Web. O DatePicker nativo adota o label canônico por padrão. | Revisão estática cobriu as telas com campos, filtros e modais listados acima; `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua apontando somente dívida em `screens/web/ConfigurationsScreen.web.tsx` e a linha de base de `useScreenStyles` (55/54). | Sem renderização visual autenticada em Android/iOS nesta sessão. Action sheets de banco/categoria e pickers do sistema preservam seus adaptadores nativos; a revisão final de densidade depende de inspeção em aparelho. |
+
+## Checkpoint — contraste das mensagens enviadas do Lumus IA, 2026-09-26
+
+**Inventário:** os balões de mensagens do usuário passam pelo mesmo contrato visual `ASSISTANT_CLASS_NAMES.userBubbleText` nas telas mobile e Web.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O balão amarelo aplicava `lumus-on-accent` ao texto, mantendo a legenda escura onde a apresentação solicitada requer branco. | O contrato compartilhado agora define texto branco; mensagens do assistente e demais superfícies não mudaram. | Os 36 testes focados das duas telas passaram. `npm run lint:styles` continua apontando ocorrências preexistentes em `ConfigurationsScreen.web.tsx` e baseline de `useScreenStyles` (55/54). | Não houve inspeção visual autenticada em navegador ou aparelho; o Chrome DevTools MCP não está disponível nesta sessão. |
+
+## Checkpoint — fechamento do Popover na Web, 2026-09-26
+
+**Inventário:** 45 usos de `<Popover>` em 28 composições de tela, todos com `PopoverBackdrop` e atendidos por `components/ui/popover/index.tsx`.
+
+- **Mobile — 24 usos em 15 telas:** `AddFinanceScreen.tsx` (1), `AddMandatoryExpensesScreen.tsx` (1), `AddMandatoryGainsScreen.tsx` (1), `AddRegisterExpensesScreen.tsx` (2), `AddRegisterGainScreen.tsx` (3), `AddRegisterMonthlyBalanceScreen.tsx` (2), `AddRegisterUserScreen.tsx` (2), `AddUserRelationScreen.tsx` (1), `BankMovementsScreen.tsx` (1), `CategoryAnalysisScreen.tsx` (1), `ConfigurationsScreen.tsx` (2), `FinancialForecastScreen.tsx` (1), `HomeScreen.tsx` (4), `LumusAssistantScreen.tsx` (1) e `TransferScreen.tsx` (1).
+- **Web — 21 usos em 13 telas:** `AddMandatoryExpensesScreen.web.tsx` (2), `AddMandatoryGainsScreen.web.tsx` (2), `AddRegisterExpensesScreen.web.tsx` (2), `AddRegisterGainScreen.web.tsx` (3), `AddRegisterMonthlyBalanceScreen.web.tsx` (2), `AddRegisterUserScreen.web.tsx` (2), `AddUserRelationScreen.web.tsx` (1), `BankMovementsScreen.web.tsx` (1), `CategoryAnalysisScreen.web.tsx` (1), `ConfigurationsScreen.web.tsx` (2), `FinancialForecastScreen.web.tsx` (1), `HomeScreen.web.tsx` (1) e `TransferScreen.web.tsx` (1).
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P1 | Na Web, `popover/` definia `pointer-events-none` na raiz e Backdrop/Content não sobrescreviam o valor herdado. O clique externo não alcançava o handler de fechamento e o conteúdo também não recebia interação. | Os estilos compartilhados de Backdrop e Content agora aplicam `web:pointer-events-auto`; o Backdrop pode fechar o popover e o conteúdo permanece interativo. As 28 telas continuam usando a mesma primitiva; o caminho mobile não mudou. | Revisão estática confirmou o `onPress={handleClose}` do Backdrop no Gluestack instalado e a correção nas duas camadas Web. | Não houve smoke visual em navegador ou aparelho nesta execução. |
+
 ## Checkpoint — bloquear novos comandos durante paginação do Lumus IA, 2026-09-25
 
 **Inventário:** os comandos de texto, voz e sugestões convergem para o compositor nas telas Web e mobile; perguntas e inputs do cartão usam callbacks próprios.
@@ -583,3 +648,28 @@ Estilos estáticos legados nas telas não são exceções aceitas. Eles aparecem
 - [x] login web verificado em tamanhos representativos e com teclado.
 - [ ] Android/iOS e telas autenticadas renderizados — indisponíveis nesta execução, conforme limitações acima.
 - [ ] dívida P2 de estilos estáticos legados eliminada — baseline criado e redução progressiva exigida.
+
+## Checkpoint — comparação parcial e período da análise por categoria, 2026-09-26
+
+**Inventário:** `/web/category-analysis` e `/mobile/category-analysis`; componentes compartilhados de data/paginação, hook de consulta, agregador, PDF e gráfico diário Web. Foram preservadas as alterações locais de gráficos e primitives já existentes.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P1 | O mês corrente incompleto era comparado a totais mensais fechados. | Comparação pelos mesmos dias dos meses históricos completos; identificação do corte parcial e explicação da diferença para os totais mensais nos gráficos. Meses parciais do intervalo não entram na média. | Testes determinísticos de valores em centavos, corte diário, meses vazios, fronteiras e anos bissextos. | Datas mantêm a convenção local existente no extrato. |
+| P2 | O limite de oito movimentos era aplicado antes do filtro de gastos/ganhos. | Todos os movimentos elegíveis permanecem no relatório; filtro antes da prévia, páginas de vinte em Ver todas e PDF com todo o recorte. | Regressão com ganhos anteriores a mais de oito gastos; cobertura de todas as páginas sem duplicação. | Históricos extensos continuam sendo carregados em memória, limitados a doze meses históricos mais o mês atual. |
+| P2 | Histórico fixo e ausência de divisão entre categoria e relatório. | DatePickerField compartilhado com o extrato, validação inline, consulta automática e Divider Mantine/Gluestack abaixo da categoria. Proteção contra respostas obsoletas e filtros acessíveis em erro. | Typecheck, exports Web/Android, 14 testes da feature e seis de compatibilidade Web passaram; diff-check passou. | Sem inspeção autenticada no navegador, dispositivo Android/iOS ou medição Chrome DevTools MCP. |
+
+**Estados revisados:** carregamento e refresh, datas inválidas/invertidas/futuras, histórico de seis/doze meses, erro com retry, categoria vazia, ausência de média, filtro por tipo, paginação, disabled, labels acessíveis, valores ocultos e exportação. O gráfico conserva as curvas acumuladas existentes e deixa dias fora do recorte vazios. O lint de estilos continua apontando somente dívida em `ConfigurationsScreen.web.tsx` e a linha de base global de `useScreenStyles` (55/54).
+
+## Checkpoint — perfil pessoal, 2026-09-27
+
+Inventário: novas rotas `/web/profile` e `/mobile/profile`, ambos os navigators e telas de vínculo existentes. UI independente por plataforma, SVG fornecido, tokens e hero compartilhados. Nome editável; e-mail, data e UID apenas consultáveis.
+
+| Severidade | Achado/causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P1 | Conta não tinha edição pessoal; risco de regravar permissões com o formulário. | Atualização explícita de nome/timestamp no UID autenticado, trava síncrona e descarte de resposta obsoleta. | Testes de persistência, hook e regras no Emulator. | Vínculo legado continua incompatível com as regras; documentado em [[Perfil do Usuário]]. |
+| P2 | Vínculo ocupava menu principal sem contexto pessoal. | Meu perfil no menu; vínculo interno respeita preferência e oferece retorno explícito. | Registro/rotas, typecheck e export Web/Android. | Ainda requer smoke test instalado em Android/iOS. |
+
+Estados revisados: loading, erro de carga com retry, campos legados vazios, nome inválido/longo, falha de gravação preservando rascunho, sucesso, disabled, descarte, cópia do ID, troca de conta. Web usa labels HTML, foco visível e live region; native usa labels/estados acessíveis e controles de pelo menos 48 px. O novo botão amarelo usa texto `lumus-on-accent`. Não foram criados consumidores de `useScreenStyles` nem novas dependências. O lint permanece limitado às pendências anteriores em Configurações Web e ao limite global de `useScreenStyles`. Chrome DevTools MCP indisponível: sem medição de Core Web Vitals.
+
+**Evidência do perfil:** smoke test Playwright autenticado no Emulator aprovou gravação/leitura do nome, preservação de permissões, retorno do vínculo com rascunho, descarte e viewport Web de 390 px sem overflow horizontal; sem erros JavaScript de página. Screenshots desktop e estreito foram inspecionados nos temas claro/escuro; nome vazio apresentou erro e recebeu foco. Typechecks do app/backend, 26 testes focados, regras isoladas no Emulator e exports Web/Android passaram.

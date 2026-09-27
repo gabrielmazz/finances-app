@@ -33,6 +33,7 @@ export const APP_ROUTE_PATHS = {
 	addFinance: platformRoute('/add-finance'),
 	addRescue: platformRoute('/add-rescue'),
 	addUserRelation: platformRoute('/add-user-relation'),
+	profile: platformRoute('/profile'),
 	appTests: platformRoute('/app-tests'),
 	screenSettings: platformRoute('/screen-settings'),
 	registerMonthlyBalance: platformRoute('/register-monthly-balance'),

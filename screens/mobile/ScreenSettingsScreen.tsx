@@ -50,6 +50,7 @@ import {
 	usePostSubmitBehaviorPreferences,
 } from '@/contexts/PostSubmitBehaviorContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
 	getPostSubmitDestinationPath,
@@ -540,8 +541,8 @@ export default function ScreenSettingsScreen() {
 					contentContainerStyle={{ paddingBottom: 48 }}
 				>
 					<VStack className="mt-4 gap-4">
-						<VStack className="gap-1">
-							<Text className={`${bodyText} ml-1 text-sm font-semibold`}>Encontrar tela</Text>
+						<VStack className="gap-2">
+							<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Encontrar tela</Text>
 							<Input className={fieldContainerClassName}>
 								<InputField
 									value={screenSearch}
@@ -659,7 +660,7 @@ export default function ScreenSettingsScreen() {
 
 																<VStack className="gap-4">
 																	<VStack className="gap-2">
-																		<Text className={`${bodyText} text-sm font-semibold`}>Tela de retorno</Text>
+																		<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Tela de retorno</Text>
 																		<Pressable
 																			onPress={() => handleOpenReturnDestinationSheet(item.key, item.mode)}
 																			disabled={!behavior.shouldReturnAfterSubmit || isLoadingPostSubmitBehavior}
@@ -818,7 +819,7 @@ export default function ScreenSettingsScreen() {
 							</VStack>
 
 							<VStack className="w-full px-2 pb-3">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Buscar tela</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Buscar tela</Text>
 								<Input className={fieldContainerClassName}>
 									<InputField
 										value={returnDestinationSearch}

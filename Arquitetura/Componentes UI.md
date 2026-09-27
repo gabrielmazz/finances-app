@@ -14,6 +14,8 @@ O contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText` centraliza a tipografi
 
 Para a revisão tela a tela, [[Exemplo Home Web]] registra largura, tipografia e estados da composição Web; [[Exemplo Home Mobile]] inventaria gestos, botões, popovers e modal da composição nativa. A Home não tem campos de texto: exemplos de inputs de formulário devem partir dos contratos de formulário, não do dashboard.
 
+Formulários mobile seguem o mesmo contrato tipográfico dos formulários Web em `LUMUS_FORM_CLASS_NAMES`: `label` para rótulos com espaçamento próprio e `inlineLabel` quando o contêiner já controla o espaçamento ou alinha um popover. `WEB_EXPENSE_CLASS_NAMES.fieldLabel` e `fieldInlineLabel` apontam para esses mesmos tokens. `useScreenStyles().fieldContainerClassName` e `textareaContainerClassName` reutilizam os contratos de input/textarea; o `DatePickerField` nativo usa `label` como padrão. Selects simples usam o mesmo container de input, enquanto seletores de banco e categoria preservam seus cartões informativos e action sheets nativos. A altura mínima, foco amarelo, disabled e validação continuam sob os estados existentes dos primitives.
+
 ## Resolução por plataforma
 
 As telas importam o caminho lógico sem extensão. Os adaptadores em `components/uiverse/` encaminham automaticamente para `components/web/` no navegador e `components/mobile/` no Android/iOS. O arquivo base `.tsx` existe como fallback/reexport mobile para TypeScript, Jest e ferramentas que não recebem uma plataforma explícita; ele não deve ser usado para misturar `Platform.OS` entre as duas experiências.
@@ -70,7 +72,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `icon/` | Wrapper de ícones (suporta `lucide-react-native`) |
 | `image/` | Exibição de imagens |
 | `divider/` | Separador visual |
-| `popover/` | Popup flutuante |
+| `popover/` | Popup flutuante; o Backdrop fecha ao toque externo. Na Web, Backdrop e Content reabilitam eventos de ponteiro porque a raiz os desativa; no mobile, a raiz mantém `box-none`. |
 | `skeleton/` | Placeholder de carregamento |
 | `menu/` | Opções de menu |
 | `accordion/` | Conteúdo expansível/colapsável |
@@ -108,6 +110,8 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `investment-evolution-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine/Recharts para comparar capital líquido e patrimônio estimado somente pelas linhas, com pontos, grade e eixos no padrão visual do gráfico de previsão, fundo transparente, sem contorno de foco e rolagem horizontal para séries longas |
 | `bank-movements-daily-area-chart.tsx` | Expo DOM Component que encapsula `AreaChart` Mantine para comparar ganhos e despesas por dia no extrato Web; recebe dados serializáveis filtrados, usa cores de tema e neutraliza séries, eixo e tooltip quando os valores estão ocultos |
 | `category-analysis-bank-donut-chart.tsx` | Expo DOM Component que encapsula `DonutChart` Mantine para a distribuição por conta na análise Web; recebe valores em centavos e oculta total central e tooltip pela preferência de privacidade |
+| `category-analysis-period-fields.tsx` | Reutiliza o DatePickerField do extrato nas duas plataformas para escolher o histórico; labels, disabled e mensagem de erro inline seguem os contratos do sistema |
+| `category-analysis-movement-pagination.tsx` | Prévia de oito movimentos e acesso a todas as movimentações em páginas de vinte, sem renderizar listas longas de uma vez |
 | `components/mobile/recurring/date-calendar.native.tsx` / `components/web/recurring/date-calendar.web.tsx` | Widget de calendário para seleção de período, com `displayValueInCents` para mostrar valor previsto/real, `reminderSummary` para a configuração versionada do lembrete e `modalSize` para a largura responsiva do resumo diário Web |
 | `components/mobile/feedback/notifier-alert.native.tsx` / `components/web/feedback/notifier-alert.web.tsx` | Canal único de feedback in-app; Android/iOS usam `react-native-notifier` e o Web usa `Alert` do Mantine fixo no canto superior direito via portal no `document.body`, com entrada horizontal por `AnimatedContent` |
 | `components/mobile/navigation/web-screen-hero.native.tsx` / `components/web/navigation/web-screen-hero.web.tsx` | Cabeçalho das telas: o nativo usa Gluestack e a Web mantém wallpaper com `Grainient`, título `StrokeText` e animação DOM da ilustração |
@@ -158,6 +162,7 @@ graph LR
 - `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — Cascas independentes do layout autenticado por plataforma
 - `components/web/navigation/web-route-transition.web.tsx` / `components/mobile/navigation/web-route-transition.native.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
 - `components/ui/gluestack-ui-provider/index.tsx` — Configuração do provider de tema
+- `design-system/tokens.ts`, `design-system/web-forms.ts`, `hooks/useScreenStyle.ts` e `components/mobile/shared/date-picker.native.tsx` — contratos de campo e label aplicados pelos formulários mobile e usados como base tipográfica da Web
 - `screens/web/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterUserScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
 
 ## Integrações
@@ -266,3 +271,5 @@ graph LR
 - Um arquivo Expo DOM deve iniciar com `'use dom'`, expor apenas o componente default e receber somente props serializáveis. Os gráficos permanecem nessa fronteira; o alerta Mantine é uma exceção Web-only renderizada por portal porque precisa compartilhar a árvore React Native com o disparo global. Telas nativas não importam Mantine.
 - O baseline Expo 57 usa `@mantine/charts@9.5.1`, `@mantine/core@9.5.1`, `@mantine/hooks@9.5.1` e React/React DOM `19.2.3`; o bullet de pagamentos usa o `BulletChart` oficial dentro do Expo DOM Component. Mantine permanece restrito à Web e a troca deve preservar a escala pelo total, o preenchimento pelo pago e a neutralização da privacidade.
 - Cards do assistente nunca renderizam HTML/código do modelo. Referências como banco, categoria e investimento devem ser editáveis por escolhas locais, e a ação de escrita exige o segundo estágio explícito **Confirmar agora**.
+
+- [[Análise por Categoria]] compartilha os campos de datas e a paginação. O seletor de categoria é seguido por Divider Mantine (`size="sm"`) na Web e Divider Gluestack no mobile.

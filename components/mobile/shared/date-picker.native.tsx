@@ -17,6 +17,7 @@ import {
 	ModalTitle,
 } from '@/components/ui/modal';
 import { ArrowLeftIcon, ArrowRightIcon } from '@/components/ui/icon';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 type DatePickerFieldProps = {
@@ -107,7 +108,6 @@ export function DatePickerField({
 	const {
 		isDarkMode,
 		headingText,
-		labelText,
 		bodyText,
 		helperText,
 		inputField: defaultInputClassName,
@@ -187,11 +187,7 @@ export function DatePickerField({
 		<VStack className={containerClassName ? `w-full ${containerClassName}` : 'w-full'}>
 			{label ? (
 				<Text
-					className={
-						labelClassName
-							? `mb-2 font-semibold ${labelText} ${labelClassName}`
-							: `mb-2 font-semibold ${labelText}`
-					}
+					className={labelClassName ?? LUMUS_FORM_CLASS_NAMES.label}
 				>
 					{label}
 				</Text>

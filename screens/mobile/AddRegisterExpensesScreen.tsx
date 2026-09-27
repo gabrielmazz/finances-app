@@ -83,6 +83,7 @@ import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useT
 
 import AddExpenseIllustration from '../../assets/UnDraw/addRegisterExpanseScreen.svg';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -223,7 +224,6 @@ export default function AddRegisterExpensesScreen() {
 		heroHeight,
 		infoCardStyle,
 		insets,
-		labelText,
 		switchRadioClassName,
 		switchRadioIndicatorClassName,
 		switchRadioIconClassName,
@@ -1422,7 +1422,7 @@ export default function AddRegisterExpensesScreen() {
 							<VStack className="justify-between mt-4">
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Nome da despesa</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Nome da despesa</Text>
 									<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
 										<InputField
 											ref={expenseNameInputRef}
@@ -1441,7 +1441,7 @@ export default function AddRegisterExpensesScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor da despesa</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Valor da despesa</Text>
 									<Input className={fieldContainerClassName} isDisabled={isExpenseValueDisabled}>
 										<InputField
 											ref={expenseValueInputRef}
@@ -1459,7 +1459,7 @@ export default function AddRegisterExpensesScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da despesa</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da despesa</Text>
 									<DatePickerField
 										value={expenseDate}
 										onChange={setExpenseDate}
@@ -1471,8 +1471,8 @@ export default function AddRegisterExpensesScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<HStack className="mb-1 ml-1 gap-2">
-										<Text className={`${bodyText} text-sm`}>Observação da despesa</Text>
+									<HStack className="mb-2 ml-1 items-center gap-2">
+										<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Observação da despesa</Text>
 										<Popover
 											placement="bottom"
 											size="md"
@@ -1523,8 +1523,8 @@ export default function AddRegisterExpensesScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<HStack className="mb-1 ml-1 gap-2">
-										<Text className={`${bodyText} text-sm`}>Formato de pagamento</Text>
+									<HStack className="mb-2 ml-1 items-center gap-2">
+										<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Formato de pagamento</Text>
 										<Popover
 											placement="bottom"
 											size="md"
@@ -1595,7 +1595,7 @@ export default function AddRegisterExpensesScreen() {
 
 										{valuesRadioMoneyFormat === 'Pagamento em Banco' && (
 											<VStack className="mt-4">
-												<Text className={`${labelText} mb-1 ml-1 text-sm`}>Banco</Text>
+												<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 												<BankActionsheetSelector
 													options={banks}
 													selectedId={selectedBankId}
@@ -1620,7 +1620,7 @@ export default function AddRegisterExpensesScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Categoria</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Categoria</Text>
 									{isTagSelectionLocked ? (
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
 											<HStack className="items-center gap-3">

@@ -30,6 +30,7 @@ export const auth = authInstance;
 export const db = getFirestore(appInstance);
 export const secondaryApp = secondaryAppInstance;
 export const secondaryAuth = secondaryAuthInstance;
+export const secondaryDb = getFirestore(secondaryAppInstance);
 export const firebaseFunctions = getFunctions(appInstance, 'southamerica-east1');
 
 if (firebaseRuntime.target === 'emulator') {
@@ -37,5 +38,6 @@ if (firebaseRuntime.target === 'emulator') {
 	connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
 	connectAuthEmulator(secondaryAuth, `http://${host}:9099`, { disableWarnings: true });
 	connectFirestoreEmulator(db, host, 8080);
+	connectFirestoreEmulator(secondaryDb, host, 8080);
 	connectFunctionsEmulator(firebaseFunctions, host, 5001);
 }

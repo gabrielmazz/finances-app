@@ -43,6 +43,7 @@ import DatePickerField from '@/components/uiverse/shared/date-picker';
 
 import AddRescueIllustration from '../../assets/UnDraw/addRescue.svg';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -609,7 +610,7 @@ export default function AddRescueScreen() {
 						>
 									<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Banco de origem</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco de origem</Text>
 									<BankActionsheetSelector
 										options={banks}
 										selectedId={selectedBankId}
@@ -664,7 +665,7 @@ export default function AddRescueScreen() {
 								)}
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Valor do saque</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Valor do saque</Text>
 									<Input className={fieldContainerClassName} isDisabled={isRescueValueDisabled}>
 										<InputField
 											ref={rescueValueInputRef as any}
@@ -680,7 +681,7 @@ export default function AddRescueScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do saque</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do saque</Text>
 									<DatePickerField
 										value={rescueDate}
 										onChange={handleDateSelect}
@@ -692,7 +693,7 @@ export default function AddRescueScreen() {
 								</VStack>
 
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Observações</Text>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>Observações</Text>
 									<Textarea className={textareaContainerClassName} isDisabled={isRescueDescriptionDisabled}>
 										<TextareaInput
 											ref={rescueDescriptionInputRef as any}

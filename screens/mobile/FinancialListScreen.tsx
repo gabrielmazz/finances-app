@@ -117,6 +117,7 @@ import { tagSupportsUsage } from '@/utils/tagUsage';
 import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
 import { addGainFirebase } from '@/functions/GainFirebase';
 import { serializeTagIconSelection } from '@/hooks/useTagIcons';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { isWebDesktopLayout } from '@/utils/webLayout';
@@ -636,7 +637,7 @@ export default function FinancialListScreen() {
 			...inputProps
 		}: StandardizedFinancialInputProps) => (
 			<VStack className="mb-4">
-				<Text className={`${bodyText} mb-1 ml-1 text-sm`}>{label}</Text>
+				<Text className={LUMUS_FORM_CLASS_NAMES.label}>{label}</Text>
 				<Input className={fieldContainerClassName} isDisabled={isDisabled}>
 					<InputField
 						{...inputProps}
@@ -2372,8 +2373,8 @@ export default function FinancialListScreen() {
 											keyboardType: 'decimal-pad',
 											isDisabled: isSavingCdiRate,
 										})}
-										<VStack className="mb-2 gap-1">
-											<Text className={`${bodyText} ml-1 text-sm`}>Vigência da taxa</Text>
+										<VStack className="mb-2 gap-2">
+											<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Vigência da taxa</Text>
 											<DatePickerField
 												accessibilityLabel="Selecionar início de vigência da taxa CDI"
 												value={cdiEffectiveDate}
@@ -2493,7 +2494,7 @@ export default function FinancialListScreen() {
 									isDisabled: isSavingEdit,
 								})}
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 										Prazo de resgate
 									</Text>
 									<Select
@@ -2532,7 +2533,7 @@ export default function FinancialListScreen() {
 									</Select>
 								</VStack>
 								<VStack className="mb-4">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 										Banco
 									</Text>
 									<Select
@@ -2584,7 +2585,7 @@ export default function FinancialListScreen() {
 									</Select>
 								</VStack>
 								<VStack className="mb-1">
-									<Text className={`${bodyText} mb-1 ml-1 text-sm`}>
+									<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 										Descrição
 									</Text>
 									<Textarea
@@ -2657,7 +2658,7 @@ export default function FinancialListScreen() {
 								isDisabled: isSavingDepositSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização do aporte"
 									value={depositSyncDate}
@@ -2735,7 +2736,7 @@ export default function FinancialListScreen() {
 								isDisabled: isSavingDeposit,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do aporte</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do aporte</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data do aporte"
 									value={depositDate}
@@ -2801,7 +2802,7 @@ export default function FinancialListScreen() {
 								isDisabled: isSavingWithdrawalSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização do resgate"
 									value={withdrawSyncDate}
@@ -2879,7 +2880,7 @@ export default function FinancialListScreen() {
 								isDisabled: isSavingWithdrawal,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data do resgate</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do resgate</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data do resgate"
 									value={withdrawalDate}
@@ -2945,7 +2946,7 @@ export default function FinancialListScreen() {
 								isDisabled: isSavingSync,
 							})}
 							<VStack className="mb-4">
-								<Text className={`${bodyText} mb-1 ml-1 text-sm`}>Data da sincronização</Text>
+								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
 								<DatePickerField
 									accessibilityLabel="Selecionar data da sincronização manual"
 									value={syncDate}

@@ -34,6 +34,7 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import AddRegisterUserScreenIllustration from '../../assets/UnDraw/addRegisterUserScreen.svg';
 
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -332,8 +333,8 @@ export default function AddRegisterUserScreen() {
                                 <VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
                                     <VStack className="mb-4">
-                                        <HStack className="mb-1 ml-1">
-                                            <Text className={`${bodyText} text-sm`}>Nome do usuário (opcional)</Text>
+                                        <HStack className="mb-2 ml-1 items-center gap-2">
+                                            <Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Nome do usuário (opcional)</Text>
                                             <Popover
                                                 placement="bottom"
                                                 size="md"
@@ -380,8 +381,8 @@ export default function AddRegisterUserScreen() {
                                     </VStack>
 
                                     <VStack className="mb-4">
-                                        <HStack className="mb-1 ml-1">
-                                            <Text className={`${bodyText} text-sm`}>Email do Usuário</Text>
+                                        <HStack className="mb-2 ml-1 items-center gap-2">
+                                            <Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Email do Usuário</Text>
                                             <Popover
                                                 placement="bottom"
                                                 size="md"
@@ -429,7 +430,7 @@ export default function AddRegisterUserScreen() {
                                     </VStack>
 
                                     <VStack className="mb-4">
-                                        <Text className={`${bodyText} mb-1 ml-1 text-sm`}>Senha do usuário</Text>
+                                        <Text className={LUMUS_FORM_CLASS_NAMES.label}>Senha do usuário</Text>
                                         <Input className={fieldContainerClassName} isDisabled={email.trim() === ''}>
                                             <InputField
                                                 ref={passwordInputRef as any}

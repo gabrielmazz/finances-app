@@ -82,10 +82,12 @@ Retorna constantes de estilo centralizadas que se adaptam ao modo dark/light. El
 | `helperText` | `string` | Classe de texto auxiliar |
 | `inputField` | `string` | Classe de texto + placeholder para inputs |
 | `labelText` | `string` | Classe de texto para labels |
-| `fieldContainerClassName` | `string` | Classe de container de campo (h-10 no nativo; h-12, fundo transparente, padding e foco amarelo no Web) |
+| `fieldContainerClassName` | `string` | Fachada compatível para `LUMUS_FORM_CLASS_NAMES.input`: altura mínima `min-h-control` (48px), altura Web `h-control` (48px), padding e estados de foco compartilhados |
 | `fieldBankContainerClassName` | `string` | Classe de container para seletores de banco com ícone e texto auxiliar, usando altura mínima maior que inputs simples |
 | `fieldContainerClassNameNotSpace` | `string` | Idem sem altura fixa |
-| `textareaContainerClassName` | `string` | Classe de textarea (h-24 no nativo; `h-[112px]`, fundo transparente e foco alinhado ao Web base) |
+| `textareaContainerClassName` | `string` | Fachada compatível para `LUMUS_FORM_CLASS_NAMES.textarea`, incluindo texto, altura de 112px e foco compartilhados |
+
+Novos formulários devem importar `LUMUS_FORM_CLASS_NAMES.label`/`inlineLabel` e aplicar `input`, `textarea` ou `select` conforme o controle. `labelText` permanece como token de cor legado para consumidores que ainda não migraram; não é o contrato tipográfico dos novos campos.
 | `sectionCardClassName` | `string` | Classe de card de seção (rounded-3xl) |
 | `tintedCardClassName` | `string` | Card com fundo sutil |
 | `modalContentClassName` | `string` | Classe do conteúdo de modais |
@@ -268,3 +270,14 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 - `useHomeScreenData` usa `useFocusEffect`, não `useEffect` — dados são recarregados a cada foco
 - Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais para estado
 - `useTagIcons` mantém o catálogo em `useMemo` para evitar recriação a cada render
+
+## `useUserProfile()`
+
+Carrega o documento próprio, controla nome/rascunho, validação, salvar/descartar e cópia do UID para as duas composições de [[Perfil do Usuário]]. Falhas preservam a edição; trava síncrona impede submits concorrentes; epoch de montagem e UID autenticado impedem publicar respostas de outra sessão. Arquivo: `hooks/useUserProfile.ts`.
+
+## `useCategoryAnalysisData(personId)`
+
+Compartilhado pelas variantes Web e mobile da [[Análise por Categoria]]. Mantém o histórico padrão dos três meses fechados, valida datas, recarrega por foco e por mudança válida do intervalo e expõe carregamento, atualização, erro e recarga manual. Um identificador de requisição impede respostas de períodos ou usuários anteriores de substituir os dados atuais, inclusive após sair da tela. O hook não grava dados nem adiciona cache persistente.
+
+- Arquivo: `hooks/useCategoryAnalysisData.ts`.
+- Cálculos e limites de período: `utils/categoryAnalysis.ts`.

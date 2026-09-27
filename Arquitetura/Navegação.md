@@ -184,3 +184,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - `/lumus-assistant` deve permanecer na lista central protegida; `tests/navigation.test.ts` compara todas as rotas físicas com `APP_ROUTE_PATHS`
 - A rota `/lumus-assistant` deve montar `LumusAssistantProvider` e `LumusAssistantScreen` diretamente, sem `React.lazy`/`Suspense`. A inicialização assíncrona de IA deve ficar no painel da tela, e a boundary local deve servir somente como recuperação para erro inesperado.
 - Com `main: "index.ts"`, handlers de background obrigatórios devem ser registrados antes de `require('expo-router/entry')`; inicializações de UI/canais permanecem em `app/_layout.tsx` ou utilitários importados por ele, nunca em `App.tsx`
+
+## Perfil pessoal — 2026-09-27
+
+`APP_ROUTE_PATHS.profile` registra `/web/profile` e `/mobile/profile`, com adaptadores/fallbacks próprios e as telas independentes `PerfilPersonScreen.web.tsx` / `PerfilPersonScreen.tsx`. O guard autenticado é derivado do registro central. Meu perfil substitui Relacionar usuário no grupo Config e fica ativo também na rota de vínculo. O perfil não é ocultável; seu atalho interno Relacionar usuário continua condicionado a `addUserRelation`. A rota existente é preservada, recebe `fromProfile=1` e oferece retorno explícito/físico ao perfil, com fallback determinístico para acesso direto. Ver [[Perfil do Usuário]].

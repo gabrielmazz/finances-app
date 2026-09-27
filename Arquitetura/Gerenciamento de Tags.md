@@ -39,7 +39,7 @@ graph TD
 8. Os campos de categoria em transações e recorrências usam um ActionSheet customizado com ícone, nome, destaque da categoria selecionada e ação interna para abrir `AddRegisterTagScreen.tsx`, em vez do menu padrão do Android ou de um botão solto ao lado do campo.
 9. Em [[Gerenciamento de Bancos|BankMovementsScreen]], as tags podem ser usadas como filtro local da timeline; a lista de opções é formada a partir das movimentações carregadas no período.
 10. O gráfico de pizza no [[Dashboard Home]] agrupa despesas por tag.
-11. A [[Análise por Categoria]] usa as tags como eixo principal do relatório, com seleção via ActionSheet compartilhado, labels de uso/obrigatoriedade abaixo do nome da categoria, comparação do mês atual com a média histórica de 3 meses e quebra do resultado por banco/dinheiro.
+11. A [[Análise por Categoria]] usa as tags como eixo principal do relatório, com seleção via ActionSheet compartilhado, labels de uso/obrigatoriedade abaixo do nome da categoria, comparação do mês atual parcial com os mesmos dias dos meses completos do histórico selecionado (três meses por padrão, até doze) e quebra do resultado por banco/dinheiro.
 12. Em [[Configurações]], a listagem administrativa usa "categoria" como nomenclatura visual padrão, mostra resumos legíveis de disponibilidade, filtra pelos quatro contextos e abre a edição diretamente.
 13. Antes de excluir uma categoria, [[Configurações]] consulta `expenses`, `gains`, `mandatoryExpenses` e `mandatoryGains`. Com referências, bloqueia a exclusão e informa a contagem para que os registros sejam reclassificados; sem referências, confirma e revalida imediatamente antes da remoção.
 

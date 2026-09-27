@@ -1229,7 +1229,7 @@ export default function HomeScreen() {
 								<VStack className="px-2 pb-3">
 									<HStack className="gap-1 items-center">
 										<Heading
-											className="text-lg uppercase tracking-widest "
+											className={webDashboardClassNames.sectionHeadingText}
 											size="lg"
 										>
 											Meus Bancos e Dinheiro
@@ -1421,7 +1421,7 @@ export default function HomeScreen() {
 								<VStack className="px-2 pb-3">
 									<HStack className="gap-1 items-center">
 										<Heading
-											className="text-lg uppercase tracking-widest "
+											className={webDashboardClassNames.sectionHeadingText}
 											size="lg"
 										>
 											Investimentos
@@ -1725,7 +1725,7 @@ export default function HomeScreen() {
 										<VStack className="">
 											<HStack className="gap-1 items-center">
 												<Heading
-													className="text-lg uppercase tracking-widest "
+													className={webDashboardClassNames.sectionHeadingText}
 												>
 													Últimas Movimentações
 												</Heading>
@@ -2017,13 +2017,7 @@ export default function HomeScreen() {
 																		<HStack className="items-start justify-between gap-4">
 																			<VStack className="flex-1">
 																				<Text
-																					style={{
-																						fontSize: 10,
-																						fontWeight: '700',
-																						letterSpacing: 0.4,
-																						color: 'rgba(255,255,255,0.74)',
-																						textTransform: 'uppercase',
-																					}}
+																					className={webDashboardClassNames.detailLabel}
 																				>
 																					Resumo
 																				</Text>
@@ -2040,13 +2034,7 @@ export default function HomeScreen() {
 
 																			<VStack className="items-end">
 																				<Text
-																					style={{
-																						fontSize: 10,
-																						fontWeight: '700',
-																						letterSpacing: 0.4,
-																						color: 'rgba(255,255,255,0.74)',
-																						textTransform: 'uppercase',
-																					}}
+																					className={webDashboardClassNames.detailLabel}
 																				>
 																					Valor
 																				</Text>
@@ -2073,13 +2061,7 @@ export default function HomeScreen() {
 																					}}
 																				>
 																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.72)',
-																							textTransform: 'uppercase',
-																						}}
+																						className={webDashboardClassNames.detailLabel}
 																					>
 																						{item.label}
 																					</Text>
@@ -2101,13 +2083,7 @@ export default function HomeScreen() {
 																		getTimelineDetailMessage(movement) !== movement.explanation.trim() ? (
 																			<View style={{ paddingTop: 2 }}>
 																				<Text
-																					style={{
-																						fontSize: 10,
-																						fontWeight: '700',
-																						letterSpacing: 0.4,
-																						color: 'rgba(255,255,255,0.72)',
-																						textTransform: 'uppercase',
-																					}}
+																					className={webDashboardClassNames.detailLabel}
 																				>
 																					Descrição
 																				</Text>

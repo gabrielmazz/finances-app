@@ -38,6 +38,7 @@ import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTag
 import { auth } from '@/FirebaseConfig';
 import { addTagFirebase, getTagDataFirebase, updateTagFirebase } from '@/functions/TagFirebase';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -575,8 +576,8 @@ export default function AddRegisterTagScreen() {
 												</HStack>
 											</Pressable>
 
-											<VStack className="gap-1">
-												<Text className={`${bodyText} ml-1 text-sm`}>Nome da categoria</Text>
+											<VStack className="gap-2">
+												<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Nome da categoria</Text>
 												<Input className={fieldContainerClassName}>
 													<InputField
 														ref={tagNameInputRef as any}
@@ -591,8 +592,8 @@ export default function AddRegisterTagScreen() {
 												</Input>
 											</VStack>
 
-											<VStack className="gap-1">
-												<Text className={`${bodyText} ml-1 text-sm`}>Ícone da categoria</Text>
+											<VStack className="gap-2">
+												<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Ícone da categoria</Text>
 												<Pressable
 													onPress={() => isIconSelectionEnabled && setIsTagIconSheetOpen(true)}
 													disabled={!isIconSelectionEnabled}

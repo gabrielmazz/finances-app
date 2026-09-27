@@ -37,6 +37,7 @@ import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
 
 import AddRegisterMonthlyBalanceScreenIllustration from '../../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
@@ -105,7 +106,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		heroHeight,
 		infoCardStyle,
 		insets,
-		labelText,
 		webDashboardClassNames,
 
 	} = useScreenStyles();
@@ -600,8 +600,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 								<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 									<VStack className="mb-4">
 
-										<HStack className="mb-1 ml-1 gap-2">
-											<Text className={`${bodyText} text-sm`}>Banco</Text>
+										<HStack className="mb-2 ml-1 items-center gap-2">
+											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Banco</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -661,8 +661,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 									</VStack>
 
 									<VStack className="mb-4">
-										<HStack className="mb-1 ml-1 gap-2">
-											<Text className={`${bodyText} text-sm`}>Mês de referência</Text>
+										<HStack className="mb-2 ml-1 items-center gap-2">
+											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Mês de referência</Text>
 											<Popover
 												placement="bottom"
 												size="md"
@@ -714,7 +714,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 									</VStack>
 
 									<VStack className="mb-4">
-										<Text className={`${labelText} mb-1 ml-1 text-sm`}>
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 											Saldo disponível
 										</Text>
 										<Input

@@ -1,9 +1,9 @@
 // O RegisterUserFirebase.ts é responsável por registrar novos usuários no 
 // Firebase Authentication e armazenar seus dados iniciais com nome, email
-// e a senha de login
+// sem persistir a senha no Firestore.
 
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth, db, secondaryAuth } from '@/FirebaseConfig';
+import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
+import { auth, db, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 // Define os parâmetros necessários para registrar um usuário
@@ -27,6 +27,7 @@ export async function registerUserFirebase({
 }: RegisterUserParams) {
 
     let shouldSignOutSecondary = false;
+    let createdUser: User | null = null;
 
     try {
         const normalizedName = typeof name === 'string' ? name.trim() : '';
@@ -34,10 +35,13 @@ export async function registerUserFirebase({
         // Cria o usuário no Firebase Authentication
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
         const user = userCredential.user;
+        createdUser = user;
         shouldSignOutSecondary = true;
 
         // Armazena os dados iniciais do usuário no Firestore
-        await setDoc(doc(db, 'users', user.uid), {
+        // [[Autenticação]]: o perfil deve ser escrito com o UID recém-criado,
+        // inclusive quando não existe sessão primária no cadastro público.
+        await setDoc(doc(secondaryDb, 'users', user.uid), {
             name: normalizedName.length > 0 ? normalizedName : null,
             email,
             createdAt: new Date(),
@@ -47,7 +51,13 @@ export async function registerUserFirebase({
         return { success: true, user };
 
     } catch (error) {
-        
+        if (createdUser) {
+            try {
+                await deleteUser(createdUser);
+            } catch {
+                return { success: false, error: { code: 'auth/profile-creation-incomplete' } };
+            }
+        }
         return { success: false, error };
         
     } finally {
@@ -61,6 +71,18 @@ export async function registerUserFirebase({
         }
     }
 
+}
+
+// [[Autenticação]]: resposta neutra também em projetos sem proteção contra
+// enumeração de emails. A redefinição efetiva acontece no link do Firebase.
+export async function requestPasswordResetFirebase(email: string) {
+    auth.languageCode = 'pt-BR';
+    try {
+        await sendPasswordResetEmail(auth, email.trim().toLowerCase());
+    } catch (error) {
+        if (typeof error === 'object' && error && 'code' in error && error.code === 'auth/user-not-found') return;
+        throw error;
+    }
 }
 
 // Função para deletar um usuário registrado no Firebase

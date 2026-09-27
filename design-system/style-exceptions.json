@@ -1,5 +1,13 @@
 [
   {
+    "files": ["screens/mobile/PerfilPersonScreen.tsx"],
+    "reason": "O ScrollView reserva espaço calculado pelo teclado, e o hero/sheet acompanham viewport e safe area.",
+    "limitation": "Teclado, safe area e altura do hero mudam em runtime e não podem ser representados por classes estáticas.",
+    "risk": "Mudanças no teclado ou safe area podem encobrir controles ou desalojar a sobreposição do sheet.",
+    "alternative": "Geometria e cores fixas usam NativeWind; styles ficam restritos ao espaço do teclado, à altura do hero e à margem derivada.",
+    "owner": "profile-ui"
+  },
+  {
     "files": ["components/ui/gluestack-ui-provider/index.tsx", "components/ui/gluestack-ui-provider/config.ts"],
     "reason": "O provider Gluestack injeta variáveis CSS por meio da propriedade style.",
     "limitation": "A API do provider não aceita as variáveis de tema por className.",
@@ -110,5 +118,13 @@
     "risk": "A paleta nativa pode divergir se esses valores forem alterados isoladamente.",
     "alternative": "Manter os valores espelhados na documentação e revisar o manifesto junto com tokens.ts.",
     "owner": "native-platform"
+  },
+  {
+    "files": ["screens/web/PerfilPersonScreen.web.tsx"],
+    "reason": "A altura do hero e a sobreposição do sheet dependem do viewport/safe area; a imagem React Native no Web precisa cobrir explicitamente a camada absoluta.",
+    "limitation": "Essas dimensões mudam em runtime e a imagem não cobre o hero de forma confiável apenas com classes NativeWind no DOM.",
+    "risk": "Alterações no empilhamento podem revelar o fundo escuro do shell ou deixar uma faixa lateral sem wallpaper.",
+    "alternative": "Classes controlam largura, cor e recorte; styles ficam limitados à imagem e às medidas calculadas do hero/sheet.",
+    "owner": "profile-ui"
   }
 ]

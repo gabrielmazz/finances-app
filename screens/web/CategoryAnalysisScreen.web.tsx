@@ -10,12 +10,12 @@ import {
 	useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
 import '@mantine/core/styles.css';
-import { MantineProvider, Tabs as MantineTabs } from '@mantine/core';
+import { Divider as MantineDivider, MantineProvider, Tabs as MantineTabs } from '@mantine/core';
 import { cn } from '@/lib/utils';
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import {
 	getMantineChartStrokeColor,
 	getMantineTabsStyles,
@@ -23,11 +23,16 @@ import {
 	MANTINE_MOVEMENT_TABS_CSS_VARIABLES,
 } from '@/design-system/mantine';
 
+import { useCategoryAnalysisData } from '@/hooks/useCategoryAnalysisData';
+import { getCategoryAnalysisMovementPage } from '@/utils/categoryAnalysis';
+import CategoryAnalysisPeriodFields from '@/components/uiverse/categories/category-analysis-period-fields';
+import CategoryAnalysisMovementPagination from '@/components/uiverse/categories/category-analysis-movement-pagination';
 import { auth } from '@/FirebaseConfig';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import CategoryAnalysisBankDonutChart from '@/components/uiverse/categories/category-analysis-bank-donut-chart';
+import CategoryAnalysisMonthlyLineChart from '@/components/uiverse/categories/category-analysis-monthly-line-chart';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
@@ -38,13 +43,11 @@ import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import {
 	type CategoryAnalysisBankBreakdown,
-	type CategoryAnalysisData,
 	type CategoryAnalysisMetric,
 	type CategoryAnalysisMovementType,
 	type CategoryAnalysisReport,
 	type CategoryAnalysisStatus,
 	type CategoryAnalysisTagOption,
-	getCategoryAnalysisFirebase,
 } from '@/functions/CategoryAnalysisFirebase';
 import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
@@ -62,7 +65,6 @@ import CategoryAnalysisIllustration from '../../assets/UnDraw/analyzeGainExpense
 const BANK_PIE_COLORS = ['#FACC15', '#22C55E', '#38BDF8', '#F97316', '#A855F7', '#EF4444'];
 const CASH_BREAKDOWN_COLOR = '#22C55E';
 const DEFAULT_BREAKDOWN_COLOR = '#64748B';
-const ANALYSIS_BASELINE_MONTHS = 3;
 const ANALYSIS_MOVEMENT_TYPE_OPTIONS = ['expense', 'gain'] as const;
 
 const formatCurrencyBRLBase = (valueInCents: number) =>
@@ -187,15 +189,15 @@ const buildInsightMessage = ({
 		: null;
 
 	if (metric.status === 'above' && percent) {
-		return `Seu ${typeLabel} com ${tagName} está ${percent} maior que a média dos últimos ${baselineMonthCount} meses.`;
+		return `Seu ${typeLabel} com ${tagName} está ${percent} maior que a média dos ${baselineMonthCount} meses completos selecionados, até o mesmo dia do mês.`;
 	}
 
 	if (metric.status === 'below' && percent) {
-		return `Seu ${typeLabel} com ${tagName} está ${percent} menor que a média dos últimos ${baselineMonthCount} meses.`;
+		return `Seu ${typeLabel} com ${tagName} está ${percent} menor que a média dos ${baselineMonthCount} meses completos selecionados, até o mesmo dia do mês.`;
 	}
 
 	if (metric.status === 'stable') {
-		return `Seu ${typeLabel} com ${tagName} ficou próximo da média dos últimos ${baselineMonthCount} meses.`;
+		return `Seu ${typeLabel} com ${tagName} ficou próximo da média dos ${baselineMonthCount} meses completos selecionados, até o mesmo dia do mês.`;
 	}
 
 	if (metric.currentInCents > 0) {
@@ -283,13 +285,12 @@ export default function CategoryAnalysisScreenWeb() {
 	const { width: windowWidth } = useWindowDimensions();
 	const { shouldHideValues } = useValueVisibility();
 	const currentUserId = auth.currentUser?.uid ?? null;
-	const [analysis, setAnalysis] = React.useState<CategoryAnalysisData | null>(null);
+	const { analysis, isLoading, isRefreshing, errorMessage, loadAnalysis, range, rangeError, setStartDate, setEndDate } = useCategoryAnalysisData(currentUserId);
+	const [showAllMovements, setShowAllMovements] = React.useState(false);
+	const [movementPage, setMovementPage] = React.useState(0);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedType, setSelectedType] = React.useState<CategoryAnalysisMovementType>('expense');
-	const [isLoading, setIsLoading] = React.useState(false);
-	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
-	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
 	const {
 		isDarkMode,
@@ -347,50 +348,6 @@ export default function CategoryAnalysisScreenWeb() {
 		[shouldHideValues],
 	);
 
-	const loadAnalysis = React.useCallback(
-		async (asRefresh = false) => {
-			if (!currentUserId) {
-				setErrorMessage('Nenhum usuário autenticado foi identificado.');
-				setAnalysis(null);
-				return;
-			}
-
-			if (asRefresh) {
-				setIsRefreshing(true);
-			} else {
-				setIsLoading(true);
-			}
-			setErrorMessage(null);
-
-			const result = await getCategoryAnalysisFirebase(currentUserId, ANALYSIS_BASELINE_MONTHS);
-
-			if (!result.success) {
-				setErrorMessage('Não foi possível carregar a análise por categoria.');
-				setAnalysis(null);
-				setIsLoading(false);
-				setIsRefreshing(false);
-				return;
-			}
-
-			setAnalysis(result.data);
-			setSelectedTagId(current => {
-				if (current && result.data.reportsByTagId[current]) {
-					return current;
-				}
-				return result.data.defaultTagId;
-			});
-			setIsLoading(false);
-			setIsRefreshing(false);
-		},
-		[currentUserId],
-	);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			void loadAnalysis(false);
-		}, [loadAnalysis]),
-	);
-
 	const selectedTag = React.useMemo(
 		() => analysis?.tags.find(tag => tag.id === selectedTagId) ?? null,
 		[analysis?.tags, selectedTagId],
@@ -400,7 +357,7 @@ export default function CategoryAnalysisScreenWeb() {
 		: null;
 
 	React.useEffect(() => {
-		if (!analysis || selectedTagId) {
+		if (!analysis || (selectedTagId && analysis.reportsByTagId[selectedTagId])) {
 			return;
 		}
 
@@ -505,10 +462,15 @@ export default function CategoryAnalysisScreenWeb() {
 			1,
 		);
 	}, [selectedReport, selectedType]);
-	const visibleRecentMovements = React.useMemo(
-		() => selectedReport?.recentMovements.filter(movement => movement.type === selectedType) ?? [],
-		[selectedReport?.recentMovements, selectedType],
+	React.useEffect(() => {
+		setShowAllMovements(false);
+		setMovementPage(0);
+	}, [selectedTagId, selectedType, analysis]);
+	const movementList = React.useMemo(
+		() => getCategoryAnalysisMovementPage(selectedReport?.movements ?? [], selectedType, showAllMovements, movementPage),
+		[selectedReport?.movements, selectedType, showAllMovements, movementPage],
 	);
+	const visibleRecentMovements = movementList.items;
 	const statusColor = React.useMemo(() => {
 		if (!metric) {
 			return palette.warning;
@@ -528,14 +490,16 @@ export default function CategoryAnalysisScreenWeb() {
 
 		return palette.warning;
 	}, [metric, palette.blue, palette.negative, palette.positive, palette.warning, selectedType]);
-	const insightMessage = metric && selectedReport
-		? buildInsightMessage({
-			metric,
-			type: selectedType,
-			tagName: selectedReport.tagName,
-			baselineMonthCount: selectedReport.baselineMonthCount,
-		})
-		: 'Selecione uma categoria para gerar o relatório.';
+	const insightMessage = shouldHideValues
+		? 'Exiba os valores para consultar a comparação com o histórico.'
+		: metric && selectedReport
+			? buildInsightMessage({
+				metric,
+				type: selectedType,
+				tagName: selectedReport.tagName,
+				baselineMonthCount: selectedReport.baselineMonthCount,
+			})
+			: 'Selecione uma categoria para gerar o relatório.';
 
 	const handleExportCategoryAnalysisPdf = React.useCallback(async () => {
 		if (isExportingPdf) {
@@ -567,19 +531,19 @@ export default function CategoryAnalysisScreenWeb() {
 			{
 				label: `${getMovementTypeLabel(selectedType)} no mês`,
 				value: formatCurrencyBRL(metric.currentInCents),
-				helper: `${metric.currentCount} movimentações no mês atual.`,
+				helper: `${metric.currentCount} movimentações. ${selectedReport.currentPeriodLabel}.`,
 				tone: movementTone,
 			},
 			{
 				label: 'Média histórica',
 				value: formatCurrencyBRL(metric.historicalAverageInCents),
-				helper: `${metric.historicalCount} movimentos nos últimos ${selectedReport.baselineMonthCount} meses.`,
+				helper: `${selectedReport.comparisonLabel} ${metric.historicalCount} movimentos comparáveis.`,
 				tone: 'neutral',
 			},
 			{
 				label: 'Variação',
 				value: formatSignedCurrencyBRL(metric.deltaInCents),
-				helper: formatMetricPercentLabel(metric),
+				helper: shouldHideValues ? HIDDEN_VALUE_PLACEHOLDER : formatMetricPercentLabel(metric),
 				tone: variationTone,
 			},
 		];
@@ -594,14 +558,14 @@ export default function CategoryAnalysisScreenWeb() {
 			statusLabel: getStatusLabel(metric.status),
 			primaryMetricLabel: selectedReport.currentMonthLabel,
 			primaryMetricValue: formatCurrencyBRL(metric.currentInCents),
-			primaryMetricHelper: formatMetricPercentLabel(metric),
+			primaryMetricHelper: `${selectedReport.currentPeriodLabel}. Histórico: ${selectedReport.historyPeriodLabel}. ${selectedReport.comparisonLabel}`,
 			metrics,
 			months: selectedReport.months.map(month => {
 				const monthValue = selectedType === 'expense' ? month.expenseInCents : month.gainInCents;
 				const monthCount = selectedType === 'expense' ? month.expenseCount : month.gainCount;
 
 				return {
-					label: month.isCurrentMonth ? 'Este mês' : month.label,
+					label: month.isCurrentMonth ? selectedReport.currentPeriodLabel : month.label,
 					valueLabel: formatCurrencyBRL(monthValue),
 					countLabel: `${monthCount} movimento(s)`,
 					isCurrentMonth: month.isCurrentMonth,
@@ -621,7 +585,7 @@ export default function CategoryAnalysisScreenWeb() {
 					),
 				};
 			}),
-			movements: visibleRecentMovements.map(movement => ({
+			movements: movementList.all.map(movement => ({
 				name: movement.name,
 				dateLabel: formatMovementDateLabel(movement.date),
 				sourceLabel: movement.bankName,
@@ -701,7 +665,7 @@ export default function CategoryAnalysisScreenWeb() {
 		selectedTag,
 		selectedType,
 		shouldHideValues,
-		visibleRecentMovements,
+		movementList.all,
 	]);
 
 	return (
@@ -759,7 +723,7 @@ export default function CategoryAnalysisScreenWeb() {
 							}
 						>
 							<View className="mb-5 mt-4">
-								<HStack className="items-center gap-2 px-2 pb-3">
+								<HStack className="items-center gap-2 px-1 pb-3">
 									<Heading className={`text-lg uppercase tracking-widest ${headingText}`} size="lg">
 										Relatório dinâmico
 									</Heading>
@@ -790,7 +754,7 @@ export default function CategoryAnalysisScreenWeb() {
 										<PopoverContent className="max-w-[270px]" style={infoCardStyle}>
 											<PopoverBody className="px-3 py-3">
 												<Text className={`${bodyText} text-xs leading-5`}>
-													A análise compara o mês atual com a média dos últimos 3 meses fechados.
+													A análise compara o mês atual até hoje com os mesmos dias dos meses completos do histórico escolhido.
 													Movimentos internos, como investimentos, não entram na comparação de gastos e ganhos.
 												</Text>
 											</PopoverBody>
@@ -798,7 +762,12 @@ export default function CategoryAnalysisScreenWeb() {
 									</Popover>
 								</HStack>
 
-								{isLoading && !analysis ? (
+								{/* Os filtros continuam acessíveis para corrigir períodos inválidos ou repetir uma consulta. */}
+								<CategoryAnalysisPeriodFields
+									range={range} error={rangeError} disabled={isLoading || isRefreshing || isExportingPdf}
+									onStartChange={setStartDate} onEndChange={setEndDate}
+								/>
+								{rangeError ? null : (isLoading || isRefreshing) && !analysis ? (
 									<CategoryAnalysisSkeleton />
 								) : errorMessage ? (
 									<View className={`${categoryCardClassName} px-5 py-5`}>
@@ -887,6 +856,10 @@ export default function CategoryAnalysisScreenWeb() {
 											/>
 										</View>
 
+										<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+											<MantineDivider size="sm" />
+										</MantineProvider>
+
 										<LinearGradient
 											colors={
 												selectedType === 'expense'
@@ -964,13 +937,13 @@ export default function CategoryAnalysisScreenWeb() {
 															{formatCurrencyBRL(metric.currentInCents)}
 														</Text>
 														<Text className={`${helperText} mt-1 text-xs`}>
-															{metric.currentCount} movimentações
+															{metric.currentCount} movimentações · {selectedReport.currentPeriodLabel}
 														</Text>
 													</View>
 
 													<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
 														<Text className={`${helperText} text-xs font-bold uppercase`}>
-															Média 3 meses
+															{selectedReport.baselineMonthCount ? `Média de ${selectedReport.baselineMonthCount} ${selectedReport.baselineMonthCount === 1 ? 'mês' : 'meses'}` : 'Sem meses completos'}
 														</Text>
 														<Text className={`mt-2 text-lg font-bold ${headingText}`}>
 															{formatCurrencyBRL(metric.historicalAverageInCents)}
@@ -979,10 +952,10 @@ export default function CategoryAnalysisScreenWeb() {
 															className="mt-1 text-xs font-semibold"
 															style={{ color: statusColor }}
 														>
-															{formatMetricPercentLabel(metric)}
+															{shouldHideValues ? HIDDEN_VALUE_PLACEHOLDER : formatMetricPercentLabel(metric)}
 														</Text>
 														<Text className={`${helperText} mt-1 text-xs`}>
-															{metric.historicalCount} movimentos históricos
+															{selectedReport.comparisonLabel}
 														</Text>
 													</View>
 												</HStack>
@@ -1015,7 +988,7 @@ export default function CategoryAnalysisScreenWeb() {
 																					fontWeight: month.isCurrentMonth ? '700' : '600',
 																				}}
 																			>
-																				{month.isCurrentMonth ? 'Este mês' : month.label}
+																				{month.isCurrentMonth ? selectedReport.currentPeriodLabel : month.label}
 																			</Text>
 																			<Text className={`${bodyText} text-xs font-semibold`}>
 																				{formatCurrencyBRL(monthValue)}
@@ -1050,91 +1023,111 @@ export default function CategoryAnalysisScreenWeb() {
 												</View>
 
 												<View className="w-full px-1 py-2">
-													<VStack className="gap-4">
-														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
-															Distribuição por conta
-														</Heading>
+													<View className={`w-full items-start gap-4 ${windowWidth >= 900 ? 'flex-row' : 'flex-col'}`}>
+														<View className="w-full min-w-0 flex-1">
+															<VStack className="gap-4">
+																<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+																	Distribuição por conta
+																</Heading>
 
-														{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
-															<>
-																<View className="items-center justify-center">
-																	<CategoryAnalysisBankDonutChart
-																		data={bankDonutData}
-																		size={chartSize}
-																		totalInCents={breakdownTotalInCents}
-																		isDarkMode={isDarkMode}
-																		shouldHideValues={shouldHideValues}
-																		strokeColor={getMantineChartStrokeColor(isDarkMode)}
-																		accessibilityLabel={`Distribuição por conta de ${getMovementTypeLabel(selectedType).toLowerCase()}`}
-																	/>
-																</View>
+																{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
+																	<>
+																		<View className="items-center justify-center">
+																			<CategoryAnalysisBankDonutChart
+																				data={bankDonutData}
+																				size={chartSize}
+																				totalInCents={breakdownTotalInCents}
+																				isDarkMode={isDarkMode}
+																				shouldHideValues={shouldHideValues}
+																				strokeColor={getMantineChartStrokeColor(isDarkMode)}
+																				accessibilityLabel={`Distribuição por conta de ${getMovementTypeLabel(selectedType).toLowerCase()}`}
+																			/>
+																		</View>
 
-																<VStack className="gap-3">
-																	{activeBreakdown.map((item, index) => {
-																		const itemValue = selectedType === 'expense'
-																			? item.expenseInCents
-																			: item.gainInCents;
-																		const shareLabel = formatBreakdownShareLabel(
-																			item,
-																			itemValue,
-																			breakdownTotalInCents,
-																			activeBreakdown.length,
-																		);
-																		const color =
-																			item.colorHex ??
-																			(item.isCash
-																				? CASH_BREAKDOWN_COLOR
-																				: BANK_PIE_COLORS[index % BANK_PIE_COLORS.length] ?? DEFAULT_BREAKDOWN_COLOR);
+																		<VStack className="gap-3">
+																			{activeBreakdown.map((item, index) => {
+																				const itemValue = selectedType === 'expense'
+																					? item.expenseInCents
+																					: item.gainInCents;
+																				const shareLabel = formatBreakdownShareLabel(
+																					item,
+																					itemValue,
+																					breakdownTotalInCents,
+																					activeBreakdown.length,
+																				);
+																				const color =
+																					item.colorHex ??
+																					(item.isCash
+																						? CASH_BREAKDOWN_COLOR
+																						: BANK_PIE_COLORS[index % BANK_PIE_COLORS.length] ?? DEFAULT_BREAKDOWN_COLOR);
 
-																		return (
-																			<HStack key={item.id} className="items-center gap-3">
-																				<View
-																					style={{
-																						width: 10,
-																						height: 10,
-																						borderRadius: 999,
-																						backgroundColor: color,
-																					}}
-																				/>
-																				<VStack className="flex-1">
-																					<Text numberOfLines={1} style={{ color: palette.title, fontSize: 13, fontWeight: '700' }}>
-																						{item.name}
-																					</Text>
-																					<Text className={`${helperText} text-xs`}>
-																						{shareLabel}
-																					</Text>
-																				</VStack>
-																				<Text className={`${bodyText} text-sm font-bold`}>
-																					{formatCurrencyBRL(itemValue)}
-																				</Text>
-																			</HStack>
-																		);
-																	})}
-																</VStack>
-															</>
-														) : (
-															<View
-																style={{
-																	borderRadius: 16,
-																	borderWidth: 1,
-																	borderColor: palette.border,
-																	backgroundColor: palette.emptySurface,
-																	paddingHorizontal: 16,
-																	paddingVertical: 16,
-																}}
-															>
-																<Text className={`${helperText} text-sm leading-5`}>
-																	Nenhuma movimentação deste tipo foi encontrada no mês atual para esta categoria.
-																</Text>
-															</View>
-														)}
-													</VStack>
+																				return (
+																					<HStack key={item.id} className="items-center gap-3">
+																						<View
+																							style={{
+																								width: 10,
+																								height: 10,
+																								borderRadius: 999,
+																								backgroundColor: color,
+																							}}
+																						/>
+																						<VStack className="flex-1">
+																							<Text isTruncated style={{ color: palette.title, fontSize: 13, fontWeight: '700' }}>
+																								{item.name}
+																							</Text>
+																							<Text className={`${helperText} text-xs`}>
+																								{shareLabel}
+																							</Text>
+																						</VStack>
+																						<Text className={`${bodyText} text-sm font-bold`}>
+																							{formatCurrencyBRL(itemValue)}
+																						</Text>
+																					</HStack>
+																				);
+																			})}
+																		</VStack>
+																	</>
+																) : (
+																	<View
+																		style={{
+																			borderRadius: 16,
+																			borderWidth: 1,
+																			borderColor: palette.border,
+																			backgroundColor: palette.emptySurface,
+																			paddingHorizontal: 16,
+																			paddingVertical: 16,
+																		}}
+																	>
+																		<Text className={`${helperText} text-sm leading-5`}>
+																			Nenhuma movimentação deste tipo foi encontrada no mês atual para esta categoria.
+																		</Text>
+																	</View>
+																)}
+															</VStack>
+														</View>
+
+														<View className="w-full min-w-0 flex-1">
+															<VStack className="gap-4">
+																<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
+																	{getMovementTypeLabel(selectedType)} acumulados por mês
+																</Heading>
+																<CategoryAnalysisMonthlyLineChart
+																	months={selectedReport.months}
+																	type={selectedType}
+																	currentDayOfMonth={analysis.generatedAt.getDate()}
+																	isDarkMode={isDarkMode}
+																	shouldHideValues={shouldHideValues}
+																	accessibilityLabel={`${getMovementTypeLabel(selectedType)} acumulados por mês para ${selectedReport.tagName}${shouldHideValues ? '. Valores ocultos.' : '.'}`}
+																/>
+															</VStack>
+														</View>
+													</View>
 												</View>
 
 												<View className="w-full px-1 py-2">
 													<VStack className="gap-4">
 														<Heading size="lg" className={`${headingText} text-lg uppercase tracking-widest`}>
-															Últimas movimentações
+															{showAllMovements ? 'Movimentações no período' : 'Últimas movimentações'}
 														</Heading>
 
 														{visibleRecentMovements.length > 0 ? (
@@ -1160,10 +1153,10 @@ export default function CategoryAnalysisScreenWeb() {
 																			)}
 																		</View>
 																		<VStack className="flex-1">
-																			<Text numberOfLines={1} style={{ color: palette.title, fontSize: 13, fontWeight: '700' }}>
+																			<Text isTruncated style={{ color: palette.title, fontSize: 13, fontWeight: '700' }}>
 																				{movement.name}
 																			</Text>
-																			<Text numberOfLines={1} className={`${helperText} text-xs`}>
+																			<Text isTruncated className={`${helperText} text-xs`}>
 																				{movement.bankName} · {formatCompactMonthDate(movement.date)}
 																			</Text>
 																		</VStack>
@@ -1195,6 +1188,12 @@ export default function CategoryAnalysisScreenWeb() {
 																</Text>
 															</View>
 														)}
+														<CategoryAnalysisMovementPagination
+															total={movementList.all.length} showAll={showAllMovements}
+															page={movementList.currentPage} pageCount={movementList.pageCount}
+															onToggle={() => { setShowAllMovements(value => !value); setMovementPage(0); }}
+															onPageChange={setMovementPage}
+														/>
 													</VStack>
 												</View>
 
@@ -1216,7 +1215,7 @@ export default function CategoryAnalysisScreenWeb() {
 														<>
 															<Download
 																size={18}
-																color={isDarkMode ? '#0F172A' : '#FFFFFF'}
+																color={LUMUS_RUNTIME_COLORS.light.surface}
 															/>
 															<ButtonText className={submitButtonTextClassName}>
 																Baixar análise em PDF
