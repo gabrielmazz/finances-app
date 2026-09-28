@@ -11,7 +11,7 @@
 
 ## Persistência e privacidade
 
-- Auth continua `memory-only`.
+- Auth é `memory-only` no Android/iOS; no navegador, a sessão primária usa persistência local compartilhada entre abas, separada deste cache financeiro. Ver [[Autenticação]] e [[Firebase Config]].
 - Metadados podem ser persistidos por UID. Valores e resumos financeiros só são persistidos quando **Confiar neste dispositivo** está ativado em Configurações → Privacidade dos valores.
 - A preferência começa desligada. Desligá-la ou sair da conta remove imediatamente o cache financeiro persistido; a memória atual só dura até a sessão encerrar.
 - A hidratação acontece somente depois que o `uid` autenticado é conhecido. O armazenamento usa AsyncStorage no nativo e sua implementação web baseada em localStorage.

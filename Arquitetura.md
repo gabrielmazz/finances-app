@@ -160,7 +160,7 @@ O projeto usa **dois apps Firebase** inicializados:
 - **Primário** (`auth`, `db`): sessão atual + todas as queries Firestore
 - **Secundário** (`secondaryApp`, `secondaryAuth`): exclusivamente para criar novos usuários sem deslogar o usuário atual
 
-No Android/iOS, o app secundário usa o armazenamento seguro temporário documentado em [[Firebase Config]]. No navegador, os dois apps usam persistência somente em memória: recarregar, fechar a aba ou encerrar o navegador exige novo login.
+No Android/iOS, o app secundário usa o armazenamento seguro temporário documentado em [[Firebase Config]]. No navegador, o Auth primário usa persistência local compartilhada entre abas da mesma origem até o logout explícito; o Auth secundário permanece somente em memória.
 No desenvolvimento Web com alvo Emulator, existe ainda o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT`, restrito a AI Logic, App Check e Remote Config no projeto remoto; ele não fornece Auth, Firestore nem Functions financeiros.
 
 ---
@@ -232,7 +232,7 @@ No desenvolvimento Web com alvo Emulator, existe ainda o app nomeado `LUMUS_ASSI
 - Android usa os canais versionados `payment-reminders-v1` e `income-reminders-v1`, criados no bootstrap
 - Despesas usam schema `reminderConfigVersion: 1`, antecedência cumulativa D-1/D-2/D-3 e D0 opcional; documentos legados ficam opt-out até o usuário salvar a nova configuração
 - O motor agenda datas concretas depois de resolver dia 29/30/31 e dias úteis; Android mantém horizonte móvel de seis meses e reconcilia a agenda ao abrir as listas/voltar ao foreground
-- Toda agenda financeira é escopada por UID. Troca de conta e logout explícito limpam o UID anterior; o estado `user=null` de uma abertura fria não apaga alarmes porque a autenticação primária é memory-only
+- Toda agenda financeira é escopada por UID. Troca de conta e logout explícito limpam o UID anterior; o estado `user=null` de uma abertura fria no app nativo não apaga alarmes porque sua autenticação primária é memory-only
 - Marcar o ciclo como pago/recebido cancela imediatamente os avisos restantes daquele `YYYY-MM`
 - Não solicitar `USE_EXACT_ALARM` nem `SCHEDULE_EXACT_ALARM`; o horário é preferido e pode sofrer atraso por Doze/economia de bateria
 - Notificações são locais (sem servidor) — reinstalar app as apaga
@@ -275,6 +275,12 @@ GOOGLE_SERVICES_JSON=
 ---
 
 ## Active Context
+
+- Foco do nome no perfil em 2026-09-28: o wrapper HTML da tela Web aplica borda e anel amarelos somente enquanto o campo está focado, sem destaque no hover; o contorno nativo permanece no contrato Gluestack já compartilhado com os formulários. O erro do nome continua vermelho. Typecheck, export Web e `git diff --check` passaram; lint de estilos aponta apenas a dívida preexistente em `ConfigurationsScreen.web.tsx` e no baseline `useScreenStyles` (55/54). Sem inspeção visual nesta sessão. Vault alinhado em [[Perfil do Usuário]] e [[Auditoria de Design]].
+- Conta demo no Emulator em 2026-09-28: `backend/scripts/seed.ts`, chamado pelo início local, mantém `demo-user` no fluxo legado e semeia uma terceira conta vinculada por `personId`, com saldo mensal inicial de zero. Vault alinhado em [[Firebase Config]].
+- Cópia do ID no perfil em 2026-09-28: o campo somente leitura mantém um botão de ícone ao lado; sucesso usa `notifier-alert` in-app nas telas Web e mobile em vez de texto inline no perfil, e falha permanece visível no feedback existente. Sem teste visual nesta sessão. Vault alinhado em [[Perfil do Usuário]] e [[Notificações]].
+- Warnings de safe area e gráficos em 2026-09-28: os fallbacks das boundaries do Assistente usam `SafeAreaView` de `react-native-safe-area-context` no Web e no nativo; os três gráficos Mantine da Home Web definem `minWidth`/`minHeight` de 1 px pelo Styles API, preservando o ajuste responsivo e evitando medir a área como zero. `npm run typecheck` e `git diff --check` passaram; `npm run lint:styles` continua apontando a dívida preexistente de `ConfigurationsScreen.web.tsx` e o baseline global de `useScreenStyles` (55/54). Sem smoke visual autenticado ou em aparelho nesta sessão. Vault alinhado em [[Dashboard Home]] e [[Assistente Lumus]].
+- Sessão compartilhada no navegador em 2026-09-28: `FirebaseConfig.web.ts` usa `browserLocalPersistence` apenas no Auth primário, permitindo abrir novas abas da mesma origem e recarregar sem novo login até o logout explícito. O Auth secundário de cadastro segue em memória e Android/iOS não mudaram. Passaram os seis testes de compatibilidade Web, `npm run typecheck`, export Web e `git diff --check`; a abertura autenticada de duas abas ainda precisa de validação manual num navegador. Vault alinhado em [[Autenticação]], [[Firebase Config]], [[Versão Web]] e notas relacionadas.
 
 - Campos bloqueados do perfil em 2026-09-27: e-mail e data de cadastro agora usam a aparência atenuada dos campos desabilitados nos formulários, preservando a leitura do e-mail e impedindo abrir/alterar a data. Web/mobile seguem o mesmo tratamento visual. Typecheck e `git diff --check` passaram; o lint aponta somente pendências preexistentes em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). Vault em [[Perfil do Usuário]] e [[Auditoria de Design]].
 - Ajuste do wallpaper do perfil em 2026-09-27: Web e mobile calculam a altura do hero pela mesma proporção/altura mínima mais safe area e posicionam o sheet 64 px sobreposto. O shell Web ocupa a viewport e a imagem React Native é explicitamente dimensionada/posicionada para não deixar o fundo escuro aparecer como faixa lateral. `npm run typecheck` e `git diff --check` passaram; o lint de estilos aponta somente a dívida já existente em `ConfigurationsScreen.web.tsx` e o baseline de `useScreenStyles` (55/54). Sem teste automatizado.

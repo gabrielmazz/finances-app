@@ -86,7 +86,7 @@ type AuthContextValue = {
 
 ## Integrações
 
-- [[Firebase Config]] — `auth` instance (memory-only) usada para `onAuthStateChanged` e `signInWithEmailAndPassword`
+- [[Firebase Config]] — `auth` instance usada para `onAuthStateChanged` e `signInWithEmailAndPassword`; o navegador compartilha a sessão entre abas da mesma origem
 - [[Segurança de Login]] — Throttle de tentativas antes de chamar Firebase
 - [[Navegação]] — `_layout.tsx` usa `useAuth()` para controlar a disponibilidade das rotas via `Stack.Protected`
 - [[Gerenciamento de Usuários]] — `user.uid` é o `personId` usado em todas as queries
@@ -96,7 +96,8 @@ type AuthContextValue = {
 
 - Firebase Auth configurado em `FirebaseConfig.ts`
 - Antes de o `AuthProvider` montar, [[Firebase Config]] resolve o alvo a partir de variáveis `EXPO_PUBLIC_*` incorporadas diretamente pelo Metro. Development usa o Emulator; preview e releases usam produção. Uma release local com credenciais completas também infere produção, evitando exceção de bootstrap antes da Login e permanência na splash nativa.
-- **App primário usa persistência memory-only** — ao fechar o app, a sessão é encerrada e o usuário volta para a tela de login
+- **App primário nativo usa persistência memory-only** — ao fechar o app Android/iOS, a sessão é encerrada e o usuário volta para a tela de login
+- **App primário Web usa `browserLocalPersistence`** — outra aba ou recarregamento da mesma origem restaura o usuário; fechar o navegador também preserva a autenticação até **Sair**, expiração ou invalidação pelo Firebase
 - O `user=null` inicial de uma abertura fria não é tratado como logout explícito pelo motor de notificações; isso preserva os alarmes locais do último UID enquanto a sessão precisa ser refeita
 - O botão **Sair** bloqueia toques concorrentes, confirma que o UID originador ainda é o usuário do Firebase e chama `clearMandatoryReminderAccount(uid)` antes de `signOut(auth)`. A limpeza é recusada se outra conta já tiver assumido a sessão; ao entrar com outro UID, a ponte de `_layout.tsx` também limpa qualquer agenda anterior
 - A limpeza é preparada em duas fases: `clearMandatoryReminderAccount(uid)` cancela alarmes nativos, mas conserva configurações locais sem IDs como snapshot de rollback; somente depois do `signOut` bem-sucedido `finalizeMandatoryReminderAccountCleanup(uid)` apaga esse mapa
@@ -118,7 +119,7 @@ type AuthContextValue = {
 - Login e logout atualizam os guards automaticamente via `onAuthStateChanged`, mantendo o mesmo Stack raiz montado
 - Cada plataforma concentra sua interface completa em `LoginScreen.tsx` ou `LoginScreen.web.tsx`. A Web usa o painel de identidade em gradiente; Android/iOS preservam wallpaper e logos claro/escuro. Inputs, teclado, validação, throttle e Firebase Auth permanecem nativos, sem WebGL, canvas, `ogl` ou WebView.
 - Todo novo arquivo de rota autenticada deve entrar primeiro em `APP_ROUTE_PATHS`; o layout deriva desse registro os nomes protegidos, e o teste de navegação verifica a paridade com os arquivos planos em `app/`
-- A sessão **não persiste** entre reinicializações do app — isso é intencional (memory-only)
+- A sessão Android/iOS **não persiste** entre reinicializações do app — isso é intencional (memory-only); a sessão Web persiste até o logout explícito ou invalidação pelo Firebase
 - Os lembretes locais podem persistir entre reinicializações mesmo sem sessão persistida; eles são isolados pelo último UID ativo e nunca são mesclados com uma conta diferente
 - O serviço de notificações mantém um epoch/UID síncrono em memória; callbacks assíncronos de telas antigas são ignorados depois que logout ou troca de conta invalidam a sessão
 - A limpeza explícita recebe o UID esperado, varre inclusive alarmes nativos órfãos e não pode apagar a agenda de uma conta que se tornou ativa enquanto o logout anterior aguardava I/O

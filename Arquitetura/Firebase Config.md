@@ -16,7 +16,7 @@ Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase 
 graph TD
     FC[FirebaseConfig.ts / FirebaseConfig.web.ts] --> PA[App Primário]
     FC --> SA["App Secundário (SECONDARY)"]
-    PA --> AUTH["auth (memory-only)"]
+    PA --> AUTH["auth (memória nativa / local Web)"]
     PA --> DB["db (Firestore)"]
     SA --> SAUTH["secondaryAuth (SecureStore nativo / memória Web)"]
     AUTH --> AC[AuthContext]
@@ -28,8 +28,8 @@ DB --> CF["backend/ (callable Functions do razão)"]
 ### App Primário
 - Inicializado em `FirebaseConfig.ts` (Android/iOS) ou `FirebaseConfig.web.ts` (navegador) com `initializeApp(firebaseConfig)`
 - Expõe: `app`, `auth` (Firebase Auth) e `db` (Firestore)
-- **Persistência memory-only**: no nativo, `memoryOnlyAuthStorage`; no navegador, `inMemoryPersistence` do SDK Firebase — ao fechar o app, a aba ou ao recarregar, a sessão é encerrada
-- Isso é intencional: o usuário volta para a tela de login a cada abertura do app
+- **Persistência por plataforma**: no nativo, `memoryOnlyAuthStorage` encerra a sessão ao fechar o app; no navegador, `browserLocalPersistence` compartilha a sessão entre abas da mesma origem e a restaura após recarregar ou reabrir o navegador
+- No navegador, **Sair** chama `signOut(auth)` e remove a sessão compartilhada; o Firebase também pode invalidar a sessão. No nativo, o usuário volta para o login a cada abertura do app
 - Usado para autenticação da sessão atual e operações Firestore, exceto a criação do perfil da nova conta
 
 ### App Secundário
@@ -47,12 +47,12 @@ DB --> CF["backend/ (callable Functions do razão)"]
 |---|---|---|---|
 | Android/iOS | Primário (`auth`) | Memory-only (sem storage) | Sessão encerra ao fechar o app |
 | Android/iOS | Secundário (`secondaryAuth`) | SecureStore + AsyncStorage fallback | Mantém credenciais temporárias durante criação de conta |
-| Web | Primário (`auth`) | `inMemoryPersistence` | Sessão encerra ao recarregar/fechar a aba ou navegador |
+| Web | Primário (`auth`) | `browserLocalPersistence` | Sessão compartilhada entre abas da mesma origem até logout explícito ou invalidação |
 | Web | Secundário (`secondaryAuth`) | `inMemoryPersistence` | O cadastro não persiste credenciais secundárias no navegador |
 
 ### Alvos isolados
 
-`utils/firebaseRuntime.ts` é o único resolvedor do alvo dos dados financeiros. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions nas portas 9099, 8080 e 5001. Os emuladores escutam em `0.0.0.0`; o script usa `adb reverse` no Android Emulator e o IP LAN privado para dispositivos físicos. Computador e celular devem estar na mesma rede e o firewall deve permitir essas portas. O fluxo `npm run dev:local` força `expo start --go --lan`; `npm run dev:local:web` inicia a mesma configuração no navegador; o modo `--dev-client` permanece disponível separadamente para validar módulos nativos. Se o processo Expo encerrar inesperadamente, o launcher tenta iniciá-lo novamente após dois segundos sem reiniciar a Suite nem executar o seed de novo; `Ctrl+C` encerra a sessão e os emuladores iniciados nessa execução. O seed imprime no terminal as credenciais da conta demo local, que não existem em produção, e grava essa conta com `adminUser: true` para permitir testar os fluxos administrativos.
+`utils/firebaseRuntime.ts` é o único resolvedor do alvo dos dados financeiros. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions nas portas 9099, 8080 e 5001. Os emuladores escutam em `0.0.0.0`; o script usa `adb reverse` no Android Emulator e o IP LAN privado para dispositivos físicos. Computador e celular devem estar na mesma rede e o firewall deve permitir essas portas. O fluxo `npm run dev:local` força `expo start --go --lan`; `npm run dev:local:web` inicia a mesma configuração no navegador; o modo `--dev-client` permanece disponível separadamente para validar módulos nativos. Se o processo Expo encerrar inesperadamente, o launcher tenta reiniciá-lo após dois segundos sem reiniciar a Suite nem executar o seed de novo; `Ctrl+C` encerra a sessão e os emuladores iniciados nessa execução. O seed imprime no terminal as credenciais da conta demo local, que não existem em produção, e grava essa conta com `adminUser: true` para permitir testar os fluxos administrativos. As três contas e seus saldos iniciais são vinculados ao usuário demo por `personId`.
 
 AI Logic e Remote Config não fazem parte dos produtos emulados. Por isso, no alvo Emulator existe uma ponte híbrida restrita a AI Logic, App Check e Remote Config: o navegador cria o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT` com os identificadores públicos de `finances-app-e8685`, e o Android usa o app nativo do `google-services.json`. Auth, Firestore e Functions do negócio continuam integralmente em `demo-lumus-financas`; a ponte não exporta `db`, `auth` nem `functions` remotos e nunca grava dados financeiros no projeto real.
 
@@ -85,7 +85,7 @@ As consultas pontuais do Lumus para maior despesa/ganho usam `expenses`/`gains` 
 
 ```typescript
 export const app: FirebaseApp;           // App primário
-export const auth: Auth;                 // Auth memory-only
+export const auth: Auth;                 // Auth em memória no nativo / local no Web
 export const db: Firestore;              // Firestore principal
 export const secondaryApp: FirebaseApp;  // App secundário
 export const secondaryAuth: Auth;        // Auth secundário (SecureStore nativo / memória Web)
@@ -101,10 +101,11 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 
 
 - `FirebaseConfig.ts` — Inicialização e exports Android/iOS
-- `FirebaseConfig.web.ts` — Inicialização Web com Auth em memória para os dois apps
+- `FirebaseConfig.web.ts` — Inicialização Web com Auth primário local e secundário em memória
 - `utils/firebaseAuthStorage.ts` — Persistência dual SecureStore/AsyncStorage (usado pelo app secundário)
 - `firebase.json` e `.firebaserc` — Configuração do Firebase Hosting e aliases do projeto demo (padrão) e do projeto remoto (`production`)
 - `types/firebase-auth.d.ts` — Type declarations Firebase
+- `types/firebase-auth-web.d.ts` — Declara a persistência local da entrada Web, ausente dos tipos React Native usados pelo `tsconfig.json`
 
 ## Integrações
 
@@ -180,7 +181,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - O ID do projeto EAS está em `app.json` → `extra.eas.projectId`
 - Firebase SDK v12 usa API modular — imports como `import { getAuth } from 'firebase/auth'`
 - A inicialização verifica `getApps()` para evitar dupla-inicialização (hot reload / dev)
-- `createPrimaryAuthInstance` e `createSecondaryAuthInstance` tratam o caso de auth já inicializado com `try/catch` → fallback para `getAuth()`; no Web, o equivalente usa `initializeAuth(..., { persistence: inMemoryPersistence })`
+- `createPrimaryAuthInstance` e `createSecondaryAuthInstance` tratam o caso de auth já inicializado com `try/catch` → fallback para `getAuth()`; no Web, o primário usa `initializeAuth(..., { persistence: browserLocalPersistence })` e o secundário usa `inMemoryPersistence`
 - App Check continua obrigatório para Firebase AI Logic, mas o enforcement não é estendido ao Firestore nesta etapa. O domínio do Hosting precisa estar autorizado no Console para evitar falha de App Check no navegador.
 
 ## Persistência do perfil pessoal

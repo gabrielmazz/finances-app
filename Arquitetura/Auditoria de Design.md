@@ -2,6 +2,14 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — foco do nome no perfil, 2026-09-28
+
+**Inventário:** campo Nome de `/web/profile` e `/mobile/profile`, comparado ao foco de `AddRegisterExpensesScreen.web.tsx`.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | O wrapper HTML do campo na Web tinha apenas a borda no estado `focus-within`, sem o anel que acompanha os formulários; o campo nativo já consumia o contrato Gluestack de foco. | Web mostra borda e anel amarelos somente enquanto focado, sem destaque no hover. O estilo inválido continua vermelho; mobile segue com o contorno amarelo de 2 px do contrato compartilhado. | `npm run typecheck`, `npm run web:export` e `git diff --check` passaram. `npm run lint:styles` aponta apenas pendências preexistentes em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Sem smoke visual autenticado em navegador ou aparelho nesta sessão. |
+
 ## Checkpoint — aparência dos campos bloqueados no perfil, 2026-09-27
 
 **Inventário:** campos de e-mail e data de cadastro em `/web/profile` e `/mobile/profile`, comparados ao campo desabilitado de valor em `AddRegisterExpensesScreen.web.tsx`.

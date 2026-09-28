@@ -88,6 +88,8 @@ export default function HomeExpenseLineChart({
 					gridColor={isDarkMode ? 'dark.4' : 'gray.2'}
 					styles={{
 						root: {
+							minWidth: 1,
+							minHeight: 1,
 							'--chart-text-color': isDarkMode
 								? 'var(--mantine-color-gray-4)'
 								: 'var(--mantine-color-gray-6)',

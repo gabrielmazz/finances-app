@@ -84,7 +84,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 - O formulário administrativo de outros usuários continua disponível somente para administradores. O cadastro público no painel de [[Autenticação]] cria exclusivamente uma conta padrão (`adminUser: false`), sem vínculos ou campos de autorização do razão.
 - O app secundário Firebase é inicializado com as mesmas credenciais do app principal
 - Após criar o usuário no Firebase Auth via app secundário, o usuário precisa fazer login pela tela de [[Autenticação|Login]]
-- O app secundário usa persistência SecureStore (via `firebaseAuthStorage`), diferente do app primário que usa memory-only
+- No Android/iOS, o app secundário usa persistência SecureStore (via `firebaseAuthStorage`), diferente do app primário em memória. Na Web, o secundário usa memória e o primário persiste a sessão entre abas; ver [[Firebase Config]].
 - Cadastros e vínculos devem passar por [[Comportamento Pós-Registro]] após sucesso; não usar `router.back()` nem strings livres de rota
 - Cadastro de usuário e vínculo entre usuários limpam campos apenas quando a preferência da tela manda permanecer e limpar; ambos usam trava síncrona de submit, incluindo a etapa de consulta do usuário vinculado, para evitar duplicidade por múltiplos toques
 

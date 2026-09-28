@@ -24,8 +24,8 @@ Implementa proteção contra força bruta no login via throttling com backoff ex
 4. Após login bem-sucedido, contador de falhas é zerado
 
 ### Armazenamento Seguro
-- Credenciais de sessão Firebase persistidas preferencialmente via `expo-secure-store`
-- Fallback automático para `AsyncStorage` em caso de indisponibilidade do SecureStore
+- O Auth secundário de cadastro no Android/iOS usa preferencialmente `expo-secure-store` para credenciais temporárias
+- Há fallback automático para `AsyncStorage` em caso de indisponibilidade do SecureStore; o Auth primário nativo usa somente memória e o primário Web usa persistência local entre abas, conforme [[Firebase Config]]
 - Migração automática de dados do AsyncStorage para SecureStore quando SecureStore fica disponível
 
 ## Arquivos principais

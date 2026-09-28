@@ -45,6 +45,10 @@ async function seed() {
 	for (let index = 1; index <= 2; index += 1) {
 		put(`banks/demo-bank-${index}`, { personId: 'demo-user', userId: 'demo-user', name: `Conta Demo ${index}`, amount: index === 1 ? 125000 : 45000, color: index === 1 ? '#2563EB' : '#059669', createdAt: now });
 	}
+	put('banks/demo-bank-test', {
+		personId: 'demo-user', userId: 'demo-user', name: 'Conta Demo Teste', amount: 0,
+		color: '#7C3AED', createdAt: now,
+	});
 	const categoryNames = ['Alimentação', 'Moradia', 'Transporte', 'Saúde', 'Educação', 'Lazer', 'Mercado', 'Assinaturas', 'Trabalho', 'Outros'];
 	categoryNames.forEach((name, index) => {
 		put(`tags/demo-category-${index + 1}`, { personId: 'demo-user', userId: 'demo-user', name, type: 'both', color: '#2563EB', createdAt: now });
@@ -58,6 +62,10 @@ async function seed() {
 			valueInCents: index === 1 ? 125000 : 45000, createdAt: now, updatedAt: now,
 		});
 	}
+	put('monthlyBalances/demo-balance-test', {
+		personId: 'demo-user', bankId: 'demo-bank-test', year: currentYear, month: currentMonth + 1,
+		valueInCents: 0, createdAt: now, updatedAt: now,
+	});
 	const mandatoryDate = (day: number) => Timestamp.fromDate(new Date(currentYear, currentMonth, day, 12, 0, 0));
 	put('mandatoryExpenses/demo-mandatory-expense-monthly', {
 		personId: 'demo-user', name: 'Aluguel Demo', valueInCents: 180000, dueDay: 5, usesBusinessDays: false,
@@ -175,10 +183,10 @@ async function seed() {
 		database.collection('monthlyBalances').get(), database.collection('mandatoryExpenses').get(), database.collection('mandatoryGains').get(),
 		database.collection('financeInvestments').get(), database.collection('bankTransfers').get(), database.collection('cashRescues').get(),
 	]);
-	if (users.size !== 1 || categories.size !== 10 || expenses.size !== expenseCount + 2 || gains.size !== gainCount + 1 || accounts.size !== 2 || cards.size !== 3 || balances.size !== 2 || mandatoryExpenses.size !== 15 || mandatoryGains.size !== 2 || investments.size !== 3 || transfers.size !== 1 || cashRescues.size !== 1) {
+	if (users.size !== 1 || categories.size !== 10 || expenses.size !== expenseCount + 2 || gains.size !== gainCount + 1 || accounts.size !== 3 || cards.size !== 3 || balances.size !== 3 || mandatoryExpenses.size !== 15 || mandatoryGains.size !== 2 || investments.size !== 3 || transfers.size !== 1 || cashRescues.size !== 1) {
 		throw new Error(`Seed inconsistente: users=${users.size}, categories=${categories.size}, expenses=${expenses.size}, gains=${gains.size}, accounts=${accounts.size}, cards=${cards.size}, balances=${balances.size}, mandatoryExpenses=${mandatoryExpenses.size}, mandatoryGains=${mandatoryGains.size}, investments=${investments.size}, transfers=${transfers.size}, cashRescues=${cashRescues.size}`);
 	}
-	console.log(`Seed concluído para ${projectId} no mês ${currentMonthLabel}: ${expenses.size} despesas, ${gains.size} ganhos, 2 saldos, 2 obrigatórias de cada tipo, 1 investimento, 1 transferência e 1 saque.`);
+	console.log(`Seed concluído para ${projectId} no mês ${currentMonthLabel}: ${expenses.size} despesas, ${gains.size} ganhos, 3 contas demo vinculadas ao usuário, 3 saldos, 2 obrigatórias de cada tipo, 1 investimento, 1 transferência e 1 saque.`);
 }
 
 seed().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -32,7 +32,7 @@ describe('compatibilidade Web', () => {
 		process.env = { ...originalEnv };
 	});
 
-	it('inicializa os dois Firebase Auths Web exclusivamente em memória', () => {
+	it('configura persistência local no Auth Web principal e memória no secundário', () => {
 		const apps: Array<{ name: string }> = [];
 		const mockInitializeApp = jest.fn((_config, name?: string) => {
 			const app = { name: name ?? '[DEFAULT]' };
@@ -40,6 +40,7 @@ describe('compatibilidade Web', () => {
 			return app;
 		});
 		const mockGetApp = jest.fn((name?: string) => apps.find(app => app.name === (name ?? '[DEFAULT]')));
+		const mockBrowserLocalPersistence = { type: 'LOCAL' };
 		const mockInMemoryPersistence = { type: 'NONE' };
 		const mockInitializeAuth = jest.fn((app, options) => ({ app, options }));
 
@@ -51,6 +52,7 @@ describe('compatibilidade Web', () => {
 		jest.doMock('firebase/auth', () => ({
 			getAuth: jest.fn(),
 			initializeAuth: mockInitializeAuth,
+			browserLocalPersistence: mockBrowserLocalPersistence,
 			inMemoryPersistence: mockInMemoryPersistence,
 			connectAuthEmulator: jest.fn(),
 		}));
@@ -62,7 +64,7 @@ describe('compatibilidade Web', () => {
 
 		expect(mockInitializeAuth).toHaveBeenCalledTimes(2);
 		expect(mockInitializeAuth).toHaveBeenNthCalledWith(1, config.app, {
-			persistence: mockInMemoryPersistence,
+			persistence: mockBrowserLocalPersistence,
 		});
 		expect(mockInitializeAuth).toHaveBeenNthCalledWith(2, config.secondaryApp, {
 			persistence: mockInMemoryPersistence,

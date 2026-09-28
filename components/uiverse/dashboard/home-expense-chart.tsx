@@ -36,6 +36,7 @@ export default function HomeExpenseChart({
 				<Sparkline
 					w={112}
 					h={52}
+					styles={{ root: { minWidth: 1, minHeight: 1 } }}
 					data={data}
 					curveType="linear"
 					color={color}
