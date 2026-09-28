@@ -1764,18 +1764,13 @@ export default function FinancialListScreen() {
 
 										{investments.length > 0 ? (
 											<Box
-												className={`${notTintedCardClassName} px-4 py-4`}
+												className="w-full min-w-0 gap-3"
 												style={isDesktopWeb ? { flex: 1.2, minWidth: 0 } : undefined}
 											>
 											<VStack className="gap-1">
-												<HStack className="items-center gap-2">
-													<Icon
-														as={CalendarDaysIcon}
-														size="md"
-														className={isDarkMode ? 'text-yellow-300' : 'text-yellow-600'}
-													/>
-													<Heading size="md">Evolução da carteira</Heading>
-												</HStack>
+												<Text className={`${bodyText} text-lg font-bold uppercase tracking-widest`}>
+													Evolução da carteira
+												</Text>
 												<Text className={`${helperText} text-xs leading-5`}>
 													Comparação entre capital líquido aplicado e patrimônio estimado no período selecionado.
 												</Text>
@@ -1785,7 +1780,7 @@ export default function FinancialListScreen() {
 													data={portfolioAnalytics.evolution}
 													isDarkMode={isDarkMode}
 													shouldHideValues={shouldHideValues}
-													dom={{ focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
+													dom={{ useExpoDOMWebView: false, focusable: false, scrollEnabled: true, style: { height: 292, backgroundColor: 'transparent' } }}
 												/>
 											</View>
 											</Box>

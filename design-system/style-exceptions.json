@@ -126,5 +126,13 @@
     "risk": "Alterações no empilhamento podem revelar o fundo escuro do shell ou deixar uma faixa lateral sem wallpaper.",
     "alternative": "Classes controlam largura, cor e recorte; styles ficam limitados à imagem e às medidas calculadas do hero/sheet.",
     "owner": "profile-ui"
+  },
+  {
+    "files": ["screens/mobile/FinancialForecastScreen.tsx", "screens/web/FinancialForecastScreen.web.tsx"],
+    "reason": "A sobreposição do hero usa viewport/safe area em runtime; ScrollView, Expo DOM e expo-linear-gradient recebem geometria por APIs de plataforma. O resumo projetado aplica o gradiente semântico positivo/negativo compartilhado com a Análise por Categoria.",
+    "limitation": "As classes não resolvem altura do hero, recuo do conteúdo rolável, tamanho do WebView ou posição da imagem React Native no navegador; expo-linear-gradient exige cores e geometria por props.",
+    "risk": "Mudanças de viewport ou da ponte Expo DOM podem cortar o hero ou o gráfico; alterações na paleta semântica podem reduzir o contraste do resumo.",
+    "alternative": "Cores de gradiente usam LUMUS_FINANCIAL_GRADIENTS; cores, superfícies, tipografia e espaçamento fixos usam tokens e NativeWind. Styles permanecem restritos à geometria dinâmica e às APIs sem classe.",
+    "owner": "cash-flow-report-ui"
   }
 ]

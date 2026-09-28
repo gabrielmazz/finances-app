@@ -60,6 +60,11 @@ export const LUMUS_RUNTIME_COLORS = {
 	},
 } as const;
 
+export const LUMUS_FINANCIAL_GRADIENTS = {
+	negative: ['#7F1D1D', '#EF4444'],
+	positive: ['#065F46', '#10B981'],
+} as const;
+
 export const LUMUS_LAYOUT_TOKENS = {
 	contentMaxWidth: 1180,
 	compactBreakpoint: 1024,

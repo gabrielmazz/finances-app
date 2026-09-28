@@ -18,8 +18,12 @@ export default function CategoryAnalysisMovementPagination({ total, showAll, pag
 	if (total <= 8) return null;
 	return (
 		<VStack space="sm">
-			<Button variant="outline" onPress={onToggle} accessibilityState={{ expanded: showAll }}>
-				<ButtonText>{showAll ? 'Ver recentes' : `Ver todas (${total})`}</ButtonText>
+			<Button variant="link" action="primary" className="min-h-touch self-start" onPress={onToggle} accessibilityState={{ expanded: showAll }}>
+				<ButtonText>
+					{showAll
+						? 'Mostrar menos movimentações'
+						: `Mostrar mais ${total - 8} ${total - 8 === 1 ? 'movimentação' : 'movimentações'}`}
+				</ButtonText>
 			</Button>
 			{showAll && pageCount > 1 ? (
 				<>

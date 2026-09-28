@@ -46,7 +46,7 @@ graph TD
    - distribuição do mês atual por banco/dinheiro
    - na Web, a distribuição usa `DonutChart` do Mantine em Expo DOM; valores do gráfico continuam em centavos e tooltip/total central respeitam a privacidade
    - na Web, o `LineChart` ao lado da distribuição mostra o total acumulado lançado até cada dia, com uma linha por mês nos meses do histórico escolhido e no mês atual e somente o tipo ativo (gastos ou ganhos); lançamentos do dia elevam a linha, dias sem lançamentos mantêm o acumulado, dias fora dos limites selecionados e dias futuros do mês atual ficam em branco e valores ocultos são neutralizados
-   - prévia de até oito movimentos do tipo selecionado, filtrados antes do limite; **Ver todas** mostra todos os movimentos do histórico escolhido e do mês atual em páginas de vinte itens, com Anterior/Próxima e **Ver recentes**; mudar categoria, tipo ou recarregar o período reseta a paginação
+   - prévia de até oito movimentos do tipo selecionado, filtrados antes do limite; **Mostrar mais N movimentações** usa o botão de link primário compartilhado com a previsão financeira e abre a lista completa em páginas de vinte itens, com Anterior/Próxima; **Mostrar menos movimentações** recolhe a lista; mudar categoria, tipo ou recarregar o período reseta a paginação
    - as seções de evolução, distribuição e últimas movimentações usam apenas composição de layout, sem card externo ou ícone decorativo, com títulos em caixa alta alinhados ao padrão visual da [[Dashboard Home]]
    - botão **Baixar análise em PDF** ao final do relatório
    - superfícies, seletor, carregamento e estados vazios usam cantos de 16 px

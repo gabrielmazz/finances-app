@@ -5,6 +5,7 @@ import '@mantine/charts/styles.css';
 import { MantineProvider } from '@mantine/core';
 import { LineChart } from '@mantine/charts';
 import type { DOMProps } from 'expo/dom';
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 type FinancialForecastChartDatum = {
 	label: string;
@@ -31,8 +32,7 @@ export default function FinancialForecastChart({
 	isDarkMode,
 	shouldHideValues,
 }: FinancialForecastChartProps) {
-	const textColor = isDarkMode ? 'gray.4' : 'gray.6';
-	const gridColor = isDarkMode ? 'dark.4' : 'gray.2';
+	const runtimeColors = isDarkMode ? LUMUS_RUNTIME_COLORS.dark : LUMUS_RUNTIME_COLORS.light;
 	const chartWidth = data.length > 7 ? Math.max(520, 82 + data.length * 64) : undefined;
 	const tooltipValueFormatter = (value: number) =>
 		shouldHideValues ? '••••' : formatCurrency(value);
@@ -52,12 +52,13 @@ export default function FinancialForecastChart({
 					boxSizing: 'border-box',
 				}}
 			>
-				<div style={{ height: '100%', width: chartWidth ?? '100%' }}>
+				<div style={{ height: '100%', width: chartWidth ?? '100%', minWidth: 1, minHeight: 1 }}>
 					<LineChart
 						h={260}
+						styles={{ root: { minWidth: 1, minHeight: 1 } }}
 						data={data}
 						dataKey="label"
-						series={[{ name: 'balanceInCents', label: 'Saldo previsto', color: 'yellow.5' }]}
+						series={[{ name: 'balanceInCents', label: 'Saldo previsto', color: runtimeColors.accent }]}
 						curveType="monotone"
 						strokeWidth={3}
 						withDots
@@ -69,12 +70,12 @@ export default function FinancialForecastChart({
 						tickLine="none"
 						gridAxis="y"
 						strokeDasharray="4 4"
-						textColor={textColor}
-						gridColor={gridColor}
+						textColor={runtimeColors.textMuted}
+						gridColor={runtimeColors.border}
 						valueFormatter={tooltipValueFormatter}
 						xAxisProps={{ axisLine: false, tickLine: false }}
 						yAxisProps={{ axisLine: false, tickLine: false, width: 78 }}
-						tooltipProps={{ cursor: { stroke: isDarkMode ? '#475569' : '#CBD5E1', strokeWidth: 1 } }}
+						tooltipProps={{ cursor: { stroke: runtimeColors.border, strokeWidth: 1 } }}
 					/>
 				</div>
 			</div>

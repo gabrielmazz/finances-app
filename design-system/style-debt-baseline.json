@@ -433,7 +433,7 @@
   },
   "design-system/tokens.ts": {
     "inlineStyleProps": 0,
-    "rawHexLiterals": 66,
+    "rawHexLiterals": 70,
     "arbitraryTailwindValues": 8,
     "useScreenStyles": 0
   },
