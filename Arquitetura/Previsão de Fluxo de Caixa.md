@@ -3,7 +3,7 @@ tags: [previsao, fluxo-de-caixa, financeiro, graficos, mantine]
 relacionado: [[Dashboard Home]], [[Balanço Mensal]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Navegação]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.2.3
+versao: 1.2.7
 ---
 
 # Previsão de Fluxo de Caixa
@@ -26,10 +26,11 @@ graph TD
 ```
 
 1. A rota `/financial-forecast` abre `FinancialForecastScreen.tsx` e fica no grupo **Home** de `navigator.tsx` como **Previsão Financeira**.
-2. A tela sempre lê os dados novamente ao receber foco e também aceita pull-to-refresh.
-3. O usuário seleciona um horizonte de 3, 6 ou 12 meses pelo `Tabs` de `components/ui/tabs`. Os três gatilhos dividem toda a largura disponível dentro de um card `notTintedCardClassName`; o indicador animado amarelo acompanha o período ativo e a seleção somente recalcula/redesenha o cenário.
-4. A tela mostra saldo de hoje, saldo projetado no fim do horizonte, variação estimada, linha de evolução e detalhamento expansível por mês.
+2. A tela sempre lê os dados novamente ao receber foco e também aceita pull-to-refresh. O UID vem de `AuthContext`; se não houver sessão, a tela remove o estado ocupado e mantém a mensagem de erro visível.
+3. O usuário seleciona um horizonte de 3, 6 ou 12 meses. No mobile, `components/ui/tabs` distribui os três gatilhos dentro de um card `notTintedCardClassName` e acompanha o período ativo com indicador amarelo animado. Na Web, `MantineTabs` reutiliza o contrato visual de `CategoryAnalysisScreen.web.tsx`, com pills amarelas, texto branco na opção ativa, foco visível e largura distribuída. Em ambas as plataformas, a seleção recalcula/redesenha o cenário.
+4. A tela mostra saldo de hoje e variação prevista em cards lado a lado; abaixo deles, o gráfico da evolução ocupa a largura disponível sem uma superfície ou borda própria. O detalhamento mensal permanece expansível.
 5. O gráfico é `LineChart` de `@mantine/charts`, isolado em `components/uiverse/reports/financial-forecast-chart.tsx` como Expo DOM Component. Com mais de sete pontos — caso do horizonte de 12 meses, que inclui Hoje — a curva recebe largura por período e pode ser arrastada horizontalmente para não sobrepor rótulos. A UI restante continua React Native/Gluestack.
+6. O resumo projetado usa `LinearGradient`: verde para saldo final positivo e vermelho para saldo negativo, com os pares semânticos de `LUMUS_FINANCIAL_GRADIENTS`, compartilhados com a Análise por Categoria. O texto e os indicadores internos permanecem brancos. Entradas, saídas e avisos seguem as cores semânticas do design system; controles de informação, ação para cadastrar saldos e expansão mensal mantêm alvos de toque e foco visível nas duas plataformas.
 
 ## Regras de cálculo
 
@@ -66,10 +67,13 @@ graph TD
 
 - `app/mobile/financial-forecast.tsx` — Rota fina Expo Router
 - `screens/mobile/FinancialForecastScreen.tsx` — Tela nativa, períodos, estados e detalhamento
+- `screens/web/FinancialForecastScreen.web.tsx` — Composição Web e seletor Mantine alinhado à Análise por Categoria
 - `functions/FinancialForecastFirebase.ts` — Leitura agregada e normalização de Firestore
 - `utils/financialForecast.ts` — Cálculo puro do saldo de abertura e da projeção
 - `components/uiverse/reports/financial-forecast-chart.tsx` — LineChart Mantine em Expo DOM
-- `components/ui/tabs/index.tsx` — Tabs controladas e indicador animado reutilizados pelo seletor de horizonte
+- `components/ui/tabs/index.tsx` — Tabs controladas e indicador animado usados pelo seletor mobile de horizonte
+- `design-system/mantine.ts` — Contrato Mantine compartilhado pelo seletor Web de horizonte e pela Análise por Categoria
+- `design-system/tokens.ts` — Pares de cores para gradientes financeiros positivos/negativos usados pelo resumo projetado e pela Análise por Categoria
 - `tests/financialForecast.test.ts` — Cobertura de recorrências, médias, investimentos e saldo-base
 - `assets/UnDraw/financialForecast.svg` — Ilustração da tela
 
@@ -84,8 +88,8 @@ graph TD
 
 ## Configuração
 
-- Dependências: `@mantine/core@8.3.18`, `@mantine/hooks@8.3.18`, `@mantine/charts@8.3.18`, `recharts@3.7.0` e `react-native-webview@13.15.0`.
-- `react-native-webview` é a ponte usada pelos Expo DOM Components no SDK atual. Após adicionar ou atualizar essa dependência, é necessário gerar/instalar uma nova build nativa; um reload do Metro não basta.
+- Dependências: `@mantine/core@9.5.1`, `@mantine/hooks@9.5.1`, `@mantine/charts@9.5.1`, `recharts@3.7.0` e `react-native-webview@13.16.1`.
+- No Expo SDK 57, o Expo DOM seleciona `@expo/dom-webview` por padrão. A tela mobile define `dom.useExpoDOMWebView: false` para usar o `react-native-webview` já instalado no projeto e evitar a ausência de `ExpoDomWebViewModule` em builds nativas anteriores. Se o binário instalado também não incluir `react-native-webview`, é necessário gerar/instalar uma nova build nativa; um reload do Metro não basta.
 - Os estilos Mantine são importados apenas dentro do componente DOM, evitando alterar o tema Gluestack/NativeWind do restante do aplicativo. O `body` desse WebView e seu contêiner nativo permanecem transparentes, para que o gráfico herde visualmente o card em ambos os temas. Como o gráfico não possui controles focáveis, o WebView não recebe foco nem exibe contorno ao toque.
 
 ## Observações importantes
@@ -94,3 +98,15 @@ graph TD
 - A leitura é consolidada no dispositivo para cobrir saldo em espécie e histórico de categorias. Se o volume de documentos crescer de forma relevante, a próxima evolução deve introduzir agregados mensais no Firestore, sem alterar as regras de cálculo.
 - Um investimento disponível para resgate não é caixa até que o usuário registre o resgate pelo fluxo de [[Investimentos]].
 - Bancos sem snapshot reduzem a confiança do saldo global; a tela deve manter o aviso visível em vez de assumir saldo zero como dado real.
+
+### Apresentação do detalhamento mensal (2026-09-28)
+
+As duas telas exibem "Evolução do saldo" e "Detalhamento mensal" como títulos de seção sem ícone. O gráfico Mantine mantém largura mínima mensurável no contêiner e na raiz, inclusive dentro do WebView nativo. Os meses usam o `Accordion` compartilhado, controlado por chave de mês, com linhas sem card/borda externa; cada mês mostra o saldo final no gatilho e entradas, saídas, variação e compromissos no conteúdo. A lista de compromissos começa com três itens e o botão "Mostrar mais compromissos" revela os demais daquele mês; "Mostrar menos compromissos" volta ao resumo. Os valores e regras de projeção não mudam. A apresentação segue [[Análise por Categoria]] e [[Componentes UI]].
+
+
+### Rótulo do título do gráfico (2026-09-28)
+
+"Evolução do saldo" usa nas composições mobile e Web o mesmo tratamento visual do label de gráfico da Home: caixa alta, peso forte e espaçamento ampliado entre letras. O indicador de carregamento permanece alinhado ao título.
+
+
+O título "Detalhamento mensal" usa o mesmo tratamento de caixa alta, peso forte e espaçamento ampliado nas duas plataformas, mantendo consistência com o label da evolução e os gráficos da Home.

@@ -1,28 +1,12 @@
 import React from 'react';
-import {
-	Platform,
-	Pressable,
-	RefreshControl,
-	ScrollView,
-	StatusBar,
-	useWindowDimensions,
-	View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import {
-	CalendarClock,
-	ChevronDown,
-	ChevronUp,
-	Info,
-	TrendingDown,
-	TrendingUp,
-	WalletCards,
-} from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
 
-import { auth } from '@/FirebaseConfig';
 import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
+import { Accordion, AccordionContent, AccordionHeader, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
@@ -35,8 +19,10 @@ import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerText } from '@/c
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getFinancialForecastFirebase } from '@/functions/FinancialForecastFirebase';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { LUMUS_CLASS_NAMES, LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import {
 	FINANCIAL_FORECAST_PERIOD_OPTIONS,
 	type FinancialForecastCommitment,
@@ -45,7 +31,6 @@ import {
 	type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
-import { isWebDesktopLayout } from '@/utils/webLayout';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialForecastIllustration from '../../assets/UnDraw/financialForecast.svg';
@@ -63,8 +48,7 @@ const formatCompactDate = (value: Date) =>
 		month: '2-digit',
 	}).format(value);
 
-const formatChartMonthLabel = (value: Date) =>
-	new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(value).replace('.', '');
+const formatChartMonthLabel = (value: Date) => new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(value).replace('.', '');
 
 const getCommitmentKindLabel = (kind: FinancialForecastCommitmentKind) => {
 	switch (kind) {
@@ -108,6 +92,25 @@ const getCommitmentDetail = (commitment: FinancialForecastCommitment) => {
 const isIncomingCommitment = (kind: FinancialForecastCommitmentKind) =>
 	kind === 'fixed-gain' || kind === 'variable-gain' || kind === 'scheduled-gain' || kind === 'investment-inflow';
 
+const getCommitmentToneClassNames = (kind: FinancialForecastCommitmentKind) => {
+	if (kind === 'investment-liquidity') {
+		return {
+			text: 'text-violet-600 dark:text-violet-300',
+			background: 'bg-violet-600 dark:bg-violet-300',
+		};
+	}
+
+	return isIncomingCommitment(kind)
+		? {
+				text: LUMUS_CLASS_NAMES.incomeText,
+				background: 'bg-lumus-income-light dark:bg-lumus-income-dark',
+			}
+		: {
+				text: LUMUS_CLASS_NAMES.expenseText,
+				background: 'bg-lumus-expense-light dark:bg-lumus-expense-dark',
+			};
+};
+
 const FinancialForecastSkeleton = () => (
 	<VStack className="gap-5">
 		<Skeleton className="h-12 w-full rounded-2xl" />
@@ -122,21 +125,20 @@ const FinancialForecastSkeleton = () => (
 );
 
 export default function FinancialForecastScreen() {
-	const { width: windowWidth } = useWindowDimensions();
-	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
-	const currentUserId = auth.currentUser?.uid ?? null;
+	const { user } = useAuth();
+	const currentUserId = user?.uid ?? null;
 	const [periodInMonths, setPeriodInMonths] = React.useState<FinancialForecastPeriod>(3);
 	const [forecast, setForecast] = React.useState<FinancialForecastData | null>(null);
 	const [isLoading, setIsLoading] = React.useState(false);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [expandedMonthKeys, setExpandedMonthKeys] = React.useState<string[]>([]);
+	const [showAllCommitmentsFor, setShowAllCommitmentsFor] = React.useState<string[]>([]);
 	const requestSequenceRef = React.useRef(0);
 
 	const {
 		isDarkMode,
-		surfaceBackground,
 		cardBackground,
 		bodyText,
 		helperText,
@@ -147,30 +149,13 @@ export default function FinancialForecastScreen() {
 		submitButtonClassName,
 		submitButtonTextClassName,
 		sectionCardClassName,
-		tintedCardClassName,
 		notTintedCardClassName,
 		webDashboardClassNames,
 	} = useScreenStyles();
-
-	const palette = React.useMemo(
-		() => ({
-			title: isDarkMode ? '#F8FAFC' : '#0F172A',
-			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-			border: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : '#E2E8F0',
-			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
-			activeSurface: isDarkMode ? 'rgba(250, 204, 21, 0.14)' : '#FEF9C3',
-			activeBorder: isDarkMode ? 'rgba(250, 204, 21, 0.42)' : '#FACC15',
-			positive: isDarkMode ? '#34D399' : '#059669',
-			negative: isDarkMode ? '#F87171' : '#DC2626',
-			warning: isDarkMode ? '#FDE047' : '#CA8A04',
-			investment: isDarkMode ? '#C4B5FD' : '#7C3AED',
-		}),
-		[isDarkMode],
-	);
+	const runtimeColors = isDarkMode ? LUMUS_RUNTIME_COLORS.dark : LUMUS_RUNTIME_COLORS.light;
 
 	const formatCurrencyBRL = React.useCallback(
-		(valueInCents: number) =>
-			shouldHideValues ? HIDDEN_VALUE_PLACEHOLDER : formatCurrencyBRLBase(valueInCents),
+		(valueInCents: number) => (shouldHideValues ? HIDDEN_VALUE_PLACEHOLDER : formatCurrencyBRLBase(valueInCents)),
 		[shouldHideValues],
 	);
 
@@ -193,6 +178,8 @@ export default function FinancialForecastScreen() {
 			if (!currentUserId) {
 				setForecast(null);
 				setErrorMessage('Nenhum usuário autenticado foi identificado.');
+				setIsLoading(false);
+				setIsRefreshing(false);
 				return;
 			}
 
@@ -249,12 +236,6 @@ export default function FinancialForecastScreen() {
 		[periodInMonths],
 	);
 
-	const handleToggleMonth = React.useCallback((monthKey: string) => {
-		setExpandedMonthKeys(current =>
-			current.includes(monthKey) ? current.filter(key => key !== monthKey) : [...current, monthKey],
-		);
-	}, []);
-
 	const chartData = React.useMemo(() => {
 		if (!forecast) {
 			return [];
@@ -273,22 +254,11 @@ export default function FinancialForecastScreen() {
 	const forecastTitle = finalMonth ? `Saldo estimado em ${finalMonth.label}` : 'Saldo estimado';
 
 	return (
-		<SafeAreaView
-			className="flex-1"
-			edges={['left', 'right', 'bottom']}
-			style={{ backgroundColor: surfaceBackground }}
-		>
-			<StatusBar
-				translucent
-				backgroundColor="transparent"
-				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-			/>
+		<SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950" edges={['left', 'right', 'bottom']}>
+			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<View
-					className={`absolute top-0 left-0 right-0 ${cardBackground}`}
-					style={{ height: heroHeight }}
-				>
+			<View className="flex-1 bg-slate-50 dark:bg-slate-950">
+				<View className={`absolute top-0 left-0 right-0 ${cardBackground}`} style={{ height: heroHeight }}>
 					<Image
 						source={LoginWallpaper}
 						alt="Background da previsão financeira"
@@ -296,10 +266,7 @@ export default function FinancialForecastScreen() {
 						resizeMode="cover"
 					/>
 
-					<VStack
-						className="w-full h-full items-center justify-start px-6 gap-4"
-						style={{ paddingTop: insets.top + 24 }}
-					>
+					<VStack className="w-full h-full items-center justify-start px-6 gap-4" style={{ paddingTop: insets.top + 24 }}>
 						<Heading size="xl" className="text-white text-center">
 							Previsão Financeira
 						</Heading>
@@ -313,9 +280,7 @@ export default function FinancialForecastScreen() {
 						marginTop: heroHeight - 64,
 					}}
 				>
-					<View
-						className={`flex-1 w-full ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}
-					>
+					<View className={`flex-1 w-full ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 						<ScrollView
 							className="flex-1 w-full"
 							contentContainerStyle={{ paddingBottom: 18 }}
@@ -324,7 +289,7 @@ export default function FinancialForecastScreen() {
 								<RefreshControl
 									refreshing={isRefreshing}
 									onRefresh={() => void loadForecast(periodInMonths, true)}
-									tintColor={palette.warning}
+									tintColor={runtimeColors.accentStrong}
 								/>
 							}
 						>
@@ -344,20 +309,22 @@ export default function FinancialForecastScreen() {
 										trigger={triggerProps => (
 											<Pressable
 												{...triggerProps}
-												hitSlop={8}
+												className={LUMUS_CLASS_NAMES.iconButton}
 												accessibilityRole="button"
 												accessibilityLabel="Informações sobre a previsão financeira"
 											>
-												<Info size={14} color={palette.subtitle} style={{ marginLeft: 2 }} />
+												<Info size={14} color={runtimeColors.textMuted} />
 											</Pressable>
 										)}
 									>
 										<PopoverBackdrop className="bg-transparent" />
-										<PopoverContent className="max-w-[278px]" style={infoCardStyle}>
+										<PopoverContent className="max-w-tooltip" style={infoCardStyle}>
 											<PopoverBody className="px-3 py-3">
-													<Text className={`${bodyText} text-xs leading-5`}>
-														A previsão prioriza compromissos fixos e lançamentos futuros. A estimativa variável inclui somente categorias recorrentes em pelo menos 2 dos 3 últimos meses fechados, ignorando gastos pontuais. Ela é apenas uma simulação e não cria transações.
-													</Text>
+												<Text className={`${bodyText} text-xs leading-5`}>
+													A previsão prioriza compromissos fixos e lançamentos futuros. A estimativa variável
+													inclui somente categorias recorrentes em pelo menos 2 dos 3 últimos meses fechados,
+													ignorando gastos pontuais. Ela é apenas uma simulação e não cria transações.
+												</Text>
 											</PopoverBody>
 										</PopoverContent>
 									</Popover>
@@ -377,9 +344,6 @@ export default function FinancialForecastScreen() {
 								) : forecast ? (
 									<VStack className="gap-5">
 										<View>
-											<Text className={`${helperText} mb-2 text-xs font-semibold`}>
-												Escolha o horizonte da previsão
-											</Text>
 											<Box className={`${notTintedCardClassName} p-1.5`}>
 												<Tabs
 													value={String(periodInMonths)}
@@ -392,11 +356,17 @@ export default function FinancialForecastScreen() {
 													}}
 												>
 													<TabsList>
-														{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => (
-															<TabsTrigger key={option} value={String(option)} className="flex-1">
-																<TabsTriggerText>{option} meses</TabsTriggerText>
-															</TabsTrigger>
-														))}
+														{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => {
+															const isSelected = periodInMonths === option;
+
+															return (
+																<TabsTrigger key={option} value={String(option)} className="flex-1">
+																	<TabsTriggerText className={isSelected ? 'text-white' : undefined}>
+																		{option} meses
+																	</TabsTriggerText>
+																</TabsTrigger>
+															);
+														})}
 														<TabsIndicator />
 													</TabsList>
 												</Tabs>
@@ -404,36 +374,31 @@ export default function FinancialForecastScreen() {
 										</View>
 
 										<LinearGradient
-											colors={['#713F12', '#EAB308']}
+											colors={
+												forecast.finalBalanceInCents >= 0
+													? LUMUS_FINANCIAL_GRADIENTS.positive
+													: LUMUS_FINANCIAL_GRADIENTS.negative
+											}
 											start={{ x: 0, y: 0 }}
 											end={{ x: 1, y: 1 }}
-											style={{ borderRadius: 24, paddingHorizontal: 18, paddingVertical: 18 }}
+											style={{ borderRadius: 16, paddingHorizontal: 18, paddingVertical: 18 }}
 										>
 											<VStack className="gap-4">
 												<HStack className="items-start justify-between gap-4">
 													<HStack className="flex-1 items-center gap-3">
-														<View
-															style={{
-																width: 46,
-																height: 46,
-																borderRadius: 17,
-																alignItems: 'center',
-																justifyContent: 'center',
-																backgroundColor: 'rgba(255,255,255,0.16)',
-															}}
-														>
-															<WalletCards size={21} color="#FFFFFF" />
+														<View className="h-11 w-11 items-center justify-center rounded-control bg-white/15">
+															<WalletCards size={21} color={LUMUS_RUNTIME_COLORS.light.surface} />
 														</View>
 														<VStack className="flex-1">
-															<Text className="text-xs font-bold uppercase text-white/70">{forecastTitle}</Text>
+															<Text className="text-xs font-bold uppercase text-white/70">
+																{forecastTitle}
+															</Text>
 															<Text className="mt-1 text-2xl font-bold text-white">
 																{formatCurrencyBRL(forecast.finalBalanceInCents)}
 															</Text>
 														</VStack>
 													</HStack>
-													<View
-														style={{ borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 10, paddingVertical: 6 }}
-													>
+													<View className="rounded-full bg-white/15 px-3 py-1.5">
 														<Text className="text-xs font-bold text-white">{periodInMonths} meses</Text>
 													</View>
 												</HStack>
@@ -443,151 +408,143 @@ export default function FinancialForecastScreen() {
 														: 'O cenário indica saldo negativo em algum ponto do período selecionado.'}
 												</Text>
 											</VStack>
-											</LinearGradient>
+										</LinearGradient>
 
-											<View
-												style={{
-													flexDirection: isDesktopWeb ? 'row' : 'column',
-													alignItems: 'stretch',
-													gap: 20,
-												}}
-											>
-												<VStack
-													className="gap-5"
-													style={isDesktopWeb ? { flex: 1, minWidth: 0 } : undefined}
-												>
+										<VStack className="gap-5">
 											<HStack className="gap-3">
-											<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs font-bold uppercase`}>Saldo hoje</Text>
-												<Text className={`mt-2 text-lg font-bold ${headingText}`}>
-													{formatCurrencyBRL(forecast.openingBalanceInCents)}
-												</Text>
-												<Text className={`${helperText} mt-1 text-xs`}>Bancos e dinheiro conhecidos</Text>
-											</View>
-											<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
-												<Text className={`${helperText} text-xs font-bold uppercase`}>Variação prevista</Text>
-												<Text
-													className="mt-2 text-lg font-bold"
-													style={{ color: forecast.finalBalanceInCents - forecast.openingBalanceInCents >= 0 ? palette.positive : palette.negative }}
-												>
-													{formatSignedCurrencyBRL(forecast.finalBalanceInCents - forecast.openingBalanceInCents)}
-												</Text>
-												<Text className={`${helperText} mt-1 text-xs`}>Entradas menos saídas previstas</Text>
-											</View>
-										</HStack>
-
-										{forecast.missingSnapshotBankNames.length > 0 ? (
-											<View
-												style={{
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: palette.activeBorder,
-													backgroundColor: palette.activeSurface,
-													paddingHorizontal: 16,
-													paddingVertical: 14,
-												}}
-											>
-												<VStack className="gap-3">
-													<HStack className="items-start gap-2">
-														<Info size={17} color={palette.warning} style={{ marginTop: 1 }} />
-														<Text className={`${bodyText} flex-1 text-xs leading-5`}>
-															O saldo inicial de {forecast.missingSnapshotBankNames.join(', ')} ainda não foi incluído porque não há um saldo mensal cadastrado.
-														</Text>
-													</HStack>
-													<Pressable
-														onPress={() => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance)}
-														accessibilityRole="button"
+												<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs font-bold uppercase`}>Saldo hoje</Text>
+													<Text className={`mt-2 text-lg font-bold ${headingText}`}>
+														{formatCurrencyBRL(forecast.openingBalanceInCents)}
+													</Text>
+												</View>
+												<View className={`${notTintedCardClassName} flex-1 px-4 py-4`}>
+													<Text className={`${helperText} text-xs font-bold uppercase`}>Variação prevista</Text>
+													<Text
+														className={`mt-2 text-lg font-bold ${forecast.finalBalanceInCents - forecast.openingBalanceInCents >= 0 ? LUMUS_CLASS_NAMES.incomeText : LUMUS_CLASS_NAMES.expenseText}`}
 													>
-														<Text style={{ color: palette.warning, fontSize: 12, fontWeight: '700' }}>
-															Cadastrar saldos mensais
-														</Text>
-													</Pressable>
-												</VStack>
-											</View>
-											) : null}
-												</VStack>
+														{formatSignedCurrencyBRL(
+															forecast.finalBalanceInCents - forecast.openingBalanceInCents,
+														)}
+													</Text>
+												</View>
+											</HStack>
 
-											<View
-												className={`${sectionCardClassName} px-5 py-5`}
-												style={isDesktopWeb ? { flex: 1.35, minWidth: 0 } : undefined}
-											>
-											<VStack className="gap-3">
+											{forecast.missingSnapshotBankNames.length > 0 ? (
+												<View className="rounded-card border border-lumus-accent/60 bg-lumus-accent-soft px-4 py-3.5 dark:border-lumus-accent-dark/40 dark:bg-lumus-accent-dark/10">
+													<VStack className="gap-3">
+														<HStack className="items-start gap-2">
+															<Info size={17} color={runtimeColors.accentStrong} className="mt-px" />
+															<Text className={`${bodyText} flex-1 text-xs leading-5`}>
+																O saldo inicial de {forecast.missingSnapshotBankNames.join(', ')} ainda não
+																foi incluído porque não há um saldo mensal cadastrado.
+															</Text>
+														</HStack>
+														<Pressable
+															onPress={() => navigateToRoute(APP_ROUTE_PATHS.registerMonthlyBalance)}
+															accessibilityRole="button"
+															className="min-h-touch self-start justify-center rounded-control px-1 focus-visible:ring-2 focus-visible:ring-lumus-focus"
+														>
+															<Text className={`${LUMUS_CLASS_NAMES.warningText} text-xs font-bold`}>
+																Cadastrar saldos mensais
+															</Text>
+														</Pressable>
+													</VStack>
+												</View>
+											) : null}
+											<VStack className="w-full min-w-0 gap-3">
 												<HStack className="items-center justify-between gap-3">
 													<HStack className="items-center gap-2">
-														<CalendarClock size={18} color={palette.warning} />
-														<Heading size="sm" className={headingText}>
+														<Text className={`${bodyText} text-lg font-bold uppercase tracking-widest`}>
 															Evolução do saldo
-														</Heading>
+														</Text>
 													</HStack>
-													{isLoading ? <ButtonSpinner color={palette.warning} /> : null}
+													{isLoading ? <ButtonSpinner color={runtimeColors.accentStrong} /> : null}
 												</HStack>
 												<View style={{ height: 280 }}>
 													<FinancialForecastChart
 														data={chartData}
 														isDarkMode={isDarkMode}
 														shouldHideValues={shouldHideValues}
-														dom={{ focusable: false, scrollEnabled: true, style: { height: 280, backgroundColor: 'transparent' } }}
+														dom={{
+															useExpoDOMWebView: false,
+															focusable: false,
+															scrollEnabled: true,
+															style: {
+																height: 280,
+																backgroundColor: 'transparent',
+															},
+														}}
 													/>
 												</View>
 											</VStack>
-											</View>
-											</View>
+										</VStack>
 
-											<VStack className="gap-3">
+										<VStack className="gap-3">
 											<HStack className="items-center gap-2 px-1">
-												<CalendarClock size={18} color={palette.warning} />
-												<Heading size="sm" className={headingText}>
+												<Text className={`${bodyText} text-lg font-bold uppercase tracking-widest`}>
 													Detalhamento mensal
-												</Heading>
+												</Text>
 											</HStack>
 
-											{forecast.months.map(month => {
+											<Accordion type="multiple" variant="unfilled" value={expandedMonthKeys} onValueChange={setExpandedMonthKeys} className="w-full gap-0">
+												{forecast.months.map(month => {
 												const isExpanded = expandedMonthKeys.includes(month.key);
 												const isPositiveMonth = month.netChangeInCents >= 0;
 												return (
-													<View key={month.key} className={`${sectionCardClassName} overflow-hidden`}>
-														<Pressable
-															onPress={() => handleToggleMonth(month.key)}
-															accessibilityRole="button"
-															accessibilityState={{ expanded: isExpanded }}
-															style={{ paddingHorizontal: 18, paddingVertical: 16 }}
-														>
-															<HStack className="items-center justify-between gap-3">
+														<AccordionItem key={month.key} value={month.key} className="w-full border-0 border-b border-slate-200 bg-transparent dark:border-slate-800">
+															<AccordionHeader className="w-full"><AccordionTrigger className="min-h-touch w-full px-1 py-4 focus-visible:ring-2 focus-visible:ring-lumus-focus">
+																<HStack className="w-full flex-1 items-center justify-between gap-3">
 																<VStack className="flex-1">
-																	<Text style={{ color: palette.title, fontSize: 15, fontWeight: '700' }}>{month.label}</Text>
-																	<Text className={`${helperText} mt-1 text-xs`}>
-																		Saldo ao fim do mês
+																	<Text className={`${headingText} text-sm font-bold`}>
+																		{month.label}
 																	</Text>
 																</VStack>
-																<HStack className="items-center gap-3">
+																<HStack className="ml-auto items-center gap-3">
 																	<Text
-																		style={{ color: month.closingBalanceInCents >= 0 ? palette.positive : palette.negative, fontSize: 14, fontWeight: '700' }}
+																		className={`text-sm font-bold ${month.closingBalanceInCents >= 0 ? LUMUS_CLASS_NAMES.incomeText : LUMUS_CLASS_NAMES.expenseText}`}
 																	>
 																		{formatCurrencyBRL(month.closingBalanceInCents)}
 																	</Text>
-																	{isExpanded ? <ChevronUp size={18} color={palette.subtitle} /> : <ChevronDown size={18} color={palette.subtitle} />}
+																	{isExpanded ? (
+																		<ChevronUp size={18} color={runtimeColors.textMuted} />
+																	) : (
+																		<ChevronDown size={18} color={runtimeColors.textMuted} />
+																	)}
 																</HStack>
 															</HStack>
-														</Pressable>
+														</AccordionTrigger></AccordionHeader>
 
-														{isExpanded ? (
-															<VStack className="gap-4 border-t border-slate-200 px-4 py-4 dark:border-slate-800">
+														<AccordionContent className="px-1 pb-4 pt-1">
+															<VStack className="gap-4">
 																<HStack className="gap-2">
 																	<View className={`${notTintedCardClassName} flex-1 px-3 py-3`}>
-																		<Text className={`${helperText} text-[11px] font-bold uppercase`}>Entradas</Text>
-																		<Text className="mt-1 text-sm font-bold" style={{ color: palette.positive }}>
+																		<Text className={`${helperText} text-2xs font-bold uppercase`}>
+																			Entradas
+																		</Text>
+																		<Text
+																			className={`mt-1 text-sm font-bold ${LUMUS_CLASS_NAMES.incomeText}`}
+																		>
 																			{formatCurrencyBRL(month.gainsInCents)}
 																		</Text>
 																	</View>
 																	<View className={`${notTintedCardClassName} flex-1 px-3 py-3`}>
-																		<Text className={`${helperText} text-[11px] font-bold uppercase`}>Saídas</Text>
-																		<Text className="mt-1 text-sm font-bold" style={{ color: palette.negative }}>
+																		<Text className={`${helperText} text-2xs font-bold uppercase`}>
+																			Saídas
+																		</Text>
+																		<Text
+																			className={`mt-1 text-sm font-bold ${LUMUS_CLASS_NAMES.expenseText}`}
+																		>
 																			{formatCurrencyBRL(month.expensesInCents)}
 																		</Text>
 																	</View>
 																	<View className={`${notTintedCardClassName} flex-1 px-3 py-3`}>
-																		<Text className={`${helperText} text-[11px] font-bold uppercase`}>Variação</Text>
-																		<Text className="mt-1 text-sm font-bold" style={{ color: isPositiveMonth ? palette.positive : palette.negative }}>
+																		<Text className={`${helperText} text-2xs font-bold uppercase`}>
+																			Variação
+																		</Text>
+																		<Text
+																			className={`mt-1 text-sm font-bold ${isPositiveMonth ? LUMUS_CLASS_NAMES.incomeText : LUMUS_CLASS_NAMES.expenseText}`}
+																		>
 																			{formatSignedCurrencyBRL(month.netChangeInCents)}
 																		</Text>
 																	</View>
@@ -595,31 +552,34 @@ export default function FinancialForecastScreen() {
 
 																{month.commitments.length > 0 ? (
 																	<VStack className="gap-3">
-																		<Text className={`${helperText} text-xs font-semibold`}>
-																			Compromissos considerados
-																		</Text>
-																		{month.commitments.map(commitment => {
+																		{(showAllCommitmentsFor.includes(month.key) ? month.commitments : month.commitments.slice(0, 3)).map(commitment => {
 																			const isIncoming = isIncomingCommitment(commitment.kind);
-																			const tone =
-																				commitment.kind === 'investment-liquidity'
-																					? palette.investment
-																					: isIncoming
-																						? palette.positive
-																						: palette.negative;
+																			const toneClassNames = getCommitmentToneClassNames(
+																				commitment.kind,
+																			);
 																			return (
 																				<HStack key={commitment.id} className="items-center gap-3">
 																					<View
-																						style={{ width: 9, height: 9, borderRadius: 999, backgroundColor: tone }}
+																						className={`h-2.5 w-2.5 rounded-full ${toneClassNames.background}`}
 																					/>
 																					<VStack className="flex-1">
-																						<Text numberOfLines={1} style={{ color: palette.title, fontSize: 13, fontWeight: '700' }}>
+																						<Text
+																							numberOfLines={1}
+																							className={`${headingText} text-sm font-bold`}
+																						>
 																							{commitment.name}
 																						</Text>
-																						<Text numberOfLines={1} className={`${helperText} text-xs`}>
-																							{getCommitmentKindLabel(commitment.kind)} · {getCommitmentDetail(commitment)}
+																						<Text
+																							numberOfLines={1}
+																							className={`${helperText} text-xs`}
+																						>
+																							{getCommitmentKindLabel(commitment.kind)} ·{' '}
+																							{getCommitmentDetail(commitment)}
 																						</Text>
 																					</VStack>
-																					<Text style={{ color: tone, fontSize: 13, fontWeight: '700' }}>
+																					<Text
+																						className={`${toneClassNames.text} text-sm font-bold`}
+																					>
 																						{commitment.kind === 'investment-liquidity'
 																							? formatCurrencyBRL(commitment.valueInCents)
 																							: `${isIncoming ? '+' : '-'}${formatCurrencyBRL(commitment.valueInCents)}`}
@@ -627,35 +587,40 @@ export default function FinancialForecastScreen() {
 																				</HStack>
 																			);
 																		})}
+																									{month.commitments.length > 3 ? (
+																			<Button
+																				variant="link"
+																				action="primary"
+																				className="min-h-touch self-start"
+																				onPress={() => setShowAllCommitmentsFor(current => current.includes(month.key) ? current.filter(key => key !== month.key) : [...current, month.key])}
+																			>
+																				<ButtonText>
+																					{showAllCommitmentsFor.includes(month.key) ? 'Mostrar menos compromissos' : `Mostrar mais ${month.commitments.length - 3} compromissos`}
+																				</ButtonText>
+																			</Button>
+																		) : null}
 																	</VStack>
 																) : (
-																	<View
-																		style={{
-																			borderRadius: 16,
-																			borderWidth: 1,
-																			borderColor: palette.border,
-																			backgroundColor: palette.emptySurface,
-																			paddingHorizontal: 14,
-																			paddingVertical: 14,
-																		}}
-																	>
+																	<View className="rounded-control border border-slate-200 bg-slate-50 px-3.5 py-3.5 dark:border-slate-800 dark:bg-slate-950">
 																		<Text className={`${helperText} text-xs leading-5`}>
-																			Nenhum compromisso foi projetado para este mês com os dados disponíveis.
+																			Nenhum compromisso foi projetado para este mês com os dados
+																			disponíveis.
 																		</Text>
 																	</View>
 																)}
 															</VStack>
-														) : null}
-													</View>
+														</AccordionContent>
+													</AccordionItem>
 												);
 											})}
+										</Accordion>
 										</VStack>
 									</VStack>
 								) : null}
 							</View>
 						</ScrollView>
 
-						<View style={{ marginHorizontal: -18, paddingBottom: 0 }}>
+						<View className="-mx-4.5 pb-0">
 							<Navigator defaultValue={0} />
 						</View>
 					</View>

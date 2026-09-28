@@ -15,7 +15,7 @@ import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
 import '@mantine/core/styles.css';
 import { Divider as MantineDivider, MantineProvider, Tabs as MantineTabs } from '@mantine/core';
 import { cn } from '@/lib/utils';
-import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
+import { LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import {
 	getMantineChartStrokeColor,
 	getMantineTabsStyles,
@@ -861,11 +861,11 @@ export default function CategoryAnalysisScreenWeb() {
 										</MantineProvider>
 
 										<LinearGradient
-											colors={
-												selectedType === 'expense'
-													? ['#7F1D1D', '#EF4444']
-													: ['#065F46', '#10B981']
-											}
+										colors={
+											selectedType === 'expense'
+												? LUMUS_FINANCIAL_GRADIENTS.negative
+												: LUMUS_FINANCIAL_GRADIENTS.positive
+										}
 											start={{ x: 0, y: 0 }}
 											end={{ x: 1, y: 1 }}
 											style={{

@@ -1937,7 +1937,7 @@ export default function FinancialListScreenWeb() {
 
 							{investments.length > 0 ? (
 								<VStack className="gap-2">
-									<Text className={`${helperText} uppercase mt-1`}>
+									<Text className={`${webDashboardClassNames.sectionHeadingText} ${bodyText}`}>
 										Evolução da carteira
 									</Text>
 									<View style={{ height: 292 }}>

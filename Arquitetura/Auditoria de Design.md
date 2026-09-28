@@ -2,6 +2,18 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — Previsão Financeira mobile/web, 2026-09-28
+
+**Inventário:** `/mobile/financial-forecast` e `/web/financial-forecast`, adaptadores de rota, ambas as composições, `financial-forecast-chart.tsx` e o carregamento por foco.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | As telas liam `auth.currentUser` durante a renderização; se a identidade mudasse depois do primeiro foco, a consulta podia não acompanhar o estado React. O retorno sem UID também não limpava flags de carregamento/atualização. Não foi encontrado erro de registro da rota nem falha de compilação. | Mobile e Web assinam `AuthContext` e encerram o estado ocupado quando a sessão não está disponível. | `npm run typecheck`, exportações Android/Web e `git diff --check` passaram. `npm run lint:styles` aponta apenas a dívida já existente em `ConfigurationsScreen.web.tsx` e no baseline global de `useScreenStyles` (55/54). | Não há `adb` ou emulador neste ambiente, então a abertura autenticada no aparelho e o erro de runtime relatado ainda não foram reproduzidos. |
+| P2 | O resumo projetado usava gradiente e cores locais, com texto branco sobre um acento amarelo; cores de saldos, gráficos e controles também se repetiam nas telas. O botão de informação não atingia o alvo mínimo do sistema. | Resumo usa `lumus-accent` com `lumus-on-accent`; saldos, avisos e gráfico usam tokens semânticos. Controles de informação e expansão usam o alvo/foco visível do design system. A geometria restante fica limitada às APIs de viewport, scroll e Expo DOM. | `npm run typecheck`, exportações Android/Web e `git diff --check` passaram. O lint de estilos continua bloqueado somente pela dívida preexistente descrita acima. | A renderização do gráfico Expo DOM e a interação no aparelho precisam de smoke test nativo. |
+| P2 | O seletor Web de 3/6/12 meses usava tabs Gluestack, diferentes do padrão Mantine de `CategoryAnalysisScreen.web.tsx`; no mobile, o texto ativo não era explicitamente branco. | Mobile mantém `components/ui/tabs`, indicador animado amarelo e texto branco na opção ativa. Web usa `MantineTabs` com os contratos compartilhados de classes, variáveis e estilos da Análise por Categoria. A troca de período continua chamando o mesmo recálculo. | `npm run typecheck`, `npm run web:export`, exportação Android e `git diff --check` passaram. | Sem inspeção visual autenticada em navegador ou aparelho nesta sessão; a exportação Android emitiu aviso de resolução de `web-streams-polyfill`, mas concluiu. |
+| P2 | O resumo do saldo projetado usava uma superfície amarela sólida, enquanto a Análise por Categoria sinaliza o estado financeiro com gradiente. | Mobile e Web usam `LinearGradient` com verde para saldo final positivo e vermelho para saldo negativo; os pares foram centralizados em `LUMUS_FINANCIAL_GRADIENTS` e compartilhados com as duas variantes da Análise por Categoria. Conteúdo e indicadores internos usam branco. | `npm run typecheck`, exportações Web/Android e `git diff --check` passaram. `npm run lint:styles` continua reportando débitos em `investment-evolution-chart.tsx`, `ConfigurationsScreen.web.tsx` e na linha de base global de `useScreenStyles` (55/54). | Sem inspeção visual autenticada em navegador ou aparelho nesta sessão. |
+| P2 | Em telas largas, o gráfico ficava ao lado dos cards de saldo; também tinha uma borda e superfície próprias, diferentes dos gráficos sem card dedicado. | Mobile e Web agora colocam o gráfico em largura total abaixo dos cards de saldo e variação, sem a borda ou superfície externa. | `npm run typecheck`, exportações Web/Android e `git diff --check` passaram. | Sem inspeção visual autenticada em navegador ou aparelho nesta sessão. |
+
 ## Checkpoint — foco do nome no perfil, 2026-09-28
 
 **Inventário:** campo Nome de `/web/profile` e `/mobile/profile`, comparado ao foco de `AddRegisterExpensesScreen.web.tsx`.
@@ -380,7 +392,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Abas da Home | mobile | `/mobile/home` | `screens/mobile/HomeTabsScreen.tsx` | navegador, dashboard, configurações | NativeWind e navigator | Shell diverge da web | P2 |
 | Lumus IA | mobile/web | `/mobile/lumus-assistant`, `/web/lumus-assistant` | `screens/mobile/LumusAssistantScreen.tsx`, `screens/web/LumusAssistantScreen.web.tsx` | chat, drawer, modal, áudio | `ASSISTANT_CLASS_NAMES`, NativeWind; runtime somente para geometria/SDK | Contrato visual unificado; smoke autenticado e métricas runtime ainda pendentes | P2 |
 | Análise por categoria | mobile | `/mobile/category-analysis` | `screens/mobile/CategoryAnalysisScreen.tsx` | filtros, gráfico, seletor | `useScreenStyles`, NativeWind, styles de gráfico | Cores e dimensões de gráfico locais | P2 |
-| Previsão financeira | mobile | `/mobile/financial-forecast` | `screens/mobile/FinancialForecastScreen.tsx` | filtros, gráfico, cards | `useScreenStyles`, NativeWind, styles de gráfico | Estados e gráficos parcialmente locais | P2 |
+| Previsão financeira | mobile | `/mobile/financial-forecast` | `screens/mobile/FinancialForecastScreen.tsx` | filtros, gráfico, cards | `useScreenStyles`, NativeWind, tokens de domínio | Expo DOM ainda requer smoke test nativo autenticado | P2 |
 | Anotações | mobile/web fallback | `/mobile/annotations`, `/web/annotations` | `screens/mobile/LocalAnnotationsScreen.tsx` | `FlatList`, editor, modal | `useScreenStyles`, NativeWind | Única lista virtualizada; editor web possui CSS próprio | P2 |
 | Registrar banco | mobile/web fallback | `/mobile/add-register-bank`, `/web/add-register-bank` | `screens/mobile/AddRegisterBankScreen.tsx` | formulário, seletor de ícone | `useScreenStyles`, NativeWind | Variante web não dedicada | P2 |
 | Registrar usuário | mobile | `/mobile/add-register-user` | `screens/mobile/AddRegisterUserScreen.tsx` | formulário, popovers | `useScreenStyles`, NativeWind | Classes repetidas de formulário | P1 |
@@ -416,7 +428,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Saldo mensal | web | `/web/register-monthly-balance` | `screens/web/AddRegisterMonthlyBalanceScreen.web.tsx` | formulário, hero, select | `useScreenStyles`, NativeWind | Repetição com cadastros | P1 |
 | Movimentos bancários | web | `/web/bank-movements` | `screens/web/BankMovementsScreen.web.tsx` | filtros, Mantine, gráficos, modais | `useScreenStyles`, NativeWind, Mantine styles | Quatro mil linhas; paleta de gráficos local | P1 |
 | Análise por categoria | web | `/web/category-analysis` | `screens/web/CategoryAnalysisScreen.web.tsx` | filtros e gráficos Mantine | `useScreenStyles`, NativeWind, Mantine styles | Paleta e tipografia de gráfico local | P2 |
-| Previsão financeira | web | `/web/financial-forecast` | `screens/web/FinancialForecastScreen.web.tsx` | filtros e gráficos | `useScreenStyles`, NativeWind, Mantine styles | Paleta de gráfico local | P2 |
+| Previsão financeira | web | `/web/financial-forecast` | `screens/web/FinancialForecastScreen.web.tsx` | filtros e gráficos | `useScreenStyles`, NativeWind, tokens e Mantine Expo DOM | Export passou; a renderização autenticada ainda precisa de validação manual | P2 |
 | Lista financeira | web | `/web/financial-list` | `screens/web/FinancialListScreen.web.tsx` | listas, sete modais, formulários | `useScreenStyles`, NativeWind, styles de biblioteca | Alta duplicação com mobile | P1 |
 | Gastos obrigatórios | web | `/web/mandatory-expenses` | `screens/web/MandatoryExpensesListScreen.web.tsx` | calendário, Grainient, modais | `useScreenStyles`, NativeWind, CSS/JS de efeito | Estados complexos e estilos de efeito locais | P1 |
 | Ganhos obrigatórios | web | `/web/mandatory-gains` | `screens/web/MandatoryGainsListScreen.web.tsx` | calendário, Grainient, modais | `useScreenStyles`, NativeWind, CSS/JS de efeito | Estados complexos e estilos de efeito locais | P1 |
@@ -681,3 +693,20 @@ Inventário: novas rotas `/web/profile` e `/mobile/profile`, ambos os navigators
 Estados revisados: loading, erro de carga com retry, campos legados vazios, nome inválido/longo, falha de gravação preservando rascunho, sucesso, disabled, descarte, cópia do ID, troca de conta. Web usa labels HTML, foco visível e live region; native usa labels/estados acessíveis e controles de pelo menos 48 px. O novo botão amarelo usa texto `lumus-on-accent`. Não foram criados consumidores de `useScreenStyles` nem novas dependências. O lint permanece limitado às pendências anteriores em Configurações Web e ao limite global de `useScreenStyles`. Chrome DevTools MCP indisponível: sem medição de Core Web Vitals.
 
 **Evidência do perfil:** smoke test Playwright autenticado no Emulator aprovou gravação/leitura do nome, preservação de permissões, retorno do vínculo com rascunho, descarte e viewport Web de 390 px sem overflow horizontal; sem erros JavaScript de página. Screenshots desktop e estreito foram inspecionados nos temas claro/escuro; nome vazio apresentou erro e recebeu foco. Typechecks do app/backend, 26 testes focados, regras isoladas no Emulator e exports Web/Android passaram.
+
+### Fase: gráficos da carteira e previsão (2026-09-28)
+
+| Área | Plataforma | Severidade | Causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|---|---|
+| Evolução da carteira | mobile/Web | P1 | Card e ícone destoavam dos títulos de gráfico; medição Mantine podia ficar em zero; mobile dependia do WebView Expo DOM | Título de seção, superfície sem borda, largura mínima e `react-native-webview` no mobile | Typecheck e lint de estilos | Abertura autenticada em aparelho ainda não observada |
+| Evolução do saldo | mobile/Web | P1 | Medição do gráfico dentro do WebView podia ficar em zero e ícone competia com o título | Largura mínima mensurável e título simples | Typecheck e lint de estilos | Abertura autenticada em aparelho ainda não observada |
+| Detalhamento mensal | mobile/Web | P2 | Cards com borda e expansão manual, sem limite para a lista | Accordion compartilhado, linhas sem card e ação de mostrar mais/menos após três compromissos | Typecheck e lint de estilos | Foco, leitor de tela e lista extensa aguardam smoke visual |
+
+Estados revisados no código: conteúdo normal, vazio, carregamento, expansão e colapso, lista longa, foco do gatilho e privacidade de valores. Não houve alteração nas regras financeiras nem na navegação.
+
+
+### Fase: título da evolução do saldo (2026-09-28)
+
+| Área | Plataforma | Severidade | Causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|---|---|
+| Evolução do saldo | mobile/Web | P2 | Título usava estilo de heading compacto diferente do label de gráfico da Home | Aplicado caixa alta, peso forte e tracking amplo nas duas plataformas; estado de carregamento permanece no cabeçalho | Inspeção do diff e `git diff --check` | Sem inspeção visual em aparelho/navegador nesta alteração |

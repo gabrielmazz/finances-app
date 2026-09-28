@@ -136,3 +136,12 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 - [[Assistente Lumus]] oferece criação, edição, exclusão, aporte, resgate, sincronização e desfazimento por ações separadas; movimentos vinculados não entram no editor genérico.
 - Aporte/resgate atualiza o investimento e cria a saída/entrada correspondente na mesma transação. Sincronização guarda valor anterior, novo valor e delta para permitir desfazer com validação de estado.
 - O relatório de carteira é calculado pelos agregadores do aplicativo; o modelo recebe somente métricas compactas para explicar e nunca escolhe fórmulas ou configuração arbitrária de gráfico.
+
+### Apresentação do gráfico da carteira (2026-09-28)
+
+O gráfico de evolução da carteira usa título de seção sem ícone ou borda externa nas duas plataformas. No mobile, o componente DOM seleciona `react-native-webview` pela mesma compatibilidade de [[Previsão de Fluxo de Caixa]], e o contêiner Mantine recebe largura mínima mensurável para evitar gráfico vazio. A série, a legenda e os cálculos seguem inalterados.
+
+
+### Padrão do título do gráfico (2026-09-28)
+
+O título "Evolução da carteira" usa nas versões mobile e Web o mesmo tratamento de rótulo da Home: caixa alta, peso forte e espaçamento ampliado entre letras. O texto continua sem ícone decorativo e sem card externo.

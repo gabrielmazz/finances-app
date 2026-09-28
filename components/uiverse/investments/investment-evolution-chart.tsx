@@ -52,7 +52,7 @@ export default function InvestmentEvolutionChart({
 					boxSizing: 'border-box',
 				}}
 			>
-				<div style={{ height: '100%', width: chartWidth ?? '100%' }}>
+				<div style={{ height: '100%', width: chartWidth ?? '100%', minWidth: 1, minHeight: 1 }}>
 					<AreaChart
 						h={272}
 						data={data}
@@ -81,7 +81,7 @@ export default function InvestmentEvolutionChart({
 						tickLine="none"
 						gridAxis="y"
 						strokeDasharray="4 4"
-						styles={{ root: { '--chart-text-color': textColor } }}
+						styles={{ root: { '--chart-text-color': textColor, minWidth: 1, minHeight: 1 } }}
 						gridColor={gridColor}
 						valueFormatter={(value) =>
 							shouldHideValues ? '••••' : formatCurrency(value)
