@@ -64,21 +64,21 @@ type FocusableInputKey = 'name' | 'email' | 'password';
 export default function LoginScreen() {
 
 	const {
-			isDarkMode,
-			surfaceBackground,
-			cardBackground,
-			bodyText,
-			helperText,
-			inputField,
-			fieldContainerClassName,
-			submitButtonClassName,
-			heroHeight,
-			infoCardStyle,
-			insets,
-			compactCardClassName,
-			notTintedCardClassName,
-			topSummaryCardClassName,
-		} = useScreenStyles();
+		isDarkMode,
+		surfaceBackground,
+		cardBackground,
+		bodyText,
+		helperText,
+		inputField,
+		fieldContainerClassName,
+		submitButtonClassName,
+		heroHeight,
+		infoCardStyle,
+		insets,
+		compactCardClassName,
+		notTintedCardClassName,
+		topSummaryCardClassName,
+	} = useScreenStyles();
 
 	const theme = useMemo(
 		() => ({
@@ -368,8 +368,8 @@ export default function LoginScreen() {
 
 	const derivedCooldownMessage = access.mode === 'login' && isLocallyRateLimited
 		? `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
-				loginCooldownRemainingMs
-		  )}.`
+			loginCooldownRemainingMs
+		)}.`
 		: null;
 
 	return (
@@ -428,7 +428,7 @@ export default function LoginScreen() {
 									resizeMode="contain"
 								/>
 
-								<VStack className="self-center items-center gap-2 mb-12">
+								<VStack className="self-center items-center mb-12">
 									<Heading className={`${headingText} text-xl text-center`}>
 										{accessTitle}
 									</Heading>
@@ -561,7 +561,7 @@ export default function LoginScreen() {
 									disabled={isLoginDisabled}
 									accessibilityLabel={isBusy ? 'Enviando…' : submitLabel}
 									accessibilityState={{ busy: isBusy, disabled: isLoginDisabled }}
-									
+
 								>
 									{isBusy ? (
 										<ButtonSpinner color={LUMUS_RUNTIME_COLORS.light.onAccent} />
