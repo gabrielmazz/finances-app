@@ -455,7 +455,7 @@ export default function LoginScreen() {
 							>
 								<View className="w-full max-w-login-form flex-1 self-center">
 									<View className="flex-1 justify-center">
-										<VStack className="mb-10 shrink-0 gap-2">
+										<VStack className="mb-10 shrink-0">
 											<Text
 												className={`${helperText} text-xs font-semibold uppercase tracking-widest`}
 											>
