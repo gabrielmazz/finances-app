@@ -1,29 +1,29 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth, initializeAuth, inMemoryPersistence, type Auth } from 'firebase/auth';
+import { browserLocalPersistence, connectAuthEmulator, getAuth, initializeAuth, inMemoryPersistence, type Auth, type Persistence } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { firebaseRuntime } from '@/utils/firebaseRuntime';
 
 const appInstance: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseRuntime.firebaseOptions) : getApp();
 
-// [[Autenticação]]: o navegador não deve restaurar a sessão em localStorage,
-// IndexedDB ou cookies. A instância secundária também é descartada após o registro.
-const createMemoryOnlyAuthInstance = (firebaseApp: FirebaseApp): Auth => {
+// [[Autenticação]]: a sessão principal Web é compartilhada entre abas até o logout.
+// O Auth secundário do cadastro permanece apenas em memória.
+const createWebAuthInstance = (firebaseApp: FirebaseApp, persistence: Persistence): Auth => {
 	try {
-		return initializeAuth(firebaseApp, { persistence: inMemoryPersistence });
+		return initializeAuth(firebaseApp, { persistence });
 	} catch {
 		return getAuth(firebaseApp);
 	}
 };
 
-const authInstance = createMemoryOnlyAuthInstance(appInstance);
+const authInstance = createWebAuthInstance(appInstance, browserLocalPersistence);
 
 const secondaryAppInstance: FirebaseApp =
 	getApps().some(app => app.name === 'SECONDARY')
 		? getApp('SECONDARY')
 		: initializeApp(firebaseRuntime.firebaseOptions, 'SECONDARY');
 
-const secondaryAuthInstance = createMemoryOnlyAuthInstance(secondaryAppInstance);
+const secondaryAuthInstance = createWebAuthInstance(secondaryAppInstance, inMemoryPersistence);
 
 export const app = appInstance;
 export const auth = authInstance;

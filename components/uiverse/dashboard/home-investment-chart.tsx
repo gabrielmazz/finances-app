@@ -64,6 +64,7 @@ export default function HomeInvestmentChart({
 					tooltipDataSource="segment"
 					valueFormatter={value => (shouldHideValues ? '••••' : formatCurrency(value))}
 					styles={{
+						root: { minWidth: 1, minHeight: 1 },
 						label: { fill: textColor, fontSize: 12, fontWeight: 700 },
 					}}
 				/>

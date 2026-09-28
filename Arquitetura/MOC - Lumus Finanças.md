@@ -32,7 +32,7 @@ graph TD
 ## Módulos por Domínio
 
 ### Autenticação & Segurança
-- [[Autenticação]] — Login, AuthContext, Firebase Auth, sessão memory-only
+- [[Autenticação]] — Login, AuthContext, Firebase Auth, sessão em memória no nativo e local entre abas Web
 - [[Segurança de Login]] — Throttling, armazenamento seguro de credenciais
 - [[Gerenciamento de Usuários]] — Cadastro e relacionamento entre usuários
 - [[Perfil do Usuário]] — Dados pessoais, edição do nome e acesso aos vínculos
@@ -167,7 +167,7 @@ As fontes ficam disponíveis via `tailwind.config.js` (`fontFamily`). Novos comp
 - Chaves de ciclo no formato **YYYY-MM** para recorrências
 - Modo escuro e dimensões de runtime são expostos por `useScreenStyles()`; decisões visuais estáticas pertencem ao Tailwind e a `design-system/`
 - `npm run lint:styles` impede aumento de dívida visual por arquivo e bloqueia fontes de estilo proibidas
-- Dois apps Firebase: primário com sessão memory-only; o secundário usa SecureStore no Android/iOS e memória no Web para o cadastro de usuários
+- Dois apps Firebase: o primário usa sessão em memória no Android/iOS e local entre abas Web; o secundário usa SecureStore no Android/iOS e memória no Web para o cadastro de usuários
 - Feedback in-app exclusivamente via `notifier-alert.tsx` — sem sistemas paralelos de toast/alert
 - Ícones de tags usam três famílias: `Ionicons`, `MaterialCommunityIcons`, `FontAwesome6`
 - Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais

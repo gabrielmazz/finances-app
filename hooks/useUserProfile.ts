@@ -86,15 +86,16 @@ export function useUserProfile() {
 		}
 	};
 	const copyId = async () => {
-		if (!uid || copyLock.current) return;
+		if (!uid || copyLock.current) return false;
 		const version = lifetime.current;
 		copyLock.current = true;
 		try {
 			const copied = await Clipboard.setStringAsync(uid);
 			if (!copied) throw new Error('clipboard/unavailable');
-			if (version === lifetime.current && auth.currentUser?.uid === uid) setFeedback({ text: 'ID copiado.', error: false });
+			return version === lifetime.current && auth.currentUser?.uid === uid;
 		} catch {
-			if (version === lifetime.current && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar. Selecione e copie o ID abaixo.', error: true });
+			if (version === lifetime.current && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar o ID. Tente novamente.', error: true });
+			return false;
 		} finally {
 			copyLock.current = false;
 		}

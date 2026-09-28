@@ -122,6 +122,7 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - O carrossel de bancos usa `react-native-reanimated-carousel` no Android/iOS e o `components/web/visuals/Carousel.jsx` baseado no React Bits na versão Web; ambos exibem a mesma coleção de bancos e Dinheiro e preservam a navegação para os movimentos da conta
 - Gráficos usam `react-native-gifted-charts`
 - O gráfico Web de gastos usa `@mantine/charts` e mostra somente dias com lançamentos; ele não cria previsões nem persiste agregados novos. A cor dos eixos usa `styles.root['--chart-text-color']` com variáveis de tema Mantine, pois `textColor` é repassado ao DOM pelo Mantine 9.5.1.
+- Os gráficos Mantine em Expo DOM mantêm `minWidth` e `minHeight` de 1 px no root para impedir que a medição inicial do Recharts receba uma área nula; o tamanho final continua responsivo ao container.
 - O título expansível de últimas movimentações e o `InfoTip` da seção são botões DOM irmãos; não envolver o gatilho do popover no `Pressable` que expande a timeline.
 - O heatmap Web usa `@mantine/charts`, não registra telemetria e somente resume lançamentos financeiros já confirmados no Firestore
 - Sem uma taxa CDI vigente, o card da Home conserva o valor-base/sincronizado do investimento em vez de inventar rendimento
