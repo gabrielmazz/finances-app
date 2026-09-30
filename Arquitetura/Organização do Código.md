@@ -43,7 +43,7 @@ Use um arquivo canônico em `screens/mobile/` quando lógica e composição fore
 
 Crie uma composição `.web.tsx` em `screens/web/` somente quando a experiência ou dependência realmente divergir — por exemplo, Home, Login, cadastros principais de despesas/ganhos e o fluxo Web de despesas obrigatórias. A tela canônica correspondente fica em `screens/mobile/`. A variante deve preservar o contrato da tela: valores em centavos, helpers de navegação, comportamento pós-submit e persistência continuam compartilhados.
 
-As telas administrativas e financeiras de menor divergência (`AddRegisterMonthlyBalance`, `Transfer`, `AddRescue`, `Configurations`, cadastros de usuário/banco/categoria, vínculo e testes) usam a implementação canônica em `screens/mobile/`. Isso remove cópias quase idênticas e deixa a resolução de plataforma restrita às telas e componentes que de fato precisam dela.
+As telas administrativas e financeiras que não precisam de uma composição diferente continuam compartilhadas. Quando a interação Web diverge, como no cadastro de banco, a rota seleciona uma tela em `screens/web/` e preserva o mesmo contrato de domínio, Firebase, navegação e comportamento pós-submit da tela mobile.
 
 ## Fluxos transversais
 

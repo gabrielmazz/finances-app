@@ -36,6 +36,16 @@ export default function PerfilPersonScreen() {
 	const getInputRef = React.useCallback(() => nameRef, []);
 	const keyboard = useKeyboardAwareScroll<'name'>({ getInputRef });
 	const profile = state.profile;
+	const accessLevelValue = state.accessSummaryLoading
+		? 'Carregando…'
+		: state.accessSummaryError || !state.accessSummary
+			? 'Indisponível'
+			: state.accessSummary.isAdmin ? 'Administrador' : 'Padrão';
+	const monitoredRecordsValue = state.accessSummaryLoading
+		? 'Carregando…'
+		: state.accessSummaryError || !state.accessSummary
+			? 'Indisponível'
+			: state.accessSummary.monitoredRecordsCount;
 	const handleCopyId = async () => {
 		if (await state.copyId()) {
 			showNotifierAlert({ description: 'ID copiado para a área de transferência.', type: 'success', isDarkMode });
@@ -56,68 +66,90 @@ export default function PerfilPersonScreen() {
 							<WebScreenHero title="Meu perfil" Illustration={ProfileIllustration} isDarkMode={isDarkMode} topPadding={24} />
 						</SafeAreaView>
 					</View>
-					<ScrollView ref={keyboard.scrollViewRef} className={cn(ui.screen, 'rounded-t-sheet px-6 web:relative web:z-sheet')}
-						style={{ marginTop: heroHeight - 64 }}
-						keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" onScroll={keyboard.handleScroll} scrollEventThrottle={keyboard.scrollEventThrottle}
-						contentContainerStyle={{ paddingBottom: keyboard.contentBottomPadding }}>
-						<View className="gap-6 pt-6">
-							{state.loading ? <Text accessibilityRole="progressbar" accessibilityLabel="Carregando seu perfil" className={ui.helper}>Carregando seu perfil…</Text> : state.loadError ? (
-								<View className="gap-4">
-									<Text accessibilityRole="alert" className={ui.errorText}>{state.loadError}</Text>
-									<Button onPress={state.reload} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
-								</View>
-							) : profile ? <>
-								<HStack className="w-full items-start gap-4">
-									<View className="min-w-0 flex-1">
-										<Text nativeID="profile-name-label" className={form.label}>Nome</Text>
-										<Input isInvalid={Boolean(state.nameError)} isDisabled={state.saving} className={cn(form.input, 'min-h-12')}>
-											<InputField ref={nameRef} value={state.name} onChangeText={state.changeName} editable={!state.saving} maxLength={100}
-												autoComplete="name" autoCapitalize="words" returnKeyType="done" accessibilityLabel="Nome" accessibilityLabelledBy="profile-name-label"
-												aria-invalid={Boolean(state.nameError)} aria-describedby={state.nameError ? 'profile-name-error' : undefined}
-												onFocus={() => keyboard.handleInputFocus('name')} onSubmitEditing={() => void save()} className={ui.inputText} />
-										</Input>
-										{state.nameError && <Text nativeID="profile-name-error" accessibilityRole="alert" className={form.error}>{state.nameError}</Text>}
+					<View className={cn(ui.screen, 'rounded-t-sheet px-6 web:relative web:z-sheet')} style={{ marginTop: heroHeight - 64 }}>
+						<ScrollView ref={keyboard.scrollViewRef} className="flex-1"
+							keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" onScroll={keyboard.handleScroll} scrollEventThrottle={keyboard.scrollEventThrottle}
+							contentContainerStyle={{ paddingBottom: keyboard.contentBottomPadding }}>
+							<View className="gap-6 pt-6">
+								{state.loading ? <Text accessibilityRole="progressbar" accessibilityLabel="Carregando seu perfil" className={ui.helper}>Carregando seu perfil…</Text> : state.loadError ? (
+									<View className="gap-4">
+										<Text accessibilityRole="alert" className={ui.errorText}>{state.loadError}</Text>
+										<Button onPress={state.reload} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
 									</View>
-									<View className="min-w-0 flex-1">
-										<Text nativeID="profile-created-at-label" className={form.label}>Membro desde</Text>
-										{profile.createdAt ? <Input isReadOnly className={cn(form.input, 'min-h-12 opacity-40')}>
-											<InputField value={profile.createdAt.toLocaleDateString('pt-BR')} editable={false} selectTextOnFocus
-												accessibilityLabel="Membro desde, somente leitura" accessibilityLabelledBy="profile-created-at-label" className={ui.inputText} />
-										</Input> : <Text className={ui.body}>Data não disponível</Text>}
-									</View>
-								</HStack>
-								<View>
-									<Text nativeID="profile-email-label" className={form.label}>E-mail de acesso</Text>
-										<Input isReadOnly className={cn(form.input, 'min-h-12 opacity-40')}>
-										<InputField value={profile.email} editable={false} selectTextOnFocus accessibilityLabel="E-mail de acesso, somente leitura"
-											accessibilityLabelledBy="profile-email-label" className={ui.inputText} />
-									</Input>
-								</View>
-								<View className="gap-3">
-									<Button onPress={() => void save()} isDisabled={state.saving || !state.dirty} accessibilityState={{ busy: state.saving }} className={cn(ui.primaryButton, 'min-h-12')}>
-										<ButtonText className="font-bold text-white">{state.saving ? 'Salvando…' : 'Salvar alterações'}</ButtonText>
-									</Button>
-									{state.dirty && <Button onPress={state.reset} isDisabled={state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Descartar alterações</ButtonText></Button>}
-								</View>
-								<View accessibilityLiveRegion="polite">
-									{state.feedback && <Text className={state.feedback.error ? ui.errorText : ui.successText}>{state.feedback.text}</Text>}
-								</View>
-								<View className={cn(ui.card, 'gap-3 p-4')}>
-									<Heading size="lg" className={ui.heading}>Contas vinculadas</Heading>
-									<Text className={ui.helper}>Vincule outra pessoa para compartilhar a visualização de gastos e ganhos.</Text>
-									<Text nativeID="profile-id-label" className={form.inlineLabel}>Seu ID</Text>
-									<HStack className="w-full items-center gap-3">
-										<Input isReadOnly className={cn(form.input, 'min-h-12 min-w-0 flex-1 opacity-40')}>
-											<InputField value={profile.uid} editable={false} selectTextOnFocus accessibilityLabel="Seu ID, somente leitura"
-												accessibilityLabelledBy="profile-id-label" className={ui.inputText} />
-										</Input>
-										<Button onPress={() => void handleCopyId()} accessibilityLabel="Copiar meu ID" className={cn(ui.iconButton, ui.surface, 'shrink-0 bg-transparent')}><ButtonIcon as={CopyIcon} className="text-yellow-600 dark:text-yellow-300" /></Button>
+								) : profile ? <>
+									<HStack className="w-full items-start gap-4">
+										<View className="min-w-0 flex-1">
+											<Text nativeID="profile-name-label" className={form.label}>Nome</Text>
+											<Input isInvalid={Boolean(state.nameError)} isDisabled={state.saving} className={cn(form.input, 'min-h-12')}>
+												<InputField ref={nameRef} value={state.name} onChangeText={state.changeName} editable={!state.saving} maxLength={100}
+													autoComplete="name" autoCapitalize="words" returnKeyType="done" accessibilityLabel="Nome" accessibilityLabelledBy="profile-name-label"
+													aria-invalid={Boolean(state.nameError)} aria-describedby={state.nameError ? 'profile-name-error' : undefined}
+													onFocus={() => keyboard.handleInputFocus('name')} onSubmitEditing={() => void save()} className={ui.inputText} />
+											</Input>
+											{state.nameError && <Text nativeID="profile-name-error" accessibilityRole="alert" className={form.error}>{state.nameError}</Text>}
+										</View>
+										<View className="min-w-0 flex-1">
+											<Text nativeID="profile-created-at-label" className={form.label}>Membro desde</Text>
+											{profile.createdAt ? <Input isReadOnly className={cn(form.input, 'min-h-12 opacity-40')}>
+												<InputField value={profile.createdAt.toLocaleDateString('pt-BR')} editable={false} selectTextOnFocus
+													accessibilityLabel="Membro desde, somente leitura" accessibilityLabelledBy="profile-created-at-label" className={ui.inputText} />
+											</Input> : <Text className={ui.body}>Data não disponível</Text>}
+										</View>
 									</HStack>
-									{isRouteVisible('addUserRelation') && <Button onPress={() => navigateToRoute(APP_ROUTE_PATHS.addUserRelation, { fromProfile: '1' })} className={cn(ui.secondaryButton, 'mt-3 min-h-12 w-full')}><ButtonText className={cn(ui.body, 'text-base font-bold')}>Relacionar usuário</ButtonText></Button>}
-								</View>
-							</> : null}
-						</View>
-					</ScrollView>
+									<View>
+										<Text nativeID="profile-email-label" className={form.label}>E-mail de acesso</Text>
+											<Input isReadOnly className={cn(form.input, 'min-h-12 opacity-40')}>
+											<InputField value={profile.email} editable={false} selectTextOnFocus accessibilityLabel="E-mail de acesso, somente leitura"
+												accessibilityLabelledBy="profile-email-label" className={ui.inputText} />
+										</Input>
+									</View>
+									<View className="gap-3">
+										<Button onPress={() => void save()} isDisabled={state.saving || !state.dirty} accessibilityState={{ busy: state.saving }} className={cn(ui.primaryButton, 'min-h-12')}>
+											<ButtonText className="font-bold text-white">{state.saving ? 'Salvando…' : 'Salvar alterações'}</ButtonText>
+										</Button>
+										{state.dirty && <Button onPress={state.reset} isDisabled={state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Descartar alterações</ButtonText></Button>}
+									</View>
+									<View accessibilityLiveRegion="polite">
+										{state.feedback && <Text className={state.feedback.error ? ui.errorText : ui.successText}>{state.feedback.text}</Text>}
+									</View>
+									<View className="gap-3">
+										<Heading size="lg" className={ui.heading}>Informações da conta</Heading>
+										<View className="flex-row flex-wrap gap-3">
+											<View className={cn(ui.card, 'min-w-0 flex-1 px-4 py-4')}>
+												<Text className={cn(ui.helper, 'text-xs uppercase tracking-wide')}>Tipo de acesso</Text>
+												<Text accessibilityLiveRegion="polite" className={cn(ui.heading, 'mt-2 text-lg font-semibold')}>
+													{accessLevelValue}
+												</Text>
+											</View>
+											<View className={cn(ui.card, 'min-w-0 flex-1 px-4 py-4')}>
+												<Text className={cn(ui.helper, 'text-xs uppercase tracking-wide')}>Cadastros monitorados</Text>
+												<Text accessibilityLiveRegion="polite" className={cn(ui.heading, 'mt-2 text-lg font-semibold')}>
+													{monitoredRecordsValue}
+												</Text>
+											</View>
+										</View>
+										{state.accessSummaryError && <View className="gap-3">
+											<Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as informações da conta.</Text>
+											<Button onPress={state.reload} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
+										</View>}
+									</View>
+									<View className={cn(ui.card, 'gap-3 p-4')}>
+										<Heading size="lg" className={ui.heading}>Contas vinculadas</Heading>
+										<Text className={ui.helper}>Vincule outra pessoa para compartilhar a visualização de gastos e ganhos.</Text>
+										<Text nativeID="profile-id-label" className={form.inlineLabel}>Seu ID</Text>
+										<HStack className="w-full items-center gap-3">
+											<Input isReadOnly className={cn(form.input, 'min-h-12 min-w-0 flex-1 opacity-40')}>
+												<InputField value={profile.uid} editable={false} selectTextOnFocus accessibilityLabel="Seu ID, somente leitura"
+													accessibilityLabelledBy="profile-id-label" className={ui.inputText} />
+											</Input>
+											<Button onPress={() => void handleCopyId()} accessibilityLabel="Copiar meu ID" className={cn(ui.iconButton, ui.surface, 'shrink-0 bg-transparent')}><ButtonIcon as={CopyIcon} className="text-yellow-600 dark:text-yellow-300" /></Button>
+										</HStack>
+										{isRouteVisible('addUserRelation') && <Button onPress={() => navigateToRoute(APP_ROUTE_PATHS.addUserRelation, { fromProfile: '1' })} className={cn(ui.secondaryButton, 'mt-3 min-h-12 w-full')}><ButtonText className={cn(ui.body, 'text-base font-bold')}>Relacionar usuário</ButtonText></Button>}
+									</View>
+								</> : null}
+							</View>
+						</ScrollView>
+					</View>
 				</KeyboardAvoidingView>
 				<Navigator defaultValue={2} onHardwareBack={() => { navigateToHomeDashboard(); return true; }} />
 			</SafeAreaView>

@@ -3,7 +3,7 @@ tags: [usuarios, cadastro, relacionamentos, firebase-auth]
 relacionado: [[Autenticação]], [[Firebase Config]], [[Dashboard Home]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.3.0
+versao: 1.4.0
 ---
 
 # Gerenciamento de Usuários
@@ -12,35 +12,11 @@ Módulo responsável pelo cadastro de novos usuários no sistema e pelo estabele
 
 ## Como funciona
 
-### Cadastro de Usuário
-
-```mermaid
-sequenceDiagram
-    participant ADMIN as Admin (logado)
-    participant SCREEN as AddRegisterUserScreen
-    participant RUF as RegisterUserFirebase
-    participant SEC as secondaryAuth (SECONDARY)
-    participant FS as Firestore
-
-    ADMIN->>SCREEN: Preenche email, senha, nome
-    SCREEN->>RUF: cria conta
-    RUF->>SEC: createUserWithEmailAndPassword
-    Note over SEC: App secundário - sessão admin preservada
-    SEC-->>RUF: novo user criado
-    RUF->>FS: salva dados adicionais via secondaryDb
-    RUF->>SEC: signOut (limpa app secundário)
-```
-
-1. `AddRegisterUserScreen.tsx` coleta email, senha, nome e flag de administrador
-2. Usa o **app Firebase secundário** (`secondaryAuth`) sem afetar a sessão atual
-3. Após criação na Auth, salva dados adicionais no Firestore secundário (`secondaryDb`), com o UID recém-criado, via `RegisterUserFirebase.ts`
-4. O app secundário é desconectado após o uso
-5. Feedback via `notifier-alert.tsx`
-6. Após cadastrar o usuário, `AddRegisterUserScreen.tsx` aplica [[Comportamento Pós-Registro]] após o feedback de sucesso
-
 ### Cadastro público
 
-A tela inicial de acesso oferece **Criar conta** no próprio painel, com nome, email e senha. Reutiliza `registerUserFirebase`, sem passar pelo comportamento pós-registro administrativo: o sucesso volta ao login local, mantém email e limpa senha. Se a gravação de perfil falhar, a função tenta remover a conta recém-criada e sempre tenta encerrar a sessão secundária; uma compensação malsucedida é informada como cadastro incompleto. Ver [[Autenticação]].
+A tela inicial de [[Autenticação]] oferece **Criar conta** no próprio painel, com nome, email e senha. `useAccountAccess` chama `registerUserFirebase`, que usa `secondaryAuth` e `secondaryDb` para criar `users/{uid}` sem alterar a sessão primária. A conta pública recebe `adminUser: false`. O sucesso volta ao login local, mantém o email e limpa a senha. Se a gravação de perfil falhar, a função tenta remover a conta recém-criada e sempre encerra a sessão secundária; uma compensação malsucedida é informada como cadastro incompleto.
+
+O formulário administrativo de cadastro foi removido. A tabela administrativa de contas existentes também foi retirada de [[Configurações]]; a tela não oferece mais consulta ou exclusão de contas.
 
 ### Relacionamento entre Usuários
 1. `AddUserRelationScreen.tsx` permite vincular um usuário a outro pelo email ou ID
@@ -55,38 +31,37 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 
 ## Arquivos principais
 
-- `screens/mobile/AddRegisterUserScreen.tsx` / `screens/web/AddRegisterUserScreen.web.tsx` — Formulário de cadastro por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
+- `screens/mobile/LoginScreen.tsx` / `screens/web/LoginScreen.web.tsx` — Cadastro público integrado ao painel de acesso
+- `hooks/useAccountAccess.ts` — Validação e envio do cadastro público
 - `screens/mobile/AddUserRelationScreen.tsx` / `screens/web/AddUserRelationScreen.web.tsx` — Vinculação de usuários por plataforma, com label, popover e campo alinhados ao padrão Web de despesas
 - `functions/RegisterUserFirebase.ts` — CRUD de usuários e relacionamentos
 - `FirebaseConfig.ts` — Instância secundária do Firebase (`secondaryApp`, `secondaryAuth`)
-- `app/mobile/add-register-user.tsx` — Rota de cadastro
 - `app/mobile/add-user-relation.tsx` — Rota de relacionamento
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
-- `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar usuário ou vínculo
+- `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar vínculo
 
 ## Integrações
 
 - [[Autenticação]] — `user.uid` é o `personId` base; app secundário evita logout
 - [[Firebase Config]] — Exporta `secondaryApp`/`secondaryAuth` para uso em cadastro
 - [[Dashboard Home]] — Dados de usuários relacionados são agregados na home
-- [[Configurações]] — Tabela administrativa de usuários e vínculos
+- [[Configurações]] — Preferências e cadastros do aplicativo; o vínculo de usuários continua acessível pelo [[Perfil do Usuário]]
 - [[Notificações]] — Feedback via `notifier-alert.tsx`
 - [[Comportamento Pós-Registro]] — Define retorno/limpeza após salvar usuários e vínculos
 
 ## Configuração
 
-- Flag `isAdmin` no Firestore controla permissões (cadastro de outros usuários, etc.)
 - O seed do Firebase Emulator cria a conta `usuario@demo.lumus.local` com `adminUser: true`, permitindo testar os fluxos administrativos localmente.
 - Relacionamento é bidirecional no Firestore
 
 ## Observações importantes
 
-- O formulário administrativo de outros usuários continua disponível somente para administradores. O cadastro público no painel de [[Autenticação]] cria exclusivamente uma conta padrão (`adminUser: false`), sem vínculos ou campos de autorização do razão.
+- O cadastro público no painel de [[Autenticação]] cria exclusivamente uma conta padrão (`adminUser: false`), sem vínculos ou campos de autorização do razão.
 - O app secundário Firebase é inicializado com as mesmas credenciais do app principal
 - Após criar o usuário no Firebase Auth via app secundário, o usuário precisa fazer login pela tela de [[Autenticação|Login]]
 - No Android/iOS, o app secundário usa persistência SecureStore (via `firebaseAuthStorage`), diferente do app primário em memória. Na Web, o secundário usa memória e o primário persiste a sessão entre abas; ver [[Firebase Config]].
-- Cadastros e vínculos devem passar por [[Comportamento Pós-Registro]] após sucesso; não usar `router.back()` nem strings livres de rota
-- Cadastro de usuário e vínculo entre usuários limpam campos apenas quando a preferência da tela manda permanecer e limpar; ambos usam trava síncrona de submit, incluindo a etapa de consulta do usuário vinculado, para evitar duplicidade por múltiplos toques
+- Vínculos devem passar por [[Comportamento Pós-Registro]] após sucesso; o cadastro público volta ao login local.
+- O vínculo limpa campos somente quando a preferência da tela manda permanecer e limpar; o cadastro público bloqueia envios concorrentes pelo hook de acesso.
 
 ## Perfil pessoal
 

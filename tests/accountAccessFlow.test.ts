@@ -50,7 +50,7 @@ it('creates only one standard account on double submit, then returns to login wi
 	let submission!: Promise<void>;
 	await act(() => { submission = access.submit(); void access.submit(); access.changeMode('reset'); });
 	expect(registerUserFirebase).toHaveBeenCalledTimes(1);
-	expect(registerUserFirebase).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@example.com', password: 'secret123', adminUser: false });
+	expect(registerUserFirebase).toHaveBeenCalledWith({ name: 'Ana', email: 'ana@example.com', password: 'secret123' });
 	expect(access.mode).toBe('register');
 	await act(async () => { finish({ success: true } as never); await submission; });
 	expect(access.mode).toBe('login');

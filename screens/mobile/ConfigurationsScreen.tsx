@@ -1,7 +1,6 @@
 import React from 'react';
 import { ScrollView, View, StatusBar, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -53,14 +52,6 @@ import CategoryAvailabilitySelector from '@/components/uiverse/categories/catego
 import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
 import type { TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 
-// Importação das funções relacionadas a adição de usuário ao Firebase
-import {
-	getUserDataFirebase,
-	getAllUsersFirebase,
-	deleteUserFirebase,
-	getRelatedUsersFirebase,
-	deleteUserRelationFirebase,
-} from '@/functions/RegisterUserFirebase';
 import {
 	addBankFirebase,
 	getBanksWithUsersByPersonFirebase,
@@ -73,7 +64,6 @@ import {
 	getTagReferenceSummary,
 	type TagReferenceSummary,
 } from '@/functions/TagFirebase';
-import { getUserNameByIdFirebase } from '@/functions/RegisterUserFirebase';
 import { Input, InputField } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 import { HStack } from '@/components/ui/hstack';
@@ -106,26 +96,22 @@ import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/nav
 // Importação do SVG
 import ConfigurationIllustration from '../../assets/UnDraw/configurationsScreen.svg';
 import ScreenConfigurationsSettingsIllustration from '../../assets/UnDraw/screenConfigurationsSettings.svg';
-import AddRegisterUserScreenIllustration from '../../assets/UnDraw/addRegisterUserScreen.svg';
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTagScreen.svg';
-import AddUserRelationScreenIllustration from '../../assets/UnDraw/addUserRelationScreen.svg';
 import FinancialListIllustration from '../../assets/UnDraw/financialListScreen.svg';
 
 import { Info, Power, PowerOff } from 'lucide-react-native';
 
 type AccordionItem = {
 	id: string;
+	group: 'relations' | 'advanced';
 	title: string;
 	content: string;
 	cardTitle?: string;
 	Illustration: React.ComponentType<any>;
 	action?: { route: AppRoutePath; label: string };
-	actionRequiresAdmin?: boolean;
-	showUsersTable?: boolean;
 	showBanksTable?: boolean;
 	showTagsTable?: boolean;
-	showRelatedUsersTable?: boolean;
 	showValueVisibilitySwitch?: boolean;
 	showThemeSwitch?: boolean;
 	showScreenSettingsShortcut?: boolean;
@@ -133,28 +119,14 @@ type AccordionItem = {
 
 const accordionItems: AccordionItem[] = [
 	{
-		id: 'item-1',
-		title: 'Adicionar um novo usuário ao aplicativo',
-		content:
-			'Para adicionar um novo usuário, vá para a seção de configurações e selecione "Adicionar Usuário". Preencha as informações necessárias e salve as alterações.',
-		cardTitle: 'Usuários do aplicativo',
-		Illustration: AddRegisterUserScreenIllustration,
-		showUsersTable: true,
-		actionRequiresAdmin: true,
-		action: {
-			route: APP_ROUTE_PATHS.addRegisterUser,
-			label: 'Registrar Usuário',
-		},
-	},
-	{
 		id: 'item-2',
-		title: 'Adicionar um novo banco ao aplicativo',
+		group: 'relations',
+		title: 'Bancos',
 		content:
 			'Para adicionar um novo banco, acesse a seção de configurações e clique em "Adicionar Banco". Insira os detalhes do banco e confirme para salvar.',
 		cardTitle: 'Bancos cadastrados',
 		Illustration: AddRegisterBankScreenIllustration,
 		showBanksTable: true,
-		actionRequiresAdmin: false,
 		action: {
 			route: APP_ROUTE_PATHS.addRegisterBank,
 			label: 'Adicionar Banco',
@@ -162,50 +134,36 @@ const accordionItems: AccordionItem[] = [
 	},
 	{
 		id: 'item-3',
-		title: 'Adicionar uma nova categoria ao aplicativo',
+		group: 'relations',
+		title: 'Categorias',
 		content:
 			'Para adicionar uma nova categoria, acesse a seção de configurações e clique em "Adicionar Categoria". Insira o nome desejado e confirme para salvar.',
 		cardTitle: 'Categorias do aplicativo',
 		Illustration: AddRegisterTagScreenIllustration,
 		showTagsTable: true,
-		actionRequiresAdmin: false,
 		action: {
 			route: APP_ROUTE_PATHS.addRegisterTag,
 			label: 'Adicionar Categoria',
 		},
 	},
 	{
-		id: 'item-4',
-		title: 'Relacionar outro usuário à sua conta',
-		content:
-			'Para compartilhar as movimentações financeiras com outra pessoa, informe o ID dela e confirme o vínculo.',
-		cardTitle: 'Vínculos de usuário',
-		Illustration: AddUserRelationScreenIllustration,
-		showRelatedUsersTable: true,
-		actionRequiresAdmin: false,
-		action: {
-			route: APP_ROUTE_PATHS.addUserRelation,
-			label: 'Relacionar Usuário',
-		},
-	},
-	{
 		id: 'item-5',
+		group: 'advanced',
 		title: 'Preferências de valores financeiros',
 		content: 'Ative ou desative a exibição de valores financeiros em todo o aplicativo.',
 		cardTitle: 'Privacidade dos valores',
 		Illustration: FinancialListIllustration,
 		showValueVisibilitySwitch: true,
-		actionRequiresAdmin: false,
 	},
 	{
 		id: 'item-6',
+		group: 'advanced',
 		title: 'Configurações das telas',
 		content:
 			'Configure o comportamento de retorno e limpeza dos campos depois de salvar registros nas telas do aplicativo.',
 		cardTitle: 'Configurações por tela',
 		Illustration: ScreenConfigurationsSettingsIllustration,
 		showScreenSettingsShortcut: true,
-		actionRequiresAdmin: false,
 		action: {
 			route: APP_ROUTE_PATHS.screenSettings,
 			label: 'Abrir configurações das telas',
@@ -213,24 +171,16 @@ const accordionItems: AccordionItem[] = [
 	},
 	{
 		id: 'item-7',
+		group: 'advanced',
 		title: 'Tema do aplicativo',
 		content: 'Alterne entre o modo claro e escuro para personalizar a aparência do app.',
 		cardTitle: 'Aparência do aplicativo',
 		Illustration: ConfigurationIllustration,
 		showThemeSwitch: true,
-		actionRequiresAdmin: false,
 	},
 ];
 
 type PendingAction =
-	| {
-		type: 'delete-user';
-		payload: { userId: string; identifier: string };
-	}
-	| {
-		type: 'delete-related-user';
-		payload: { userId: string; identifier: string };
-	}
 	| {
 		type: 'delete-bank';
 		payload: { bankId: string; bankName: string };
@@ -254,7 +204,7 @@ type PendingAction =
 		payload: { tagName: string; references: TagReferenceSummary };
 	};
 
-type TablePaginationKey = 'users' | 'banks' | 'tags' | 'relatedUsers';
+type TablePaginationKey = 'banks' | 'tags';
 type CategoryFilterValue = 'all' | 'expense' | 'mandatory-expense' | 'gain' | 'mandatory-gain';
 
 type PaginatedTableResult<T> = {
@@ -847,62 +797,6 @@ function TablePaginationControls({
 	);
 }
 
-// ================================= Relacionamento de Admin (Usuários) ============================================= //
-
-export async function fetchUserData(userId: string) {
-
-	const result = await getUserDataFirebase(userId);
-
-	if (result.success) {
-
-		return result.data;
-
-	} else {
-
-		console.error('Erro ao buscar dados do usuário:', result.error);
-		return null;
-
-	}
-}
-
-export async function handleDeleteUser(userId: string) {
-
-	const result = await deleteUserFirebase(userId);
-
-	return result;
-}
-
-export async function fetchAllUsers() {
-
-	const result = await getAllUsersFirebase();
-
-	if (result.success) {
-
-		return result.data;
-
-	} else {
-
-		console.error('Erro ao buscar todos os usuários:', result.error);
-		return null;
-	}
-}
-
-export async function fetchRelatedUsers(userId: string) {
-
-	const result = await getRelatedUsersFirebase(userId);
-
-	if (result.success) {
-
-		return result.data;
-
-	} else {
-
-		return null;
-
-	}
-
-}
-
 // ================================== Relacionamento de Admin (Bancos) ============================================== //
 
 export async function handleAddBank(bankName: string) {
@@ -1005,10 +899,8 @@ export default function ConfigurationsScreen() {
 		tableSingleActionColumnClassName,
 		tableDoubleActionColumnClassName,
 		tableTripleActionColumnClassName,
-		tableUsersMinWidthClassName,
 		tableBanksMinWidthClassName,
 		tableTagsMinWidthClassName,
-		tableRelatedUsersMinWidthClassName,
 		tableIconButtonClassName,
 		tablePrimaryIconClassName,
 		tablePaginationContainerClassName,
@@ -1029,7 +921,6 @@ export default function ConfigurationsScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 
-	const [userData, setUserData] = React.useState<Array<{ id: string; email: string }>>([]);
 	const [bankData, setBankData] = React.useState<
 		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean }>
 	>([]);
@@ -1073,22 +964,14 @@ export default function ConfigurationsScreen() {
 			],
 		[],
 	);
-	const [relatedUserData, setRelatedUserData] = React.useState<Array<{ id: string; email: string }>>([]);
-	const [userId, setUserId] = React.useState<string>('');
-	const [isAdmin, setIsAdmin] = React.useState(false);
-	const [isAdminLoading, setIsAdminLoading] = React.useState(true);
-	const [isLoadingRelatedUsers, setIsLoadingRelatedUsers] = React.useState(false);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const [isCheckingTagUsageId, setIsCheckingTagUsageId] = React.useState<string | null>(null);
 	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
-	const [isCopyingUserId, setIsCopyingUserId] = React.useState(false);
 	const [openConfigurationSection, setOpenConfigurationSection] = React.useState<string | null>(null);
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
-		users: 1,
 		banks: 1,
 		tags: 1,
-		relatedUsers: 1,
 	});
 	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
 	const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
@@ -1154,11 +1037,6 @@ export default function ConfigurationsScreen() {
 		});
 	}, [tagData, tagFilter]);
 
-	const usersTable = React.useMemo(
-		() => paginateTableItems(userData, tablePages.users),
-		[userData, tablePages.users],
-	);
-
 	const banksTable = React.useMemo(
 		() => paginateTableItems(bankData, tablePages.banks),
 		[bankData, tablePages.banks],
@@ -1167,11 +1045,6 @@ export default function ConfigurationsScreen() {
 	const tagsTable = React.useMemo(
 		() => paginateTableItems(filteredTags, tablePages.tags),
 		[filteredTags, tablePages.tags],
-	);
-
-	const relatedUsersTable = React.useMemo(
-		() => paginateTableItems(relatedUserData, tablePages.relatedUsers),
-		[relatedUserData, tablePages.relatedUsers],
 	);
 
 	// Esta tela usa notifier-alert para feedback in-app, conforme [[Notificações]].
@@ -1212,17 +1085,14 @@ export default function ConfigurationsScreen() {
 	React.useEffect(() => {
 		setTablePages(previousPages => {
 			const normalizedPages = {
-				users: usersTable.currentPage,
 				banks: banksTable.currentPage,
 				tags: tagsTable.currentPage,
-				relatedUsers: relatedUsersTable.currentPage,
 			};
 
 			if (
-				previousPages.users === normalizedPages.users &&
 				previousPages.banks === normalizedPages.banks &&
-				previousPages.tags === normalizedPages.tags &&
-				previousPages.relatedUsers === normalizedPages.relatedUsers
+				previousPages.banks === normalizedPages.banks &&
+				previousPages.tags === normalizedPages.tags
 			) {
 				return previousPages;
 			}
@@ -1230,10 +1100,8 @@ export default function ConfigurationsScreen() {
 			return normalizedPages;
 		});
 	}, [
-		usersTable.currentPage,
 		banksTable.currentPage,
 		tagsTable.currentPage,
-		relatedUsersTable.currentPage,
 	]);
 
 	React.useEffect(() => {
@@ -1246,80 +1114,6 @@ export default function ConfigurationsScreen() {
 				},
 		);
 	}, [tagFilter]);
-
-	// Constante para armazenar o email do usuário logado atualmente
-	const [currentUserEmail, setCurrentUserEmail] = React.useState<string>('');
-
-	const handleCopyUserId = React.useCallback(async () => {
-		if (!userId) {
-			showConfigurationAlert({
-				title: 'ID indisponível',
-				description: 'Nenhum ID de usuário foi encontrado para copiar.',
-				type: 'warn',
-			});
-			return;
-		}
-
-		setIsCopyingUserId(true);
-
-		try {
-			await Clipboard.setStringAsync(userId);
-			showConfigurationAlert({
-				title: 'ID copiado',
-				description: 'ID do usuário copiado com sucesso.',
-				type: 'success',
-			});
-		} catch (error) {
-			console.error('Erro ao copiar ID do usuário:', error);
-			showConfigurationAlert({
-				title: 'Erro ao copiar ID',
-				description: 'Não foi possível copiar o ID do usuário.',
-				type: 'error',
-			});
-		} finally {
-			setIsCopyingUserId(false);
-		}
-	}, [showConfigurationAlert, userId]);
-
-	const handleUserRemoval = React.useCallback(
-		async (targetUserId: string, identifier: string) => {
-			if (!isAdmin) {
-				showConfigurationAlert({
-					title: 'Ação não permitida',
-					description: 'Somente administradores podem excluir usuários por esta tela.',
-					type: 'error',
-				});
-				return;
-			}
-
-			if (!targetUserId || targetUserId === userId) {
-				showConfigurationAlert({
-					title: 'Ação bloqueada',
-					description: 'Não é permitido excluir a própria conta por esta tela.',
-					type: 'warn',
-				});
-				return;
-			}
-
-			const result = await handleDeleteUser(targetUserId);
-
-			if (result.success) {
-				setUserData(prev => prev.filter(user => user.id !== targetUserId));
-				showConfigurationAlert({
-					title: 'Usuário removido',
-					description: `Usuário ${identifier} foi excluído.`,
-					type: 'success',
-				});
-			} else {
-				showConfigurationAlert({
-					title: 'Erro ao remover usuário',
-					description: 'Não foi possível remover o usuário. Tente novamente.',
-					type: 'error',
-				});
-			}
-		},
-		[isAdmin, showConfigurationAlert, userId],
-	);
 
 	const handleBankRemoval = React.useCallback(
 		async (bankId: string, bankName: string) => {
@@ -1464,28 +1258,6 @@ export default function ConfigurationsScreen() {
 		[isCheckingTagUsageId, showConfigurationAlert],
 	);
 
-	const handleRelatedUserRemoval = React.useCallback(
-		async (relatedUserId: string, identifier: string) => {
-			const result = await deleteUserRelationFirebase(relatedUserId);
-
-			if (result.success) {
-				setRelatedUserData(prev => prev.filter(user => user.id !== relatedUserId));
-				showConfigurationAlert({
-					title: 'Vínculo removido',
-					description: `Usuário ${identifier} foi desvinculado.`,
-					type: 'success',
-				});
-			} else {
-				showConfigurationAlert({
-					title: 'Erro ao remover vínculo',
-					description: 'Não foi possível remover o vínculo. Tente novamente.',
-					type: 'error',
-				});
-			}
-		},
-		[setRelatedUserData, showConfigurationAlert],
-	);
-
 	const handleCloseActionModal = React.useCallback(() => {
 		if (isProcessingAction) {
 			return;
@@ -1512,9 +1284,7 @@ export default function ConfigurationsScreen() {
 		setIsProcessingAction(true);
 
 		try {
-			if (pendingAction.type === 'delete-user') {
-				await handleUserRemoval(pendingAction.payload.userId, pendingAction.payload.identifier);
-			} else if (pendingAction.type === 'delete-bank') {
+			if (pendingAction.type === 'delete-bank') {
 				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName);
 			} else if (pendingAction.type === 'toggle-bank-status') {
 				await handleBankStatusChange(
@@ -1524,8 +1294,6 @@ export default function ConfigurationsScreen() {
 				);
 			} else if (pendingAction.type === 'delete-tag') {
 				await handleTagRemoval(pendingAction.payload.tagId, pendingAction.payload.tagName);
-			} else if (pendingAction.type === 'delete-related-user') {
-				await handleRelatedUserRemoval(pendingAction.payload.userId, pendingAction.payload.identifier);
 			}
 		} finally {
 			setIsProcessingAction(false);
@@ -1537,8 +1305,6 @@ export default function ConfigurationsScreen() {
 		handleBankRemoval,
 		handleBankStatusChange,
 		handleTagRemoval,
-		handleUserRemoval,
-		handleRelatedUserRemoval,
 	]);
 
 	const actionModalCopy = React.useMemo(() => {
@@ -1552,22 +1318,6 @@ export default function ConfigurationsScreen() {
 		}
 
 		switch (pendingAction.type) {
-			case 'delete-user':
-				return {
-					title: 'Remover usuário',
-					message: `Tem certeza de que deseja remover o usuário ${pendingAction.payload.identifier || 'selecionado'
-						}? Esta ação não pode ser desfeita.`,
-					confirmLabel: 'Remover',
-					isDestructive: true,
-				};
-			case 'delete-related-user':
-				return {
-					title: 'Desvincular usuário',
-					message: `Tem certeza de que deseja remover o vínculo com ${pendingAction.payload.identifier || 'o usuário selecionado'
-						}?`,
-					confirmLabel: 'Desvincular',
-					isDestructive: true,
-				};
 			case 'delete-bank':
 				return {
 					title: 'Excluir banco',
@@ -1754,68 +1504,14 @@ export default function ConfigurationsScreen() {
 		],
 	);
 
-	// Verifica se o usuário atual possui flag de administrador no Firestore
-	React.useEffect(() => {
-		let isMounted = true;
-
-		const loadAdminFlag = async () => {
-			try {
-				const currentUser = auth.currentUser;
-
-				if (!currentUser) {
-					if (isMounted) {
-						setIsAdmin(false);
-					}
-					return;
-				}
-
-				const result = await getUserDataFirebase(currentUser.uid);
-
-				if (!isMounted) {
-					return;
-				}
-
-				setIsAdmin(Boolean(result.success && (result.data as any)?.adminUser));
-			} catch (error) {
-				console.error('Erro ao verificar privilégios de administrador:', error);
-				if (isMounted) {
-					setIsAdmin(false);
-				}
-			} finally {
-				if (isMounted) {
-					setIsAdminLoading(false);
-				}
-			}
-		};
-
-		loadAdminFlag();
-
-		return () => {
-			isMounted = false;
-		};
-	}, []);
-
-	// Buscar todos as informações para mostrar na tabela de usuários, bancos
+	// Busca bancos e categorias somente quando o accordion correspondente é aberto.
 	useFocusEffect(
 		React.useCallback(() => {
 
 			let isMounted = true;
 			const currentUserId = auth.currentUser?.uid;
 
-			if (!isAdminLoading && currentUserId && openConfigurationSection) {
-
-				if (openConfigurationSection === 'item-1' && isAdmin) fetchAllUsers().then((users) => {
-
-					if (isMounted && users) {
-						const formattedUsers = users.map((user: any) => ({
-							id: user.id,
-							email: user.email,
-						}));
-
-						setUserData(formattedUsers);
-					}
-				});
-
+			if (currentUserId && openConfigurationSection) {
 				if (openConfigurationSection === 'item-2') fetchAllBanks(currentUserId).then((banks) => {
 
 					if (isMounted && banks) {
@@ -1854,7 +1550,6 @@ export default function ConfigurationsScreen() {
 			} else {
 
 				if (isMounted) {
-					setUserData([]);
 					setBankData([]);
 					setTagData([]);
 				}
@@ -1865,108 +1560,13 @@ export default function ConfigurationsScreen() {
 				isMounted = false;
 
 			};
-		}, [isAdmin, isAdminLoading, openConfigurationSection]),
+		}, [openConfigurationSection]),
 	);
 
 	// ================================================================================================================= //
 
-	// Função para atualizar o userId com base no login do usuário, como o userId é o uid do usuário no Firebase Auth
-	React.useEffect(() => {
-
-		const fetchAndSetUserId = async () => {
-
-			const currentUser = auth.currentUser;
-
-			if (currentUser) {
-
-				setUserId(currentUser.uid);
-
-			} else {
-
-				setUserId('');
-
-			}
-		};
-
-		fetchAndSetUserId();
-
-	}, []);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			let isMounted = true;
-
-			const loadRelatedUsers = async () => {
-				if (!userId) {
-					if (isMounted) {
-						setRelatedUserData([]);
-						setIsLoadingRelatedUsers(false);
-					}
-					return;
-				}
-
-				setIsLoadingRelatedUsers(true);
-
-				try {
-					const relatedUsers = await fetchRelatedUsers(userId);
-
-					if (!isMounted) {
-						return;
-					}
-
-					if (Array.isArray(relatedUsers)) {
-						const formattedRelatedUsers = relatedUsers.map((user: any) => ({
-							id: user.id,
-							email: user.email,
-						}));
-
-						setRelatedUserData(formattedRelatedUsers);
-					} else {
-						setRelatedUserData([]);
-					}
-				} catch (error) {
-					console.error('Erro ao carregar usuários vinculados:', error);
-					if (isMounted) {
-						setRelatedUserData([]);
-					}
-				} finally {
-					if (isMounted) {
-						setIsLoadingRelatedUsers(false);
-					}
-				}
-			};
-
-			void loadRelatedUsers();
-
-			return () => {
-				isMounted = false;
-			};
-		}, [userId]),
-	);
-
-	// Atualiza o nome do usuário logado atualmente com base na busca no Firebase
-	// com base no seu ID
-	React.useEffect(() => {
-		const fetchUserName = async () => {
-			if (userId) {
-				const result = await getUserNameByIdFirebase(userId);
-				if (result.success) {
-					setCurrentUserEmail(result.data || 'Desconhecido');
-				} else {
-					setCurrentUserEmail('Desconhecido');
-				}
-			} else {
-				setCurrentUserEmail('Desconhecido');
-			}
-		};
-
-		void fetchUserName();
-	}, [userId]);
-
-	// A permissão administrativa só controla a seção de usuários. Bloqueá-la
-	// não deve substituir toda a central de configurações por um skeleton.
+	// Carrega bancos e categorias sob demanda, dentro dos accordions.
 	const isInitialLoading = false;
-	const managedRecordsCount = userData.length + bankData.length + tagData.length;
 
 	return (
 		<SafeAreaView className="flex-1 web:w-screen" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
@@ -2020,78 +1620,7 @@ export default function ConfigurationsScreen() {
 									className="text-lg uppercase tracking-widest "
 									size="lg"
 								>
-									Informações do usuário
-								</Heading>
-
-								<View className="flex-row flex-wrap gap-3">
-									<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Acesso</Text>
-										<Text className="mt-2 text-lg font-semibold">
-											{isAdmin ? 'Administrador' : 'Padrão'}
-										</Text>
-									</Box>
-									<Box className={`${notTintedCardClassName} min-w-[145px] flex-1 px-4 py-4`}>
-										<Text className={`${helperText} text-xs uppercase tracking-wide`}>Cadastros monitorados</Text>
-										<Text className="mt-2 text-lg font-semibold">
-											{isAdmin ? managedRecordsCount : relatedUserData.length}
-										</Text>
-									</Box>
-								</View>
-
-								<VStack className="gap-4">
-
-									<VStack className="gap-3">
-
-										<VStack className="gap-2">
-											<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Email logado</Text>
-											<Input className={fieldContainerClassName} isDisabled>
-												<InputField
-													placeholder="Email do usuário"
-													value={currentUserEmail}
-													keyboardType="numeric"
-													returnKeyType="next"
-													className={inputField}
-												/>
-											</Input>
-										</VStack>
-
-										<HStack className="items-end gap-3">
-											<VStack className="flex-1 gap-2">
-												<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>ID do usuário</Text>
-														<View className="flex-1">
-													<Input className={fieldContainerClassName} isDisabled>
-														<InputField
-															placeholder="ID do usuário"
-															value={userId || 'ID indisponível'}
-															keyboardType="numeric"
-															returnKeyType="next"
-															className={inputField}
-														/>
-													</Input>
-												</View>
-											</VStack>
-											<ConfigurationActionButton
-												icon={CopyIcon}
-												iconClassName={tablePrimaryIconClassName}
-												onPress={() => {
-													void handleCopyUserId();
-												}}
-												disabled={!userId || isCopyingUserId}
-												accessibilityLabel="Copiar ID do usuário"
-												accessibilityHint="Copia o ID do usuário logado para a área de transferência"
-												className={addTagButtonClassName}
-												isLoading={isCopyingUserId}
-												spinnerColor={isDarkMode ? '#FCD34D' : '#F59E0B'}
-											/>
-										</HStack>
-									</VStack>
-								</VStack>
-
-								<Heading
-									className="text-lg uppercase tracking-widest "
-									size="lg"
-								>
-									Configurações avançadas
+									Relações dentro do Aplicativo
 								</Heading>
 
 								<Accordion
@@ -2104,13 +1633,18 @@ export default function ConfigurationsScreen() {
 									className="w-full"
 								>
 									{accordionItems
-										.filter(item => item.actionRequiresAdmin !== true || isAdmin)
-										.map(item => {
-										const requiresAdmin = item.actionRequiresAdmin !== false;
-										const canAccessSection = !requiresAdmin || isAdmin;
-
-										return (
-											<AccordionItem key={item.id} value={item.id} className={``}>
+										.map((item, index, visibleItems) => {
+											const startsAdvancedGroup =
+												item.group === 'advanced' &&
+												(index === 0 || visibleItems[index - 1]?.group !== item.group);
+											return (
+												<React.Fragment key={item.id}>
+													{startsAdvancedGroup ? (
+														<Heading className="mt-6 text-lg uppercase tracking-widest" size="lg">
+															Configurações avançadas
+														</Heading>
+													) : null}
+													<AccordionItem value={item.id} className={``}>
 												<AccordionHeader>
 													<AccordionTrigger className="px-0">
 														{({ isExpanded }: { isExpanded: boolean }) => (
@@ -2129,96 +1663,7 @@ export default function ConfigurationsScreen() {
 
 												<AccordionContent className="px-0">
 
-													{!canAccessSection ? (
-														<Box className={`${notTintedCardClassName} mt-4 px-4 py-4`}>
-															<Text className={`${helperText} text-sm`}>
-																Esta seção exibe informações administrativas apenas para usuários com essa permissão.
-															</Text>
-														</Box>
-													) : null}
-
-													{item.showUsersTable && canAccessSection ? (
-														<VStack className="gap-3">
-															{renderAccordionCard(item, {
-																action: renderSectionAction(item.action),
-															})}
-															{usersTable.totalItems > 0 ? (
-																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<Table className={`${tableBaseClassName} ${tableUsersMinWidthClassName}`}>
-																		<TableHeader>
-																			<TableRow className={tableHeaderRowClassName}>
-																				<TableHead className={tableHeadTextClassName}>Usuário</TableHead>
-																				<TableActionsHeader
-																					widthClassName={tableSingleActionColumnClassName}
-																					headerClassName={tableActionsHeaderClassName}
-																					textClassName={tableActionsHeaderTextClassName}
-																				/>
-																			</TableRow>
-																		</TableHeader>
-																			<TableBody>
-																				{usersTable.items.map(user => (
-																					(() => {
-																						const isCurrentLoggedUser = user.id === userId;
-																						return (
-																					<TableRow
-																						key={user.id}
-																						className={tableRowClassName}
-																					>
-																						<TableData useRNView className={tableContentCellClassName}>
-																							<VStack className="min-w-0 flex-1 gap-1">
-																								<Text className="text-sm font-semibold" numberOfLines={1}>
-																									{user.email || 'Usuário sem e-mail'}
-																								</Text>
-																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
-																									ID: {user.id}
-																								</Text>
-																								{isCurrentLoggedUser ? (
-																									<Text className={`${helperText} text-[11px]`}>
-																										Conta atual
-																									</Text>
-																								) : null}
-																							</VStack>
-																						</TableData>
-																						<TableActionsCell
-																							widthClassName={tableSingleActionColumnClassName}
-																							cellClassName={tableActionsCellClassName}
-																						>
-																							<ConfigurationActionButton
-																								icon={TrashIcon}
-																								variant="link"
-																								className={tableIconButtonClassName}
-																								action="negative"
-																								accessibilityLabel={`Excluir usuário ${user.email ?? user.id}`}
-																								disabled={!isAdmin || isCurrentLoggedUser}
-																								onPress={() =>
-																									setPendingAction({
-																										type: 'delete-user',
-																									payload: {
-																										userId: user.id,
-																										identifier: user.email ?? user.id,
-																										},
-																									})
-																								}
-																							/>
-																						</TableActionsCell>
-																					</TableRow>
-																						);
-																					})()
-																				))}
-																		</TableBody>
-																		<TableCaption className={tableCaptionClassName}>
-																			{usersTable.totalItems} usuário(s) cadastrados.
-																		</TableCaption>
-																	</Table>
-																	{renderTablePagination('users', usersTable)}
-																</Box>
-															) : (
-																renderEmptyTableState('Nenhum usuário cadastrado até o momento.')
-															)}
-														</VStack>
-													) : null}
-
-													{item.showBanksTable && canAccessSection ? (
+													{item.showBanksTable ? (
 														<VStack className="gap-3">
 															{renderAccordionCard(item, {
 																action: renderSectionAction(item.action),
@@ -2332,7 +1777,7 @@ export default function ConfigurationsScreen() {
 														</VStack>
 													) : null}
 
-													{item.showTagsTable && canAccessSection ? (
+													{item.showTagsTable ? (
 														<VStack className="gap-3">
 															{renderAccordionCard(item, {
 																action: renderSectionAction(item.action),
@@ -2440,84 +1885,7 @@ export default function ConfigurationsScreen() {
 														</VStack>
 													) : null}
 
-													{item.showRelatedUsersTable && canAccessSection ? (
-														<VStack className="gap-3">
-															{renderAccordionCard(item, {
-																action: renderSectionAction(item.action),
-															})}
-															{isLoadingRelatedUsers ? (
-																<Box className={`${notTintedCardClassName} px-4 py-4`}>
-																	<HStack className="items-center gap-3">
-																		<ButtonSpinner />
-																		<Text className={`${helperText} text-sm`}>Carregando usuários vinculados...</Text>
-																	</HStack>
-																</Box>
-															) : relatedUsersTable.totalItems > 0 ? (
-																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<Table className={`${tableBaseClassName} ${tableRelatedUsersMinWidthClassName}`}>
-																		<TableHeader>
-																			<TableRow className={tableHeaderRowClassName}>
-																				<TableHead className={tableHeadTextClassName}>Usuário vinculado</TableHead>
-																				<TableActionsHeader
-																					widthClassName={tableSingleActionColumnClassName}
-																					headerClassName={tableActionsHeaderClassName}
-																					textClassName={tableActionsHeaderTextClassName}
-																				/>
-																			</TableRow>
-																		</TableHeader>
-																		<TableBody>
-																			{relatedUsersTable.items.map(relatedUser => (
-																				<TableRow
-																					key={relatedUser.id}
-																					className={tableRowClassName}
-																				>
-																					<TableData useRNView className={tableContentCellClassName}>
-																						<VStack className="min-w-0 flex-1 gap-1">
-																							<Text className="text-sm font-semibold" numberOfLines={1}>
-																								{relatedUser.email || relatedUser.id}
-																							</Text>
-																							<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
-																								ID: {relatedUser.id}
-																							</Text>
-																						</VStack>
-																					</TableData>
-																					<TableActionsCell
-																						widthClassName={tableSingleActionColumnClassName}
-																						cellClassName={tableActionsCellClassName}
-																					>
-																						<ConfigurationActionButton
-																							icon={TrashIcon}
-																							variant="link"
-																							className={tableIconButtonClassName}
-																							action="negative"
-																							accessibilityLabel={`Desvincular usuário ${relatedUser.email || relatedUser.id}`}
-																							onPress={() =>
-																								setPendingAction({
-																									type: 'delete-related-user',
-																									payload: {
-																										userId: relatedUser.id,
-																										identifier: relatedUser.email || relatedUser.id,
-																									},
-																								})
-																							}
-																						/>
-																					</TableActionsCell>
-																				</TableRow>
-																			))}
-																		</TableBody>
-																		<TableCaption className={tableCaptionClassName}>
-																			{relatedUsersTable.totalItems} vínculo(s) encontrado(s).
-																		</TableCaption>
-																	</Table>
-																	{renderTablePagination('relatedUsers', relatedUsersTable)}
-																</Box>
-															) : (
-																renderEmptyTableState('Você ainda não vinculou nenhum usuário.')
-															)}
-														</VStack>
-													) : null}
-
-														{item.showScreenSettingsShortcut && canAccessSection ? (
+													{item.showScreenSettingsShortcut ? (
 														renderAccordionCard(item, {
 															action: renderSectionAction(item.action),
 														})
@@ -2647,8 +2015,9 @@ export default function ConfigurationsScreen() {
 													) : null}
 
 												</AccordionContent>
-											</AccordionItem>
-										);
+													</AccordionItem>
+												</React.Fragment>
+											);
 									})}
 								</Accordion>
 							</VStack>

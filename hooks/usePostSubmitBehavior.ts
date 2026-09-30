@@ -65,9 +65,6 @@ const navigateToPostSubmitDestination = (destination: PostSubmitDestinationKey) 
 		case 'addRegisterTag':
 			redirectToRoute(APP_ROUTE_PATHS.addRegisterTag);
 			return;
-		case 'addRegisterUser':
-			redirectToRoute(APP_ROUTE_PATHS.addRegisterUser);
-			return;
 		case 'addUserRelation':
 			redirectToRoute(APP_ROUTE_PATHS.addUserRelation);
 			return;

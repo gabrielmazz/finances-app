@@ -573,16 +573,6 @@ export const transferFunds = onCall(async (request) => {
   ));
 });
 
-export const sendLinkedDevicesNotificationTest = onCall(async (request) => {
-  const ownerId = callableUserId(request);
-  return sendRemoteNotification({
-    ownerId,
-    title: 'Teste de notificações vinculadas',
-    body: 'Os avisos remotos do Lumus estão funcionando para este grupo vinculado.',
-    data: { kind: 'test', operation: 'manual' },
-  });
-});
-
 export const notifyMandatoryExpenseChange = onDocumentWritten(
   'mandatoryExpenses/{id}',
   event => notifyMandatoryDocumentChange('expense', event),

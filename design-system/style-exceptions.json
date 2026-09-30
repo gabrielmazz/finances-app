@@ -128,6 +128,14 @@
     "owner": "profile-ui"
   },
   {
+    "files": ["screens/web/AddRegisterBankScreen.web.tsx"],
+    "reason": "A altura do hero, a sobreposição do sheet e o espaço de rolagem do teclado dependem das dimensões atuais do viewport e da safe area.",
+    "limitation": "A geometria muda em runtime e o ScrollView não expõe a mesma API de classe para seu contentContainerStyle em todas as plataformas.",
+    "risk": "Uma alteração no viewport ou na área segura pode cobrir os campos ou quebrar a sobreposição entre o hero e o formulário.",
+    "alternative": "A tela usa tokens para cores e classes para geometria estática; estilos inline ficam restritos aos valores derivados do viewport/teclado.",
+    "owner": "banking-ui"
+  },
+  {
     "files": ["screens/mobile/FinancialForecastScreen.tsx", "screens/web/FinancialForecastScreen.web.tsx"],
     "reason": "A sobreposição do hero usa viewport/safe area em runtime; ScrollView, Expo DOM e expo-linear-gradient recebem geometria por APIs de plataforma. O resumo projetado aplica o gradiente semântico positivo/negativo compartilhado com a Análise por Categoria.",
     "limitation": "As classes não resolvem altura do hero, recuo do conteúdo rolável, tamanho do WebView ou posição da imagem React Native no navegador; expo-linear-gradient exige cores e geometria por props.",

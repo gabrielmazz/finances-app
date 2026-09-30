@@ -29,11 +29,9 @@ Rotas do grupo Home:
 
 Rota direta do navegador:
 /web/lumus-assistant e /mobile/lumus-assistant → LumusAssistantScreen
-/web/app-tests e /mobile/app-tests → AppTestsScreen (central manual segura, oculta por padrão)
 
 Rotas de cadastro:
-/web/add-register-bank e /mobile/add-register-bank → AddRegisterBankScreen
-/web/add-register-user e /mobile/add-register-user → AddRegisterUserScreen
+/web/add-register-bank → `screens/web/AddRegisterBankScreen.web.tsx`; /mobile/add-register-bank → `screens/mobile/AddRegisterBankScreen.tsx`
 /web/add-register-expenses e /mobile/add-register-expenses → AddRegisterExpensesScreen
 /web/add-register-gain e /mobile/add-register-gain → AddRegisterGainScreen
 /web/add-register-tag e /mobile/add-register-tag → AddRegisterTagScreen
@@ -88,12 +86,11 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 10. `add-register-tag` preserva o retorno inline para a tela de origem quando recebe `returnAfterCreate`; as quatro telas de origem também enviam `placement` (`expense`, `mandatory-expense`, `gain` ou `mandatory-gain`) e `returnToRoute` para fallback determinístico quando não houver histórico válido. A criação normal pode receber `availabilityPreset` ou abrir o seletor completo de disponibilidade.
 11. `app/_layout.tsx` chama `bootstrapLocalNotifications()` no carregamento do módulo para preparar canais Android e o handler de foreground. Dentro de `components/app/app-root.tsx`, `NotificationLifecycleBridge` ativa o UID, restaura os lembretes do Firestore após login e renova a janela ao voltar ao foreground. Não existe handler Notifee em `index.ts`.
 12. A ação **Sair** é serializada em cada renderer do navigator, mas o fluxo seguro único fica em `utils/secureLogout.ts`. Ele é vinculado ao UID que iniciou a ação e exige a limpeza confirmada dos lembretes antes de `signOut`; respostas atrasadas não podem limpar nem deslogar uma conta posterior.
-13. No grupo Config do navigator, a rota `/add-register-tag` mantém o caminho técnico de tag, mas o rótulo visível deve usar "Nova categoria" para alinhar com a nomenclatura padrão da interface.
-14. A rota `/screen-settings` fica no grupo Config do navigator como **Config. das telas** e abre a UI de [[Comportamento Pós-Registro]].
-15. A rota `/app-tests` também pertence ao grupo Config, mas começa oculta pela preferência local `appTests`. Quando o switch **Mostrar no app** é ligado em `ScreenSettingsScreen.tsx`, a opção **Testes do app** aparece no navigator; quando desligado, `Stack.Protected` nega também o acesso direto. A central envia apenas uma notificação imediata pelo canal existente, consulta a disponibilidade/configuração do Lumus sem mensagem ao modelo e abre rascunhos de despesa/ganho; a persistência continua dependendo do submit explícito do formulário.
-16. Quando [[Transações de Despesas]] detecta um gasto obrigatório pendente, usa a navegação manual `navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses, { focusMandatoryExpenseId })`. A lista recarrega os dados, revalida o alvo e abre somente a confirmação de registro daquele item, sem disparar persistência automática.
-17. O navigator inferior possui três ações de largura igual. Home, Controle e Config abrem menus; **Lumus IA** fica no menu do botão Home e abre `/lumus-assistant`, mantendo o grupo Home ativo nessa rota quando a preferência local o mantém visível.
-18. `/lumus-assistant` monta provider e tela diretamente, sem `React.lazy`/`Suspense`, para que o Native Stack conclua a abertura da rota sem aguardar imports de tela. O painel interno mantém um estado de preparação enquanto consulta preferências, Remote Config e disponibilidade. O gateway ainda posterga somente React Native Firebase até validar o runtime; configuração pendente aparece no próprio chat e a boundary local cobre apenas erro inesperado de renderização.
+13. O grupo Config do navigator contém somente **Configurações**, **Meu perfil** e **Sair**. Os atalhos **Novo banco**, **Nova categoria** e **Config. das telas** foram retirados nas variantes mobile/Web; as rotas e seus acessos dentro de [[Configurações]] permanecem disponíveis.
+14. A tela Testes do aplicativo foi removida do sistema, incluindo rotas, preferência de visibilidade e recursos exclusivos.
+15. Quando [[Transações de Despesas]] detecta um gasto obrigatório pendente, usa a navegação manual `navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses, { focusMandatoryExpenseId })`. A lista recarrega os dados, revalida o alvo e abre somente a confirmação de registro daquele item, sem disparar persistência automática.
+16. O navigator inferior possui três ações de largura igual. Home, Controle e Config abrem menus; **Lumus IA** fica no menu do botão Home e abre `/lumus-assistant`, mantendo o grupo Home ativo nessa rota quando a preferência local o mantém visível.
+17. `/lumus-assistant` monta provider e tela diretamente, sem `React.lazy`/`Suspense`, para que o Native Stack conclua a abertura da rota sem aguardar imports de tela. O painel interno mantém um estado de preparação enquanto consulta preferências, Remote Config e disponibilidade. O gateway ainda posterga somente React Native Firebase até validar o runtime; configuração pendente aparece no próprio chat e a boundary local cobre apenas erro inesperado de renderização.
 
 ### Navegação Web responsiva
 
@@ -114,7 +111,6 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — workspace autenticado por plataforma sem modificar a hierarquia de rotas
 - `components/web/navigation/web-route-transition.web.tsx` / `components/mobile/navigation/web-route-transition.native.tsx` — feedback de troca de rota Web e fallback nativo isolado do Stack React Native
 - `app/mobile/home.native.tsx` / `app/web/home.web.tsx` / `screens/mobile/HomeTabsScreen.tsx` / `screens/web/HomeTabsScreen.web.tsx` — Adaptadores de rota e containers de abas por plataforma (renderização condicional por índice)
-- `app/mobile/app-tests.tsx` / `screens/mobile/AppTestsScreen.tsx` — Central manual de testes, sob visibilidade local, com diagnóstico não persistente e atalhos de rascunho
 - `app/mobile/category-analysis.tsx` — Rota da análise dinâmica por tag
 - `app/mobile/financial-forecast.tsx` — Rota da previsão financeira
 - `app/mobile/annotations.tsx` — Rota protegida das anotações locais
@@ -165,11 +161,10 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - O grupo Home do navigator deve exibir **Movimentos do banco** como destino permanente entre **Início** e os demais relatórios; a opção fica ativa somente enquanto a tela `/bank-movements` está aberta
 - A rota `/financial-forecast` deve ser tratada como destino do grupo Home, usando `APP_ROUTE_PATHS.financialForecast` e `navigateToRoute()`; ela não é uma nova aba do container `/home`
 - A rota `/annotations` deve ser tratada como destino do grupo Home, usando `APP_ROUTE_PATHS.annotations` e `navigateToRoute()`; não criar uma quarta aba fixa para as anotações. Quando ocultada em [[Visibilidade de Rotas]], ela sai do navigator e `Stack.Protected` bloqueia o acesso direto.
-- A rota `/app-tests` deve ser tratada como destino opcional do grupo Config, usando `APP_ROUTE_PATHS.appTests` e `navigateToRoute()`. Ela começa oculta; a notificação manual usa somente o canal financeiro existente e os testes de lançamentos devem abrir formulários com rascunho, nunca escrever no Firestore diretamente.
 - O atalho **Lumus IA** usa `APP_ROUTE_PATHS.lumusAssistant` no menu do grupo Home quando sua visibilidade local estiver ativa; não criar uma quarta ação fixa na barra inferior.
 - A barra inferior mantém `16px` de padding horizontal no contêiner externo e limita o conteúdo a `280px`; assim, Home, Controle e Config permanecem com a mesma largura em todas as telas, sem encostar nas bordas.
 - No Web desktop, a rail compacta do `StaggeredMenu` permanece fixa e o painel expandido é fixo somente enquanto está visível; `WebAppShell` não reserva largura para nenhum deles. A variante visual acompanha o `themeMode` atual e mantém contraste, foco visível e área clicável mínima de 44px nos dois temas. Não introduzir uma segunda barra inferior, rotas duplicadas ou um segundo registro de rotas exclusivo do navegador.
-- O item de cadastro de categorias no grupo `Config` deve exibir "Nova categoria", mesmo que a rota continue sendo `/add-register-tag`
+- Banco, categoria e configurações das telas mantêm suas rotas e fluxos internos, sem atalhos no navigator.
 - Submits de criação/edição em telas de formulário devem aplicar `usePostSubmitBehavior()` após salvar; não chamar `router.back()` nem strings de rota soltas como retorno pós-submit
 - `router.dismissTo()`, `router.dismissAll()` e `withAnchor` são proibidos nos redirects automáticos deste app. No Expo Router 6, `dismissTo` enfileira `POP_TO`; falhas no despacho não chegam a um `try/catch` síncrono e podem deixar o NativeStack Android sem conteúdo em release.
 - Redirect automático deve executar no máximo uma ação. `redirectToRoute()`/`redirectToHomeTab()` cancelam uma intenção pendente quando outra navegação centralizada vence no mesmo frame.

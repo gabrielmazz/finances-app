@@ -24,7 +24,6 @@ export const APP_ROUTE_PATHS = {
 	financialForecast: platformRoute('/financial-forecast'),
 	annotations: platformRoute('/annotations'),
 	addRegisterBank: platformRoute('/add-register-bank'),
-	addRegisterUser: platformRoute('/add-register-user'),
 	addRegisterExpenses: platformRoute('/add-register-expenses'),
 	addRegisterGain: platformRoute('/add-register-gain'),
 	addRegisterTag: platformRoute('/add-register-tag'),
@@ -34,7 +33,6 @@ export const APP_ROUTE_PATHS = {
 	addRescue: platformRoute('/add-rescue'),
 	addUserRelation: platformRoute('/add-user-relation'),
 	profile: platformRoute('/profile'),
-	appTests: platformRoute('/app-tests'),
 	screenSettings: platformRoute('/screen-settings'),
 	registerMonthlyBalance: platformRoute('/register-monthly-balance'),
 	bankMovements: platformRoute('/bank-movements'),
@@ -59,11 +57,9 @@ export const ROUTE_VISIBILITY_PATHS: Record<RouteVisibilityKey, readonly AppRout
 	registerMonthlyBalance: [APP_ROUTE_PATHS.registerMonthlyBalance],
 	addRegisterBank: [APP_ROUTE_PATHS.addRegisterBank],
 	addRegisterTag: [APP_ROUTE_PATHS.addRegisterTag],
-	addRegisterUser: [APP_ROUTE_PATHS.addRegisterUser],
 	addUserRelation: [APP_ROUTE_PATHS.addUserRelation],
 	lumusAssistant: [APP_ROUTE_PATHS.lumusAssistant],
 	annotations: [APP_ROUTE_PATHS.annotations],
-	appTests: [APP_ROUTE_PATHS.appTests],
 };
 
 export const getRouteVisibilityKeyForPath = (pathname: AppRoutePath): RouteVisibilityKey | null => {
@@ -104,8 +100,6 @@ export const getPostSubmitDestinationPath = (destination: PostSubmitDestinationK
 			return APP_ROUTE_PATHS.addRegisterBank;
 		case 'addRegisterTag':
 			return APP_ROUTE_PATHS.addRegisterTag;
-		case 'addRegisterUser':
-			return APP_ROUTE_PATHS.addRegisterUser;
 		case 'addUserRelation':
 			return APP_ROUTE_PATHS.addUserRelation;
 		default:

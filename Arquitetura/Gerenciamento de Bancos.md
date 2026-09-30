@@ -15,10 +15,10 @@ Permite criar e gerenciar contas bancárias, visualizar movimentos por período 
 ## Como funciona
 
 ### Cadastro de Banco
-1. `AddRegisterBankScreen.tsx` coleta nome, cor visual e ícone do banco
-2. Chama `BankFirebase.ts` para salvar no Firestore
+1. `screens/mobile/AddRegisterBankScreen.tsx` e `screens/web/AddRegisterBankScreen.web.tsx` coletam nome, cor visual e ícone do banco em composições próprias para cada plataforma
+2. Ambas chamam `BankFirebase.ts` para criar ou atualizar o cadastro no Firestore
 3. O banco fica disponível como destino/origem de despesas, receitas, investimentos, saques, saldos mensais e transferências via ActionSheet com ícone
-4. Após criar ou editar um banco, `AddRegisterBankScreen.tsx` aplica [[Comportamento Pós-Registro]] depois do feedback de sucesso
+4. Após criar ou editar um banco, as duas telas aplicam [[Comportamento Pós-Registro]] depois do feedback de sucesso
 
 ### Desativação reversível
 1. A tabela de bancos em `ConfigurationsScreen.tsx` exibe bancos ativos e desativados, mantendo o registro e o histórico financeiro no Firestore
@@ -75,7 +75,7 @@ graph TD
 - Banco pode ficar negativo com justificativa; Caixa nunca pode ficar negativo.
 
 
-- `screens/mobile/AddRegisterBankScreen.tsx` — Formulário de cadastro
+- `screens/mobile/AddRegisterBankScreen.tsx` / `screens/web/AddRegisterBankScreen.web.tsx` — Formulários mobile e Web de cadastro/edição; compartilham CRUD, parâmetros de edição e comportamento pós-registro
 - `screens/mobile/ConfigurationsScreen.tsx` — Tabela administrativa com edição, exclusão e ativação/desativação reversível
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco em ActionSheet com ícone e estado selecionado
 - `hooks/useBankIcons.tsx` — Catálogo de ícones/monogramas para bancos brasileiros
@@ -84,7 +84,8 @@ graph TD
 - `components/uiverse/banks/bank-movements-daily-area-chart.tsx` — `AreaChart` Mantine em Expo DOM para comparar ganhos e despesas por dia
 - `functions/BankFirebase.ts` — CRUD de bancos e busca de movimentos
 - `utils/monthlyBalance.ts` — `computeMonthlyBankBalances()` + filtros de movimentos
-- `app/mobile/add-register-bank.tsx` — Rota de cadastro
+- `app/mobile/add-register-bank.tsx` — Fallback da rota mobile de cadastro
+- `app/web/add-register-bank.web.tsx` — Adaptador Web de `/web/add-register-bank`; `app/web/add-register-bank.tsx` permanece como fallback
 - `app/mobile/bank-movements.tsx` / `app/web/bank-movements.tsx` — Rotas de movimentos por plataforma
 - `app/mobile/bank-summary.tsx` — Redirect para `/home?tab=0` (rota legada)
 - `components/uiverse/navigation/navigator.tsx` / `components/web/navigation/navigator.web.tsx` — Oferecem **Movimentos do banco** no grupo Home e marcam a opção quando `/bank-movements` está aberta

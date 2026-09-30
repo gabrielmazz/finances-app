@@ -433,7 +433,7 @@
   },
   "design-system/tokens.ts": {
     "inlineStyleProps": 0,
-    "rawHexLiterals": 70,
+    "rawHexLiterals": 88,
     "arbitraryTailwindValues": 8,
     "useScreenStyles": 0
   },
@@ -455,12 +455,6 @@
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 0
   },
-  "screens/mobile/AppTestsScreen.tsx": {
-    "inlineStyleProps": 5,
-    "rawHexLiterals": 2,
-    "arbitraryTailwindValues": 0,
-    "useScreenStyles": 1
-  },
   "screens/mobile/AddRegisterMonthlyBalanceScreen.tsx": {
     "inlineStyleProps": 10,
     "rawHexLiterals": 7,
@@ -471,12 +465,6 @@
     "inlineStyleProps": 80,
     "rawHexLiterals": 137,
     "arbitraryTailwindValues": 1,
-    "useScreenStyles": 1
-  },
-  "screens/mobile/AddRegisterUserScreen.tsx": {
-    "inlineStyleProps": 10,
-    "rawHexLiterals": 4,
-    "arbitraryTailwindValues": 0,
     "useScreenStyles": 1
   },
   "screens/mobile/LumusAssistantScreen.tsx": {
@@ -556,6 +544,12 @@
     "rawHexLiterals": 22,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 1
+  },
+  "screens/web/AddRegisterBankScreen.web.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
   },
   "screens/mobile/MandatoryExpensesListScreen.tsx": {
     "inlineStyleProps": 55,
@@ -693,12 +687,6 @@
     "inlineStyleProps": 56,
     "rawHexLiterals": 18,
     "arbitraryTailwindValues": 7,
-    "useScreenStyles": 1
-  },
-  "screens/web/AddRegisterUserScreen.web.tsx": {
-    "inlineStyleProps": 10,
-    "rawHexLiterals": 4,
-    "arbitraryTailwindValues": 1,
     "useScreenStyles": 1
   },
   "screens/web/MandatoryExpensesListScreen.web.tsx": {

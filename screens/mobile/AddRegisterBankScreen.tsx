@@ -53,33 +53,12 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 
-import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
+import { LUMUS_BANK_COLOR_PRESETS, LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 import { Check, ChevronDown } from 'lucide-react-native';
-
-const presetBankColors = [
-    { label: 'Azul', value: '#2563EB' },
-    { label: 'Verde', value: '#10B981' },
-    { label: 'Vermelho', value: '#EF4444' },
-    { label: 'Amarelo', value: '#FACC15' },
-    { label: 'Roxo', value: '#9333EA' },
-    { label: 'Cinza', value: '#6B7280' },
-    { label: 'Laranja', value: '#F97316' },
-    { label: 'Rosa', value: '#EC4899' },
-    { label: 'Turquesa', value: '#14B8A6' },
-    { label: 'Marrom', value: '#A0522D' },
-    { label: 'Dourado', value: '#FFD700' },
-    { label: 'Prata', value: '#C0C0C0' },
-    { label: 'Verde Limão', value: '#32CD32' },
-    { label: 'Azul Celeste', value: '#87CEEB' },
-    { label: 'Vinho', value: '#800000' },
-    { label: 'Roxo Claro', value: '#D8BFD8' },
-    { label: 'Cinza Escuro', value: '#374151' },
-    { label: 'Azul Marinho', value: '#000080' },
-];
 
 type FocusableInputKey = 'bank-name';
 
@@ -179,9 +158,12 @@ export default function AddRegisterBankScreen() {
     }, [params.bankIconKey]);
 
     const colorOptions = React.useMemo(() => {
-        const options = [...presetBankColors];
+        const options = LUMUS_BANK_COLOR_PRESETS.map(option => ({
+            label: option.label,
+            value: option.value,
+        }));
 
-        if (initialColorHex && !presetBankColors.some(option => option.value === initialColorHex)) {
+        if (initialColorHex && !LUMUS_BANK_COLOR_PRESETS.some(option => option.value === initialColorHex)) {
             options.push({
                 label: 'Cor atual',
                 value: initialColorHex,

@@ -33,6 +33,16 @@ export default function PerfilPersonScreen() {
 	const state = useUserProfile();
 	const nameRef = React.useRef<HTMLInputElement>(null);
 	const profile = state.profile;
+	const accessLevelValue = state.accessSummaryLoading
+		? 'Carregando…'
+		: state.accessSummaryError || !state.accessSummary
+			? 'Indisponível'
+			: state.accessSummary.isAdmin ? 'Administrador' : 'Padrão';
+	const monitoredRecordsValue = state.accessSummaryLoading
+		? 'Carregando…'
+		: state.accessSummaryError || !state.accessSummary
+			? 'Indisponível'
+			: state.accessSummary.monitoredRecordsCount;
 	const handleCopyId = async () => {
 		if (await state.copyId()) {
 			showNotifierAlert({ description: 'ID copiado para a área de transferência.', type: 'success', isDarkMode });
@@ -109,6 +119,27 @@ export default function PerfilPersonScreen() {
 										{state.feedback && <p className={state.feedback.error ? ui.errorText : ui.successText}>{state.feedback.text}</p>}
 									</div>
 								</form>
+							</section>
+							<section aria-labelledby="profile-access-heading" className="min-w-0">
+								<h2 id="profile-access-heading" className={cn(ui.heading, 'mb-3 text-lg font-bold')}>Informações da conta</h2>
+								<div className="flex flex-row flex-wrap gap-3">
+									<div className={cn(ui.card, 'min-w-0 flex-1 px-4 py-4')}>
+										<p className={cn(ui.helper, 'text-xs uppercase tracking-wide')}>Tipo de acesso</p>
+										<p aria-live="polite" className={cn(ui.heading, 'mt-2 text-lg font-semibold')}>
+											{accessLevelValue}
+										</p>
+									</div>
+									<div className={cn(ui.card, 'min-w-0 flex-1 px-4 py-4')}>
+										<p className={cn(ui.helper, 'text-xs uppercase tracking-wide')}>Cadastros monitorados</p>
+										<p aria-live="polite" className={cn(ui.heading, 'mt-2 text-lg font-semibold')}>
+											{monitoredRecordsValue}
+										</p>
+									</div>
+								</div>
+								{state.accessSummaryError && <div className="mt-3 flex flex-col items-start gap-3">
+									<p role="alert" className={ui.errorText}>Não foi possível carregar as informações da conta.</p>
+									<button type="button" onClick={state.reload} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 px-5')}>Tentar novamente</button>
+								</div>}
 							</section>
 							<section aria-labelledby="profile-sharing-heading" className={cn(ui.card, 'w-full min-w-0 p-5')}>
 								<h2 id="profile-sharing-heading" className={cn(ui.heading, 'text-lg font-bold')}>Contas vinculadas</h2>

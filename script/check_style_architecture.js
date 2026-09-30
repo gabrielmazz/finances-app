@@ -16,7 +16,7 @@ const TOKEN_SOURCE_FILES = new Set([
 	'components/ui/gluestack-ui-provider/config.ts',
 ]);
 const METRIC_BASELINE = {
-	inlineStyleProps: 1263,
+	inlineStyleProps: 1266,
 	rawHexLiterals: 1275,
 	arbitraryTailwindValues: 381,
 	useScreenStylesFiles: 54,

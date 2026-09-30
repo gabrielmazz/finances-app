@@ -105,6 +105,27 @@ export const LUMUS_HERO_COLORS = {
 	text: '#FFFFFF',
 } as const;
 
+export const LUMUS_BANK_COLOR_PRESETS = [
+	{ label: 'Azul', value: '#2563EB' },
+	{ label: 'Verde', value: '#10B981' },
+	{ label: 'Vermelho', value: '#EF4444' },
+	{ label: 'Amarelo', value: '#FACC15' },
+	{ label: 'Roxo', value: '#9333EA' },
+	{ label: 'Cinza', value: '#6B7280' },
+	{ label: 'Laranja', value: '#F97316' },
+	{ label: 'Rosa', value: '#EC4899' },
+	{ label: 'Turquesa', value: '#14B8A6' },
+	{ label: 'Marrom', value: '#A0522D' },
+	{ label: 'Dourado', value: '#FFD700' },
+	{ label: 'Prata', value: '#C0C0C0' },
+	{ label: 'Verde Limão', value: '#32CD32' },
+	{ label: 'Azul Celeste', value: '#87CEEB' },
+	{ label: 'Vinho', value: '#800000' },
+	{ label: 'Roxo Claro', value: '#D8BFD8' },
+	{ label: 'Cinza Escuro', value: '#374151' },
+	{ label: 'Azul Marinho', value: '#000080' },
+] as const;
+
 export const LUMUS_FONT_STACKS = {
 	sans: 'Arimo, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;
@@ -134,6 +155,7 @@ export const LUMUS_MONTH_SERIES_COLORS = {
 
 export const LUMUS_CLASS_NAMES = {
 	screen: 'flex-1 bg-slate-50 dark:bg-slate-950',
+	surfaceFill: 'bg-white dark:bg-slate-950',
 	surface: 'border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	surfaceMuted: 'border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900',
 	heading: 'text-slate-900 dark:text-slate-100',
