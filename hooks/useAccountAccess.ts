@@ -65,7 +65,7 @@ export function useAccountAccess({ email, password, setPassword, setEmailError, 
 		setIsSubmitting(true);
 		try {
 			if (mode === 'register') {
-				const result = await registerUserFirebase({ name: name.trim(), email: normalizedEmail, password, adminUser: false });
+				const result = await registerUserFirebase({ name: name.trim(), email: normalizedEmail, password });
 				if (!result.success) throw result.error;
 				setPassword('');
 				setName('');

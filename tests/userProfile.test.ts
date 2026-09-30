@@ -14,7 +14,17 @@ jest.mock('@/functions/UserProfileFirebase', () => ({
 	updateUserProfileFirebase: (...args: unknown[]) => mockSave(...args),
 	getProfileNameError: (name: string) => name.trim() ? null : 'Informe seu nome.',
 }));
-const profile: UserProfile = { uid: 'owner', name: 'Maria', email: 'maria@example.com', createdAt: null };
+jest.mock('@/functions/RegisterUserFirebase', () => ({
+	getAllUsersFirebase: jest.fn().mockResolvedValue({ success: true, data: [] }),
+	getRelatedUsersFirebase: jest.fn().mockResolvedValue({ success: true, data: [] }),
+}));
+jest.mock('@/functions/BankFirebase', () => ({
+	getBanksWithUsersByPersonFirebase: jest.fn().mockResolvedValue({ success: true, data: [] }),
+}));
+jest.mock('@/functions/TagFirebase', () => ({
+	getTagsWithUsersByPersonFirebase: jest.fn().mockResolvedValue({ success: true, data: [] }),
+}));
+const profile: UserProfile = { uid: 'owner', name: 'Maria', email: 'maria@example.com', createdAt: null, adminUser: false };
 const deferred = <T,>() => {
 	let resolve!: (value: T) => void;
 	const promise = new Promise<T>(fulfill => { resolve = fulfill; });

@@ -15,8 +15,7 @@ Sistema de avisos do Lumus Finanças com três frentes: lembretes locais de venc
 1. Após autenticar em uma build Android/iOS instalada e com permissão concedida, `app/_layout.tsx` chama `registerRemoteNotificationDevice()`. O token Expo fica em `users/{uid}/pushDevices/{installationId}`; somente o próprio UID pode gravar ou ler esse documento.
 2. `backend/src/index.ts` observa `mandatoryExpenses` e `mandatoryGains`. Criação, edição ou exclusão gera uma mensagem para o dono do template e seus `relatedIdUsers`, portanto a entrega não depende do celular que efetuou o save nem exige que as listas estejam abertas.
 3. A Function usa o endpoint Expo Push, nunca aceita uma lista de destinatários do cliente, deduplica tokens e remove tokens que o Expo informar como `DeviceNotRegistered`. O conteúdo não inclui valores financeiros.
-4. `sendLinkedDevicesNotificationTest` é uma callable autenticada que reusa a mesma lista de destinatários. A central **Testes do aplicativo** registra o aparelho atual e chama essa Function por **Testar dispositivos vinculados**.
-5. Expo Go e Web não registram tokens. Cada pessoa vinculada precisa abrir ao menos uma vez a build instalada e permitir notificações para que seu aparelho entre na lista de entrega.
+4. Expo Go e Web não registram tokens. Cada pessoa vinculada precisa abrir ao menos uma vez a build instalada e permitir notificações para que seu aparelho entre na lista de entrega.
 
 ## Lembretes locais
 
@@ -96,12 +95,10 @@ O projeto não solicita `USE_EXACT_ALARM` nem `SCHEDULE_EXACT_ALARM`. O horário
 
 Expo Go serve apenas como smoke test do fluxo JavaScript: se o módulo de notificações não estiver presente nesse host, o app deve abrir com lembretes indisponíveis. Para validar a entrega real, configure um lembrete de despesa ou receita obrigatória e confirme o comportamento em development build instalado e, depois, no build de produção — incluindo permissão, canal e execução em segundo plano.
 
-A central opcional **Testes do aplicativo** pode disparar uma notificação imediata local por `sendLocalNotificationTest()` e um push remoto por `sendLinkedDevicesNotificationTest`. O teste remoto não altera dados financeiros e informa quantos aparelhos aceitaram o envio; a entrega visual continua exigindo development/production build instalado em cada aparelho.
-
 ### Testes automatizados
 
 - `tests/mandatoryReminderConfig.test.ts` cobre normalização, combinações cumulativas D-3/D-2/D-1/D0, opt-out do legado e resumo visual.
-- `tests/mandatoryReminderNotifications.test.ts` usa mock de `expo-notifications` e data fixa para validar canais/migração, Android sem canais (API 24–25), permissão, recuperação após autorização, datas concretas, virada de mês/ano, dias úteis, ciclo concluído, reconciliação, limites globais Android/iOS, prioridade justa, falha parcial do agendador, escopo/limpeza por UID, rollback/finalização do logout e o disparo imediato manual sem agenda adicional.
+- `tests/mandatoryReminderNotifications.test.ts` usa mock de `expo-notifications` e data fixa para validar canais/migração, Android sem canais (API 24–25), permissão, recuperação após autorização, datas concretas, virada de mês/ano, dias úteis, ciclo concluído, reconciliação, limites globais Android/iOS, prioridade justa, falha parcial do agendador, escopo/limpeza por UID, rollback/finalização do logout.
 - `tests/notificationsRuntime.test.ts` simula a ausência do módulo nativo e garante que o fallback não derrube a inicialização.
 - Rode com `npm test -- --runInBand`.
 
@@ -124,8 +121,8 @@ Os testes Jest validam as regras e chamadas do serviço, mas não substituem a m
 - `utils/mandatoryReminderNotifications.ts` — Motor compartilhado de datas concretas, persistência, agenda e reconciliação.
 - `utils/mandatoryReminderAccountSync.ts` — Normaliza Firestore e restaura despesas/receitas automaticamente após autenticação.
 - `utils/mandatoryExpenseNotifications.ts` / `utils/mandatoryGainNotifications.ts` — Wrappers de despesas e receitas.
-- `utils/remoteNotifications.ts` — Registro privado de Expo Push Token e chamada do teste remoto.
-- `backend/src/index.ts` — Callable de teste e gatilhos confiáveis de alteração das recorrências.
+- `utils/remoteNotifications.ts` — Registro privado de Expo Push Token.
+- `backend/src/index.ts` — Gatilhos confiáveis de alteração das recorrências.
 - `app/_layout.tsx` — Bootstrap e ponte de autenticação/foreground.
 - `components/uiverse/navigation/navigator.tsx` — Limpeza síncrona da autoridade do UID antes do logout explícito.
 - `components/uiverse/feedback/notifier-alert.tsx` — Feedback in-app.

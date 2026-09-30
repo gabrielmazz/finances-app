@@ -26,7 +26,8 @@ Preferência global que define o que cada formulário faz depois de salvar com s
 9. Fluxos inline de categoria com `returnAfterCreate` têm precedência sobre a preferência global para preservar a seleção imediata da categoria recém-criada na tela de origem.
 10. Antes de aplicar qualquer ação, o hook verifica se a tela continua focada. Uma requisição que terminar depois de o usuário sair da tela não pode redirecionar a rota atual nem limpar um formulário já desmontado.
 11. O próximo frame permite que o `finally` do submit libere locks/loading e que o fechamento do teclado seja solicitado antes da transição. O orquestrador cancela redirects pendentes concorrentes e envia somente um `router.replace()` para o Expo Router.
-12. Destinos desativados em [[Visibilidade de Rotas]] não aparecem no seletor. Se uma preferência persistida antiga ainda apontar para um deles, o hook retorna ao Dashboard para não solicitar uma rota protegida.
+12. O cadastro público de conta não tem preferência pós-registro: o sucesso retorna ao login no mesmo painel. Preferências antigas de cadastro administrativo são ignoradas na hidratação.
+13. Destinos desativados em [[Visibilidade de Rotas]] não aparecem no seletor. Se uma preferência persistida antiga ainda apontar para um deles, o hook retorna ao Dashboard para não solicitar uma rota protegida.
 
 ## Arquivos principais
 

@@ -39,7 +39,7 @@ it('accepts international names without requiring a surname', () => {
 
 it('reads the login email from Auth and tolerates missing legacy name/date', async () => {
 	mockGetDoc.mockResolvedValue({ exists: () => true, data: () => ({ email: 'obsolete@example.com', name: null }) });
-	await expect(getUserProfileFirebase('owner')).resolves.toEqual({ uid: 'owner', email: 'access@example.com', name: 'Nome legado', createdAt: null });
+	await expect(getUserProfileFirebase('owner')).resolves.toEqual({ uid: 'owner', email: 'access@example.com', name: 'Nome legado', createdAt: null, adminUser: false });
 });
 
 it('does not recreate a missing user document or hide a failed write', async () => {

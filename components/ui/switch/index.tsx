@@ -1,10 +1,11 @@
 'use client';
 import React from 'react';
-import { Switch as RNSwitch } from 'react-native';
+import { Platform, Switch as RNSwitch } from 'react-native';
 import { createSwitch } from '@gluestack-ui/core/switch/creator';
 import { tva } from '@gluestack-ui/utils/nativewind-utils';
 import { withStyleContext } from '@gluestack-ui/utils/nativewind-utils';
 import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
+import { LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 
 const UISwitch = createSwitch({
   Root: withStyleContext(RNSwitch),
@@ -28,11 +29,27 @@ type ISwitchProps = React.ComponentProps<typeof UISwitch> &
 const Switch = React.forwardRef<
   React.ComponentRef<typeof UISwitch>,
   ISwitchProps
->(function Switch({ className, size = 'md', ...props }, ref) {
+>(function Switch(
+  { className, size = 'md', trackColor, thumbColor, activeThumbColor, ...props },
+  ref,
+) {
+  const webColorProps =
+    Platform.OS === 'web'
+      ? {
+          activeTrackColor:
+            (typeof trackColor === 'object' ? trackColor?.true : undefined) ??
+            LUMUS_RUNTIME_COLORS.light.accent,
+          activeThumbColor: thumbColor ?? LUMUS_RUNTIME_COLORS.light.surface,
+        }
+      : { activeThumbColor };
+
   return (
     <UISwitch
       ref={ref}
       {...props}
+      trackColor={trackColor}
+      thumbColor={thumbColor}
+      {...webColorProps}
       className={switchStyle({ size, class: className })}
     />
   );

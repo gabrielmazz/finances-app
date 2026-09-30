@@ -2,6 +2,22 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — cores do switch Web, 2026-09-30
+
+**Inventário:** `components/ui/switch/index.tsx` e seus usos nas composições Web e mobile de Configurações, Preferências por tela, Assistente Lumus e formulários de recorrência.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P3 | O adapter compartilhado não fixava as cores ativas específicas do renderer Web; o trilho podia herdar o verde padrão e a bolinha usar uma cor ativa diferente do padrão nativo. | O switch Web deriva o trilho ativo de `trackColor.true` (com fallback no token amarelo) e mantém a bolinha branca em repouso e ativa. O trilho desligado preserva a cor neutra fornecida pelo controle; Android/iOS não mudam. | `typecheck` e `git diff --check` dos arquivos tocados passaram. `lint:styles` continua apontando somente a dívida preexistente de `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 cores hexadecimais, 3 classes arbitrárias e 1 uso de `useScreenStyles`). | Sem inspeção visual autenticada em navegador ou aparelho. |
+
+## Checkpoint — informações da conta no Perfil, 2026-09-28
+
+**Inventário:** `PerfilPersonScreen.tsx`, `PerfilPersonScreen.web.tsx` e as duas composições de Configurações. Revisão estática dos caminhos de dados para acesso, usuários vinculados, bancos e categorias.
+
+| Severidade | Achado e causa | Correção | Validação | Risco residual |
+|---|---|---|---|---|
+| P2 | Tipo de acesso e contagem de cadastros ficavam em Configurações, enquanto e-mail e ID do usuário também ocupavam essa tela. A contagem administrativa dependia das tabelas abertas e podia refletir somente carregamentos parciais. | Perfil passa a mostrar as duas informações em cards nas versões Web e mobile. O resumo consulta todos os tipos de cadastro contemplados pela regra existente; carregamento, falha e nova tentativa ficam visíveis. E-mail e ID saem da interface e das consultas exclusivas de Configurações; o Perfil conserva o e-mail e o ID compartilhável. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` ainda aponta dívida em `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 hexadecimais, 3 valores Tailwind arbitrários e 1 uso de `useScreenStyles`, sem baseline para esse arquivo). | Sem teste automatizado nem inspeção autenticada em navegador ou aparelho; não foi possível validar visualmente o carregamento e os estados de falha no dispositivo. |
+
 ## Checkpoint — Previsão Financeira mobile/web, 2026-09-28
 
 **Inventário:** `/mobile/financial-forecast` e `/web/financial-forecast`, adaptadores de rota, ambas as composições, `financial-forecast-chart.tsx` e o carregamento por foco.
@@ -80,8 +96,8 @@ Typecheck e 25 testes passaram; exports Web/Android e smoke completo no Chromium
 
 **Inventário:** 45 usos de `<Popover>` em 28 composições de tela, todos com `PopoverBackdrop` e atendidos por `components/ui/popover/index.tsx`.
 
-- **Mobile — 24 usos em 15 telas:** `AddFinanceScreen.tsx` (1), `AddMandatoryExpensesScreen.tsx` (1), `AddMandatoryGainsScreen.tsx` (1), `AddRegisterExpensesScreen.tsx` (2), `AddRegisterGainScreen.tsx` (3), `AddRegisterMonthlyBalanceScreen.tsx` (2), `AddRegisterUserScreen.tsx` (2), `AddUserRelationScreen.tsx` (1), `BankMovementsScreen.tsx` (1), `CategoryAnalysisScreen.tsx` (1), `ConfigurationsScreen.tsx` (2), `FinancialForecastScreen.tsx` (1), `HomeScreen.tsx` (4), `LumusAssistantScreen.tsx` (1) e `TransferScreen.tsx` (1).
-- **Web — 21 usos em 13 telas:** `AddMandatoryExpensesScreen.web.tsx` (2), `AddMandatoryGainsScreen.web.tsx` (2), `AddRegisterExpensesScreen.web.tsx` (2), `AddRegisterGainScreen.web.tsx` (3), `AddRegisterMonthlyBalanceScreen.web.tsx` (2), `AddRegisterUserScreen.web.tsx` (2), `AddUserRelationScreen.web.tsx` (1), `BankMovementsScreen.web.tsx` (1), `CategoryAnalysisScreen.web.tsx` (1), `ConfigurationsScreen.web.tsx` (2), `FinancialForecastScreen.web.tsx` (1), `HomeScreen.web.tsx` (1) e `TransferScreen.web.tsx` (1).
+- **Mobile — 22 usos em 14 telas:** `AddFinanceScreen.tsx` (1), `AddMandatoryExpensesScreen.tsx` (1), `AddMandatoryGainsScreen.tsx` (1), `AddRegisterExpensesScreen.tsx` (2), `AddRegisterGainScreen.tsx` (3), `AddRegisterMonthlyBalanceScreen.tsx` (2), `AddUserRelationScreen.tsx` (1), `BankMovementsScreen.tsx` (1), `CategoryAnalysisScreen.tsx` (1), `ConfigurationsScreen.tsx` (2), `FinancialForecastScreen.tsx` (1), `HomeScreen.tsx` (4), `LumusAssistantScreen.tsx` (1) e `TransferScreen.tsx` (1).
+- **Web — 19 usos em 12 telas:** `AddMandatoryExpensesScreen.web.tsx` (2), `AddMandatoryGainsScreen.web.tsx` (2), `AddRegisterExpensesScreen.web.tsx` (2), `AddRegisterGainScreen.web.tsx` (3), `AddRegisterMonthlyBalanceScreen.web.tsx` (2), `AddUserRelationScreen.web.tsx` (1), `BankMovementsScreen.web.tsx` (1), `CategoryAnalysisScreen.web.tsx` (1), `ConfigurationsScreen.web.tsx` (2), `FinancialForecastScreen.web.tsx` (1), `HomeScreen.web.tsx` (1) e `TransferScreen.web.tsx` (1).
 
 | Severidade | Achado e causa | Correção | Validação | Risco residual |
 |---|---|---|---|---|
@@ -383,7 +399,7 @@ As referências reutilizáveis desta fase estão em [[Exemplo Home Web]] e [[Exe
 
 ### Rotas e telas
 
-As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): login, home, Lumus IA, análise por categoria, previsão financeira, anotações, cadastros de banco/usuário/despesa/ganho/categoria, gastos e ganhos obrigatórios, investimento, saque, vínculo de usuário, testes, configuração de telas, saldo mensal, movimentos bancários, resumo bancário, lista financeira e transferência. `bank-summary` é um redirecionamento; os adaptadores de `app/` permanecem finos.
+As rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): login, home, Lumus IA, análise por categoria, previsão financeira, anotações, cadastros de banco/usuário/despesa/ganho/categoria, gastos e ganhos obrigatórios, investimento, saque, vínculo de usuário, configuração de telas, saldo mensal, movimentos bancários, resumo bancário, lista financeira e transferência. `bank-summary` é um redirecionamento; os adaptadores de `app/` permanecem finos.
 
 | Tela | Plataforma | Rota | Arquivo principal | Componentes predominantes | Fonte atual de estilização | Inconsistência/impacto | Prioridade |
 |---|---|---|---|---|---|---|---|
@@ -394,8 +410,7 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Análise por categoria | mobile | `/mobile/category-analysis` | `screens/mobile/CategoryAnalysisScreen.tsx` | filtros, gráfico, seletor | `useScreenStyles`, NativeWind, styles de gráfico | Cores e dimensões de gráfico locais | P2 |
 | Previsão financeira | mobile | `/mobile/financial-forecast` | `screens/mobile/FinancialForecastScreen.tsx` | filtros, gráfico, cards | `useScreenStyles`, NativeWind, tokens de domínio | Expo DOM ainda requer smoke test nativo autenticado | P2 |
 | Anotações | mobile/web fallback | `/mobile/annotations`, `/web/annotations` | `screens/mobile/LocalAnnotationsScreen.tsx` | `FlatList`, editor, modal | `useScreenStyles`, NativeWind | Única lista virtualizada; editor web possui CSS próprio | P2 |
-| Registrar banco | mobile/web fallback | `/mobile/add-register-bank`, `/web/add-register-bank` | `screens/mobile/AddRegisterBankScreen.tsx` | formulário, seletor de ícone | `useScreenStyles`, NativeWind | Variante web não dedicada | P2 |
-| Registrar usuário | mobile | `/mobile/add-register-user` | `screens/mobile/AddRegisterUserScreen.tsx` | formulário, popovers | `useScreenStyles`, NativeWind | Classes repetidas de formulário | P1 |
+| Registrar banco | mobile/web | `/mobile/add-register-bank`, `/web/add-register-bank` | `screens/mobile/AddRegisterBankScreen.tsx`, `screens/web/AddRegisterBankScreen.web.tsx` | formulário, seletor de ícone, diálogo Web | `useScreenStyles`, NativeWind, `WebSelectField` | Contratos de CRUD e edição compartilhados; inspeção autenticada no navegador pendente | P2 |
 | Registrar despesa | mobile | `/mobile/add-register-expenses` | `screens/mobile/AddRegisterExpensesScreen.tsx` | formulário financeiro, date picker, seletores | `useScreenStyles`, NativeWind, styles nativos | Contratos de input duplicados | P1 |
 | Registrar ganho | mobile | `/mobile/add-register-gain` | `screens/mobile/AddRegisterGainScreen.tsx` | formulário financeiro, date picker, seletores | `useScreenStyles`, NativeWind, styles nativos | Contratos de input duplicados | P1 |
 | Registrar categoria | mobile | `/mobile/add-register-tag` | `screens/mobile/AddRegisterTagScreen.tsx` | formulário, busca e grade de ícones | `useScreenStyles`, NativeWind | Estados de seleção locais | P2 |
@@ -404,7 +419,6 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Investimento | mobile | `/mobile/add-finance` | `screens/mobile/AddFinanceScreen.tsx` | formulário financeiro, seletores | `useScreenStyles`, NativeWind | Contratos de input duplicados | P2 |
 | Saque | mobile | `/mobile/add-rescue` | `screens/mobile/AddRescueScreen.tsx` | formulário, banco, data | `useScreenStyles`, NativeWind | Classes de formulário repetidas | P1 |
 | Relacionar usuário | mobile | `/mobile/add-user-relation` | `screens/mobile/AddUserRelationScreen.tsx` | formulário, popovers | `useScreenStyles`, NativeWind | Classes de formulário repetidas | P2 |
-| Testes do app | mobile/web fallback | `/mobile/app-tests`, `/web/app-tests` | `screens/mobile/AppTestsScreen.tsx` | ações administrativas | `useScreenStyles`, NativeWind | Variante web não dedicada | P3 |
 | Configurações | mobile/web fallback | `/mobile/home?tab=2`, `/web/home?tab=2` | `screens/mobile/ConfigurationsScreen.tsx` | tabelas, switches, modais | `useScreenStyles`, NativeWind, styles nativos | Maior concentração de variantes e estados | P1 |
 | Configuração das telas | mobile | `/mobile/screen-settings` | `screens/mobile/ScreenSettingsScreen.tsx` | busca, cards, selects | `useScreenStyles`, NativeWind | Tokens locais e conteúdo longo | P2 |
 | Saldo mensal | mobile | `/mobile/register-monthly-balance` | `screens/mobile/AddRegisterMonthlyBalanceScreen.tsx` | formulário, banco, data | `useScreenStyles`, NativeWind | Classes repetidas de formulário | P1 |
@@ -416,7 +430,6 @@ As 24 rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): log
 | Login | web | `/web/login` | `screens/web/LoginScreen.web.tsx` | formulário, Grainient, StrokeText | NativeWind, CSS de efeitos, styles DOM | Fontes e efeitos fora do tema | P1 |
 | Home | web | `/web/home` | `screens/web/HomeScreen.web.tsx` | dashboard, Carousel, Grainient, gráficos | `useScreenStyles`, NativeWind, CSS/JS de efeitos | Mapa de classes centralizado no hook errado | P1 |
 | Abas da Home | web | `/web/home` | `screens/web/HomeTabsScreen.web.tsx` | shell e dashboard | NativeWind, navegador web | Breakpoint e shell separados | P2 |
-| Registrar usuário | web | `/web/add-register-user` | `screens/web/AddRegisterUserScreen.web.tsx` | formulário, hero | `useScreenStyles`, NativeWind | Repetição com telas de cadastro | P1 |
 | Registrar despesa | web | `/web/add-register-expenses` | `screens/web/AddRegisterExpensesScreen.web.tsx` | formulário, hero, select | `useScreenStyles`, NativeWind, styles DOM | Input e tipografia locais | P1 |
 | Registrar ganho | web | `/web/add-register-gain` | `screens/web/AddRegisterGainScreen.web.tsx` | formulário, hero, select | `useScreenStyles`, NativeWind, styles DOM | Input e tipografia locais | P1 |
 | Investimento | web | `/web/add-finance` | `screens/web/AddFinanceScreen.web.tsx` | formulário, hero, seletor e saldo bancário | tokens Web, NativeWind, animação DOM | Hero e estados de saldo; banco/saldo alinhados em linha no desktop | P2 |
@@ -710,3 +723,9 @@ Estados revisados no código: conteúdo normal, vazio, carregamento, expansão e
 | Área | Plataforma | Severidade | Causa | Correção | Validação | Risco residual |
 |---|---|---|---|---|---|---|
 | Evolução do saldo | mobile/Web | P2 | Título usava estilo de heading compacto diferente do label de gráfico da Home | Aplicado caixa alta, peso forte e tracking amplo nas duas plataformas; estado de carregamento permanece no cabeçalho | Inspeção do diff e `git diff --check` | Sem inspeção visual em aparelho/navegador nesta alteração |
+
+## Simplificação do menu em 2026-09-30
+
+- Mobile e Web: o grupo Config passa a conter Configurações, Meu perfil e Sair. Novo banco, Nova categoria e Config. das telas permanecem nos fluxos internos de Configurações.
+- A tela Testes do aplicativo, suas rotas, ilustração e configuração de visibilidade foram removidas; os envios de teste exclusivos também saíram do cliente/backend. Lembretes e gatilhos de push de recorrências permanecem.
+- Validação: typechecks do app/backend, 51 testes focados, exports Web/Android e diff-check aprovados. O lint de estilos continua bloqueado exclusivamente pela dívida preexistente de ConfigurationsScreen.web.tsx. Inspeção autenticada no navegador e em aparelho não realizada.

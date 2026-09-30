@@ -149,7 +149,6 @@ describe('navigation helpers', () => {
 
 		expect(navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.lumusAssistant)).toBe('lumusAssistant');
 		expect(navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.annotations)).toBe('annotations');
-		expect(navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.appTests)).toBe('appTests');
 		expect(navigation.getRouteVisibilityKeyForPath(navigation.APP_ROUTE_PATHS.mandatoryExpenses)).toBe(
 			'addMandatoryExpenses',
 		);

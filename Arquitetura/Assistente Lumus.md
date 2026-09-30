@@ -242,7 +242,6 @@ Esse registro de publicação é histórico. Em 2026-09-25, a CLI leu o template
 ## Observações importantes
 
 - Nada fica executando continuamente: existe chamada somente ao enviar texto/áudio ou pedir narrativa.
-- A central opcional **Testes do aplicativo** consulta somente `getAvailability()` e `getConfig(true)` para diagnosticar App Check e Remote Config. Ela não cria chat, não envia prompt ou contexto financeiro ao Gemini e não altera o Firestore.
 - A confirmação é individual e sequencial; não existe **Confirmar tudo**. Uma falha mantém o cartão atual selecionado e não libera ações futuras.
 - O assistente não substitui regras Firestore nem deve ser tratado como fronteira de autorização.
 - A narrativa não é recomendação financeira e nunca substitui as métricas calculadas pelo Lumus.

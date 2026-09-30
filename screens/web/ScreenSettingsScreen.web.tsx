@@ -65,7 +65,6 @@ import AddRegisterExpensesScreenIllustration from '@/assets/UnDraw/addRegisterEx
 import AddRegisterGainScreenIllustration from '@/assets/UnDraw/addRegisterGainScreen.svg';
 import AddRegisterMonthlyBalanceScreenIllustration from '@/assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
 import AddRegisterTagScreenIllustration from '@/assets/UnDraw/addRegisterTagScreen.svg';
-import AddRegisterUserScreenIllustration from '@/assets/UnDraw/addRegisterUserScreen.svg';
 import AddRescueScreenIllustration from '@/assets/UnDraw/addRescue.svg';
 import AddUserRelationScreenIllustration from '@/assets/UnDraw/addUserRelationScreen.svg';
 import AnnotationIllustration from '@/assets/UnDraw/annotationScreen.svg';
@@ -77,7 +76,6 @@ import LumusAssistantScreenIllustration from '@/assets/UnDraw/lumusAssistantScre
 import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryExpensesListScreen.svg';
 import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
 import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
-import TestsScreenIllustration from '@/assets/UnDraw/testsScreen.svg';
 import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
 
 type ScreenSettingsItem = {
@@ -101,7 +99,7 @@ type ReturnDestinationSelection = {
 };
 
 type StandaloneVisibilitySetting = {
-	key: 'lumusAssistant' | 'annotations' | 'appTests';
+	key: 'lumusAssistant' | 'annotations';
 	label: string;
 	description: string;
 	searchableText: string;
@@ -207,13 +205,6 @@ const screenSettingsCategories: ScreenSettingsCategory[] = [
 				Illustration: AddRegisterTagScreenIllustration,
 			},
 			{
-				key: 'addRegisterUser',
-				mode: 'create',
-				label: 'Cadastrar usuário',
-				description: 'Configure o comportamento após cadastrar um usuário.',
-				Illustration: AddRegisterUserScreenIllustration,
-			},
-			{
 				key: 'addUserRelation',
 				mode: 'create',
 				label: 'Relacionar usuário',
@@ -296,13 +287,6 @@ const standaloneVisibilitySettings: readonly StandaloneVisibilitySetting[] = [
 		Illustration: AnnotationIllustration,
 		isDevelopmentOnly: true,
 	},
-	{
-		key: 'appTests',
-		label: 'Testes do aplicativo',
-		description: 'Libere a central manual de verificações somente quando precisar usá-la neste aparelho.',
-		searchableText: 'Testes aplicativo central verificações navegação segurança Firestore',
-		Illustration: TestsScreenIllustration,
-	},
 ];
 
 const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React.ComponentType<any>> = {
@@ -321,7 +305,6 @@ const returnDestinationIllustrationByKey: Record<PostSubmitDestinationKey, React
 	financialList: FinancialListScreenIllustration,
 	addRegisterBank: AddRegisterBankScreenIllustration,
 	addRegisterTag: AddRegisterTagScreenIllustration,
-	addRegisterUser: AddRegisterUserScreenIllustration,
 	addUserRelation: AddUserRelationScreenIllustration,
 };
 

@@ -2,12 +2,18 @@ import React from 'react';
 import * as Clipboard from 'expo-clipboard';
 import { auth } from '@/FirebaseConfig';
 import { useAuth } from '@/contexts/AuthContext';
+import { getAllUsersFirebase, getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
+import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
+import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
 import { getProfileNameError, getUserProfileFirebase, updateUserProfileFirebase, type UserProfile } from '@/functions/UserProfileFirebase';
 
 export function useUserProfile() {
 	const { user } = useAuth();
 	const uid = user?.uid;
 	const [profile, setProfile] = React.useState<UserProfile | null>(null);
+	const [accessSummary, setAccessSummary] = React.useState<{ isAdmin: boolean; monitoredRecordsCount: number } | null>(null);
+	const [accessSummaryLoading, setAccessSummaryLoading] = React.useState(true);
+	const [accessSummaryError, setAccessSummaryError] = React.useState(false);
 	const [name, setName] = React.useState('');
 	const [loading, setLoading] = React.useState(true);
 	const [loadError, setLoadError] = React.useState('');
@@ -22,6 +28,9 @@ export function useUserProfile() {
 	React.useEffect(() => {
 		const version = ++lifetime.current;
 		setProfile(null);
+		setAccessSummary(null);
+		setAccessSummaryLoading(Boolean(uid));
+		setAccessSummaryError(false);
 		setName('');
 		setNameError(null);
 		setFeedback(null);
@@ -30,17 +39,61 @@ export function useUserProfile() {
 		setSaving(false);
 		saveLock.current = false;
 		const isCurrent = () => lifetime.current === version && auth.currentUser?.uid === uid;
-		if (uid) {
-			void getUserProfileFirebase(uid).then(result => {
+		if (!uid) {
+			setLoading(false);
+			setAccessSummaryLoading(false);
+			return () => { lifetime.current += 1; };
+		}
+
+		const load = async () => {
+			let profileLoaded = false;
+			try {
+				const result = await getUserProfileFirebase(uid);
 				if (!isCurrent()) return;
 				setProfile(result);
 				setName(result.name);
-			}).catch(() => {
-				if (isCurrent()) setLoadError('Não foi possível carregar seu perfil. Tente novamente.');
-			}).finally(() => {
-				if (isCurrent()) setLoading(false);
-			});
-		}
+				setLoading(false);
+				profileLoaded = true;
+
+				if (result.adminUser) {
+					const [usersResult, banksResult, tagsResult] = await Promise.all([
+						getAllUsersFirebase(),
+						getBanksWithUsersByPersonFirebase(uid),
+						getTagsWithUsersByPersonFirebase(uid),
+					]);
+					if (!usersResult.success || !banksResult.success || !tagsResult.success) {
+						throw new Error('profile/access-summary');
+					}
+					if (!isCurrent()) return;
+					setAccessSummary({
+						isAdmin: true,
+						monitoredRecordsCount:
+							(Array.isArray(usersResult.data) ? usersResult.data.length : 0) +
+							(Array.isArray(banksResult.data) ? banksResult.data.length : 0) +
+							(Array.isArray(tagsResult.data) ? tagsResult.data.length : 0),
+					});
+				} else {
+					const relatedUsersResult = await getRelatedUsersFirebase(uid);
+					if (!relatedUsersResult.success) throw new Error('profile/access-summary');
+					if (!isCurrent()) return;
+					setAccessSummary({
+						isAdmin: false,
+						monitoredRecordsCount: Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data.length : 0,
+					});
+				}
+			} catch {
+				if (!isCurrent()) return;
+				if (!profileLoaded) setLoadError('Não foi possível carregar seu perfil. Tente novamente.');
+				else setAccessSummaryError(true);
+			} finally {
+				if (isCurrent()) {
+					setLoading(false);
+					setAccessSummaryLoading(false);
+				}
+			}
+		};
+
+		void load();
 		return () => { lifetime.current += 1; };
 	}, [uid, retry]);
 
@@ -100,5 +153,22 @@ export function useUserProfile() {
 			copyLock.current = false;
 		}
 	};
-	return { profile: currentProfile, name, changeName, nameError, loading, loadError, saving, dirty, feedback, save, reset, copyId, reload: () => setRetry(value => value + 1) };
+	return {
+		profile: currentProfile,
+		accessSummary,
+		accessSummaryLoading,
+		accessSummaryError,
+		name,
+		changeName,
+		nameError,
+		loading,
+		loadError,
+		saving,
+		dirty,
+		feedback,
+		save,
+		reset,
+		copyId,
+		reload: () => setRetry(value => value + 1),
+	};
 }

@@ -12,7 +12,6 @@ export type PostSubmitScreenKey =
 	| 'registerMonthlyBalance'
 	| 'addRegisterBank'
 	| 'addRegisterTag'
-	| 'addRegisterUser'
 	| 'addUserRelation';
 
 export type PostSubmitDestinationKey =
@@ -30,7 +29,6 @@ export type PostSubmitDestinationKey =
 	| 'financialList'
 	| 'addRegisterBank'
 	| 'addRegisterTag'
-	| 'addRegisterUser'
 	| 'addUserRelation';
 
 export type PostSubmitBehaviorMode = 'create' | 'edit';
@@ -113,11 +111,6 @@ export const POST_SUBMIT_SCREEN_OPTIONS: Array<{
 		description: 'Define o destino depois de cadastrar uma categoria fora dos fluxos inline.',
 	},
 	{
-		key: 'addRegisterUser',
-		label: 'Usuários',
-		description: 'Define o destino depois de cadastrar um usuário.',
-	},
-	{
 		key: 'addUserRelation',
 		label: 'Vínculos de usuário',
 		description: 'Define o destino depois de vincular usuários.',
@@ -198,11 +191,6 @@ export const POST_SUBMIT_DESTINATION_OPTIONS: Array<{
 		key: 'addRegisterTag',
 		label: 'Nova categoria',
 		description: 'Abre o cadastro de categoria.',
-	},
-	{
-		key: 'addRegisterUser',
-		label: 'Novo usuário',
-		description: 'Abre o cadastro de usuário.',
 	},
 	{
 		key: 'addUserRelation',

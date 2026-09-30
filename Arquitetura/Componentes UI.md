@@ -58,7 +58,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 | `select/` | Dropdowns de seleção |
 | `checkbox/` | Seleção múltipla |
 | `radio/` | Seleção única |
-| `switch/` | Toggle booleano |
+| `switch/` | Toggle booleano compartilhado: trilho neutro quando desligado, amarelo quando ativo e bolinha branca em todos os estados no Web e no mobile |
 | `form-control/` | Wrapper com label, helper text e mensagem de erro |
 | `card/` | Container de conteúdo com bordas |
 | `box/` | Layout wrapper genérico |
@@ -163,7 +163,7 @@ graph LR
 - `components/web/navigation/web-route-transition.web.tsx` / `components/mobile/navigation/web-route-transition.native.tsx` — Véu Motion isolado do Stack para transições entre páginas Web
 - `components/ui/gluestack-ui-provider/index.tsx` — Configuração do provider de tema
 - `design-system/tokens.ts`, `design-system/web-forms.ts`, `hooks/useScreenStyle.ts` e `components/mobile/shared/date-picker.native.tsx` — contratos de campo e label aplicados pelos formulários mobile e usados como base tipográfica da Web
-- `screens/web/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterUserScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
+- `screens/web/AddRegisterExpensesScreen.web.tsx`, `AddRegisterGainScreen.web.tsx`, `AddMandatoryExpensesScreen.web.tsx`, `AddRegisterMonthlyBalanceScreen.web.tsx`, `TransferScreen.web.tsx`, `AddRescueScreen.web.tsx`, `AddRegisterTagScreen.web.tsx` e `AddUserRelationScreen.web.tsx` — formulários Web com labels `WEB_EXPENSE_CLASS_NAMES.fieldLabel`, espaçamento `mb-2` e linhas `sectionLabel` para alinhar ícones de informação aos títulos.
 
 ## Integrações
 

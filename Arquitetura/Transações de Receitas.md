@@ -78,7 +78,6 @@ sequenceDiagram
 - Usuários relacionados compartilham visibilidade das receitas
 - O submit de novos registros e edições deve passar por [[Comportamento Pós-Registro]]; não usar `router.back()` nem strings livres de rota como retorno pós-submit
 - Em novo registro, a limpeza dos campos é controlada pela preferência da tela quando o retorno automático está desligado; o submit usa trava síncrona para impedir duplo clique enquanto a persistência e integrações obrigatórias/investimento concluem
-- A central opcional **Testes do aplicativo** pode abrir este formulário com `templateName`, `templateDescription` e `templateValueInCents=1` (R$ 0,01). Isso é apenas um rascunho de teste: nenhum documento é gravado até o usuário executar o submit normal.
 - O campo de categoria não deve voltar para o menu padrão do Android nem exibir botão externo desalinhado; o fluxo usa o ActionSheet compartilhado para selecionar e criar categorias
 - O campo de banco também usa ActionSheet compartilhado para exibir `iconKey`/`colorHex` dos bancos cadastrados e evitar regressão para o menu padrão do Android
 - Android/iOS usam `AddRegisterGainScreen.tsx`; o navegador resolve `AddRegisterGainScreen.web.tsx`, sem duplicar consultas ou regras financeiras. A variante Web mantém o hero/sheet de [[Versão Web]], uma única rolagem e a grade responsiva, com foco amarelo e labels acessíveis.

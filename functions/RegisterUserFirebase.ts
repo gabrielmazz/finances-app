@@ -11,8 +11,6 @@ interface RegisterUserParams {
     name?: string;
     email: string;
     password: string;
-    adminUser?: boolean;
-    relatedIdUsers?: string[];
 }
 
 // =========================================== Funções de Registro ================================================== //
@@ -22,8 +20,6 @@ export async function registerUserFirebase({
     name,
     email,
     password,
-    adminUser = false,
-    relatedIdUsers = [],
 }: RegisterUserParams) {
 
     let shouldSignOutSecondary = false;
@@ -45,7 +41,7 @@ export async function registerUserFirebase({
             name: normalizedName.length > 0 ? normalizedName : null,
             email,
             createdAt: new Date(),
-            adminUser,
+            adminUser: false,
         });
 
         return { success: true, user };

@@ -2,22 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { doc, setDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 
-import { db, firebaseFunctions } from '@/FirebaseConfig';
+import { db } from '@/FirebaseConfig';
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import { ensureLocalNotificationPermission } from '@/utils/localNotifications';
 import { Notifications, isNotificationsRuntimeAvailable } from '@/utils/notificationsRuntime';
 import { platformCapabilities } from '@/utils/platformCapabilities';
 
 const PUSH_DEVICE_ID_STORAGE_KEY = '@lumusRemoteNotifications:device-id-v1';
-const functions = firebaseFunctions;
-
-type RemoteNotificationTestResponse = {
-	recipientCount: number;
-	deviceCount: number;
-	acceptedCount: number;
-};
 
 export type RemoteNotificationRegistrationResult =
 	| { registered: true }
@@ -39,7 +31,7 @@ const getInstallationId = async () => {
 
 /**
  * [[Notificações]]: the token belongs to one installed app, never to the
- * shared finance record. The callable Function is the only sender.
+ * shared finance record. Backend triggers are the only senders.
  */
 export const registerRemoteNotificationDevice = async (
 	accountId: string,
@@ -81,12 +73,4 @@ export const registerRemoteNotificationDevice = async (
 		console.error('Erro ao registrar dispositivo para notificações remotas:', error);
 		return { registered: false, reason: 'token-error' };
 	}
-};
-
-export const sendLinkedDevicesNotificationTest = async () => {
-	if (isFirebaseEmulatorRuntime()) {
-		throw new Error('Envio de push externo é bloqueado no Firebase Emulator.');
-	}
-	const callable = httpsCallable<undefined, RemoteNotificationTestResponse>(functions, 'sendLinkedDevicesNotificationTest');
-	return (await callable()).data;
 };

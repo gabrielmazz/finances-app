@@ -18,18 +18,16 @@ describe('route visibility preferences', () => {
 				lumusAssistant: false,
 				addRegisterExpenses: false,
 				annotations: false,
-				appTests: true,
 			}),
 		).toMatchObject({
 			lumusAssistant: false,
 			addRegisterExpenses: false,
 			addRegisterGain: true,
 			annotations: false,
-			appTests: true,
 		});
 	});
 
-	it('keeps standard routes visible while annotations and app tests stay hidden by default', () => {
+	it('keeps standard routes visible while annotations stays hidden by default', () => {
 		const { normalizeRouteVisibility } = loadRouteVisibility();
 
 		expect(normalizeRouteVisibility(null)).toMatchObject({
@@ -37,7 +35,18 @@ describe('route visibility preferences', () => {
 			addRegisterExpenses: true,
 			addRegisterGain: true,
 			annotations: false,
-			appTests: false,
 		});
+	});
+
+	it('discards retired preferences while preserving visibility for remaining screens', () => {
+		const { normalizeRouteVisibility } = loadRouteVisibility();
+		const visibility = normalizeRouteVisibility({
+			appTests: true,
+			addRegisterBank: false,
+			addRegisterTag: true,
+		});
+
+		expect(visibility).not.toHaveProperty('appTests');
+		expect(visibility).toMatchObject({ addRegisterBank: false, addRegisterTag: true });
 	});
 });
