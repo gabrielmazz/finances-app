@@ -55,3 +55,7 @@ Toggle de privacidade que oculta todos os valores financeiros na interface, úti
 - Ocultação é puramente visual — os dados são carregados normalmente no estado
 - Não é uma feature de segurança real (dados estão na memória) — apenas visual para uso em público
 - O consentimento do assistente é uma proteção separada: ocultar valores não substitui a explicação de quais dados mínimos podem ser enviados ao Gemini
+
+## Ajuste de saldo — 2026-09-30
+
+[[Ajuste de Saldo]] mascara a prévia, os saldos de detalhe e as diferenças no extrato/PDF. Ao editar com valores ocultos, o campo de saldo começa vazio e exige digitação explícita para não revelar o valor salvo. Valores digitados pelo usuário continuam visíveis durante o preenchimento, como nos demais formulários.

@@ -2,6 +2,25 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — ajuste de saldo, 2026-09-30
+
+**Inventário:** novas rotas Web/mobile, formulário/hook compartilhados, os dois extratos e atalhos de Configurações. Controles Gluestack/seletores existentes reutilizados, sem migração de dependências. SVG fornecido renomeado para `bankBalanceAdjustmentScreen.svg`.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P1 | Diferença confundida com ganho/despesa | Tipo dedicado, tom magenta, exclusão pela regra compartilhada | Testes de saldo/forecast/migração e Emulator |
+| P1 | Repetição de confirmação poderia aplicar diferença duas vezes | Recibo atômico, lock e mesma identidade no retry de resposta incerta | Testes de hook e concorrência no Emulator |
+| P1 | Base muda entre prévia e confirmação | Validação no servidor e nova prévia preservando o draft | Testes de hook/Emulator |
+| P1 | Saldo atual do extrato dependia do filtro temporal | Leitura do saldo completo, compatível com legado/razão | Typecheck e testes financeiros; sem execução instalada |
+| P2 | Props nativas de acessibilidade chegavam ao span Web | aria-live, aria-label e role apropriados | Árvore acessível e formulário no navegador |
+| P2 | Ilustração ficava sob o sheet em viewport baixa | Reserva da sobreposição na altura mínima | Inspeção em largura de celular; safe area/teclado nativos pendentes |
+
+**Estados:** loading, ausência de bancos, erro/retry, saldo/data inválidos, saldo negativo com descrição, saldo igual, controles desabilitados, gravação, prévia mascarada e histórico somente leitura tratados. Prévia, sinal e erro de descrição verificados no navegador. Geometria de viewport/teclado e imagem React Native Web registrada em `style-exceptions.json`; as 2/3 props style nas novas telas são exceções de plataforma, sem novo consumidor de `useScreenStyles`.
+
+**Evidências:** typechecks do app/backend, testes focados de cálculo/formulário/saldo/forecast/migração/rotas, callable e regras no Emulator, export Web/Android e bundle Android de desenvolvimento aprovados. A suíte geral mantém falhas anteriores de `userProfile.test.ts` e `loginResponsiveLayout.test.ts`; lint de estilos mantém somente dívida anterior de `ConfigurationsScreen.web.tsx` (10 styles, 6 hex, 2 classes arbitrárias, 1 `useScreenStyles`).
+
+**Limites:** sem execução instalada Android/iOS ou Core Web Vitals. O conector Chrome DevTools exigido pela skill `cloudflare:web-perf` não estava disponível; o bundle Web global continua grande e sua otimização exige medição específica. Sem deploy remoto; publicar regras/Functions antes do cliente. Detalhes em [[Ajuste de Saldo]].
+
 ## Checkpoint — cores do switch Web, 2026-09-30
 
 **Inventário:** `components/ui/switch/index.tsx` e seus usos nas composições Web e mobile de Configurações, Preferências por tela, Assistente Lumus e formulários de recorrência.
@@ -410,7 +429,7 @@ As rotas funcionais são prefixadas por plataforma (`/mobile` ou `/web`): login,
 | Análise por categoria | mobile | `/mobile/category-analysis` | `screens/mobile/CategoryAnalysisScreen.tsx` | filtros, gráfico, seletor | `useScreenStyles`, NativeWind, styles de gráfico | Cores e dimensões de gráfico locais | P2 |
 | Previsão financeira | mobile | `/mobile/financial-forecast` | `screens/mobile/FinancialForecastScreen.tsx` | filtros, gráfico, cards | `useScreenStyles`, NativeWind, tokens de domínio | Expo DOM ainda requer smoke test nativo autenticado | P2 |
 | Anotações | mobile/web fallback | `/mobile/annotations`, `/web/annotations` | `screens/mobile/LocalAnnotationsScreen.tsx` | `FlatList`, editor, modal | `useScreenStyles`, NativeWind | Única lista virtualizada; editor web possui CSS próprio | P2 |
-| Registrar banco | mobile/web | `/mobile/add-register-bank`, `/web/add-register-bank` | `screens/mobile/AddRegisterBankScreen.tsx`, `screens/web/AddRegisterBankScreen.web.tsx` | formulário, seletor de ícone, diálogo Web | `useScreenStyles`, NativeWind, `WebSelectField` | Contratos de CRUD e edição compartilhados; inspeção autenticada no navegador pendente | P2 |
+| Registrar banco | mobile/web | `/mobile/add-register-bank`, `/web/add-register-bank` | `screens/mobile/AddRegisterBankScreen.tsx`, `screens/web/AddRegisterBankScreen.web.tsx` | formulário e seletor de ícone por Actionsheet | `useScreenStyles`, NativeWind, `WebSelectField` | Contratos de CRUD e edição compartilhados; inspeção autenticada no navegador pendente | P2 |
 | Registrar despesa | mobile | `/mobile/add-register-expenses` | `screens/mobile/AddRegisterExpensesScreen.tsx` | formulário financeiro, date picker, seletores | `useScreenStyles`, NativeWind, styles nativos | Contratos de input duplicados | P1 |
 | Registrar ganho | mobile | `/mobile/add-register-gain` | `screens/mobile/AddRegisterGainScreen.tsx` | formulário financeiro, date picker, seletores | `useScreenStyles`, NativeWind, styles nativos | Contratos de input duplicados | P1 |
 | Registrar categoria | mobile | `/mobile/add-register-tag` | `screens/mobile/AddRegisterTagScreen.tsx` | formulário, busca e grade de ícones | `useScreenStyles`, NativeWind | Estados de seleção locais | P2 |

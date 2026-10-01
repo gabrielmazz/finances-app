@@ -151,7 +151,7 @@ export function TimePickerField({
 	};
 
 	return (
-		<View className="relative z-30 w-full">
+		<View className={`relative w-full ${isPickerOpen ? 'z-50' : 'z-0'}`}>
 			<WebPressable
 				onPress={handleOpen}
 				onKeyDown={handleTriggerKeyDown}

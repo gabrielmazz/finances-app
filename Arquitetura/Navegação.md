@@ -183,3 +183,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 ## Perfil pessoal — 2026-09-27
 
 `APP_ROUTE_PATHS.profile` registra `/web/profile` e `/mobile/profile`, com adaptadores/fallbacks próprios e as telas independentes `PerfilPersonScreen.web.tsx` / `PerfilPersonScreen.tsx`. O guard autenticado é derivado do registro central. Meu perfil substitui Relacionar usuário no grupo Config e fica ativo também na rota de vínculo. O perfil não é ocultável; seu atalho interno Relacionar usuário continua condicionado a `addUserRelation`. A rota existente é preservada, recebe `fromProfile=1` e oferece retorno explícito/físico ao perfil, com fallback determinístico para acesso direto. Ver [[Perfil do Usuário]].
+
+## Ajuste de saldo — 2026-09-30
+
+`APP_ROUTE_PATHS.bankBalanceAdjustment` registra as variantes Web/mobile autenticadas. Configurações abre o cadastro; o extrato abre edição com `adjustmentId` e `bankId`. O sucesso usa `redirectToRoute` para uma única transição ao extrato com nome do banco e `focusDate` em `DD/MM/YYYY`, que seleciona o mês correspondente. Este fluxo de conferência possui retorno fixo, documentado em [[Ajuste de Saldo]], sem preferência pós-submit/visibilidade nem novo item no navigator. O hook impede redirects após perda de foco ou troca de UID.

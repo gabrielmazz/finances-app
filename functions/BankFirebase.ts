@@ -5,6 +5,7 @@ import { auth, db } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch, orderBy, limit } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase } from '@/functions/FinancialLedgerFirebase';
 import {
     calculateLegacyBankBalanceInCents,
     isSafeIntegerCents,
@@ -348,12 +349,13 @@ export async function getLegacyBankBalanceInCentsFirebase({
             const snapshot = await getDocs(query(collection(db, collectionName), where('personId', 'in', personIds)));
             return snapshot.docs.map(document => document.data());
         };
-        const [snapshots, expenses, gains, cashRescues, investments] = await Promise.all([
+        const [snapshots, expenses, gains, cashRescues, investments, balanceAdjustments] = await Promise.all([
             load('monthlyBalances'),
             load('expenses'),
             load('gains'),
             load('cashRescues'),
             load('financeInvestments'),
+            load('bankBalanceAdjustments'),
         ]);
 
         return {
@@ -365,6 +367,7 @@ export async function getLegacyBankBalanceInCentsFirebase({
                 gains,
                 cashRescues,
                 investments,
+                balanceAdjustments,
                 asOfDate,
             }),
         };
@@ -434,11 +437,12 @@ export async function getLegacyBankBalancesInCentsFirebase({
             const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
             return snapshot.docs.map(document => document.data());
         };
-        const [expenses, gains, cashRescues, investments] = await Promise.all([
+        const [expenses, gains, cashRescues, investments, balanceAdjustments] = await Promise.all([
             load('expenses'), load('gains'), load('cashRescues'), load('financeInvestments', false),
+            load('bankBalanceAdjustments', false),
         ]);
         return { success: true, data: Object.fromEntries(bankIds.map(bankId => [bankId, calculateLegacyBankBalanceInCents({
-            bankId, snapshots: snapshotsByBank[bankId] ?? [], expenses, gains, cashRescues, investments, asOfDate,
+            bankId, snapshots: snapshotsByBank[bankId] ?? [], expenses, gains, cashRescues, investments, balanceAdjustments, asOfDate,
         })])) };
     } catch (error) {
         console.error('Erro ao calcular saldos legados em lote:', error);
@@ -1005,6 +1009,24 @@ interface GetBankMovementsByPeriodParams {
     endDate: Date;
 }
 
+// [[Ajuste de Saldo]]: o extrato também precisa alcançar contas criadas após o cutover.
+export async function getBankMovementBanksFirebase(personId: string) {
+    const context = await getFinancialLedgerContextFirebase(personId);
+    if (!context) return getBanksWithUsersByPersonFirebase(personId);
+    const accounts = await getFinancialLedgerAccountsFirebase(context.groupId);
+    return { success: true, data: accounts.filter(item => item.kind === 'bank' && !item.archivedAt).map(item => ({
+        ...item, id: item.legacyBankId || item.id,
+    })) };
+}
+
+export async function getBankCurrentBalanceInCentsFirebase(personId: string, bankId: string) {
+    const context = await getFinancialLedgerContextFirebase(personId);
+    if (!context) return getLegacyBankBalanceInCentsFirebase({ personId, bankId });
+    const accounts = await getFinancialLedgerAccountsFirebase(context.groupId);
+    const account = accounts.find(item => item.kind === 'bank' && !item.archivedAt && (item.id === bankId || item.legacyBankId === bankId));
+    return account ? { success: true, data: account.currentBalanceInCents } : { success: false, error: 'Banco não autorizado.' };
+}
+
 export async function getBankMovementsByPeriodFirebase({
     personId,
     bankId,
@@ -1016,6 +1038,38 @@ export async function getBankMovementsByPeriodFirebase({
 
         if (!personId || !bankId) {
             return { success: false, error: 'Usuário ou banco não informado.' };
+        }
+
+        const context = await getFinancialLedgerContextFirebase(personId);
+        if (context) {
+            const accounts = await getFinancialLedgerAccountsFirebase(context.groupId);
+            const account = accounts.find(item => item.kind === 'bank' && !item.archivedAt && (item.id === bankId || item.legacyBankId === bankId));
+            if (!account) return { success: false, error: 'Banco não autorizado para este usuário.' };
+            const snapshot = await getDocs(query(collection(db, 'ledgerTransactions'), where('groupId', '==', context.groupId)));
+            const eventsById = new Map(snapshot.docs.map(item => [item.id, item.data()]));
+            const expenses: Record<string, any>[] = [];
+            const gains: Record<string, any>[] = [];
+            snapshot.docs.forEach(item => {
+                const event = item.data();
+                // Ajustes possuem a própria trilha, inclusive os anteriores à migração.
+                if (event.sourceReferences?.some((source: { collection: string }) => source.collection === 'bankBalanceAdjustments')) return;
+                const date = event.effectiveAt?.toDate();
+                const leg = event.legs?.find((entry: { accountId: string }) => entry.accountId === account.id);
+                if (!date || !leg || date < startDate || date > endDate) return;
+                const original = event.reversesTransactionId ? eventsById.get(event.reversesTransactionId) : null;
+                const kind = original?.kind || event.kind;
+                const internal = event.legs.every((entry: { accountId: string | null }) => entry.accountId !== null);
+                const movement = {
+                    id: item.id, bankId, personId: event.actorId, date, valueInCents: Math.abs(leg.deltaInCents),
+                    name: event.note || (kind === 'income' ? 'Ganho' : kind === 'expense' ? 'Despesa' : 'Movimentação entre contas'),
+                    explanation: event.note || null, tagId: event.categoryId || null, isLedgerMovement: true,
+                    isBankTransfer: internal && kind === 'transfer', bankTransferDirection: leg.deltaInCents < 0 ? 'outgoing' : 'incoming',
+                    isInvestmentDeposit: kind === 'investment_deposit', isInvestmentRedemption: kind === 'investment_redemption',
+                    isBalanceAdjustment: kind === 'reconciliation_adjustment' || kind === 'migration',
+                };
+                (leg.deltaInCents < 0 ? expenses : gains).push(movement);
+            });
+            return { success: true, data: { expenses, gains, isLedgerSource: true } };
         }
 
         // Confirma se o banco pertence ao usuário ou algum dos relacionados
@@ -1156,6 +1210,7 @@ export async function getBankMovementsByPeriodFirebase({
             data: {
                 expenses: [...Array.from(expensesById.values()), ...normalizedRescues],
                 gains: Array.from(gainsById.values()),
+                isLedgerSource: false,
             },
         };
 

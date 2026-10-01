@@ -110,3 +110,7 @@ As duas telas exibem "Evolução do saldo" e "Detalhamento mensal" como títulos
 
 
 O título "Detalhamento mensal" usa o mesmo tratamento de caixa alta, peso forte e espaçamento ampliado nas duas plataformas, mantendo consistência com o label da evolução e os gráficos da Home.
+
+## Ajustes de saldo — 2026-09-30
+
+[[Ajuste de Saldo]] compõe somente a base disponível: diferenças e estornos posteriores ao snapshot são somados em centavos à abertura da previsão. Eles não são normalizados como ganhos/despesas, não alteram médias históricas e não criam compromissos futuros.

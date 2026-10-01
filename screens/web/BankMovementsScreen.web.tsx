@@ -1,6 +1,10 @@
 // Composição completa do extrato para o navegador. A tela mobile permanece
 // independente; esta variante concentra hero, selector de banco e layout Web.
 import React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getBankBalanceAdjustmentsFirebase, runBankBalanceAdjustmentFirebase } from '@/functions/BankBalanceAdjustmentFirebase';
+import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
+import { LUMUS_BALANCE_ADJUSTMENT_TONE } from '@/design-system/tokens';
 import {
 	KeyboardAvoidingView,
 	Image as RNImage,
@@ -94,7 +98,8 @@ import {
 	getBankDataFirebase,
 	getCashMovementsByPeriodFirebase,
 	deleteCashRescueFirebase,
-	getBanksWithUsersByPersonFirebase,
+	getBankMovementBanksFirebase,
+	getBankCurrentBalanceInCentsFirebase,
 } from '@/functions/BankFirebase';
 import { getMonthlyBalanceFirebaseRelatedToUser } from '@/functions/MonthlyBalanceFirebase';
 import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
@@ -133,6 +138,12 @@ type FirestoreLikeTimestamp = {
 };
 
 type MovementRecord = {
+	isLedgerMovement?: boolean;
+	isBalanceAdjustment?: boolean;
+	adjustmentStatus?: 'active' | 'reversed' | 'replaced';
+	reversesAdjustmentId?: string | null;
+	adjustmentPreviousBalanceInCents?: number;
+	adjustmentTargetBalanceInCents?: number;
 	id: string;
 	name: string;
 	valueInCents: number;
@@ -171,6 +182,7 @@ type MovementRecord = {
 };
 
 type PendingMovementAction =
+	| { type: 'revert-balance-adjustment'; movement: MovementRecord; clientActionId: string }
 	| { type: 'edit-standard-movement'; movement: MovementRecord }
 	| { type: 'delete-standard-movement'; movement: MovementRecord }
 	| { type: 'delete-finance-investment'; movement: MovementRecord }
@@ -181,6 +193,7 @@ type PendingMovementAction =
 
 type MovementFilter = 'all' | 'expense' | 'gain';
 type TimelineMovementToneKey =
+	| 'balanceAdjustment'
 	| 'gain'
 	| 'expense'
 	| 'mandatoryGain'
@@ -365,8 +378,8 @@ const normalizeTransferDirection = (value: unknown): 'incoming' | 'outgoing' | n
 	return null;
 };
 
-const getCurrentMonthBounds = () => {
-	const now = new Date();
+const getMovementMonthBounds = (focusDate?: string | string[]) => {
+	const now = parseDateFromBR(Array.isArray(focusDate) ? focusDate[0] : focusDate ?? '') ?? new Date();
 	const start = new Date(now.getFullYear(), now.getMonth(), 1);
 	const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 	return {
@@ -873,6 +886,7 @@ const MANDATORY_EXPENSE_TONE: TimelineMovementTone = {
 };
 
 const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementTone> = {
+	balanceAdjustment: LUMUS_BALANCE_ADJUSTMENT_TONE,
 	gain: {
 		accentColor: '#10B981',
 		amountColor: '#10B981',
@@ -927,6 +941,7 @@ const TIMELINE_MOVEMENT_TONES: Record<TimelineMovementToneKey, TimelineMovementT
 };
 
 const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovementToneKey => {
+	if (movement.isBalanceAdjustment) return 'balanceAdjustment';
 	if (movement.isFinanceInvestmentSync) {
 		return 'investmentSync';
 	}
@@ -955,6 +970,8 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 };
 
 export default function BankMovementsScreen() {
+	const queryClient = useQueryClient();
+	const adjustmentActionLockRef = React.useRef(false);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -981,6 +998,7 @@ export default function BankMovementsScreen() {
 		bankId?: string | string[];
 		bankName?: string | string[];
 		cashView?: string | string[];
+		focusDate?: string | string[];
 	}>();
 
 	const bankId = React.useMemo(() => {
@@ -1023,10 +1041,13 @@ export default function BankMovementsScreen() {
 		}
 	}, [searchParams.bankName, isCashView]);
 
-	const { start, end } = React.useMemo(() => getCurrentMonthBounds(), []);
+	const { start, end } = React.useMemo(() => getMovementMonthBounds(searchParams.focusDate), [searchParams.focusDate]);
 
 	const [startDateInput, setStartDateInput] = React.useState(formatDateToBR(start));
 	const [endDateInput, setEndDateInput] = React.useState(formatDateToBR(end));
+	React.useEffect(() => {
+		setStartDateInput(formatDateToBR(start)); setEndDateInput(formatDateToBR(end));
+	}, [start, end]);
 
 	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
 	const [isLoading, setIsLoading] = React.useState(false);
@@ -1039,6 +1060,7 @@ export default function BankMovementsScreen() {
 	const [movementFilter, setMovementFilter] = React.useState<MovementFilter>('all');
 	const [selectedTagFilterIds, setSelectedTagFilterIds] = React.useState<string[]>([]);
 	const [monthlyInitialBalanceInCents, setMonthlyInitialBalanceInCents] = React.useState<number | null>(null);
+	const [bankCurrentBalanceInCents, setBankCurrentBalanceInCents] = React.useState<number | null>(null);
 	const [bankAccentColorHex, setBankAccentColorHex] = React.useState<string | null>(
 		isCashView ? CASH_CARD_COLOR : null,
 	);
@@ -1165,6 +1187,7 @@ export default function BankMovementsScreen() {
 		if (!movement) {
 			return '';
 		}
+		if (movement.isBalanceAdjustment) return movement.reversesAdjustmentId ? 'Estorno de ajuste de saldo' : 'Ajuste de saldo';
 		if (movement.isBankTransfer) {
 			if (movement.bankTransferDirection === 'outgoing') {
 				return 'Transferência enviada';
@@ -1232,11 +1255,15 @@ export default function BankMovementsScreen() {
 	);
 
 	const getMovementTone = React.useCallback(
-		(movement: MovementRecord) => TIMELINE_MOVEMENT_TONES[resolveTimelineMovementToneKey(movement)],
-		[],
+		(movement: MovementRecord) => {
+			const tone = TIMELINE_MOVEMENT_TONES[resolveTimelineMovementToneKey(movement)];
+			return movement.isBalanceAdjustment ? { ...tone, amountColor: tone.iconGradient[isDarkMode ? 1 : 0] } : tone;
+		},
+		[isDarkMode],
 	);
 
 	const getFallbackMovementIcon = React.useCallback((movement: MovementRecord): TagIconSelection => {
+		if (movement.isBalanceAdjustment) return { iconFamily: 'ionicons', iconName: 'options-outline' };
 		if (movement.isFinanceInvestmentSync) {
 			return { iconFamily: 'ionicons', iconName: 'sync-outline' };
 		}
@@ -1319,6 +1346,7 @@ export default function BankMovementsScreen() {
 
 	const getMovementDetailMessage = React.useCallback(
 		(movement: MovementRecord) => {
+			if (movement.isBalanceAdjustment) return movement.reversesAdjustmentId ? 'Este estorno cancela a diferença do ajuste original e preserva seu histórico.' : 'Diferença registrada para alinhar o saldo real do banco ao Lumus. Este valor não entra nos totais de ganhos ou gastos.';
 			if (movement.isFromMandatory) {
 				return movement.type === 'gain'
 					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
@@ -1507,16 +1535,19 @@ export default function BankMovementsScreen() {
 					month: now.getMonth() + 1,
 				});
 
-			const [result, investmentsRes, investmentSyncsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes] = await Promise.all([
+			const [result, investmentsRes, investmentSyncsRes, mandatoryExpensesRes, mandatoryGainsRes, monthlyBalanceRes, adjustmentRecords, currentBalanceRes] = await Promise.all([
 				movementsPromise,
 				investmentsPromise,
 				investmentSyncsPromise,
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
 				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 				balancePromise,
+				isCashView ? Promise.resolve([]) : getBankBalanceAdjustmentsFirebase(currentUser.uid, activeBankId, normalizedStart, normalizedEnd),
+				isCashView ? Promise.resolve(null) : getBankCurrentBalanceInCentsFirebase(currentUser.uid, activeBankId),
 			]);
 			if (!result?.success || !result.data) {
 				setMovements([]);
+				setBankCurrentBalanceInCents(null);
 				setErrorMessage(
 					typeof result?.error === 'string'
 						? result.error
@@ -1528,11 +1559,11 @@ export default function BankMovementsScreen() {
 			const expensesArray: any[] = Array.isArray(result.data.expenses) ? result.data.expenses : [];
 			const gainsArray: any[] = Array.isArray(result.data.gains) ? result.data.gains : [];
 			const investmentsArray: any[] =
-				!isCashView && investmentsRes?.success && Array.isArray(investmentsRes.data)
+				!isCashView && !('isLedgerSource' in result.data && result.data.isLedgerSource) && investmentsRes?.success && Array.isArray(investmentsRes.data)
 					? investmentsRes.data
 					: [];
 			const investmentSyncsArray: any[] =
-				!isCashView && investmentSyncsRes?.success && Array.isArray(investmentSyncsRes.data)
+				!isCashView && !('isLedgerSource' in result.data && result.data.isLedgerSource) && investmentSyncsRes?.success && Array.isArray(investmentSyncsRes.data)
 					? investmentSyncsRes.data
 					: [];
 
@@ -1576,6 +1607,8 @@ export default function BankMovementsScreen() {
 				explanation: typeof expense?.explanation === 'string' ? expense.explanation : null,
 				moneyFormat: typeof expense?.moneyFormat === 'boolean' ? expense.moneyFormat : null,
 				isFromMandatory: typeof expense?.id === 'string' ? lockedExpenseIds.has(expense.id) : false,
+				isLedgerMovement: Boolean(expense?.isLedgerMovement),
+				isBalanceAdjustment: Boolean(expense?.isBalanceAdjustment),
 				isCashRescue: Boolean(expense?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof expense?.bankNameSnapshot === 'string' ? expense.bankNameSnapshot : null,
@@ -1623,6 +1656,8 @@ export default function BankMovementsScreen() {
 					: null,
 				moneyFormat: typeof gain?.moneyFormat === 'boolean' ? gain.moneyFormat : null,
 				isFromMandatory: typeof gain?.id === 'string' ? lockedGainIds.has(gain.id) : false,
+				isLedgerMovement: Boolean(gain?.isLedgerMovement),
+				isBalanceAdjustment: Boolean(gain?.isBalanceAdjustment),
 				isCashRescue: Boolean(gain?.isCashRescue),
 				cashRescueSourceBankName:
 					typeof gain?.bankNameSnapshot === 'string' ? gain.bankNameSnapshot : null,
@@ -1721,7 +1756,15 @@ export default function BankMovementsScreen() {
 						: 'manual',
 			}));
 
+			const adjustmentMovements: MovementRecord[] = adjustmentRecords.map(item => ({
+				id: item.id, name: item.reversesAdjustmentId ? 'Estorno de ajuste de saldo' : `Ajuste de saldo${item.status === 'reversed' ? ' (revertido)' : item.status === 'replaced' ? ' (substituído)' : ''}`,
+				valueInCents: Math.abs(item.differenceInCents), type: item.differenceInCents < 0 ? 'expense' : 'gain',
+				date: item.date, bankId: item.bankId, personId: item.personId, explanation: item.description,
+				isBalanceAdjustment: true, adjustmentStatus: item.status, reversesAdjustmentId: item.reversesAdjustmentId,
+				adjustmentPreviousBalanceInCents: item.previousBalanceInCents, adjustmentTargetBalanceInCents: item.targetBalanceInCents,
+			}));
 			const combinedMovements = [
+				...adjustmentMovements,
 				...expenseMovements,
 				...gainMovements,
 				...investmentMovements,
@@ -1733,6 +1776,7 @@ export default function BankMovementsScreen() {
 			});
 
 			setMovements(combinedMovements);
+			setBankCurrentBalanceInCents(currentBalanceRes?.success && typeof currentBalanceRes.data === 'number' ? currentBalanceRes.data : null);
 			if (!isCashView) {
 				const initialBalanceValue =
 					monthlyBalanceRes && monthlyBalanceRes.success && monthlyBalanceRes.data
@@ -1746,6 +1790,7 @@ export default function BankMovementsScreen() {
 			}
 		} catch (error) {
 			console.error('Erro ao buscar movimentações do banco:', error);
+			setBankCurrentBalanceInCents(null);
 			setErrorMessage('Erro inesperado ao carregar as movimentações.');
 			setMovements([]);
 			setMonthlyInitialBalanceInCents(null);
@@ -1824,7 +1869,7 @@ export default function BankMovementsScreen() {
 
 		const loadBankOptions = async () => {
 			try {
-				const result = await getBanksWithUsersByPersonFirebase(currentUser.uid);
+				const result = await getBankMovementBanksFirebase(currentUser.uid);
 				if (!isMounted) {
 					return;
 				}
@@ -1939,7 +1984,7 @@ export default function BankMovementsScreen() {
 		if (movementFilter === 'all') {
 			return movements;
 		}
-		return movements.filter(movement => movement.type === movementFilter);
+		return movements.filter(movement => movement.type === movementFilter && !movement.isBalanceAdjustment);
 	}, [movementFilter, movements]);
 
 	// Mantém o filtro de categorias alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
@@ -2127,26 +2172,6 @@ export default function BankMovementsScreen() {
 	const allMovementsBalanceInCents = allMovementsTotals.totalGains - allMovementsTotals.totalExpenses;
 	const filteredBalanceInCents = filteredTotals.totalGains - filteredTotals.totalExpenses;
 
-	const totalDeltaAllMovementsInCents = React.useMemo(() => {
-		return movements.reduce((acc, movement) => {
-			if (movement.type === 'gain') {
-				return acc + movement.valueInCents;
-			}
-
-			if (movement.type === 'expense') {
-				return acc - movement.valueInCents;
-			}
-
-			return acc;
-		}, 0);
-	}, [movements]);
-
-	const bankCurrentBalanceInCents = React.useMemo(() => {
-		if (typeof monthlyInitialBalanceInCents !== 'number') {
-			return null;
-		}
-		return monthlyInitialBalanceInCents + totalDeltaAllMovementsInCents;
-	}, [monthlyInitialBalanceInCents, totalDeltaAllMovementsInCents]);
 
 	const summaryCardPalette = React.useMemo(
 		() => buildBankCardPalette(isCashView ? CASH_CARD_COLOR : bankAccentColorHex, isDarkMode),
@@ -2574,6 +2599,17 @@ export default function BankMovementsScreen() {
 
 	const handleRequestMovementAction = React.useCallback(
 		(action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
+			if (movement.isBalanceAdjustment) {
+				if (movement.adjustmentStatus !== 'active' || movement.reversesAdjustmentId || movement.personId !== auth.currentUser?.uid) {
+					showScreenAlert('Este ajuste não pode mais ser alterado.', 'warning'); return;
+				}
+				if (action === 'edit') navigateToRoute(APP_ROUTE_PATHS.bankBalanceAdjustment, { adjustmentId: movement.id, bankId: movement.bankId ?? '' });
+				else setPendingAction({ type: 'revert-balance-adjustment', movement, clientActionId: createFinancialClientActionId('reverse_adjustment') });
+				return;
+			}
+			if (movement.isLedgerMovement) {
+				showScreenAlert('Este lançamento pertence ao histórico financeiro do grupo.', 'warning'); return;
+			}
 			if (action === 'revert-cash-rescue') {
 				setPendingAction({ type: 'revert-cash-rescue', movement });
 				return;
@@ -2663,6 +2699,18 @@ export default function BankMovementsScreen() {
 
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
+			return;
+		}
+		if (pendingAction.type === 'revert-balance-adjustment') {
+			if (adjustmentActionLockRef.current) return;
+			adjustmentActionLockRef.current = true; setIsProcessingAction(true);
+			try {
+				await runBankBalanceAdjustmentFirebase({ action: 'revert', bankId: pendingAction.movement.bankId ?? '', adjustmentId: pendingAction.movement.id, clientActionId: pendingAction.clientActionId });
+				void queryClient.invalidateQueries({ refetchType: 'all' });
+				showScreenAlert('Ajuste de saldo revertido. O histórico foi preservado.', 'success');
+				setPendingAction(null); await fetchMovements();
+			} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível reverter o ajuste.', 'error'); }
+			finally { adjustmentActionLockRef.current = false; setIsProcessingAction(false); }
 			return;
 		}
 
@@ -2795,7 +2843,7 @@ export default function BankMovementsScreen() {
 			setIsProcessingAction(false);
 			setPendingAction(null);
 		}
-	}, [fetchMovements, pendingAction, showScreenAlert]);
+	}, [fetchMovements, pendingAction, queryClient, showScreenAlert]);
 
 	const actionModalCopy = React.useMemo(() => {
 		if (!pendingAction) {
@@ -2807,6 +2855,7 @@ export default function BankMovementsScreen() {
 			};
 		}
 
+		if (pendingAction.type === 'revert-balance-adjustment') return { title: 'Reverter ajuste de saldo', message: 'A diferença deste ajuste será cancelada por um estorno. As demais movimentações e o histórico serão mantidos.', confirmLabel: 'Reverter ajuste', confirmAction: 'primary' as const };
 		const movementName = pendingAction.movement.name || 'movimentação selecionada';
 		const movementTypeLabel = pendingAction.movement.isBankTransfer
 			? 'transferência'
@@ -3501,13 +3550,15 @@ export default function BankMovementsScreen() {
 															: [];
 														const metadataItems = [
 															...detailItems,
+															...(movement.isBalanceAdjustment && typeof movement.adjustmentPreviousBalanceInCents === 'number' ? [{ label: 'Saldo anterior', value: formatCurrencyBRL(movement.adjustmentPreviousBalanceInCents ?? 0) }, { label: 'Saldo informado', value: formatCurrencyBRL(movement.adjustmentTargetBalanceInCents ?? 0) }] : []),
 															...(counterpartyLabel
 																? [{ label: 'Contraparte', value: counterpartyLabel }]
 																: []),
 															...investmentMetadataItems,
 															...syncMetadataItems,
 														];
-														const canEditMovement = !(
+														const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === auth.currentUser?.uid);
+														const canEditMovement = !movement.isLedgerMovement && canChangeAdjustment && !(
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
 															movement.isBankTransfer ||
@@ -3515,16 +3566,16 @@ export default function BankMovementsScreen() {
 															movement.isInvestmentDeposit ||
 															movement.isFinanceInvestmentSync
 														);
-														const usesUndoAction =
+														const usesUndoAction = movement.isBalanceAdjustment ||
 															movement.isInvestmentDeposit ||
 															movement.isInvestmentRedemption ||
 															movement.isFinanceInvestmentSync;
-														const canDeleteMovement = !(
+														const canDeleteMovement = !movement.isLedgerMovement && canChangeAdjustment && !(
 															movement.isFromMandatory ||
 															movement.isCashRescue ||
 															movement.isBankTransfer
 														);
-														const secondaryActionLabel = movement.isInvestmentDeposit
+														const secondaryActionLabel = movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
 															? 'Desfazer aporte'
 															: movement.isInvestmentRedemption
 																? 'Desfazer resgate'
@@ -3728,7 +3779,8 @@ export default function BankMovementsScreen() {
 																							) : null}
 
 																							<Pressable
-																								onPress={() => handleRequestMovementAction('delete', movement)}
+																								disabled={!canChangeAdjustment}
+																				 onPress={() => handleRequestMovementAction('delete', movement)}
 																								accessibilityRole="button"
 																								accessibilityLabel={`${secondaryActionLabel} ${movement.name}`}
 																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"

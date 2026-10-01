@@ -99,6 +99,7 @@ import ScreenConfigurationsSettingsIllustration from '../../assets/UnDraw/screen
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTagScreen.svg';
 import FinancialListIllustration from '../../assets/UnDraw/financialListScreen.svg';
+import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
 
 import { Info, Power, PowerOff } from 'lucide-react-native';
 
@@ -114,10 +115,17 @@ type AccordionItem = {
 	showTagsTable?: boolean;
 	showValueVisibilitySwitch?: boolean;
 	showThemeSwitch?: boolean;
-	showScreenSettingsShortcut?: boolean;
+	showActionShortcut?: boolean;
 };
 
 const accordionItems: AccordionItem[] = [
+	{
+		id: 'bank-balance-adjustment', group: 'relations', title: 'Ajuste de saldo',
+		content: 'Corrija uma diferença entre o saldo real do banco e o Lumus quando não conseguir identificar sua origem. O ajuste pode ser editado ou revertido nas movimentações.',
+		cardTitle: 'Conferir o saldo do banco', Illustration: BankBalanceAdjustmentIllustration,
+		showActionShortcut: true,
+		action: { route: APP_ROUTE_PATHS.bankBalanceAdjustment, label: 'Ajustar saldo do banco' },
+	},
 	{
 		id: 'item-2',
 		group: 'relations',
@@ -163,7 +171,7 @@ const accordionItems: AccordionItem[] = [
 			'Configure o comportamento de retorno e limpeza dos campos depois de salvar registros nas telas do aplicativo.',
 		cardTitle: 'Configurações por tela',
 		Illustration: ScreenConfigurationsSettingsIllustration,
-		showScreenSettingsShortcut: true,
+		showActionShortcut: true,
 		action: {
 			route: APP_ROUTE_PATHS.screenSettings,
 			label: 'Abrir configurações das telas',
@@ -1885,7 +1893,7 @@ export default function ConfigurationsScreen() {
 														</VStack>
 													) : null}
 
-													{item.showScreenSettingsShortcut ? (
+													{item.showActionShortcut ? (
 														renderAccordionCard(item, {
 															action: renderSectionAction(item.action),
 														})

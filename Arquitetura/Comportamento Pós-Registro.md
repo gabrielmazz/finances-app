@@ -65,3 +65,7 @@ Preferência global que define o que cada formulário faz depois de salvar com s
 - Não usar `router.back()` como pós-submit configurável; o hook centralizado evita histórico inválido e mantém a navegação alinhada com [[Navegação]].
 - Não usar `dismissTo`, `dismissAll`, `withAnchor` nem combinações de duas ações como fallback. A política pós-submit é uma única ação `REPLACE`, validada em testes unitários e no bundle Android de produção.
 - `replace` troca a rota atual sem reutilizar uma `Screen` antiga destacada pelo NativeStack. Ele pode manter uma entrada anterior equivalente no histórico; `/home` intercepta o botão físico para encerrar o app e impedir que essa entrada ou um formulário antigo reapareçam. Uma futura política de reset só deve substituir isso depois de validada em release.
+
+## Conferência de saldo — 2026-09-30
+
+[[Ajuste de Saldo]] possui retorno fixo ao extrato da conta e ao mês conferido, sem opção de permanecer/limpar. Esse fluxo conserva `bankId`/`focusDate`, usa `redirectToRoute` diferido e verifica foco/UID antes de navegar; não é um novo destino no catálogo genérico de retorno.

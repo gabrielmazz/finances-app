@@ -30,7 +30,7 @@ export const WEB_SELECT_CLASS_NAMES = {
 
 export const WEB_TIME_PICKER_CLASS_NAMES = {
 	...WEB_SELECT_CLASS_NAMES,
-	menu: `${WEB_SELECT_CLASS_NAMES.menu} flex-row gap-2`,
+	menu: `${WEB_SELECT_CLASS_NAMES.menu} absolute left-0 top-full z-50 mt-1 max-h-72 flex-row gap-2`,
 	column:
 		'min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900',
 	columnTitle: `${LUMUS_CLASS_NAMES.helper} px-2 pb-1 pt-1 text-2xs font-bold uppercase tracking-label`,

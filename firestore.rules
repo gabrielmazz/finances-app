@@ -119,6 +119,16 @@ service cloud.firestore {
         && resource.data.personId == request.auth.uid;
     }
 
+    // [[Ajuste de Saldo]]: diferenças e estornos só podem ser gravados pela callable.
+    match /bankBalanceAdjustments/{id} {
+      allow read: if canReadLegacy(resource.data.personId)
+        || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
+      allow write: if false;
+    }
+    match /bankBalanceAdjustmentOperations/{id} {
+      allow read, write: if false;
+    }
+
     // =========================================================
     // VALIDATIONS
     // =========================================================

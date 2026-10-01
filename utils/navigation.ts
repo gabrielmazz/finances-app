@@ -36,6 +36,7 @@ export const APP_ROUTE_PATHS = {
 	screenSettings: platformRoute('/screen-settings'),
 	registerMonthlyBalance: platformRoute('/register-monthly-balance'),
 	bankMovements: platformRoute('/bank-movements'),
+	bankBalanceAdjustment: platformRoute('/bank-balance-adjustment'),
 	bankSummary: platformRoute('/bank-summary'),
 	financialList: platformRoute('/financial-list'),
 	mandatoryExpenses: platformRoute('/mandatory-expenses'),

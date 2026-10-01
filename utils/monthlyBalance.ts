@@ -21,6 +21,7 @@ type InvestmentMovement = {
 };
 
 type GainExpenseTotalsMovement = {
+	isBalanceAdjustment?: boolean | null;
 	isInvestmentDeposit?: boolean | null;
 	isInvestmentRedemption?: boolean | null;
 	isFinanceInvestment?: boolean | null;
@@ -145,6 +146,7 @@ export const shouldIncludeMovementInGainExpenseTotals = (
 ) => {
 	return !Boolean(
 		movement?.isFinanceInvestment ||
+			movement?.isBalanceAdjustment ||
 			movement?.isInvestmentDeposit ||
 			movement?.isInvestmentRedemption ||
 			movement?.isFinanceInvestmentSync ||
@@ -164,6 +166,8 @@ export const calculateLegacyBankBalanceInCents = ({
 	gains = [],
 	cashRescues = [],
 	investments = [],
+	balanceAdjustments = [],
+	snapshotTimeZone,
 	asOfDate = new Date(),
 }: {
 	bankId: string;
@@ -172,6 +176,8 @@ export const calculateLegacyBankBalanceInCents = ({
 	gains?: DatedMovement[];
 	cashRescues?: DatedMovement[];
 	investments?: DatedInvestment[];
+	balanceAdjustments?: Array<{ bankId?: string | null; differenceInCents?: number; date?: unknown }>;
+	snapshotTimeZone?: 'America/Sao_Paulo';
 	asOfDate?: Date;
 }): number | null => {
 	if (!bankId || Number.isNaN(asOfDate.getTime())) {
@@ -186,7 +192,10 @@ export const calculateLegacyBankBalanceInCents = ({
 		if (snapshot.bankId !== bankId || !Number.isSafeInteger(snapshot.valueInCents)) {
 			return current;
 		}
-		const monthStart = getMonthStart(snapshot);
+		const validMonthStart = getMonthStart(snapshot);
+		const monthStart = snapshotTimeZone && validMonthStart
+			? new Date(`${snapshot.year}-${String(snapshot.month).padStart(2, '0')}-01T00:00:00-03:00`)
+			: validMonthStart;
 		if (!monthStart || monthStart.getTime() > asOfDate.getTime()) {
 			return current;
 		}
@@ -228,13 +237,15 @@ export const calculateLegacyBankBalanceInCents = ({
 		}
 		return total + Math.max(0, normalizeCurrencyValue(resolveInvestmentInitialValue(investment)));
 	}, 0);
+	const adjustmentDelta = balanceAdjustments.reduce((total, adjustment) =>
+		total + (isMovementAfterSnapshot(adjustment) ? normalizeCurrencyValue(adjustment.differenceInCents) : 0), 0);
 
 	return (
 		latestSnapshot.snapshot.valueInCents +
 		sumMovements(gains) -
 		sumMovements(expenses) -
 		sumMovements(cashRescues) -
-		totalInitialInvestments
+		totalInitialInvestments + adjustmentDelta
 	);
 };
 

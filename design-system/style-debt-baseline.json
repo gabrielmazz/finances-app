@@ -354,7 +354,7 @@
     "useScreenStyles": 0
   },
   "components/web/shared/web-select-field.tsx": {
-    "inlineStyleProps": 0,
+    "inlineStyleProps": 1,
     "rawHexLiterals": 0,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 1
@@ -433,7 +433,7 @@
   },
   "design-system/tokens.ts": {
     "inlineStyleProps": 0,
-    "rawHexLiterals": 88,
+    "rawHexLiterals": 94,
     "arbitraryTailwindValues": 8,
     "useScreenStyles": 0
   },
@@ -762,6 +762,18 @@
     "useScreenStyles": 0
   },
   "screens/web/PerfilPersonScreen.web.tsx": {
+    "inlineStyleProps": 3,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "screens/mobile/BankBalanceAdjustmentScreen.tsx": {
+    "inlineStyleProps": 2,
+    "rawHexLiterals": 0,
+    "arbitraryTailwindValues": 0,
+    "useScreenStyles": 0
+  },
+  "screens/web/BankBalanceAdjustmentScreen.web.tsx": {
     "inlineStyleProps": 3,
     "rawHexLiterals": 0,
     "arbitraryTailwindValues": 0,
