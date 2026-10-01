@@ -24,3 +24,7 @@
 - Previsão consulta movimentos somente dos três meses anteriores e do horizonte selecionado. A atividade de investimentos começa em seis meses e não relê todo o histórico.
 - `financeMonthlySummaries/{groupId-YYYY-MM}` é atualizado dentro da transação que cria a `ledgerTransaction`; o callable `rebuildFinancialReadModels` reconstrói páginas idempotentemente por mês, aceita `dryRun`, cursor e tamanho de página, e deriva o grupo do administrador autenticado.
 - O rollout permanece dual-read: regras/índices e functions, dry-run/backfill, comparação em centavos, depois remoção do fallback. Nenhum deploy é feito automaticamente.
+
+## Ajuste de saldo — 2026-09-30
+
+[[Ajuste de Saldo]] invalida as queries financeiras após salvar/editar/reverter. A prévia é autoritativa no servidor, cancela respostas obsoletas no hook e não persiste valores localmente. A Home legada lê `bankBalanceAdjustments` uma vez por escopo autorizado e reaproveita a coleção para todas as contas. O extrato lê ajustes do usuário/relacionados e grupo, deduplica por ID e filtra conta/período. No backend do razão, a prévia consulta somente eventos posteriores à data e a abertura mais recente da conta, com os índices financeiros existentes. O legado consulta as coleções do banco para reconstruir a base; seu custo é proporcional ao histórico dessa conta e não há polling.

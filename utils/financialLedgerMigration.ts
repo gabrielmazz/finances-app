@@ -69,6 +69,7 @@ export type LegacyMigrationInput = {
   cashRescues: LegacyCashRescue[];
   investments: LegacyInvestment[];
   monthlyBalances: LegacyMonthlyBalance[];
+  balanceAdjustments?: Array<{ id: string; bankId: string; differenceInCents: number; effectiveAt: Date; note?: string | null }>;
   confirmedCashBalanceInCents?: number | null;
   confirmedAt?: Date;
   preflightIssues?: MigrationIssue[];
@@ -433,6 +434,22 @@ export function createLegacyMigrationPlan(input: LegacyMigrationInput): LegacyMi
     });
   });
 
+  (input.balanceAdjustments ?? []).forEach(adjustment => {
+    const accountId = accountForLegacyBank(adjustment.bankId);
+    if (!accountId || !Number.isSafeInteger(adjustment.differenceInCents)) {
+      issues.push({ code: accountId ? 'invalid-amount' : 'missing-account', collection: 'bankBalanceAdjustments', id: adjustment.id, detail: 'Invalid bank balance adjustment.' });
+      return;
+    }
+    if (adjustment.differenceInCents === 0) return;
+    transactions.push({
+      id: 'migration-bank-adjustment-' + adjustment.id,
+      groupId: input.groupId, kind: 'reconciliation_adjustment', effectiveAt: movementDate(adjustment.effectiveAt), actorId,
+      clientActionId: 'migration_bank_adjustment_' + adjustment.id, note: adjustment.note ?? null,
+      sourceReferences: [source('bankBalanceAdjustments', adjustment.id)],
+      legs: [{ accountId, deltaInCents: adjustment.differenceInCents }, { accountId: null, deltaInCents: -adjustment.differenceInCents }],
+    });
+  });
+
   input.monthlyBalances.forEach((snapshot) => {
     const accountId = accountForLegacyBank(snapshot.bankId);
     if (!accountId) {
@@ -527,6 +544,6 @@ export function createLegacyMigrationPlan(input: LegacyMigrationInput): LegacyMi
       input.bankTransfers.length +
       input.cashRescues.length +
       input.investments.length +
-      input.monthlyBalances.length,
+      input.monthlyBalances.length + (input.balanceAdjustments?.length ?? 0),
   };
 }

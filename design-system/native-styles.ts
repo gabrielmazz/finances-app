@@ -1,4 +1,6 @@
-import type { ViewStyle } from 'react-native';
+import type { ViewStyle, ImageStyle } from 'react-native';
+
+export const BANK_ADJUSTMENT_HERO_IMAGE_STYLE: ImageStyle = { position: 'absolute', width: '100%', height: '100%', top: 0, left: 0 };
 
 /**
  * Props required by third-party native APIs that do not accept NativeWind.

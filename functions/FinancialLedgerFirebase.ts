@@ -17,6 +17,7 @@ export type FinancialLedgerAccount = {
   legacyInvestmentId?: string | null;
   colorHex?: string | null;
   iconKey?: string | null;
+  archivedAt?: unknown;
 };
 
 export type TransferFundsInput = {
@@ -61,6 +62,7 @@ function parseFinancialAccount(id: string, value: unknown): FinancialLedgerAccou
     legacyInvestmentId: typeof data.legacyInvestmentId === 'string' ? data.legacyInvestmentId : null,
     colorHex: typeof data.colorHex === 'string' ? data.colorHex : null,
     iconKey: typeof data.iconKey === 'string' ? data.iconKey : null,
+    archivedAt: data.archivedAt ?? null,
   };
 }
 

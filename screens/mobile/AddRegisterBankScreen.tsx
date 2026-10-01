@@ -158,7 +158,7 @@ export default function AddRegisterBankScreen() {
     }, [params.bankIconKey]);
 
     const colorOptions = React.useMemo(() => {
-        const options = LUMUS_BANK_COLOR_PRESETS.map(option => ({
+        const options: Array<{ label: string; value: string }> = LUMUS_BANK_COLOR_PRESETS.map(option => ({
             label: option.label,
             value: option.value,
         }));
@@ -201,6 +201,12 @@ export default function AddRegisterBankScreen() {
             BANK_ICON_OPTIONS[0],
         [selectedBankIconKey],
     );
+    const handleBankIconSelect = React.useCallback((iconKey: string) => {
+        if (iconKey !== selectedBankIconKey && iconKey !== 'outro-banco') {
+            setSelectedColor(null);
+        }
+        setSelectedBankIconKey(iconKey);
+    }, [selectedBankIconKey]);
 
     const registerBank = React.useCallback(async () => {
         if (submitLockRef.current || isSubmitting) {
@@ -453,37 +459,39 @@ export default function AddRegisterBankScreen() {
                                     </Pressable>
                                 </VStack>
 
-                                <VStack className="mb-4">
-                                    <Text className={LUMUS_FORM_CLASS_NAMES.label}>Cor do banco (Opcional)</Text>
-                                    <Select
-                                        selectedValue={selectedColor ?? undefined}
-                                        onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
-                                    >
-                                        <SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
-                                            <SelectInput
-                                                placeholder="Cor do banco (opcional), apenas para fins visuais"
-                                                className={inputField}
-                                            />
-                                            <SelectIcon />
-                                        </SelectTrigger>
-                                        <SelectPortal>
-                                            <SelectBackdrop />
-                                            <SelectContent>
-                                               	<SelectDragIndicatorWrapper>
-                                                    <SelectDragIndicator />
-                                                </SelectDragIndicatorWrapper>
-                                                <SelectItem label="Sem cor" value="no-color" />
-                                                {colorOptions.map(option => (
-                                                    <SelectItem
-                                                        key={option.value}
-                                                        label={`${option.label} (${option.value})`}
-                                                        value={option.value}
-                                                    />
-                                                ))}
-                                            </SelectContent>
-                                        </SelectPortal>
-                                    </Select>
-                                </VStack>
+                                {selectedBankIconKey === 'outro-banco' ? (
+                                    <VStack className="mb-4">
+                                        <Text className={LUMUS_FORM_CLASS_NAMES.label}>Cor do banco (Opcional)</Text>
+                                        <Select
+                                            selectedValue={selectedColor ?? undefined}
+                                            onValueChange={value => setSelectedColor(value === 'no-color' ? null : value)}
+                                        >
+                                            <SelectTrigger variant="outline" size="md" className={fieldContainerClassName}>
+                                                <SelectInput
+                                                    placeholder="Cor do banco (opcional), apenas para fins visuais"
+                                                    className={inputField}
+                                                />
+                                                <SelectIcon />
+                                            </SelectTrigger>
+                                            <SelectPortal>
+                                                <SelectBackdrop />
+                                                <SelectContent>
+                                                    <SelectDragIndicatorWrapper>
+                                                        <SelectDragIndicator />
+                                                    </SelectDragIndicatorWrapper>
+                                                    <SelectItem label="Sem cor" value="no-color" />
+                                                    {colorOptions.map(option => (
+                                                        <SelectItem
+                                                            key={option.value}
+                                                            label={`${option.label} (${option.value})`}
+                                                            value={option.value}
+                                                        />
+                                                    ))}
+                                                </SelectContent>
+                                            </SelectPortal>
+                                        </Select>
+                                    </VStack>
+                                ) : null}
 
                                 <Button
                                     className={`${submitButtonClassName} web:mt-2 web:h-12`}
@@ -551,7 +559,7 @@ export default function AddRegisterBankScreen() {
                                     <ActionsheetItem
                                         key={option.key}
                                         onPress={() => {
-                                            setSelectedBankIconKey(option.key);
+                                            handleBankIconSelect(option.key);
                                             setIsBankIconSheetOpen(false);
                                         }}
                                         className={isSelected ? (isDarkMode ? 'bg-slate-900 rounded-2xl' : 'bg-amber-50 rounded-2xl') : ''}

@@ -65,12 +65,25 @@ export const LUMUS_FINANCIAL_GRADIENTS = {
 	positive: ['#065F46', '#10B981'],
 } as const;
 
+// [[Ajuste de Saldo]]: magenta distingue correções de todos os movimentos existentes.
+export const LUMUS_BALANCE_ADJUSTMENT_TONE = {
+	accentColor: '#EC4899',
+	amountColor: '#EC4899',
+	lineColor: 'rgba(236, 72, 153, 0.3)',
+	iconGradient: ['#9D174D', '#F472B6'] as [string, string],
+	cardGradient: ['#831843', '#DB2777'] as [string, string],
+};
+
 export const LUMUS_LAYOUT_TOKENS = {
 	contentMaxWidth: 1180,
 	compactBreakpoint: 1024,
 	minimumTouchTarget: 44,
 	heroMinimumHeight: 250,
 	heroViewportRatio: 0.28,
+} as const;
+
+export const LUMUS_OVERLAY_Z_INDEX = {
+	webDropdown: 10_000,
 } as const;
 
 export const LUMUS_CHART_COLORS = [
@@ -202,7 +215,7 @@ export const LUMUS_FORM_CLASS_NAMES = {
 	section: `${LUMUS_CLASS_NAMES.card} px-4 py-4`,
 	submit: `mt-6 ${LUMUS_CLASS_NAMES.primaryButton}`,
 	selectMenu:
-		'mt-1 w-full overflow-hidden rounded-control border border-slate-200 bg-white p-1 shadow-overlay dark:border-slate-800 dark:bg-slate-950',
+		'w-full overflow-hidden rounded-control border border-slate-200 bg-white p-1 shadow-overlay dark:border-slate-800 dark:bg-slate-950',
 	selectOption:
 		'min-h-touch flex-row items-center rounded-xl px-3 py-2.5 web:transition-colors web:duration-fast web:hover:bg-slate-100 dark:web:hover:bg-slate-800',
 	selectOptionSelected: 'bg-slate-100 dark:bg-slate-800',

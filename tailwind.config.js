@@ -34,6 +34,8 @@ module.exports = {
           'income-dark': '#34D399',
           'expense-light': '#DC2626',
           'expense-dark': '#F87171',
+          'adjustment-light': '#BE185D',
+          'adjustment-dark': '#F472B6',
         },
         primary: {
           0: 'rgb(var(--color-primary-0)/<alpha-value>)',

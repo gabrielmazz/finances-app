@@ -36,6 +36,7 @@ import type { FinanceMonthlySummaryV1 } from '../../utils/financeReadModels';
 if (getApps().length === 0) initializeApp();
 
 const db = getFirestore();
+export { bankBalanceAdjustment } from './bankBalanceAdjustments';
 const REGION = 'southamerica-east1';
 const MAX_MIGRATION_WRITES_PER_CALL = 400;
 
@@ -601,6 +602,9 @@ export const reverseTransaction = onCall(async (request) => {
     if (!originalSnapshot.exists) throw new HttpsError('not-found', 'Original ledger transaction was not found.');
     const original = fromStoredTransaction(originalSnapshot.id, originalSnapshot.data() ?? {});
     if (original.groupId !== groupId) throw new HttpsError('permission-denied', 'Transaction belongs to another group.');
+    if (original.sourceReferences?.some(source => source.collection === 'bankBalanceAdjustments')) {
+      throw new HttpsError('failed-precondition', 'Use o estorno de ajuste de saldo para preservar o histórico do banco.');
+    }
     if (role !== 'admin' && original.actorId !== actorId) {
       throw new HttpsError('permission-denied', 'Members may only reverse their own transactions.');
     }
@@ -811,7 +815,7 @@ async function legacyDocumentsForMembers(collectionName: string, memberIds: stri
 }
 
 async function loadLegacyMigrationInput(groupId: string, memberIds: string[], confirmedCashBalanceInCents?: number | null): Promise<LegacyMigrationInput> {
-  const [banks, expenses, gains, bankTransfers, cashRescues, investments, monthlyBalances] = await Promise.all([
+  const [banks, expenses, gains, bankTransfers, cashRescues, investments, monthlyBalances, balanceAdjustments] = await Promise.all([
     legacyDocumentsForMembers('banks', memberIds),
     legacyDocumentsForMembers('expenses', memberIds),
     legacyDocumentsForMembers('gains', memberIds),
@@ -819,6 +823,7 @@ async function loadLegacyMigrationInput(groupId: string, memberIds: string[], co
     legacyDocumentsForMembers('cashRescues', memberIds),
     legacyDocumentsForMembers('financeInvestments', memberIds),
     legacyDocumentsForMembers('monthlyBalances', memberIds),
+    legacyDocumentsForMembers('bankBalanceAdjustments', memberIds),
   ]);
   const preflightIssues: MigrationIssue[] = [];
   const mapSafely = <T>(
@@ -898,6 +903,11 @@ async function loadLegacyMigrationInput(groupId: string, memberIds: string[], co
       year: requiredCents(data.year, 'monthlyBalances.year'),
       month: requiredCents(data.month, 'monthlyBalances.month'),
       balanceInCents: requiredCents(data.valueInCents, 'monthlyBalances.valueInCents'),
+    })),
+    balanceAdjustments: mapSafely('bankBalanceAdjustments', balanceAdjustments, ({ id, data }) => ({
+      id, bankId: requiredString(data.bankId, 'bankBalanceAdjustments.bankId'),
+      differenceInCents: requiredCents(data.differenceInCents, 'bankBalanceAdjustments.differenceInCents'),
+      effectiveAt: readLegacyDate(data), note: stringOrNull(data.description),
     })),
     confirmedCashBalanceInCents,
     preflightIssues,

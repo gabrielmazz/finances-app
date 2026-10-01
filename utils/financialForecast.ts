@@ -140,6 +140,7 @@ export type FinancialForecastOpeningBalanceInput = {
 	movements: FinancialForecastMovement[];
 	investments: FinancialForecastInvestment[];
 	cashRescues?: FinancialForecastCashRescue[];
+	balanceAdjustments?: Array<{ bankId: string; date: Date; differenceInCents: number }>;
 };
 
 export type FinancialForecastOpeningBalance = {
@@ -289,6 +290,7 @@ export const calculateFinancialForecastOpeningBalance = ({
 	movements,
 	investments,
 	cashRescues = [],
+	balanceAdjustments = [],
 }: FinancialForecastOpeningBalanceInput): FinancialForecastOpeningBalance => {
 	const asOfEnd = endOfLocalDay(asOfDate);
 	const latestSnapshotsByBankId = findLatestSnapshot(banks, asOfDate);
@@ -305,6 +307,15 @@ export const calculateFinancialForecastOpeningBalance = ({
 		(total, snapshot) => total + normalizeSignedMoneyInCents(snapshot.valueInCents),
 		0,
 	);
+	// Ajustes alteram somente a base disponível, nunca médias de ganhos/gastos.
+	balanceAdjustments.forEach(adjustment => {
+		const snapshot = latestSnapshotsByBankId.get(adjustment.bankId);
+		if (snapshot?.snapshotDate && isValidDate(adjustment.date) &&
+			adjustment.date >= startOfLocalDay(snapshot.snapshotDate) && adjustment.date <= asOfEnd &&
+			Number.isSafeInteger(adjustment.differenceInCents)) {
+			openingBalanceInCents += adjustment.differenceInCents;
+		}
+	});
 
 	movements.forEach(movement => {
 		if (!isValidDate(movement.date) || movement.date.getTime() > asOfEnd.getTime() || movement.isBankTransfer) {

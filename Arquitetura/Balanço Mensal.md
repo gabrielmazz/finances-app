@@ -128,3 +128,7 @@ export type LegacyMonthlyBalanceSnapshot = {
 
 - [[Assistente Lumus]] usa `upsert_monthly_balance` com banco, ciclo `YYYY-MM` e centavos; somente bancos do UID autenticado podem ser atualizados.
 - O saldo inicial solicitado junto à criação de banco é atômico com o novo documento do banco.
+
+## Diferenças conferidas — 2026-09-30
+
+[[Ajuste de Saldo]] não sobrescreve `MonthlyBalance`. A fórmula legada soma `differenceInCents` dos ajustes posteriores ao início do snapshot e anteriores/iguais ao instante consultado. Originais e inversos são somados independentemente do status; o estorno na mesma data efetiva cancela a contribuição histórica. Um snapshot posterior continua prevalecendo como abertura. A callable usa o início do mês em São Paulo para não incluir movimentos do mês anterior por diferença de fuso.

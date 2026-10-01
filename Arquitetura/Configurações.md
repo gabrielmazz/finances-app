@@ -91,3 +91,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 - O toggle "Modo escuro" deve explicar no popover que a preferência altera toda a interface e persiste entre sessões
 - O toggle "Ocultar valores" deve explicitar no popover que a ocultação é apenas visual
 - As tabelas de bancos e categorias devem carregar somente quando o accordion correspondente estiver aberto.
+
+## Ajuste de saldo — 2026-09-30
+
+**Ajuste de saldo** integra **Relações dentro do Aplicativo** em ambas as plataformas, com a ilustração `bankBalanceAdjustmentScreen.svg` e ação **Ajustar saldo do banco**. Abre o formulário de conferência descrito em [[Ajuste de Saldo]].

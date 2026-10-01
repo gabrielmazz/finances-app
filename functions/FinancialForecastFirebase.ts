@@ -329,6 +329,7 @@ export const getFinancialForecastFirebase = async (
 			mandatoryGainDocuments,
 			investmentDocuments,
 			tagDocuments,
+			adjustmentDocuments,
 		] = await Promise.all([
 			getCollectionDocumentsForPeople('banks', allowedPersonIds),
 			getCollectionDocumentsForPeople('monthlyBalances', allowedPersonIds),
@@ -339,6 +340,7 @@ export const getFinancialForecastFirebase = async (
 			getCollectionDocumentsForPeople('mandatoryGains', allowedPersonIds),
 			getCollectionDocumentsForPeople('financeInvestments', allowedPersonIds),
 			getCollectionDocumentsForPeople('tags', allowedPersonIds),
+			getCollectionDocumentsForPeople('bankBalanceAdjustments', allowedPersonIds),
 		]);
 
 		const tagNamesById = getTagNamesById(tagDocuments);
@@ -385,6 +387,11 @@ export const getFinancialForecastFirebase = async (
 			movements,
 			investments,
 			cashRescues,
+			balanceAdjustments: adjustmentDocuments.flatMap(document => {
+				const date = parseToDate(document.date);
+				return date && typeof document.bankId === 'string' && Number.isSafeInteger(document.differenceInCents)
+					? [{ bankId: document.bankId, date, differenceInCents: document.differenceInCents as number }] : [];
+			}),
 		});
 
 		return {

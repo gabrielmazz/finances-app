@@ -15,10 +15,11 @@ Permite criar e gerenciar contas bancárias, visualizar movimentos por período 
 ## Como funciona
 
 ### Cadastro de Banco
-1. `screens/mobile/AddRegisterBankScreen.tsx` e `screens/web/AddRegisterBankScreen.web.tsx` coletam nome, cor visual e ícone do banco em composições próprias para cada plataforma
-2. Ambas chamam `BankFirebase.ts` para criar ou atualizar o cadastro no Firestore
-3. O banco fica disponível como destino/origem de despesas, receitas, investimentos, saques, saldos mensais e transferências via ActionSheet com ícone
-4. Após criar ou editar um banco, as duas telas aplicam [[Comportamento Pós-Registro]] depois do feedback de sucesso
+1. `screens/mobile/AddRegisterBankScreen.tsx` e `screens/web/AddRegisterBankScreen.web.tsx` coletam nome, cor visual e ícone do banco em composições próprias para cada plataforma; a Web reaproveita `BankActionsheetSelector` para listar as instituições com seus ícones, sem um modal dedicado
+2. O seletor de cor aparece abaixo do ícone e somente quando **Outro Banco** está selecionado; escolher uma instituição limpa uma cor personalizada anterior
+3. Ambas chamam `BankFirebase.ts` para criar ou atualizar o cadastro no Firestore
+4. O banco fica disponível como destino/origem de despesas, receitas, investimentos, saques, saldos mensais e transferências via ActionSheet com ícone
+5. Após criar ou editar um banco, as duas telas aplicam [[Comportamento Pós-Registro]] depois do feedback de sucesso
 
 ### Desativação reversível
 1. A tabela de bancos em `ConfigurationsScreen.tsx` exibe bancos ativos e desativados, mantendo o registro e o histórico financeiro no Firestore
@@ -134,3 +135,7 @@ graph TD
 
 - Criar banco pelo [[Assistente Lumus]] exige nome, ciclo e saldo inicial; banco e `MonthlyBalance` são criados na mesma transação.
 - Bancos enviados ao modelo usam handles opacos. Antes de editar/excluir, o aplicativo recarrega o documento do UID atual e compara o fingerprint mostrado no cartão.
+
+## Ajuste de saldo — 2026-09-30
+
+[[Ajuste de Saldo]] registra somente a diferença conferida pelo usuário no banco, em uma coleção própria. O saldo legado centralizado e a Home incorporam diferenças após o snapshot; elas não entram em ganhos/despesas. Os extratos Web/mobile mostram originais, substituições e estornos em magenta, com edição/reversão pelo autor. O card **Saldo atual** usa `getBankCurrentBalanceInCentsFirebase`, independentemente do período selecionado. Após cutover, o seletor e o extrato leem contas/lançamentos do grupo e não oferecem alterações legadas aos eventos imutáveis.

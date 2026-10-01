@@ -43,6 +43,7 @@ graph TD
 - [[Análise por Categoria]] — Comparação dinâmica de tags contra a média histórica recente
 - [[Previsão de Fluxo de Caixa]] — Cenários líquidos de 3, 6 ou 12 meses sem criar movimentos
 - [[Gerenciamento de Bancos]] — Contas bancárias, saldo, movimentos por período
+- [[Ajuste de Saldo]] — Diferença conferida no banco, com edição e estorno auditáveis
 - [[Transações de Despesas]] — Registro de saídas financeiras
 - [[Transações de Receitas]] — Registro de entradas financeiras
 - [[Transferências]] — Movimentação entre contas

@@ -137,7 +137,7 @@ npm run web:deploy
 - `AddMandatoryExpensesScreen.web.tsx` segue a mesma geometria de `AddRegisterExpensesScreen.web.tsx`: hero animado, sheet sobreposto, grid de campos, labels e tokens de `useScreenStyles()`. A Web mantém o input de vencimento fixo e deixa somente o switch de dias úteis no acordeão **Mais opções do vencimento**; parcelamento/lembrete seguem no acordeão **Mais opções** e o controle mensal aparece somente depois da persistência do template. O fluxo nativo e a persistência não são alterados.
 
 - Não criar Expo API Routes para o Lumus: Firebase AI Logic Web já recebe o App Check e o usuário autenticado pelo SDK cliente.
-- As Functions existentes do razão financeiro permanecem inalteradas; esta entrega não cria API pública, modelo Firestore ou backend novo.
+- A composição Web do assistente não cria API pública própria; suas ações usam o gateway Firebase. Recursos com backend dedicado devem documentar a publicação de Functions/regras, como [[Ajuste de Saldo]].
 - Não mudar regras de centavos, operações Firestore, razão financeiro ou confirmação individual do assistente por causa do navegador.
 - Áudio e microfone exigem contexto HTTPS fora do `localhost`; validar o Lumus IA em um preview hospedado antes de produção.
 - `global.css` é processado pelo NativeWind com Tailwind CSS 3. Imports e utilitários próprios do shadcn/Tailwind 4 (como `border-border`) não são compatíveis nessa entrada e impedem a geração do bundle Web.
@@ -148,3 +148,7 @@ npm run web:deploy
 ## Perfil pessoal — 2026-09-27
 
 `PerfilPersonScreen.web.tsx` é uma composição independente da tela nativa. Reutiliza o hero ilustrado e os contratos Tailwind do sistema; o formulário HTML possui labels associados, nome editável, e-mail/data somente leitura e ações de salvar/descartar. O bloco de vínculo fica abaixo dos dados pessoais em todas as larguras. UID é selecionável/copiável; o link interno respeita a visibilidade. Dados e controle assíncrono são compartilhados por `useUserProfile`; detalhes em [[Perfil do Usuário]].
+
+## Ajuste de saldo — 2026-09-30
+
+`BankBalanceAdjustmentScreen.web.tsx` reutiliza o formulário financeiro compartilhado, os seletores de banco/data e o hero ilustrado do sistema. O espaço de sobreposição é reservado na altura mínima para não cortar a ilustração em viewports compactas. Inputs usam `aria-label`; prévia usa `aria-live` e erros usam `role="alert"`, pois o `Text` Web renderiza HTML. O formulário foi inspecionado no navegador local, incluindo largura de 390px, prévia e validação de saldo negativo. Sem métricas DevTools nem publicação remota. Ver [[Ajuste de Saldo]].

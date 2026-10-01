@@ -142,5 +142,21 @@
     "risk": "Mudanças de viewport ou da ponte Expo DOM podem cortar o hero ou o gráfico; alterações na paleta semântica podem reduzir o contraste do resumo.",
     "alternative": "Cores de gradiente usam LUMUS_FINANCIAL_GRADIENTS; cores, superfícies, tipografia e espaçamento fixos usam tokens e NativeWind. Styles permanecem restritos à geometria dinâmica e às APIs sem classe.",
     "owner": "cash-flow-report-ui"
+  },
+  {
+    "files": ["screens/mobile/BankBalanceAdjustmentScreen.tsx", "screens/web/BankBalanceAdjustmentScreen.web.tsx", "design-system/native-styles.ts"],
+    "reason": "Altura do hero, sobreposição do formulário e espaço do teclado dependem do viewport e safe area; a imagem React Native Web recebe geometria explícita.",
+    "limitation": "Classes não resolvem medidas calculadas em runtime nem contentContainerStyle do ScrollView em ambas as plataformas.",
+    "risk": "Mudanças na altura ou no teclado podem cortar campos ou desalojar o hero.",
+    "alternative": "Cores, tipografia, estados e geometria fixa usam tokens e classes; styles ficam limitados às APIs de plataforma e dimensões calculadas.",
+    "owner": "banking-ui"
+  },
+  {
+    "files": ["components/web/shared/web-select-field.tsx"],
+    "reason": "O menu é renderizado em um portal no body do navegador para escapar do empilhamento e do recorte dos formulários; posição, largura e altura disponíveis dependem dos limites atuais do trigger e do viewport.",
+    "limitation": "A geometria do portal muda com redimensionamento e rolagem e não pode ser expressa em classes estáticas.",
+    "risk": "Sem recalcular a posição ao rolar ou redimensionar, a lista pode se desprender do seletor.",
+    "alternative": "Cores, bordas, tipografia e espaçamento continuam em tokens e classes; o estilo inline fica restrito à posição e ao tamanho calculados do portal.",
+    "owner": "form-controls"
   }
 ]
