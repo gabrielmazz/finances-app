@@ -90,7 +90,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 14. A tela Testes do aplicativo foi removida do sistema, incluindo rotas, preferência de visibilidade e recursos exclusivos.
 15. Quando [[Transações de Despesas]] detecta um gasto obrigatório pendente, usa a navegação manual `navigateToRoute(APP_ROUTE_PATHS.mandatoryExpenses, { focusMandatoryExpenseId })`. A lista recarrega os dados, revalida o alvo e abre somente a confirmação de registro daquele item, sem disparar persistência automática.
 16. O navigator inferior possui três ações de largura igual. Home, Controle e Config abrem menus; **Lumus IA** fica no menu do botão Home e abre `/lumus-assistant`, mantendo o grupo Home ativo nessa rota quando a preferência local o mantém visível.
-17. `/lumus-assistant` monta provider e tela diretamente, sem `React.lazy`/`Suspense`, para que o Native Stack conclua a abertura da rota sem aguardar imports de tela. O painel interno mantém um estado de preparação enquanto consulta preferências, Remote Config e disponibilidade. O gateway ainda posterga somente React Native Firebase até validar o runtime; configuração pendente aparece no próprio chat e a boundary local cobre apenas erro inesperado de renderização.
+17. As rotas `/lumus-assistant` montam a tela e sua boundary diretamente, sem `React.lazy`/`Suspense`. `LumusAssistantProvider` fica no root, dentro dos contextos de autenticação, finanças e preferências, para conservar conversa/rascunhos ao abrir outra tela e voltar. Preferências, Remote Config e disponibilidade começam somente na primeira entrada no assistente. Falha do modelo não impede carregar consentimento local ou executar os comandos determinísticos disponíveis. Speech/clipboard são carregados quando usados, sem inicializar recursos nativos de IA na Home.
 
 ### Navegação Web responsiva
 
@@ -177,7 +177,7 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 - Novos destinos devem ser adicionados em `APP_ROUTE_PATHS` antes de serem usados por telas ou pelo navigator
 - Rotas ocultáveis precisam ser registradas em `ROUTE_VISIBILITY_PATHS`; filtrá-las somente no navigator não é suficiente, pois o `Stack.Protected` também deve negar acesso direto.
 - `/lumus-assistant` deve permanecer na lista central protegida; `tests/navigation.test.ts` compara todas as rotas físicas com `APP_ROUTE_PATHS`
-- A rota `/lumus-assistant` deve montar `LumusAssistantProvider` e `LumusAssistantScreen` diretamente, sem `React.lazy`/`Suspense`. A inicialização assíncrona de IA deve ficar no painel da tela, e a boundary local deve servir somente como recuperação para erro inesperado.
+- `LumusAssistantProvider` deve permanecer único no root, dentro dos contextos que consome. As rotas `/lumus-assistant` montam apenas sua tela/boundary, sem `React.lazy`/`Suspense`; a sessão continua em memória ao navegar e é limpa por pedido explícito, revogação, logout ou troca de UID. Preparação assíncrona inicia na primeira entrada, sem bloquear a montagem do Stack.
 - Com `main: "index.ts"`, handlers de background obrigatórios devem ser registrados antes de `require('expo-router/entry')`; inicializações de UI/canais permanecem em `app/_layout.tsx` ou utilitários importados por ele, nunca em `App.tsx`
 
 ## Perfil pessoal — 2026-09-27
@@ -187,3 +187,13 @@ O guard usa `Stack.Protected`, disponível no Expo Router 6. Quando o estado de 
 ## Ajuste de saldo — 2026-09-30
 
 `APP_ROUTE_PATHS.bankBalanceAdjustment` registra as variantes Web/mobile autenticadas. Configurações abre o cadastro; o extrato abre edição com `adjustmentId` e `bankId`. O sucesso usa `redirectToRoute` para uma única transição ao extrato com nome do banco e `focusDate` em `DD/MM/YYYY`, que seleciona o mês correspondente. Este fluxo de conferência possui retorno fixo, documentado em [[Ajuste de Saldo]], sem preferência pós-submit/visibilidade nem novo item no navigator. O hook impede redirects após perda de foco ou troca de UID.
+
+## Inventário e navegação conversacional — 2026-10-02
+
+[[Cobertura Conversacional Lumus]] relaciona os 82 arquivos físicos de `app/` aos 25 destinos lógicos de cada grupo, incluindo fallbacks/adaptadores, entradas, redirects e fluxos internos. `utils/appRouteGuards.ts` deriva os guards do registro central para todas as rotas físicas: o grupo alternativo permanece negado, login exige visitante e os demais destinos exigem sessão/visibilidade aplicável. Ocultar um menu não substitui o guard nem a autorização de domínio.
+
+O assistente abre destinos somente por `APP_ROUTE_PATHS` e `navigateToRoute`, com os índices das abas Home/Controle/Config; nega destinos ocultos. A saída usa `logoutCurrentUser`, incluindo limpeza segura de lembretes e vínculo ao UID original. Não declara logout antes de observar a sessão encerrada. O chat mantém contexto para voltar, sem depender de abrir uma tela para concluir uma operação financeira.
+
+`tests/lumusAssistantRouteInventory.test.ts` compara inventário, registro, grupos, adapters e guards Web/Android. `tests/assistantRouteBootstrap.test.ts` verifica telas diretas sem provider duplicado; `tests/lumusAssistantContextIntegration.test.ts` verifica bootstrap tardio e memória entre rotas. Essas evidências não substituem smoke test visual, navegação instalada, teclado ou áudio real.
+
+O cleanup do provider encerra e zera o executor, invalida intenções/autorização e aborta áudio; o próximo envio cria uma sessão válida mesmo quando o ambiente de desenvolvimento repete efeitos mantendo refs (Fast Refresh). O teste do provider reproduz esse ciclo e verifica o efeito persistido da anotação, sem confundir desenvolvimento com execução instalada.

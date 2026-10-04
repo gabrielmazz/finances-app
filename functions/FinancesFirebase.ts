@@ -1,3 +1,6 @@
+import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, manageFinancialLedgerAccountFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
+import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
 import { auth, db } from '@/FirebaseConfig';
 import {
 	collection,
@@ -134,63 +137,40 @@ const parseFirestoreDate = (value: unknown): Date | null => {
 	return null;
 };
 
-export async function addFinanceInvestmentFirebase({
-	name,
-	initialValueInCents,
-	currentValueInCents,
-	cdiPercentage,
-	cdiPercentageInBasisPoints,
-	assetType,
-	valuationMethod,
-	redemptionTerm,
-	bankId,
-	personId,
-	description,
-	date,
-	bankNameSnapshot,
-}: AddFinanceInvestmentParams) {
+export async function addFinanceInvestmentFirebase({ name, initialValueInCents, currentValueInCents, cdiPercentage, cdiPercentageInBasisPoints, assetType, valuationMethod, redemptionTerm, bankId, personId, description, date }: AddFinanceInvestmentParams) {
 	try {
-		if (
-			!isSafeIntegerCents(initialValueInCents) ||
-			initialValueInCents <= 0 ||
-			(currentValueInCents !== undefined && (!isSafeIntegerCents(currentValueInCents) || currentValueInCents < 0))
-		) {
-			return { success: false, error: 'Os valores do investimento devem ser centavos inteiros válidos.' };
+		const percentage = cdiPercentageInBasisPoints ?? normalizeCdiPercentageInBasisPoints(cdiPercentage);
+		const resolvedAsset = getInvestmentAssetType(assetType); const resolvedMethod = getInvestmentValuationMethod(valuationMethod, resolvedAsset);
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		if (ledger) {
+			const bank = (await getFinancialLedgerAccountsFirebase(ledger.groupId)).find(account => account.kind === 'bank' && (account.id === bankId || account.legacyBankId === bankId));
+			if (!bank) return { success: false, error: 'Banco indisponível no grupo.' };
+			const result = await manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, expectedActorId: personId, action: 'create', kind: 'investment', name, initialBalanceInCents: initialValueInCents, ...(currentValueInCents === undefined ? {} : { initialCountedBalanceInCents: currentValueInCents }), fundingAccountId: bank.id, effectiveAt: date, clientActionId: 'form_' + doc(collection(db, COLLECTION)).id, metadata: { cdiPercentageInBasisPoints: percentage, assetType: resolvedAsset, valuationMethod: resolvedMethod, redemptionTerm, description: description ?? null } });
+			return { success: true, investmentId: result.accountId };
 		}
-		const resolvedAssetType = getInvestmentAssetType(assetType);
-		const resolvedValuationMethod = getInvestmentValuationMethod(valuationMethod, resolvedAssetType);
-		const resolvedCdiPercentageInBasisPoints =
-		typeof cdiPercentageInBasisPoints === 'number'
-			? Math.max(0, Math.round(cdiPercentageInBasisPoints))
-			: normalizeCdiPercentageInBasisPoints(cdiPercentage);
-		const investmentRef = doc(collection(db, COLLECTION));
-		await setDoc(investmentRef, {
-			name,
-			initialValueInCents,
-			initialInvestedInCents: initialValueInCents,
-			currentValueInCents: typeof currentValueInCents === 'number' ? currentValueInCents : initialValueInCents,
-			cdiPercentage,
-			cdiPercentageInBasisPoints: resolvedCdiPercentageInBasisPoints,
-			assetType: resolvedAssetType,
-			valuationMethod: resolvedValuationMethod,
-			redemptionTerm,
-			bankId,
-			personId,
-			description: description ?? null,
-			date,
-			bankNameSnapshot: bankNameSnapshot ?? null,
-			lastManualSyncValueInCents:
-				typeof currentValueInCents === 'number' ? currentValueInCents : initialValueInCents,
-			lastManualSyncAt: serverTimestamp(),
-			createdAt: serverTimestamp(),
-			updatedAt: serverTimestamp(),
-		});
-
-		return { success: true, investmentId: investmentRef.id };
-	} catch (error) {
-		console.error('Erro ao adicionar investimento financeiro:', error);
-		return { success: false, error };
+		const result = await executeLegacyFinancialMovementFirebase({ kind: 'create_investment', expectedActorId: personId, name, initialValueInCents, ...(currentValueInCents === undefined ? {} : { currentValueInCents }), cdiPercentageInBasisPoints: percentage, assetType: resolvedAsset, valuationMethod: resolvedMethod, redemptionTerm, bankId, description, date });
+		return { success: true, investmentId: result.recordId };
+	} catch {
+		return { success: false, error: 'Não foi possível criar o investimento. Confira autorização, banco e saldo.' };
 	}
+}
+
+export async function moveFinanceInvestmentFirebase({ investmentId, valueInCents, date, type, expectedCurrentValueInCents }: { investmentId: string; valueInCents: number; date: Date; type: 'deposit' | 'redemption'; expectedCurrentValueInCents?: number }) {
+	try {
+		const personId = auth.currentUser?.uid; if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		if (ledger) {
+			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId); const investment = accounts.find(account => account.id === investmentId && account.kind === 'investment');
+			const bank = accounts.find(account => account.id === investment?.bankAccountId && account.kind === 'bank');
+			if (!investment || !bank || expectedCurrentValueInCents !== undefined && investment.currentBalanceInCents !== expectedCurrentValueInCents) return { success: false, error: 'O investimento mudou ou o banco está indisponível. Confira o valor atual.' };
+			await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, expectedActorId: personId, fromAccountId: type === 'deposit' ? bank.id : investment.id, toAccountId: type === 'deposit' ? investment.id : bank.id, amountInCents: valueInCents, effectiveAt: date, clientActionId: 'form_' + doc(collection(db, COLLECTION)).id, kind: type === 'deposit' ? 'investment_deposit' : 'investment_redemption' });
+		} else {
+			const snapshot = await getDoc(doc(db, COLLECTION, investmentId)); const investment = snapshot.data();
+			if (!investment || expectedCurrentValueInCents !== undefined && resolveInvestmentCurrentValue(investment) !== expectedCurrentValueInCents) return { success: false, error: 'O investimento mudou. Confira o valor atual.' };
+			await executeLegacyFinancialMovementFirebase({ kind: type === 'deposit' ? 'deposit_investment' : 'redeem_investment', expectedActorId: personId, investmentId, valueInCents, date, expectedFingerprint: createAssistantRecordFingerprint(investment) });
+		}
+		return { success: true };
+	} catch (error) { return { success: false, error: 'Não foi possível registrar o movimento. Confira saldo, autorização e valor atualizado.', errorCode: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'invalid-state', reason: error && typeof error === 'object' && 'details' in error && error.details && typeof error.details === 'object' && 'reason' in error.details && typeof error.details.reason === 'string' && ['stale-record', 'inactive-account', 'insufficient-bank-balance', 'insufficient-investment-balance', 'amount-limit', 'idempotency-conflict'].includes(error.details.reason) ? error.details.reason : undefined }; }
 }
 
 export async function updateFinanceInvestmentFirebase({
@@ -208,95 +188,23 @@ export async function updateFinanceInvestmentFirebase({
 	description,
 }: UpdateFinanceInvestmentParams) {
 	try {
-		if (
-			(initialValueInCents !== undefined && (!isSafeIntegerCents(initialValueInCents) || initialValueInCents < 0)) ||
-			(currentValueInCents !== undefined && (!isSafeIntegerCents(currentValueInCents) || currentValueInCents < 0))
-		) {
-			return { success: false, error: 'Os valores do investimento devem ser centavos inteiros válidos.' };
+		const personId = auth.currentUser?.uid; if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		if (ledger) {
+			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId); const investment = accounts.find(account => account.id === investmentId && account.kind === 'investment');
+			if (!investment) return { success: false, error: 'Investimento indisponível no grupo.' };
+			const bank = bankId === undefined ? undefined : accounts.find(account => account.kind === 'bank' && (account.id === bankId || account.legacyBankId === bankId));
+			if (bankId !== undefined && !bank) return { success: false, error: 'Banco indisponível no grupo.' };
+			const percentage = cdiPercentageInBasisPoints ?? (cdiPercentage === undefined ? undefined : normalizeCdiPercentageInBasisPoints(cdiPercentage));
+			await manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, expectedActorId: personId, accountId: investment.id, action: 'update', ...(name === undefined ? {} : { name }), ...(initialValueInCents === undefined ? {} : { initialValueInCents }), ...(currentValueInCents === undefined ? {} : { countedBalanceInCents: currentValueInCents }), effectiveAt: new Date(), clientActionId: 'form_' + doc(collection(db, COLLECTION)).id, metadata: { ...(percentage === undefined ? {} : { cdiPercentageInBasisPoints: percentage }), ...(assetType === undefined ? {} : { assetType }), ...(valuationMethod === undefined ? {} : { valuationMethod }), ...(redemptionTerm === undefined ? {} : { redemptionTerm }), ...(bank === undefined ? {} : { bankAccountId: bank.id }), ...(description === undefined ? {} : { description }) } });
+		} else {
+			const snapshot = await getDoc(doc(db, COLLECTION, investmentId)); const investment = snapshot.data();
+			if (!investment) return { success: false, error: 'Investimento indisponível.' };
+			await executeLegacyFinancialMovementFirebase({ kind: 'update_investment', expectedActorId: personId, investmentId, expectedFingerprint: createAssistantRecordFingerprint(investment), date: new Date(), fields: { ...(name === undefined ? {} : { name }), ...(initialValueInCents === undefined ? {} : { initialValueInCents }), ...(currentValueInCents === undefined ? {} : { currentValueInCents }), ...(cdiPercentageInBasisPoints === undefined && cdiPercentage === undefined ? {} : { cdiPercentageInBasisPoints: cdiPercentageInBasisPoints ?? normalizeCdiPercentageInBasisPoints(cdiPercentage!) }), ...(assetType === undefined ? {} : { assetType }), ...(valuationMethod === undefined ? {} : { valuationMethod }), ...(redemptionTerm === undefined ? {} : { redemptionTerm }), ...(bankId === undefined ? {} : { bankId }), ...(description === undefined ? {} : { description }) } });
 		}
-		const investmentRef = doc(db, COLLECTION, investmentId);
-		const currentSnapshot = await getDoc(investmentRef);
-		const currentData = currentSnapshot.data() as FinanceInvestmentRecord | undefined;
-		const updates: Record<string, unknown> = {
-			updatedAt: serverTimestamp(),
-		};
-
-		if (typeof name === 'string') {
-			updates.name = name;
-		}
-
-		if (typeof initialValueInCents === 'number') {
-			const previousInitialValue = resolveInvestmentInitialValue(currentData);
-			const previousCurrentValue = resolveInvestmentCurrentValue(currentData);
-			const shouldAdjustCurrentValue =
-				typeof currentValueInCents !== 'number' &&
-				previousCurrentValue === previousInitialValue;
-
-			updates.initialValueInCents = initialValueInCents;
-			updates.initialInvestedInCents = initialValueInCents;
-
-			if (shouldAdjustCurrentValue) {
-				updates.currentValueInCents = initialValueInCents;
-				updates.lastManualSyncValueInCents = initialValueInCents;
-				updates.lastManualSyncAt = serverTimestamp();
-			}
-		}
-
-		if (typeof currentValueInCents === 'number') {
-			updates.currentValueInCents = currentValueInCents;
-			updates.lastManualSyncValueInCents = currentValueInCents;
-			updates.lastManualSyncAt = serverTimestamp();
-		}
-
-		if (typeof cdiPercentage === 'number') {
-			updates.cdiPercentage = cdiPercentage;
-			updates.cdiPercentageInBasisPoints =
-				typeof cdiPercentageInBasisPoints === 'number'
-					? Math.max(0, Math.round(cdiPercentageInBasisPoints))
-					: normalizeCdiPercentageInBasisPoints(cdiPercentage);
-		} else if (typeof cdiPercentageInBasisPoints === 'number') {
-			updates.cdiPercentageInBasisPoints = Math.max(0, Math.round(cdiPercentageInBasisPoints));
-		}
-
-		if (assetType !== undefined) {
-			const normalizedAssetType = getInvestmentAssetType(assetType);
-			updates.assetType = normalizedAssetType;
-			if (valuationMethod === undefined) {
-				updates.valuationMethod = getInvestmentValuationMethod(undefined, normalizedAssetType);
-			}
-		}
-
-		if (valuationMethod !== undefined) {
-			updates.valuationMethod = getInvestmentValuationMethod(
-				valuationMethod,
-				assetType !== undefined
-					? getInvestmentAssetType(assetType)
-					: getInvestmentAssetType(currentData?.assetType),
-			);
-		}
-
-		if (typeof redemptionTerm === 'string') {
-			updates.redemptionTerm = redemptionTerm;
-		}
-
-		if (typeof bankId === 'string') {
-			updates.bankId = bankId;
-		}
-
-		if (bankNameSnapshot !== undefined) {
-			updates.bankNameSnapshot = bankNameSnapshot ?? null;
-		}
-
-		if (description !== undefined) {
-			updates.description = description ?? null;
-		}
-
-		await setDoc(investmentRef, updates, { merge: true });
-
 		return { success: true };
-	} catch (error) {
-		console.error('Erro ao atualizar investimento financeiro:', error);
-		return { success: false, error };
+	} catch {
+		return { success: false, error: 'Não foi possível atualizar o investimento. Confira autorização, saldo e valor atual.' };
 	}
 }
 
@@ -596,105 +504,22 @@ export async function getFinanceInvestmentSyncEventsByPeriodFirebase({
 	}
 }
 
-export async function revertFinanceInvestmentDepositFirebase(expenseId: string) {
+async function revertFinanceInvestmentMovementFirebase(movementId: string, type: 'deposit' | 'redemption') {
 	try {
-		const expenseRef = doc(db, 'expenses', expenseId);
-		const expenseSnapshot = await getDoc(expenseRef);
-
-		if (!expenseSnapshot.exists()) {
-			return { success: false, error: 'Aporte não encontrado.' };
-		}
-
-		const expenseData = expenseSnapshot.data() as FinanceInvestmentRecord;
-		const investmentId =
-			typeof expenseData.investmentId === 'string' ? expenseData.investmentId : null;
-		const valueInCents =
-			typeof expenseData.valueInCents === 'number' ? expenseData.valueInCents : null;
-
-		if (!expenseData.isInvestmentDeposit || !investmentId || valueInCents === null) {
-			return { success: false, error: 'Este lançamento não pode ser desfeito como aporte.' };
-		}
-
-		const investmentRef = doc(db, COLLECTION, investmentId);
-		const investmentSnapshot = await getDoc(investmentRef);
-		if (!investmentSnapshot.exists()) {
-			return { success: false, error: 'Investimento relacionado não encontrado.' };
-		}
-
-		const investmentData = investmentSnapshot.data() as FinanceInvestmentRecord;
-		const currentValueInCents = resolveInvestmentCurrentValue(investmentData);
-		const nextValueInCents = Math.max(0, currentValueInCents - valueInCents);
-		const batch = writeBatch(db);
-
-		batch.set(
-			investmentRef,
-			{
-				currentValueInCents: nextValueInCents,
-				lastManualSyncValueInCents: nextValueInCents,
-				lastManualSyncAt: serverTimestamp(),
-				updatedAt: serverTimestamp(),
-			},
-			{ merge: true },
-		);
-		batch.delete(expenseRef);
-		await batch.commit();
-
+		const personId = auth.currentUser?.uid; if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const movement = (await getDoc(doc(db, type === 'deposit' ? 'expenses' : 'gains', movementId))).data();
+		if (!movement || !(type === 'deposit' ? movement.isInvestmentDeposit : movement.isInvestmentRedemption) || typeof movement.investmentId !== 'string') return { success: false, error: 'Movimento indisponível.' };
+		const investment = (await getDoc(doc(db, COLLECTION, movement.investmentId))).data();
+		if (!investment) return { success: false, error: 'Investimento relacionado indisponível.' };
+		await executeLegacyFinancialMovementFirebase({ kind: type === 'deposit' ? 'undo_investment_deposit' : 'undo_investment_redemption', expectedActorId: personId, movementId, expectedMovementFingerprint: createAssistantRecordFingerprint(movement), expectedInvestmentFingerprint: createAssistantRecordFingerprint(investment), date: new Date() });
 		return { success: true };
-	} catch (error) {
-		console.error('Erro ao desfazer aporte do investimento:', error);
-		return { success: false, error };
+	} catch {
+		return { success: false, error: 'Não foi possível desfazer o movimento. Confira autorização, saldo do banco e valor atual do investimento.' };
 	}
 }
 
-export async function revertFinanceInvestmentRedemptionFirebase(gainId: string) {
-	try {
-		const gainRef = doc(db, 'gains', gainId);
-		const gainSnapshot = await getDoc(gainRef);
-
-		if (!gainSnapshot.exists()) {
-			return { success: false, error: 'Resgate não encontrado.' };
-		}
-
-		const gainData = gainSnapshot.data() as FinanceInvestmentRecord;
-		const investmentId =
-			typeof gainData.investmentId === 'string' ? gainData.investmentId : null;
-		const valueInCents =
-			typeof gainData.valueInCents === 'number' ? gainData.valueInCents : null;
-
-		if (!gainData.isInvestmentRedemption || !investmentId || valueInCents === null) {
-			return { success: false, error: 'Este lançamento não pode ser desfeito como resgate.' };
-		}
-
-		const investmentRef = doc(db, COLLECTION, investmentId);
-		const investmentSnapshot = await getDoc(investmentRef);
-		if (!investmentSnapshot.exists()) {
-			return { success: false, error: 'Investimento relacionado não encontrado.' };
-		}
-
-		const investmentData = investmentSnapshot.data() as FinanceInvestmentRecord;
-		const currentValueInCents = resolveInvestmentCurrentValue(investmentData);
-		const nextValueInCents = currentValueInCents + valueInCents;
-		const batch = writeBatch(db);
-
-		batch.set(
-			investmentRef,
-			{
-				currentValueInCents: nextValueInCents,
-				lastManualSyncValueInCents: nextValueInCents,
-				lastManualSyncAt: serverTimestamp(),
-				updatedAt: serverTimestamp(),
-			},
-			{ merge: true },
-		);
-		batch.delete(gainRef);
-		await batch.commit();
-
-		return { success: true };
-	} catch (error) {
-		console.error('Erro ao desfazer resgate do investimento:', error);
-		return { success: false, error };
-	}
-}
+export const revertFinanceInvestmentDepositFirebase = (expenseId: string) => revertFinanceInvestmentMovementFirebase(expenseId, 'deposit');
+export const revertFinanceInvestmentRedemptionFirebase = (gainId: string) => revertFinanceInvestmentMovementFirebase(gainId, 'redemption');
 
 export async function revertFinanceInvestmentSyncFirebase(syncId: string) {
 	try {

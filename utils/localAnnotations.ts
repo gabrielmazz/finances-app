@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { LocalAnnotation } from '@/types/localAnnotations';
+import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
 
 const STORAGE_KEY_PREFIX = '@lumus/local-annotations/v1';
 
@@ -60,12 +61,48 @@ export const loadLocalAnnotations = async (userId: string): Promise<LocalAnnotat
 	}
 };
 
-export const saveLocalAnnotations = async (userId: string, annotations: LocalAnnotation[]) => {
+const annotationMutations = new Map<string, Promise<void>>();
+
+function serializeAnnotationMutation<T>(userId: string, operation: () => Promise<T>): Promise<T> {
+	const previous = annotationMutations.get(userId) ?? Promise.resolve();
+	const result = previous.then(operation);
+	const finished = result.then(() => undefined, () => undefined);
+	annotationMutations.set(userId, finished);
+	void finished.then(() => { if (annotationMutations.get(userId) === finished) annotationMutations.delete(userId); });
+	return result;
+}
+
+const writeAnnotations = async (userId: string, annotations: LocalAnnotation[]) => {
 	await AsyncStorage.setItem(
 		getLocalAnnotationsStorageKey(userId),
 		JSON.stringify(sortByMostRecentlyUpdated(annotations)),
 	);
 };
+
+/** Reposição integral para fixtures/importadores. Edição de um registro usa saveLocalAnnotation. */
+export const saveLocalAnnotations = (userId: string, annotations: LocalAnnotation[]) =>
+	serializeAnnotationMutation(userId, () => writeAnnotations(userId, annotations));
+
+/** Read-modify-write compartilhado entre editor e conversa; um snapshot antigo não substitui a coleção. */
+export const saveLocalAnnotation = (
+	userId: string,
+	annotation: LocalAnnotation,
+	expectedFingerprint: string | null,
+	isCurrent: () => boolean = () => true,
+) => serializeAnnotationMutation(userId, async () => {
+	const requireSession = () => { if (!isCurrent()) throw new Error('A conta mudou. Nenhuma gravação nova foi iniciada.'); };
+	requireSession();
+	const annotations = await loadLocalAnnotations(userId);
+	requireSession();
+	const existing = annotations.find(item => item.id === annotation.id);
+	if (existing?.title === annotation.title && existing.markdown === annotation.markdown) return { annotations, annotation: existing, changed: false };
+	if (expectedFingerprint === null && existing) throw new Error('Este pedido de anotação já foi usado com outro conteúdo. Envie um novo pedido.');
+	if (expectedFingerprint !== null && (!existing || createAssistantRecordFingerprint(existing) !== expectedFingerprint)) throw new Error('A anotação mudou. Confira o texto e confirme novamente.');
+	const next = sortByMostRecentlyUpdated([annotation, ...annotations.filter(item => item.id !== annotation.id)]);
+	requireSession();
+	await writeAnnotations(userId, next);
+	return { annotations: next, annotation, changed: true };
+});
 
 export const createLocalAnnotation = (now = new Date()): LocalAnnotation => {
 	const timestamp = now.toISOString();

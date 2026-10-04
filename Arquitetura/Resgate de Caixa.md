@@ -69,4 +69,4 @@ sequenceDiagram
 ## Integração com o Assistente Lumus
 
 - [[Assistente Lumus]] valida banco, saldo mensal e saldo disponível antes de registrar o saque.
-- Desfazer usa o registro escolhido no catálogo opaco, confirma novamente propriedade/fingerprint e remove somente o saque selecionado.
+- Desfazer resolve o saque por referência textual no catálogo opaco e confirma propriedade/fingerprint e efeito no chat. No legado remove somente o saque escolhido com recibo idempotente; no razão estorna o evento e preserva as duas pernas e o histórico. `transferFunds` mantém Caixa compartilhado sem saldo negativo. Ver [[Comandos Financeiros Conversacionais]].

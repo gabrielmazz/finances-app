@@ -265,10 +265,18 @@ export const parseAssistantQuestionAnswer = (
 	const normalized = normalizeAssistantAnswerText(trimmed);
 
 	if (field.choices?.length) {
+		const ordinal = /^(?:(?:o|a)\s+)?(primeir[oa]|segund[oa]|terceir[oa]|quart[oa]|quint[oa]|sext[oa]|setim[oa]|oitav[oa]|non[oa]|decim[oa]|\d+)$/.exec(normalized);
+		if (ordinal) {
+			const words = ['primeir', 'segund', 'terceir', 'quart', 'quint', 'sext', 'setim', 'oitav', 'non', 'decim'];
+			const position = /^\d+$/.test(ordinal[1]!) ? Number(ordinal[1]) - 1 : words.findIndex(word => ordinal[1]!.startsWith(word));
+			const choice = field.choices[position];
+			return choice && !choice.disabled ? { value: choice.value, label: choice.label } : null;
+		}
 		const matches = field.choices.filter(choice => {
 			const label = normalizeAssistantAnswerText(choice.label);
 			const value = normalizeAssistantAnswerText(String(choice.value));
-			return normalized === label || normalized === value || normalized.endsWith(` ${label}`);
+			return normalized === label || normalized === value || normalized.endsWith(` ${label}`) ||
+				(label.length >= 3 && ` ${normalized} `.includes(` ${label} `));
 		});
 		if (matches.length !== 1 || matches[0]!.disabled) return null;
 		return { value: matches[0]!.value, label: matches[0]!.label };
@@ -395,6 +403,10 @@ export const buildAssistantActiveDraftSummary = (drafts: AssistantDraftAction[])
 			clientActionId: draft.clientActionId,
 			kind: draft.kind,
 			status: draft.status,
+			name: typeof draft.payload.name === 'string' ? draft.payload.name.slice(0, 120) : undefined,
+			date: draft.payload.date,
+			cycle: draft.payload.cycle,
+			references: Object.fromEntries(Object.entries(draft.payload).filter(([key, value]) => key.endsWith('Ref') && typeof value === 'string')),
 			knownFields: Object.entries(draft.payload)
 				.filter(([, value]) => value !== undefined)
 				.map(([key]) => key)
@@ -402,7 +414,8 @@ export const buildAssistantActiveDraftSummary = (drafts: AssistantDraftAction[])
 			missingFields: draft.missingFields.map(field => field.key),
 			dependsOnActionIds: draft.dependsOnActionIds,
 		}));
-	return JSON.stringify(active).slice(0, ASSISTANT_MAX_INPUT_CHARACTERS);
+	while (JSON.stringify(active).length > ASSISTANT_MAX_INPUT_CHARACTERS && active.length > 1) active.shift();
+	return JSON.stringify(active);
 };
 
 export const isAssistantClearConversationCommand = (text: string) => {

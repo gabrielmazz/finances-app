@@ -3,7 +3,7 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.5
+versao: 1.7.6
 ---
 
 # Gerenciamento de Bancos
@@ -64,7 +64,8 @@ graph TD
 - A função `computeMonthlyBankBalances()` em `utils/monthlyBalance.ts` agrega despesas, receitas e investimentos por banco
 - `shouldIncludeMovementInGainExpenseTotals()` filtra movimentos internos para evitar dupla contagem
 - A [[Análise por Categoria]] usa os bancos como dimensão de distribuição mensal da tag selecionada; movimentos sem `bankId` aparecem como **Dinheiro**
-- Na Home, a leitura indexada do último snapshot é processada em grupos de até três bancos. Isso evita sobrecarregar a fila de rede em Android/iOS e mantém o fallback compatível, escopado aos `personId` autorizados, se o índice ainda estiver indisponível.
+- Na Home, a leitura indexada dos snapshots é processada em grupos de até três bancos. O cálculo escolhe o último snapshot elegível e ignora aberturas futuras, preservando o snapshot anterior; mantém fallback escopado aos `personId` autorizados se o índice estiver indisponível. O corte inclui o fim do dia civil solicitado em São Paulo: registros de hoje ao meio-dia entram no saldo mesmo antes desse horário, e movimentos do dia seguinte não entram.
+- Os leitores centralizados de saldo legado dividem `personId` autorizado em consultas de até dez identidades, preservando todas as relações quando o conjunto ultrapassa o limite de `in` do Firestore. O caminho individual e o caminho em lote usam o mesmo calculador em centavos.
 
 ## Arquivos principais
 
@@ -133,8 +134,9 @@ graph TD
 
 ## Integração com o Assistente Lumus
 
-- Criar banco pelo [[Assistente Lumus]] exige nome, ciclo e saldo inicial; banco e `MonthlyBalance` são criados na mesma transação.
-- Bancos enviados ao modelo usam handles opacos. Antes de editar/excluir, o aplicativo recarrega o documento do UID atual e compara o fingerprint mostrado no cartão.
+- Criar banco pelo [[Assistente Lumus]] exige nome, ciclo e saldo inicial, resolvidos por conversa. No legado, banco e `MonthlyBalance` são criados na mesma transação; no razão, `manageAccount` cria conta, evento de abertura, reconciliação, resumo mensal e recibo atomicamente.
+- Editar nome, cor, ícone e `isActive` usa o mesmo pedido versionado. Banco inativo permanece localizável para reativação, mas não aceita novos movimentos; a persistência revalida o estado depois do catálogo. Antes de editar/excluir, o aplicativo recarrega o documento e compara o fingerprint vinculado ao resumo confirmado no chat.
+- No razão, criar/gerir/arquivar contas exige administrador e excluir arquiva sem apagar o histórico. No legado, as permissões existentes de propriedade continuam válidas. O modelo recebe handles opacos. Ver [[Comandos Financeiros Conversacionais]].
 
 ## Ajuste de saldo — 2026-09-30
 

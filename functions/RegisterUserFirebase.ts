@@ -4,7 +4,8 @@
 
 import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
 import { auth, db, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
@@ -104,95 +105,32 @@ export async function deleteUserFirebase(userId: string) {
 // um do outro, assim vice e versa, para isso é necessário o ID do usuário que será relacionado com o usuário logado;
 // Na função em especifico, o usuário logado será relacionado mas tambem irá ser atualizado o usuário relacionado para que
 // no Firabase tenha essa relação em ambos os sentidos
-export async function updateUserRelationsFirebase(relatedUserId: string) {
+type RelationshipSnapshot = { expectedFingerprint: string; clientActionId: string };
 
+async function changeUserRelationship(relatedUserId: string, action: 'link' | 'unlink', snapshot?: RelationshipSnapshot) {
     try {
-
-        const currentUser = auth.currentUser;
-
-        if (!currentUser) {
-            throw new Error('Nenhum usuário está logado.');
-        }
-
-        const currentUserRef = doc(db, 'users', currentUser.uid);
-        const relatedUserRef = doc(db, 'users', relatedUserId);
-
-        const currentUserDoc = await getDoc(currentUserRef);
-        const relatedUserDoc = await getDoc(relatedUserRef);
-
-        if (!currentUserDoc.exists()) {
-            throw new Error('Dados do usuário atual não foram encontrados.');
-        }
-
-        if (!relatedUserDoc.exists()) {
-            throw new Error('Usuário relacionado não encontrado.');
-        }
-
-        // Atualiza o usuário logado para adicionar o ID do usuário relacionado
-        await updateDoc(currentUserRef, {
-            relatedIdUsers: arrayUnion(relatedUserId),
+        const uid = auth.currentUser?.uid;
+        if (!uid) throw new Error('Nenhum usuário está logado.');
+        const preview = snapshot ?? await runUserRelationshipFirebase(uid, { action: 'preview', relatedUserId });
+        if (auth.currentUser?.uid !== uid) throw new Error('A conta mudou. Envie o pedido novamente.');
+        const result = await runUserRelationshipFirebase(uid, {
+            action, relatedUserId,
+            expectedFingerprint: snapshot?.expectedFingerprint ?? ('fingerprint' in preview ? preview.fingerprint : undefined),
+            clientActionId: snapshot?.clientActionId ?? `relationship-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
         });
-
-        // Atualiza o usuário relacionado para adicionar o ID do usuário logado
-        await updateDoc(relatedUserRef, {
-            relatedIdUsers: arrayUnion(currentUser.uid),
-        });
-
-        return { success: true };
-
+        return { success: true, data: result };
     } catch (error) {
-
-        console.error('Erro ao atualizar relações do usuário:', error);
         return { success: false, error };
-
     }
-
 }
 
-export async function deleteUserRelationFirebase(relatedUserId: string) {
+// O backend revalida ambos perfis e persiste o vínculo bidirecional numa transação.
+export async function updateUserRelationsFirebase(relatedUserId: string, snapshot?: RelationshipSnapshot) {
+    return changeUserRelationship(relatedUserId, 'link', snapshot);
+}
 
-    try {
-
-        const currentUser = auth.currentUser;
-
-        if (!currentUser) {
-            throw new Error('Nenhum usuário está logado.');
-        }
-
-        if (!relatedUserId) {
-            throw new Error('O ID do usuário a ser desvinculado é inválido.');
-        }
-
-        const currentUserRef = doc(db, 'users', currentUser.uid);
-        const relatedUserRef = doc(db, 'users', relatedUserId);
-
-        const [currentUserDoc, relatedUserDoc] = await Promise.all([getDoc(currentUserRef), getDoc(relatedUserRef)]);
-
-        if (!currentUserDoc.exists()) {
-            throw new Error('Dados do usuário atual não foram encontrados.');
-        }
-
-        if (!relatedUserDoc.exists()) {
-            throw new Error('Usuário relacionado não encontrado.');
-        }
-
-        await Promise.all([
-            updateDoc(currentUserRef, {
-                relatedIdUsers: arrayRemove(relatedUserId),
-            }),
-            updateDoc(relatedUserRef, {
-                relatedIdUsers: arrayRemove(currentUser.uid),
-            }),
-        ]);
-
-        return { success: true };
-
-    } catch (error) {
-
-        console.error('Erro ao remover relação de usuários:', error);
-        return { success: false, error };
-
-    }
+export async function deleteUserRelationFirebase(relatedUserId: string, snapshot?: RelationshipSnapshot) {
+    return changeUserRelationship(relatedUserId, 'unlink', snapshot);
 }
 
 // =========================================== Funções de consulta ================================================== //

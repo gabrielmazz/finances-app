@@ -3,7 +3,7 @@ tags: [receitas, transacoes, financeiro, tags]
 relacionado: [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]], [[Dashboard Home]], [[Transferências]], [[Investimentos]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.2
+versao: 1.7.3
 ---
 
 # Transações de Receitas
@@ -27,7 +27,7 @@ sequenceDiagram
 ```
 
 1. Usuário acessa `AddRegisterGainScreen.tsx`
-2. Preenche: descrição, valor, data, banco de destino e tag; banco e tag são escolhidos por ActionSheets customizados com ícone, nome e destaque da seleção atual, e a tag mantém a ação interna para criar uma nova categoria de ganho
+2. Preenche: descrição, valor, formato do ganho (quando exibido), data, banco de destino se o recebimento for em banco e tag; o formato do ganho é uma escolha única entre renda variável e pagamento externo. Banco e tag são escolhidos por ActionSheets customizados com ícone, nome e destaque da seleção atual, e a tag mantém a ação interna para criar uma nova categoria de ganho
 3. `GainFirebase.ts` salva o documento no Firestore na coleção de receitas do usuário
 4. Após criar ou editar uma receita, `AddRegisterGainScreen.tsx` aplica [[Comportamento Pós-Registro]] depois do feedback de sucesso; por padrão volta para [[Dashboard Home]]
 5. O movimento aparece na timeline do [[Dashboard Home]] e em [[Gerenciamento de Bancos|BankMovementsScreen]]
@@ -78,6 +78,7 @@ sequenceDiagram
 - Usuários relacionados compartilham visibilidade das receitas
 - O submit de novos registros e edições deve passar por [[Comportamento Pós-Registro]]; não usar `router.back()` nem strings livres de rota como retorno pós-submit
 - Em novo registro, a limpeza dos campos é controlada pela preferência da tela quando o retorno automático está desligado; o submit usa trava síncrona para impedir duplo clique enquanto a persistência e integrações obrigatórias/investimento concluem
+- Quando o campo de formato do ganho está visível, uma opção precisa estar selecionada antes de liberar o envio. A escolha fica controlada pela própria tela nas variantes mobile e Web.
 - O campo de categoria não deve voltar para o menu padrão do Android nem exibir botão externo desalinhado; o fluxo usa o ActionSheet compartilhado para selecionar e criar categorias
 - O campo de banco também usa ActionSheet compartilhado para exibir `iconKey`/`colorHex` dos bancos cadastrados e evitar regressão para o menu padrão do Android
 - Android/iOS usam `AddRegisterGainScreen.tsx`; o navegador resolve `AddRegisterGainScreen.web.tsx`, sem duplicar consultas ou regras financeiras. A variante Web mantém o hero/sheet de [[Versão Web]], uma única rolagem e a grade responsiva, com foco amarelo e labels acessíveis.

@@ -4,6 +4,8 @@ jest.mock('@/FirebaseConfig', () => ({ db: {} }));
 jest.mock('@/functions/RegisterUserFirebase', () => ({ getRelatedUsersIDsFirebase: (...args: unknown[]) => mockGetRelatedUsers(...args) }));
 jest.mock('firebase/firestore', () => ({
 	collection: (_db: unknown, name: string) => name,
+	doc: (_db: unknown, name: string, id: string) => ({ name, id }),
+	getDoc: async () => ({ exists: () => false }),
 	query: (name: string, ...filters: unknown[]) => ({ name, filters }),
 	where: (field: string, operator: string, value: unknown) => ({ field, operator, value }),
 	Timestamp: { fromDate: (date: Date) => date },
@@ -92,7 +94,7 @@ it('keeps months between an older history and today out of both queries and resu
 	expect(food.expense.status).toBe('stable');
 	const expenseRequests = mockGetDocs.mock.calls.map(call => call[0]).filter(request => request.name === 'expenses');
 	expect(expenseRequests).toHaveLength(2);
-	expect(expenseRequests[0].filters).toContainEqual({ field: 'date', operator: '<=', value: new Date(2026, 2, 31, 23, 59, 59, 999) });
+	expect(expenseRequests[0].filters).toContainEqual({ field: 'date', operator: '<=', value: new Date('2026-03-31T23:59:59.999-03:00') });
 });
 
 it('counts zero-movement full months and rounds the average to integer cents', async () => {

@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "tsc --noEmit -p backend/tsconfig.json",
     "check": "npm run lint:styles && npm run typecheck && npm run typecheck:backend && npm run test -- --runInBand",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:assistant:executor:emulator": "node script/check_assistant_emulator_target.js && jest --runInBand tests/lumusAssistantLegacyEmulator.test.ts"
   },
   "engines": {
     "node": ">=22.13.0"

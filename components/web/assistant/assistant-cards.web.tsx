@@ -570,7 +570,7 @@ export const AssistantReportCard = ({
 			{report.narrative ? <Text className="leading-6 text-slate-800 dark:text-slate-200">{hideValues ? maskFinancialValuesInText(report.narrative) : report.narrative}</Text> : null}
 			<Text className="leading-6 text-slate-800 dark:text-slate-200">{hideValues ? maskFinancialValuesInText(report.deterministicSummary) : report.deterministicSummary}</Text>
 			{report.notes.map(note => <Text key={note} className={ASSISTANT_CLASS_NAMES.cardMeta}>• {note}</Text>)}
-			<Pressable accessibilityLabel={isSpeaking ? 'Parar leitura do resumo' : 'Ouvir resumo'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
+			<Pressable accessibilityRole="button" accessibilityLabel={isSpeaking ? 'Parar leitura do resumo' : 'Ouvir resumo'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 				<Ionicons name={isSpeaking ? 'stop-circle-outline' : 'volume-medium-outline'} size={16} color={palette.muted} />
 				<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{isSpeaking ? 'Parar' : 'Ouvir resumo'}</Text>
 			</Pressable>
@@ -601,15 +601,15 @@ export const AssistantTextBubble = ({
 	const text = hideValues ? maskFinancialValuesInText(message.text) : message.text;
 	return (
 		<View className={isUser ? ASSISTANT_CLASS_NAMES.userBubble : ASSISTANT_CLASS_NAMES.assistantBubble}>
-			<Text className={isUser ? ASSISTANT_CLASS_NAMES.userBubbleText : 'leading-5 text-slate-800 dark:text-slate-200'}>{text}</Text>
+			<Text aria-live={isUser ? undefined : 'polite'} aria-atomic={isUser ? undefined : true} className={isUser ? ASSISTANT_CLASS_NAMES.userBubbleText : 'leading-5 text-slate-800 dark:text-slate-200'}>{text}</Text>
 			{!isUser ? (
 				<View className={ASSISTANT_CLASS_NAMES.bubbleActions}>
-					<Pressable accessibilityLabel={isSpeaking ? 'Parar leitura' : 'Ouvir resposta'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
+					<Pressable accessibilityRole="button" accessibilityLabel={isSpeaking ? 'Parar leitura' : 'Ouvir resposta'} onPress={isSpeaking ? onStop : onSpeak} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 						<Ionicons name={isSpeaking ? 'stop-circle-outline' : 'volume-medium-outline'} size={16} color={palette.muted} />
 						<Text className={ASSISTANT_CLASS_NAMES.cardMeta}>{isSpeaking ? 'Parar' : 'Ouvir'}</Text>
 					</Pressable>
 					{onRetry ? (
-						<Pressable onPress={onRetry} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
+						<Pressable accessibilityRole="button" accessibilityLabel="Tentar lembrete novamente" onPress={onRetry} className={ASSISTANT_CLASS_NAMES.bubbleAction}>
 							<Ionicons name="refresh" size={15} color={tone} />
 							<Text className="text-xs font-bold text-amber-700 dark:text-amber-300">Tentar lembrete novamente</Text>
 						</Pressable>

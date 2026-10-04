@@ -106,4 +106,5 @@ sequenceDiagram
 
 - [[Assistente Lumus]] propõe despesas com `valueInCents`, data civil e handles temporários de banco/categoria; o modelo nunca recebe IDs Firestore.
 - Lançamentos de transferência, pagamento obrigatório e aporte são excluídos da edição/exclusão genérica e usam o comando específico de desfazer.
-- Cada despesa proposta possui ID pré-alocado e só é gravada depois da confirmação individual do cartão.
+- Uma ordem completa e inequívoca autoriza a criação por mensagem. Edição relevante e exclusão apresentam o efeito no chat e exigem a confirmação da versão atual; nomes ambíguos são resolvidos por texto ou ordinal. Nenhum cartão financeiro é necessário.
+- No legado, a transação revalida banco ativo e categoria/uso e grava o lançamento com recibo idempotente. No razão, `postMovement`, `correctMovement` e `reverseTransaction` mantêm eventos imutáveis, saldo materializado e auditoria. Transferências, recorrências e investimentos usam seus comandos próprios. Ver [[Comandos Financeiros Conversacionais]] para cobertura e limites.

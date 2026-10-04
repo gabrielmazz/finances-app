@@ -11,24 +11,15 @@ import WebAppShell from '@/components/uiverse/navigation/web-app-shell';
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { FinanceDataProvider } from '@/contexts/FinanceDataContext';
+import { LumusAssistantProvider } from '@/contexts/LumusAssistantContext';
 import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext';
 import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
 import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminderNotifications';
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
-import {
-	APP_PLATFORM_GROUP,
-	APP_ROUTE_PATHS,
-	getRouteVisibilityKeyForPath,
-	type AppRoutePath,
-} from '@/utils/navigation';
+import { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } from '@/utils/appRouteGuards';
 import { registerRemoteNotificationDevice } from '@/utils/remoteNotifications';
-
-const AUTHENTICATED_ROUTE_NAMES = Object.values(APP_ROUTE_PATHS)
-	.filter(pathname => pathname !== APP_ROUTE_PATHS.login)
-	.map(pathname => pathname.slice(1));
-const PLATFORM_LOGIN_ROUTE_NAME = `${APP_PLATFORM_GROUP}/index`;
 
 const AuthBootstrapScreen = () => {
 	return (
@@ -96,22 +87,16 @@ const AuthenticatedStack = () => {
 			<Stack screenOptions={{ headerShown: false }}>
 				<Stack.Protected guard={!isAuthenticated}>
 					<Stack.Screen name="index" />
-					<Stack.Screen name={PLATFORM_LOGIN_ROUTE_NAME} />
 				</Stack.Protected>
 
-				{AUTHENTICATED_ROUTE_NAMES.map(routeName => {
-					const pathname = `/${routeName}` as AppRoutePath;
-					const routeVisibilityKey = getRouteVisibilityKeyForPath(pathname);
-
-					return (
+				{APP_ROUTE_GUARD_ENTRIES.map(entry => (
 						<Stack.Protected
-							key={routeName}
-							guard={isAuthenticated && (!routeVisibilityKey || isRouteVisible(routeVisibilityKey))}
+							key={entry.name}
+							guard={isAppRouteAllowed(entry, isAuthenticated, isRouteVisible)}
 						>
-							<Stack.Screen name={routeName} />
+							<Stack.Screen name={entry.name} />
 						</Stack.Protected>
-					);
-				})}
+				))}
 			</Stack>
 		</WebAppShell>
 	);
@@ -128,7 +113,9 @@ const LayoutWithTheme = () => {
 					<AuthProvider>
 						<FinanceDataProvider>
 							<NotificationLifecycleBridge />
-							<AuthenticatedStack />
+							<LumusAssistantProvider>
+								<AuthenticatedStack />
+							</LumusAssistantProvider>
 						</FinanceDataProvider>
 					</AuthProvider>
 				</NotifierBoundary>

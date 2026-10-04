@@ -129,6 +129,22 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "cashRescues",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "personId", "order": "ASCENDING"},
+        {"fieldPath": "date", "order": "ASCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "ledgerTransactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "groupId", "order": "ASCENDING"},
+        {"fieldPath": "kind", "order": "ASCENDING"}
+      ]
     }
   ],
   "fieldOverrides": []

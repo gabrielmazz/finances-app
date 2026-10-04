@@ -1,3 +1,4 @@
+import { readRecurringDefinitionsFirebase } from '@/functions/RecurringReadFirebase';
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTransaction, setDoc, where } from 'firebase/firestore';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
@@ -318,15 +319,8 @@ export async function getMandatoryGainsWithRelationsFirebase(personId: string) {
 
 		const ids = Array.from(idsSet);
 
-		let gainsQuery;
-
-		if (ids.length === 1) {
-			gainsQuery = query(collection(db, MANDATORY_GAINS_COLLECTION), where('personId', '==', ids[0]));
-		} else {
-			gainsQuery = query(collection(db, MANDATORY_GAINS_COLLECTION), where('personId', 'in', ids));
-		}
-
-		const snapshot = await getDocs(gainsQuery);
+		if (!relatedUsersResult.success) throw new Error('Não foi possível conferir as contas relacionadas.');
+		const snapshot = { docs: await readRecurringDefinitionsFirebase('mandatoryGains', ids) };
 		const toComparableName = (entry: Record<string, unknown>) => {
 			const value = entry['name'];
 			return typeof value === 'string' ? value.toLocaleLowerCase() : '';

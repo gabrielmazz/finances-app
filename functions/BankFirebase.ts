@@ -1,16 +1,18 @@
 // O arquivo BankFirebase.ts é responsável por gerenciar as operações relacionadas às contas bancárias
 // registradas para uso no aplicativo
 
+import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
 import { auth, db } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, writeBatch, orderBy, limit } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, Timestamp, documentId, orderBy, type QueryConstraint } from 'firebase/firestore';
 
 import { getRelatedUsersFirebase, getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
-import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase } from '@/functions/FinancialLedgerFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
 import {
     calculateLegacyBankBalanceInCents,
     isSafeIntegerCents,
     type LegacyMonthlyBalanceSnapshot,
 } from '@/utils/monthlyBalance';
+import { fromFinancialCivilDate } from '@/utils/financialCivilDate';
 
 // Define os parâmetros necessários para adicionar um banco
 interface AddBankParams {
@@ -153,167 +155,39 @@ export async function updateBankFirebase({ bankId, bankName, colorHex, iconKey }
     }
 }
 
-export async function addCashRescueFirebase({
-    bankId,
-    bankNameSnapshot,
-    valueInCents,
-    date,
-    personId,
-    description,
-}: AddCashRescueParams) {
+export async function addCashRescueFirebase({ bankId, valueInCents, date, personId, description }: AddCashRescueParams) {
     try {
-        if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
-            return { success: false, error: 'O valor do saque deve ser um número inteiro de centavos maior que zero.' };
+        const ledger = await getFinancialLedgerContextFirebase(personId);
+        if (ledger) {
+            const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+            const source = accounts.find(account => account.kind === 'bank' && (account.id === bankId || account.legacyBankId === bankId));
+            const cash = accounts.find(account => account.kind === 'cash');
+            if (!source || !cash) return { success: false, error: 'Banco ou Caixa indisponível no grupo.' };
+            const result = await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, expectedActorId: personId, fromAccountId: source.id, toAccountId: cash.id, amountInCents: valueInCents, effectiveAt: date, clientActionId: 'form_' + doc(collection(db, 'cashRescues')).id, note: description });
+            return { success: true, cashRescueId: result.transactionId };
         }
-        const rescueRef = doc(collection(db, 'cashRescues'));
-        await setDoc(rescueRef, {
-            name: 'Saque em dinheiro',
-            bankId,
-            bankNameSnapshot: bankNameSnapshot ?? null,
-            valueInCents,
-            date,
-            personId,
-            description: description ?? null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
-        return { success: true, cashRescueId: rescueRef.id };
-    } catch (error) {
-        console.error('Erro ao registrar saque em dinheiro:', error);
-        return { success: false, error };
+        const result = await executeLegacyFinancialMovementFirebase({ kind: 'create_cash_withdrawal', expectedActorId: personId, bankId, valueInCents, date, description });
+        return { success: true, cashRescueId: result.recordId };
+    } catch {
+        return { success: false, error: 'Não foi possível registrar o saque. Confira banco ativo e saldo disponível.' };
     }
 }
 
-export async function transferBetweenBanksFirebase({
-    personId,
-    sourceBankId,
-    targetBankId,
-    valueInCents,
-    date,
-    description,
-    sourceBankNameSnapshot,
-    targetBankNameSnapshot,
-}: TransferBetweenBanksParams) {
+export async function transferBetweenBanksFirebase({ personId, sourceBankId, targetBankId, valueInCents, date, description }: TransferBetweenBanksParams) {
     try {
-        if (!personId || !sourceBankId || !targetBankId) {
-            return { success: false, error: 'Dados insuficientes para registrar a transferência.' };
+        const ledger = await getFinancialLedgerContextFirebase(personId);
+        if (ledger) {
+            const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+            const source = accounts.find(account => account.kind === 'bank' && (account.id === sourceBankId || account.legacyBankId === sourceBankId));
+            const target = accounts.find(account => account.kind === 'bank' && (account.id === targetBankId || account.legacyBankId === targetBankId));
+            if (!source || !target) return { success: false, error: 'Banco indisponível no grupo.' };
+            const result = await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, expectedActorId: personId, fromAccountId: source.id, toAccountId: target.id, amountInCents: valueInCents, effectiveAt: date, clientActionId: 'form_' + doc(collection(db, 'bankTransfers')).id, note: description });
+            return { success: true, transferId: result.transactionId, expenseId: result.transactionId, gainId: result.transactionId };
         }
-
-        if (sourceBankId === targetBankId) {
-            return { success: false, error: 'Selecione bancos diferentes para realizar a transferência.' };
-        }
-
-        if (!isSafeIntegerCents(valueInCents) || valueInCents <= 0) {
-            return { success: false, error: 'Informe um valor válido para transferir.' };
-        }
-
-        const banksResult = await getBanksWithUsersByPersonFirebase(personId);
-        if (!banksResult.success || !Array.isArray(banksResult.data)) {
-            return { success: false, error: 'Não foi possível validar os bancos selecionados.' };
-        }
-
-        const accessibleBankIds = banksResult.data.map((bank: any) => bank.id);
-        if (!accessibleBankIds.includes(sourceBankId) || !accessibleBankIds.includes(targetBankId)) {
-            return { success: false, error: 'Um dos bancos informados não está autorizado para este usuário.' };
-        }
-
-        const batch = writeBatch(db);
-        const transferRef = doc(collection(db, 'bankTransfers'));
-        const expenseRef = doc(collection(db, 'expenses'));
-        const gainRef = doc(collection(db, 'gains'));
-
-        const now = new Date();
-        const normalizedDate = date instanceof Date ? date : new Date(date);
-        const fallbackSourceName =
-            typeof sourceBankNameSnapshot === 'string' && sourceBankNameSnapshot.trim().length > 0
-                ? sourceBankNameSnapshot.trim()
-                : 'Banco de origem';
-        const fallbackTargetName =
-            typeof targetBankNameSnapshot === 'string' && targetBankNameSnapshot.trim().length > 0
-                ? targetBankNameSnapshot.trim()
-                : 'Banco de destino';
-        const transferDescription =
-            typeof description === 'string' && description.trim().length > 0
-                ? description.trim()
-                : `Transferência de ${fallbackSourceName} para ${fallbackTargetName}.`;
-
-        batch.set(transferRef, {
-            personId,
-            sourceBankId,
-            targetBankId,
-            valueInCents,
-            date: normalizedDate,
-            description: transferDescription,
-            sourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
-            targetBankNameSnapshot: targetBankNameSnapshot ?? null,
-            expenseId: expenseRef.id,
-            gainId: gainRef.id,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        batch.set(expenseRef, {
-            name: `Transferência para ${fallbackTargetName}`,
-            valueInCents,
-            tagId: null,
-            bankId: sourceBankId,
-            date: normalizedDate,
-            personId,
-            explanation: transferDescription,
-            moneyFormat: false,
-            isInvestmentDeposit: false,
-            investmentId: null,
-            investmentNameSnapshot: null,
-            isBankTransfer: true,
-            bankTransferPairId: transferRef.id,
-            bankTransferDirection: 'outgoing',
-            bankTransferSourceBankId: sourceBankId,
-            bankTransferTargetBankId: targetBankId,
-            bankTransferSourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
-            bankTransferTargetBankNameSnapshot: targetBankNameSnapshot ?? null,
-            bankTransferExpenseId: expenseRef.id,
-            bankTransferGainId: gainRef.id,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        batch.set(gainRef, {
-            name: `Transferência recebida de ${fallbackSourceName}`,
-            valueInCents,
-            paymentFormats: ['transferencia-bancaria'],
-            explanation: transferDescription,
-            moneyFormat: false,
-            tagId: null,
-            bankId: targetBankId,
-            date: normalizedDate,
-            personId,
-            isInvestmentRedemption: false,
-            investmentId: null,
-            investmentNameSnapshot: null,
-            isBankTransfer: true,
-            bankTransferPairId: transferRef.id,
-            bankTransferDirection: 'incoming',
-            bankTransferSourceBankId: sourceBankId,
-            bankTransferTargetBankId: targetBankId,
-            bankTransferSourceBankNameSnapshot: sourceBankNameSnapshot ?? null,
-            bankTransferTargetBankNameSnapshot: targetBankNameSnapshot ?? null,
-            bankTransferExpenseId: expenseRef.id,
-            bankTransferGainId: gainRef.id,
-            createdAt: now,
-            updatedAt: now,
-        });
-
-        await batch.commit();
-
-        return {
-            success: true,
-            transferId: transferRef.id,
-            expenseId: expenseRef.id,
-            gainId: gainRef.id,
-        };
-    } catch (error) {
-        console.error('Erro ao registrar transferência entre bancos:', error);
-        return { success: false, error };
+        const result = await executeLegacyFinancialMovementFirebase({ kind: 'create_transfer', expectedActorId: personId, sourceBankId, targetBankId, valueInCents, date, description });
+        return { success: true, transferId: result.recordId, expenseId: result.expenseId!, gainId: result.gainId! };
+    } catch {
+        return { success: false, error: 'Não foi possível transferir. Confira bancos ativos distintos e saldo disponível.' };
     }
 }
 
@@ -321,6 +195,12 @@ export async function transferBetweenBanksFirebase({
  * Resolves a legacy bank balance from the latest monthly opening snapshot and
  * movements after it. Keep every legacy balance validation on this function.
  */
+const readLegacyBankDocumentsForPeople = async (collectionName: string, personIds: string[], constraints: QueryConstraint[] = []) => {
+    const chunks = Array.from({ length: Math.ceil(personIds.length / 10) }, (_, index) => personIds.slice(index * 10, (index + 1) * 10));
+    const snapshots = await Promise.all(chunks.map(ids => getDocs(query(collection(db, collectionName), where('personId', 'in', ids), ...constraints))));
+    return snapshots.flatMap(snapshot => snapshot.docs.map(document => document.data()));
+};
+
 export async function getLegacyBankBalanceInCentsFirebase({
     personId,
     bankId,
@@ -345,10 +225,7 @@ export async function getLegacyBankBalanceInCentsFirebase({
                 (id): id is string => typeof id === 'string' && id.length > 0,
             ),
         ]));
-        const load = async (collectionName: string) => {
-            const snapshot = await getDocs(query(collection(db, collectionName), where('personId', 'in', personIds)));
-            return snapshot.docs.map(document => document.data());
-        };
+        const load = (collectionName: string) => readLegacyBankDocumentsForPeople(collectionName, personIds);
         const [snapshots, expenses, gains, cashRescues, investments, balanceAdjustments] = await Promise.all([
             load('monthlyBalances'),
             load('expenses'),
@@ -378,7 +255,7 @@ export async function getLegacyBankBalanceInCentsFirebase({
 }
 
 /**
- * Batch version used by the Home. It reads one opening snapshot per bank and
+ * Batch version used by the Home. It reads opening snapshots per bank and
  * each movement collection once after the oldest selected snapshot, instead of
  * re-reading the full history for every bank card.
  */
@@ -404,23 +281,20 @@ export async function getLegacyBankBalancesInCentsFirebase({
                 const batchSize = 3;
                 for (let index = 0; index < bankIds.length; index += batchSize) {
                     const snapshotResults = await Promise.all(bankIds.slice(index, index + batchSize).map(async bankId => {
-                        const result = await getDocs(query(collection(db, 'monthlyBalances'), where('bankId', '==', bankId), where('personId', 'in', personIds), orderBy('year', 'desc'), orderBy('month', 'desc'), limit(1)));
-                        return [bankId, result.docs.map(item => item.data() as LegacyMonthlyBalanceSnapshot)] as const;
+                        const snapshots = await readLegacyBankDocumentsForPeople('monthlyBalances', personIds, [where('bankId', '==', bankId), orderBy('year', 'desc'), orderBy('month', 'desc')]);
+                        return [bankId, snapshots as LegacyMonthlyBalanceSnapshot[]] as const;
                     }));
                     Object.assign(snapshotsByBank, Object.fromEntries(snapshotResults));
                 }
                 return snapshotsByBank;
             } catch (error) {
                 console.warn('O índice de saldos mensais ainda não está disponível; usando leitura compatível.', error);
-                const result = await getDocs(query(
-                    collection(db, 'monthlyBalances'),
-                    where('personId', 'in', personIds),
-                ));
+                const snapshots = await readLegacyBankDocumentsForPeople('monthlyBalances', personIds);
                 const snapshotsByBank: Record<string, LegacyMonthlyBalanceSnapshot[]> = Object.fromEntries(
                     bankIds.map(bankId => [bankId, []]),
                 );
-                result.docs.forEach(document => {
-                    const snapshot = document.data() as LegacyMonthlyBalanceSnapshot;
+                snapshots.forEach(rawSnapshot => {
+                    const snapshot = rawSnapshot as LegacyMonthlyBalanceSnapshot;
                     if (typeof snapshot.bankId === 'string' && snapshotsByBank[snapshot.bankId]) {
                         snapshotsByBank[snapshot.bankId].push(snapshot);
                     }
@@ -429,13 +303,11 @@ export async function getLegacyBankBalancesInCentsFirebase({
             }
         };
         const snapshotsByBank = await loadSnapshotsByBank();
-        const snapshotDates = Object.values(snapshotsByBank).flat().map((item: any) => new Date(Number(item.year), Math.max(0, Number(item.month) - 1), 1)).filter(date => !Number.isNaN(date.getTime()));
+        const snapshotDates = Object.values(snapshotsByBank).flat().filter(item => Number.isInteger(item.year) && Number.isInteger(item.month) && item.month! >= 1 && item.month! <= 12).map(item => fromFinancialCivilDate(new Date(item.year!, item.month! - 1, 1)));
         if (!snapshotDates.length) return { success: true, data: Object.fromEntries(bankIds.map(bankId => [bankId, null])) };
         const start = new Date(Math.min(...snapshotDates.map(date => date.getTime())));
         const load = async (collectionName: string, hasDate = true) => {
-            const constraints = [where('personId', 'in', personIds), ...(hasDate ? [where('date', '>=', start)] : [])];
-            const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
-            return snapshot.docs.map(document => document.data());
+            return readLegacyBankDocumentsForPeople(collectionName, personIds, hasDate ? [where('date', '>=', start)] : []);
         };
         const [expenses, gains, cashRescues, investments, balanceAdjustments] = await Promise.all([
             load('expenses'), load('gains'), load('cashRescues'), load('financeInvestments', false),

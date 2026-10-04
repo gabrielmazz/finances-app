@@ -3,7 +3,7 @@ tags: [previsao, fluxo-de-caixa, financeiro, graficos, mantine]
 relacionado: [[Dashboard Home]], [[Balanço Mensal]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Navegação]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.2.7
+versao: 1.2.8
 ---
 
 # Previsão de Fluxo de Caixa
@@ -36,11 +36,16 @@ graph TD
 
 ### Saldo de abertura
 
+- O serviço escolhe a fonte pelo corte do usuário. Em grupo migrado, a abertura é a soma dos saldos materializados de bancos e Caixa em `financialAccounts`, sem reaplicar eventos, investimentos ou snapshots legados. O valor aplicado em contas de investimento não entra como caixa disponível.
+- O backend já materializa o efeito no commit mesmo quando `effectiveAt` é futuro. Por isso, um evento do razão já confirmado, inclusive futuro, não é projetado novamente como saída/entrada futura; templates ainda pendentes continuam na projeção. A previsão não desfaz deltas futuros nem modifica os saldos persistidos.
+- Na fonte migrada, despesas/receitas históricas usam `ledgerTransactions` ativos do grupo, com corte até o fim do dia civil atual em São Paulo. Estornos até esse corte excluem os originais mesmo fora da janela dos três meses; estornos e movimentos internos não entram na média variável. Vínculos de templates reconhecem os IDs do razão e evitam projetar novamente ciclos já concluídos.
+- As regras abaixo de `MonthlyBalance`, dinheiro sem snapshot e saques descrevem a fonte legada, anterior ao corte.
 - Para cada banco, é usado o `MonthlyBalance` mais recente que não esteja no futuro. O valor-base é atualizado por despesas, receitas e investimentos iniciais já datados depois desse snapshot.
 - Movimentos em dinheiro (`bankId: null`) entram integralmente no saldo conhecido, pois não têm snapshot próprio.
 - Saques em espécie são neutros quando a conta de origem tem snapshot: reduzem o banco e aumentam o dinheiro no mesmo valor. Se a origem ainda não possui snapshot, o dinheiro conhecido continua contabilizado.
 - Transferências entre bancos são ignoradas no total global porque não alteram o patrimônio líquido.
 - Banco sem snapshot não inventa um saldo inicial. A tela lista os nomes afetados e oferece atalho para [[Balanço Mensal]].
+- Na fonte legada, o cálculo de abertura lê todas as páginas relevantes de despesas/receitas/saques, inclusive anteriores aos três meses usados para a média. Um snapshot antigo e o Caixa não podem perder movimentações porque a janela estatística é menor que seu histórico financeiro.
 
 ### Compromissos projetados
 
@@ -56,6 +61,7 @@ graph TD
 - A criação futura de um investimento e aportes futuros reduzem o caixa previsto; resgates futuros já registrados aumentam o caixa.
 - A disponibilidade por prazo de liquidez aparece no mês correspondente como aviso. Ela **não** é somada como entrada, pois nenhum resgate real foi criado.
 - O valor já aplicado não é tratado como caixa disponível. Essa separação preserva a regra de [[Balanço Mensal]] de não misturar investimento com resultado de ganho/despesa.
+- Em grupo migrado, liquidez usa saldo e metadados da conta de investimento, com metadados legados legíveis como compatibilidade quando necessário. A criação da conta já materializada não gera uma nova saída na projeção. Sem data/prazo válidos, o serviço não inventa uma data de disponibilidade.
 
 ### Segurança do domínio
 
@@ -69,12 +75,15 @@ graph TD
 - `screens/mobile/FinancialForecastScreen.tsx` — Tela nativa, períodos, estados e detalhamento
 - `screens/web/FinancialForecastScreen.web.tsx` — Composição Web e seletor Mantine alinhado à Análise por Categoria
 - `functions/FinancialForecastFirebase.ts` — Leitura agregada e normalização de Firestore
+- `functions/FinancialLedgerFirebase.ts` — Fonte de contas e histórico paginado do grupo migrado
+- `utils/financialCivilDate.ts` — Calendário civil de São Paulo na fronteira dos calculadores e instantes de consulta
 - `utils/financialForecast.ts` — Cálculo puro do saldo de abertura e da projeção
 - `components/uiverse/reports/financial-forecast-chart.tsx` — LineChart Mantine em Expo DOM
 - `components/ui/tabs/index.tsx` — Tabs controladas e indicador animado usados pelo seletor mobile de horizonte
 - `design-system/mantine.ts` — Contrato Mantine compartilhado pelo seletor Web de horizonte e pela Análise por Categoria
 - `design-system/tokens.ts` — Pares de cores para gradientes financeiros positivos/negativos usados pelo resumo projetado e pela Análise por Categoria
 - `tests/financialForecast.test.ts` — Cobertura de recorrências, médias, investimentos e saldo-base
+- `tests/ledgerProjectionReads.test.ts` — Efeitos de leituras legadas/migradas, 251 eventos, estornos, metadados de grupo, futuro sem duplicação e liquidez; Firestore simulado, sem escrita financeira
 - `assets/UnDraw/financialForecast.svg` — Ilustração da tela
 
 ## Integrações
@@ -98,6 +107,7 @@ graph TD
 - A leitura é consolidada no dispositivo para cobrir saldo em espécie e histórico de categorias. Se o volume de documentos crescer de forma relevante, a próxima evolução deve introduzir agregados mensais no Firestore, sem alterar as regras de cálculo.
 - Um investimento disponível para resgate não é caixa até que o usuário registre o resgate pelo fluxo de [[Investimentos]].
 - Bancos sem snapshot reduzem a confiança do saldo global; a tela deve manter o aviso visível em vez de assumir saldo zero como dado real.
+- `tests/ledgerProjectionEmulator.test.ts` verifica a abertura migrada por SDK real/Emulator demo: 91.460 no banco mais 500 no Caixa resultam em 91.960 centavos, mesmo existindo despesas legadas e 253 eventos no razão. Os eventos já materializados não são debitados novamente; as fixtures isoladas são removidas após a suíte opt-in.
 
 ### Apresentação do detalhamento mensal (2026-09-28)
 

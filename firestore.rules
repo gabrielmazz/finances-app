@@ -254,6 +254,14 @@ service cloud.firestore {
       }
     }
 
+    // A receipt commits with the owner's legacy command. It records an effect, never grants authorization.
+    match /assistantOperationReceipts/{receiptId} {
+      allow get: if signedIn() && (resource == null || resource.data.personId == request.auth.uid);
+      allow list: if signedIn() && resource.data.personId == request.auth.uid;
+      allow create: if canCreateLegacy() && request.resource.data.keys().hasOnly(['personId', 'clientActionId', 'kind', 'fingerprint', 'createdAt']);
+      allow update, delete: if false;
+    }
+
     // =========================================================
     // FINANCIAL GROUP
     // =========================================================
@@ -313,6 +321,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+
+    match /financeMonthlySummaries/{summaryId} {
+      allow read: if (resource.data.get('groupId', null) is string && isMember(resource.data.groupId))
+        || (resource.data.get('scopeType', null) == 'person' && canReadLegacy(resource.data.get('scopeId', '')));
+      allow write: if false;
+    }
 
     match /accountReconciliations/{reconciliationId} {
 
@@ -565,7 +579,7 @@ service cloud.firestore {
 
       allow read: if canReadLegacy(
         resource.data.personId
-      );
+      ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
         && request.resource.data.annualRateInBasisPoints is int
@@ -591,7 +605,7 @@ service cloud.firestore {
 
       allow read: if canReadLegacy(
         resource.data.personId
-      );
+      ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy();
 
@@ -611,7 +625,7 @@ service cloud.firestore {
 
       allow read: if canReadLegacy(
         resource.data.personId
-      );
+      ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
         && isIntegerCents(
@@ -637,7 +651,7 @@ service cloud.firestore {
 
       allow read: if canReadLegacy(
         resource.data.personId
-      );
+      ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
         && isIntegerCents(

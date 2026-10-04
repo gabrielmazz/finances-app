@@ -123,4 +123,8 @@ Cada tag salva:
 ## Integração com o Assistente Lumus
 
 - [[Assistente Lumus]] trata tags como categorias, cria/edita/exclui apenas documentos do UID atual e envia ao modelo somente nome funcional e handle temporário.
-- Categorias de despesa, ganho e recorrências são filtradas pelo uso antes de aparecerem como escolhas no chat; nomes duplicados exigem seleção explícita.
+- Categorias de despesa, ganho e recorrências são filtradas pelo uso antes de aparecerem como escolhas no chat; nomes duplicados exigem uma resposta textual inequívoca ou ordinal entre opções descritas no chat.
+
+- O ícone opcional pode ser solicitado por nome comum (`Café`, `Mercado`) e é resolvido em `utils/tagIconCatalog.ts`, compartilhado com `useTagIcons`; o modelo não escolhe nomes técnicos de bibliotecas.
+- A exclusão conversacional e `deleteTagFirebase` de Configurações usam `manageFinancialMetadata` tanto no legado quanto no razão. O servidor revalida propriedade e todas as referências em despesas, ganhos, templates e `ledgerTransactions.categoryId`, inclusive histórico de outros grupos/usuários, antes de remover. Existência de qualquer referência bloqueia e exige reclassificação; nenhum total financeiro é exposto por esse guard. No legado, a callable recusa grupo/cutover e mantém recibo privado de retry. As escritas de lançamentos/templates do assistente leem a categoria dentro da transação para evitar referência removida após o catálogo.
+- Cobertura de efeitos/limites: [[Comandos Financeiros Conversacionais]].

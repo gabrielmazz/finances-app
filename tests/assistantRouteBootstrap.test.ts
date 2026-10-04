@@ -11,7 +11,7 @@ describe('rota do Assistente Lumus', () => {
 		jest.dontMock('@/screens/web/LumusAssistantScreen.web');
 	});
 
-	it('monta provider e tela diretamente, sem Suspense na entrada da rota', () => {
+	it('monta a tela diretamente usando a sessão global, sem novo provider nem Suspense na rota', () => {
 		const AssistantRouteBoundary = ({ children }: { children: unknown }) => children;
 		const LumusAssistantProvider = ({ children }: { children: unknown }) => children;
 		const LumusAssistantScreen = () => null;
@@ -35,8 +35,7 @@ describe('rota do Assistente Lumus', () => {
 		const providerElement = routeElement.props.children;
 
 		expect(routeElement.type).toBe(AssistantRouteBoundary);
-		expect(providerElement.type).toBe(LumusAssistantProvider);
-		expect(providerElement.props.children.type).toBe(LumusAssistantScreen);
+		expect(providerElement.type).toBe(LumusAssistantScreen);
 	});
 
 	it('monta a composição Web própria diretamente, sem reutilizar a tela mobile', () => {
@@ -63,7 +62,6 @@ describe('rota do Assistente Lumus', () => {
 		const providerElement = routeElement.props.children;
 
 		expect(routeElement.type).toBe(AssistantRouteBoundary);
-		expect(providerElement.type).toBe(LumusAssistantProvider);
-		expect(providerElement.props.children.type).toBe(LumusAssistantScreenWeb);
+		expect(providerElement.type).toBe(LumusAssistantScreenWeb);
 	});
 });

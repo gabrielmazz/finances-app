@@ -3,7 +3,7 @@ tags: [balanco, snapshot, bancos, reconciliacao]
 relacionado: [[Gerenciamento de Bancos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.4.1
+versao: 1.4.2
 ---
 
 # Balanço Mensal
@@ -57,7 +57,7 @@ calculateLegacyBankBalanceInCents({
 }): number | null
 ```
 
-Retorna `null` sem snapshot válido e, caso contrário, um inteiro em centavos. A data de corte do snapshot é o primeiro dia de seu `year`/`month`.
+Retorna `null` sem snapshot válido e, caso contrário, um inteiro em centavos. A data de corte do snapshot é o primeiro dia civil de seu `year`/`month` em São Paulo. `asOfDate` inclui o fim do dia civil solicitado: um registro datado de hoje ao meio-dia já entra no saldo consultado pela manhã. Movimentos do dia seguinte são excluídos. O leitor em lote conserva snapshots anteriores quando já existe uma abertura futura; `tests/ledgerProjectionReads.test.ts` verifica esses efeitos nos leitores públicos e na Home.
 
 ## `shouldIncludeMovementInGainExpenseTotals()`
 

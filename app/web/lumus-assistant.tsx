@@ -1,16 +1,13 @@
 import React from 'react';
 
 import { AssistantRouteBoundary } from '@/components/uiverse/assistant/assistant-route-boundary';
-import { LumusAssistantProvider } from '@/contexts/LumusAssistantContext';
 import LumusAssistantScreen from '@/screens/web/LumusAssistantScreen.web';
 
 export default function LumusAssistantRoute() {
 	return (
 		<AssistantRouteBoundary>
-			{/* [[Assistente Lumus]]: a rota monta a tela de imediato; a disponibilidade da IA é resolvida dentro do painel. */}
-			<LumusAssistantProvider>
-				<LumusAssistantScreen />
-			</LumusAssistantProvider>
+			{/* [[Assistente Lumus]]: a sessão no AppRoot preserva a conversa ao navegar; esta rota apenas apresenta a tela. */}
+			<LumusAssistantScreen />
 		</AssistantRouteBoundary>
 	);
 }

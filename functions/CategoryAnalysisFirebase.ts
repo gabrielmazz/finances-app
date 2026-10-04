@@ -1,10 +1,12 @@
 import { buildCategoryAnalysisMonths, calculateCategoryAnalysisMetric, formatCategoryAnalysisDate, getDefaultCategoryAnalysisRange, type CategoryAnalysisRange } from '@/utils/categoryAnalysis';
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, getFinancialLedgerTransactionsFirebase } from '@/functions/FinancialLedgerFirebase';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 import type { TagUsageType } from '@/utils/tagUsage';
 import { normalizeTagUsageType } from '@/utils/tagUsage';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { endOfFinancialCivilDay, fromFinancialCivilDate, toFinancialCivilDate } from '@/utils/financialCivilDate';
 import {
 	collection,
 	getDocs,
@@ -103,6 +105,7 @@ type FirestoreDocument = Record<string, unknown>;
 type BankMetadata = {
 	name: string;
 	colorHex: string | null;
+	isCash?: boolean;
 };
 
 type MonthReference = ReturnType<typeof buildCategoryAnalysisMonths>[number];
@@ -251,7 +254,8 @@ const normalizeMovement = ({
 		return null;
 	}
 
-	const date = normalizeDate(data.date ?? data.createdAt);
+	const storedDate = normalizeDate(data.date ?? data.createdAt);
+	const date = storedDate ? toFinancialCivilDate(storedDate) : null;
 	const monthKey = date ? toMonthKey(date) : null;
 	if (!monthKey || !monthKeys.has(monthKey)) {
 		return null;
@@ -261,7 +265,7 @@ const normalizeMovement = ({
 		? data.bankId.trim()
 		: null;
 	const bankMetadata = bankId ? bankMetadataById[bankId] : null;
-	const isCash = !bankId;
+	const isCash = !bankId || bankMetadata?.isCash === true;
 
 	return {
 		id: docId,
@@ -277,7 +281,7 @@ const normalizeMovement = ({
 		date,
 		monthKey,
 		bankId,
-		bankName: isCash ? 'Dinheiro' : bankMetadata?.name ?? 'Banco não identificado',
+		bankName: bankMetadata?.name ?? (isCash ? 'Dinheiro' : 'Banco não identificado'),
 		isCash,
 		explanation: typeof data.explanation === 'string' && data.explanation.trim().length > 0
 			? data.explanation.trim()
@@ -294,12 +298,15 @@ export async function getCategoryAnalysisFirebase(
 			return { success: false, error: 'Usuário não informado.' };
 		}
 
-		const now = new Date();
+		const generatedAt = new Date();
+		const asOfEnd = endOfFinancialCivilDay(generatedAt);
+		const now = toFinancialCivilDate(asOfEnd);
 		const range = typeof history === 'number' ? getDefaultCategoryAnalysisRange(now, history) : history;
 		const monthReferences = buildCategoryAnalysisMonths(range, now);
 		const effectiveBaselineMonthCount = monthReferences.filter(month => month.isComparisonMonth).length;
 		const monthKeys = new Set(monthReferences.map(month => month.key));
 		const referencesByKey = new Map(monthReferences.map(month => [month.key, month]));
+		const ledgerContext = await getFinancialLedgerContextFirebase(personId);
 		const allowedPersonIds = await buildAllowedPersonIds(personId);
 		const periodStart = monthReferences[0].startDate;
 		const currentReference = monthReferences[monthReferences.length - 1];
@@ -310,28 +317,51 @@ export async function getCategoryAnalysisFirebase(
 			? `Média de ${effectiveBaselineMonthCount} ${effectiveBaselineMonthCount === 1 ? 'mês completo' : 'meses completos'}, do dia 1 ao dia ${now.getDate()} (ou ao último dia do mês).`
 			: 'O histórico selecionado não contém meses completos para comparação.';
 
-		const tagsQuery = query(collection(db, 'tags'), where('personId', 'in', allowedPersonIds));
-		const banksQuery = query(collection(db, 'banks'), where('personId', 'in', allowedPersonIds));
+		const personIdChunks = Array.from({ length: Math.ceil(allowedPersonIds.length / 10) }, (_, index) => allowedPersonIds.slice(index * 10, (index + 1) * 10));
+		const loadDocuments = async (name: string, period?: { start: Date; end: Date }) => {
+			const snapshots = await Promise.all(personIdChunks.map(ids => getDocs(query(
+				collection(db, name), where('personId', 'in', ids), ...(period ? [
+					where('date', '>=', Timestamp.fromDate(fromFinancialCivilDate(period.start))),
+					where('date', '<=', Timestamp.fromDate(fromFinancialCivilDate(period.end))),
+				] : []),
+			))));
+			return { docs: snapshots.flatMap(snapshot => snapshot.docs) };
+		};
 		const loadMovements = async (collectionName: 'expenses' | 'gains') => {
 			// Consulta o histórico escolhido e o mês atual, sem ler os meses do intervalo entre eles.
 			const snapshots = await Promise.all([
 				{ start: periodStart, end: historyEnd },
 				{ start: currentReference.startDate, end: now },
-			].map(period => getDocs(query(
-				collection(db, collectionName),
-				where('personId', 'in', allowedPersonIds),
-				where('date', '>=', Timestamp.fromDate(period.start)),
-				where('date', '<=', Timestamp.fromDate(period.end)),
-			))));
+			].map(period => loadDocuments(collectionName, period)));
 			return snapshots.flatMap(snapshot => snapshot.docs);
 		};
-		const [tagsSnapshot, banksSnapshot, expenseDocs, gainDocs] = await Promise.all([
-			getDocs(tagsQuery), getDocs(banksQuery), loadMovements('expenses'), loadMovements('gains'),
+		const [tagsSnapshot, banksSnapshot, ledgerTransactions] = await Promise.all([
+			ledgerContext ? Promise.all([
+				loadDocuments('tags'), getDocs(query(collection(db, 'tags'), where('groupId', '==', ledgerContext.groupId))),
+			]).then(snapshots => ({ docs: [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(document => [document.id, document])).values()] })) : loadDocuments('tags'),
+			ledgerContext ? getFinancialLedgerAccountsFirebase(ledgerContext.groupId).then(accounts => ({
+				docs: accounts.map(account => ({ id: account.id, data: () => ({ ...account, isCash: account.kind === 'cash' }) })),
+			})) : loadDocuments('banks'),
+			ledgerContext ? getFinancialLedgerTransactionsFirebase(ledgerContext.groupId) : Promise.resolve([]),
 		]);
+		const reversedIds = new Set(ledgerTransactions.filter(transaction =>
+			transaction.kind === 'reversal' && transaction.effectiveAt <= asOfEnd,
+		).map(transaction => transaction.reversesTransactionId));
+		const projectedDocuments = (kind: 'expense' | 'income') => ledgerTransactions.filter(transaction =>
+			transaction.kind === kind && !reversedIds.has(transaction.id),
+		).map(transaction => ({ id: transaction.id, data: () => ({
+			date: transaction.effectiveAt, tagId: transaction.categoryId,
+			bankId: transaction.legs.find(leg => leg.accountId !== null)?.accountId,
+			name: transaction.note, valueInCents: Math.abs(transaction.legs.find(leg => leg.accountId !== null)?.deltaInCents ?? 0),
+		}) }));
+		const [expenseDocs, gainDocs] = ledgerContext
+			? [projectedDocuments('expense'), projectedDocuments('income')]
+			: await Promise.all([loadMovements('expenses'), loadMovements('gains')]);
 
 		const bankMetadataById = banksSnapshot.docs.reduce<Record<string, BankMetadata>>((acc, bankDoc) => {
 			const bank = bankDoc.data() as FirestoreDocument;
 			acc[bankDoc.id] = {
+				isCash: bank.isCash === true,
 				name:
 					typeof bank.name === 'string' && bank.name.trim().length > 0
 						? bank.name.trim()
@@ -493,7 +523,7 @@ export async function getCategoryAnalysisFirebase(
 						type: movement.type,
 						name: movement.name,
 						valueInCents: movement.valueInCents,
-						date: movement.date,
+						date: movement.date ? fromFinancialCivilDate(movement.date) : null,
 						bankId: movement.bankId,
 						bankName: movement.bankName,
 						isCash: movement.isCash,
@@ -530,7 +560,7 @@ export async function getCategoryAnalysisFirebase(
 				reportsByTagId,
 				defaultTagId: sortedTags[0]?.id ?? null,
 				baselineMonthCount: effectiveBaselineMonthCount,
-				generatedAt: now,
+				generatedAt,
 			},
 		};
 	} catch (error) {

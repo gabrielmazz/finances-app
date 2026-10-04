@@ -20,12 +20,18 @@ import {
 	updateAssistantDraftPayload,
 } from '@/utils/lumusAssistant';
 import { getFieldDefinition } from '@/utils/lumusAssistantSchemas';
+import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
+export { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase } from '@/functions/FinancialLedgerFirebase';
 import {
 	collection,
 	getDocs,
+	limit,
 	query,
+	startAfter,
 	where,
 	type DocumentData,
+	type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 
 type OwnedDocument = {
@@ -63,6 +69,7 @@ const COLLECTIONS = [
 	'mandatoryGains',
 	'financeInvestments',
 	'financeInvestmentSyncs',
+	'bankBalanceAdjustments',
 ] as const;
 
 const toDate = (value: unknown): Date | null => {
@@ -83,57 +90,30 @@ const toDate = (value: unknown): Date | null => {
 	return null;
 };
 
-const canonicalize = (value: unknown): unknown => {
-	const date = toDate(value);
-	if (date) {
-		return { $date: date.toISOString() };
-	}
-	if (Array.isArray(value)) {
-		return value.map(canonicalize);
-	}
-	if (value && typeof value === 'object') {
-		return Object.fromEntries(
-			Object.entries(value as Record<string, unknown>)
-				.filter(([, item]) => item !== undefined)
-				.sort(([left], [right]) => left.localeCompare(right))
-				.map(([key, item]) => [key, canonicalize(item)]),
-		);
-	}
-	return value;
-};
-
-export const createAssistantRecordFingerprint = (value: Record<string, unknown>) => {
-	const serialized = JSON.stringify(canonicalize(value));
-	let hash = 2166136261;
-	for (let index = 0; index < serialized.length; index += 1) {
-		hash ^= serialized.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0).toString(16).padStart(8, '0');
-};
-
 const normalizeLabel = (value: unknown, fallback: string) =>
 	typeof value === 'string' && value.trim() ? value.trim() : fallback;
 
 const formatDateLabel = (value: unknown) => {
 	const date = toDate(value);
 	return date
-		? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date)
+		? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/Sao_Paulo' }).format(date)
 		: 'data não informada';
 };
 
-const loadOwnedCollection = async (
-	collectionName: (typeof COLLECTIONS)[number],
-	personId: string,
+const loadScopedCollection = async (
+	collectionName: string,
+	field: 'personId' | 'groupId',
+	scopeId: string,
 ): Promise<OwnedDocument[]> => {
-	const snapshot = await getDocs(
-		query(collection(db, collectionName), where('personId', '==', personId)),
-	);
-	return snapshot.docs.map(document => ({
-		id: document.id,
-		collection: collectionName,
-		data: document.data() as DocumentData as Record<string, unknown>,
-	}));
+	const documents: OwnedDocument[] = [];
+	let cursor: QueryDocumentSnapshot | undefined;
+	// [[Assistente Lumus]]: the local catalog is complete; model context is a separate bounded projection.
+	while (true) {
+		const snapshot = await getDocs(query(collection(db, collectionName), where(field, '==', scopeId), limit(200), ...(cursor ? [startAfter(cursor)] : [])));
+		documents.push(...snapshot.docs.map(document => ({ id: document.id, collection: collectionName, data: document.data() as DocumentData as Record<string, unknown> })));
+		if (snapshot.docs.length < 200) return documents;
+		cursor = snapshot.docs[snapshot.docs.length - 1];
+	}
 };
 
 const sortByRecent = (documents: OwnedDocument[]) =>
@@ -149,7 +129,7 @@ const createItems = (
 	label: (document: OwnedDocument) => string,
 	description?: (document: OwnedDocument) => string | undefined,
 ): AssistantResolvedCatalogItem[] =>
-	documents.slice(0, 50).map(document => ({
+	documents.map(document => ({
 		handle: createAssistantOpaqueHandle(
 			prefix,
 			document.collection,
@@ -173,8 +153,19 @@ export const loadAssistantResolvedCatalog = async (personId: string): Promise<As
 	if (!personId.trim()) {
 		throw new Error('Usuário não autenticado.');
 	}
-	const [banks, tags, expenses, gains, cashRescues, mandatoryExpenses, mandatoryGains, investments, syncs] =
-		await Promise.all(COLLECTIONS.map(name => loadOwnedCollection(name, personId)));
+	const ledgerContext = await getFinancialLedgerContextFirebase(personId);
+	const [banks, tags, expenses, gains, cashRescues, mandatoryExpenses, mandatoryGains, investments, syncs, adjustments] =
+		await Promise.all(COLLECTIONS.map(name => ledgerContext && ['banks', 'expenses', 'gains', 'cashRescues', 'financeInvestmentSyncs'].includes(name)
+			? Promise.resolve([] as OwnedDocument[])
+			: loadScopedCollection(name, 'personId', personId)));
+
+	if (ledgerContext) {
+		const groupMetadata = await Promise.all(['tags', 'mandatoryExpenses', 'mandatoryGains'].map(name => loadScopedCollection(name, 'groupId', ledgerContext.groupId)));
+		for (const [index, target] of [tags, mandatoryExpenses, mandatoryGains].entries()) {
+			const ids = new Set(target.map(item => item.id));
+			for (const item of groupMetadata[index]!) if (!ids.has(item.id)) target.push(item);
+		}
+	}
 
 	const linkedExpenseIds = new Set(
 		mandatoryExpenses
@@ -212,7 +203,7 @@ export const loadAssistantResolvedCatalog = async (personId: string): Promise<As
 		item => normalizeLabel(item.data.name, 'Banco'),
 	);
 
-	return {
+	const catalog: AssistantResolvedCatalog = {
 		banks: [
 			...bankItems,
 			{
@@ -294,7 +285,39 @@ export const loadAssistantResolvedCatalog = async (personId: string): Promise<As
 			item => normalizeLabel(item.data.name, 'Sincronização'),
 			item => formatDateLabel(item.data.date),
 		),
+		bankBalanceAdjustments: createItems(sortByRecent(adjustments).filter(item => item.data.status === 'active' && !item.data.reversesAdjustmentId), 'balance_adjustment', item => normalizeLabel(item.data.description, 'Ajuste de saldo'), item => formatDateLabel(item.data.date)),
 	};
+	for (const values of Object.values(catalog)) for (const item of values ?? []) if (typeof item.data?.personId === 'string' && item.data.personId !== personId) item.ownerScope = 'related_read_only';
+	if (!ledgerContext) return catalog;
+	const [accounts, transactions] = await Promise.all([
+		getFinancialLedgerAccountsFirebase(ledgerContext.groupId),
+		loadScopedCollection('ledgerTransactions', 'groupId', ledgerContext.groupId),
+	]);
+	const accountDocuments = accounts.filter(item => !item.archivedAt).map(account => ({
+		id: account.id,
+		collection: 'financialAccounts',
+		data: { ...account, personId, financialRole: ledgerContext.role } as Record<string, unknown>,
+	}));
+	const reversedIds = new Set(transactions.flatMap(item => typeof item.data.reversesTransactionId === 'string' ? [item.data.reversesTransactionId] : []));
+	const activeTransactions = sortByRecent(transactions).filter(item => !reversedIds.has(item.id));
+	const movementItems = (kind: string, prefix: string) => createItems(activeTransactions.filter(item => item.data.kind === kind && !(Array.isArray(item.data.sourceReferences) && item.data.sourceReferences.some((source: { collection?: string }) => ['mandatoryExpenses', 'mandatoryGains'].includes(source.collection ?? '')))), prefix, item => normalizeLabel(item.data.note, kind === 'expense' ? 'Despesa' : 'Receita'), item => formatDateLabel(item.data.effectiveAt));
+	const bankAccounts = accountDocuments.filter(item => item.data.kind === 'bank' || item.data.kind === 'cash');
+	catalog.banks = createItems(bankAccounts, 'account', item => normalizeLabel(item.data.name, 'Conta'));
+	const cashIds = new Set(accounts.filter(item => item.kind === 'cash').map(item => item.id));
+	catalog.cashWithdrawals = createItems(activeTransactions.filter(item => item.data.kind === 'transfer' && Array.isArray(item.data.legs) && item.data.legs.some((leg: { accountId?: string; deltaInCents?: number }) => cashIds.has(leg.accountId ?? '') && (leg.deltaInCents ?? 0) > 0)), 'cash_withdrawal', item => normalizeLabel(item.data.note, 'Saque em dinheiro'), item => formatDateLabel(item.data.effectiveAt));
+	catalog.expenses = movementItems('expense', 'expense');
+	catalog.gains = movementItems('income', 'gain');
+	catalog.investmentDeposits = movementItems('investment_deposit', 'investment_deposit');
+	catalog.investmentRedemptions = movementItems('investment_redemption', 'investment_redemption');
+	const investmentAccountIds = new Set(accounts.filter(item => item.kind === 'investment').map(item => item.id));
+	catalog.investmentSyncs = createItems(activeTransactions.filter(item => item.data.kind === 'reconciliation_adjustment' && item.data.note !== 'Saldo inicial' && Array.isArray(item.data.legs) && item.data.legs.some((leg: { accountId?: string }) => investmentAccountIds.has(leg.accountId ?? ''))), 'investment_sync', item => normalizeLabel(item.data.note, 'Sincronização'), item => formatDateLabel(item.data.effectiveAt));
+	catalog.investments = createItems(accountDocuments.filter(item => item.data.kind === 'investment').map(item => {
+		const legacy = investments.find(investment => investment.id === item.data.legacyInvestmentId);
+		const bankAccount = accounts.find(account => account.kind === 'bank' && account.legacyBankId === legacy?.data.bankId);
+		return { ...item, data: { ...item.data, bankAccountId: item.data.bankAccountId ?? bankAccount?.id ?? null } };
+	}), 'investment_account', item => normalizeLabel(item.data.name, 'Investimento'));
+	for (const values of Object.values(catalog)) for (const item of values ?? []) if (item.collection === 'ledgerTransactions' && ledgerContext.role !== 'admin' && item.data?.actorId !== personId) item.ownerScope = 'related_read_only';
+	return catalog;
 };
 
 export const toAssistantModelCatalog = (
@@ -304,7 +327,7 @@ export const toAssistantModelCatalog = (
 	Object.fromEntries(
 		Object.entries(catalog).map(([key, values]) => [
 			key,
-			(values ?? []).map(item => ({
+			(values ?? []).slice(0, 50).map(item => ({
 				handle: item.handle,
 				label: item.label,
 				description: options.hideValues
@@ -342,7 +365,7 @@ export const getPendingMandatoryCatalogItems = (
 	const source = type === 'expense' ? 'mandatoryExpenses' : 'mandatoryGains';
 	const completedCycleField = type === 'expense' ? 'lastPaymentCycle' : 'lastReceiptCycle';
 	return (catalog[source] ?? []).filter(item => {
-		if (item.ownerScope === 'related_read_only' || item.data?.[completedCycleField] === cycle) return false;
+		if (item.ownerScope === 'related_read_only' || item.data?.[completedCycleField] === cycle || (item.data?.completedCycles && typeof item.data.completedCycles === 'object' && (item.data.completedCycles as Record<string, unknown>)[cycle])) return false;
 		const total = item.data?.installmentTotal;
 		const completed = item.data?.installmentsCompleted;
 		return typeof total !== 'number' || typeof completed !== 'number' || completed < total;
@@ -376,7 +399,7 @@ const withChoices = (
 	return {
 		...field,
 		choices: filtered
-			.filter(item => item.ownerScope !== 'related_read_only')
+			.filter(item => (item.ownerScope !== 'related_read_only' || field.key === 'categoryRef') && (field.key === 'recordRef' || item.data?.isActive !== false))
 			.map(item => ({ value: item.handle, label: item.label, description: item.description })),
 	};
 };
@@ -419,7 +442,7 @@ export const enrichAssistantDraft = (
 			continue;
 		}
 		const resolved = findAssistantCatalogItem(catalog, source, currentValue);
-		if (!resolved || resolved.ownerScope === 'related_read_only') {
+		if (!resolved || (resolved.ownerScope === 'related_read_only' && field !== 'categoryRef')) {
 			next = addMissingField(next, field, catalog);
 			next = {
 				...next,
@@ -459,7 +482,7 @@ export const prepareAssistantActions = async (
 	const resolvedCatalog = catalog ?? (await loadAssistantResolvedCatalog(personId));
 	// Model IDs are only local labels within one response. Reusing them across
 	// messages must never reuse a Firestore document ID. See [[Assistente Lumus]].
-	const inferredProposals = inferAssistantDependencyReferences(proposals.slice(0, 20));
+	const inferredProposals = inferAssistantDependencyReferences(proposals);
 	const localIds = new Map<string, string>();
 	const allocatedProposals = inferredProposals.map(proposal => {
 		const clientActionId = createAssistantId('action');

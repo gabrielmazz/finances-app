@@ -1,3 +1,5 @@
+import { endOfFinancialCivilDay, fromFinancialCivilDate } from './financialCivilDate';
+
 export type MinimalBankInfo = {
 	id: string;
 	name?: string;
@@ -167,7 +169,7 @@ export const calculateLegacyBankBalanceInCents = ({
 	cashRescues = [],
 	investments = [],
 	balanceAdjustments = [],
-	snapshotTimeZone,
+	snapshotTimeZone = 'America/Sao_Paulo',
 	asOfDate = new Date(),
 }: {
 	bankId: string;
@@ -183,6 +185,7 @@ export const calculateLegacyBankBalanceInCents = ({
 	if (!bankId || Number.isNaN(asOfDate.getTime())) {
 		return null;
 	}
+	const asOfEnd = endOfFinancialCivilDay(asOfDate);
 
 	const latestSnapshot = snapshots.reduce<{
 		snapshot: LegacyMonthlyBalanceSnapshot;
@@ -194,9 +197,9 @@ export const calculateLegacyBankBalanceInCents = ({
 		}
 		const validMonthStart = getMonthStart(snapshot);
 		const monthStart = snapshotTimeZone && validMonthStart
-			? new Date(`${snapshot.year}-${String(snapshot.month).padStart(2, '0')}-01T00:00:00-03:00`)
+			? fromFinancialCivilDate(validMonthStart)
 			: validMonthStart;
-		if (!monthStart || monthStart.getTime() > asOfDate.getTime()) {
+		if (!monthStart || monthStart.getTime() > asOfEnd.getTime()) {
 			return current;
 		}
 		const updatedAt = parseDate(snapshot.updatedAt ?? snapshot.createdAt);
@@ -223,7 +226,7 @@ export const calculateLegacyBankBalanceInCents = ({
 		return Boolean(
 			date &&
 			date.getTime() >= latestSnapshot.monthStart.getTime() &&
-			date.getTime() <= asOfDate.getTime(),
+			date.getTime() <= asOfEnd.getTime(),
 		);
 	};
 	const sumMovements = (items: DatedMovement[]) =>

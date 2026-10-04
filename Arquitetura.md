@@ -242,14 +242,14 @@ No desenvolvimento Web com alvo Emulator, existe ainda o app nomeado `LUMUS_ASSI
 
 ### Assistente Lumus
 - Firebase AI Logic interpreta e propõe ações; o modelo nunca recebe ferramenta de escrita no Firestore
-- Toda escrita exige botão de confirmação individual no cartão; grupos paginados avançam uma ação acionável por vez e só liberam a próxima após commit concluído ou cancelamento da etapa atual e de seus dependentes; texto/voz dizendo “sim” não executa
+- Pedidos diretos, completos e inequívocos podem registrar operações elegíveis. Exclusão, estorno, transferência, investimento, ajuste e alterações relevantes exigem resumo e confirmação na conversa, ligada ao UID e à versão apresentada; “sim” fora de uma confirmação ativa não executa. Lotes usam uma autorização agregada, preservam dependências e não exigem cartões, seletores nem botão financeiro. Consulte [[Assistente Lumus]] e [[Cobertura Conversacional Lumus]].
 - IDs reais, UID, e-mail, tokens e configuração Firebase nunca entram no prompt; usar somente handles temporários
 - Handles usam salt aleatório, ficam estáveis durante a sessão e são renovados ao limpar a conversa, trocar UID ou sair
 - Valores permanecem em centavos e datas usam `America/Sao_Paulo`
 - Conversa/rascunhos vivem apenas em memória durante o UID autenticado; consentimento e leitura automática são as únicas preferências persistidas
 - App Check é obrigatório para AI Logic. Nesta etapa, não ativar enforcement para Firestore Android
 - Android instalado usa App Check Debug em development e Play Integrity em produção. Expo Go pode testar Lumus IA somente em `__DEV__` com alvo Emulator e token App Check Debug do app Web; usa transporte JavaScript, defaults locais de Remote Config e não exige development build. O adaptador Android nativo continua exigindo development build.
-- Cota gratuita ou indisponibilidade interrompe somente o assistente, sem fallback pago e sem gravação automática
+- Cota ou indisponibilidade do modelo interrompe somente as capacidades que dependem dele. Comandos e consultas locais continuam pela mesma validação/autorização, sem fallback pago; uma falha do modelo nunca autoriza gravação.
 
 ---
 
@@ -275,6 +275,10 @@ GOOGLE_SERVICES_JSON=
 ---
 
 ## Active Context
+
+- Lumus IA em 2026-10-04: conversa compartilhada Web/mobile com preenchimento, referência por nome/ordinal, correção, confirmação versionada, cancelamento, retry e detalhes/falhas de lote pelo chat. Matriz de 82 rotas físicas e 38 ações financeiras cruza legado/razão, fluxos internos, permissões e limitações. SDK local passou 68 testes do executor e 15 testes de lotes (treze famílias de 211 itens + recuperação/cancelamento); callables/regras/ajustes/vínculos, leitores e conversa real também passaram. Tipos, build backend, exportações Web/Android e testes focados passaram. Jest geral: 670 passaram, duas falhas do baseline e 88 skipped; lint de estilos conserva somente a dívida preexistente de Configurações Web. Revisão fechou histórico migrado sem evidência, privacidade durante PDF e estorno de aporte já resgatado. Navegador sintético verificou criação/saldo, preferências/privacidade, anotações/renomeação, teclado compacto, navegação preservando a conversa e relatórios. Percentis e limites em [[Validação Conversacional Lumus]], [[Validação de Lotes Conversacionais]], [[Cobertura Conversacional Lumus]] e [[Comandos Financeiros Conversacionais]]. Exportação não comprova áudio/notificações/teclado nativo/compartilhamento em aparelho; histórico perdido não foi recriado; novos serviços não foram publicados. Alterações locais anteriores de receitas e skills foram preservadas; sem deploy, produção ou alteração externa Firebase.
+
+- Cadastro de ganhos em 2026-10-01: as opções de formato (renda variável/pagamento externo) agora atualizam `paymentFormat` diretamente nas telas mobile e Web, sem depender do `CheckboxGroup` cujo hook falhava no navegador e deixava o submit sem a escolha obrigatória. O botão permanece bloqueado enquanto essa escolha estiver pendente; demais regras de banco, tag, centavos, Firebase e pós-registro foram preservadas. A última execução de `npm run typecheck` não apontou erros nas telas de ganho, mas falhou em arquivos do Assistente Lumus e testes não relacionados; `npm run lint:styles` aponta somente dívida existente em `ConfigurationsScreen.web.tsx`. As telas de despesa foram comparadas e não alteradas. Sem sessão autenticada no navegador ou execução em aparelho. Detalhes em [[Transações de Receitas]] e [[Auditoria de Design]].
 
 - Ajuste de saldo em 2026-09-30: nova tela Web/mobile em Configurações → Relações dentro do Aplicativo, com banco, saldo real, data, descrição e prévia calculada no servidor. A diferença em centavos entra no extrato em magenta, permite edição/estorno auditáveis e fica fora dos totais de ganhos/despesas. A callable suporta legado e razão, recibos idempotentes, saldo stale e permissões; saldo atual do extrato passa a ser independente do filtro temporal. SVG fornecido renomeado para `bankBalanceAdjustmentScreen.svg`. Typechecks, testes focados, Emulator e bundles Web/Android passaram; prévia e validação verificadas no navegador local. Suíte geral mantém falhas anteriores em `userProfile.test.ts`/`loginResponsiveLayout.test.ts`; lint de estilos mantém apenas dívida anterior em Configurações Web. Sem execução instalada Android/iOS, medição DevTools ou deploy remoto. Detalhes em [[Ajuste de Saldo]].
 

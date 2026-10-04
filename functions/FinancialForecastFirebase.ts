@@ -1,6 +1,8 @@
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, getFinancialLedgerTransactionsFirebase } from '@/functions/FinancialLedgerFirebase';
 import type { RedemptionTerm } from '@/utils/finance';
+import { endOfFinancialCivilDay, fromFinancialCivilDate, toFinancialCivilDate } from '@/utils/financialCivilDate';
 import {
 	buildFinancialForecast,
 	calculateFinancialForecastOpeningBalance,
@@ -12,7 +14,7 @@ import {
 	type FinancialForecastMovementType,
 	type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, documentId, getDocs, limit, orderBy, query, startAfter, where, type QueryConstraint, type QueryDocumentSnapshot } from 'firebase/firestore';
 
 type FirestoreDocument = Record<string, unknown> & { id: string };
 
@@ -58,6 +60,11 @@ const getNonEmptyString = (value: unknown) =>
 
 const getNullableString = (value: unknown) => getNonEmptyString(value);
 
+const parseCivilDate = (value: unknown) => {
+	const instant = parseToDate(value);
+	return instant ? toFinancialCivilDate(instant) : null;
+};
+
 const getNonNegativeCents = (value: unknown) =>
 	typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 
@@ -74,21 +81,33 @@ const chunkPersonIds = (personIds: string[]) =>
 		personIds.slice(index * FIRESTORE_IN_QUERY_LIMIT, (index + 1) * FIRESTORE_IN_QUERY_LIMIT),
 	);
 
-const getCollectionDocumentsForPeople = async (collectionName: string, personIds: string[], dateRange?: { start: Date; end: Date }) => {
+const getPagedDocuments = async (collectionName: string, constraints: QueryConstraint[]) => {
+	const documents: QueryDocumentSnapshot[] = [];
+	let cursor: QueryDocumentSnapshot | undefined;
+	do {
+		const snapshot = await getDocs(query(collection(db, collectionName), ...constraints,
+			orderBy(documentId()), ...(cursor ? [startAfter(cursor)] : []), limit(200)));
+		documents.push(...snapshot.docs);
+		if (snapshot.docs.length < 200) break;
+		cursor = snapshot.docs[snapshot.docs.length - 1];
+	} while (cursor);
+	return documents;
+};
+
+const getCollectionDocumentsForPeople = async (collectionName: string, personIds: string[], groupId?: string) => {
 	const chunks = chunkPersonIds(personIds);
-	const snapshots = await Promise.all(
-		chunks.map(personIdChunk => {
-			const constraints = [where('personId', 'in', personIdChunk), ...(dateRange ? [where('date', '>=', dateRange.start), where('date', '<=', dateRange.end)] : [])];
-			return getDocs(query(collection(db, collectionName), ...constraints));
-		}),
+	const pages = await Promise.all(
+		[...chunks.map(personIdChunk => getPagedDocuments(collectionName, [where('personId', 'in', personIdChunk)])),
+			...(groupId ? [getPagedDocuments(collectionName, [where('groupId', '==', groupId)])] : [])],
 	);
 
-	return snapshots.flatMap(snapshot =>
-		snapshot.docs.map(docSnapshot => ({
+	const documents = pages.flatMap(documents =>
+		documents.map(docSnapshot => ({
 			id: docSnapshot.id,
 			...(docSnapshot.data() as Record<string, unknown>),
 		})),
 	) as FirestoreDocument[];
+	return [...new Map(documents.map(document => [document.id, document])).values()];
 };
 
 const getAllowedPersonIds = async (personId: string) => {
@@ -121,7 +140,7 @@ const normalizeMovement = (
 	type: FinancialForecastMovementType,
 	tagNamesById: Record<string, string>,
 ): FinancialForecastMovement | null => {
-	const date = parseToDate(document.date ?? document.createdAt);
+	const date = parseCivilDate(document.date ?? document.createdAt);
 	if (!date) {
 		return null;
 	}
@@ -191,13 +210,13 @@ const normalizeMandatoryTemplate = ({
 			typeof document.installmentsCompleted === 'number' && Number.isFinite(document.installmentsCompleted)
 				? Math.max(0, Math.trunc(document.installmentsCompleted))
 				: 0,
-		installmentStartDate: parseToDate(document.installmentStartDate),
-		installmentEndDate: parseToDate(document.installmentEndDate),
+		installmentStartDate: parseCivilDate(document.installmentStartDate),
+		installmentEndDate: parseCivilDate(document.installmentEndDate),
 	};
 };
 
 const normalizeInvestment = (document: FirestoreDocument): FinancialForecastInvestment | null => {
-	const date = parseToDate(document.date ?? document.createdAt);
+	const date = parseCivilDate(document.date ?? document.createdAt);
 	if (!date) {
 		return null;
 	}
@@ -227,7 +246,7 @@ const normalizeInvestment = (document: FirestoreDocument): FinancialForecastInve
 };
 
 const normalizeCashRescue = (document: FirestoreDocument): FinancialForecastCashRescue | null => {
-	const date = parseToDate(document.date ?? document.createdAt);
+	const date = parseCivilDate(document.date ?? document.createdAt);
 	if (!date) {
 		return null;
 	}
@@ -315,10 +334,10 @@ export const getFinancialForecastFirebase = async (
 		}
 
 		const allowedPersonIds = await getAllowedPersonIds(personId);
-		const asOfDate = new Date();
-		const historyStart = new Date(asOfDate.getFullYear(), asOfDate.getMonth() - 3, 1);
-		const horizonEnd = new Date(asOfDate.getFullYear(), asOfDate.getMonth() + periodInMonths + 1, 0, 23, 59, 59, 999);
-		const movementRange = { start: historyStart, end: horizonEnd };
+		const ledgerContext = await getFinancialLedgerContextFirebase(personId);
+		const asOfInstant = new Date();
+		const asOfEnd = endOfFinancialCivilDay(asOfInstant);
+		const asOfDate = toFinancialCivilDate(asOfInstant);
 		const [
 			bankDocuments,
 			monthlyBalanceDocuments,
@@ -330,29 +349,46 @@ export const getFinancialForecastFirebase = async (
 			investmentDocuments,
 			tagDocuments,
 			adjustmentDocuments,
+			ledgerAccounts,
+			ledgerTransactions,
 		] = await Promise.all([
-			getCollectionDocumentsForPeople('banks', allowedPersonIds),
-			getCollectionDocumentsForPeople('monthlyBalances', allowedPersonIds),
-			getCollectionDocumentsForPeople('expenses', allowedPersonIds, movementRange),
-			getCollectionDocumentsForPeople('gains', allowedPersonIds, movementRange),
-			getCollectionDocumentsForPeople('cashRescues', allowedPersonIds, movementRange),
-			getCollectionDocumentsForPeople('mandatoryExpenses', allowedPersonIds),
-			getCollectionDocumentsForPeople('mandatoryGains', allowedPersonIds),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('banks', allowedPersonIds),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('monthlyBalances', allowedPersonIds),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('expenses', allowedPersonIds),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('gains', allowedPersonIds),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('cashRescues', allowedPersonIds),
+			getCollectionDocumentsForPeople('mandatoryExpenses', allowedPersonIds, ledgerContext?.groupId),
+			getCollectionDocumentsForPeople('mandatoryGains', allowedPersonIds, ledgerContext?.groupId),
 			getCollectionDocumentsForPeople('financeInvestments', allowedPersonIds),
-			getCollectionDocumentsForPeople('tags', allowedPersonIds),
-			getCollectionDocumentsForPeople('bankBalanceAdjustments', allowedPersonIds),
+			getCollectionDocumentsForPeople('tags', allowedPersonIds, ledgerContext?.groupId),
+			ledgerContext ? Promise.resolve([]) : getCollectionDocumentsForPeople('bankBalanceAdjustments', allowedPersonIds),
+			ledgerContext ? getFinancialLedgerAccountsFirebase(ledgerContext.groupId) : Promise.resolve([]),
+			ledgerContext ? getFinancialLedgerTransactionsFirebase(ledgerContext.groupId) : Promise.resolve([]),
 		]);
 
 		const tagNamesById = getTagNamesById(tagDocuments);
-		const expenses = expenseDocuments
+		const reversedIds = new Set(ledgerTransactions.filter(transaction =>
+			transaction.kind === 'reversal' && transaction.effectiveAt <= asOfEnd,
+		).map(transaction => transaction.reversesTransactionId));
+		const activeTransactions = ledgerTransactions.filter(transaction => !reversedIds.has(transaction.id));
+		// [[Previsão de Fluxo de Caixa]]: ledger effects already enter current balances
+		// at commit, even with future effectiveAt. They cannot become another outflow.
+		const projectedDocuments = (kind: 'expense' | 'income'): FirestoreDocument[] => activeTransactions.filter(transaction =>
+			transaction.kind === kind && transaction.effectiveAt <= asOfEnd,
+		).map(transaction => ({
+			id: transaction.id, date: transaction.effectiveAt, tagId: transaction.categoryId,
+			bankId: transaction.legs.find(leg => leg.accountId !== null)?.accountId,
+			name: transaction.note, valueInCents: Math.abs(transaction.legs.find(leg => leg.accountId !== null)?.deltaInCents ?? 0),
+		}));
+		const expenses = (ledgerContext ? projectedDocuments('expense') : expenseDocuments)
 			.map(document => normalizeMovement(document, 'expense', tagNamesById))
 			.filter((movement): movement is FinancialForecastMovement => Boolean(movement));
-		const gains = gainDocuments
+		const gains = (ledgerContext ? projectedDocuments('income') : gainDocuments)
 			.map(document => normalizeMovement(document, 'gain', tagNamesById))
 			.filter((movement): movement is FinancialForecastMovement => Boolean(movement));
 		const movements = [...expenses, ...gains];
-		const expenseIds = new Set(expenses.map(expense => expense.id));
-		const gainIds = new Set(gains.map(gain => gain.id));
+		const expenseIds = new Set(ledgerContext ? activeTransactions.filter(transaction => transaction.kind === 'expense').map(transaction => transaction.id) : expenses.map(expense => expense.id));
+		const gainIds = new Set(ledgerContext ? activeTransactions.filter(transaction => transaction.kind === 'income').map(transaction => transaction.id) : gains.map(gain => gain.id));
 		const mandatoryTemplates = [
 			...mandatoryExpenseDocuments
 				.map(document =>
@@ -375,28 +411,40 @@ export const getFinancialForecastFirebase = async (
 				)
 				.filter((template): template is FinancialForecastMandatoryTemplate => Boolean(template)),
 		];
-		const investments = investmentDocuments
+		const forecastInvestmentDocuments: FirestoreDocument[] = ledgerContext
+			? ledgerAccounts.filter(account => account.kind === 'investment').map(account => {
+				const legacyMetadata = investmentDocuments.find(document => document.id === account.legacyInvestmentId);
+				return {
+					...legacyMetadata, ...account, date: account.date ?? legacyMetadata?.date ?? legacyMetadata?.createdAt,
+					redemptionTerm: account.redemptionTerm ?? legacyMetadata?.redemptionTerm,
+					bankId: account.bankAccountId ?? legacyMetadata?.bankId,
+					// Account creation has already changed balances; only liquidity is projected.
+					initialValueInCents: 0, currentValueInCents: account.currentBalanceInCents,
+				};
+			}) : investmentDocuments;
+		const investments = forecastInvestmentDocuments
 			.map(normalizeInvestment)
 			.filter((investment): investment is FinancialForecastInvestment => Boolean(investment));
 		const cashRescues = cashRescueDocuments
 			.map(normalizeCashRescue)
 			.filter((rescue): rescue is FinancialForecastCashRescue => Boolean(rescue));
-		const opening = calculateFinancialForecastOpeningBalance({
+		const opening = ledgerContext ? {
+			openingBalanceInCents: ledgerAccounts.filter(account => account.kind === 'bank' || account.kind === 'cash').reduce((sum, account) => sum + account.currentBalanceInCents, 0),
+			missingSnapshotBankNames: [],
+		} : calculateFinancialForecastOpeningBalance({
 			asOfDate,
 			banks: buildBankSnapshots({ bankDocuments, monthlyBalanceDocuments, asOfDate }),
 			movements,
 			investments,
 			cashRescues,
 			balanceAdjustments: adjustmentDocuments.flatMap(document => {
-				const date = parseToDate(document.date);
+				const date = parseCivilDate(document.date);
 				return date && typeof document.bankId === 'string' && Number.isSafeInteger(document.differenceInCents)
 					? [{ bankId: document.bankId, date, differenceInCents: document.differenceInCents as number }] : [];
 			}),
 		});
 
-		return {
-			success: true,
-			data: buildFinancialForecast({
+		const forecast = buildFinancialForecast({
 				asOfDate,
 				periodInMonths,
 				openingBalanceInCents: opening.openingBalanceInCents,
@@ -404,7 +452,16 @@ export const getFinancialForecastFirebase = async (
 				movements,
 				mandatoryTemplates,
 				investments,
-			}),
+		});
+		return {
+			success: true,
+			data: {
+				...forecast, generatedAt: asOfInstant,
+				months: forecast.months.map(month => ({
+					...month, startDate: fromFinancialCivilDate(month.startDate),
+					commitments: month.commitments.map(commitment => ({ ...commitment, date: fromFinancialCivilDate(commitment.date) })),
+				})),
+			},
 		};
 	} catch (error) {
 		console.error('Erro ao carregar previsão financeira:', error);
