@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { createAssistantRecordFingerprint } from '../../utils/assistantRecordFingerprint';
 import { getFirestore, FieldValue, Timestamp, type Transaction } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateLegacyBankBalanceInCents } from '../../utils/monthlyBalance';
@@ -24,6 +26,7 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 	const personId = request.auth?.uid;
 	if (!personId) throw new HttpsError('unauthenticated', 'Entre na sua conta para ajustar o saldo.');
 	const data = request.data as Record<string, unknown>;
+	if (data?.expectedActorId !== undefined && data.expectedActorId !== personId) throw new HttpsError('unauthenticated', 'A conta autenticada mudou; confirme novamente na sessão atual.');
 	const action = data?.action;
 	if (!['preview', 'save', 'revert'].includes(String(action))) throw new HttpsError('invalid-argument', 'Ação inválida.');
 	const bankId = text(data.bankId);
@@ -42,6 +45,9 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 	if (action === 'save' && (target as number) < 0 && description.length < 3) fail('Descreva o motivo para registrar um saldo negativo.');
 	const adjustmentId = text(data.adjustmentId);
 	if (adjustmentId.includes('/')) throw new HttpsError('invalid-argument', 'Ajuste inválido.');
+	const fingerprint = createHash('sha256').update(JSON.stringify({ action, bankId, date: text(data.date), adjustmentId,
+		targetBalanceInCents: data.targetBalanceInCents ?? null, expectedPreviousBalanceInCents: data.expectedPreviousBalanceInCents ?? null,
+		description, expectedFingerprint: data.expectedFingerprint ?? null })).digest('hex');
 	const db = getFirestore();
 	return db.runTransaction(async transaction => {
 		const user = await transaction.get(db.doc(`users/${personId}`));
@@ -51,7 +57,10 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 		const operationRef = db.doc(`bankBalanceAdjustmentOperations/${personId}_${clientActionId || 'preview'}`);
 		if (action !== 'preview') {
 			const operation = await transaction.get(operationRef);
-			if (operation.exists) return operation.data()!.result;
+			if (operation.exists) {
+				if (operation.data()?.fingerprint !== fingerprint) fail('Os argumentos do ajuste mudaram sob o mesmo identificador.');
+				return operation.data()!.result;
+			}
 		}
 		const originalRef = adjustmentId ? db.doc(`bankBalanceAdjustments/${adjustmentId}`) : null;
 		const originalSnapshot = originalRef ? await transaction.get(originalRef) : null;
@@ -60,6 +69,7 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 			throw new HttpsError('permission-denied', 'Este ajuste já foi revertido, substituído ou pertence a outra pessoa.');
 		}
 		if (action === 'revert' && !original) fail('Selecione o ajuste que será revertido.');
+		if (original && typeof data.expectedFingerprint === 'string' && createAssistantRecordFingerprint(original) !== data.expectedFingerprint) fail('O ajuste mudou após o resumo; confira a proposta atual.');
 		const relatedIds = Array.isArray(userData.relatedIdUsers) ? userData.relatedIdUsers : [];
 		const allowedIds = new Set([personId, ...relatedIds]);
 		let accountId: string | null = null;
@@ -73,7 +83,7 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 			}
 			const accounts = await transaction.get(db.collection('financialAccounts').where('groupId', '==', groupId));
 			const account = accounts.docs.find(item => item.data().kind === 'bank' && (item.id === bankId || item.data().legacyBankId === bankId));
-			if (!account || account.data().archivedAt) fail('Selecione um banco ativo do seu grupo.');
+			if (!account || account.data().archivedAt || account.data().isActive === false) fail('Selecione um banco ativo do seu grupo.');
 			accountId = account.id;
 			accountBalance = account.data().currentBalanceInCents;
 			const [events, reconciliations] = await Promise.all([
@@ -156,7 +166,7 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 			transaction.update(db.doc(`financialAccounts/${accountId}`), { currentBalanceInCents: next, updatedAt: FieldValue.serverTimestamp() });
 		}
 		const result = { adjustmentId: action === 'save' ? id : `${id}_undo`, previousBalanceInCents: previousBalance, differenceInCents: difference };
-		transaction.set(operationRef, { personId, result, createdAt: FieldValue.serverTimestamp() });
+		transaction.set(operationRef, { personId, fingerprint, result, createdAt: FieldValue.serverTimestamp() });
 		return result;
 	});
 });

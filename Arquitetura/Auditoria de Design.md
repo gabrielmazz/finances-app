@@ -2,6 +2,16 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — seleção do formato do ganho, 2026-10-01
+
+**Inventário:** `AddRegisterGainScreen.tsx` e `AddRegisterGainScreen.web.tsx` comparadas com as duas telas de despesa. Ganhos exigem uma escolha de formato quando o campo está visível; despesas não usam esse controle.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P1 | No Web, o hook dos itens de `CheckboxGroup` lança exceção e cai em controles independentes; o estado `paymentFormat` não acompanhava a escolha e o submit rejeitava o formulário. | Checkboxes de formato agora são controlados diretamente pelo estado em mobile e Web; o envio também fica desativado enquanto a escolha obrigatória estiver pendente. | A última execução de `npm run typecheck` não apontou erros nas telas de ganho, mas falhou em arquivos do Assistente Lumus e testes não relacionados. `npm run lint:styles` reporta somente a dívida existente de `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 cores hex, 2 classes arbitrárias e 1 uso de `useScreenStyles`). Sem sessão autenticada no navegador nem execução em aparelho. |
+
+**Estados:** as duas opções mantêm as classes, o foco, os alvos de toque e as regras de exclusão mútua existentes. O estado sem formato não libera campos dependentes nem o envio; a validação no handler permanece como segunda barreira. A composição de despesas e sua persistência não foram alteradas.
+
 ## Checkpoint — ajuste de saldo, 2026-09-30
 
 **Inventário:** novas rotas Web/mobile, formulário/hook compartilhados, os dois extratos e atalhos de Configurações. Controles Gluestack/seletores existentes reutilizados, sem migração de dependências. SVG fornecido renomeado para `bankBalanceAdjustmentScreen.svg`.
@@ -748,3 +758,16 @@ Estados revisados no código: conteúdo normal, vazio, carregamento, expansão e
 - Mobile e Web: o grupo Config passa a conter Configurações, Meu perfil e Sair. Novo banco, Nova categoria e Config. das telas permanecem nos fluxos internos de Configurações.
 - A tela Testes do aplicativo, suas rotas, ilustração e configuração de visibilidade foram removidas; os envios de teste exclusivos também saíram do cliente/backend. Lembretes e gatilhos de push de recorrências permanecem.
 - Validação: typechecks do app/backend, 51 testes focados, exports Web/Android e diff-check aprovados. O lint de estilos continua bloqueado exclusivamente pela dívida preexistente de ConfigurationsScreen.web.tsx. Inspeção autenticada no navegador e em aparelho não realizada.
+
+## Conversa Lumus IA — 2026-10-03
+
+Web/mobile usam histórico e compositor para completar operações, correções, confirmação, cancelamento e detalhes de lote. As telas não renderizam seletores financeiros, cartões de edição/confirmadores nem controles de paginação obrigatórios. Consentimento e permissão do sistema continuam nas fronteiras reais da plataforma.
+
+| Área | Causa | Correção | Evidência | Limite |
+| --- | --- | --- | --- | --- |
+| Mensagem própria | Texto branco sobre amarelo do tema | Token `lumus-on-accent` nas duas plataformas | Adaptadores + screenshot compacto no tema escuro | Leitor de tela instalado não observado |
+| Resposta final | Estado de processamento tinha anúncio, resultado final dependia de ouvir a mensagem | Web `aria-live`/`aria-atomic`, native `accessibilityLiveRegion`, sempre sobre texto já mascarado | Seis testes dos adaptadores reais e inspeção DOM Web com privacidade ativa | TTS/aparelho dependem do sistema |
+| Rolagem | Ler mensagens antigas podia deixar nova resposta fora da tela | Envio retoma acompanhamento; crescimento acompanha sem animar cada etapa; leitura manual pausa | Testes de ambas as telas e navegador autenticado | Teclado nativo não observado |
+| Tema/privacidade/foco | Preferências e respostas precisam permanecer coerentes durante a conversa | Mesmos contextos das telas, máscara no histórico/anúncio, compositor disponível | Tema escuro, valores ocultos, Shift+Enter sem envio, navegação perfil→chat com histórico conservado | Sessão de chat permanece em memória |
+
+Viewport Web de 390 × 844: largura de conteúdo 390, compositor y=671–753, sem overflow horizontal. Screenshot `lumus-conversa-privacidade.png` guardado na pasta de visualizações da tarefa. `lint:styles` continua apontando somente dívida anterior de Configurações Web; métricas globais conservadas: 976 estilos inline, 1.114 cores hex, 357 valores arbitrários e 52 consumidores da facade. Ver [[Validação Conversacional Lumus]] para evidências, exportações e limites de medição.

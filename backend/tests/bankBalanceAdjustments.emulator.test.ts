@@ -56,6 +56,8 @@ async function run() {
 	const saved = await call(owner, command);
 	assert.equal(saved.differenceInCents, 2_000);
 	assert.deepEqual(await call(owner, command), saved, 'Repeated submissions must return the same receipt.');
+	await denied(owner, { ...command, targetBalanceInCents: 12_001 }, 'failed-precondition');
+	await denied(owner, { ...command, expectedActorId: related.uid }, 'unauthenticated');
 	assert.equal((await call(owner, { action: 'preview', bankId, date: '2026-09-12' })).previousBalanceInCents, 12_500, 'Later movements remain effective.');
 	await denied(owner, { ...command, clientActionId: `${prefix}-stale`, targetBalanceInCents: 13_000 }, 'failed-precondition');
 	await denied(owner, { ...command, clientActionId: `${prefix}-fraction`, targetBalanceInCents: 1.5 }, 'invalid-argument');
@@ -95,6 +97,9 @@ async function run() {
 	const ledgerCommand = { ...command, bankId: accountId, clientActionId: `${prefix}-ledger` };
 	await denied(member, ledgerCommand, 'permission-denied');
 	await denied(admin, { ...ledgerCommand, date: '2026-08-31' }, 'failed-precondition');
+	await seed({ [`financialAccounts/${accountId}`]: { groupId, kind: 'bank', name: 'Banco do grupo', currentBalanceInCents: 10_500, archivedAt: null, isActive: false } });
+	await denied(admin, { ...ledgerCommand, clientActionId: `${prefix}-inactive` }, 'failed-precondition');
+	await seed({ [`financialAccounts/${accountId}`]: { groupId, kind: 'bank', name: 'Banco do grupo', currentBalanceInCents: 10_500, archivedAt: null, isActive: true } });
 	const ledgerSaved = await call(admin, ledgerCommand);
 	assert.equal((await read(`financialAccounts/${accountId}`)).currentBalanceInCents, 12_500);
 	const event = await read(`ledgerTransactions/bank-adjustment-${ledgerSaved.adjustmentId}`);

@@ -1,4 +1,5 @@
 import type {
+	AssistantCatalogType,
 	AssistantAiAvailability,
 	AssistantAiConfig,
 	AssistantAiConversationRequest,
@@ -18,6 +19,7 @@ import {
 	sanitizeAssistantModelText,
 } from '@/utils/lumusAssistant';
 import { mapAssistantError } from '@/utils/lumusAssistantErrors';
+import { isAssistantActionKind } from '@/utils/lumusAssistantSchemas';
 import {
 	ASSISTANT_FUNCTION_DECLARATIONS,
 	buildAssistantSystemInstruction,
@@ -125,6 +127,7 @@ export const createAssistantAuthTokenBridge = (
 });
 
 const REPORT_KINDS = new Set<AssistantReportKind>([
+	'account_balance',
 	'monthly_overview',
 	'largest_expense',
 	'largest_gain',
@@ -137,6 +140,7 @@ const REPORT_KINDS = new Set<AssistantReportKind>([
 	'cash_flow_forecast',
 	'pending_obligations',
 	'investment_portfolio',
+	'cdi_rates',
 ]);
 
 const getExplicitExtremumKinds = (text: string): AssistantReportKind[] => {
@@ -157,7 +161,9 @@ const alignExplicitReportQuestions = (text: string, reports: AssistantReportRequ
 	const kinds = getExplicitExtremumKinds(text);
 	if (kinds.length === 0) return reports;
 	const period = reports.find(report => report.period)?.period;
-	return kinds.map(kind => ({ kind, ...(period ? { period } : {}) }));
+	const expense = kinds[0]?.endsWith('_expense');
+	const remaining = reports.filter(report => !(report.kind.startsWith('largest_') || report.kind.startsWith('smallest_')) || report.kind.endsWith('_expense') !== expense);
+	return [...kinds.map(kind => ({ kind, ...(period ? { period } : {}) })),...remaining];
 };
 
 // O SDK Firebase AI Logic exige histórico iniciado por user e alternando user/model.
@@ -246,6 +252,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 		getConfig: forceRefresh => adapter.getConfig(forceRefresh),
 		getAvailability: () => adapter.getAvailability(),
 		async converse(request: AssistantAiConversationRequest): Promise<AssistantAiConversationResponse> {
+			if (request.text.trim().length > 4000) throw new Error('A mensagem ultrapassa 4.000 caracteres. Divida o pedido; nenhum item foi processado.');
 			const text = sanitizeAssistantInput(request.text);
 			if (!text) {
 				throw mapAssistantError(new Error('Mensagem vazia.'));
@@ -266,12 +273,20 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 					let toolCallCount = 0;
 					let reportRequests: AssistantReportRequest[] = [];
 					let actions = normalizeModelActionProposals([], request.config.maxActionsPerResponse);
+					const draftUpdates: NonNullable<AssistantAiConversationResponse['draftUpdates']> = [];
+					const batchRequests: NonNullable<AssistantAiConversationResponse['batchRequests']> = [];
+					const referenceCandidates: NonNullable<AssistantAiConversationResponse['referenceCandidates']> = [];
+					const warnings: string[] = [];
+					const applicationCommands: string[] = [];
+					let unsafePartial = false;
 					let finalText = sanitizeAssistantModelText(response.text);
 
 					while (response.functionCalls.length > 0 && toolCallCount < request.config.maxToolCalls) {
 						const functionResponses: Array<{ id?: string; name: string; response: Record<string, unknown> }> = [];
 						for (const call of response.functionCalls) {
 							if (toolCallCount >= request.config.maxToolCalls) {
+								unsafePartial = true;
+								if (!warnings.some(item=>item.includes('limite de ferramentas'))) warnings.push('O modelo atingiu o limite de ferramentas antes de terminar o pedido. Nenhuma escrita foi preparada.');
 								functionResponses.push({
 									...(call.id ? { id: call.id } : {}),
 									name: call.name,
@@ -280,12 +295,54 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 								continue;
 							}
 							toolCallCount += 1;
+							if (call.name === 'prepare_application_commands') {
+								const commands = call.args.commands;
+								const valid = Array.isArray(commands) && commands.length > 0 && applicationCommands.length + commands.length <= 20 && commands.every(value => typeof value === 'string' && value.length > 0 && value.length <= 4000 && !/[\n\r;]/.test(value));
+								if (valid) applicationCommands.push(...commands as string[]);
+								else { unsafePartial = true; warnings.push('Não consegui validar todo o pedido local. Nenhuma escrita foi preparada.'); }
+								functionResponses.push({...(call.id ? {id:call.id} : {}),name:call.name,response:{accepted:valid,message:'Propostas locais serão analisadas pelo aplicativo, com autorização ligada à mensagem original. Nenhum efeito ocorreu.'}});
+								continue;
+							}
+							if (call.name === 'search_financial_catalog') {
+								if (!request.searchCatalog || typeof call.args.source !== 'string' || typeof call.args.query !== 'string') {
+									functionResponses.push({...(call.id?{id:call.id}:{}),name:call.name,response:{accepted:false,message:'Busca indisponível ou inválida.'}}); continue;
+								}
+								const source=call.args.source as AssistantCatalogType | 'pending';
+								const queryText=sanitizeAssistantInput(call.args.query).slice(0,120);
+								const result=await request.searchCatalog(source,queryText);
+								referenceCandidates.push({source,query:queryText,handles:result.items.map(item=>item.handle),total:result.total});
+								functionResponses.push({...(call.id?{id:call.id}:{}),name:call.name,response:{accepted:true,...result,message:result.total>1?'Há mais de uma referência. Peça uma distinção em texto, sem escolher a primeira.':result.total===0?'Nenhuma referência encontrada na fonte completa.':'Referência localizada.'}}); continue;
+							}
+							if (call.name === 'update_pending_actions') {
+								const updates = Array.isArray(call.args.updates) ? call.args.updates : [];
+								if (!Array.isArray(call.args.updates) || updates.some(value=>!value || typeof value !== 'object' || typeof value.actionId !== 'string' || !value.patch || typeof value.patch !== 'object' || Array.isArray(value.patch))) {unsafePartial=true;warnings.push('Uma correção não corresponde ao pedido disponível. Nenhuma escrita foi preparada.');}
+								if (updates.length > 20) { unsafePartial = true; warnings.push('O complemento excedeu 20 alterações explícitas. Nenhuma escrita foi preparada; descreva o conjunto como lote ou divida o pedido.'); }
+								for (const value of updates.length <= 20 ? updates : []) {
+									if (!value || typeof value !== 'object') continue;
+									const item = value as Record<string, unknown>;
+									if (typeof item.actionId === 'string' && item.patch && typeof item.patch === 'object' && !Array.isArray(item.patch)) draftUpdates.push({ actionId: item.actionId, patch: item.patch as Record<string, unknown> });
+								}
+								functionResponses.push({ ...(call.id ? { id: call.id } : {}), name: call.name, response: { accepted: draftUpdates.length > 0, message: 'Alterações propostas serão validadas; a versão anterior perde a autorização.' } });
+								continue;
+							}
+							if (call.name === 'request_financial_batch') {
+								const args = call.args;
+								const valid = isAssistantActionKind(args.kind) && args.payload && typeof args.payload === 'object' && !Array.isArray(args.payload) && (args.query === undefined || typeof args.query === 'string' && args.query.length <= 120) && (args.expectedCount === undefined || typeof args.expectedCount === 'number' && Number.isSafeInteger(args.expectedCount) && args.expectedCount > 0) && (!args.period || typeof args.period === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(args.period));
+								if (!valid) {unsafePartial=true;warnings.push('Não consegui validar esse conjunto. Nenhuma escrita foi preparada.');}
+								if (valid) batchRequests.push({ kind: args.kind as typeof actions[number]['kind'], payload: args.payload as Record<string, unknown>, ...(typeof args.query === 'string' ? { query: args.query } : {}), ...(typeof args.expectedCount === 'number' ? { expectedCount: args.expectedCount } : {}), ...(typeof args.period === 'string' ? { period: args.period } : {}), ...(typeof args.overdue === 'boolean' ? { overdue: args.overdue } : {}) });
+								functionResponses.push({ ...(call.id ? { id: call.id } : {}), name: call.name, response: { accepted: Boolean(valid), message: 'O aplicativo buscará o conjunto completo e validará cada item antes de registrar.' } });
+								continue;
+							}
 
 							if (call.name === 'prepare_financial_actions') {
 								const remainingActions = request.config.maxActionsPerResponse - actions.length;
-								const proposals = remainingActions > 0
+								if (!Array.isArray(call.args.actions) || call.args.actions.length > remainingActions) {
+									unsafePartial = true; warnings.push('O pedido excedeu o limite de ações explícitas do modelo. Nenhuma escrita foi preparada; peça o conjunto como lote ou divida os itens.');
+								}
+								const proposals = !unsafePartial && remainingActions > 0
 									? normalizeModelActionProposals(call.args.actions, remainingActions)
 									: [];
+								if (Array.isArray(call.args.actions) && proposals.length !== call.args.actions.length) { unsafePartial = true; warnings.push('Uma ação não corresponde ao contrato disponível. Nenhuma escrita foi preparada.'); }
 								actions = [...actions, ...proposals].slice(0, request.config.maxActionsPerResponse);
 								functionResponses.push({
 									...(call.id ? { id: call.id } : {}),
@@ -293,7 +350,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 									response: {
 										accepted: proposals.length > 0,
 										draftCount: proposals.length,
-										message: 'Rascunhos preparados. A confirmação ocorrerá somente nos cartões do aplicativo.',
+										message: 'Propostas recebidas. O aplicativo valida e governa a autorização pela conversa.',
 									},
 								});
 								continue;
@@ -340,6 +397,8 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 						}
 					}
 
+					if (response.functionCalls.length && toolCallCount >= request.config.maxToolCalls) { unsafePartial = true; warnings.push('O modelo atingiu o limite de ferramentas antes de terminar o pedido. Nenhuma escrita foi preparada.'); }
+					if (unsafePartial) { actions = []; draftUpdates.length = 0; batchRequests.length = 0; applicationCommands.length = 0; }
 					reportRequests = alignExplicitReportQuestions(text, reportRequests);
 					if (!finalText) {
 						finalText = actions.length > 0
@@ -349,7 +408,7 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 								: 'Não consegui transformar essa mensagem em uma ação segura. Tente informar o que aconteceu, o valor e a data.';
 					}
 
-					return { text: finalText, actions, reportRequests, toolCallCount };
+					return { text: finalText, actions, reportRequests, toolCallCount, ...(applicationCommands.length ? {applicationCommands} : {}), ...(warnings.length ? { warnings } : {}), ...(referenceCandidates.length ? { referenceCandidates } : {}), ...(draftUpdates.length ? { draftUpdates } : {}), ...(batchRequests.length ? { batchRequests } : {}) };
 				};
 				try {
 					return await converseWithModel(request.config.model);
@@ -367,7 +426,9 @@ export const createAssistantAiGateway = (adapter: AssistantPlatformAdapter): Ass
 		},
 		async transcribe(request: AssistantTranscriptionRequest) {
 			return runExclusive(request.config, request.requestScope, async () => {
-				const transcript = sanitizeAssistantInput(await adapter.transcribe(request));
+				const rawTranscript = await adapter.transcribe(request);
+				if (rawTranscript.trim().length > 4000) throw new Error('A transcrição ultrapassa 4.000 caracteres. Dite os itens em mensagens menores; nenhum registro foi feito.');
+				const transcript = sanitizeAssistantInput(rawTranscript);
 				if (!transcript) {
 					throw new Error('A transcrição não retornou texto válido.');
 				}

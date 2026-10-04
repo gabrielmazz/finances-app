@@ -3,7 +3,7 @@ tags: [analise, categorias, tags, gastos, bancos, graficos]
 relacionado: [[Dashboard Home]], [[Gerenciamento de Tags]], [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Navegação]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.0.14
+versao: 1.0.15
 ---
 
 # Análise por Categoria
@@ -30,7 +30,7 @@ graph TD
 1. A opção **Análise por Categoria** fica no grupo Home do `components/uiverse/navigation/navigator.tsx` e abre `/category-analysis`
 2. As duas telas usam `useCategoryAnalysisData`, que carrega por foco e por alteração válida do histórico. Datas usam o mesmo `DatePickerField` do extrato bancário e consulta automática. O hook descarta respostas antigas ao mudar período, UID ou foco; mantém os filtros acessíveis em erro e intervalo inválido.
 3. A categoria é escolhida por `components/uiverse/categories/tag-actionsheet-selector.tsx`, reaproveitando o mesmo ActionSheet das telas de registro; dentro da lista, cada tag mostra um label de uso (`Despesa`, `Ganho`, `Despesa obrigatória`, `Ganho obrigatório` ou combinações) abaixo do nome
-4. Os campos **Data inicial** e **Data final** definem o histórico de comparação: por padrão, do primeiro dia de três meses atrás ao último dia do mês anterior. Aceitam até 12 meses históricos, incluindo seis e doze meses, e a data final deve anteceder o mês atual. O mês atual permanece separado, limitado ao instante da consulta e identificado como **Parcial até DD/MM/AAAA**. A média usa somente os meses completos dentro do histórico, somando em cada um os dias 1 até o mesmo dia do mês atual (meses mais curtos terminam no último dia disponível). Meses completos sem lançamentos contribuem com zero; meses cortados pelas datas aparecem nos gráficos e movimentos, mas não entram na média. Sem meses completos ou média positiva, o status é `no-history`.
+4. Os campos **Data inicial** e **Data final** definem o histórico de comparação: por padrão, do primeiro dia de três meses atrás ao último dia do mês anterior. Aceitam até 12 meses históricos, incluindo seis e doze meses, e a data final deve anteceder o mês atual. O serviço resolve o calendário civil de `America/Sao_Paulo`, inclusive quando o dispositivo usa outro fuso. O mês atual permanece separado, limitado ao instante da consulta e identificado como **Parcial até DD/MM/AAAA**. A média usa somente os meses completos dentro do histórico, somando em cada um os dias 1 até o mesmo dia do mês atual (meses mais curtos terminam no último dia disponível). Meses completos sem lançamentos contribuem com zero; meses cortados pelas datas aparecem nos gráficos e movimentos, mas não entram na média. Sem meses completos ou média positiva, o status é `no-history`.
 5. A tela permite alternar entre **Gastos** e **Ganhos** quando a categoria suporta os dois usos. No Android/iOS, a alternância usa as Tabs controladas de `components/ui/tabs`; na Web, usa `Tabs` controladas do Mantine com o mesmo adaptador visual do extrato bancário, sem sombra no estado ativo. Depois dos campos de data, as tabs ficam em ordem fixa, e o seletor de categoria aparece logo abaixo nas duas plataformas. O estado ativo usa fundo amarelo e texto/ícone brancos; hover, foco e desabilitação são preservados. Logo após o seletor de categoria há `Divider size="sm"` Mantine na Web e `Divider` Gluestack no mobile. A opção sem suporte permanece desabilitada e a alternância reutiliza o relatório já carregado
 6. O status pode ser:
    - `above` — mês atual acima da média histórica
@@ -58,13 +58,16 @@ graph TD
 - `screens/web/CategoryAnalysisScreen.web.tsx` — Composição Web do relatório, com Tabs Mantine e seletor de categoria em fluxo vertical
 - `components/uiverse/categories/category-analysis-bank-donut-chart.tsx` — Gráfico Web Mantine isolado em Expo DOM, recebe dados agregados em centavos e respeita tema/privacidade
 - `components/uiverse/categories/category-analysis-monthly-line-chart.tsx` — Gráfico Web Mantine em Expo DOM com uma série acumulada por mês para a categoria ativa
-- `functions/CategoryAnalysisFirebase.ts` — Consultas separadas do histórico e do mês atual, agregação e relatórios
+- `functions/CategoryAnalysisFirebase.ts` — Fonte legada ou razão conforme o corte, agregação e relatórios
+- `functions/FinancialLedgerFirebase.ts` — Leitura completa do histórico do grupo em páginas de 200 eventos
+- `utils/financialCivilDate.ts` — Adapta instantes e limites de consulta ao calendário civil de São Paulo
 - `utils/categoryAnalysis.ts` — Intervalos, comparação por dias equivalentes em centavos e paginação após filtro
 - `hooks/useCategoryAnalysisData.ts` — Consulta automática e proteção contra respostas obsoletas
 - `components/uiverse/categories/category-analysis-period-fields.tsx` — Campos de datas compartilhados
 - `components/uiverse/categories/category-analysis-movement-pagination.tsx` — Controles de prévia e paginação
 - `tests/categoryAnalysis.test.ts` — Regressões de comparação, datas, consultas e paginação
 - `tests/categoryAnalysisData.test.ts` — Concorrência entre períodos, logout e recuperação de erro
+- `tests/ledgerProjectionReads.test.ts` — Fonte migrada, estornos fora do período, paginação completa, metadados do grupo e virada UTC/São Paulo; Firestore simulado, sem escrita financeira
 - `utils/categoryAnalysisPdf.ts` — HTML do relatório PDF da análise
 - `app/mobile/category-analysis.tsx` — Rota Expo Router
 - `components/uiverse/navigation/navigator.tsx` — Entrada da tela no grupo Home
@@ -85,7 +88,7 @@ graph TD
 ## Configuração
 
 - Sem variável de ambiente nova
-- O período histórico padrão é de 3 meses fechados anteriores ao mês atual; pode ser alterado pelos campos de data até 12 meses. Datas usam o calendário local do dispositivo, como o extrato bancário.
+- O período histórico padrão é de 3 meses fechados anteriores ao mês atual; pode ser alterado pelos campos de data até 12 meses. O serviço adapta internamente o calendário civil de São Paulo aos calculadores; datas de movimentos retornadas e `generatedAt` conservam os instantes reais.
 - A tela respeita [[Privacidade de Valores]] usando `useValueVisibility()`
 - A exportação usa `expo-print` para gerar o arquivo e `expo-sharing` quando disponível; antes de compartilhar, copia o PDF para o cache com nome contextual `Lumus-Financas-Analise-por-Categoria-[categoria]-[tipo]-[data].pdf`; sem sharing, abre a impressão do dispositivo para salvar como PDF
 
@@ -100,4 +103,7 @@ graph TD
 - Percentuais do card de média são calculados como variação do mês atual contra a média histórica; a participação por banco é exibida separadamente e evita mostrar `100%` como falso sinal de variação quando há apenas uma fonte no mês
 
 - Barras e linhas mostram os totais do recorte de cada mês; a média e sua contagem usam apenas os dias comparáveis. A tela explicita essa diferença.
-- O histórico e o mês atual são consultados separadamente, sem ler os meses do intervalo entre um histórico antigo e o mês atual. Consultas e filtros preservam pessoas autorizadas e exclusão de movimentos internos.
+- Antes do corte, o histórico e o mês atual são consultados separadamente, sem ler os meses do intervalo entre um histórico antigo e o mês atual. Depois do corte, a fonte exclusiva de movimentação é `ledgerTransactions` do grupo; `financialAccounts` fornece banco, Caixa e nomes, e categorias combinam dados legados legíveis com metadados `groupId` permitidos pelas regras.
+- Na fonte migrada, entram apenas eventos `expense` e `income` ativos. Um estorno até o fim do dia civil da consulta em São Paulo remove o original mesmo que o estorno esteja fora do histórico selecionado. O estorno não vira receita/despesa; o lançamento corretivo entra como novo evento. Estorno de dia futuro não altera o histórico atual. Transferências, investimento, migração e reconciliação ficam fora dos totais. Registros de hoje ao meio-dia civil já participam do parcial consultado pela manhã.
+- A leitura completa do razão é paginada por ID, em páginas de 200, antes do recorte do relatório. Essa leitura permite encontrar os estornos em todo o histórico e não se limita aos movimentos recentes da Home ou do catálogo do assistente. As regras Firestore continuam responsáveis pelo acesso ao grupo.
+- `tests/ledgerProjectionEmulator.test.ts` valida o serviço público com SDK real e Auth/Firestore demo: consulta pela manhã inclui registro persistido de hoje ao meio-dia; após o corte, 253 eventos exigem duas páginas e original/estorno do mesmo dia deixam exatamente 251 despesas ativas/8.540 centavos. As fixtures são isoladas e removidas após a suíte opt-in.

@@ -1,3 +1,4 @@
+import { readRecurringDefinitionsFirebase } from '@/functions/RecurringReadFirebase';
 // Funções responsáveis por gerenciar os gastos obrigatórios registrados no aplicativo.
 
 import { db } from '@/FirebaseConfig';
@@ -404,15 +405,8 @@ export async function getMandatoryExpensesWithRelationsFirebase(personId: string
 
 		const ids = Array.from(idsSet);
 
-		let expensesQuery;
-
-		if (ids.length === 1) {
-			expensesQuery = query(collection(db, MANDATORY_EXPENSES_COLLECTION), where('personId', '==', ids[0]));
-		} else {
-			expensesQuery = query(collection(db, MANDATORY_EXPENSES_COLLECTION), where('personId', 'in', ids));
-		}
-
-		const snapshot = await getDocs(expensesQuery);
+		if (!relatedUsersResult.success) throw new Error('Não foi possível conferir as contas relacionadas.');
+		const snapshot = { docs: await readRecurringDefinitionsFirebase('mandatoryExpenses', ids) };
 		const toComparableName = (entry: Record<string, unknown>) => {
 			const value = entry['name'];
 			return typeof value === 'string' ? value.toLocaleLowerCase() : '';

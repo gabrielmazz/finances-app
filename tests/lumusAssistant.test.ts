@@ -128,10 +128,14 @@ describe('Lumus Assistant domain contracts', () => {
 		});
 
 		it('declares every action payload field to the model', () => {
-			const declaredFields = ASSISTANT_FUNCTION_DECLARATIONS[0].parameters.properties.actions.items.properties.payload.properties;
+			const declaredFields = ASSISTANT_FUNCTION_DECLARATIONS.find(item => item.name === 'prepare_financial_actions')!.parameters.properties.actions.items.properties.payload.properties;
 			for (const schema of Object.values(assistantActionSchemas)) {
-				const shape = (schema as { shape: Record<string, unknown> }).shape;
+				let objectSchema: any = schema;
+				while (typeof objectSchema.innerType === 'function' || objectSchema.in) objectSchema = objectSchema.in ?? objectSchema.innerType();
+				const shape = objectSchema.shape as Record<string, unknown>;
 				for (const field of Object.keys(shape)) {
+					// Pré-condição capturada pelo aplicativo; o modelo não pode propor o saldo autorizado.
+					if (field === 'expectedPreviousBalanceInCents') continue;
 					expect(declaredFields).toHaveProperty(field);
 				}
 			}

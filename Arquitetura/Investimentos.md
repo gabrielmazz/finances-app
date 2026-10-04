@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.8
+versao: 1.6.10
 ---
 
 # Investimentos
@@ -120,7 +120,8 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 
 ## Observações importantes
 
-- Em grupos migrados para o razão financeiro, a Home lê contas `financialAccounts` com `kind: 'investment'` e exibe o saldo confirmado; como os metadados legados de CDI não são relidos após o corte, essa representação não inventa rendimento estimado.
+- Em grupos migrados, a Home lê contas `financialAccounts` com `kind: 'investment'` e conserva `currentBalanceInCents` como base confirmada. O valor estimado CDI é separado dessa base e exige proprietário, data-base, percentual em pontos-base, ativo com valoração CDI e vigência disponível em `investmentCdiRates`. A data-base é o último evento materializado que toca a conta, ou a data da aplicação quando não há evento; aportes, resgates e reconciliações já estão no saldo e não são reaplicados. Sem metadados, taxa ou para ativo manual, o estimado permanece igual ao confirmado. O cálculo usa dias civis de São Paulo e não persiste rendimento.
+- A [[Previsão de Fluxo de Caixa]] usa metadados migrados de prazo/data e saldo confirmado para avisos de liquidez; dinheiro aplicado não entra na abertura líquida nem vira resgate automático. Sem data válida, não se inventa vencimento.
 
 - Ao verificar referências de aportes, resgates e sincronizações, as consultas incluem o `personId` do usuário autenticado ou relacionado junto ao `investmentId`, mantendo a leitura compatível com as Firestore Rules e os índices versionados.
 
@@ -136,6 +137,9 @@ As duas datas começam preenchidas com o dia atual, mas o usuário deve confirma
 - [[Assistente Lumus]] oferece criação, edição, exclusão, aporte, resgate, sincronização e desfazimento por ações separadas; movimentos vinculados não entram no editor genérico.
 - Aporte/resgate atualiza o investimento e cria a saída/entrada correspondente na mesma transação. Sincronização guarda valor anterior, novo valor e delta para permitir desfazer com validação de estado.
 - O relatório de carteira é calculado pelos agregadores do aplicativo; o modelo recebe somente métricas compactas para explicar e nunca escolhe fórmulas ou configuração arbitrária de gráfico.
+- Após o corte, criar investimento usa `manageFinancialAccount` com a conta de financiamento: débito no banco, criação da conta de investimento e evento `investment_deposit` são atômicos. Um valor atual diferente gera também a reconciliação auditável. Nome, CDI em pontos-base, tipo/valoração, prazo e banco vinculado são metadados editáveis pelo papel autorizado; alterar o saldo atual gera reconciliação. Corrigir o valor inicial estorna e substitui o aporte original atomicamente, preservando o histórico; original ausente ou já estornado, falta de permissão e saldo final inválido impedem o commit. Aporte/resgate usa transferência atômica entre contas e impede saldo de investimento negativo.
+- `tests/ledgerProjectionReads.test.ts` verifica a carteira da Home após reconciliação (saldo confirmado 80.000, estimado 80.800), ausência de taxa/proprietário e ativo manual, com Firestore simulado na fronteira e sem gravação financeira.
+- [[Validação de Lotes Conversacionais]] registra 211 aportes, 211 resgates, 211 sincronizações e 211 desfazimentos com SDK/callables reais locais, conferindo posições, banco, movimentos e recibos. Reutilizar uma categoria “Investimento” exige uso compatível com a saída/entrada; uma categoria apenas de despesa não pode ser escolhida para resgate. CDI registra 211 vigências em onze partes de até vinte propostas, com uma confirmação final; interpretação e notificações são simuladas, os efeitos financeiros não.
 
 ### Apresentação do gráfico da carteira (2026-09-28)
 
@@ -145,3 +149,8 @@ O gráfico de evolução da carteira usa título de seção sem ícone ou borda 
 ### Padrão do título do gráfico (2026-09-28)
 
 O título "Evolução da carteira" usa nas versões mobile e Web o mesmo tratamento de rótulo da Home: caixa alta, peso forte e espaçamento ampliado entre letras. O texto continua sem ícone decorativo e sem card externo.
+
+
+### Estorno de aporte legado — 2026-10-04
+
+`undo_investment_deposit` compartilha a callable confiável com a conversa e o formulário, revalidando movimento/posição, fingerprint, ator, saldo e recibo na mesma transação. A posição atual precisa cobrir o aporte devolvido: valor já resgatado impede o estorno inteiro, sem crédito inventado no banco. Retry do mesmo pedido consulta recibo antes de um alvo removido; versão stale não grava. Os 68 testes SDK locais incluem recusa de aporte já resgatado, concorrência de retry e fingerprint stale. [[Comandos Financeiros Conversacionais]] registra a integração no legado/razão.

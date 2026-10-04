@@ -1,126 +1,125 @@
 ---
 tags: [ia, firebase-ai-logic, gemini, assistente, voz, privacidade, financas]
-relacionado: [[Firebase Config]], [[Navegação]], [[Configurações]], [[Privacidade de Valores]], [[Componentes UI]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]]
+relacionado: [[Firebase Config]], [[Navegação]], [[Configurações]], [[Privacidade de Valores]], [[Componentes UI]], [[Razão Financeiro]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]], [[Cobertura Conversacional Lumus]], [[Perfil do Usuário]], [[Gerenciamento de Usuários]], [[Anotações Locais]]
 status: ativo
 tipo: feature
-versao: 1.0.28
+versao: 1.2.0
 ---
 
 # Assistente Lumus
 
-Conversa financeira em português que transforma texto ou áudio em rascunhos estruturados, pergunta somente o que falta e apresenta um cartão de revisão para cada operação. O Firebase AI Logic interpreta a intenção; somente o código determinístico do Lumus valida e grava no Firestore.
+Interface conversacional compartilhada por Web e mobile para consultar e operar os serviços reais do Lumus. A pessoa informa dados, escolhe referências por nome ou ordinal, corrige, confirma e cancela no chat. Cartões, seletores e paginação financeira deixaram de ser etapas necessárias para concluir operações. O modelo interpreta e propõe; o aplicativo valida, governa a autorização e informa o resultado persistido.
 
-## Como funciona
+A matriz [[Cobertura Conversacional Lumus]] registra todas as rotas físicas, adaptadores, fluxos internos e exceções. Um executor disponível não comprova todos os pedidos possíveis em linguagem natural. Evidência em memória, testes de protocolo, Emulator, navegador e aparelho deve ser identificada separadamente.
+
+## Caminho e autorização
 
 ```mermaid
-graph TD
-    U[Texto ou áudio escolhido pelo usuário] --> C[LumusAssistantContext em memória]
-    C --> G[AssistantAiGateway]
-    G --> AI[Firebase AI Logic / Gemini Developer API]
-    AI --> P[Ações propostas com handles opacos]
-    P --> F[FinanceCommandService]
-    F --> V[Zod + propriedade + saldo + snapshot]
-    V --> D[Cartões e perguntas no chat]
-    D -->|Botão individual Confirmar| T[Transação ou batch Firestore]
-    D -->|Texto sim| N[Nenhuma gravação]
-    C --> R[AssistantReportService]
-    R --> A[Agregadores existentes]
-    A --> M[Métricas e gráfico determinísticos]
-    M --> AI2[Narrativa opcional]
+flowchart TD
+ U[Evento de texto ou voz do usuário autenticado] --> C[Conversa em memória por UID]
+ C --> L[Gramática local inequívoca]
+ C --> M[Modelo com ferramentas de proposta]
+ L --> V[Validação tipada e resolução local completa]
+ M --> V
+ V --> Q[Dados faltantes ou referências ambíguas no chat]
+ Q --> V
+ V --> A[Pedido direto ou confirmação da versão apresentada]
+ A --> E[Executor revalida UID, papel, alvo, saldo e fingerprint]
+ E --> P[Transação / serviço legado ou razão]
+ P --> I[Resultado por item e invalidação das leituras]
+ I --> R[Resposta curta baseada no commit]
+ C --> D[Consulta completa no domínio]
+ D --> R
 ```
 
-1. A rota protegida `/lumus-assistant` importa `LumusAssistantProvider` e sua tela diretamente, sem `React.lazy`/`Suspense`, para que o Native Stack abra a tela imediatamente. Enquanto preferências, Remote Config e disponibilidade são verificados, o hero e o painel da própria tela ficam visíveis com um estado interno de preparação; a IA e o compositor só são liberados ao fim dessa verificação. O gateway Android continua adiando apenas os imports do React Native Firebase até confirmar um runtime compatível e obter o token de App Check. A boundary local ficou restrita à recuperação de erro inesperado da tela, sem criar um gate de navegação; seu fallback usa `SafeAreaView` de `react-native-safe-area-context` nas duas plataformas. A sessão permanece em memória enquanto a rota estiver montada e o UID atual estiver autenticado.
-2. No primeiro uso, o usuário precisa aceitar o aviso sobre envio de texto, áudio e contexto mínimo ao Gemini. O consentimento e a opção de leitura automática são persistidos por UID; mensagens, catálogos e rascunhos nunca são persistidos.
-3. O aplicativo carrega somente documentos graváveis do UID atual e cria handles opacos com salt aleatório da sessão. Eles permanecem estáveis durante a conversa, mudam ao limpar/logout e nunca contêm o ID real. UID, e-mail, token e configuração Firebase também não entram no prompt.
-4. O modelo pode chamar apenas `prepare_financial_actions` e `request_financial_report`. Nenhuma ferramenta fornecida ao modelo grava dados.
-5. Propostas passam por schemas Zod por ação. Valores permanecem em centavos, datas civis usam `America/Sao_Paulo`, e campos ausentes viram perguntas interativas.
-6. Quando vários rascunhos precisam do mesmo banco ou categoria, a pergunta oferece **Aplicar também aos semelhantes**.
-   Uma resposta digitada ou transcrita no compositor também preenche a pergunta aberta quando houver correspondência local inequívoca; isso não consome uma chamada de IA.
-   Rascunhos preparados pela mesma resposta aparecem em uma única entrada do chat, com um cartão visível por vez. A paginação numerada, a etapa atual e a contagem de ações concluídas ficam em uma faixa fixa **abaixo do histórico rolável e imediatamente acima do compositor**, seguindo a navegação numérica de [[Configurações]]. A faixa não aplica fundo próprio e herda a superfície do painel. O grupo avança um cartão acionável por vez, respeitando dependências; cartões futuros ficam desabilitados até que a etapa atual seja confirmada ou cancelada, e ações já concluídas podem ser reabertas para consulta. Uma confirmação concluída seleciona automaticamente o próximo cartão; falha ou resultado incerto mantém a etapa atual para correção ou nova conferência. Cancelar uma ação também cancela seus dependentes e encaminha para a próxima ação disponível. Perguntas obrigatórias selecionam sua ação e impedem a troca de página no grupo até a resposta. Cada cartão conserva seu `clientActionId`, estado, edição, dependências e confirmação individual. Nos estados editáveis, todos os campos aparecem como controles desde a abertura do cartão: texto/textarea, moeda ou número, data civil, horário e seletor de opção. Web usa campos Mantine com tema da tela; mobile usa Gluestack e os seletores nativos. Banco, categoria e demais referências exibem rótulos usando handles opacos; opções indisponíveis não aceitam texto livre. Alterações em texto, moeda e número são validadas ao sair do campo; antes de **Revisar e confirmar**, o cartão aguarda e valida todas as edições pendentes. A escolha de opções atualiza o rascunho assim que é feita. Essas edições chamam apenas `financeCommandService.updateDraft`; somente a confirmação individual grava a operação financeira. Com valores ocultos, campos monetários e taxas não revelam o conteúdo atual e permitem informar um substituto. Os campos do cartão não têm divisores horizontais; o espaçamento vertical separa os valores. Pedidos posteriores criam grupos separados, cada qual com sua linha de paginação. Campos de nome são respondidos individualmente para cada registro, sem aplicação em lote. Toda resposta selecionada ou reconhecida como válida no compositor atualiza o mesmo rascunho e seu cartão principal, que passa a exibir o campo preenchido. A pergunta concluída e a resposta digitada não viram mensagens separadas no histórico; a interface mantém somente a pergunta ativa, enquanto uma tentativa inválida continua visível com seu aviso. Depois da última resposta, o grupo de cartões passa ao fim do histórico para revisão e confirmação individual, sem acumular as perguntas concluídas. A ordenação visual não duplica mensagens nem altera IDs ou a execução financeira.
-   A faixa lista somente grupos com ações em aberto, inclusive as que aguardam correção ou confirmação. Quando todas as ações de um grupo terminam como concluídas ou canceladas, sua paginação some; grupos de novos pedidos continuam aparecendo enquanto tiverem ações pendentes.
-   Enquanto qualquer grupo paginado estiver aberto, o compositor de comandos fica desabilitado em Web e mobile, incluindo envio por texto/voz e sugestões. Os inputs do cartão/pergunta ativa continuam habilitados para preencher os campos solicitados. O envio também confere esse bloqueio antes de encaminhar um comando.
-   O cabeçalho não desenha divisor inferior e a faixa de paginação não desenha divisor superior, deixando o histórico rolável integrado visualmente ao restante do chat. O indicador vertical de rolagem fica oculto em Web e mobile; a área continua rolável.
-7. Cada cartão passa por `ready → confirming → executing`. **Revisar e confirmar** só aparece depois que os campos obrigatórios do cartão foram preenchidos; **Confirmar agora** executa somente o próprio cartão. A mudança para `confirming` atualiza imediatamente a referência da sessão usada pela execução, inclusive se o usuário tocar rapidamente nos dois botões. Uma mensagem ou áudio dizendo “sim” nunca executa.
-8. Edições, exclusões e desfazimentos guardam fingerprint do documento. O serviço lê novamente o registro antes do commit e marca o cartão como `stale` quando os dados mudaram.
-9. IDs de documentos criados pelo assistente são derivados de `personId + clientActionId + operação`. O `clientActionId` é gerado pelo aplicativo para cada novo cartão, nunca reutilizado diretamente do rótulo proposto pelo modelo; referências `action:` e dependências da mesma resposta são remapeadas juntas. Isso permite dois pedidos em mensagens diferentes com o mesmo rótulo do modelo e mantém a repetição segura da confirmação de um cartão.
-10. Notificações de recorrências são agendadas somente depois do commit financeiro. Falha local gera aviso sem reverter a escrita concluída.
-   O aviso oferece nova tentativa que atua somente sobre a agenda local e nunca repete o commit financeiro.
-11. O comando local “Limpar conversa” é interceptado antes da IA e apaga imediatamente a sessão em memória sem revogar o consentimento.
-12. Quando a disponibilidade Android falha por App Check ou configuração, o aviso do chat oferece **Tentar novamente**. A ação `refreshAvailability()` mostra estado de verificação, força nova resolução de Remote Config e executa outro preflight; ela atualiza somente configuração/disponibilidade e não limpa consentimento, conversa nem a sessão financeira.
-13. Em desenvolvimento, Auth, Firestore e Functions permanecem no projeto sintético `demo-lumus-financas` do Emulator Suite. Como AI Logic e Remote Config não possuem emuladores locais, somente AI Logic, App Check e Remote Config usam o app remoto `finances-app-e8685`, com App Check Debug. A tela identifica explicitamente esse modo híbrido; nenhum dado é lido ou gravado no Firestore remoto.
-14. Pedidos de **pagar contas/gastos obrigatórios** ou **receber ganhos/receitas obrigatórios pendentes** abrem diretamente a pergunta local de seleção, sem depender de o modelo escolher entre relatório e ação. As opções vêm apenas do catálogo gravável da conta atual, com handles opacos; itens já concluídos no ciclo de `America/Sao_Paulo`, parcelas encerradas e itens de leitura relacionada são excluídos. O aplicativo prepara **um** rascunho com a data civil de hoje, pergunta qual obrigação e onde registrar, e mantém edição/revisão antes da confirmação. Pedidos explícitos de relatório continuam no fluxo de leitura. Selecionar a opção ou mudar de página não grava nada.
+- `LumusAssistantProvider` fica dentro do contexto financeiro na raiz autenticada. A conversa sobrevive à navegação entre telas; UID trocado, logout, revogação e limpar conversa encerram a sessão. Configuração/disponibilidade são carregadas ao abrir o assistente, sem avaliação antecipada de módulos Firebase nativos no Expo Go.
+- `assistantConversationService` mantém intenções, alvos, dependências, origem, versões e resultados fora do histórico truncável do modelo. Texto e áudio transcrito usam a mesma entrada; a transcrição permanece editável e não prova execução.
+- Comandos completos de criação/registro elegíveis podem executar diretamente. Exclusão, estorno, transferência, investimento, reconciliação e alterações relevantes mostram o efeito e aguardam confirmação textual. Lotes podem exigir uma confirmação agregada; nenhum item exige botão financeiro.
+- A autorização financeira é uma capacidade local não serializável, ligada ao UID, sessão ativa, evento do usuário e assinatura de ID/tipo/argumentos/snapshot/dependências. Copiar o token, trocar UID, alterar argumentos ou encerrar a sessão invalida essa capacidade. `confirmed:true` do modelo não concede autorização.
+- Uma confirmação só vale para a versão ativa **quando a mensagem chegou**, além da verificação no processamento. Um “sim” enviado antes do resumo ou enfileirado antes de uma correção não autoriza a versão criada depois.
+- Pergunta paralela conserva as intenções e invalida o foco de confirmação; “retome” reapresenta o pedido. Correção material revalida e cria novo resumo. Nome ambíguo pede distinção em texto; ordinal resolve somente as opções apresentadas. “Não” recusa a confirmação; cancelamento nomeado preserva os demais pedidos e cancela dependências.
+- O compositor continua disponível durante interpretação, confirmação e processamento. As execuções dependentes são serializadas. Cancelar interrompe o início de novos itens; uma operação em commit recebe resultado real, sem promessa de rollback.
 
-## Ações suportadas
+## Domínios
 
-| Área | Ações |
+| Área | Integração conversacional |
 |---|---|
-| Despesas e ganhos | criar, editar e excluir lançamentos não vinculados |
-| Saldo mensal | criar ou atualizar por banco e ciclo `YYYY-MM` |
-| Transferências | criar o registro e o par saída/entrada de forma atômica |
-| Dinheiro | registrar e desfazer saque |
-| Gastos obrigatórios | criar, editar, excluir, pagar ciclo e desfazer pagamento |
-| Ganhos obrigatórios | criar, editar, excluir, receber ciclo e desfazer recebimento |
-| Investimentos | criar, editar, excluir, aportar, resgatar, sincronizar e desfazer movimentos |
-| CDI | registrar ou atualizar taxa por vigência |
-| Bancos | criar com saldo inicial, editar e excluir conforme o comportamento atual |
-| Categorias | criar, editar e excluir conforme o comportamento atual |
+| Dashboard/análise | saldo atual, visão mensal, maior/menor gasto ou ganho, categorias e pesquisa do período completo |
+| Despesas/receitas | criar, corrigir, excluir; movimentos confirmados no razão usam estorno e novo evento |
+| Recorrências/parcelas | definir, alterar, remover, pagar/receber quantidades, desfazer, ciclos/dias úteis/lembretes |
+| Bancos/Caixa | gestão de contas, abertura, extrato, transferência, saque, ajuste e reversão conforme papel/armazenamento |
+| Investimentos/CDI | definição, aporte, resgate, sincronização, reversões e taxas cadastradas; posição confirmada separada de simulação |
+| Previsão | horizontes de 3/6/12 meses pelas premissas do serviço, sem garantia de resultado |
+| Perfil/vínculos | consulta, alteração de nome, vínculos bidirecionais autorizados, cópia local do próprio identificador |
+| Preferências | tema, valores ocultos, cache confiável, visibilidade de rotas, comportamento após formulário, leitura automática e revogação |
+| Anotações | listar/ler/criar/editar/renomear no armazenamento local por UID; nenhum conteúdo/ID é enviado como resultado ao modelo |
+| Navegação/sessão | abrir destino suportado mantendo a conversa; logout pela rotina de limpeza segura |
 
-Transferências, lançamentos recorrentes vinculados e movimentos de investimento não entram na edição genérica. Criação de usuário, exclusão de conta e administração de relacionamentos não são ferramentas do assistente. Dados relacionados podem entrar nos agregadores de relatório, identificados como escopo de leitura, mas não entram no catálogo gravável.
+O quadro detalhado de ações, permissões e evidência fica na matriz. Login/cadastro/recuperação são fronteiras de autenticação; o assistente autenticado não inventa escrita em login. Permissões do microfone/notificações dependem do sistema. Não há integração para pagar em banco externo, cotação financeira em tempo real ou administração de papéis/grupos além dos serviços existentes.
 
-## Voz e leitura
+## Lotes, dependências e persistência
 
-- `expo-audio` grava somente depois do toque, nunca em segundo plano, por no máximo 60 segundos e 20 MB.
-- O arquivo temporário é transformado em base64 somente para a chamada de transcrição e apagado após transcrição, cancelamento, revogação, logout ou desmontagem da tela. Na desmontagem, a tela limpa somente timer, arquivo e modo de áudio: o `useAudioRecorder` já libera o `AudioRecorder`, portanto nenhuma operação assíncrona consulta ou interrompe esse objeto nativo depois disso.
-- A transcrição aparece no compositor e pode ser editada antes do envio financeiro.
-- `expo-speech` lê localmente em `pt-BR`. A leitura automática começa desligada e é persistida por UID.
-- No modo de privacidade, valores são mascarados na tela e antes do TTS.
-- O adaptador Android nativo exige development build porque Expo Go não contém os módulos React Native Firebase. A matriz oficial do [Firebase JavaScript SDK](https://firebase.google.com/docs/web/environments-js-sdk) não lista AI Logic como suportado em React Native, e a [documentação Expo Firebase](https://docs.expo.dev/guides/using-firebase/) confirma que React Native Firebase requer código nativo. Para testar a IA sem build no Android, `assistantPlatform.expoGo.ts` usa `fetch` no transporte Firebase AI Logic e o endpoint oficial de troca do App Check Debug. Esse caminho aceita somente `__DEV__` com `EXPO_PUBLIC_FIREBASE_TARGET=emulator`; Auth, Firestore e Functions continuam no Emulator Suite.
-- O Expo Go exige um token App Check Debug registrado para o app Web de desenvolvimento. `app.config.ts` só copia esse valor para `expo.extra` em execução/build de desenvolvimento com alvo Emulator; os adapters leem essa configuração em vez de embutir diretamente a variável no bundle. O token assinado é trocado em memória, enviado somente no cabeçalho App Check à Firebase AI Logic e nunca anexado ao prompt nem à sessão financeira. A ponte é de desenvolvimento, não é provider de atestação para distribuição.
-- O Firebase Remote Config SDK não está disponível nesse runtime. Expo Go usa os defaults locais versionados para modelo e limites, portanto mudanças remotas do kill switch só chegam via Web ou app nativo com Remote Config; o aviso da tela informa essa limitação. `npm run start:expo-go` inicia Metro forçando a abertura no Expo Go.
-- Expo Router, `expo-audio`, `expo-file-system` e `expo-speech` estão incluídos no Expo Go usado por este projeto. Provider e tela montam diretamente, sem avaliar RNFirebase no Expo Go; configuração ausente aparece como indisponibilidade dentro do painel, e a recovery boundary cobre falhas inesperadas sem derrubar Login, Home ou o Stack.
-- O código do adapter também seleciona o caminho Expo Go em iOS quando roda dentro de um host StoreClient compatível. O projeto usa Expo SDK 57; a [documentação Expo](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/) informa que o Expo Go da App Store para iOS fica no SDK 54 e que SDK 55+ exige instalar um host Expo Go próprio. Por isso essa rota iOS não pode ser validada pela instalação comum da App Store nesta versão do SDK.
+- Conjuntos por filtro são selecionados na fonte local completa, com cursor/chunks de consulta. A ferramenta do modelo transmite filtro/argumentos, nunca centenas de documentos. Itens explícitos também passam pelo mesmo executor.
+- O resumo informa elegíveis, excluídos, somente leitura e histórico indisponível. Pagamento/recebimento exclui ciclo concluído, parcelas encerradas e datas fora do contrato. Um ciclo anterior não recebe automaticamente a data de hoje.
+- Preparação aloca IDs locais, remapeia referências `action:` e conserva o identificador durante retry. Dependência só é liberada depois do sucesso persistido; falha não libera o próximo efeito dependente.
+- “Detalhes do lote”, “mostre as falhas do lote” e “mais detalhes” leem os resultados estruturados do último pedido financeiro em grupos de oito no chat, sem nova interpretação ou escrita. Cancelamento conta separadamente itens persistidos, falhos e não iniciados.
+- Execução financeira serial preserva atomicidade dentro de cada operação; lote com vários itens não promete rollback integral. Progresso agregado, falhas e pendências ficam no chat. Retry usa os mesmos IDs e não repete sucesso.
+- Serviços legados e callables do razão conservam recibo com owner/ator, identidade e fingerprint do pedido. Resultado incerto é reconciliado antes de repetir. Snapshot concorrente exige nova preparação.
+- Lotes locais de preferências/anotações/vínculos mantêm checkpoint por UID/requestId e estado por item, assinatura de autorização, cancelamento e retry. Limpar/revogar/sair troca a sessão e apaga checkpoints em memória.
+- Leituras das telas são invalidadas após commit. Uma falha na atualização ou na agenda de lembrete não transforma o commit em falha financeira; repetir lembrete não repete pagamento.
 
-## Relatórios
+## Consultas e datas
 
-`AssistantReportService` reutiliza `HomeFirebase`, `CategoryAnalysisFirebase`, `FinancialForecastFirebase` e as consultas de recorrências para produzir:
+- Valores são centavos inteiros; taxas seguem ponto fixo do domínio. Datas civis e ciclos usam `America/Sao_Paulo`, inclusive quando aparelho/Node estão em UTC.
+- “Hoje” pode ser armazenado ao meio-dia civil. Saldo, categorias, previsão e consultas do mês incluem o dia civil atual inteiro; o dia seguinte continua excluído. O corte pelo instante antes do meio-dia omitia lançamentos já registrados e foi corrigido.
+- Ranking, extrato, pesquisa e categorias consultam o mês completo em páginas de 200, com escopo legível e tratamento de estornos. Originais estornados não são receita/despesa ativa. Extrato conserva os eventos e pernas; transferências/saques/aportes não viram resultado econômico duplicado.
+- Saldo usa a posição atual. Um saldo histórico indisponível não é inventado a partir da Home. Perguntas pontuais respondem primeiro com o resultado; extratos detalhados continuam por “mostre os demais”, sem selecionar alvos financeiros.
+- Pendências respeitam ciclo, parcelamento e início/fim. Templates legados ou migrados que preservaram apenas o último ciclo não permite reconstruir todos os meses anteriores: itens sem evidência ficam desconhecidos, e o total parcial é identificado. Novos eventos/templates conservam histórico de ciclos.
+- A carteira migrada usa contas/eventos do razão e metadados autorizados; não recorre a saldos legados. CDI só estima quando dono, taxa, data-base e metadados são verificáveis. Sem eles, conserva a base confirmada. Taxa cadastrada não é cotação externa.
+- A resposta de um pedido composto lê depois dos commits. Falha parcial mantém os sucessos e identifica que a consulta mostra a posição efetivamente persistida.
 
-- visão mensal;
-- maior ou menor despesa ou ganho de um mês;
-- movimentos por banco ou dinheiro;
-- pesquisa de transações;
-- análise de categorias;
-- previsão de fluxo;
-- obrigações pendentes;
-- carteira de investimentos.
+## Exportações pelo chat
 
-Totais, séries e escolha de gráfico (`line`, `bar` ou `donut`) são sempre do aplicativo. O Gemini recebe um objeto compacto com as métricas já calculadas apenas para escrever uma explicação simples. Se a narrativa falhar, o cartão continua com métricas, gráfico e `deterministicSummary` local.
-Na narrativa opcional de um relatório amplo, a pergunta original também é enviada ao modelo para que ele responda ao ponto pedido usando somente as métricas disponíveis; se elas não bastarem, a instrução exige que informe a limitação. Isso não muda os cálculos nem concede escrita ao modelo.
+“Exporte o extrato do Nubank de 2026-10 em PDF”, “Exporte despesas fixas em PDF”, “Exporte receitas fixas em PDF” e “Exporte a análise da categoria Alimentação com histórico de 3 meses em PDF” usam os leitores e builders existentes. Extrato aceita Caixa, datas civis, tipo e categoria; análise aceita histórico em meses ou intervalo. Nome ambíguo é resolvido por texto/ordinal. O resultado entrega a geração para impressão Web ou compartilhamento nativo; não afirma que um arquivo foi salvo pelo sistema.
 
-Perguntas pontuais como “qual foi meu maior/menor gasto este mês?” usam `largest_expense`, `smallest_expense`, `largest_gain` ou `smallest_gain`, não `monthly_overview`. Se a pessoa pedir explicitamente o maior e o menor gasto ou ganho na mesma pergunta, o gateway prepara ambos os relatórios pontuais, mesmo que o modelo proponha apenas um, e apresenta os dois resumos calculados juntos. O gateway confere palavras explícitas de maior/menor e gasto/ganho no pedido e ajusta o tipo de leitura quando a proposta do modelo contradiz a pergunta inequívoca. O serviço lê todos os lançamentos elegíveis do mês solicitado, até o instante atual quando o mês ainda está em curso, e responde diretamente no chat com nome, centavos formatados e data civil em `America/Sao_Paulo`. No legado, a consulta é limitada aos UIDs legíveis e exclui transferências e movimentos de investimento; no grupo migrado, usa somente os lançamentos `expense`/`income` do razão e ignora transferências. O retorno da ferramenta para o modelo confirma apenas a solicitação: o resumo calculado é apresentado diretamente pelo aplicativo, sem texto preliminar genérico, segunda narrativa ou envio de IDs reais ao modelo. A frase pontual fica em memória para exibição e leitura por voz, mas não entra nos turnos seguintes enviados ao modelo. Perguntas gerais sem necessidade de dados da conta podem receber resposta conversacional; nenhuma resposta textual confirma ou grava operações. Os relatórios amplos continuam em cartões quando solicitados.
+Recorrências usam lançamento, último ciclo e `completedCycles`; ausência de evidência não se transforma em pagamento nem pendência, inclusive após migração. Data de criação/início exclui ciclos anteriores ao contrato. Quantidades/valores desconhecidos não compõem um total confirmado inventado. Privacidade e sessão são revalidadas depois das leituras e antes de abrir o relatório; troca de privacidade durante a geração cancela o resultado e arquivos temporários próprios são removidos no transporte nativo.
 
-## Acompanhamento do processamento
+## Ferramentas e privacidade
 
-Durante `sendMessage`, o contexto mantém em memória somente a etapa observável atual e as etapas já concluídas: consulta dos dados necessários, interpretação do pedido pelo gateway, preparação determinística dos cartões, montagem do relatório e narrativa opcional. Web e mobile mostram esses estados com `AssistantActivityTrace`; a tela não recebe nem apresenta raciocínio privado do modelo. O histórico de progresso é apagado ao concluir/cancelar a chamada, trocar de usuário ou limpar a sessão e nunca é persistido. Os rótulos não contêm texto do pedido, valores financeiros, argumentos de ferramentas ou identificadores.
+O gateway declara `search_financial_catalog`, `prepare_financial_actions`, `update_pending_actions`, `request_financial_batch`, `request_financial_report` e `prepare_application_commands`. Todas interpretam, localizam ou propõem; nenhuma grava diretamente no Firestore.
 
-As etapas são atualizadas junto aos serviços que realmente as executam. Um erro mantém a mensagem de recuperação produzida pelo classificador existente; o indicador não substitui o diagnóstico nem afirma que a operação terminou.
+O catálogo inicial contém um recorte relevante com handles opacos. Uma busca local lê o conjunto completo e retorna no máximo 40 referências, indicando total/completude; ambiguidade não autoriza escolher o primeiro. IDs reais ficam no cliente/executor. Os dados de nome/descrição/anotação não são instruções. UID, email, JWT e chaves Firebase são retirados do texto/catalogo/resumo enviados ao modelo.
 
-## Limites e estados
+Valores ocultos são mascarados antes do prompt, na interface, em resumos e no TTS. Relatórios e resultados locais ficam em memória para a pessoa e não retornam ao histórico do modelo. Respostas gerais sem dados da conta podem compor pares de histórico; o pedido atual não é duplicado nem recebe mensagens futuras da fila. Estado financeiro crítico não depende desses pares.
 
-- Entrada: 4.000 caracteres.
-- Resposta: no máximo 20 ações.
-- Loop de ferramentas: no máximo oito chamadas.
-- Se uma resposta do modelo trouxer mais chamadas que o limite, o aplicativo rejeita as excedentes e devolve uma resposta para cada chamada recebida antes de encerrar o ciclo. Ao atingir o limite de ações, novas propostas são rejeitadas sem informar falsamente que viraram rascunhos.
-- Contexto: resumo ativo e até 12 turnos recentes, em pares completos usuário/modelo. O pedido atual vai apenas em `sendText`, não é duplicado no histórico. Perguntas anteriores sem resposta textual do modelo, inclusive após respostas financeiras determinísticas excluídas por privacidade, não formam pares e não entram no próximo prompt. Isso preserva a alternância exigida pelo Firebase AI Logic quando comandos são enviados em sequência.
-- Ritmo local: no máximo 10 chamadas por minuto por UID autenticado.
-- Concorrência: uma chamada ativa por conversa.
-- Estados: `draft → needs_input → ready → confirming → executing → succeeded | failed | cancelled | stale`.
-- Erros de rede, App Check, autenticação, cota `429`, indisponibilidade `5xx`, requisição inválida `400`/`422` e resposta inválida viram mensagens sem detalhes internos. O SDK pode usar o código `fetch-error` para qualquer erro HTTP; status `400`/`429`/`5xx` não significa falta de internet. `ai/invalid-content` sugere limpar a conversa; erros genéricos de leitura ou interpretação pedem nova tentativa sem mencionar gravação financeira, que não ocorreu nesse fluxo. Somente um código Firebase que confirme token/sessão inválido, expirado, usuário desabilitado ou inexistente pede novo login; um `401`/`403` genérico, falha de App Check, integração nativa ou configuração pendente não é apresentado como sessão expirada.
-- Quando a conversa falha por cota ou indisponibilidade do modelo escolhido no Remote Config, o gateway faz no máximo uma nova tentativa com `gemini-3.5-flash-lite`, modelo estável do nível gratuito com chamadas de função e entrada de áudio. Um aviso no histórico informa o uso da alternativa. Falhas de App Check, configuração, sessão, rede e pedido inválido não acionam essa tentativa. Não há troca de backend nem fallback pago.
-- Uma resposta `404` que identifique o modelo ou a configuração de AI Logic recebe diagnóstico próprio. A mensagem de erro da conversa vem de `mapAssistantError()` no `catch` de `sendMessage()`. Em 2026-09-25, a frase “Sem conexão com o assistente” foi rastreada ao classificador de `fetch-error`: a versão anterior também a mostrava para respostas HTTP reais da IA.
-- A confirmação financeira distingue `permission-denied` do resultado incerto de transporte: se as regras negam acesso, o cartão informa que não conseguiu acessar os registros e orienta conferir a conta, sem encerrar a sessão. O cliente não registra o pagamento nessa falha.
-- Após um commit confirmado, o cartão é marcado como concluído antes da atualização do catálogo e dos cartões dependentes. Se essa atualização falhar, a operação concluída permanece visível e surge um aviso; não se repete a escrita financeira automaticamente. Uma falha de transporte durante o commit tem resultado incerto e pede conferência dos registros antes de tentar novamente.
-- O comando de pagamento/recebimento lê o lançamento determinístico do `clientActionId` dentro da transação antes de atualizar o ciclo. Em um primeiro pagamento esse documento ainda não existe; `firestore.rules` permite somente a leitura unitária da ausência para usuário autenticado, mantendo a regra de proprietário nos documentos existentes e as restrições de escrita. Sem essa exceção, `resource.data.personId` negava o `BatchGetDocuments` antes da gravação. Se o mesmo cartão já gerou o lançamento, a repetição não incrementa parcelas nem cria outra movimentação. Outro cartão para um ciclo já concluído recebe erro de ciclo concluído; a verificação de snapshot continua protegendo alterações concorrentes.
-- Respostas assíncronas de perguntas, edições, preparação de cartões e relatórios conferem a conta ativa antes de atualizar a sessão em memória. Conversas canceladas também conferem o sinal de aborto antes de publicar resultados; limpar a conversa ou trocar de usuário não restaura cartões de uma requisição antiga.
+A sessão não persiste mensagens/áudio no Firestore. Consentimento e leitura automática são locais por UID. Revogação interrompe imediatamente trabalho/TTS e invalida retornos tardios, incluindo bootstrap, áudio e troca de conta.
+
+## Limites e experiência
+
+- Mensagem: 4.000 caracteres; excesso é recusado integralmente, sem truncar itens ou colar parte de um pedido. Áudio: até 60 segundos/20MB conforme adaptador, com arquivo temporário apagado após uso/cancelamento/revogação/desmontagem.
+- Modelo: até 20 ações explícitas e oito ferramentas por resposta, limites Remote Config mantidos. Excesso/contrato inválido invalida escritas daquele resultado, com mensagem explícita. Lote determinístico não herda o limite de 20 documentos do prompt.
+- Cota de modelo por UID, não por operação local. Comandos locais e leituras determinísticas podem continuar quando modelo/App Check está indisponível; a interface identifica capacidades de voz/modelo separadamente.
+- Web/mobile compartilham estado e regras. Layout, teclado, áudio, foco, temas e controles de pelo menos 44px continuam nos adaptadores. As telas não montam o fluxo de cartões editáveis/confirmadores financeiros.
+- Etapas observáveis e progresso agregado não expõem raciocínio privado nem argumentos/identificadores em logs. O aviso híbrido identifica os serviços locais e os remotos.
+
+## Evidência e pendências de validação
+
+[[Validação Conversacional Lumus]] registra os gates finais e percentis comparáveis: tipos, backend e exportações Web/Android passaram; Jest geral passou 670 testes e manteve duas falhas do baseline. [[Comandos Financeiros Conversacionais]] cruza as 38 ações com legado/razão e evidência; [[Validação de Lotes Conversacionais]] registra treze famílias reais de 211 itens, falha parcial/retry e cancelamento. A matriz mantém 82 rotas físicas e as exceções de plataforma, papel, dados históricos e serviços. Esses resultados não certificam aparelho instalado, compreensão universal nem quota/latência do modelo remoto.
+
+No baseline, lint de estilos já falhava em `ConfigurationsScreen.web.tsx`; testes de perfil e layout do Login tinham uma falha cada. As alterações preexistentes de cadastro de receita e `skills-lock.json` foram preservadas. Nenhum deploy, migração de produção, alteração externa Firebase ou operação financeira real foi autorizado/realizado neste trabalho.
+
+## Arquivos principais
+
+- `services/lumusAssistant/assistantConversationService.ts` e `assistantAuthorization.ts`: conversa, fila, foco/versionamento, autorização e cancelamento.
+- `assistantBatchService.ts`: gramáticas locais, seleção completa e busca reduzida/redigida.
+- `assistantApplicationService.ts`: gestão local/perfil/vínculos, preparações e checkpoints.
+- `assistantGatewayCore.ts` / `assistantPrompt.ts` / schemas: contratos, ferramentas e limites.
+- `financeCommandService.ts`, `assistantCatalogService.ts`, `assistantReportService.ts` e `assistantExportService.ts`: domínios financeiros, escopo, fingerprints, referências e consultas.
+- `contexts/LumusAssistantContext.tsx`: adaptação aos providers, UID/consentimento, leitura, navegação e invalidação.
+- `screens/mobile/LumusAssistantScreen.tsx` / `screens/web/LumusAssistantScreen.web.tsx`: histórico/compositor/áudio/configurações, sem negócio financeiro.
+- `functions/` / `backend/src/`: leitores legados/razão, callables, recibos, revalidação e atomicidade.
+- `utils/financialCivilDate.ts`: conversão entre instantes e calendário de São Paulo nos cálculos compartilhados.
+- `tests/lumusAssistant*.test.ts`, `tests/ledgerProjectionReads.test.ts`, testes backend no Emulator: evidência por comportamento; matriz registra sua associação.
 
 ## Integração Firebase por plataforma
 
@@ -169,64 +168,8 @@ Esse registro de publicação é histórico. Em 2026-09-25, a CLI leu o template
 - Troca de UID e logout limpam toda a sessão em memória.
 - App Check deve ter enforcement somente para Firebase AI Logic nesta entrega. Firestore Android continua no SDK JS e não deve receber enforcement até sua migração/auditoria.
 
-## Arquivos principais
 
-- `screens/mobile/LumusAssistantScreen.tsx`, `screens/web/LumusAssistantScreen.web.tsx` e os adaptadores em `app/*/lumus-assistant.tsx` — composições próprias por plataforma com montagem direta; o hero Web replica as camadas explícitas do cadastro de despesas, e o painel informa a preparação assíncrona sem bloquear a navegação.
-- `design-system/assistant.ts` — contrato visual compartilhado de superfícies, compositor, estados, cards e ações do assistente.
-- `components/uiverse/assistant/assistant-composer-frame.*.tsx` — envolve o compositor com o feixe amarelo/dourado enquanto o campo está em foco; Web usa `border-beam`, e Android/iOS desenham o feixe com SVG + Reanimated já instalados.
-- `components/uiverse/assistant/assistant-draft-pages.tsx` — páginas numeradas dos cartões da mesma resposta, sem alterar o fluxo de execução.
-- `components/uiverse/assistant/assistant-route-boundary.tsx` — recuperação para erro inesperado de renderização, sem loading normal da rota.
-- `components/uiverse/assistant/assistant-activity-trace.tsx` — acompanhamento acessível das etapas observáveis de envio, compartilhado entre Web e mobile; não exibe raciocínio privado.
-- `contexts/LumusAssistantContext.tsx` — sessão, consentimento, perguntas, confirmação, TTS e `refreshAvailability()` para repetir a resolução de Remote Config/preflight sem descartar a conversa.
-- `components/mobile/assistant/assistant-cards.native.tsx` / `components/web/assistant/assistant-cards.web.tsx` — perguntas, revisão e relatórios; os gráficos usam gifted-charts no mobile e Mantine no navegador, mantendo o mesmo contrato de dados e privacidade.
-- `services/lumusAssistant/assistantPlatform.web.ts` / `.native.ts` — Firebase AI, App Check e Remote Config.
-- `services/lumusAssistant/assistantGatewayCore.ts` — limites, exclusão mútua e loop de function calling.
-- `services/lumusAssistant/assistantCatalogService.ts` — handles opacos e fingerprints.
-- `utils/lumusAssistant.ts` — reconhecimento local dos pedidos amplos de pagar/receber obrigações pendentes; não interpreta outros comandos financeiros.
-- `services/lumusAssistant/financeCommandService.ts` — validação/autorização e execução financeira.
-- `services/lumusAssistant/assistantReportService.ts` — relatórios determinísticos.
-- `utils/lumusAssistantSchemas.ts`, `utils/lumusAssistant.ts` e `types/lumusAssistant.ts` — contratos de domínio.
-- `utils/lumusAssistantErrors.ts` — classificação estruturada de falhas de sessão, App Check, configuração e disponibilidade antes da mensagem exibida no chat.
-- `utils/lumusAssistantAppCheck.ts` — preflight isolado que aceita somente token string não vazio do provider, sem expô-lo ao estado da interface.
-- `utils/lumusAssistantLayout.ts` — calcula a altura do hero e a sobreposição do painel para o viewport regular ou compactado pelo teclado Android.
-- `utils/lumusAssistantAudio.ts` e `utils/assistantPreferencesStorage.ts` — áudio temporário e preferências.
-- `app.config.ts` — plugin `expo-audio` e ativação condicional do plugin React Native Firebase conforme a presença de `google-services.json`; qualquer perfil EAS Android falha cedo sem `GOOGLE_SERVICES_JSON`, evitando development clients, APKs de preview ou AABs sem a IA nativa. `expo-asset` permanece dependência peer direta de `expo-audio`.
-- `app.json` — declara `android.softwareKeyboardLayoutMode: "resize"` para que o teclado Android redimensione a janela do chat.
-
-## Layout da tela
-
-- As composições mobile e Web mantêm a identidade das telas do Lumus: título **Lumus IA** e ilustração própria sobre o wallpaper amarelo, com a conversa em um painel arredondado logo abaixo. Na Web, o hero replica a estrutura de `AddRegisterExpensesScreen.web.tsx`: wrapper relativo de largura `w-screen`, imagem `RNImage` absoluta com dimensões explícitas, `Grainient` animado sobre ela, `StrokeText` e `AnimatedContent`. Manter cada camada dimensionada dentro do wrapper evita que o fundo do shell fique exposto ao lado do wallpaper. A tela Web possui arquivo e composição próprios, preservando adaptação e controles específicos sem perder esse padrão visual.
-- O aviso de consentimento, o histórico do chat e o compositor permanecem no painel; a ilustração não é repetida na área inicial da conversa. As sugestões rápidas abrem em um modal pelo botão de lâmpada ao lado de **Limpar conversa**, sem ocupar a lateral que fica sob a navegação Web. O botão de configurações abre um `Drawer` à direita, sem inserir conteúdo no histórico.
-- Os exemplos de perguntas ficam em um `Modal` aberto pelo botão de lâmpada entre limpar conversa e configurações. O estado vazio permanece compacto; escolher um exemplo fecha o modal e envia o texto pelo mesmo fluxo do compositor.
-- O layout reutiliza `useScreenStyles()` para insets e superfícies adaptadas ao tema, mantendo o padrão de [[Componentes UI]] e [[Sistema de Temas]]. O hero mede sua altura real com `onLayout` e reduz sua área de sobreposição quando a janela Android é redimensionada.
-- O acesso fica no menu do botão **Home** do `navigator.tsx` enquanto **Lumus IA** estiver visível neste aparelho. O switch em [[Visibilidade de Rotas]] pode ocultá-lo; nesse estado o `Stack.Protected` também bloqueia `/lumus-assistant` por deep link ou navegação programática.
-- A conversa usa as primitivas compostas `Conversation`, `ConversationContent`, `ConversationEmptyState`, `Message` e `PromptInput` de `components/ui/chatAi`, adaptadas do Chat AI do Gluestack à versão estável usada pelo app. Mensagens e cartões financeiros continuam sob controle do Lumus; o componente não cria persistência nem executa ações.
-- As mensagens enviadas pela pessoa usam o amarelo semântico `lumus-accent` (e sua variante escura `lumus-accent-dark`) no balão, com texto `lumus-on-accent` para manter contraste; Web e mobile consomem o mesmo contrato em `design-system/assistant.ts`.
-- No mobile, `PromptInputTextarea` usa `Input` e `InputField` do Gluestack; na Web, o compositor usa `Textarea` do Mantine dentro de um `MantineProvider` com o tema da tela. O foco amarelo aparece somente no campo Web, não na superfície externa do compositor. O texto digitado mantém o contraste do tema; o placeholder Web usa `#5A6A7F` em ambos os temas via token `textPlaceholder` e variável CSS do Mantine. Enter envia a mensagem; Shift+Enter insere uma nova linha na Web, e a tecla de envio do teclado mobile aciona o mesmo fluxo do botão. O campo mantém valor controlado, limite de caracteres e crescimento até quatro linhas; na Web, `flex-1 min-w-0` faz a textarea ocupar o espaço restante entre os botões. A moldura usa `w-full` e permanece centralizada com limite máximo de largura, preenchendo o dock sem encolher ao conteúdo. O dock não desenha uma borda superior entre o histórico e o input. O compositor fica fixo no rodapé do painel, imediatamente acima do `navigator.tsx`; somente o histórico é rolável. No Android, `softwareKeyboardLayoutMode: "resize"` redimensiona a janela nativamente, sem um segundo `KeyboardAvoidingView`; no iOS, o `KeyboardAvoidingView` preserva o comportamento equivalente. O compositor e o navigator permanecem no fluxo inferior redimensionado, sem cobrir o texto digitado.
-- Quando a disponibilidade estiver pendente no Android ou Web, o aviso no histórico mantém o diagnóstico e oferece **Tentar novamente**. O botão fica desabilitado e mostra **Verificando…** durante `isRefreshingAvailability`, evitando tentativas concorrentes.
-- No alvo Emulator, um card informativo diferencia os serviços financeiros locais dos três serviços remotos necessários à IA, evitando que o modo híbrido seja confundido com leitura ou escrita em produção.
-- O compositor usa uma única superfície agrupada, com foco visível no contêiner e controles de microfone/envio de pelo menos 44px (`h-touch`/`w-touch`). O feixe dourado é ativado somente enquanto a caixa de texto está focada e fica parado quando `prefers-reduced-motion`/redução nativa de movimento está habilitada. `assistant-composer-frame.web.tsx` usa o pacote React `border-beam@1.4.1`; como esse pacote publicado exige DOM, `assistant-composer-frame.native.tsx` fornece o feixe móvel usando apenas `react-native-svg` e Reanimated já presentes no app. A composição mobile mantém `useScreenStyles()` apenas como fachada legada para tema, hero, insets e APIs nativas; o novo Web importa os contratos de `design-system/assistant.ts` diretamente e não cria outro consumidor do hook.
-- Cards de pergunta, rascunho, relatório e mensagens usam o mesmo contrato semântico de superfícies, raios, texto, foco, estados e ações. A ação amarela usa o foreground escuro `lumus-on-accent`; gráficos continuam como exceção resolvida por Mantine no Web e gifted-charts no mobile.
-- O `Drawer` de configurações usa o `Switch` padrão de `components/ui/switch` para a leitura automática; suas cores vêm de `useScreenStyles()` e o ícone de informação abre um `Popover` com a explicação da leitura local. A revogação ocupa um card próprio com ação destrutiva à direita, fecha o drawer e preserva o fluxo existente de abortar a chamada, limpar a sessão e interromper o TTS.
-- Ao abrir a rota, o hero e o painel aparecem antes da consulta de preferências, Remote Config e disponibilidade. O estado **Preparando o Lumus IA** é interno ao painel; ele não substitui a tela inteira nem deixa a navegação em `Suspense`.
-
-## Testes
-
-- `tests/lumusAssistant.test.ts` cobre centavos, datas fixas em São Paulo, Zod, campos ausentes, dependências, handles por sessão, estados, privacidade, limites, erros — incluindo a diferença entre sessão realmente inválida e App Check/configuração — e o cenário de 18/19 de julho de 2026.
-- `tests/lumusAssistantGateway.test.ts` cobre limites do Remote Config, validação/fallback de modelos, resumo ativo + 12 turnos, 20 ações, chamada exclusiva, cota por UID, ponte de token Auth, seleção Debug/Play Integrity e narrativa sanitizada.
-- `tests/lumusAssistantTargetedReport.test.ts` cobre a maior despesa além dos seis movimentos da Home, exclusão de transferências e investimento, ganho, razão migrado, mês vazio e limites civis do mês em São Paulo; todas as leituras são simuladas sem escrita financeira.
-- Os testes de gateway e protocolo Web reproduzem a falha de histórico com dois turnos `user` consecutivos no SDK instalado e verificam que uma nova pergunta usa apenas pares completos. As consultas de menor despesa/ganho e a correção de uma ferramenta `largest_expense` para um pedido explícito de menor gasto também são cobertas.
-- `tests/lumusAssistantFirebaseProtocol.test.ts` usa o SDK Web real com transporte simulado para fixar `role: user` no retorno da função; `tests/lumusAssistantNativeProtocol.test.ts` verifica o histórico e o mesmo protocolo no adaptador Android com módulos isolados.
-- `tests/lumusAssistantPreparation.test.ts` cobre IDs locais distintos entre mensagens, remapeamento de dependências e referência desconhecida convertida em pergunta.
-- `tests/lumusAssistantCommand.test.ts` usa Firestore isolado em memória para comprovar que confirmar o mesmo cartão duas vezes escreve uma vez e que um pedido posterior com o mesmo rótulo do modelo escreve um segundo documento.
-- `tests/lumusAssistantWebPlatform.test.ts` cobre App Check ausente/configurado, autenticação obrigatória, Remote Config carregado ou indisponível, modelo legado, ordem App Check→AI, resposta válida e function calling devolvido apenas como rascunho.
-- O mesmo teste Web cobre o app dedicado da ponte híbrida e confirma que a instância de AI Logic usa `finances-app-e8685` enquanto a configuração financeira principal permanece fora desse adaptador.
-- `tests/lumusAssistantNativePlatform.test.ts` garante que o Expo Go não avalie `RNFBAppModule` durante o bootstrap e encaminhe as chamadas para o adaptador JavaScript; `tests/lumusAssistantExpoGoAdapter.test.ts` verifica o preflight App Check, histórico, chamadas de função, continuidade do modelo e bloqueio fora do ambiente local.
-- `tests/lumusAssistantAppCheck.test.ts` cobre o preflight do App Check: disponibilidade somente quando o provider emite token string não vazio e bloqueio para falha, token vazio, ausente ou inválido.
-- `tests/lumusAssistantLayout.test.ts` cobre o hero regular, a compactação quando o teclado reduz o viewport e a geometria segura para alturas muito pequenas.
-- `tests/lumusAssistantScreens.test.ts` renderiza as composições mobile e Web e exercita consentimento, envio, sugestões, estados indisponíveis/em andamento, bloqueio por paginação, confirmação individual, ocultação de valores, perguntas/relatórios, permissões/transcrição de áudio, preferências e revogação. Firebase, áudio e superfícies de apresentação são mockados; a suíte não acessa conta ou serviço remoto.
-- `tests/assistantRouteBootstrap.test.ts` garante que provider e tela sejam montados diretamente, sem `React.lazy`/`Suspense` na entrada da rota.
-- `tests/appConfigFirebase.test.ts` garante que todos os perfis EAS Android sejam recusados sem `GOOGLE_SERVICES_JSON`, usem seus ambientes EAS esperados e habilitem o plugin Firebase quando o arquivo estiver provisionado.
+Os registros externos nesta seção são históricos; esta tarefa não publicou configuração nem confirmou estado remoto de produção em 02/10/2026.
 
 ## Configuração externa obrigatória
 
@@ -238,10 +181,3 @@ Esse registro de publicação é histórico. Em 2026-09-25, a CLI leu o template
 6. Remote Config publicado como versão 1 em 2026-09-21; preservar `remote_config.json` como fonte versionada do template.
 7. App Check aparece como **Registrado (aplicado)** para Web e Android no AI Logic; Firestore permanece sem enforcement nesta etapa.
 8. Auditar e implantar regras Firestore que limitem escrita ao proprietário.
-
-## Observações importantes
-
-- Nada fica executando continuamente: existe chamada somente ao enviar texto/áudio ou pedir narrativa.
-- A confirmação é individual e sequencial; não existe **Confirmar tudo**. Uma falha mantém o cartão atual selecionado e não libera ações futuras.
-- O assistente não substitui regras Firestore nem deve ser tratado como fronteira de autorização.
-- A narrativa não é recomendação financeira e nunca substitui as métricas calculadas pelo Lumus.

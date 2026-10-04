@@ -96,6 +96,7 @@ import {
 	getFinanceInvestmentPortfolioActivityWithRelationsFirebase,
 	updateFinanceInvestmentFirebase,
 	syncFinanceInvestmentValueFirebase,
+	moveFinanceInvestmentFirebase,
 	type FinanceInvestmentPortfolioActivity,
 } from '@/functions/FinancesFirebase';
 import {
@@ -119,11 +120,6 @@ import {
 	type InvestmentPerformancePeriod,
 	type InvestmentValuationMethod,
 } from '@/utils/investmentPortfolio';
-import { addTagFirebase, getAllTagsFirebase } from '@/functions/TagFirebase';
-import { tagSupportsUsage } from '@/utils/tagUsage';
-import { addExpenseFirebase } from '@/functions/ExpenseFirebase';
-import { addGainFirebase } from '@/functions/GainFirebase';
-import { serializeTagIconSelection } from '@/hooks/useTagIcons';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { WEB_EXPENSE_CLASS_NAMES } from '@/design-system/web-forms';
 import {
@@ -168,7 +164,6 @@ type InvestmentTimelineTone = {
 	iconGradient: [string, string];
 };
 
-const INVESTMENT_TAG_LABEL = 'Investimento';
 const INVESTMENT_TIMELINE_TONE: InvestmentTimelineTone = {
 	accentColor: '#EC4899',
 	lineColor: 'rgba(96, 165, 250, 0.32)',
@@ -838,61 +833,6 @@ export default function FinancialListScreenWeb() {
 		}, [loadData]),
 	);
 
-	const ensureInvestmentTag = React.useCallback(
-		async (usageType: 'expense' | 'gain') => {
-			const currentUser = auth.currentUser;
-			if (!currentUser) {
-				throw new Error('Usuário não autenticado.');
-			}
-
-			try {
-				const tagsResult = await getAllTagsFirebase();
-				if (tagsResult.success && Array.isArray(tagsResult.data)) {
-					const existing = (tagsResult.data as Array<Record<string, any>>).find(
-						(tag) => {
-							const rawName =
-								typeof tag?.name === 'string' ? tag.name.trim() : '';
-							const normalizedName = rawName.toLowerCase();
-							const tagUsage =
-								typeof tag?.usageType === 'string' ? tag.usageType : undefined;
-							return (
-								normalizedName === INVESTMENT_TAG_LABEL.toLowerCase() &&
-								tagSupportsUsage(tagUsage, usageType, {
-									allowUndefined: true,
-								}) &&
-								String(tag?.personId) === currentUser.uid
-							);
-						},
-					);
-
-					if (existing && typeof existing.id === 'string') {
-						return { id: existing.id, name: INVESTMENT_TAG_LABEL };
-					}
-				}
-
-				const tagResult = await addTagFirebase({
-					tagName: INVESTMENT_TAG_LABEL,
-					personId: currentUser.uid,
-					usageType,
-					...serializeTagIconSelection({
-						iconFamily: 'material-community',
-						iconName: 'cash-multiple',
-					}),
-				});
-
-				if (tagResult.success && typeof tagResult.tagId === 'string') {
-					return { id: tagResult.tagId, name: INVESTMENT_TAG_LABEL };
-				}
-
-				throw new Error('Não foi possível criar a tag Investimento.');
-			} catch (error) {
-				console.error('Erro ao garantir a tag Investimento:', error);
-				throw error;
-			}
-		},
-		[],
-	);
-
 	const portfolioAnalytics = React.useMemo(
 		() =>
 			buildInvestmentPortfolioAnalytics({
@@ -1276,40 +1216,10 @@ export default function FinancialListScreenWeb() {
 			return;
 		}
 
-		const newCurrentValue = syncedDepositValueInCents + parsedCents;
 		setIsSavingDeposit(true);
 		try {
-			const tagInfo = await ensureInvestmentTag('expense');
-
-			const syncResult = await syncFinanceInvestmentValueFirebase({
-				investmentId: targetInvestment.id,
-				syncedValueInCents: newCurrentValue,
-			});
-
-			if (!syncResult.success) {
-				throw new Error('Erro ao atualizar o investimento com o novo aporte.');
-			}
-
-			const expenseResult = await addExpenseFirebase({
-				name: `Aporte - ${targetInvestment?.name ?? 'Investimento'}`,
-				valueInCents: parsedCents,
-				tagId: tagInfo.id,
-				bankId: targetInvestment.bankId || null,
-				date: depositDateWithCurrentTime,
-				personId,
-				explanation: `Aporte automático para ${targetInvestment?.name ?? 'investimento'}.`,
-				isInvestmentDeposit: true,
-				investmentId: targetInvestment.id,
-				investmentNameSnapshot: targetInvestment?.name ?? null,
-			});
-
-			if (!expenseResult.success) {
-				await syncFinanceInvestmentValueFirebase({
-					investmentId: targetInvestment.id,
-					syncedValueInCents: syncedDepositValueInCents,
-				});
-				throw new Error('Erro ao registrar o aporte.');
-			}
+			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit', expectedCurrentValueInCents: syncedDepositValueInCents });
+			if (!result.success) throw new Error(result.error);
 
 			await loadData();
 			showScreenAlert(
@@ -1324,7 +1234,6 @@ export default function FinancialListScreenWeb() {
 		}
 	}, [
 		depositInput,
-		ensureInvestmentTag,
 		investmentForDeposit,
 		loadData,
 		depositDate,
@@ -1550,7 +1459,6 @@ export default function FinancialListScreenWeb() {
 		}
 
 		const targetInvestment = investmentForWithdrawal;
-		const originalSyncedValue = availableCents;
 		const personId = auth.currentUser?.uid;
 		if (!personId) {
 			showScreenAlert('Usuário não autenticado.', 'error');
@@ -1559,36 +1467,8 @@ export default function FinancialListScreenWeb() {
 
 		setIsSavingWithdrawal(true);
 		try {
-			const tagInfo = await ensureInvestmentTag('gain');
-			const remainingCents = Math.max(0, availableCents - withdrawCents);
-			const syncResult = await syncFinanceInvestmentValueFirebase({
-				investmentId: targetInvestment.id,
-				syncedValueInCents: remainingCents,
-			});
-
-			if (!syncResult.success) {
-				throw new Error('Erro ao sincronizar valor após resgate.');
-			}
-
-			const gainResult = await addGainFirebase({
-				name: `Resgate - ${targetInvestment?.name ?? 'Investimento'}`,
-				valueInCents: withdrawCents,
-				tagId: tagInfo.id,
-				bankId: targetInvestment.bankId || null,
-				date: withdrawalDateWithCurrentTime,
-				personId,
-				isInvestmentRedemption: true,
-				investmentId: targetInvestment.id,
-				investmentNameSnapshot: targetInvestment?.name ?? null,
-			});
-
-			if (!gainResult.success) {
-				await syncFinanceInvestmentValueFirebase({
-					investmentId: targetInvestment.id,
-					syncedValueInCents: originalSyncedValue,
-				});
-				throw new Error('Erro ao registrar o resgate.');
-			}
+			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption', expectedCurrentValueInCents: availableCents });
+			if (!result.success) throw new Error(result.error);
 
 			await loadData();
 			showScreenAlert(
@@ -1602,7 +1482,6 @@ export default function FinancialListScreenWeb() {
 			setIsSavingWithdrawal(false);
 		}
 	}, [
-		ensureInvestmentTag,
 		investmentForWithdrawal,
 		loadData,
 		showScreenAlert,

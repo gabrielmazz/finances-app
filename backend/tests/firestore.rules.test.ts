@@ -8,7 +8,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 
-const projectId = 'demo-lumus-financas';
+const projectId = 'demo-lumus-financas-ledger-rules';
 let environment: RulesTestEnvironment | undefined;
 
 async function seed(): Promise<void> {
@@ -36,6 +36,7 @@ async function seed(): Promise<void> {
       monthKey: '2026-08',
       transactionCount: 1,
     });
+    await setDoc(doc(firestore, 'financeMonthlySummaries', 'person-admin-2026-08'), { scopeType: 'person', scopeId: 'admin', monthKey: '2026-08', transactionCount: 1 });
     await setDoc(doc(firestore, 'investmentCdiRates', 'admin_20260801'), {
       personId: 'admin',
       annualRateInBasisPoints: 1_250,
@@ -101,6 +102,10 @@ async function run(): Promise<void> {
   }));
   await assertSucceeds(getDoc(doc(member, 'financeMonthlySummaries', 'group-1-2026-08')));
   await assertFails(getDoc(doc(outsider, 'financeMonthlySummaries', 'group-1-2026-08')));
+  await assertSucceeds(getDoc(doc(admin, 'financeMonthlySummaries', 'person-admin-2026-08')));
+  await assertSucceeds(getDoc(doc(member, 'financeMonthlySummaries', 'person-admin-2026-08')));
+  await assertFails(getDoc(doc(outsider, 'financeMonthlySummaries', 'person-admin-2026-08')));
+  await assertFails(setDoc(doc(admin, 'financeMonthlySummaries', 'person-admin-2026-08'), { scopeType: 'person', scopeId: 'admin', transactionCount: 2 }));
   await assertFails(setDoc(doc(member, 'financeMonthlySummaries', 'group-1-2026-08'), {
     groupId: 'group-1', monthKey: '2026-08', transactionCount: 0,
   }));

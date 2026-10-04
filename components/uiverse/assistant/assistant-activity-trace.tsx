@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable } from 'react-native';
+import { ActivityIndicator, Platform, Pressable } from 'react-native';
 import { Check, ChevronDown, ChevronUp, Circle } from 'lucide-react-native';
 
 import { HStack } from '@/components/ui/hstack';
@@ -13,7 +13,8 @@ import type { AssistantSendProgress, AssistantSendStage } from '@/types/lumusAss
 const STAGE_LABELS: Record<AssistantSendStage, string> = {
 	loading_data: 'Consultando os dados necessários',
 	interpreting_request: 'Interpretando seu pedido',
-	preparing_actions: 'Preparando cartões para sua revisão',
+	preparing_actions: 'Validando os dados do pedido',
+	executing_actions: 'Registrando as operações autorizadas',
 	building_report: 'Montando seu relatório',
 	writing_report: 'Preparando o resumo do relatório',
 };
@@ -42,7 +43,7 @@ export const AssistantActivityTrace = ({ progress, theme }: AssistantActivityTra
 						O que o Lumus está fazendo
 					</Text>
 					<Text
-						accessibilityLiveRegion="polite"
+						{...(Platform.OS === 'web' ? {'aria-live':'polite' as const} : {accessibilityLiveRegion:'polite' as const})}
 						size="sm"
 						className="text-slate-600 dark:text-slate-300"
 					>

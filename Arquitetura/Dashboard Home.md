@@ -3,7 +3,7 @@ tags: [dashboard, home, graficos, bancos, investimentos]
 relacionado: [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Monitoramento de Investimentos]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]]
 status: ativo
 tipo: feature
-versao: 1.5.3
+versao: 1.5.5
 ---
 
 # Dashboard Home
@@ -49,7 +49,7 @@ graph TD
 10. A Home Web também exibe `Atividade no ano`: um `Heatmap` Mantine do primeiro ao último dia do ano atual. Cada quadrado conta lançamentos financeiros confirmados naquele dia; no legado, a perna de entrada de uma transferência é ignorada para que uma transferência conte uma vez. No razão financeiro, cada `ledgerTransaction` é uma única ação.
 11. Acima de `Últimas Movimentações`, a Home Web exibe `Próximos compromissos` em duas colunas. Cada coluna mostra até três gastos e ganhos obrigatórios pendentes, priorizando o próximo ciclo não concluído, respeitando dia útil/feriado, parcelas ativas e privacidade de valores. O agregado usa a mesma leitura compartilhada da Home para grupos legados e migrados.
 12. Na composição Web, `Gastos por dia`, `Atividade no ano` e `Próximos compromissos` não possuem moldura externa; os labels, os gráficos e os cards internos das colunas de compromissos permanecem inalterados. Os três blocos ocupam toda a largura de `scrollContent`, alinhados a **Meus Bancos e Dinheiro** e **Últimas Movimentações**, sem padding horizontal próprio. O espaçamento vertical continua vindo de `WEB_DASHBOARD_CLASS_NAMES`.
-13. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens. Os saldos legados são consultados em lote com o último snapshot por banco e movimentos posteriores ao corte, sem reler todo o histórico para cada card.
+13. No caminho legado, o snapshot também lê `tags`, `mandatoryExpenses`, `mandatoryGains` e `financeInvestmentSyncs`; essas coleções têm regras próprias com o mesmo escopo por `personId`/usuários relacionados. A leitura dos compromissos é opcional: se falhar, a Home preserva saldos e indicadores e exibe a seção sem itens. Os saldos legados são consultados em lote com snapshots por banco e movimentos posteriores ao corte mais antigo, sem reler todo o histórico para cada card. Snapshots futuros não escondem uma abertura anterior elegível. O saldo de Dinheiro acumula receitas em espécie e saques menos despesas desde a origem, enquanto os indicadores mensais conservam o recorte mensal.
 14. Os exemplos de referência e o inventário de entradas/estados por plataforma estão em [[Exemplo Home Web]] e [[Exemplo Home Mobile]].
 
 ## Container de Abas
@@ -71,6 +71,8 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - `screens/mobile/HomeScreen.tsx` / `.web.tsx` — Dashboard por plataforma, ambos usando a mesma fonte de dados
 - `hooks/useHomeScreenData.ts` — Hook de fetching setorizado
 - `functions/HomeFirebase.ts` — Agregação de dados do Firestore
+- `getHomeOverviewFirebase()` / `getHomeInvestmentsFirebase()` — Leituras públicas focadas para relatórios do [[Assistente Lumus]], reutilizando as mesmas fontes/calculadores da Home sem carregar timeline ou seções alheias
+- `getHomeBalancesFirebase()` — Posição atual dos bancos e Caixa, sem métricas mensais, histórico, calendário ou carteira; retorna `HomeBalancesData` com `bankBalances` e `cashSummary` contendo somente ID, nome e saldo
 - `app/mobile/home.tsx` — Rota e container de abas (Home, Control, Settings)
 - `components/uiverse/banks/bank-card-surface.tsx` — Card do banco com gradiente
 - `components/uiverse/dashboard/home-expense-chart.tsx` — `Sparkline` Mantine em Expo DOM para tendências compactas de ganhos e gastos
@@ -105,7 +107,11 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 ## Observações importantes
 
 - A seção de investimentos da Home só aparece durante carregamento, em erro ou quando a carteira carregada possui investimentos. Quando a consulta termina com uma carteira vazia, a seção é omitida e os cartões bancários ficam centralizados; na Web, o carrossel respeita a largura útil da coluna de bancos para não invadir a seção de investimentos.
-- Em grupos migrados para o razão financeiro, a carteira da Home é montada a partir das contas `financialAccounts` com `kind: 'investment'`; ela exibe o saldo confirmado do razão sem inventar uma projeção CDI legada.
+- Em grupos migrados, saldos de bancos, Caixa e investimentos vêm de `financialAccounts.currentBalanceInCents`; não se reaplicam os eventos que já compõem esses saldos. Overview, timeline e carteira reutilizam uma leitura paginada de `ledgerTransactions` por grupo, em páginas de 200, durante o mesmo snapshot. Originais estornados até o fim do dia civil atual são excluídos dos ganhos/gastos e da timeline, mesmo com estorno fora do período; novos eventos corretivos permanecem. Transferências, aportes, resgates, migração e reconciliações não viram ganhos/gastos comuns.
+- A carteira migrada mantém o saldo confirmado separado da estimativa CDI. Só estima contas com proprietário, data-base, percentual contratado e vigência CDI legíveis; o cálculo parte do saldo materializado e do último evento que o alterou. Sem metadados, taxa ou para ativos manuais, a estimativa mantém a base confirmada. Consulte [[Investimentos]].
+- Mês, consultas e cortes de hoje usam `America/Sao_Paulo`: um lançamento de hoje salvo ao meio-dia civil já aparece no saldo e nos indicadores antes desse horário. O dia seguinte permanece fora do recorte; os saldos materializados do razão não são reconstruídos por esse filtro.
+- Leituras legadas repartem os usuários autorizados em grupos de dez por consulta. A carteira consolidada lê todos os investimentos acessíveis, incluindo registros além do antigo limite de 50; os seis movimentos recentes continuam sendo somente um recorte de apresentação da timeline. Gráficos e calendário de compromissos usam o mesmo calendário civil nas duas fontes.
+- Consultas pontuais de saldo usam `getHomeBalancesFirebase()`. No razão, a posição vem diretamente das contas materializadas, sem carregar eventos. No legado, as seis fontes de abertura/movimentos são compartilhadas pelos saldos bancários e pelo Caixa, com o calculador de [[Balanço Mensal]]. Caixa conserva o histórico anterior à abertura bancária e registros antigos com `bankId` ausente ou nulo; não se substitui essa fonte por uma consulta de igualdade a `null`, que perderia parte do histórico. O overview completo continua alimentando os gráficos e o calendário da Home.
 
 - A Home Web está em migração gradual para Tailwind/NativeWind. A composição visual deve evitar novos blocos `StyleSheet.create()` e preservar `webDashboardPalette` para tokens dinâmicos de tema.
 - A geometria fixa da `HomeScreen.web.tsx` fica centralizada em `WEB_DASHBOARD_CLASS_NAMES` e `WEB_DASHBOARD_DOM_STYLES`, exportados por `hooks/useScreenStyle.ts`; a tela usa `className` Tailwind e mantém em `style` somente valores calculados em runtime, como paleta, altura do hero, safe area e cores por movimento.
@@ -114,9 +120,9 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - Todos os valores são armazenados em centavos e convertidos para exibição
 - O saldo legado dos bancos usa o `MonthlyBalance` mais recente como ponto de partida e somente movimentos posteriores a ele; grupos migrados usam `financialAccounts.currentBalanceInCents`
 - No Web, abrir o detalhe de uma movimentação remonta o wrapper `AnimatedContent` com a chave daquele movimento e `trigger="mount"`, reiniciando a entrada vertical suave a cada clique sem depender da posição do scroll. Ao fechar, o card permanece montado até concluir a saída vertical, e reabrir durante a transição interrompe o fechamento. A superfície explicita os quatro raios de canto para recortar também o `Grainient` nos lados direitos, e o wrapper ocupa 100% da coluna sem recuo lateral. O container e o canvas do `Grainient` usam `inset: 0` para preencher toda a superfície. O detalhe usa somente deslocamento e opacidade, sem escala, para manter os cantos estáveis durante a animação; `prefers-reduced-motion` continua respeitado e Android/iOS mantêm a expansão nativa sem dependência DOM.
-- Transferências não entram nos indicadores de ganhos/gastos, embora alterem os saldos das contas envolvidas
+- Transferências e saques banco→Caixa não entram nos indicadores mensais nem nas curvas de ganhos/gastos, embora alterem os saldos das contas envolvidas. Saques legados e transferências migradas aparecem na timeline e contam uma ação no heatmap; Caixa acumula o dinheiro recebido no saldo, sem classificá-lo como receita.
 - Compromissos obrigatórios exibidos na Home são apenas informativos; efetivar o ciclo continua sendo responsabilidade das listas de [[Despesas Fixas]] e [[Receitas Fixas]], que criam a transação real
-- As consultas legadas auxiliares da Home são protegidas por regras específicas no `firestore.rules`; usuários em grupos já cortados continuam sem acesso direto às coleções legadas
+- As consultas de metadados combinam `personId` autorizado e `groupId` quando aplicável, com deduplicação por documento. As regras Firestore permitem as leituras legadas e de metadados previstas pelo domínio; escritas legadas continuam bloqueadas após o corte. O financeiro migrado é lido do razão.
 - Bancos sem snapshot ainda aparecem como saldo indisponível e acionam o modal de lembrete da Home
 - A função `HomeFirebase.ts` é a mais complexa do projeto — agrega dados de múltiplas coleções
 - O carrossel de bancos usa `react-native-reanimated-carousel` no Android/iOS e o `components/web/visuals/Carousel.jsx` baseado no React Bits na versão Web; ambos exibem a mesma coleção de bancos e Dinheiro e preservam a navegação para os movimentos da conta
@@ -129,3 +135,20 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 - A leitura do histórico CDI tem regra própria em `firestore.rules`, com acesso por `personId`; a falta de permissão ou de uma taxa vigente não impede a carteira de investimentos de carregar
 - O container de abas não usa navegação stack interna — é apenas renderização condicional de componentes
 - O botão físico na rota Home deve encerrar o app; retornos para formulários antigos são proibidos após conclusão de cadastro
+
+## Validação das fontes financeiras
+
+`tests/ledgerProjectionReads.test.ts` exercita os serviços públicos com o SDK Firestore simulado na fronteira: legado/razão, paginação com 251 eventos, estorno fora do histórico, saldos persistidos, Caixa entre meses, abertura futura, hoje antes do meio-dia, CDI após reconciliação, fallback de taxa/metadados, 32 vínculos e carteira com 51 investimentos. A paridade dos leitores focados com o snapshot e a redução das viagens ao SDK são verificadas nas duas fontes. O leitor de posição inclui uma fixture legada com saque, aporte, ajuste, receita e Caixa antigo sem `bankId`: 89.110 centavos no banco e 2.500 no Caixa, com sete `getDocs`; no razão, basta um `getDocs` das contas. Os testes também passam em `TZ=UTC`; essa evidência não substitui navegador autenticado no Emulator nem aparelho instalado, e não constitui medição de latência real. Os calculadores de histórico, calendário e investimento mantêm testes próprios.
+
+`tests/ledgerProjectionEmulator.test.ts`, opt-in com `RUN_ASSISTANT_EMULATOR_READS=1`, valida o SDK real contra Auth/Firestore locais no projeto demo e limpa somente suas fixtures isoladas. O relógio da aplicação fica às 08:00 de São Paulo; o legado inclui a despesa persistida ao meio-dia e retorna 91.710 centavos. O grupo lê 253 eventos (251 despesas ativas mais original/estorno), retorna gasto 8.540, banco confirmado 91.460, Caixa 500 e abertura de previsão 91.960, ignorando o financeiro legado.
+
+Com `MEASURE_ASSISTANT_EMULATOR_READS=1`, a mesma suíte mede 20 leituras de cada caminho após aquecimento e exige paridade de resultados. Execução local de 2026-10-03 em WSL/Node 22 com Auth/Firestore Emulator, relógio da aplicação às 08:00 de São Paulo, 253 eventos (251 despesas ativas e original/estorno), duas contas e uma categoria:
+
+| Caminho | p50 ms | p95 ms | getDoc | getDocs | Chamadas SDK por consulta |
+|---|---:|---:|---:|---:|---:|
+| Snapshot completo | 93,17 | 99,68 | 2 | 11 | 13 |
+| Overview focado | 87,28 | 94,74 | 2 | 7 | 9 |
+| Carteira focada | 75,12 | 84,29 | 2 | 5 | 7 |
+| Posição de bancos e Caixa | 11,16 | 13,34 | 2 | 1 | 3 |
+
+A comparação usa os caminhos completo/focado no mesmo código/dataset, zero chamadas ao modelo e zero escritas durante a medição. Contadores de `getDoc`/`getDocs` delegam ao SDK real; são chamadas de leitura ao SDK, não contagem de frames HTTP/streams do transporte Firestore. É latência dos leitores no Emulator, sem renderização Web/mobile, áudio ou rede de produção; não é p50/p95 ponta a ponta da conversa. As 20 amostras intercaladas não justificam uma meta absoluta para produção.

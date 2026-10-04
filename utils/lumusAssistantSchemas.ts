@@ -26,10 +26,11 @@ const isoDate = z.string()
 const cycleKey = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional();
 const dueDay = z.number().int().min(1).max(31);
-const installments = z.number().int().min(1).max(600).nullable().optional();
+const installments = z.number().int().min(1).max(360).nullable().optional();
 const reminderDaysBefore = z.number().int().min(1).max(3).optional();
 
 const movementCreateShape = {
+	overdraftReason: longText,
 	name: shortText,
 	valueInCents: moneyInCents,
 	date: isoDate,
@@ -51,6 +52,7 @@ const movementUpdateShape = {
 };
 
 const recurringCreateShape = {
+	installmentTotalValueInCents: moneyInCents.optional(),
 	name: shortText,
 	valueInCents: moneyInCents,
 	dueDay,
@@ -67,6 +69,7 @@ const recurringCreateShape = {
 };
 
 const recurringUpdateShape = {
+	installmentTotalValueInCents: moneyInCents.optional(),
 	recordRef: opaqueRef,
 	name: shortText.optional(),
 	valueInCents: moneyInCents.optional(),
@@ -103,6 +106,7 @@ export const assistantActionSchemas = {
 	}),
 	create_transfer: z
 		.object({
+			overdraftReason: longText,
 			sourceBankRef: opaqueRef,
 			targetBankRef: opaqueRef,
 			valueInCents: moneyInCents,
@@ -115,6 +119,7 @@ export const assistantActionSchemas = {
 			path: ['targetBankRef'],
 		}),
 	create_cash_withdrawal: z.object({
+		overdraftReason: longText,
 		bankRef: opaqueRef,
 		valueInCents: moneyInCents,
 		date: isoDate,
@@ -126,6 +131,7 @@ export const assistantActionSchemas = {
 	update_mandatory_expense: z.object(recurringUpdateShape),
 	delete_mandatory_expense: z.object({ recordRef: opaqueRef }),
 	pay_mandatory_expense: z.object({
+		installmentsToAdvance: z.number().int().min(1).max(360).optional(),
 		recordRef: opaqueRef,
 		bankRef: opaqueRef,
 		date: isoDate,
@@ -138,6 +144,7 @@ export const assistantActionSchemas = {
 	update_mandatory_gain: z.object(recurringUpdateShape),
 	delete_mandatory_gain: z.object({ recordRef: opaqueRef }),
 	receive_mandatory_gain: z.object({
+		installmentsToAdvance: z.number().int().min(1).max(360).optional(),
 		recordRef: opaqueRef,
 		bankRef: opaqueRef,
 		date: isoDate,
@@ -150,14 +157,17 @@ export const assistantActionSchemas = {
 		name: shortText,
 		initialValueInCents: nonNegativeMoneyInCents,
 		currentValueInCents: nonNegativeMoneyInCents.optional(),
-		cdiPercentageInBasisPoints: z.number().int().min(0).max(1_000_000),
+		cdiPercentageInBasisPoints: z.number().int().min(0).max(1_000_000).optional(),
 		assetType: z.enum(['fixed_income', 'treasury', 'stock', 'fund']).optional(),
 		valuationMethod: z.enum(['cdi', 'manual']).optional(),
 		redemptionTerm: z.enum(['anytime', '1m', '3m', '6m', '1y', '2y', '3y']),
 		bankRef: opaqueRef,
 		date: isoDate,
 		description: longText,
-	}),
+	}).superRefine((value, context) => {
+		const manual = value.valuationMethod === 'manual' || Boolean(value.assetType && value.assetType !== 'fixed_income');
+		if (!manual && value.cdiPercentageInBasisPoints === undefined) context.addIssue({code:'custom',path:['cdiPercentageInBasisPoints'],message:'Informe o percentual do CDI para renda fixa calculada pelo CDI.'});
+	}).transform(value => ({...value, cdiPercentageInBasisPoints:value.cdiPercentageInBasisPoints ?? 0})),
 	update_investment: z.object({
 		recordRef: opaqueRef,
 		name: shortText.optional(),
@@ -172,6 +182,7 @@ export const assistantActionSchemas = {
 	}),
 	delete_investment: z.object({ recordRef: opaqueRef }),
 	deposit_investment: z.object({
+		bankRef: opaqueRef.optional(), overdraftReason: longText,
 		investmentRef: opaqueRef,
 		valueInCents: moneyInCents,
 		date: isoDate,
@@ -179,6 +190,7 @@ export const assistantActionSchemas = {
 		description: longText,
 	}),
 	redeem_investment: z.object({
+		bankRef: opaqueRef.optional(), overdraftReason: longText,
 		investmentRef: opaqueRef,
 		valueInCents: moneyInCents,
 		date: isoDate,
@@ -199,6 +211,7 @@ export const assistantActionSchemas = {
 		effectiveFrom: isoDate,
 	}),
 	create_bank: z.object({
+		overdraftReason: longText,
 		bankName: shortText,
 		initialBalanceInCents: z.number().int().safe(),
 		initialBalanceCycle: cycleKey,
@@ -206,6 +219,7 @@ export const assistantActionSchemas = {
 		iconKey: shortText.nullable().optional(),
 	}),
 	update_bank: z.object({
+		isActive: z.boolean().optional(),
 		recordRef: opaqueRef,
 		bankName: shortText.optional(),
 		colorHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
@@ -213,6 +227,7 @@ export const assistantActionSchemas = {
 	}),
 	delete_bank: z.object({ recordRef: opaqueRef }),
 	create_category: z.object({
+		iconLabel: shortText.nullable().optional(),
 		categoryName: shortText,
 		usageType: z.enum(['expense', 'gain', 'both']),
 		isMandatoryExpense: z.boolean().optional(),
@@ -220,6 +235,7 @@ export const assistantActionSchemas = {
 		showInBothLists: z.boolean().optional(),
 	}),
 	update_category: z.object({
+		iconLabel: shortText.nullable().optional(),
 		recordRef: opaqueRef,
 		categoryName: shortText.optional(),
 		usageType: z.enum(['expense', 'gain', 'both']).optional(),
@@ -228,6 +244,12 @@ export const assistantActionSchemas = {
 		showInBothLists: z.boolean().optional(),
 	}),
 	delete_category: z.object({ recordRef: opaqueRef }),
+	upsert_balance_adjustment: z.object({
+		bankRef: opaqueRef, date: isoDate, targetBalanceInCents: z.number().int().safe(),
+		expectedPreviousBalanceInCents: z.number().int().safe().optional(),
+		description: z.string().trim().max(2000).optional(), recordRef: opaqueRef.optional(),
+	}),
+	revert_balance_adjustment: z.object({ recordRef: opaqueRef }),
 } satisfies Record<AssistantActionKind, z.ZodType>;
 
 type FieldDefinition = {
@@ -239,6 +261,7 @@ type FieldDefinition = {
 };
 
 const COMMON_FIELDS: Record<string, FieldDefinition> = {
+	targetBalanceInCents: { label: 'Saldo conferido', kind: 'money', question: 'Qual saldo você conferiu no banco?' },
 	name: { label: 'Nome', kind: 'text', question: 'Como você quer chamar este registro?' },
 	valueInCents: { label: 'Valor', kind: 'money', question: 'Qual é o valor?' },
 	initialValueInCents: { label: 'Valor inicial', kind: 'money', question: 'Qual é o valor inicial?' },
@@ -295,6 +318,7 @@ const COMMON_FIELDS: Record<string, FieldDefinition> = {
 	reminderOnDueDate: { label: 'Lembrar no vencimento', kind: 'boolean', question: 'Também devo lembrar no dia do vencimento?' },
 	reminderTime: { label: 'Horário do lembrete', kind: 'time', question: 'Em qual horário devo lembrar?' },
 	installmentTotal: { label: 'Parcelas', kind: 'number', question: 'Quantas parcelas existem?' },
+	isActive: {label:'Banco ativo',kind:'boolean',question:'Deseja ativar ou desativar esse banco?'},
 	redemptionTerm: { label: 'Prazo de resgate', kind: 'choice', question: 'Qual é o prazo para resgatar esse investimento?' },
 	cdiPercentageInBasisPoints: { label: 'Percentual do CDI', kind: 'number', question: 'Qual percentual do CDI esse investimento rende?' },
 	annualRateInBasisPoints: { label: 'Taxa CDI anual', kind: 'number', question: 'Qual é a taxa anual do CDI?' },
@@ -302,10 +326,13 @@ const COMMON_FIELDS: Record<string, FieldDefinition> = {
 	bankName: { label: 'Nome do banco', kind: 'text', question: 'Qual será o nome do banco?' },
 	initialBalanceInCents: { label: 'Saldo inicial', kind: 'money', question: 'Qual é o saldo inicial desse banco?' },
 	categoryName: { label: 'Nome da categoria', kind: 'text', question: 'Qual será o nome da categoria?' },
+	iconLabel: { label: 'Ícone da categoria', kind: 'text', question: 'Qual ícone você quer usar, por exemplo Café ou Mercado?' },
 	usageType: { label: 'Uso da categoria', kind: 'choice', question: 'Essa categoria será usada em despesas, ganhos ou nos dois?' },
 };
 
 const RECORD_CATALOG_BY_ACTION: Partial<Record<AssistantActionKind, AssistantCatalogType>> = {
+	upsert_balance_adjustment: 'bankBalanceAdjustments',
+	revert_balance_adjustment: 'bankBalanceAdjustments',
 	update_expense: 'expenses',
 	delete_expense: 'expenses',
 	update_gain: 'gains',
@@ -342,6 +369,8 @@ const CATEGORY_CATALOG_BY_ACTION: Partial<Record<AssistantActionKind, AssistantC
 };
 
 export const ASSISTANT_ACTION_LABELS: Record<AssistantActionKind, string> = {
+	upsert_balance_adjustment: 'Ajustar saldo conferido',
+	revert_balance_adjustment: 'Estornar ajuste de saldo',
 	create_expense: 'Registrar despesa',
 	update_expense: 'Editar despesa',
 	delete_expense: 'Excluir despesa',

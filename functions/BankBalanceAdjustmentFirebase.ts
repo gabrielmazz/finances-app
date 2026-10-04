@@ -9,6 +9,8 @@ import type { BankActionsheetOption } from '@/components/uiverse/banks/bank-acti
 
 export type BankBalanceAdjustmentCommand = {
 	action: 'preview' | 'save' | 'revert';
+	expectedActorId?: string;
+	expectedFingerprint?: string;
 	bankId: string;
 	date?: string;
 	adjustmentId?: string;

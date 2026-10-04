@@ -183,7 +183,7 @@ describe('Lumus Assistant AI gateway', () => {
 		expect(createChat).toHaveBeenCalledTimes(1);
 	});
 
-	it('passes only the twelve most recent turns and caps model actions at twenty', async () => {
+	it('passes twelve recent turns and rejects an oversized action set without silently truncating', async () => {
 		let receivedHistory: Array<{ role: 'user' | 'model'; text: string }> = [];
 		let receivedSystemInstruction = '';
 		const actions = Array.from({ length: 30 }, (_, index) => ({
@@ -215,7 +215,8 @@ describe('Lumus Assistant AI gateway', () => {
 		expect(receivedHistory).toHaveLength(12);
 		expect(receivedHistory[0]?.text).toBe('turno 4');
 		expect(receivedSystemInstruction).toContain('[{"kind":"create_expense"}]');
-		expect(result.actions).toHaveLength(20);
+		expect(result.actions).toHaveLength(0);
+		expect(result.warnings?.[0]).toContain('Nenhuma escrita');
 		expect(result.toolCallCount).toBe(1);
 		expect(result.text).toBe('Rascunhos preparados.');
 	});
@@ -328,4 +329,33 @@ describe('Lumus Assistant AI gateway', () => {
 			config: { ...DEFAULT_ASSISTANT_AI_CONFIG },
 		})).resolves.toBe('Resumo simples.');
 	});
+});
+
+
+test('ferramenta local encontra referência fora do recorte inicial sem enviar IDs reais', async () => {
+ let received:Record<string,unknown>|undefined;
+ const adapter=createAdapter();
+ adapter.createChat=async ()=>({sendText:async()=>({text:'',functionCalls:[{name:'search_financial_catalog',args:{source:'expenses',query:'Aluguel antigo'}}]}),sendFunctionResponses:async responses=>{received=responses[0].response;return {text:'Consulta localizada.',functionCalls:[]};}});
+ const result=await createAssistantAiGateway(adapter).converse(request({searchCatalog:async()=>({items:[{handle:'opaque-501',label:'Aluguel antigo'}],total:1,complete:true})}));
+ expect(received).toEqual(expect.objectContaining({items:[{handle:'opaque-501',label:'Aluguel antigo'}],total:1,complete:true}));
+ expect(result.toolCallCount).toBe(1);
+});
+
+
+test('ranking explícito conserva consulta paralela de saldo',async()=>{
+ const adapter=createAdapter({text:'',functionCalls:[{name:'request_financial_report',args:{kind:'largest_expense'}},{name:'request_financial_report',args:{kind:'account_balance'}}]});
+ const result=await createAssistantAiGateway(adapter).converse(request({text:'Qual meu maior gasto e saldo atual?'}));
+ expect(result.reportRequests.map(item=>item.kind)).toEqual(['largest_expense','account_balance']);
+});
+
+test('propostas locais canônicas não executam e mantêm lista tipada',async()=>{
+ const result=await createAssistantAiGateway(createAdapter({text:'',functionCalls:[{name:'prepare_application_commands',args:{commands:['use tema escuro','liste minhas anotações']}}]})).converse(request({text:'Mude para modo noturno e veja minhas notas'}));
+ expect(result.applicationCommands).toEqual(['use tema escuro','liste minhas anotações']);
+ expect(result.actions).toEqual([]);
+});
+
+test('ferramenta excedente na mesma resposta invalida escritas preparadas antes do limite',async()=>{
+ const calls=Array.from({length:3},()=>({name:'prepare_financial_actions',args:{actions:[{kind:'create_expense',payload:{name:'Exemplo',valueInCents:100}}]}}));
+ const result=await createAssistantAiGateway(createAdapter({text:'',functionCalls:calls})).converse(request({config:{...DEFAULT_ASSISTANT_AI_CONFIG,maxToolCalls:2}}));
+ expect(result.actions).toEqual([]);
 });

@@ -5,6 +5,12 @@ import type { UserProfile } from '@/functions/UserProfileFirebase';
 const mockLoad = jest.fn();
 const mockSave = jest.fn();
 const mockCopy = jest.fn();
+let mockFocusCallback: () => unknown;
+jest.mock('expo-router', () => ({ useFocusEffect: (callback: () => unknown) => {
+	const React = require('react');
+	mockFocusCallback = callback;
+	React.useEffect(callback, [callback]);
+} }));
 const mockAuth = { currentUser: { uid: 'owner' } as { uid: string } | null };
 jest.mock('@/FirebaseConfig', () => ({ get auth() { return mockAuth; } }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mockAuth.currentUser }) }));
@@ -13,6 +19,7 @@ jest.mock('@/functions/UserProfileFirebase', () => ({
 	getUserProfileFirebase: (...args: unknown[]) => mockLoad(...args),
 	updateUserProfileFirebase: (...args: unknown[]) => mockSave(...args),
 	getProfileNameError: (name: string) => name.trim() ? null : 'Informe seu nome.',
+	getUserProfileAccessSummaryFirebase: jest.fn(async (_uid, profile) => ({ isAdmin: profile.adminUser, monitoredRecordsCount: 0 })),
 }));
 jest.mock('@/functions/RegisterUserFirebase', () => ({
 	getAllUsersFirebase: jest.fn().mockResolvedValue({ success: true, data: [] }),
@@ -126,5 +133,19 @@ it('reports clipboard failure without claiming the ID was copied', async () => {
 	await act(async () => { await result.current.copyId(); });
 	expect(mockCopy).toHaveBeenCalledWith('owner');
 	expect(result.current.feedback?.text).toBe('ID copiado.');
+	await unmount();
+});
+
+it('refreshes committed profile data on return from the assistant while preserving an unsaved name', async () => {
+	const { result, unmount } = await renderHook(() => useUserProfile());
+	mockLoad.mockResolvedValueOnce({ ...profile, name: 'Nome salvo no chat' });
+	await act(async () => { mockFocusCallback(); });
+	expect(result.current.name).toBe('Nome salvo no chat');
+	await act(async () => { result.current.changeName('Rascunho pessoal'); });
+	mockLoad.mockResolvedValueOnce({ ...profile, name: 'Atualização remota' });
+	await act(async () => { mockFocusCallback(); });
+	expect(result.current.profile?.name).toBe('Atualização remota');
+	expect(result.current.name).toBe('Rascunho pessoal');
+	expect(result.current.dirty).toBe(true);
 	await unmount();
 });

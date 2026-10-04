@@ -72,19 +72,11 @@ import {
 	PromptInputTools,
 } from '@/components/ui/chatAi';
 import {
-	AssistantQuestionCard,
 	AssistantReportCard,
 	AssistantTextBubble,
 } from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantActivityTrace } from '@/components/uiverse/assistant/assistant-activity-trace';
 import { AssistantComposerFrame } from '@/components/uiverse/assistant/assistant-composer-frame';
-import {
-	AssistantDraftPages,
-	AssistantPaginationDock,
-	getActiveAssistantDraftActionId,
-	getDisplayedAssistantDraftActionId,
-	isAssistantDraftGroupActive,
-} from '@/components/uiverse/assistant/assistant-draft-pages';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
@@ -107,7 +99,6 @@ import {
 } from '@/design-system/tokens';
 import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
-import { ASSISTANT_MAX_INPUT_CHARACTERS } from '@/utils/lumusAssistant';
 import {
 	deleteAssistantTemporaryAudio,
 	readAssistantAudioFile,
@@ -135,8 +126,8 @@ const CONSENT_ITEMS = [
 	},
 	{
 		icon: ShieldCheck,
-		title: 'Confirmação antes de salvar',
-		description: 'O Lumus prepara cartões. Cada alteração financeira exige sua confirmação individual.',
+		title: 'Você controla as operações',
+		description: 'Pedidos completos podem ser registrados pela conversa. Operações que precisam de confirmação mostram o efeito no chat e aguardam sua resposta.',
 	},
 	{
 		icon: Info,
@@ -220,11 +211,10 @@ export default function LumusAssistantScreenWeb() {
 	const { height: windowHeight } = useWindowDimensions();
 	const { shouldHideValues } = useValueVisibility();
 	const assistant = useLumusAssistant();
+	const audioEpochRef = React.useRef(assistant.revocationEpoch);
+	audioEpochRef.current = assistant.revocationEpoch;
 	const [composerText, setComposerText] = React.useState('');
 	const [isComposerFocused, setIsComposerFocused] = React.useState(false);
-	const [selectedDraftActionByGroup, setSelectedDraftActionByGroup] = React.useState<Record<string, string>>({});
-	const [advancingDraftGroupIds, setAdvancingDraftGroupIds] = React.useState<string[]>([]);
-	const advancingDraftGroupIdsRef = React.useRef(new Set<string>());
 	const [isQuickPromptsModalOpen, setIsQuickPromptsModalOpen] = React.useState(false);
 	const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = React.useState(false);
 	const [isRevokeModalOpen, setIsRevokeModalOpen] = React.useState(false);
@@ -288,6 +278,7 @@ export default function LumusAssistantScreenWeb() {
 	const stopRecording = React.useCallback(async () => {
 		if (!isMountedRef.current || stopInFlightRef.current || !recorderState.isRecording) return;
 		stopInFlightRef.current = true;
+		const audioEpoch = audioEpochRef.current;
 		if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
 		stopTimerRef.current = null;
 		setVoiceError(null);
@@ -295,7 +286,7 @@ export default function LumusAssistantScreenWeb() {
 		let uri: string | null = null;
 		try {
 			await recorder.stop();
-			if (!isMountedRef.current) return;
+			if (!isMountedRef.current || audioEpochRef.current !== audioEpoch) return;
 			uri = recorder.uri ?? recorderState.url;
 			temporaryUriRef.current = uri;
 			if (!uri) throw new Error('O navegador não disponibilizou o arquivo gravado.');
@@ -304,9 +295,9 @@ export default function LumusAssistantScreenWeb() {
 				...audio,
 				durationMs: Math.min(60_000, recorderState.durationMillis),
 			});
-			if (isMountedRef.current) setComposerText(transcript);
+			if (isMountedRef.current && audioEpochRef.current === audioEpoch) setComposerText(transcript);
 		} catch (error) {
-			if (isMountedRef.current) {
+			if (isMountedRef.current && audioEpochRef.current === audioEpoch) {
 				setVoiceError(error instanceof Error ? error.message : 'Não foi possível transcrever o áudio. Você ainda pode digitar.');
 			}
 		} finally {
@@ -319,36 +310,35 @@ export default function LumusAssistantScreenWeb() {
 	}, [assistant, recorder, recorderState.durationMillis, recorderState.isRecording, recorderState.url]);
 
 	const startRecording = React.useCallback(async () => {
-		if (!isMountedRef.current || assistant.isSending || isTranscribing || recorderState.isRecording) return;
+		if (!isMountedRef.current || isTranscribing || recorderState.isRecording || !assistant.consentGranted || !assistant.availability?.available) return;
+		const audioEpoch = audioEpochRef.current;
 		setVoiceError(null);
 		try {
 			const permission = await requestRecordingPermissionsAsync();
-			if (!isMountedRef.current) return;
+			if (!isMountedRef.current || audioEpochRef.current !== audioEpoch) return;
 			if (!permission.granted) {
 				setVoiceError('Permita o microfone no navegador. Você ainda pode digitar.');
 				return;
 			}
 			await setAudioModeAsync({ allowsRecording: true, allowsBackgroundRecording: false });
-			if (!isMountedRef.current) return;
+			if (!isMountedRef.current || audioEpochRef.current !== audioEpoch) return;
 			await recorder.prepareToRecordAsync();
-			if (!isMountedRef.current) return;
+			if (!isMountedRef.current || audioEpochRef.current !== audioEpoch) return;
 			recorder.record();
 			stopTimerRef.current = setTimeout(() => { void stopRecording(); }, 60_000);
 		} catch (error) {
 			setVoiceError(error instanceof Error ? error.message : 'O navegador não conseguiu iniciar o microfone.');
 			await cleanupRecording();
 		}
-	}, [assistant.isSending, cleanupRecording, isTranscribing, recorder, recorderState.isRecording, stopRecording]);
+	}, [assistant.consentGranted, assistant.availability?.available, cleanupRecording, isTranscribing, recorder, recorderState.isRecording, stopRecording]);
 
-	const isDraftPaginationActive = advancingDraftGroupIds.length > 0 || assistant.messages.some(message =>
-		message.type === 'drafts' && isAssistantDraftGroupActive({ id: message.id, actionIds: message.actionIds }, assistant.drafts),
-	);
-	const isComposerDisabled = !assistant.availability?.available || assistant.isSending || isDraftPaginationActive;
-	const isVoiceControlDisabled = isComposerDisabled || isTranscribing;
+	const isComposerDisabled = assistant.isBootstrapping || !assistant.consentGranted;
+	const isVoiceControlDisabled = isComposerDisabled || isTranscribing || (!recorderState.isRecording && !assistant.availability?.available);
 	const isSubmitDisabled = !composerText.trim() || isComposerDisabled;
 	const send = React.useCallback(async (text = composerText) => {
 		const trimmed = text.trim();
 		if (!trimmed || isComposerDisabled) return;
+		shouldAutoScrollRef.current = true;
 		setComposerText('');
 		await assistant.sendMessage(trimmed);
 	}, [assistant, composerText, isComposerDisabled]);
@@ -379,59 +369,7 @@ export default function LumusAssistantScreenWeb() {
 			.filter(message => message.type !== 'question' || !message.answeredAt),
 		[assistant.messages],
 	);
-	const activeQuestion = displayMessages.find(
-		message => message.type === 'question' && !message.answeredAt,
-	);
-	const activeQuestionActionId = activeQuestion?.type === 'question' ? activeQuestion.targetActionIds[0] : undefined;
-	const draftGroups = React.useMemo(
-		() => displayMessages
-			.filter((message): message is Extract<typeof message, { type: 'drafts' }> => message.type === 'drafts')
-			.map(message => ({ id: message.id, actionIds: message.actionIds })),
-		[displayMessages],
-	);
-	const selectDraftAction = React.useCallback((groupId: string, actionId: string) => {
-		setSelectedDraftActionByGroup(current => ({ ...current, [groupId]: actionId }));
-	}, []);
-	const confirmDraft = React.useCallback(async (actionId: string) => {
-		const group = draftGroups.find(item => item.actionIds.includes(actionId));
-		if (!group) return assistant.executeDraft(actionId);
-		if (advancingDraftGroupIdsRef.current.has(group.id)) return false;
-		advancingDraftGroupIdsRef.current.add(group.id);
-		setAdvancingDraftGroupIds(current => current.includes(group.id) ? current : [...current, group.id]);
-		try {
-			const committed = await assistant.executeDraft(actionId);
-			if (!committed) return false;
-			const draftsAfterCommit = assistant.drafts.map(draft => draft.clientActionId === actionId
-				? { ...draft, status: 'succeeded' as const }
-				: draft);
-			const nextActionId = getActiveAssistantDraftActionId(group.actionIds, draftsAfterCommit);
-			if (nextActionId && nextActionId !== actionId) {
-				setSelectedDraftActionByGroup(current => ({ ...current, [group.id]: nextActionId }));
-			}
-			return true;
-		} finally {
-			advancingDraftGroupIdsRef.current.delete(group.id);
-			setAdvancingDraftGroupIds(current => current.filter(id => id !== group.id));
-		}
-	}, [assistant.drafts, assistant.executeDraft, draftGroups]);
-	React.useEffect(() => {
-		setSelectedDraftActionByGroup(current => {
-			const validGroupIds = new Set(draftGroups.map(group => group.id));
-			let next = current;
-			for (const groupId of Object.keys(current)) {
-				if (!validGroupIds.has(groupId)) {
-					if (next === current) next = { ...current };
-					delete next[groupId];
-				}
-			}
-			const questionGroup = draftGroups.find(group => group.actionIds.includes(activeQuestionActionId ?? ''));
-			if (questionGroup && current[questionGroup.id] !== activeQuestionActionId) {
-				if (next === current) next = { ...current };
-				next[questionGroup.id] = activeQuestionActionId!;
-			}
-			return next;
-		});
-	}, [activeQuestionActionId, draftGroups]);
+
 	const runtimeColors = isDarkMode ? LUMUS_RUNTIME_COLORS.dark : LUMUS_RUNTIME_COLORS.light;
 	const heroColors = isDarkMode ? LUMUS_HERO_COLORS.dark : LUMUS_HERO_COLORS.light;
 	const heroHeight = Math.max(
@@ -595,7 +533,7 @@ export default function LumusAssistantScreenWeb() {
 								contentContainerClassName={ASSISTANT_CLASS_NAMES.webConversationContent}
 								keyboardShouldPersistTaps="handled"
 								onContentSizeChange={() => {
-									if (shouldAutoScrollRef.current) scrollConversationToEnd();
+									if (shouldAutoScrollRef.current) scrollConversationToEnd(false);
 								}}
 								onScroll={event => {
 									const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -640,7 +578,7 @@ export default function LumusAssistantScreenWeb() {
 											</Box>
 											<Heading size="xl" className={`text-center ${LUMUS_CLASS_NAMES.heading}`}>O que você quer organizar?</Heading>
 											<Text className={`max-w-xl text-center leading-6 ${LUMUS_CLASS_NAMES.helper}`}>
-												Descreva uma movimentação, peça uma análise ou tire uma dúvida sobre seus dados. O Lumus prepara tudo para sua revisão.
+												Descreva uma movimentação, peça uma análise ou tire uma dúvida. Você pode confirmar, corrigir e cancelar pela conversa.
 											</Text>
 										</VStack>
 									) : null}
@@ -652,18 +590,6 @@ export default function LumusAssistantScreenWeb() {
 												? assistant.drafts.find(item => item.clientActionId === message.actionId && item.result?.notificationWarning)
 												: undefined;
 											content = <AssistantTextBubble message={message} isDarkMode={isDarkMode} hideValues={shouldHideValues} isSpeaking={assistant.speakingMessageId === message.id} onSpeak={() => void assistant.speak(message.id, message.text)} onStop={() => void assistant.stopSpeaking()} onRetry={notificationDraft ? () => void assistant.retryNotification(notificationDraft.clientActionId) : undefined} />;
-										}
-										if (message.type === 'question') {
-											content = <AssistantQuestionCard message={message} isDarkMode={isDarkMode} hideValues={shouldHideValues} onAnswer={(value, label, apply) => assistant.answerQuestion(message.id, value, label, apply)} />;
-										}
-										if (message.type === 'drafts') {
-											const selectedActionId = getDisplayedAssistantDraftActionId(
-												message.actionIds,
-												assistant.drafts,
-												selectedDraftActionByGroup[message.id],
-												activeQuestionActionId,
-											);
-											content = <AssistantDraftPages actionIds={message.actionIds} selectedActionId={selectedActionId} activeQuestionActionId={activeQuestionActionId} drafts={assistant.drafts} catalog={assistant.catalog} isDarkMode={isDarkMode} hideValues={shouldHideValues} onEdit={assistant.editDraft} onReview={assistant.beginConfirmation} onBack={assistant.cancelConfirmation} onConfirm={confirmDraft} onCancel={assistant.cancelDraft} />;
 										}
 										if (message.type === 'report') {
 											const spokenSummary = [message.report.narrative, message.report.deterministicSummary]
@@ -684,14 +610,6 @@ export default function LumusAssistantScreenWeb() {
 								) : null}
 								</VStack>
 							</ConversationContent>
-							<AssistantPaginationDock
-								groups={draftGroups}
-								drafts={assistant.drafts}
-								selectedActionByGroup={selectedDraftActionByGroup}
-								activeQuestionActionId={activeQuestionActionId}
-								advancingActionGroupIds={advancingDraftGroupIds}
-								onSelect={selectDraftAction}
-							/>
 
 			<Box className={ASSISTANT_CLASS_NAMES.webComposerDock}>
 				<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
@@ -701,7 +619,7 @@ export default function LumusAssistantScreenWeb() {
 						isDisabled={isComposerDisabled}
 					>
 						<AssistantComposerFrame
-							active={Boolean(isComposerFocused && assistant.availability?.available && !assistant.isSending && !isDraftPaginationActive)}
+							active={Boolean(isComposerFocused && assistant.availability?.available && !assistant.isSending)}
 							theme={isDarkMode ? 'dark' : 'light'}
 							className="w-full max-w-4xl self-center"
 						>
@@ -709,6 +627,7 @@ export default function LumusAssistantScreenWeb() {
 							<PromptInputFooter>
 								<PromptInputTools className={ASSISTANT_CLASS_NAMES.composerRow}>
 									<PromptInputButton
+										accessibilityRole="button"
 										accessibilityLabel={recorderState.isRecording ? 'Parar gravação' : 'Gravar mensagem de voz'}
 										disabled={isVoiceControlDisabled}
 										onPress={() => recorderState.isRecording ? void stopRecording() : void startRecording()}
@@ -718,7 +637,6 @@ export default function LumusAssistantScreenWeb() {
 									</PromptInputButton>
 									<MantineTextarea
 										aria-label="Mensagem para o Lumus IA"
-										maxLength={ASSISTANT_MAX_INPUT_CHARACTERS}
 										autosize
 										minRows={1}
 										maxRows={4}
@@ -734,12 +652,13 @@ export default function LumusAssistantScreenWeb() {
 										focusComposer();
 										}}
 										onBlur={() => setIsComposerFocused(false)}
-										placeholder={isDraftPaginationActive ? 'Conclua as ações do cartão antes de enviar outro comando' : 'Descreva o que aconteceu…'}
+										placeholder={'Descreva seu pedido, confirme, corrija ou cancele…'}
 										disabled={isComposerDisabled}
 										classNames={MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES}
 										styles={MANTINE_ASSISTANT_TEXTAREA_STYLES}
 									/>
 									<PromptInputSubmit
+										accessibilityRole="button"
 										accessibilityLabel="Enviar mensagem"
 										disabled={isSubmitDisabled}
 										className={ASSISTANT_CLASS_NAMES.sendButton}
@@ -779,7 +698,7 @@ export default function LumusAssistantScreenWeb() {
 								<Pressable
 									key={prompt}
 									accessibilityRole="button"
-									disabled={!assistant.availability?.available || assistant.isSending}
+									disabled={assistant.isBootstrapping || !assistant.consentGranted}
 									onPress={() => selectQuickPrompt(prompt)}
 									className={ASSISTANT_CLASS_NAMES.quickPrompt}
 								>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 
 const mockHost = (name: string) => {
 	const Host = ({ children, ...props }: Record<string, any>) => React.createElement(name, props, children);
@@ -21,12 +22,16 @@ const mockTextInput = ({ disabled, accessibilityState, ...props }: Record<string
 	accessible: props.accessible ?? Boolean(props.accessibilityLabel),
 	accessibilityState: { ...accessibilityState, ...(disabled !== undefined ? { disabled } : {}) },
 });
-const mockScrollView = mockHost('ScrollView');
+const mockScrollToEnd = jest.fn();
+const mockScrollView = React.forwardRef(({ children, ...props }: Record<string, any>, ref) => {
+	React.useImperativeHandle(ref, () => ({ scrollToEnd: mockScrollToEnd }), []);
+	return React.createElement('ScrollView', { ...props, testID: props.onContentSizeChange ? 'conversation-scroll' : props.testID }, children);
+});
 const mockActivityIndicator = mockHost('ActivityIndicator');
 
 const mockAssistantTextBubble = jest.fn(({ message }: Record<string, any>) =>
 	React.createElement('Text', {
-		className: message.role === 'user' ? 'leading-5 text-white' : 'leading-5 text-slate-800 dark:text-slate-200',
+		className: message.role === 'user' ? ASSISTANT_CLASS_NAMES.userBubbleText : 'leading-5 text-slate-800 dark:text-slate-200',
 	}, message.text),
 );
 const mockReadAudioFile = jest.fn(async () => ({ base64: 'encoded-audio', mimeType: 'audio/mp4' }));
@@ -300,6 +305,7 @@ const draft = (clientActionId: string, status = 'ready') => ({
 });
 
 function resetHarness(overrides: Record<string, any> = {}) {
+	mockScrollToEnd.mockClear();
 	mockShouldHideValues = false;
 	mockRecorderState = { isRecording: false, mediaServicesDidReset: false, durationMillis: 0, url: null };
 	mockRecorder = {
@@ -370,12 +376,25 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 		expect(mockAssistant.sendMessage).not.toHaveBeenCalled();
 	});
 
+	it('resumes following replies when sending after reading older messages', async () => {
+		await render(React.createElement(Screen));
+		const conversation = screen.getByTestId('conversation-scroll');
+		mockScrollToEnd.mockClear();
+		await fireEvent(conversation, 'scroll', { nativeEvent: { contentOffset: { y: 0 }, contentSize: { height: 1000 }, layoutMeasurement: { height: 200 } } });
+		await fireEvent(conversation, 'contentSizeChange', 390, 1100);
+		expect(mockScrollToEnd).not.toHaveBeenCalled();
+		await fireEvent.changeText(screen.getByLabelText('Mensagem para o Lumus IA'), 'Qual meu saldo?');
+		await fireEvent.press(screen.getByLabelText('Enviar mensagem'));
+		await fireEvent(conversation, 'contentSizeChange', 390, 1200);
+		expect(mockScrollToEnd).toHaveBeenCalledWith({ animated: false });
+	});
+
 	it('shows an unavailable message and retries only when requested', async () => {
 		mockAssistant.availability = { available: false, reason: 'App Check indisponível' };
 		await render(React.createElement(Screen));
 
 		expect(screen.getByText('App Check indisponível')).toBeOnTheScreen();
-		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeDisabled();
+		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeEnabled();
 		expect(screen.getByRole('button', { name: /Tentar verificar|Tentar novamente/ })).toBeEnabled();
 		await fireEvent.press(screen.getByRole('button', { name: /Tentar verificar|Tentar novamente/ }));
 
@@ -383,13 +402,13 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 		expect(mockAssistant.sendMessage).not.toHaveBeenCalled();
 	});
 
-	it('keeps the composer disabled and shows progress while a request is in flight', async () => {
+	it('keeps the composer available and shows progress while a request is in flight', async () => {
 		mockAssistant.isSending = true;
 		mockAssistant.sendingProgress = { active: 'prepare_actions', completed: ['loading_data'] };
 		await render(React.createElement(Screen));
 
 		expect(screen.getByText('Processando pedido')).toBeOnTheScreen();
-		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeDisabled();
+		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeEnabled();
 		expect(screen.getByLabelText('Enviar mensagem')).toBeDisabled();
 	});
 
@@ -404,30 +423,15 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 		expect(screen.queryByRole('button', { name: firstPrompt })).toBeNull();
 	});
 
-	it('locks text, voice, and suggestions while a paginated draft group is active', async () => {
-		mockAssistant.messages = [draftMessage(['action-1', 'action-2'])];
-		mockAssistant.drafts = [draft('action-1'), draft('action-2')];
-		await render(React.createElement(Screen));
-
-		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeDisabled();
-		expect(screen.getByLabelText('Gravar mensagem de voz')).toBeDisabled();
-		expect(screen.getByRole('button', { name: quickPromptsButton })).toBeDisabled();
-		expect(screen.getByText(/Ação 1 de 2/)).toBeOnTheScreen();
-		await fireEvent.press(screen.getByLabelText('Enviar mensagem'));
-
-		expect(mockAssistant.sendMessage).not.toHaveBeenCalled();
-	});
-
-	it('executes only the draft whose individual confirmation button is pressed', async () => {
-		mockAssistant.messages = [draftMessage(['expense-a', 'expense-b'])];
+	it('accepts cancellation and confirmation through the composer while requests are pending', async () => {
 		mockAssistant.drafts = [draft('expense-a'), draft('expense-b')];
 		await render(React.createElement(Screen));
-
-		await fireEvent.press(screen.getByRole('button', { name: 'Confirmar expense-a' }));
-
-		expect(mockAssistant.executeDraft).toHaveBeenCalledTimes(1);
-		expect(mockAssistant.executeDraft).toHaveBeenCalledWith('expense-a');
-		expect(mockAssistant.sendMessage).not.toHaveBeenCalled();
+		expect(screen.getByLabelText('Mensagem para o Lumus IA')).toBeEnabled();
+		expect(screen.getByLabelText('Gravar mensagem de voz')).toBeEnabled();
+		expect(screen.queryByRole('button', { name: 'Confirmar expense-a' })).toBeNull();
+		await fireEvent.changeText(screen.getByLabelText('Mensagem para o Lumus IA'), 'cancela');
+		await fireEvent.press(screen.getByLabelText('Enviar mensagem'));
+		expect(mockAssistant.sendMessage).toHaveBeenCalledWith('cancela');
 	});
 
 	it('passes hidden-value preference to rendered assistant messages', async () => {
@@ -443,20 +447,20 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 		}));
 	});
 
-	it('renders sent prompt messages with a white label', async () => {
+	it('renders sent prompt messages using the contrast token for the accent bubble', async () => {
 		mockAssistant.messages = [{
 			id: 'user-message-1', type: 'text', role: 'user', text: firstPrompt, createdAt: '2026-09-26T12:00:00.000Z',
 		}];
 		await render(React.createElement(Screen));
 
 		const message = screen.getByText(firstPrompt);
-		expect(message.props.className).toContain('text-white');
+		expect(message.props.className).toContain('text-lumus-on-accent');
 	});
 
 	it('routes question answers locally and renders deterministic reports', async () => {
 		mockAssistant.messages = [
 			{
-				id: 'question-1', type: 'question', role: 'assistant', text: 'Qual nome?',
+				id: 'question-1', type: 'text', role: 'assistant', text: 'Qual nome?',
 				field: { key: 'name', label: 'Nome', kind: 'text', question: 'Qual nome?' },
 				targetActionIds: ['expense-1'], createdAt: '2026-09-26T12:00:00.000Z',
 			},
@@ -469,9 +473,10 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 
 		expect(screen.getByText('Qual nome?')).toBeOnTheScreen();
 		expect(screen.getByText('Resumo calculado pelo aplicativo.')).toBeOnTheScreen();
-		await fireEvent.press(screen.getByRole('button', { name: 'Responder pergunta' }));
+		await fireEvent.changeText(screen.getByLabelText('Mensagem para o Lumus IA'), 'Mercado');
+		await fireEvent.press(screen.getByLabelText('Enviar mensagem'));
 
-		expect(mockAssistant.answerQuestion).toHaveBeenCalledWith('question-1', 'answer', 'Resposta', undefined);
+		expect(mockAssistant.sendMessage).toHaveBeenCalledWith('Mercado');
 	});
 
 	it('keeps typed input available when microphone permission is denied', async () => {

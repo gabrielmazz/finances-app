@@ -2,9 +2,10 @@
 // registradas para uso no aplicativo.
 
 import { auth, db } from '@/FirebaseConfig';
+import { getFinancialLedgerContextFirebase, manageFinancialMetadataFirebase } from '@/functions/FinancialLedgerFirebase';
+import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
 import {
 	collection,
-	deleteDoc,
 	doc,
 	getCountFromServer,
 	getDoc,
@@ -158,11 +159,15 @@ export async function updateTagFirebase({
 // Função para deletar uma tag registrada no Firestore
 export async function deleteTagFirebase(tagId: string) {
 	try {
-		await deleteDoc(doc(db, 'tags', tagId));
+		const personId = auth.currentUser?.uid;
+		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const category = (await getDoc(doc(db, 'tags', tagId))).data();
+		if (!category || category.personId !== personId) return { success: false, error: 'Categoria indisponível para esta conta.' };
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		await manageFinancialMetadataFirebase({ ...(ledger ? { groupId: ledger.groupId } : {}), expectedActorId: personId, domain: 'category', action: 'delete', recordId: tagId, fields: {}, assistantRequestFingerprint: createAssistantRecordFingerprint({ kind: 'delete_category', tagId, category }), expectedFingerprint: createAssistantRecordFingerprint(category), clientActionId: 'form_' + doc(collection(db, 'tags')).id });
 		return { success: true };
-	} catch (error) {
-		console.error('Erro ao deletar tag:', error);
-		return { success: false, error };
+	} catch {
+		return { success: false, error: 'Não foi possível excluir a categoria. Confira autorização e registros vinculados.' };
 	}
 }
 

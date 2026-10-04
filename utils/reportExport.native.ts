@@ -10,10 +10,20 @@ export const exportHtmlReport = async ({
 	html,
 	fileName,
 	dialogTitle,
+	isCurrent,
 }: HtmlReportExportRequest): Promise<HtmlReportExportResult> => {
+	if (isCurrent?.() === false) return { status: 'cancelled' };
 	const { uri } = await Print.printToFileAsync({ html });
-	const namedPdfUri = await copyPdfToNamedCacheFile(uri, fileName);
+	const cancel = async (namedUri?: string): Promise<HtmlReportExportResult> => {
+		const { deleteAsync } = require('expo-file-system/legacy') as typeof import('expo-file-system/legacy');
+		await Promise.all([...new Set([uri, ...(namedUri ? [namedUri] : [])])].map(path => deleteAsync(path, { idempotent: true }).catch(() => undefined)));
+		return { status: 'cancelled' };
+	};
+	if (isCurrent?.() === false) return cancel();
+	const namedPdfUri = await copyPdfToNamedCacheFile(uri, fileName, Boolean(isCurrent));
+	if (isCurrent?.() === false) return cancel(namedPdfUri);
 	const canShare = await Sharing.isAvailableAsync();
+	if (isCurrent?.() === false) return cancel(namedPdfUri);
 
 	if (!canShare) {
 		await Print.printAsync({ html });

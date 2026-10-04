@@ -13,6 +13,18 @@
       "skillPath": "tools-integrations/automation-scripts/SKILL.md",
       "computedHash": "1a26b0a8430ef4a57c70526e0331a5492025fe8c3d769f62c784888068896b93"
     },
+    "clean-code": {
+      "source": "sickn33/agentic-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/clean-code/SKILL.md",
+      "computedHash": "5dc34cc80c81f909fa69923bfdaa90b6579f3b9842e059be9c2378483605a00f"
+    },
+    "code-review": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/code-review/SKILL.md",
+      "computedHash": "caa9a086baaf9e0f7cd71f64edfa83da6821c05e826b083221f3d02e3d6a1905"
+    },
     "expo-dom": {
       "source": "expo/skills",
       "sourceType": "github",
@@ -73,6 +85,12 @@
       "skillPath": "skills/hyperframes-animation/SKILL.md",
       "computedHash": "dcb152706e225699c3a954e434c094fa8ae23a9061d62d49b0798b20a60b297e"
     },
+    "improve-codebase-architecture": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
+      "computedHash": "ac2c94885f34ff8492dc12aa4543182f661f32ea1722b8d6b6c2c7045af33ae3"
+    },
     "mantine-combobox": {
       "source": "mantinedev/skills",
       "sourceType": "github",
@@ -120,6 +138,12 @@
       "sourceType": "github",
       "skillPath": "skills/search-first/SKILL.md",
       "computedHash": "c82ffe228acdc70bb4d641d391f811d3d3ea5ba467b9ffe88e6dc4cd71c7b416"
+    },
+    "tdd": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "9ce12c4a1e209e557fcf9d02086ade3d7ffdb976186018fc1b063b4164246004"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",

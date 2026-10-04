@@ -1,11 +1,9 @@
 import React from 'react';
+import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { auth } from '@/FirebaseConfig';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAllUsersFirebase, getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
-import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
-import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
-import { getProfileNameError, getUserProfileFirebase, updateUserProfileFirebase, type UserProfile } from '@/functions/UserProfileFirebase';
+import { getProfileNameError, getUserProfileFirebase, getUserProfileAccessSummaryFirebase, updateUserProfileFirebase, type UserProfile } from '@/functions/UserProfileFirebase';
 
 export function useUserProfile() {
 	const { user } = useAuth();
@@ -24,14 +22,28 @@ export function useUserProfile() {
 	const lifetime = React.useRef(0);
 	const saveLock = React.useRef(false);
 	const copyLock = React.useRef(false);
+	const lastFocusedUid = React.useRef<string | undefined>(undefined);
+	const preserveDraftOnReload = React.useRef(false);
+	const draftRef = React.useRef({ name, profile });
+	draftRef.current = { name, profile };
+
+	useFocusEffect(React.useCallback(() => {
+		if (lastFocusedUid.current !== uid) { lastFocusedUid.current = uid; return; }
+		const draft = draftRef.current;
+		preserveDraftOnReload.current = Boolean(draft.profile && draft.profile.uid === uid && draft.name.trim() !== draft.profile.name);
+		setRetry(value => value + 1);
+	}, [uid]));
 
 	React.useEffect(() => {
 		const version = ++lifetime.current;
-		setProfile(null);
+		const preserveDraft = preserveDraftOnReload.current && draftRef.current.profile?.uid === uid;
+		const preservedName = draftRef.current.name;
+		preserveDraftOnReload.current = false;
+		if (!preserveDraft) setProfile(null);
 		setAccessSummary(null);
 		setAccessSummaryLoading(Boolean(uid));
 		setAccessSummaryError(false);
-		setName('');
+		if (!preserveDraft) setName('');
 		setNameError(null);
 		setFeedback(null);
 		setLoadError('');
@@ -51,36 +63,13 @@ export function useUserProfile() {
 				const result = await getUserProfileFirebase(uid);
 				if (!isCurrent()) return;
 				setProfile(result);
-				setName(result.name);
+				setName(preserveDraft ? preservedName : result.name);
 				setLoading(false);
 				profileLoaded = true;
 
-				if (result.adminUser) {
-					const [usersResult, banksResult, tagsResult] = await Promise.all([
-						getAllUsersFirebase(),
-						getBanksWithUsersByPersonFirebase(uid),
-						getTagsWithUsersByPersonFirebase(uid),
-					]);
-					if (!usersResult.success || !banksResult.success || !tagsResult.success) {
-						throw new Error('profile/access-summary');
-					}
-					if (!isCurrent()) return;
-					setAccessSummary({
-						isAdmin: true,
-						monitoredRecordsCount:
-							(Array.isArray(usersResult.data) ? usersResult.data.length : 0) +
-							(Array.isArray(banksResult.data) ? banksResult.data.length : 0) +
-							(Array.isArray(tagsResult.data) ? tagsResult.data.length : 0),
-					});
-				} else {
-					const relatedUsersResult = await getRelatedUsersFirebase(uid);
-					if (!relatedUsersResult.success) throw new Error('profile/access-summary');
-					if (!isCurrent()) return;
-					setAccessSummary({
-						isAdmin: false,
-						monitoredRecordsCount: Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data.length : 0,
-					});
-				}
+				const summary = await getUserProfileAccessSummaryFirebase(uid, result);
+				if (!isCurrent()) return;
+				setAccessSummary(summary);
 			} catch {
 				if (!isCurrent()) return;
 				if (!profileLoaded) setLoadError('Não foi possível carregar seu perfil. Tente novamente.');

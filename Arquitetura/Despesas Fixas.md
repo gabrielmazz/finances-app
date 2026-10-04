@@ -159,3 +159,13 @@ graph TD
 - [[Assistente Lumus]] cria/edita/exclui templates e registra/desfaz o ciclo por comandos próprios.
 - Pagamento e lançamento real são escritos na mesma transação; `lastPaymentExpenseId`, `lastPaymentCycle` e parcelas não podem ficar parcialmente atualizados.
 - A agenda local é suprimida ou recalculada somente depois do commit e uma falha de notificação vira aviso sem desfazer o pagamento.
+
+- O pedido, banco, data, quantidade de parcelas, confirmação e cancelamento são resolvidos no chat. No razão, `manageFinancialMetadata` gerencia somente templates próprios e `completeFinancialRecurring` efetiva/desfaz o ciclo; no legado, a transação SDK conserva os vínculos e um recibo privado por pedido.
+- Templates criados pelo assistente mantêm `assistantCycleHistoryComplete: true` e `completedCycles[YYYY-MM]` com ID do lançamento, quantidade e valor efetivado. A última indicação de ciclo de um template antigo não comprova a situação de meses anteriores: sem histórico suficiente, uma consulta/efetivação histórica retorna `history-unavailable` em vez de inventar pendência. Não há backfill financeiro automático.
+- Parcelas somam o contrato inteiro em centavos: três parcelas de um contrato de 1.000 centavos produzem 333 + 333 + 334. Quitar várias parcelas cria um único lançamento com a soma exata; desfazer restaura a quantidade efetivada e remove a entrada daquele ciclo. Início/fim são revalidados por mês civil de São Paulo no executor e servidor, além da quantidade restante.
+- Recibo é consultado antes de revalidar o snapshot alterado pelo próprio commit; reenvio após resposta perdida retorna o resultado persistido. Notificações são posteriores ao commit e falha local não repete o lançamento. Ver [[Comandos Financeiros Conversacionais]].
+
+
+### Relatório conversacional e histórico — 2026-10-04
+
+O PDF pode ser solicitado diretamente na conversa, com escolha por nome/ordinal quando necessária. Usa leitores completos próprios/relacionados/grupo e os builders existentes. Lançamentos, último ciclo e `completedCycles` são evidências de conclusão; migração para o razão sem histórico não prova ciclo pago ou pendente. Criação/início exclui ciclos anteriores ao contrato, e valores/quantidades sem evidência não entram em total confirmado. Troca de UID/sessão/privacidade durante a geração cancela a abertura e o transporte nativo limpa temporários próprios. Testes de efeitos de relatório, relação paginada e sessão/privacidade estão em `lumusAssistantExport`, `lumusAssistantTargetedReport`, `mandatoryRelationsCompleteness` e `reportExportSession`; transporte instalado permanece dependente de aparelho. Ver [[Validação Conversacional Lumus]].

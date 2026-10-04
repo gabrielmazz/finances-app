@@ -35,6 +35,8 @@ export const ASSISTANT_ACTION_KINDS = [
 	'create_category',
 	'update_category',
 	'delete_category',
+	'upsert_balance_adjustment',
+	'revert_balance_adjustment',
 ] as const;
 
 export type AssistantActionKind = (typeof ASSISTANT_ACTION_KINDS)[number];
@@ -58,6 +60,7 @@ export type AssistantSendStage =
 	| 'loading_data'
 	| 'interpreting_request'
 	| 'preparing_actions'
+	| 'executing_actions'
 	| 'building_report'
 	| 'writing_report';
 
@@ -146,7 +149,8 @@ export type AssistantCatalogType =
 	| 'investmentDeposits'
 	| 'investmentRedemptions'
 	| 'investmentSyncs'
-	| 'categories';
+	| 'categories'
+	| 'bankBalanceAdjustments';
 
 export type AssistantModelCatalogItem = {
 	handle: string;
@@ -176,6 +180,7 @@ export type AssistantConversationTurn = {
 };
 
 export type AssistantReportKind =
+	| 'account_balance'
 	| 'monthly_overview'
 	| 'largest_expense'
 	| 'largest_gain'
@@ -187,7 +192,9 @@ export type AssistantReportKind =
 	| 'category_analysis'
 	| 'cash_flow_forecast'
 	| 'pending_obligations'
-	| 'investment_portfolio';
+	| 'investment_portfolio'
+	| 'cdi_rates';
+
 
 export type AssistantReportRequest = {
 	kind: AssistantReportKind;
@@ -195,6 +202,8 @@ export type AssistantReportRequest = {
 	bankRef?: string;
 	categoryRef?: string;
 	query?: string;
+	/** Continuação de leitura no chat; não muda nem seleciona alvos financeiros. */
+	offset?: number;
 };
 
 export type AssistantChartKind = 'line' | 'bar' | 'donut';
@@ -295,6 +304,8 @@ export type AssistantAiConversationRequest = {
 	/** Escopo local de cota; nunca é enviado ao modelo. */
 	requestScope?: string;
 	text: string;
+	/** Busca local completa. Somente o resultado opaco e reduzido chega ao modelo. */
+	searchCatalog?(source: AssistantCatalogType | 'pending', query: string): Promise<{ items: NonNullable<AssistantModelCatalog[AssistantCatalogType]>; total: number; complete: boolean }>;
 	turns: AssistantConversationTurn[];
 	activeSummary?: string;
 	catalog: AssistantModelCatalog;
@@ -306,10 +317,17 @@ export type AssistantAiConversationRequest = {
 
 export type AssistantAiConversationResponse = {
 	text: string;
+	/** Propostas canônicas locais. Nunca autorizam nem executam por si mesmas. */
+	applicationCommands?: string[];
 	actions: AssistantModelActionProposal[];
 	reportRequests: AssistantReportRequest[];
+	warnings?: string[];
+	referenceCandidates?: Array<{source: AssistantCatalogType | 'pending'; query: string; handles: string[]; total: number}>;
 	toolCallCount: number;
 	fallbackModel?: string;
+	/** Propostas de alteração; nunca são evidência de autorização. */
+	draftUpdates?: Array<{ actionId: string; patch: Record<string, unknown> }>;
+	batchRequests?: Array<{ kind: AssistantActionKind; query?: string; period?: string; overdue?: boolean; expectedCount?: number; payload: Record<string, unknown> }>;
 };
 
 export type AssistantTranscriptionRequest = {
@@ -356,6 +374,9 @@ export type AssistantExecuteResult = {
 	errorCode?: string;
 };
 
+/** Token emitido somente para um evento do usuário na sessão local ativa. */
+export type AssistantExecutionAuthorization = { readonly token: string };
+
 export interface FinanceCommandService {
 	loadCatalog(personId: string): Promise<AssistantResolvedCatalog>;
 	prepareActions(
@@ -369,7 +390,7 @@ export interface FinanceCommandService {
 		patch: Record<string, unknown>,
 		catalog: AssistantResolvedCatalog,
 	): Promise<AssistantDraftAction>;
-	execute(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantExecuteResult>;
+	execute(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog, authorization: AssistantExecutionAuthorization): Promise<AssistantExecuteResult>;
 	retryNotification(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantExecuteResult>;
 }
 

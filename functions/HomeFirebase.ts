@@ -1,13 +1,16 @@
 import { db } from '@/FirebaseConfig';
 import { getInvestmentCdiRatesByPersonIdsFirebase } from '@/functions/InvestmentCdiRateFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
-import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { calculateLegacyBankBalanceInCents, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
 import { getLegacyBankBalancesInCentsFirebase } from '@/functions/BankFirebase';
 import {
 	getFinancialLedgerAccountsFirebase,
 	getFinancialLedgerContextFirebase,
+	getFinancialLedgerTransactionsFirebase,
 	type FinancialLedgerAccount,
 } from '@/functions/FinancialLedgerFirebase';
+import type { LedgerTransaction } from '@/utils/financialLedger';
+import { endOfFinancialCivilDay, fromFinancialCivilDate, toFinancialCivilDate } from '@/utils/financialCivilDate';
 import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
 import {
 	getInvestmentAssetType,
@@ -40,6 +43,8 @@ import {
 	query,
 	Timestamp,
 	where,
+	type QueryDocumentSnapshot,
+	type QueryConstraint,
 } from 'firebase/firestore';
 
 type HomeBankRecord = {
@@ -134,6 +139,11 @@ export type HomeOverviewData = {
 	upcomingMandatoryItems: HomeMandatoryItem[];
 };
 
+export type HomeBalancesData = {
+	bankBalances: HomeBankBalanceCard[];
+	cashSummary: Pick<HomeCashSummary, 'id' | 'name' | 'balanceInCents'> | null;
+};
+
 export type HomeMovementsData = {
 	timelineMovements: HomeTimelineMovement[];
 	bankColorsById: Record<string, string | null>;
@@ -172,6 +182,9 @@ type HomeQueryContext = {
 	startOfActivityYear: Date;
 	asOfDate: Date;
 	financialLedgerAccounts: FinancialLedgerAccount[] | null;
+	financialLedgerGroupId: string | null;
+	ledgerTransactions?: Promise<LedgerTransaction[]>;
+	metadataDocuments?: Map<string, Promise<{ docs: QueryDocumentSnapshot[] }>>;
 };
 
 type NormalizedInvestmentSummary = {
@@ -216,24 +229,38 @@ export const createEmptyInvestmentPortfolio = (): HomeInvestmentPortfolio => ({
 	investmentCount: 0,
 });
 
-const buildLedgerInvestmentPortfolio = (accounts: FinancialLedgerAccount[]): HomeInvestmentPortfolio => {
-	// Grupos migrados não podem reler financeInvestments; a Home usa o saldo confirmado do razão.
+const buildLedgerInvestmentPortfolio = (accounts: FinancialLedgerAccount[], transactions: LedgerTransaction[], rates: InvestmentCdiRate[], asOfDate: Date): HomeInvestmentPortfolio => {
+	// [[Investimentos]]: estimates use a verified base and never replace ledger balances.
 	const portfolioItems = accounts
 		.filter(account => account.kind === 'investment')
-		.map<HomeInvestmentItem>(account => ({
+		.map<HomeInvestmentItem>(account => {
+			const accountDate = parseToDate(account.date);
+			const materializedEvents = transactions.filter(transaction => transaction.legs.some(leg => leg.accountId === account.id)).sort((left, right) => right.effectiveAt.getTime() - left.effectiveAt.getTime());
+			const baseDate = materializedEvents[0]?.effectiveAt ?? accountDate;
+			const percentage = account.cdiPercentageInBasisPoints ?? 0;
+			const simulatedValueInCents = account.personId && baseDate && percentage > 0
+				? projectInvestmentValueInCents({
+					valueInCents: account.currentBalanceInCents, fromDate: toFinancialCivilDate(baseDate), toDate: toFinancialCivilDate(asOfDate),
+					personId: account.personId, cdiPercentageInBasisPoints: percentage,
+					assetType: getInvestmentAssetType(account.assetType), valuationMethod: getInvestmentValuationMethod(account.valuationMethod, getInvestmentAssetType(account.assetType)),
+					rates: rates.map(rate => ({ ...rate, effectiveFrom: toFinancialCivilDate(rate.effectiveFrom) })),
+				}).valueInCents : account.currentBalanceInCents;
+			const lastSync = materializedEvents.find(transaction => transaction.kind === 'reconciliation_adjustment');
+			return {
 			id: account.id,
 			name: account.name,
-			bankId: null,
-			bankNameSnapshot: null,
-			initialValueInCents: account.currentBalanceInCents,
+			bankId: account.bankAccountId ?? null,
+			bankNameSnapshot: accounts.find(candidate => candidate.id === account.bankAccountId)?.name ?? null,
+			initialValueInCents: account.initialValueInCents ?? account.currentBalanceInCents,
 			currentBaseValueInCents: account.currentBalanceInCents,
-			simulatedValueInCents: account.currentBalanceInCents,
-			estimatedGainInCents: 0,
-			cdiPercentage: 0,
-			lastManualSyncValueInCents: null,
-			lastManualSyncAt: null,
-			createdAt: null,
-		}))
+			simulatedValueInCents,
+			estimatedGainInCents: simulatedValueInCents - account.currentBalanceInCents,
+			cdiPercentage: percentage / 100,
+			lastManualSyncValueInCents: materializedEvents[0] === lastSync ? account.currentBalanceInCents : null,
+			lastManualSyncAt: lastSync?.effectiveAt ?? null,
+			createdAt: accountDate,
+		};
+		})
 		.sort((left, right) => right.currentBaseValueInCents - left.currentBaseValueInCents);
 
 	return {
@@ -250,7 +277,7 @@ const buildLedgerInvestmentPortfolio = (accounts: FinancialLedgerAccount[]): Hom
 			(accumulator, investment) => accumulator + investment.simulatedValueInCents,
 			0,
 		),
-		totalEstimatedGainInCents: 0,
+		totalEstimatedGainInCents: portfolioItems.reduce((sum, item) => sum + item.estimatedGainInCents, 0),
 		investmentCount: portfolioItems.length,
 	};
 };
@@ -374,14 +401,22 @@ const buildAllowedPersonIds = async (personId: string) => {
 	);
 };
 
+const readHomeDocumentsForPeople = async (collectionName: string, allowedPersonIds: string[], constraints: QueryConstraint[] = []): Promise<{ docs: QueryDocumentSnapshot[] }> => {
+	const chunks = Array.from({ length: Math.ceil(allowedPersonIds.length / 10) }, (_, index) => allowedPersonIds.slice(index * 10, (index + 1) * 10));
+	const snapshots = await Promise.all(chunks.map(ids => getDocs(query(collection(db, collectionName), where('personId', 'in', ids), ...constraints))));
+	return { docs: snapshots.flatMap(snapshot => snapshot.docs) };
+};
+
 const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext> => {
 	const allowedPersonIds = await buildAllowedPersonIds(personId);
 	const financialLedgerContext = await getFinancialLedgerContextFirebase(personId);
 	const now = new Date();
-	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-	const startOfExpenseHistory = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-	const startOfActivityYear = new Date(now.getFullYear(), 0, 1);
+	const civilNow = toFinancialCivilDate(now);
+	const asOfDate = endOfFinancialCivilDay(now);
+	const startOfMonth = fromFinancialCivilDate(new Date(civilNow.getFullYear(), civilNow.getMonth(), 1));
+	const endOfMonth = fromFinancialCivilDate(new Date(civilNow.getFullYear(), civilNow.getMonth() + 1, 0, 23, 59, 59, 999));
+	const startOfExpenseHistory = fromFinancialCivilDate(new Date(civilNow.getFullYear(), civilNow.getMonth() - 2, 1));
+	const startOfActivityYear = fromFinancialCivilDate(new Date(civilNow.getFullYear(), 0, 1));
 
 	if (financialLedgerContext) {
 		const accounts = await getFinancialLedgerAccountsFirebase(financialLedgerContext.groupId);
@@ -399,12 +434,12 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 			endOfMonth,
 				startOfExpenseHistory,
 				startOfActivityYear,
-			asOfDate: now,
+			asOfDate,
 			financialLedgerAccounts: accounts,
+			financialLedgerGroupId: financialLedgerContext.groupId,
 		};
 	}
-	const banksQuery = query(collection(db, 'banks'), where('personId', 'in', allowedPersonIds));
-	const banksSnapshot = await getDocs(banksQuery);
+	const banksSnapshot = await readHomeDocumentsForPeople('banks', allowedPersonIds);
 
 	const banks = banksSnapshot.docs.map(bankDoc => {
 		const data = bankDoc.data() as Record<string, unknown>;
@@ -441,9 +476,78 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 		endOfMonth,
 		startOfExpenseHistory,
 		startOfActivityYear,
-		asOfDate: now,
+		asOfDate,
 		financialLedgerAccounts: null,
+		financialLedgerGroupId: null,
 	};
+};
+
+const loadLedgerTransactions = (context: HomeQueryContext) => {
+	if (!context.ledgerTransactions) context.ledgerTransactions = getFinancialLedgerTransactionsFirebase(context.financialLedgerGroupId!);
+	return context.ledgerTransactions;
+};
+
+const loadHomeMetadata = async (context: HomeQueryContext, collectionName: string): Promise<{ docs: QueryDocumentSnapshot[] }> => {
+	const cache = context.metadataDocuments ??= new Map<string, Promise<{ docs: QueryDocumentSnapshot[] }>>();
+	const cached = cache.get(collectionName);
+	if (cached) return cached;
+	const pending = Promise.all([
+		readHomeDocumentsForPeople(collectionName, context.allowedPersonIds),
+		...(context.financialLedgerGroupId ? [getDocs(query(collection(db, collectionName), where('groupId', '==', context.financialLedgerGroupId)))] : []),
+	]).then(snapshots => ({ docs: [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(document => [document.id, document])).values()] }));
+	cache.set(collectionName, pending);
+	return pending;
+};
+
+const calculateLegacyCashBalance = (context: HomeQueryContext, expenses: HomeMovementDocument[], gains: HomeMovementDocument[], cashRescues: HomeMovementDocument[]) => {
+	const pastCashItems = (items: HomeMovementDocument[], withdrawals = false) => items.filter(item => {
+		const date = parseToDate(item.date ?? item.createdAt);
+		return date && date <= context.asOfDate && (withdrawals || item.bankId == null);
+	});
+	return sumMovementValues([...pastCashItems(gains), ...pastCashItems(cashRescues, true)]) - sumMovementValues(pastCashItems(expenses));
+};
+
+const loadBalancesSection = async (context: HomeQueryContext): Promise<HomeBalancesData> => {
+	if (context.financialLedgerAccounts) {
+		const cash = context.financialLedgerAccounts.find(account => account.kind === 'cash');
+		return {
+			bankBalances: context.financialLedgerAccounts.filter(account => account.kind === 'bank').map(account => ({ id: account.id, name: account.name, balanceInCents: account.currentBalanceInCents, colorHex: account.colorHex ?? null })),
+			cashSummary: cash ? { id: 'cash-transactions', name: cash.name, balanceInCents: cash.currentBalanceInCents } : null,
+		};
+	}
+	// Both positions share complete sources: legacy Cash can predate bank openings
+	// and older records can omit bankId. A null-only query would lose that money.
+	const [snapshots, expenses, gains, cashRescues, investments, balanceAdjustments] = await Promise.all(
+		['monthlyBalances', 'expenses', 'gains', 'cashRescues', 'financeInvestments', 'bankBalanceAdjustments'].map(async name => (await loadHomeMetadata(context, name)).docs.map(document => document.data() as HomeMovementDocument)),
+	);
+	return {
+		bankBalances: context.banks.map(bank => ({
+			id: bank.id, name: bank.name, colorHex: bank.colorHex,
+			balanceInCents: calculateLegacyBankBalanceInCents({ bankId: bank.id, snapshots, expenses, gains, cashRescues, investments, balanceAdjustments, asOfDate: context.asOfDate }),
+		})),
+		cashSummary: { id: 'cash-transactions', name: 'Dinheiro', balanceInCents: calculateLegacyCashBalance(context, expenses, gains, cashRescues) },
+	};
+};
+
+const projectLedgerMovements = (transactions: LedgerTransaction[], context: HomeQueryContext) => {
+	const reversedIds = new Set(transactions.filter(transaction => transaction.kind === 'reversal' && transaction.effectiveAt <= context.asOfDate).map(transaction => transaction.reversesTransactionId));
+	const supportedKinds = new Set(['expense', 'income', 'transfer', 'investment_deposit', 'investment_redemption']);
+	return transactions.filter(transaction => supportedKinds.has(transaction.kind) && !reversedIds.has(transaction.id) && transaction.effectiveAt <= context.asOfDate).map(transaction => {
+		const isGain = transaction.kind === 'income' || transaction.kind === 'investment_redemption';
+		const accountLeg = transaction.legs.find(leg => leg.accountId !== null && (isGain ? leg.deltaInCents > 0 : leg.deltaInCents < 0))!;
+		const account = context.financialLedgerAccounts?.find(account => account.id === accountLeg.accountId);
+		const source = context.financialLedgerAccounts?.find(account => account.id === transaction.legs.find(leg => leg.deltaInCents < 0)?.accountId);
+		const target = context.financialLedgerAccounts?.find(account => account.id === transaction.legs.find(leg => leg.deltaInCents > 0)?.accountId);
+		return { id: transaction.id, type: isGain ? 'gain' : 'expense',
+			name: transaction.note || (transaction.kind === 'transfer' ? 'Transferência' : transaction.kind === 'investment_deposit' ? 'Aporte' : transaction.kind === 'investment_redemption' ? 'Resgate' : isGain ? 'Receita' : 'Despesa'),
+			date: transaction.effectiveAt, valueInCents: Math.abs(accountLeg.deltaInCents), tagId: transaction.categoryId,
+			bankId: account?.kind === 'cash' ? null : accountLeg.accountId, moneyFormat: account?.kind === 'cash',
+			isBankTransfer: transaction.kind === 'transfer', bankTransferDirection: transaction.kind === 'transfer' ? 'outgoing' : null,
+			bankTransferSourceBankNameSnapshot: source?.name, bankTransferTargetBankNameSnapshot: target?.name,
+			isInvestmentDeposit: transaction.kind === 'investment_deposit', isInvestmentRedemption: transaction.kind === 'investment_redemption',
+			investmentNameSnapshot: transaction.kind === 'investment_deposit' ? target?.name : transaction.kind === 'investment_redemption' ? source?.name : null,
+		};
+	});
 };
 
 const toExpenseHistorySource = (item: HomeMovementDocument): HomeExpenseHistorySource | null => {
@@ -462,30 +566,23 @@ const toExpenseHistorySource = (item: HomeMovementDocument): HomeExpenseHistoryS
 
 const loadUpcomingMandatoryItems = async (context: HomeQueryContext) => {
 	try {
-		const mandatoryExpensesQuery = query(
-			collection(db, 'mandatoryExpenses'),
-			where('personId', 'in', context.allowedPersonIds),
-		);
-		const mandatoryGainsQuery = query(
-			collection(db, 'mandatoryGains'),
-			where('personId', 'in', context.allowedPersonIds),
-		);
 		const [mandatoryExpensesSnapshot, mandatoryGainsSnapshot] = await Promise.all([
-			getDocs(mandatoryExpensesQuery),
-			getDocs(mandatoryGainsQuery),
+			loadHomeMetadata(context, 'mandatoryExpenses'), loadHomeMetadata(context, 'mandatoryGains'),
 		]);
 
+		const toScheduleSource = (document: QueryDocumentSnapshot) => {
+			const data: Record<string, unknown> = { ...document.data() };
+			for (const key of ['installmentStartDate', 'installmentEndDate']) {
+				const date = parseToDate(data[key]);
+				if (date) data[key] = toFinancialCivilDate(date);
+			}
+			return { ...data, id: document.id };
+		};
 		return buildHomeMandatorySchedule(
-			mandatoryExpensesSnapshot.docs.map(document => ({
-				id: document.id,
-				...(document.data() as Record<string, unknown>),
-			})),
-			mandatoryGainsSnapshot.docs.map(document => ({
-				id: document.id,
-				...(document.data() as Record<string, unknown>),
-			})),
-			context.asOfDate,
-		);
+			mandatoryExpensesSnapshot.docs.map(toScheduleSource),
+			mandatoryGainsSnapshot.docs.map(toScheduleSource),
+			toFinancialCivilDate(context.asOfDate),
+		).map(item => ({ ...item, dueDate: fromFinancialCivilDate(item.dueDate) }));
 	} catch (error) {
 		console.warn('Não foi possível carregar os compromissos obrigatórios da Home:', error);
 		return [];
@@ -497,16 +594,20 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 
 	if (context.financialLedgerAccounts) {
 		const cashAccount = context.financialLedgerAccounts.find(account => account.kind === 'cash') ?? null;
-		const ledgerGroupId = context.financialLedgerAccounts[0]?.groupId;
+		const ledgerGroupId = context.financialLedgerGroupId;
 		const currentMonthExpensesByBankId: Record<string, number> = {};
 		const currentMonthGainsByBankId: Record<string, number> = {};
 		const expenseHistorySources: HomeExpenseHistorySource[] = [];
 		const gainHistorySources: HomeExpenseHistorySource[] = [];
 		const activityHeatmapSources: HomeActivityHeatmapSource[] = [];
 		if (ledgerGroupId) {
-			const transactionsSnapshot = await getDocs(
-				query(collection(db, 'ledgerTransactions'), where('groupId', '==', ledgerGroupId)),
-			);
+			const transactions = await loadLedgerTransactions(context);
+			const transactionsSnapshot = { docs: transactions.map(transaction => ({ id: transaction.id, data: () => transaction })) };
+			const reversedIds = new Set(transactionsSnapshot.docs.filter(document => {
+				const data = document.data();
+				const date = parseToDate(data.effectiveAt);
+				return typeof data.reversesTransactionId === 'string' && date && date.getTime() <= context.asOfDate.getTime();
+			}).map(document => document.data().reversesTransactionId));
 			transactionsSnapshot.docs.forEach(document => {
 				const data = document.data() as Record<string, unknown>;
 				const effectiveAt = parseToDate(data.effectiveAt);
@@ -518,9 +619,9 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 					return;
 				}
 				if (effectiveAt.getTime() >= context.startOfActivityYear.getTime()) {
-					activityHeatmapSources.push({ date: effectiveAt });
+					activityHeatmapSources.push({ date: toFinancialCivilDate(effectiveAt) });
 				}
-				if (data.kind !== 'income' && data.kind !== 'expense') return;
+				if (reversedIds.has(document.id) || data.kind !== 'income' && data.kind !== 'expense') return;
 				data.legs.forEach(leg => {
 					if (!leg || typeof leg !== 'object') return;
 					const accountId = (leg as { accountId?: unknown }).accountId;
@@ -552,7 +653,7 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 						deltaInCents < 0
 					) {
 						expenseHistorySources.push({
-							date: effectiveAt,
+							date: toFinancialCivilDate(effectiveAt),
 							valueInCents: Math.abs(deltaInCents),
 						});
 					}
@@ -561,7 +662,7 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 						effectiveAt.getTime() >= context.startOfExpenseHistory.getTime() &&
 						deltaInCents > 0
 					) {
-						gainHistorySources.push({ date: effectiveAt, valueInCents: deltaInCents });
+						gainHistorySources.push({ date: toFinancialCivilDate(effectiveAt), valueInCents: deltaInCents });
 					}
 				});
 			});
@@ -590,73 +691,22 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 			expenseHistoryLastThreeMonths: buildHomeExpenseHistory(
 				expenseHistorySources,
 				gainHistorySources,
-				context.asOfDate,
+				toFinancialCivilDate(context.asOfDate),
 			),
-			activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources, context.asOfDate),
+			activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources, toFinancialCivilDate(context.asOfDate)),
 		};
 	}
 	const bankIdsSet = new Set(context.bankIds);
-	const monthlyExpensesQuery = query(
-		collection(db, 'expenses'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
-		where('date', '<=', Timestamp.fromDate(context.endOfMonth)),
-	);
-	const monthlyGainsQuery = query(
-		collection(db, 'gains'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
-		where('date', '<=', Timestamp.fromDate(context.endOfMonth)),
-	);
-	const cashRescuesQuery = query(
-		collection(db, 'cashRescues'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
-		where('date', '<=', Timestamp.fromDate(context.endOfMonth)),
-	);
-	const expenseHistoryQuery = query(
-		collection(db, 'expenses'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const cashRescueHistoryQuery = query(
-		collection(db, 'cashRescues'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const gainHistoryQuery = query(
-		collection(db, 'gains'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfExpenseHistory)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const activityExpensesQuery = query(
-		collection(db, 'expenses'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const activityGainsQuery = query(
-		collection(db, 'gains'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const activityCashRescuesQuery = query(
-		collection(db, 'cashRescues'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
-	const activityInvestmentSyncsQuery = query(
-		collection(db, 'financeInvestmentSyncs'),
-		where('personId', 'in', context.allowedPersonIds),
-		where('date', '>=', Timestamp.fromDate(context.startOfActivityYear)),
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
-	);
+	const readPeriod = (name: string, start: Date) => readHomeDocumentsForPeople(name, context.allowedPersonIds, [
+		where('date', '>=', Timestamp.fromDate(start)), where('date', '<=', Timestamp.fromDate(context.asOfDate)),
+	]);
 
+	const legacyCashBalancePromise = Promise.all(['expenses', 'gains', 'cashRescues'].map(name => loadHomeMetadata(context, name))).then(([expenses, gains, cashRescues]) => calculateLegacyCashBalance(
+		context,
+		expenses.docs.map(document => document.data()),
+		gains.docs.map(document => document.data()),
+		cashRescues.docs.map(document => document.data()),
+	));
 	const legacyBalancesPromise = getLegacyBankBalancesInCentsFirebase({
 		personId: context.personId,
 		bankIds: context.bankIds,
@@ -664,25 +714,23 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		asOfDate: context.asOfDate,
 	});
 	const coreSnapshotsPromise = Promise.all([
-		getDocs(monthlyExpensesQuery),
-		getDocs(monthlyGainsQuery),
-		getDocs(cashRescuesQuery),
+		readPeriod('expenses', context.startOfMonth),
+		readPeriod('gains', context.startOfMonth),
 	]);
 	const historySnapshotsPromise = Promise.allSettled([
-		getDocs(expenseHistoryQuery),
-		getDocs(cashRescueHistoryQuery),
-		getDocs(gainHistoryQuery),
+		readPeriod('expenses', context.startOfExpenseHistory),
+		readPeriod('gains', context.startOfExpenseHistory),
 	]);
 	const activitySnapshotsPromise = Promise.allSettled([
-		getDocs(activityExpensesQuery),
-		getDocs(activityGainsQuery),
-		getDocs(activityCashRescuesQuery),
-		getDocs(activityInvestmentSyncsQuery),
+		readPeriod('expenses', context.startOfActivityYear),
+		readPeriod('gains', context.startOfActivityYear),
+		readPeriod('cashRescues', context.startOfActivityYear),
+		readPeriod('financeInvestmentSyncs', context.startOfActivityYear),
 	]);
-	const [monthlyExpensesSnapshot, monthlyGainsSnapshot, cashRescuesSnapshot] = await coreSnapshotsPromise;
+	const [monthlyExpensesSnapshot, monthlyGainsSnapshot] = await coreSnapshotsPromise;
 	const historySnapshotResults = await historySnapshotsPromise;
 	const activitySnapshotResults = await activitySnapshotsPromise;
-	const [expenseHistorySnapshot, cashRescueHistorySnapshot, gainHistorySnapshot] = historySnapshotResults.map(result =>
+	const [expenseHistorySnapshot, gainHistorySnapshot] = historySnapshotResults.map(result =>
 		result.status === 'fulfilled' ? result.value : null,
 	);
 	const [activityExpensesSnapshot, activityGainsSnapshot, activityCashRescuesSnapshot, activityInvestmentSyncsSnapshot] =
@@ -694,12 +742,6 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 	if (activitySnapshotResults.some(result => result.status === 'rejected')) {
 		console.warn('Não foi possível carregar o heatmap da Home; mantendo o resumo dos bancos disponível.');
 	}
-	const normalizedCashRescues = cashRescuesSnapshot.docs.map<HomeMovementDocument>(docSnap => ({
-		id: docSnap.id,
-		...(docSnap.data() as HomeMovementDocument),
-		isCashRescue: true,
-	}));
-
 	const monthlyExpenses = monthlyExpensesSnapshot.docs
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
 		.filter(item => {
@@ -712,26 +754,16 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 			const bankId = typeof item.bankId === 'string' ? item.bankId : null;
 			return Boolean(bankId && bankIdsSet.has(bankId));
 		});
-	const cashRescues = normalizedCashRescues.filter(item => {
-			const bankId = typeof item.bankId === 'string' ? item.bankId : null;
-			return Boolean(bankId && bankIdsSet.has(bankId));
-		});
 	const cashExpenses = monthlyExpensesSnapshot.docs
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
 		.filter(item => item?.bankId == null);
 	const cashGains = monthlyGainsSnapshot.docs
 		.map<HomeMovementDocument>(docSnap => ({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }))
 		.filter(item => item?.bankId == null);
-	const cashGainsWithRescues = [...cashGains, ...normalizedCashRescues];
 	const expenseHistorySources = [
 		...(expenseHistorySnapshot?.docs ?? []).map<HomeMovementDocument>(docSnap => ({
 			id: docSnap.id,
 			...(docSnap.data() as HomeMovementDocument),
-		})),
-		...(cashRescueHistorySnapshot?.docs ?? []).map<HomeMovementDocument>(docSnap => ({
-			id: docSnap.id,
-			...(docSnap.data() as HomeMovementDocument),
-			isCashRescue: true,
 		})),
 	]
 		.map(toExpenseHistorySource)
@@ -756,6 +788,7 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		.map(item => ({ date: parseToDate(item.date ?? item.createdAt) }));
 	const legacyBalancesResult = await legacyBalancesPromise;
 	if (!legacyBalancesResult.success) throw legacyBalancesResult.error;
+	const legacyCashBalanceInCents = await legacyCashBalancePromise;
 
 	return {
 		bankBalances: context.banks.map(bank => ({
@@ -764,68 +797,43 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 		cashSummary: {
 			id: 'cash-transactions',
 			name: 'Dinheiro',
-			balanceInCents: sumMovementValues(cashGainsWithRescues) - sumMovementValues(cashExpenses),
-			currentMonthExpensesInCents: sumMovementValues(cashExpenses),
-			currentMonthGainsInCents: sumMovementValues(cashGainsWithRescues),
+			balanceInCents: legacyCashBalanceInCents,
+			currentMonthExpensesInCents: sumMovementValues(cashExpenses.filter(shouldIncludeMovementInGainExpenseTotals)),
+			currentMonthGainsInCents: sumMovementValues(cashGains.filter(shouldIncludeMovementInGainExpenseTotals)),
 		},
-		currentMonthExpensesByBankId: aggregateMonthlyValuesByBankId([...monthlyExpenses, ...cashRescues], bankIdsSet),
+		currentMonthExpensesByBankId: aggregateMonthlyValuesByBankId(monthlyExpenses, bankIdsSet),
 		currentMonthGainsByBankId: aggregateMonthlyValuesByBankId(monthlyGains, bankIdsSet),
 		upcomingMandatoryItems,
 		expenseHistoryLastThreeMonths: buildHomeExpenseHistory(
-			expenseHistorySources,
-		gainHistorySources,
-		context.asOfDate,
+			expenseHistorySources.map(source => ({ ...source, date: source.date ? toFinancialCivilDate(source.date) : null })),
+			gainHistorySources.map(source => ({ ...source, date: source.date ? toFinancialCivilDate(source.date) : null })),
+			toFinancialCivilDate(context.asOfDate),
 		),
-		activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources, context.asOfDate),
+		activityHeatmap: buildHomeActivityHeatmap(activityHeatmapSources.map(source => ({ date: source.date ? toFinancialCivilDate(source.date) : null })), toFinancialCivilDate(context.asOfDate)),
 	};
 };
 
 const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMovementsData> => {
-	if (context.financialLedgerAccounts) {
-		return { timelineMovements: [], bankColorsById: context.bankColorsById };
-	}
-	const recentExpensesQuery = query(
-		collection(db, 'expenses'),
-		where('personId', 'in', context.allowedPersonIds),
-		orderBy('date', 'desc'),
-		limitQuery(6),
-	);
-	const recentGainsQuery = query(
-		collection(db, 'gains'),
-		where('personId', 'in', context.allowedPersonIds),
-		orderBy('date', 'desc'),
-		limitQuery(6),
-	);
-	const recentInvestmentSyncsQuery = query(
-		collection(db, 'financeInvestmentSyncs'),
-		where('personId', 'in', context.allowedPersonIds),
-		orderBy('date', 'desc'),
-		limitQuery(6),
-	);
-	const mandatoryExpensesQuery = query(
-		collection(db, 'mandatoryExpenses'),
-		where('personId', 'in', context.allowedPersonIds),
-	);
-	const mandatoryGainsQuery = query(
-		collection(db, 'mandatoryGains'),
-		where('personId', 'in', context.allowedPersonIds),
-	);
-	const tagsQuery = query(collection(db, 'tags'), where('personId', 'in', context.allowedPersonIds));
-
+	const ledgerMovements = context.financialLedgerAccounts ? projectLedgerMovements(await loadLedgerTransactions(context), context) : null;
+	const readRecent = (name: string) => readHomeDocumentsForPeople(name, context.allowedPersonIds, [
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)), orderBy('date', 'desc'), limitQuery(6),
+	]);
 	const [
 		recentExpensesSnapshot,
 		recentGainsSnapshot,
 		recentInvestmentSyncsSnapshot,
+		recentCashRescuesSnapshot,
 		mandatoryExpensesSnapshot,
 		mandatoryGainsSnapshot,
 		tagsSnapshot,
 	] = await Promise.all([
-		getDocs(recentExpensesQuery),
-		getDocs(recentGainsQuery),
-		getDocs(recentInvestmentSyncsQuery),
-		getDocs(mandatoryExpensesQuery),
-		getDocs(mandatoryGainsQuery),
-		getDocs(tagsQuery),
+		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'expense').map(item => ({ id: item.id, data: () => item })) }) : readRecent('expenses'),
+		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'gain').map(item => ({ id: item.id, data: () => item })) }) : readRecent('gains'),
+		ledgerMovements ? Promise.resolve({ docs: [] }) : readRecent('financeInvestmentSyncs'),
+		ledgerMovements ? Promise.resolve({ docs: [] }) : readRecent('cashRescues'),
+		loadHomeMetadata(context, 'mandatoryExpenses'),
+		loadHomeMetadata(context, 'mandatoryGains'),
+		loadHomeMetadata(context, 'tags'),
 	]);
 
 	const tagMetadataById = tagsSnapshot.docs.reduce<Record<string, HomeTagMetadata>>((acc, docSnap) => {
@@ -965,6 +973,14 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		...recentGainsSnapshot.docs.map(docSnap =>
 			normalizeMovement({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }, 'gain'),
 		),
+		...recentCashRescuesSnapshot.docs.map(docSnap => {
+			const item = docSnap.data() as HomeMovementDocument;
+			return normalizeMovement({ ...item, id: docSnap.id, name: 'Saque em dinheiro', explanation: item.description,
+				isBankTransfer: true, bankTransferDirection: 'outgoing',
+				bankTransferSourceBankNameSnapshot: item.bankNameSnapshot ?? context.bankNamesById[item.bankId] ?? null,
+				bankTransferTargetBankNameSnapshot: 'Caixa',
+			}, 'expense');
+		}),
 		...recentInvestmentSyncsSnapshot.docs.map(docSnap =>
 			normalizeMovement({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }, 'sync'),
 		),
@@ -984,24 +1000,28 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 
 const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeInvestmentsData> => {
 	if (context.financialLedgerAccounts) {
-		return { portfolio: buildLedgerInvestmentPortfolio(context.financialLedgerAccounts) };
+		const [transactions, rateSnapshot] = await Promise.all([
+			loadLedgerTransactions(context), loadHomeMetadata(context, 'investmentCdiRates').catch(() => ({ docs: [] })),
+		]);
+		const rates: InvestmentCdiRate[] = rateSnapshot.docs.flatMap(document => {
+			const rate = document.data();
+			const effectiveFrom = parseToDate(rate.effectiveFrom);
+			return typeof rate.personId === 'string' && Number.isSafeInteger(rate.annualRateInBasisPoints) && rate.annualRateInBasisPoints > 0 && effectiveFrom
+				? [{ id: document.id, personId: rate.personId, annualRateInBasisPoints: rate.annualRateInBasisPoints, effectiveFrom }] : [];
+		});
+		return { portfolio: buildLedgerInvestmentPortfolio(context.financialLedgerAccounts, transactions, rates, context.asOfDate) };
 	}
-	const investmentsQuery = query(
-		collection(db, 'financeInvestments'),
-		where('personId', 'in', context.allowedPersonIds),
-		orderBy('createdAt', 'desc'),
-		limitQuery(50),
-	);
-	const [investmentsSnapshot, cdiRatesResult] = await Promise.all([
-		getDocs(investmentsQuery),
-		getInvestmentCdiRatesByPersonIdsFirebase(context.allowedPersonIds),
+	const personIdChunks = Array.from({ length: Math.ceil(context.allowedPersonIds.length / 10) }, (_, index) => context.allowedPersonIds.slice(index * 10, (index + 1) * 10));
+	const [investmentsSnapshot, cdiRatesResults] = await Promise.all([
+		readHomeDocumentsForPeople('financeInvestments', context.allowedPersonIds),
+		Promise.all(personIdChunks.map(getInvestmentCdiRatesByPersonIdsFirebase)),
 	]);
-	if (!cdiRatesResult.success) {
+	if (cdiRatesResults.some(result => !result.success)) {
 		// A taxa é opcional para a Home: sem ela, a projeção conserva o valor confirmado.
-		console.warn('Não foi possível carregar o histórico de CDI da Home; usando valores-base.', cdiRatesResult.error);
+		console.warn('Não foi possível carregar o histórico de CDI da Home; usando valores-base.');
 	}
 	const cdiRates: InvestmentCdiRate[] =
-		cdiRatesResult.success && Array.isArray(cdiRatesResult.data) ? cdiRatesResult.data : [];
+		cdiRatesResults.every(result => result.success) ? cdiRatesResults.flatMap(result => result.success && Array.isArray(result.data) ? result.data : []) : [];
 	const normalizedInvestments: NormalizedInvestmentSummary[] = investmentsSnapshot.docs.map(docSnap => {
 		const investment = docSnap.data() as HomeInvestmentDocument;
 		const initialValueInCents =
@@ -1111,6 +1131,21 @@ const toSectionError = (sectionName: string, error: unknown) => {
 
 	return 'Não foi possível carregar o resumo dos bancos.';
 };
+
+const readHomeSection = async <T>(personId: string, sectionName: string, load: (context: HomeQueryContext) => Promise<T>): Promise<{ success: true; data: T } | { success: false; error: unknown }> => {
+	try {
+		if (!personId.trim()) return { success: false, error: 'Usuário não informado.' };
+		return { success: true, data: await load(await buildHomeQueryContext(personId)) };
+	} catch (error) {
+		return { success: false, error: toSectionError(sectionName, error) };
+	}
+};
+
+/** A focused report does not need the unrelated timeline or investment sections. */
+export const getHomeOverviewFirebase = (personId: string) => readHomeSection(personId, 'resumo dos bancos', loadOverviewSection);
+export const getHomeInvestmentsFirebase = (personId: string) => readHomeSection(personId, 'investimentos', loadInvestmentsSection);
+/** Current positions omit chart, timeline, schedule and portfolio sources. */
+export const getHomeBalancesFirebase = (personId: string) => readHomeSection(personId, 'saldos', loadBalancesSection);
 
 export async function getHomeSnapshotFirebase(
 	personId: string,

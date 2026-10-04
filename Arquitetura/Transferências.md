@@ -71,11 +71,11 @@ Na busca do extrato bancário, `getBankMovementsByPeriodFirebase()` considera ta
 
 - Transferência entre o mesmo banco é bloqueada no formulário e em `transferBetweenBanksFirebase()`
 - Após uma transferência bem-sucedida, origem, destino, valor, data, descrição e saldo carregado só são limpos quando a preferência da tela manda permanecer e limpar; o submit usa trava síncrona para impedir novo envio antes da conclusão do par débito/crédito
-- O fluxo manual usa batch e o [[Assistente Lumus]] usa transação; transferência, saída e entrada são commits atômicos, sem documento parcial
+- O fluxo manual e o [[Assistente Lumus]] usam o mesmo executor de domínio: transação autoritativa no legado e `transferFunds` no razão. Transferência, saída e entrada são commits atômicos, sem documento parcial
 - Os movimentos usam flags booleanas (não tipos string) para serem excluídos dos totais
 - O extrato de bancos usa os metadados de origem/destino como reforço de leitura para transferências, sem transformar esses movimentos em despesas/receitas comuns nos totais do dashboard
 
 ## Integração com o Assistente Lumus
 
-- O assistente exige dois bancos diferentes, saldo mensal disponível na origem e saldo suficiente antes de abrir a confirmação.
-- Os três IDs são pré-alocados a partir do cartão para evitar duplicação; os movimentos continuam marcados como transferência e fora dos totais de ganho/despesa.
+- O assistente resolve origem/destino por texto, exige bancos ativos distintos e resume o efeito para a confirmação da versão atual no chat.
+- No legado, três IDs e o recibo derivam da identidade do pedido; transferência, saída e entrada são escritos juntos. No razão, `transferFunds` grava as duas pernas, revalida escopo/papel/saldo e mantém recibo/auditoria. Os movimentos ficam fora dos totais de ganho/despesa. Ver [[Comandos Financeiros Conversacionais]] para evidência de saldo, autorização, retries e pedidos concorrentes no legado e no razão.

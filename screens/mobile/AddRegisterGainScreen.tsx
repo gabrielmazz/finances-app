@@ -33,7 +33,6 @@ import { CheckIcon, CircleIcon } from '@/components/ui/icon';
 import { VStack } from '@/components/ui/vstack';
 import {
 	Checkbox,
-	CheckboxGroup,
 	CheckboxIndicator,
 	CheckboxIcon,
 	CheckboxLabel,
@@ -458,15 +457,16 @@ export default function AddRegisterGainScreen() {
 	const parsedGainDate = React.useMemo(() => parseDateFromBR(gainDate), [gainDate]);
 	const isBankSelectionRequired = isBankSelectionLocked ? true : !moneyFormat;
 	const isFormBusy = isLoadingExisting || isSubmitting;
+	const isGainFormatPendingSelection =
+		shouldShowPaymentFormatSelection && paymentFormat.length === 0;
 	const isSubmitDisabled =
 		isFormBusy ||
 		!gainName.trim() ||
 		gainValueCents === null ||
+		isGainFormatPendingSelection ||
 		!selectedTagId ||
 		(isBankSelectionRequired && !selectedBankId) ||
 		!parsedGainDate;
-	const isGainFormatPendingSelection =
-		shouldShowPaymentFormatSelection && paymentFormat.length === 0;
 	const isBankFieldPrerequisitesIncomplete =
 		gainName.trim().length === 0 ||
 		gainValueCents === null ||
@@ -554,6 +554,9 @@ export default function AddRegisterGainScreen() {
 		},
 		[isBankSelectionLocked],
 	);
+	const handlePaymentFormatChange = React.useCallback((format: string, isSelected: boolean) => {
+		setPaymentFormat(isSelected ? [format] : []);
+	}, []);
 	const handleOpenAddTagScreen = React.useCallback(() => {
 		if (isAddTagButtonDisabled) {
 			return;
@@ -1477,64 +1480,66 @@ export default function AddRegisterGainScreen() {
 											</Popover>
 										</HStack>
 										<View className={`${fieldContainerCardClassName} px-4 py-3`}>
-											<CheckboxGroup value={paymentFormat} onChange={setPaymentFormat}>
-												<HStack space="2xl">
-													<Checkbox
-														value="Variable"
-														className={checkboxClassName}
-														isDisabled={
-															gainName.trim().length === 0 ||
-															gainValueCents === null ||
-															gainValueCents === 0 ||
-															isFormBusy ||
-															isExternalPaymentFormatSelected
-														}
+											<HStack space="2xl">
+												<Checkbox
+													value="Variable"
+													isChecked={isVariablePaymentFormatSelected}
+													onChange={isSelected => handlePaymentFormatChange('Variable', isSelected)}
+													className={checkboxClassName}
+													isDisabled={
+														gainName.trim().length === 0 ||
+														gainValueCents === null ||
+														gainValueCents === 0 ||
+														isFormBusy ||
+														isExternalPaymentFormatSelected
+													}
+												>
+													<CheckboxIndicator
+														className={`${checkboxIndicatorClassName} ${
+															isVariablePaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
+														}`.trim()}
+														style={isVariablePaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
 													>
-														<CheckboxIndicator
-															className={`${checkboxIndicatorClassName} ${
-																isVariablePaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
-															}`.trim()}
-															style={isVariablePaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
-														>
-															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-														</CheckboxIndicator>
-														<CheckboxLabel
-															className={`${checkboxLabelClassName} ${
-																isVariablePaymentFormatSelected ? checkboxLabelCheckedClassName : ''
-															} text-sm`.trim()}
-														>
-															Renda variável
-														</CheckboxLabel>
-													</Checkbox>
-													<Checkbox
-														value="External"
-														className={checkboxClassName}
-														isDisabled={
-															gainName.trim().length === 0 ||
-															gainValueCents === null ||
-															gainValueCents === 0 ||
-															isFormBusy ||
-															isVariablePaymentFormatSelected
-														}
+														<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
+													</CheckboxIndicator>
+													<CheckboxLabel
+														className={`${checkboxLabelClassName} ${
+															isVariablePaymentFormatSelected ? checkboxLabelCheckedClassName : ''
+														} text-sm`.trim()}
 													>
-														<CheckboxIndicator
-															className={`${checkboxIndicatorClassName} ${
-																isExternalPaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
-															}`.trim()}
-															style={isExternalPaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
-														>
-															<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
-														</CheckboxIndicator>
-														<CheckboxLabel
-															className={`${checkboxLabelClassName} ${
-																isExternalPaymentFormatSelected ? checkboxLabelCheckedClassName : ''
-															} text-sm`.trim()}
-														>
-															Pagamento externo
-														</CheckboxLabel>
-													</Checkbox>
-												</HStack>
-											</CheckboxGroup>
+														Renda variável
+													</CheckboxLabel>
+												</Checkbox>
+												<Checkbox
+													value="External"
+													isChecked={isExternalPaymentFormatSelected}
+													onChange={isSelected => handlePaymentFormatChange('External', isSelected)}
+													className={checkboxClassName}
+													isDisabled={
+														gainName.trim().length === 0 ||
+														gainValueCents === null ||
+														gainValueCents === 0 ||
+														isFormBusy ||
+														isVariablePaymentFormatSelected
+													}
+												>
+													<CheckboxIndicator
+														className={`${checkboxIndicatorClassName} ${
+															isExternalPaymentFormatSelected ? checkboxIndicatorCheckedClassName : ''
+														}`.trim()}
+														style={isExternalPaymentFormatSelected ? checkboxIndicatorCheckedStyle : undefined}
+													>
+														<CheckboxIcon as={CheckIcon} className={checkboxIconClassName} />
+													</CheckboxIndicator>
+													<CheckboxLabel
+														className={`${checkboxLabelClassName} ${
+															isExternalPaymentFormatSelected ? checkboxLabelCheckedClassName : ''
+														} text-sm`.trim()}
+													>
+														Pagamento externo
+													</CheckboxLabel>
+												</Checkbox>
+											</HStack>
 										</View>
 									</VStack>
 								)}

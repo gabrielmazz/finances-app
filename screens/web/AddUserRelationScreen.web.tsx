@@ -30,7 +30,8 @@ import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 
-import { updateUserRelationsFirebase, getUserDataFirebase } from '@/functions/RegisterUserFirebase';
+import { updateUserRelationsFirebase } from '@/functions/RegisterUserFirebase';
+import { runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
@@ -136,27 +137,17 @@ export default function AddUserRelationScreen() {
 		setIsSubmitting(true);
 
 		try {
-			// Verifica se o usuário que vai ser relacionado existe no banco de dados
-			const userFetchResult = await getUserDataFirebase(trimmedId);
-			const userExists = userFetchResult.success && userFetchResult.data;
-
-			if (!userExists) {
-
-				showScreenAlert('Usuário não encontrado.', 'error');
-
-				return;
-			}
-
-			const relatedUserData = userFetchResult.data as { relatedIdUsers?: string[] } | undefined;
-			const alreadyLinked =
-				Array.isArray(relatedUserData?.relatedIdUsers) && relatedUserData.relatedIdUsers.includes(currentUserId);
-
-			if (alreadyLinked) {
+			const preview = await runUserRelationshipFirebase(currentUserId, { action: 'preview', relatedUserId: trimmedId });
+			if (preview.isLinked) {
 				showScreenAlert('Esse usuário já está vinculado à sua conta.', 'info');
 				return;
 			}
 
-			const result = await updateUserRelationsFirebase(trimmedId);
+			if (!preview.fingerprint) throw new Error('Confira o vínculo novamente.');
+			const result = await updateUserRelationsFirebase(trimmedId, {
+				expectedFingerprint: preview.fingerprint,
+				clientActionId: `relationship-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
+			});
 
 
 			if (result.success) {

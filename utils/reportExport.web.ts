@@ -5,7 +5,9 @@ export type { HtmlReportExportRequest, HtmlReportExportResult } from '@/utils/re
 export const exportHtmlReport = async ({
 	html,
 	fileName,
+	isCurrent,
 }: HtmlReportExportRequest): Promise<HtmlReportExportResult> => {
+	if (isCurrent?.() === false) return { status: 'cancelled' };
 	if (typeof window === 'undefined') {
 		return { status: 'popup-blocked' };
 	}
