@@ -24,6 +24,7 @@ import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
 import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankBalanceAttachedPanel from '@/components/uiverse/banks/bank-balance-attached-panel';
 import { HStack } from '@/components/ui/hstack';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
@@ -41,6 +42,7 @@ import TransferIllustration from '../../assets/UnDraw/transferScreen.svg';
 import { Info } from 'lucide-react-native';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { cn } from '@/lib/utils';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
@@ -138,6 +140,8 @@ export default function TransferScreen() {
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [originBalanceInCents, setOriginBalanceInCents] = React.useState<number | null>(null);
 	const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
+	const [targetBalanceInCents, setTargetBalanceInCents] = React.useState<number | null>(null);
+	const [isLoadingTargetBalance, setIsLoadingTargetBalance] = React.useState(false);
 	const submitLockRef = React.useRef(false);
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
@@ -222,6 +226,7 @@ export default function TransferScreen() {
 		setTransferDate(formatDateToBR(new Date()));
 		setTransferDescription(null);
 		setOriginBalanceInCents(null);
+		setTargetBalanceInCents(null);
 	}, []);
 
 	const loadOriginBalance = React.useCallback(async (bankId: string) => {
@@ -309,6 +314,53 @@ export default function TransferScreen() {
 		}
 		void loadOriginBalance(selectedSourceBankId);
 	}, [selectedSourceBankId, loadOriginBalance]);
+
+	React.useEffect(() => {
+		let isCurrent = true;
+
+		if (!selectedTargetBankId) {
+			setTargetBalanceInCents(null);
+			setIsLoadingTargetBalance(false);
+			return () => {
+				isCurrent = false;
+			};
+		}
+
+		const loadTargetBalance = async () => {
+			setIsLoadingTargetBalance(true);
+			setTargetBalanceInCents(null);
+
+			try {
+				const currentUser = auth.currentUser;
+				if (!currentUser) {
+					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
+					return;
+				}
+
+				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
+					personId: currentUser.uid,
+					bankId: selectedTargetBankId,
+				});
+				if (!balanceResult.success) {
+					throw balanceResult.error;
+				}
+				if (isCurrent) setTargetBalanceInCents(balanceResult.data);
+			} catch (error) {
+				console.error('Erro ao carregar saldo do banco de destino:', error);
+				if (isCurrent) {
+					showScreenAlert('Não foi possível carregar o saldo atual do banco de destino.', 'error');
+					setTargetBalanceInCents(null);
+				}
+			} finally {
+				if (isCurrent) setIsLoadingTargetBalance(false);
+			}
+		};
+
+		void loadTargetBalance();
+		return () => {
+			isCurrent = false;
+		};
+	}, [selectedTargetBankId, showScreenAlert]);
 
 	const hasInsufficientBalance =
 		typeof originBalanceInCents === 'number' &&
@@ -602,7 +654,7 @@ export default function TransferScreen() {
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}
 											helperTextClassName={helperText}
-											triggerClassName={`${fieldBankContainerClassName} w-full`}
+											triggerClassName={cn(fieldBankContainerClassName, 'w-full relative z-10')}
 											placeholder="De onde o valor sairá"
 											sheetTitle="Escolha o banco de origem"
 											emptyMessage="Nenhum banco disponível."
@@ -616,6 +668,26 @@ export default function TransferScreen() {
 											}
 											accessibilityLabel="Selecionar banco de origem da transferência"
 										/>
+										{selectedSourceBankId && (
+											<BankBalanceAttachedPanel className="mx-2 px-2 md:mx-7 md:px-4">
+												{typeof originBalanceInCents === 'number' && (
+													<Text className={`${helperText} text-sm text-center`}>
+														Saldo disponível no banco de origem:{' '}
+														{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
+													</Text>
+												)}
+												{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
+													<Text className={`${helperText} text-sm text-center`}>
+														Carregando saldo do banco de origem...
+													</Text>
+												)}
+												{!isLoadingBalance && typeof originBalanceInCents !== 'number' && (
+													<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
+														Saldo não registrado para este mês. Registre o saldo mensal para validar a transferência.
+													</Text>
+												)}
+											</BankBalanceAttachedPanel>
+										)}
 									</VStack>
 
 									<VStack className="mb-4 flex-1 web:min-w-[280px]">
@@ -630,7 +702,7 @@ export default function TransferScreen() {
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}
 											helperTextClassName={helperText}
-											triggerClassName={`${fieldBankContainerClassName} w-full`}
+											triggerClassName={cn(fieldBankContainerClassName, 'w-full relative z-10')}
 											placeholder={selectedSourceBankId ? 'Para onde o valor irá' : 'Selecione a origem'}
 											sheetTitle="Escolha o banco de destino"
 											emptyMessage="Nenhum banco de destino disponível."
@@ -644,6 +716,26 @@ export default function TransferScreen() {
 											}
 											accessibilityLabel="Selecionar banco de destino da transferência"
 										/>
+										{selectedTargetBankId && (
+											<BankBalanceAttachedPanel className="mx-2 px-2 md:mx-7 md:px-4">
+												{typeof targetBalanceInCents === 'number' && (
+													<Text className={`${helperText} text-sm text-center`}>
+														Saldo disponível no banco de destino:{' '}
+														{isLoadingTargetBalance ? 'carregando...' : formatCurrencyBRL(targetBalanceInCents)}
+													</Text>
+												)}
+												{isLoadingTargetBalance && typeof targetBalanceInCents !== 'number' && (
+													<Text className={`${helperText} text-sm text-center`}>
+														Carregando saldo do banco de destino...
+													</Text>
+												)}
+												{!isLoadingTargetBalance && typeof targetBalanceInCents !== 'number' && (
+													<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
+														Saldo não registrado para este mês.
+													</Text>
+												)}
+											</BankBalanceAttachedPanel>
+										)}
 
 										{selectedSourceBankId &&
 											selectedTargetBankId &&
@@ -654,31 +746,6 @@ export default function TransferScreen() {
 											)}
 									</VStack>
 								</HStack>
-
-								{selectedSourceBankId && (
-									<View className="mb-4 px-3 py-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-										{typeof originBalanceInCents === 'number' && (
-											<Text className={`${helperText} text-sm text-center`}>
-												Saldo disponível no banco de origem:{' '}
-												{isLoadingBalance ? 'carregando...' : formatCurrencyBRL(originBalanceInCents)}
-											</Text>
-										)}
-										{isLoadingBalance && typeof originBalanceInCents !== 'number' && (
-											<Text className={`${helperText} text-sm text-center`}>
-												Carregando saldo do banco de origem...
-											</Text>
-										)}
-										{selectedSourceBankId &&
-											!isLoadingBalance &&
-											typeof originBalanceInCents !== 'number' && (
-												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
-													Saldo não registrado para este mês. Registre o saldo mensal para validar
-													a transferência.
-												</Text>
-											)}
-									</View>
-								)}
-
 
 								<VStack className="mb-4">
 									<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Valor</Text>

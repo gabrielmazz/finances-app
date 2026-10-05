@@ -22,6 +22,7 @@ import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
 import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankBalanceAttachedPanel from '@/components/uiverse/banks/bank-balance-attached-panel';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
@@ -43,6 +44,7 @@ import DatePickerField from '@/components/uiverse/shared/date-picker';
 import AddRescueIllustration from '../../assets/UnDraw/addRescue.svg';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { cn } from '@/lib/utils';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 
@@ -607,7 +609,7 @@ export default function AddRescueScreen() {
 										isDarkMode={isDarkMode}
 										bodyTextClassName={bodyText}
 										helperTextClassName={helperText}
-										triggerClassName={fieldBankContainerClassName}
+										triggerClassName={cn(fieldBankContainerClassName, 'relative z-10')}
 										placeholder="Selecione o banco do qual o valor foi retirado"
 										sheetTitle="Escolha o banco de origem"
 										emptyMessage="Nenhum banco disponível."
@@ -621,34 +623,31 @@ export default function AddRescueScreen() {
 										}
 										accessibilityLabel="Selecionar banco de origem do saque"
 									/>
-								</VStack>
-
-								{selectedBankId && (
-									<View className="mb-4 px-3 py-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-										{typeof currentBankBalanceInCents === 'number' && (
-											<Text className={`${helperText} text-sm text-center`}>
-												Saldo disponível no banco de origem:{' '}
-												{isLoadingBankBalance
-													? 'carregando...'
-													: formatCurrencyBRL(currentBankBalanceInCents)}
-											</Text>
-										)}
-										{isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number' && (
-											<Text className={`${helperText} text-sm text-center`}>
-												Carregando saldo do banco de origem...
-											</Text>
-										)}
-										{selectedBankId &&
-											!isLoadingBankBalance &&
-											typeof currentBankBalanceInCents !== 'number' && (
+									{selectedBankId && (
+										<BankBalanceAttachedPanel>
+											{typeof currentBankBalanceInCents === 'number' && (
+												<Text className={`${helperText} text-sm text-center`}>
+													Saldo disponível no banco de origem:{' '}
+													{isLoadingBankBalance
+														? 'carregando...'
+														: formatCurrencyBRL(currentBankBalanceInCents)}
+												</Text>
+											)}
+											{isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number' && (
+												<Text className={`${helperText} text-sm text-center`}>
+													Carregando saldo do banco de origem...
+												</Text>
+											)}
+											{!isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number' && (
 												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
 													{financialLedgerContext
 														? 'Não foi possível verificar o saldo materializado desta conta.'
 														: 'Saldo não registrado para este mês. Registre o saldo mensal para validar o saque.'}
 												</Text>
 											)}
-									</View>
-								)}
+										</BankBalanceAttachedPanel>
+									)}
+								</VStack>
 
 								<VStack className="mb-4">
 									<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Valor do saque</Text>

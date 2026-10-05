@@ -112,6 +112,10 @@ export const LUMUS_NAVIGATION_COLORS = {
 	},
 } as const;
 
+export const LUMUS_NAVIGATION_CLASS_NAMES = {
+	menuLabel: 'text-xs font-bold uppercase tracking-label',
+} as const;
+
 export const LUMUS_HERO_COLORS = {
 	light: ['#FFE58A', '#D97706', '#EAB308'],
 	dark: ['#F8BD0C', '#FACC15', '#FEFE59'],

@@ -18,17 +18,52 @@ export default function BankBalanceAdjustmentScreen() {
 	const { isDarkMode } = useAppTheme();
 	const insets = useSafeAreaInsets();
 	const { height } = useWindowDimensions();
-	const heroHeight = Math.max(LUMUS_LAYOUT_TOKENS.heroMinimumHeight, height * LUMUS_LAYOUT_TOKENS.heroViewportRatio) + 64;
-	return <Box className={`${LUMUS_CLASS_NAMES.screen} w-screen`}>
-		<ScrollView className="flex-1" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-			<Box className={WEB_DASHBOARD_CLASS_NAMES.hero} style={{ height: heroHeight }}>
-				<Image source={Wallpaper} resizeMode="cover" className={WEB_DASHBOARD_CLASS_NAMES.heroImage} style={BANK_ADJUSTMENT_HERO_IMAGE_STYLE} />
-				<WebScreenHero title={form.adjustmentId ? 'Editar ajuste de saldo' : 'Ajuste de saldo'} Illustration={AdjustmentIllustration} isDarkMode={isDarkMode} topPadding={insets.top + 24} />
-			</Box>
-			<Box className={`relative z-sheet rounded-t-sheet pb-12 pt-7 ${LUMUS_CLASS_NAMES.surfaceFill}`} style={{ marginTop: heroHeight - 64 }}>
-				<Box className={`${WEB_DASHBOARD_CLASS_NAMES.contentFrame} ${WEB_DASHBOARD_CLASS_NAMES.contentPadding}`}><BankBalanceAdjustmentForm form={form} /></Box>
-			</Box>
-		</ScrollView>
-		<Navigator defaultValue={2} />
-	</Box>;
+	const heroHeight =
+		Math.max(
+			LUMUS_LAYOUT_TOKENS.heroMinimumHeight,
+			height * LUMUS_LAYOUT_TOKENS.heroViewportRatio,
+		) + insets.top;
+
+	return (
+		<Box className={`${LUMUS_CLASS_NAMES.screen} w-screen`}>
+			<ScrollView
+				className="flex-1"
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
+				<Box
+					className={WEB_DASHBOARD_CLASS_NAMES.hero}
+					style={{ height: heroHeight }}
+				>
+					<Image
+						source={Wallpaper}
+						resizeMode="cover"
+						className={WEB_DASHBOARD_CLASS_NAMES.heroImage}
+						style={BANK_ADJUSTMENT_HERO_IMAGE_STYLE}
+					/>
+					<WebScreenHero
+						title={
+							form.adjustmentId
+								? 'Editar ajuste de saldo'
+								: 'Ajuste de saldo'
+						}
+						Illustration={AdjustmentIllustration}
+						isDarkMode={isDarkMode}
+						topPadding={insets.top + 24}
+					/>
+				</Box>
+				<Box
+					className={`relative z-sheet rounded-t-sheet pb-12 pt-7 ${LUMUS_CLASS_NAMES.surfaceFill}`}
+					style={{ marginTop: heroHeight - 64 }}
+				>
+					<Box
+						className={`${WEB_DASHBOARD_CLASS_NAMES.contentFrame} ${WEB_DASHBOARD_CLASS_NAMES.contentPadding}`}
+					>
+						<BankBalanceAdjustmentForm form={form} />
+					</Box>
+				</Box>
+			</ScrollView>
+			<Navigator defaultValue={2} />
+		</Box>
+	);
 }

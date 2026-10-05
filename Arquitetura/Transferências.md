@@ -28,7 +28,7 @@ sequenceDiagram
     Note over FS: Ambos compartilham ID de transferência
 ```
 
-1. `TransferScreen.tsx` coleta: banco de origem, banco de destino, valor, data e descrição; origem e destino usam o ActionSheet compartilhado com ícones dos bancos
+1. `TransferScreen.tsx` coleta: banco de origem, banco de destino, valor, data e descrição; origem e destino usam o ActionSheet compartilhado com ícones e mostram o saldo disponível em um painel conectado abaixo de cada seletor. O saldo da origem mantém a validação da transferência; o saldo do destino é apenas informativo.
 2. `BankFirebase.ts` cria dois documentos no Firestore:
    - Uma [[Transações de Despesas|despesa]] com flags de transferência no banco de origem
    - Uma [[Transações de Receitas|receita]] com flags de transferência no banco de destino
@@ -46,6 +46,7 @@ Na busca do extrato bancário, `getBankMovementsByPeriodFirebase()` considera ta
 
 - `screens/mobile/TransferScreen.tsx` / `screens/web/TransferScreen.web.tsx` — Formulário de transferência por plataforma, com labels, popover de origem e campos alinhados ao padrão Web de despesas
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletores de origem e destino
+- `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painéis de saldo conectados aos seletores de origem e destino
 - `functions/BankFirebase.ts` — Criação dos dois movimentos
 - `app/mobile/transfer-screen.tsx` — Rota
 - `utils/monthlyBalance.ts` — Filtra movimentos de transferência dos totais
