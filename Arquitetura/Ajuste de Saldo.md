@@ -13,7 +13,7 @@ Recurso de último caso para registrar a diferença entre o saldo calculado no L
 ## Como funciona
 
 1. Abrir **Configurações → Relações dentro do Aplicativo → Ajuste de saldo** no Web ou mobile.
-2. Escolher um banco ativo, informar seu saldo real em reais, a data e uma descrição opcional. O botão de sinal permite informar saldo negativo com o teclado numérico; nesse caso a descrição exige pelo menos três caracteres.
+2. Escolher um banco ativo, informar seu saldo real em reais, a data e uma descrição opcional. O seletor de banco mantém altura mínima de controle e cresce para acomodar ícone, nome e descrição, no mesmo padrão visual do registro de despesas. Quando a prévia está pronta, o saldo calculado no Lumus aparece centralizado em uma extensão recuada nas laterais e ligada ao contorno inferior do seletor, cuja borda fica visualmente à frente da extensão; após informar o saldo real, a extensão ligada ao campo mostra a diferença a registrar e mantém o carregamento, erro e atualização da prévia no mesmo lugar, sem card separado. O hero das duas plataformas usa a altura proporcional/mínima compartilhada mais o inset superior, e o sheet mantém a sobreposição de 64 px. O botão de sinal permite informar saldo negativo com o teclado numérico; nesse caso a descrição exige pelo menos três caracteres.
 3. A callable calcula a prévia com dados autorizados do servidor. Todos os cálculos e valores persistidos são centavos inteiros seguros.
 4. O registro contém somente `saldo informado − saldo calculado`. Com R$ 100,00 no Lumus e R$ 120,00 informados, é registrado **+R$ 20,00**. Se o saldo informado for R$ 80,00, o registro será **−R$ 20,00**.
 5. A diferença afeta o saldo bancário, mas nunca os totais, médias ou gráficos de ganhos/despesas. O saldo-base da previsão de caixa incorpora ajustes posteriores à abertura da conta.
@@ -76,6 +76,8 @@ O dry-run/backfill de migração incorpora os ajustes legados e seus inversos co
 
 - Rotas `/mobile/bank-balance-adjustment` e `/web/bank-balance-adjustment` registradas em `APP_ROUTE_PATHS` e protegidas pelo guard autenticado derivado do registro central.
 - Entrada pela seção de relações e edição pelo extrato; não há novo item no navigator.
+- O formulário não exibe botão **Voltar**; o retorno continua disponível pela navegação do aplicativo e pelo botão físico no Android.
+- O CTA usa texto branco pelo contrato `LUMUS_CLASS_NAMES.primaryButtonText`, em paridade com o cadastro de despesas.
 - Este fluxo de conferência tem retorno fixo ao extrato com `bankId`, `bankName` e `focusDate`, sem preferência de limpeza/permanência em [[Comportamento Pós-Registro]]. O histórico precisa ser revisável imediatamente após a confirmação; não usa `router.back` como pós-submit.
 - A prévia, detalhes e PDF do extrato respeitam [[Privacidade de Valores]]. Com valores ocultos, a edição exige digitar o saldo real novamente, sem expor o valor anterior no campo.
 - Antes de liberar o cliente em produção, publicar a callable, as regras e os índices financeiros versionados. Não há nova dependência, Remote Config nem serviço externo. A implementação foi validada localmente, sem deploy remoto.

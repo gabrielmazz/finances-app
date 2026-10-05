@@ -36,7 +36,7 @@ import {
 } from '@/utils/navigation';
 import { logoutCurrentUser } from '@/utils/secureLogout';
 import { isWebDesktopLayout } from '@/utils/webLayout';
-import { LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
+import { LUMUS_NAVIGATION_CLASS_NAMES, LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -276,7 +276,7 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 								isActive(option, activeMobileGroup) ? 'bg-lumus-accent/15' : 'bg-transparent'
 							}`}
 						>
-							<Text className={`font-bold ${isActive(option, activeMobileGroup) ? 'text-yellow-300' : 'text-slate-200'}`}>
+							<Text className={`${LUMUS_NAVIGATION_CLASS_NAMES.menuLabel} ${isActive(option, activeMobileGroup) ? 'text-yellow-300' : 'text-slate-200'}`}>
 								{option.label}
 							</Text>
 						</Pressable>
@@ -292,7 +292,7 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 						accessibilityState={{ expanded: openMobileGroup === group.value, selected: group.value === homeTab && pathname === APP_ROUTE_PATHS.home }}
 						className="min-h-touch flex-1 items-center justify-center active:opacity-80"
 					>
-						<Text className="text-xs font-extrabold text-slate-300">{group.label}</Text>
+						<Text className={`${LUMUS_NAVIGATION_CLASS_NAMES.menuLabel} text-slate-300`}>{group.label}</Text>
 					</Pressable>
 				))}
 			</View>

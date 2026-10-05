@@ -8,6 +8,8 @@ import { Text } from '@/components/ui/text';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { LUMUS_NAVIGATION_CLASS_NAMES } from '@/design-system/tokens';
+import { cn } from '@/lib/utils';
 import {
 	APP_ROUTE_PATHS,
 	HOME_TAB_INDEX,
@@ -538,12 +540,8 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 										/>
 										<Text
 											numberOfLines={1}
+											className={cn('mt-0.5 w-full text-center', LUMUS_NAVIGATION_CLASS_NAMES.menuLabel)}
 											style={{
-												marginTop: 2,
-												width: '100%',
-												fontSize: 11,
-												fontWeight: '700',
-												textAlign: 'center',
 												color: isActive ? palette.activeColor : palette.inactiveColor,
 											}}
 										>
@@ -569,8 +567,10 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 											style={{ marginRight: 10 }}
 										/>
 										<MenuItemLabel
-											bold={isActiveOption}
-											className={isActiveOption ? palette.menuItemActive : palette.menuItemText}
+											className={cn(
+												LUMUS_NAVIGATION_CLASS_NAMES.menuLabel,
+												isActiveOption ? palette.menuItemActive : palette.menuItemText,
+											)}
 										>
 											{option.label}
 										</MenuItemLabel>

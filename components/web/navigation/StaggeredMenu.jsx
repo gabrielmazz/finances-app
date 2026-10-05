@@ -1,5 +1,6 @@
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
+import { LUMUS_NAVIGATION_CLASS_NAMES } from '@/design-system/tokens';
 import './StaggeredMenu.css';
 
 /**
@@ -566,7 +567,7 @@ export const StaggeredMenu = ({
                     >
                       <span className="sm-panel-itemLabel">
                         {it.icon ? <span className="sm-panel-itemIcon" aria-hidden="true">{it.icon}</span> : null}
-                        <span>{it.label}</span>
+                        <span className={LUMUS_NAVIGATION_CLASS_NAMES.menuLabel}>{it.label}</span>
                       </span>
                     </button>
                   </li>
@@ -603,7 +604,7 @@ export const StaggeredMenu = ({
                     >
                       <span className="sm-panel-itemLabel">
                         {it.icon ? <span className="sm-panel-itemIcon" aria-hidden="true">{it.icon}</span> : null}
-                        <span>{it.label}</span>
+                        <span className={LUMUS_NAVIGATION_CLASS_NAMES.menuLabel}>{it.label}</span>
                       </span>
                     </a>
                   </li>

@@ -27,7 +27,7 @@ sequenceDiagram
     BF->>FS: credita "caixa" do usuário
 ```
 
-1. `AddRescueScreen.tsx` coleta: banco de origem e valor do resgate; o banco é selecionado pelo ActionSheet compartilhado com ícone
+1. `AddRescueScreen.tsx` coleta: banco de origem e valor do resgate; o banco é selecionado pelo ActionSheet compartilhado com ícone e, quando selecionado, o saldo disponível ou seu estado de carregamento/indisponibilidade aparece conectado ao trigger por `bank-balance-attached-panel.tsx`
 2. `BankFirebase.ts` registra a operação:
    - Débita o valor do banco selecionado (cria despesa especial)
    - Credita no total de "caixa" do usuário
@@ -40,6 +40,7 @@ sequenceDiagram
 - `screens/mobile/AddRescueScreen.tsx` / `screens/web/AddRescueScreen.web.tsx` — Formulário de resgate por plataforma, com labels e campos alinhados ao padrão Web de despesas
 - `functions/BankFirebase.ts` — Operação de resgate
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco de origem
+- `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel conectado que apresenta o saldo disponível e os estados de leitura do banco
 - `app/mobile/add-rescue.tsx` — Rota
 - `utils/navigation.ts` — Saída explícita para Home pelo voltar físico/navigator
 - `hooks/usePostSubmitBehavior.ts` — Aplica retorno/limpeza após salvar

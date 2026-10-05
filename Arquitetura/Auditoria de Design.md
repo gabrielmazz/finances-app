@@ -2,6 +2,38 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — saldos conectados na transferência, 2026-10-05
+
+**Inventário:** telas Web/mobile de transferência com seleção de origem e destino, saldos disponíveis carregados, em carregamento e sem registro.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P2 | O saldo antigo da origem ficava separado dos seletores e o destino não apresentava seu saldo. | `bank-balance-attached-panel.tsx` agora aparece abaixo de cada banco; a variante compacta reduz o recuo nas colunas lado a lado. O saldo do destino é informativo; a validação financeira continua usando o saldo da origem. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` reporta somente a dívida existente em `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 hex, 2 classes arbitrárias e 1 uso de `useScreenStyles`). Sem inspeção visual autenticada em navegador ou aparelho; revisar a leitura em largura estreita e os estados de carregamento/indisponibilidade de cada coluna. |
+
+## Checkpoint — ações do formulário de ajuste de saldo, 2026-10-05
+
+**Inventário:** botão de envio e ação de retorno no formulário compartilhado pelas telas Web e mobile, comparados com `AddRegisterExpensesScreen.web.tsx`.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P3 | O label do CTA de ajuste usava o foreground escuro e o formulário ainda exibia um botão **Voltar** redundante com a navegação da tela. | O label agora usa `LUMUS_CLASS_NAMES.primaryButtonText`, igual ao contrato do cadastro de despesas, e o botão visível **Voltar** foi removido. A navegação global e o retorno físico Android permanecem. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` aponta somente a dívida existente em `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 hex, 2 classes arbitrárias e 1 uso de `useScreenStyles`). Sem inspeção visual autenticada em navegador ou aparelho. |
+
+## Checkpoint — saldo conectado no resgate de caixa, 2026-10-05
+
+**Inventário:** telas Web e mobile de resgate e formulário compartilhado de ajuste de saldo, nos estados de saldo carregado, carregamento e indisponibilidade.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P2 | O saldo disponível no resgate aparecia em um card separado, sem continuidade visual com a conta selecionada. | Extraído `bank-balance-attached-panel.tsx` com o mesmo recuo e sobreposição do ajuste de saldo; aplicado nas duas plataformas sob o seletor, preservando as mensagens e estados existentes. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` reporta somente a dívida existente em `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 hex, 2 classes arbitrárias e 1 uso de `useScreenStyles`). Sem inspeção visual autenticada em navegador ou aparelho; revisar foco/pressionado do seletor e textos longos em telas estreitas. |
+
+## Checkpoint — altura do wallpaper do ajuste de saldo, 2026-10-05
+
+**Inventário:** `BankBalanceAdjustmentScreen.tsx` e `BankBalanceAdjustmentScreen.web.tsx`, comparadas com Perfil e outros heróis Web/mobile que usam `heroMinimumHeight`, `heroViewportRatio` e a sobreposição do sheet.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P2 | O hero do ajuste somava 64 px à altura-base, enquanto o sheet também mantinha a sobreposição de 64 px. A imagem ficava mais alta que nas telas que somam o inset superior à altura-base. | As variantes mobile e Web agora calculam `max(altura mínima, proporção da viewport) + insets.top`, preservando a sobreposição de 64 px já aplicada pelo sheet. | `npm run typecheck` e `git diff --check` passaram. `npm run lint:styles` continua apontando somente a dívida preexistente de `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 hex, 2 classes arbitrárias e 1 uso de `useScreenStyles`). Sem inspeção visual autenticada em navegador ou aparelho nesta execução. |
+
 ## Checkpoint — seleção do formato do ganho, 2026-10-01
 
 **Inventário:** `AddRegisterGainScreen.tsx` e `AddRegisterGainScreen.web.tsx` comparadas com as duas telas de despesa. Ganhos exigem uma escolha de formato quando o campo está visível; despesas não usam esse controle.

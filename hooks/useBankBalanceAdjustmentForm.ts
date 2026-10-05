@@ -82,9 +82,10 @@ export function useBankBalanceAdjustmentForm() {
 	}, [bankId, parsedDate, adjustmentId, loading, error, previewReloadKey, uid]);
 	const onValueChange = (input: string) => {
 		const digits = input.replace(/\D/g, '');
-		const cents = digits ? Number(digits) * (input.includes('-') ? -1 : 1) : null;
+		const isNegative = input.trimStart().startsWith('-');
+		const cents = digits ? Number(digits) * (isNegative ? -1 : 1) : null;
 		setTarget(cents);
-		setValue(cents !== null && Number.isSafeInteger(cents) ? formatAdjustmentMoney(cents) : input);
+		setValue(cents !== null && Number.isSafeInteger(cents) ? formatAdjustmentMoney(cents) : digits || (isNegative ? '-' : ''));
 	};
 	let difference: number | null = null;
 	if (base !== null && target !== null && Number.isSafeInteger(target)) {

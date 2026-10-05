@@ -33,7 +33,7 @@ Gráficos e editor que iniciam com `'use dom'` continuam sendo uma fronteira del
 | `uiverse/navigation/` | Navegação e shell Web | `navigator`, `web-app-shell`, `web-route-transition`, `web-screen-hero` |
 | `uiverse/shared/` | Infraestrutura compartilhada | `loader`, `screen-dismiss-keyboard`, `date-picker` |
 | `uiverse/feedback/` | Feedback in-app | `notifier-alert`, `notifier-boundary` |
-| `uiverse/banks/` e `shared/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-card-surface` compartilhado, gráfico de área diária do extrato Web |
+| `uiverse/banks/` e `shared/banks/` | Bancos e contas | `bank-actionsheet-selector`, `bank-balance-attached-panel`, `bank-card-surface` compartilhado, gráfico de área diária do extrato Web |
 | `uiverse/categories/` | Categorias e disponibilidade | `tag-actionsheet-selector`, `category-availability-selector`, `category-analysis-bank-donut-chart` |
 | `uiverse/recurring/` | Despesas/receitas recorrentes | `date-calendar`, `time-picker-field`, `mandatory-expense-payment-bullet-chart`, `mandatory-expenses-radar-chart`, `mandatory-expenses-scatter-chart` |
 | `uiverse/dashboard/` | Dashboard Home | gráficos de resumo e atividade da Home |
@@ -157,6 +157,7 @@ graph LR
 
 - `components/ui/` — Todos os componentes primitivos
 - `components/uiverse/` — Componentes customizados do domínio
+- `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel compartilhado que se encaixa sob o seletor/campo de banco para apresentar saldos relacionados
 - `components/uiverse/dashboard/home-expense-chart.tsx` — Sparkline Mantine Web em Expo DOM para as tendências compactas dos cards de resumo da Home
 - `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — Bullet de pagamentos obrigatórios em Expo DOM, com faixa de 0 ao total do ciclo e preenchimento pelo valor efetivamente pago
 - `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — Cascas independentes do layout autenticado por plataforma
@@ -260,6 +261,7 @@ graph LR
 - `tag-actionsheet-selector.tsx` respeita `isDisabled` como bloqueio total de abertura do ActionSheet; a ação de criação interna não deve contornar as regras de liberação calculadas pela tela
 - Filtros de categoria em telas administrativas, como [[Configurações]], também devem reutilizar `tag-actionsheet-selector.tsx` quando abrirem uma lista de opções de categoria/tipo
 - `bank-actionsheet-selector.tsx` deve ser usado em fluxos de criação/edição operacional que selecionam banco, usando `iconKey`/`colorHex` quando existirem e fallback por iniciais quando o banco ainda não tem ícone configurado; seu trigger deve usar `fieldBankContainerClassName` para comportar ícone, nome e texto auxiliar sem comprimir o layout.
+- `bank-balance-attached-panel.tsx` deve apresentar informações de saldo visualmente conectadas ao campo de banco, abaixo do trigger em primeiro plano, sem alterar cálculo ou estados do fluxo consumidor.
 - No Web, `components/ui/actionsheet/index.tsx` limita o `ActionsheetContent` a `1120px`, centralizado e com `w-full` até esse limite; backdrop permanece em viewport inteira. `bank-actionsheet-selector.tsx` e `tag-actionsheet-selector.tsx` devem manter trigger e lista fluidos dentro dessa superfície. Essa adaptação é exclusiva da apresentação Web e preserva o comportamento nativo.
 - `RadioGroup` mantém apenas o espaçamento base; cada tela deve definir o limite do próprio contêiner. Na composição Web de despesas, o grupo usa `w-full max-w-[1120px] self-center` para acompanhar a largura útil da superfície principal sem ocupar a viewport inteira.
 - `web-screen-hero.tsx` / `.web.tsx` centraliza o cabeçalho animado das telas Web. A variante Web sobrepõe o wallpaper com `Grainient`, enquanto `StrokeText` e `AnimatedContent` cuidam do título e da ilustração. Heroes que montam a composição manualmente seguem o mesmo empilhamento; telas com wallpaper `RNImage` devem dimensionar explicitamente a imagem absoluta dentro de um wrapper relativo, como em `AddRegisterExpensesScreen.web.tsx` e `LumusAssistantScreen.web.tsx`. Efeitos Grainient contextuais dos cards permanecem independentes. A superfície externa do formulário não deve receber uma borda adicional apenas para a composição Web.

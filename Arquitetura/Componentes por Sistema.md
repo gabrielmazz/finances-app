@@ -18,7 +18,7 @@ Os componentes customizados do Lumus Finanças são organizados por sistema func
 | Navegação | `components/uiverse/navigation/` | todas as telas autenticadas | `navigator` e os componentes de shell/hero usam resolução automática; o shell Web e a transição DOM não entram na árvore nativa |
 | Compartilhado | `components/uiverse/shared/` | bootstrap e formulários | `date-picker`, `loader` e dismiss de teclado têm arquivos Web e nativos independentes, sem compartilhar handlers de foco ou animação |
 | Feedback | `components/uiverse/feedback/` | todas as telas com feedback | o par nativo/Web do notifier mantém uma API única; não criar outro toast |
-| Bancos | `components/uiverse/banks/` e `components/shared/banks/` | Home, movimentos, registros, transferências e resgate | o selector tem pares Web/nativo; o card visualmente equivalente usa uma implementação compartilhada e adaptadores finos |
+| Bancos | `components/uiverse/banks/` e `components/shared/banks/` | Home, movimentos, registros, transferências, ajuste de saldo e resgate | selector tem pares Web/nativo; `bank-balance-attached-panel` e o card visualmente equivalente são compartilhados |
 | Categorias | `components/uiverse/categories/` | registros, análise e configurações | disponibilidade e seleção têm pares Web/nativo; `category-analysis-bank-donut-chart` encapsula o `DonutChart` Mantine em Expo DOM com props serializáveis |
 | Recorrências | `components/uiverse/recurring/` | despesas/receitas fixas | `date-calendar` tem pares Web/nativo; calendário de ciclos, horários e progresso preservam `YYYY-MM`, HH:MM e a indisponibilidade de agendamento no Web |
 | Dashboard | `components/uiverse/dashboard/` | Home | gráficos Web continuam Expo DOM e recebem somente props serializáveis |
@@ -58,6 +58,7 @@ Esses componentes não recebem acesso a Firebase. Quando usados por uma tela, re
 - `components/web/` — Implementações Web, separadas por sistema funcional
 - `components/mobile/` — Implementações Android/iOS dos componentes com divergência de plataforma
 - `components/shared/banks/bank-card-surface.tsx` — Superfície bancária única para Web e Android/iOS
+- `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel compartilhado para integrar saldo abaixo do seletor de banco
 - `design-system/` — Fundação Tailwind, adaptadores e guardrails de estilo
 - `Arquitetura/Componentes UI.md` — Design system e contratos dos componentes
 - `Arquitetura/Organização do Código.md` — Fronteiras entre rotas, telas e componentes
