@@ -3,7 +3,7 @@ tags: [seguranca, auditoria, autenticacao, firebase, prompt, verificacao]
 relacionado: [[Autenticação]], [[Segurança de Login]], [[Firebase Config]], [[Gerenciamento de Usuários]], [[Privacidade de Valores]], [[Navegação]], [[Assistente Lumus]], [[Cobertura Conversacional Lumus]], [[Processo de Release]]
 status: ativo
 tipo: prompt
-versao: 1.0.0
+versao: 1.1.0
 ---
 
 # Prompt Auditoria Completa de Segurança
@@ -24,6 +24,7 @@ O objetivo é encontrar vulnerabilidades reais e lacunas de verificação em tod
 - Nunca imprima, copie para o relatório, envie a um modelo, inclua em comando ou registre em log o valor de um segredo, token, senha, chave privada, conteúdo de `.env`, credencial de serviço ou token do App Check. Ao encontrar possível exposição, cite somente caminho e linha, nome da variável/chave e uma descrição redigida. Não faça hash do segredo como substituto da redação.
 - Pode inspecionar nomes de variáveis, referências e regras de inclusão no Git; não revele seus valores. Trate arquivos de configuração Firebase que estejam no bundle como configuração potencialmente pública, e não como prova isolada de vazamento de credencial.
 - Antes de executar uma verificação, leia o script e confirme o efeito. Só execute verificações já existentes, locais, não destrutivas, sem instalação e isoladas em emulador/projeto de demonstração. Não execute comandos que possam alcançar Firebase remoto por configuração implícita. Se o isolamento não puder ser comprovado, registre o comando recomendado e não o execute.
+- Não envie prompts de teste, mesmo sintéticos, a modelos ou APIs hospedados, Firebase AI Logic remoto ou outros serviços externos. Avalie em runtime somente com modelo/mock local isolado. Para validar serviço hospedado, registre o caso de teste seguro e marque como pendente de autorização específica.
 - Não faça exploração destrutiva, força bruta, enumeração de contas reais, varredura externa, fuzzing remoto, DoS, alteração de saldo real nem tentativa de acessar dados de terceiros fora de um ambiente local isolado.
 - Não implemente correções nesta tarefa. Entregue achados, evidências, cobertura, testes executados e plano priorizado. Aguarde pedido separado para corrigir.
 
@@ -65,10 +66,13 @@ Referências oficiais para consultar e confirmar a versão atual:
 - OWASP Top 10 Web: https://owasp.org/www-project-top-ten/
 - OWASP API Security: https://owasp.org/www-project-api-security/
 - OWASP Mobile MASVS/MASTG: https://mas.owasp.org/
-- OWASP GenAI Security: https://genai.owasp.org/
+- OWASP GenAI / LLM Top 10: https://genai.owasp.org/resource/owasp-genai-llm-top-10-2026/
+- OWASP Top 10 for Agentic Applications: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/
 - Firebase Auth sessões: https://firebase.google.com/docs/auth/admin/manage-sessions
 - Firebase App Check: https://firebase.google.com/docs/app-check
 - Firebase API keys: https://firebase.google.com/docs/projects/api-keys
+- Texto oficial da LGPD: https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm
+- ANPD sobre IA e proteção de dados: https://www.gov.br/anpd/pt-br/sandbox/por-que-inteligencia-artificial
 
 Não aplique automaticamente controles de cookie, CSRF, CSP, criptografia local, biometria, certificate pinning ou MFA onde a arquitetura não os usa. Primeiro determine se são relevantes, qual ameaça mitigam e se há um controle equivalente. Registre decisão de risco quando uma proteção não for requisito universal.
 
@@ -127,15 +131,31 @@ Separe achados de segurança de bugs de cálculo, mas avalie o impacto de ambos.
 - Revise TLS/configuração de rede e validação de origem conforme plataforma. Para Web, avalie XSS, CSP/cabeçalhos de segurança, CORS, armazenamento de token no browser, mensagens entre abas e CSRF apenas nos caminhos em que cookies/sessão/origem tornam isso aplicável.
 - No Android/iOS, verifique permissões mínimas, backup do sistema, armazenamento seguro, links/intents/universal links, WebView, logs, arquivos, snapshots de app, compartilhamento e comportamento em aparelho comprometido conforme o perfil de ameaça. O cliente é controlável pelo usuário; não dependa dele para autorizar operação.
 
+Para a LGPD, faça uma avaliação técnica de fluxos e evidências: categorias de dados pessoais, finalidades declaradas, retenção e exclusão, compartilhamentos/processadores, transferência internacional quando aplicável, atendimento a direitos do titular, transparência e decisões automatizadas relevantes. Não determine base legal, não ofereça parecer jurídico e não declare conformidade com a LGPD apenas por inspeção de código. Marque conclusões que dependem do controlador, encarregado/DPO ou assessoria jurídica como pendentes. Consentimento para usar o assistente não é, por si só, autorização irrestrita para todos os tratamentos.
+
+No fluxo que envia dados a provedor de IA, confirme a configuração e documentação vigentes do produto e da conta: conteúdo enviado, retenção, uso para treinamento/melhoria, região, logs, subprocessadores, exclusão e controles contratuais disponíveis. Não presuma que o provedor treina com os dados enviados nem que não o faz. Mascaramento deve ocorrer antes da fronteira de rede sempre que viável e ser testado no payload real; mascarar apenas a interface não protege o que já foi enviado. Um modelo local/privado também não é automaticamente seguro: avalie armazenamento, acesso, atualizações, telemetria e operação.
+
 ### 10. Audite Assistente Lumus e IA
 
-Trace texto e voz ponta a ponta e confirme: consentimento por UID; dados enviados ao provedor; minimização e redação; modelo limitado a propor ações; ferramentas permitidas; validação local e server-side; propriedade/grupo; limites de argumentos/tamanho; proteção contra prompt injection em mensagens, nomes, notas e conteúdo importado; saída do modelo tratada como dado não confiável; custo, cota, repetição e timeouts.
+Trace texto e voz ponta a ponta e confirme: consentimento por UID; dados enviados ao provedor; minimização e redação; modelo limitado a propor ações; ferramentas permitidas; validação local e server-side; propriedade/grupo; limites de argumentos/tamanho; saída do modelo tratada como dado não confiável; custo, cota, repetição e timeouts. Faça primeiro um inventário das fontes de conteúdo e capacidades reais do assistente. Não presuma que há upload de PDF, e-mail, navegação Web, RAG, base de conhecimento, fine-tuning ou treinamento próprio: procure implementação e configuração; marque cada item inexistente como não aplicável com evidência.
+
+Audite os seguintes riscos de IA individualmente, com aplicabilidade, caminho de ataque, controles, evidência e resultado do teste:
+
+- **Injeção de prompt direta e indireta:** trate mensagens do usuário, descrições de transações, nomes de tags/contas/usuários, notas, documentos importados e qualquer conteúdo recuperado como dados não confiáveis. Verifique se conteúdo malicioso consegue sobrescrever instruções, induzir divulgação, alterar argumentos, escolher ferramenta ou contornar autorização. Siga cada dado externo até o prompt, memória, resumo e chamadas de ferramenta. Delimitar texto ou escrever “ignore instruções” no prompt não é controle suficiente; a autorização deve ser imposta fora do modelo.
+- **Exposição de dados sensíveis:** inventarie campos enviados, removidos/mascarados, logs do cliente/backend/provedor, telemetria, retenção e controles do provedor, alinhando com a seção de privacidade e LGPD. Verifique se UID, e-mail, token, chave, dados financeiros detalhados ou conteúdo de terceiros atravessam a fronteira sem necessidade. Faça a análise em conta/emulador com dados sintéticos; nunca cole dados reais em outro modelo ou ferramenta de auditoria.
+- **Envenenamento de dados/contexto:** procure treinamento, fine-tuning, RAG, embeddings, memória, templates, Remote Config e qualquer fonte persistente consumida pelo modelo. Se não houver treino nem recuperação de corpus, declare esses vetores não aplicáveis e concentre-se em adulteração de dados do usuário, notas, memória, configuração, pacotes ou contexto recuperado. Verifique proveniência, autorização de escrita, isolamento por UID/grupo, revisão/validação e possibilidade de uma entrada contaminada influenciar respostas ou ações de outros usuários. Não chame uma transação falsa de “data poisoning” se o problema real for autorização ou integridade de dados.
+- **Privilégio excessivo e agência:** compare cada ferramenta disponível com a tarefa necessária. Confirme lista fechada de ferramentas, escopo mínimo, ausência de credencial administrativa no cliente/modelo, nenhum acesso direto do modelo ao Firestore/ledger/serviços privilegiados, e autorização independente em cada execução. Verifique chamadas encadeadas, ferramenta delegada, repetição, chamada paralela e abuso de recursos. A arquitetura documenta que a IA somente propõe ações; prove que a implementação respeita esse limite.
+- **Alucinações e conteúdo/código vulnerável:** confira se o modelo pode inventar saldo, transação, categoria, usuário, resultado ou justificativa; autorize somente dados retornados por fontes determinísticas e serviços confiáveis. Não deixe o modelo decidir propriedade, saldo disponível, regra de negócio ou matemática financeira. Se houver geração de código, SQL, shell, expressão ou configuração consumida/avaliada pelo app, audite validação, sandbox e injeção antes da execução. Se o Lumus não gera nem executa código, registre isso como não aplicável; concentre-se em argumentos e fatos financeiros alucinados.
+- **Aprovação humana e confirmação:** examine o conteúdo mostrado à pessoa antes de confirmar: ação, conta, valor, contraparte, data e efeitos devem corresponder exatamente à operação executada. Confirmação é ligada ao UID, sessão, evento e versão/hash dos argumentos/snapshot, expira e invalida ao editar, corrigir, trocar conta, fazer logout, cancelar ou receber nova resposta. “Sim”, consentimento geral ou `confirmed: true` do modelo nunca substitui autorização server-side. Avalie reautenticação para ações de maior impacto conforme o modelo de ameaça.
+- **Monitoramento e testes adversariais:** audite limites, alertas e eventos para falhas de autorização, loops/retries, consumo anormal, uso inesperado de ferramentas, erros do provedor e padrão de ataques, sem registrar prompt, token ou conteúdo financeiro desnecessário. Inspecione casos adversariais versionados e repetíveis para prompt injection, vazamento, ferramenta não permitida, cross-UID, argumentos malformados, replay, cancelamento e callbacks tardios. Teste em ambiente isolado com valores sintéticos e confirme o efeito (por exemplo, nenhuma escrita), não apenas que o modelo respondeu de forma aparentemente segura.
 
 Verifique que nenhuma confirmação do modelo como `confirmed: true` autoriza execução. Confirmações devem ser produzidas pelo app, não serializáveis, ligadas ao UID/sessão/evento/assinatura/versão exata dos argumentos e invalidadas por correção, alteração, atraso, logout, revogação, troca de conta e cancelamento. Ações financeiras devem passar pelos mesmos serviços confiáveis das telas. Teste replay, race, prompt malicioso, lote parcial e autorização antiga em ambiente isolado.
 
 Inspecione alças/IDs opacos, e-mail, UID, tokens, chaves, perfil, transações, áudio e anexos no prompt, payload, telemetria e logs. Verifique App Check no caminho Web/Android, ligação com `Remote Config`, limites/kill switch e bridge remota do desenvolvimento: segundo a arquitetura, somente AI Logic/App Check/Remote Config usam bridge remota em desenvolvimento; Auth/Firestore/Functions financeiras permanecem no emulador local. Confirme isso em configuração executável e no caminho de runtime, sem acessar dados remotos.
 
 Teste também cancelamento de streaming/voz/TTS, tela em background, revogação de consentimento, cleanup de PDF/arquivo temporário, máscara de valores antes de enviar ao modelo e callbacks tardios após logout/UID switch. Diferencie proteção implementada no cliente e validação que existe no backend.
+
+No relatório, inclua uma matriz específica de IA com uma linha para cada risco acima, mais privacidade do provedor e governança LGPD: aplicável/não aplicável, fonte de entrada, fronteira de confiança, ferramenta/efeito possível, controle preventivo, teste e resultado, evidência e lacunas. Uma conclusão “não aplicável” precisa apontar a busca/configuração que a sustenta.
 
 ### 11. Segredos, builds, dependências e operações
 
@@ -172,7 +192,7 @@ Entregue em português claro e nesta ordem:
 5. **Fluxos críticos:** tabelas de login, sessão/expiração, logout/troca de conta, reset/recuperação, autorização entre usuários/grupos e operação financeira; inclua comportamento esperado × observado × evidência.
 6. **Controles que parecem funcionar:** evidência concisa, com escopo exato do que foi verificado.
 7. **Plano de remediação:** sequência P0/P1/P2, dependências, responsável técnico sugerido por área e critério de aceite; não altere o projeto.
-8. **Validação pendente:** passos necessários em Emulator, aparelho, browser, Firebase Console, domínio publicado ou ambiente de homologação, ordenados pelo risco. Indique exatamente quando uma autorização ou acesso novo será necessário.
+8. **Validação pendente:** passos necessários em Emulator, aparelho, browser, Firebase Console, domínio publicado ou ambiente de homologação, ordenados pelo risco. Para IA hospedada, inclua casos adversariais sintéticos para executar apenas após autorização específica. Indique exatamente quando uma autorização ou acesso novo será necessário.
 
 Use localização de código clicável quando o ambiente permitir. Nunca inclua valores secretos, dados pessoais reais ou identificadores de usuários. Se nenhum achado confirmado aparecer, diga quais controles foram efetivamente testados e quais permaneceram fora do alcance; não converta falta de evidência em aprovação.
 
