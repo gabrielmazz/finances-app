@@ -3,6 +3,8 @@ import { AppState, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { FontAwesome6, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
 
 import { WebNotifierAlertHost } from '@/components/uiverse/feedback/notifier-alert';
 import NotifierBoundary from '@/components/uiverse/feedback/notifier-boundary';
@@ -125,6 +127,14 @@ const LayoutWithTheme = () => {
 };
 
 export default function AppRoot() {
+	// [[Gerenciamento de Tags]]: category glyphs need their font families ready before any screen renders.
+	const [iconFontsLoaded, iconFontsError] = useFonts({
+		...Ionicons.font,
+		...MaterialCommunityIcons.font,
+		...FontAwesome6.font,
+	});
+	if (!iconFontsLoaded && !iconFontsError) return <AuthBootstrapScreen />;
+
 	return (
 		<ThemeProvider>
 			<ValueVisibilityProvider>

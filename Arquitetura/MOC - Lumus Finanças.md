@@ -1,6 +1,6 @@
 ---
 tags: [moc, arquitetura, expo, firebase, web, financas]
-relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]]
+relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]], [[Prompt Auditoria Completa de Segurança]]
 status: ativo
 tipo: arquitetura
 versao: 2.3.1
@@ -34,6 +34,7 @@ graph TD
 ### Autenticação & Segurança
 - [[Autenticação]] — Login, AuthContext, Firebase Auth, sessão em memória no nativo e local entre abas Web
 - [[Segurança de Login]] — Throttling, armazenamento seguro de credenciais
+- [[Prompt Auditoria Completa de Segurança]] — Auditoria ponta a ponta de autenticação, autorização, Firebase, sessões, dados, IA e release
 - [[Gerenciamento de Usuários]] — Cadastro e relacionamento entre usuários
 - [[Perfil do Usuário]] — Dados pessoais, edição do nome e acesso aos vínculos
 

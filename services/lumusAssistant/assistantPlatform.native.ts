@@ -21,7 +21,7 @@ import {
 	TRANSCRIPTION_INSTRUCTION,
 	buildReportNarrationInstruction,
 } from '@/services/lumusAssistant/assistantPrompt';
-import { canObtainAssistantAppCheckToken } from '@/utils/lumusAssistantAppCheck';
+import { canObtainAssistantAppCheckToken, getAssistantAppCheckErrorCode } from '@/utils/lumusAssistantAppCheck';
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import { assistantExpoGoAdapter } from '@/services/lumusAssistant/assistantPlatform.expoGo';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
@@ -233,6 +233,7 @@ const adapter: AssistantPlatformAdapter = {
 		const platformSupported = Platform.OS === 'android';
 		let nativeConfigured = false;
 		let appCheckConfigured = false;
+		let appCheckErrorCode: string | null = null;
 		if (platformSupported) {
 			try {
 				await getConfiguredNativeApp();
@@ -243,8 +244,11 @@ const adapter: AssistantPlatformAdapter = {
 			if (nativeConfigured) {
 				try {
 					const appCheck = await ensureNativeAppCheck();
-					appCheckConfigured = await canObtainAssistantAppCheckToken(appCheck);
-				} catch {
+					appCheckConfigured = await canObtainAssistantAppCheckToken(appCheck, error => {
+						appCheckErrorCode = getAssistantAppCheckErrorCode(error);
+					});
+				} catch (error) {
+					appCheckErrorCode = getAssistantAppCheckErrorCode(error);
 					appCheckConfigured = false;
 				}
 			}
@@ -262,7 +266,7 @@ const adapter: AssistantPlatformAdapter = {
 				: !nativeConfigured
 					? 'Forneça google-services.json e gere um development build.'
 					: !appCheckConfigured
-						? 'Não foi possível obter um token do Firebase App Check. Verifique o provider e gere uma nova build se a configuração nativa mudou.'
+						? `Não foi possível obter um token do Firebase App Check${appCheckErrorCode ? ` (${appCheckErrorCode})` : ''}. Verifique o provider, a integridade Play e a assinatura deste app.`
 					: !auth.currentUser
 						? 'Entre na sua conta para usar o Lumus IA.'
 						: !config.enabled

@@ -2,6 +2,14 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — ícones de categoria em todas as telas, 2026-10-09
+
+**Inventário:** Home, listagens e formulários Web/mobile que renderizam `<TagIcon />`, incluindo carregamento inicial, categoria sem ícone válido e fontes indisponíveis.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P1 | Os 209 nomes do catálogo existem nos mapas de glifos; FontAwesome6 não carrega sua fonte automaticamente pelo caminho multistyle e a renderização podia mostrar quadrados antes da fonte estar pronta. | O root carrega Ionicons, MaterialCommunityIcons e FontAwesome6 antes de montar qualquer tela; o fallback de categoria permanece no componente compartilhado. | `npm run lint:styles`, `npm run typecheck`, exports Web/Android e 37 testes focados passaram. Falta inspeção visual em navegador autenticado e aparelho Android publicado. |
+
 ## Checkpoint — saldo no registro mensal, 2026-10-09
 
 **Inventário:** formulários Web/mobile de saldo mensal, painel conectado de bancos e estados de seleção, carregamento, saldo ausente, falha e valor oculto.

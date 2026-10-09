@@ -38,8 +38,6 @@ import {
 import {
 	collection,
 	getDocs,
-	limit as limitQuery,
-	orderBy,
 	query,
 	Timestamp,
 	where,
@@ -532,7 +530,7 @@ const loadBalancesSection = async (context: HomeQueryContext): Promise<HomeBalan
 const projectLedgerMovements = (transactions: LedgerTransaction[], context: HomeQueryContext) => {
 	const reversedIds = new Set(transactions.filter(transaction => transaction.kind === 'reversal' && transaction.effectiveAt <= context.asOfDate).map(transaction => transaction.reversesTransactionId));
 	const supportedKinds = new Set(['expense', 'income', 'transfer', 'investment_deposit', 'investment_redemption']);
-	return transactions.filter(transaction => supportedKinds.has(transaction.kind) && !reversedIds.has(transaction.id) && transaction.effectiveAt <= context.asOfDate).map(transaction => {
+	return transactions.filter(transaction => supportedKinds.has(transaction.kind) && !reversedIds.has(transaction.id) && transaction.effectiveAt >= context.startOfMonth && transaction.effectiveAt <= context.asOfDate).map(transaction => {
 		const isGain = transaction.kind === 'income' || transaction.kind === 'investment_redemption';
 		const accountLeg = transaction.legs.find(leg => leg.accountId !== null && (isGain ? leg.deltaInCents > 0 : leg.deltaInCents < 0))!;
 		const account = context.financialLedgerAccounts?.find(account => account.id === accountLeg.accountId);
@@ -816,7 +814,8 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMovementsData> => {
 	const ledgerMovements = context.financialLedgerAccounts ? projectLedgerMovements(await loadLedgerTransactions(context), context) : null;
 	const readRecent = (name: string) => readHomeDocumentsForPeople(name, context.allowedPersonIds, [
-		where('date', '<=', Timestamp.fromDate(context.asOfDate)), orderBy('date', 'desc'), limitQuery(6),
+		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
+		where('date', '<=', Timestamp.fromDate(context.asOfDate)),
 	]);
 	const [
 		recentExpensesSnapshot,
@@ -829,7 +828,12 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 	] = await Promise.all([
 		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'expense').map(item => ({ id: item.id, data: () => item })) }) : readRecent('expenses'),
 		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'gain').map(item => ({ id: item.id, data: () => item })) }) : readRecent('gains'),
-		ledgerMovements ? Promise.resolve({ docs: [] }) : readRecent('financeInvestmentSyncs'),
+		ledgerMovements ? Promise.resolve({ docs: [] }) : loadHomeMetadata(context, 'financeInvestmentSyncs').then(snapshot => ({
+			docs: snapshot.docs.filter(document => {
+				const date = parseToDate((document.data() as HomeMovementDocument).date);
+				return date && date >= context.startOfMonth && date <= context.asOfDate;
+			}),
+		})),
 		ledgerMovements ? Promise.resolve({ docs: [] }) : readRecent('cashRescues'),
 		loadHomeMetadata(context, 'mandatoryExpenses'),
 		loadHomeMetadata(context, 'mandatoryGains'),

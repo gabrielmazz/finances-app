@@ -223,6 +223,25 @@ it('refreshes migrated Home movements and totals from active persisted events wh
 	expect(result.data.movements.data.timelineMovements.map(movement => movement.id)).toEqual(['income', 'replacement']);
 });
 
+it('shows the latest six legacy movements from this month without a descending Firestore index', async () => {
+	records.users[0] = { id: 'owner', name: 'Pessoa', relatedIdUsers: [] };
+	records.banks = [{ id: 'bank', personId: 'owner', name: 'Nubank' }];
+	records.monthlyBalances = [{ id: 'opening', personId: 'owner', bankId: 'bank', year: 2026, month: 9, valueInCents: 10_000 }];
+	records.expenses = [
+		{ id: 'previous-month', personId: 'owner', bankId: 'bank', date: date('2026-08-31'), valueInCents: 100 },
+		...Array.from({ length: 7 }, (_, index) => ({ id: `expense-${index + 1}`, personId: 'owner', bankId: 'bank', date: date(`2026-09-${String(index + 1).padStart(2, '0')}`), valueInCents: 100 })),
+		{ id: 'future', personId: 'owner', bankId: 'bank', date: date('2026-09-11'), valueInCents: 100 },
+	];
+	records.gains = [{ id: 'gain-8', personId: 'owner', bankId: 'bank', date: date('2026-09-08'), valueInCents: 100 }];
+	const result = await getHomeSnapshotFirebase('owner');
+	if (!result.success || !result.data.movements.success) throw new Error('Timeline indisponível.');
+	expect(result.data.movements.data.timelineMovements.map(movement => movement.id)).toEqual([
+		'gain-8', 'expense-7', 'expense-6', 'expense-5', 'expense-4', 'expense-3',
+	]);
+	expect((getDocs as jest.Mock).mock.calls.filter(([query]) => ['expenses', 'gains', 'cashRescues'].includes(query.name))
+		.every(([query]) => !query.filters.some((filter: Filter) => filter.direction === 'desc'))).toBe(true);
+});
+
 it('uses verified migrated investment metadata and its last materialized date to calculate CDI without rewriting confirmed value', async () => {
 	records.financialAccounts[2] = { ...records.financialAccounts[2], personId: 'owner', bankAccountId: 'bank', date: date('2026-09-01'), initialValueInCents: 50_000, cdiPercentageInBasisPoints: 10_000, assetType: 'fixed_income', valuationMethod: 'cdi' };
 	records.investmentCdiRates = [{ id: 'rate', personId: 'owner', groupId: 'group', annualRateInBasisPoints: 36_500, effectiveFrom: date('2026-09-01') }];
