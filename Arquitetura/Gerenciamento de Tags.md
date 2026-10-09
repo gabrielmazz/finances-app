@@ -36,6 +36,7 @@ graph TD
 5. Uma combinação legada fora dos presets aparece como **Uso personalizado existente**. Alterar somente nome ou ícone preserva os campos de disponibilidade; os campos só mudam quando um novo objetivo é escolhido.
 6. Quando não é fluxo inline, criar ou editar uma categoria aplica [[Comportamento Pós-Registro]]; em fluxo inline, tenta voltar à tela de origem e usa `returnToRoute` como fallback antes de cair na Home.
 7. O ícone da categoria aparece nos cards de movimentos via componente `<TagIcon />` do [[Hooks Customizados|useTagIcons]].
+8. `components/app/app-root.tsx` carrega as fontes Ionicons, MaterialCommunityIcons e FontAwesome6 antes de montar as telas Web/mobile. O catálogo e os campos salvos não dependem da chegada assíncrona das fontes para desenhar o primeiro ícone; FontAwesome6 precisa desse carregamento explícito.
 8. Os campos de categoria em transações e recorrências usam um ActionSheet customizado com ícone, nome, destaque da categoria selecionada e ação interna para abrir `AddRegisterTagScreen.tsx`, em vez do menu padrão do Android ou de um botão solto ao lado do campo.
 9. Em [[Gerenciamento de Bancos|BankMovementsScreen]], as tags podem ser usadas como filtro local da timeline; a lista de opções é formada a partir das movimentações carregadas no período.
 10. O gráfico de pizza no [[Dashboard Home]] agrupa despesas por tag.

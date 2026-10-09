@@ -8,13 +8,21 @@ describe('Lumus Assistant App Check preflight', () => {
 		expect(getToken).toHaveBeenCalledTimes(1);
 	});
 
+	it('accepts a provider that returns the token string directly', async () => {
+		const getToken = jest.fn(async () => 'not-rendered');
+
+		await expect(canObtainAssistantAppCheckToken({ getToken })).resolves.toBe(true);
+	});
+
 	it('keeps the assistant unavailable when token issuance fails', async () => {
 		const getToken = jest.fn(async () => {
-			throw new Error('token rejected');
+			throw Object.assign(new Error('token rejected'), { code: 'appCheck/recaptcha-error' });
 		});
+		const onFailure = jest.fn();
 
-		await expect(canObtainAssistantAppCheckToken({ getToken })).resolves.toBe(false);
+		await expect(canObtainAssistantAppCheckToken({ getToken }, onFailure)).resolves.toBe(false);
 		expect(getToken).toHaveBeenCalledTimes(1);
+		expect(onFailure.mock.calls[0][0]).toMatchObject({ code: 'appCheck/recaptcha-error' });
 	});
 
 	it.each([{ token: '' }, {}, { token: 42 }])('rejects an invalid token response: %p', async result => {

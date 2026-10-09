@@ -21,7 +21,7 @@ import {
 	TRANSCRIPTION_INSTRUCTION,
 	buildReportNarrationInstruction,
 } from '@/services/lumusAssistant/assistantPrompt';
-import { canObtainAssistantAppCheckToken } from '@/utils/lumusAssistantAppCheck';
+import { canObtainAssistantAppCheckToken, getAssistantAppCheckErrorCode } from '@/utils/lumusAssistantAppCheck';
 import {
 	getApps,
 	initializeApp,
@@ -190,18 +190,20 @@ const adapter: AssistantPlatformAdapter = {
 				reason: 'Configure os identificadores públicos do projeto Firebase para testar o Lumus IA em desenvolvimento.',
 			};
 		}
-		const config = await readRemoteConfig();
 		let appCheckConfigured = false;
+		let appCheckErrorCode: string | null = null;
 		if (SITE_KEY) {
 			try {
 				const appCheck = ensureWebAppCheck(assistantApp);
 				appCheckConfigured = await canObtainAssistantAppCheckToken({
 					getToken: async () => getToken(appCheck),
-				});
-			} catch {
+			}, error => { appCheckErrorCode = getAssistantAppCheckErrorCode(error); });
+			} catch (error) {
+				appCheckErrorCode = getAssistantAppCheckErrorCode(error);
 				appCheckConfigured = false;
 			}
 		}
+		const config = await readRemoteConfig();
 		return {
 			available: Boolean(config.enabled && appCheckConfigured && auth.currentUser),
 			platform: 'web',
@@ -211,7 +213,9 @@ const adapter: AssistantPlatformAdapter = {
 			reason: !SITE_KEY
 				? 'Defina EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY.'
 				: !appCheckConfigured
-					? 'Não foi possível obter um token do Firebase App Check. Cadastre o token de debug e tente novamente.'
+					? isFirebaseEmulatorRuntime()
+						? `Não foi possível obter um token do Firebase App Check${appCheckErrorCode ? ` (${appCheckErrorCode})` : ''}. Confira o cadastro do token de debug e tente novamente.`
+						: `Não foi possível validar o Firebase App Check${appCheckErrorCode ? ` (${appCheckErrorCode})` : ''}. Confira a configuração do app Web, da chave reCAPTCHA Enterprise e do domínio publicado.`
 				: !auth.currentUser
 					? 'Entre na sua conta para usar o Lumus IA.'
 					: !config.enabled

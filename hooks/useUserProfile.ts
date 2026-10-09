@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { auth } from '@/FirebaseConfig';
 import { useAuth } from '@/contexts/AuthContext';
+import { getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
 import { getProfileNameError, getUserProfileFirebase, getUserProfileAccessSummaryFirebase, updateUserProfileFirebase, type UserProfile } from '@/functions/UserProfileFirebase';
 
 export function useUserProfile() {
@@ -12,6 +13,9 @@ export function useUserProfile() {
 	const [accessSummary, setAccessSummary] = React.useState<{ isAdmin: boolean; monitoredRecordsCount: number } | null>(null);
 	const [accessSummaryLoading, setAccessSummaryLoading] = React.useState(true);
 	const [accessSummaryError, setAccessSummaryError] = React.useState(false);
+	const [relatedUsers, setRelatedUsers] = React.useState<{ id: string; name: string }[]>([]);
+	const [relatedUsersLoading, setRelatedUsersLoading] = React.useState(true);
+	const [relatedUsersError, setRelatedUsersError] = React.useState(false);
 	const [name, setName] = React.useState('');
 	const [loading, setLoading] = React.useState(true);
 	const [loadError, setLoadError] = React.useState('');
@@ -43,6 +47,9 @@ export function useUserProfile() {
 		setAccessSummary(null);
 		setAccessSummaryLoading(Boolean(uid));
 		setAccessSummaryError(false);
+		setRelatedUsers([]);
+		setRelatedUsersLoading(Boolean(uid));
+		setRelatedUsersError(false);
 		if (!preserveDraft) setName('');
 		setNameError(null);
 		setFeedback(null);
@@ -54,6 +61,7 @@ export function useUserProfile() {
 		if (!uid) {
 			setLoading(false);
 			setAccessSummaryLoading(false);
+			setRelatedUsersLoading(false);
 			return () => { lifetime.current += 1; };
 		}
 
@@ -66,6 +74,15 @@ export function useUserProfile() {
 				setName(preserveDraft ? preservedName : result.name);
 				setLoading(false);
 				profileLoaded = true;
+
+				void getRelatedUsersFirebase(uid).then(related => {
+					if (!isCurrent()) return;
+					if (!related.success || !related.data) setRelatedUsersError(true);
+					else setRelatedUsers(related.data.map(user => {
+						const linkedUser = user as { id: string; name?: unknown };
+						return { id: linkedUser.id, name: typeof linkedUser.name === 'string' && linkedUser.name.trim() ? linkedUser.name : 'Nome não informado' };
+					}));
+				}).catch(() => { if (isCurrent()) setRelatedUsersError(true); }).finally(() => { if (isCurrent()) setRelatedUsersLoading(false); });
 
 				const summary = await getUserProfileAccessSummaryFirebase(uid, result);
 				if (!isCurrent()) return;
@@ -149,6 +166,9 @@ export function useUserProfile() {
 		accessSummary,
 		accessSummaryLoading,
 		accessSummaryError,
+		relatedUsers,
+		relatedUsersLoading,
+		relatedUsersError,
 		name,
 		changeName,
 		nameError,
