@@ -571,7 +571,7 @@ function DateCalendar({
 											<View className={`px-2 py-1 rounded-full ${badgeBg}`}>
 												<Text
 													className="text-[10px] text-center font-semibold text-gray-800 dark:text-gray-100"
-													numberOfLines={1}
+													isTruncated
 												>
 													{pendingCount === 0
 														? `${dayItems.length} ${completedLabel}`
@@ -582,7 +582,7 @@ function DateCalendar({
 											<View className={`px-2 py-1 rounded-full ${holidayBadgeClassName}`}>
 												<Text
 													className={`text-[10px] text-center font-semibold ${holidayBadgeTextClassName}`}
-													numberOfLines={1}
+													isTruncated
 												>
 													Feriado
 												</Text>

@@ -7,7 +7,9 @@ import {
 } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
-const projectId = 'demo-lumus-financas';
+const projectId = process.env.FIREBASE_PROJECT_ID ?? 'demo-lumus-financas';
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
+const functionsEmulatorHost = process.env.FIREBASE_FUNCTIONS_EMULATOR_HOST ?? '127.0.0.1:5001';
 const runId = Date.now().toString(36);
 const groupId = 'functions-test-' + runId;
 const bankAccountId = 'bank-' + runId;
@@ -21,7 +23,7 @@ async function anonymousUser(name: string): Promise<User> {
     projectId,
   }, name);
   const auth = getAuth(app);
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
   const credential = await signInAnonymously(auth);
   return credential.user;
 }
@@ -60,7 +62,8 @@ async function seed(memberId: string, adminId: string): Promise<void> {
 async function invokeAs<TData, TResult>(user: User, name: string, data: TData): Promise<TResult> {
   const app = user.auth.app;
   const functions = getFunctions(app, 'southamerica-east1');
-  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+  const [host, port] = functionsEmulatorHost.split(':');
+  connectFunctionsEmulator(functions, host, Number(port));
   const callable = httpsCallable<TData, TResult>(functions, name);
   return (await callable(data)).data;
 }
@@ -325,6 +328,29 @@ async function run(): Promise<void> {
   await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', { ...legacyOutflow, description: 'Different material description' });
   await environment.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'users', legacyMovementOwner.uid), { financialLegacyCutoverAt: new Date() }, { merge: true }); });
   await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', { ...legacyOutflow, clientActionId: 'legacy_movement_after_cutover_' + runId }, 'permission-denied');
+
+  const migrationOwner = await anonymousUser('migration-issues-owner-' + runId);
+  const migrationActionId = 'migration_issues_' + runId;
+  const migrationGroupId = 'group-' + migrationOwner.uid + '-' + migrationActionId;
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'banks', 'invalid-migration-bank-' + runId), {
+      personId: migrationOwner.uid,
+      // A ausência de name precisa ser relatada no dry-run e bloquear o corte.
+    });
+  });
+  const migrationRequest = { mode: 'dry-run', clientActionId: migrationActionId };
+  const migrationPreview = await invokeAs<typeof migrationRequest, { fingerprint: string; issueCount: number }>(migrationOwner, 'migrateFinancialGroup', migrationRequest);
+  if (migrationPreview.issueCount !== 1) throw new Error('The migration dry-run must report the invalid bank.');
+  await expectDenied(migrationOwner, 'migrateFinancialGroup', {
+    ...migrationRequest,
+    mode: 'execute',
+    approvedFingerprint: migrationPreview.fingerprint,
+  });
+  await environment.withSecurityRulesDisabled(async context => {
+    if ((await getDoc(doc(context.firestore(), 'financialGroups', migrationGroupId))).exists()) {
+      throw new Error('A migration with issues must not create or activate a financial group.');
+    }
+  });
 
   let changedRetryDenied = false;
   try {

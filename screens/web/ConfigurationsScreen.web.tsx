@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, Pressable } from 'react-native';
+import { ScrollView, Pressable, Text as RNText } from 'react-native';
 
 // Importações relacionadas ao Gluestack UI
 import { Heading } from '@/components/ui/heading';
@@ -731,7 +731,7 @@ function TableActionsHeader({
 	textClassName: string;
 }) {
 	return (
-		<TableHead useRNView className={`${widthClassName} ${headerClassName}`}>
+		<TableHead className={`${widthClassName} ${headerClassName}`}>
 			<Text className={textClassName}>Ações</Text>
 		</TableHead>
 	);
@@ -747,7 +747,7 @@ function TableActionsCell({
 	children: React.ReactNode;
 }) {
 	return (
-		<TableData useRNView className={`${widthClassName} ${cellClassName}`}>
+		<TableData className={`${widthClassName} ${cellClassName}`}>
 			<ActionButtonsRow align="center">{children}</ActionButtonsRow>
 		</TableData>
 	);
@@ -1692,7 +1692,7 @@ export default function ConfigurationsScreen() {
 																					key={bank.id}
 																					className={tableRowClassName}
 																				>
-																					<TableData useRNView className={tableContentCellClassName}>
+																					<TableData className={tableContentCellClassName}>
 																						<HStack className="min-w-0 items-center gap-3">
 																							<BankIcon
 																								iconKey={bank.iconKey}
@@ -1701,13 +1701,13 @@ export default function ConfigurationsScreen() {
 																								size={30}
 																							/>
 																					<VStack className="min-w-0 flex-1 gap-1">
-																					<Text className="text-sm font-semibold" numberOfLines={1}>
+																					<Text className="text-sm font-semibold" isTruncated>
 																						{bank.name}
 																					</Text>
 																					<Text className={`${helperText} text-xs`}>
 																						{bank.isActive ? 'Ativo' : 'Desativado'}
 																					</Text>
-																					<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																					<Text className={`${helperText} text-xs`} isTruncated>
 																							ID: {bank.id}
 																					</Text>
 																				</VStack>
@@ -1826,7 +1826,7 @@ export default function ConfigurationsScreen() {
 																					key={tag.id}
 																					className={tableRowClassName}
 																				>
-																					<TableData useRNView className={tableContentCellClassName}>
+																					<TableData className={tableContentCellClassName}>
 																						<HStack className="min-w-0 items-start gap-3">
 																							<Box className={`${notTintedCardClassName} h-11 w-11 items-center justify-center`}>
 																								<TagIcon
@@ -1838,13 +1838,13 @@ export default function ConfigurationsScreen() {
 																								/>
 																							</Box>
 																							<VStack className="min-w-0 flex-1 gap-1">
-																								<Text className="text-sm font-semibold" numberOfLines={1}>
+																								<Text className="text-sm font-semibold" isTruncated>
 																									{tag.name}
 																								</Text>
-																								<Text className={`${helperText} text-xs`} numberOfLines={2}>
+																								<RNText className={`${helperText} text-xs`} numberOfLines={2}>
 																									{getTagBadgeLabels(tag).join(' • ')}
-																								</Text>
-																								<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
+																								</RNText>
+																								<Text className={`${helperText} text-xs`} isTruncated>
 																									ID: {tag.id}
 																								</Text>
 																							</VStack>

@@ -3,12 +3,12 @@ tags: [moc, arquitetura, expo, firebase, web, financas]
 relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
-versao: 2.3.0
+versao: 2.3.1
 ---
 
 # MOC - Lumus Finanças
 
-> Map of Content principal do projeto **Lumus Finanças** (v2.3.0)
+> Map of Content principal do projeto **Lumus Finanças** (v2.3.1)
 > Aplicação universal de controle financeiro pessoal/familiar, construída com Expo + Firebase para Android/iOS e navegador.
 
 ---
@@ -67,6 +67,7 @@ graph TD
 - [[Navegação]] — Expo Router, fluxo de autenticação, rotas
 - [[Organização do Código]] — Fronteiras entre rotas, composição global, telas, UI, hooks, Firebase e variantes de plataforma
 - [[Firebase Config]] — Configuração dual de apps Firebase, persistência de sessão
+- [[Processo de Release]] — Gates, ambientes isolados e sequência de publicação Web/Android/Firebase
 - [[Sistema de Temas]] — Modo claro/escuro persistido via AsyncStorage
 - [[Privacidade de Valores]] — Toggle de visibilidade financeira
 - [[Comportamento Pós-Registro]] — Preferências por tela para retorno e limpeza de campos após salvar formulários
@@ -177,6 +178,6 @@ As fontes ficam disponíveis via `tailwind.config.js` (`fontFamily`). Novos comp
 
 ## Publicação Web
 
-O Expo exporta a SPA com `npm run web:export`; `firebase.json` serve `dist/` com URLs limpas e rewrite para `index.html`, permitindo deep links do Expo Router. Use `npm run web:deploy:preview` para validar antes de `npm run web:deploy`.
+O Expo exporta a SPA com `npm run web:export`; `firebase.json` serve `dist/` com URLs limpas e rewrite para `index.html`, permitindo deep links do Expo Router. O preview usa um projeto Firebase próprio; os gates e a ordem de publicação estão em [[Processo de Release]].
 
 Antes da primeira publicação, os domínios `finances-app-e8685.web.app`, `finances-app-e8685.firebaseapp.com` e qualquer domínio próprio devem ser autorizados no Firebase Authentication e registrados no reCAPTCHA Enterprise/App Check. Veja [[Versão Web]] e [[Firebase Config]].

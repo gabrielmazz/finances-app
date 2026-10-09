@@ -3,7 +3,8 @@
     {
       "source": "backend",
       "codebase": "financial-core",
-      "runtime": "nodejs20"
+      "runtime": "nodejs20",
+      "predeploy": ["npm --prefix backend run build"]
     }
   ],
   "firestore": {

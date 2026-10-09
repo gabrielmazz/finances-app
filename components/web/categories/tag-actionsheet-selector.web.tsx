@@ -183,11 +183,11 @@ export default function TagActionsheetSelector({
 								<VStack className="min-w-0 flex-1">
 									<Text
 										className={`${selectedName ? bodyTextClassName : helperTextClassName} text-sm font-medium`}
-										numberOfLines={1}
+										isTruncated
 									>
 										{selectedName ?? placeholder}
 									</Text>
-									<Text className={`${helperTextClassName} text-xs`} numberOfLines={1}>
+									<Text className={`${helperTextClassName} text-xs`} isTruncated>
 										{isDisabled
 											? disabledHint
 											: selectedDescription ?? (selectedName ? 'Toque para alterar a categoria.' : triggerHint)}
@@ -293,7 +293,7 @@ export default function TagActionsheetSelector({
 											<PlusCircle size={20} color={iconColor} />
 										</View>
 										<VStack className="min-w-0 flex-1">
-											<Text className={`${bodyTextClassName} text-sm font-semibold`} numberOfLines={1}>
+											<Text className={`${bodyTextClassName} text-sm font-semibold`} isTruncated>
 												{createActionLabel}
 											</Text>
 										</VStack>

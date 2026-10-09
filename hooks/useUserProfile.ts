@@ -134,7 +134,9 @@ export function useUserProfile() {
 		try {
 			const copied = await Clipboard.setStringAsync(uid);
 			if (!copied) throw new Error('clipboard/unavailable');
-			return version === lifetime.current && auth.currentUser?.uid === uid;
+			if (version !== lifetime.current || auth.currentUser?.uid !== uid) return false;
+			setFeedback({ text: 'ID copiado.', error: false });
+			return true;
 		} catch {
 			if (version === lifetime.current && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar o ID. Tente novamente.', error: true });
 			return false;

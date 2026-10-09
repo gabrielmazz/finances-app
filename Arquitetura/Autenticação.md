@@ -95,7 +95,7 @@ type AuthContextValue = {
 ## Configuração
 
 - Firebase Auth configurado em `FirebaseConfig.ts`
-- Antes de o `AuthProvider` montar, [[Firebase Config]] resolve o alvo a partir de variáveis `EXPO_PUBLIC_*` incorporadas diretamente pelo Metro. Development usa o Emulator; preview e releases usam produção. Uma release local com credenciais completas também infere produção, evitando exceção de bootstrap antes da Login e permanência na splash nativa.
+- Antes de o `AuthProvider` montar, [[Firebase Config]] resolve o alvo a partir de variáveis `EXPO_PUBLIC_*` incorporadas diretamente pelo Metro. Development usa o Emulator, preview usa o projeto isolado de homologação e releases de produção usam `finances-app-e8685`. Uma release local com credenciais completas também infere produção, evitando exceção de bootstrap antes da Login e permanência na splash nativa.
 - **App primário nativo usa persistência memory-only** — ao fechar o app Android/iOS, a sessão é encerrada e o usuário volta para a tela de login
 - **App primário Web usa `browserLocalPersistence`** — outra aba ou recarregamento da mesma origem restaura o usuário; fechar o navegador também preserva a autenticação até **Sair**, expiração ou invalidação pelo Firebase
 - O `user=null` inicial de uma abertura fria não é tratado como logout explícito pelo motor de notificações; isso preserva os alarmes locais do último UID enquanto a sessão precisa ser refeita

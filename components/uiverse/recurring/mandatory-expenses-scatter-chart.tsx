@@ -26,6 +26,34 @@ type MandatoryExpensesScatterChartProps = {
 
 const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+type ScatterPointShapeProps = {
+	cx?: number;
+	cy?: number;
+	fill?: string;
+	fillOpacity?: number | string;
+	stroke?: string;
+	strokeWidth?: number | string;
+};
+
+const renderScatterPoint = ({
+	cx,
+	cy,
+	fill,
+	fillOpacity,
+	stroke,
+	strokeWidth,
+}: ScatterPointShapeProps) => (
+	<circle
+		cx={cx}
+		cy={cy}
+		r={5}
+		fill={fill}
+		fillOpacity={fillOpacity}
+		stroke={stroke}
+		strokeWidth={strokeWidth}
+	/>
+);
+
 export default function MandatoryExpensesScatterChart({
 	data,
 	isDarkMode,
@@ -80,7 +108,7 @@ export default function MandatoryExpensesScatterChart({
 							y: value => `Dia ${value}`,
 						}}
 						legendProps={{ verticalAlign: 'bottom', height: 24 }}
-						scatterProps={{ shape: <circle r={5} /> }}
+						scatterProps={{ shape: renderScatterPoint }}
 					/>
 				) : (
 					<div style={{ color: textColor, fontSize: 13, padding: '130px 16px', textAlign: 'center' }}>

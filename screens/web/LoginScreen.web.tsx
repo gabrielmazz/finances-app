@@ -455,7 +455,7 @@ export default function LoginScreen() {
 							>
 								<View className="w-full max-w-login-form flex-1 self-center">
 									<View className="flex-1 justify-center">
-										<VStack className="mb-10 shrink-0">
+										<VStack className="mb-10 shrink-0 gap-2">
 											<Text
 												className={`${helperText} text-xs font-semibold uppercase tracking-widest`}
 											>
@@ -634,7 +634,7 @@ export default function LoginScreen() {
 												Desenvolvido por Gabriel Mazzuco
 											</Text>
 
-											<Text className={`${helperText} text-center text-xs`}>Versão 2.3.0</Text>
+											<Text className={`${helperText} text-center text-xs`}>Versão 2.3.1</Text>
 										</VStack>
 									</VStack>
 								</View>

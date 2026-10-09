@@ -6,7 +6,9 @@ import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, Timestamp } from 'firebase/firestore';
 
-const projectId = 'demo-lumus-financas';
+const projectId = process.env.FIREBASE_PROJECT_ID ?? 'demo-lumus-financas';
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
+const [functionsEmulatorHost, functionsEmulatorPort] = (process.env.FIREBASE_FUNCTIONS_EMULATOR_HOST ?? '127.0.0.1:5001').split(':');
 const prefix = `adjustment-${randomUUID()}`;
 let environment: RulesTestEnvironment;
 const apps: ReturnType<typeof initializeApp>[] = [];
@@ -14,8 +16,8 @@ async function user(label: string) {
 	const app = initializeApp({ apiKey: 'test-key', authDomain: `${projectId}.firebaseapp.com`, projectId }, `${prefix}-${label}`);
 	apps.push(app);
 	const auth = getAuth(app);
-	connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-	connectFunctionsEmulator(getFunctions(app, 'southamerica-east1'), '127.0.0.1', 5001);
+	connectAuthEmulator(auth, `http://${authEmulatorHost}`, { disableWarnings: true });
+	connectFunctionsEmulator(getFunctions(app, 'southamerica-east1'), functionsEmulatorHost, Number(functionsEmulatorPort));
 	return (await signInAnonymously(auth)).user;
 }
 async function call(actor: User, data: Record<string, unknown>) {
@@ -41,7 +43,7 @@ async function run() {
 	const unauthenticatedApp = initializeApp({ apiKey: 'test-key', projectId }, `${prefix}-unauthenticated`);
 	apps.push(unauthenticatedApp);
 	const unauthenticatedFunctions = getFunctions(unauthenticatedApp, 'southamerica-east1');
-	connectFunctionsEmulator(unauthenticatedFunctions, '127.0.0.1', 5001);
+	connectFunctionsEmulator(unauthenticatedFunctions, functionsEmulatorHost, Number(functionsEmulatorPort));
 	await assert.rejects(httpsCallable(unauthenticatedFunctions, 'bankBalanceAdjustment')({ action: 'preview', bankId: 'unknown', date: '2026-09-10' }), (error: unknown) => (error as { code: string }).code === 'functions/unauthenticated');
 	const [owner, related, outsider, admin, member] = await Promise.all(['owner', 'related', 'outsider', 'admin', 'member'].map(user));
 	const bankId = `${prefix}-bank`;

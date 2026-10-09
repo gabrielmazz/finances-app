@@ -24,14 +24,13 @@
       }
     },
     "preview": {
-      "extends": "production",
       "distribution": "internal",
       "environment": "preview",
       "autoIncrement": false,
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "preview",
-        "EXPO_PUBLIC_FIREBASE_TARGET": "production",
+        "EXPO_PUBLIC_FIREBASE_TARGET": "preview",
         "EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER": "debug"
       }
     },

@@ -14,6 +14,7 @@ if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test
 const files = {
   app: path.join(projectRoot, 'app.json'),
   package: path.join(projectRoot, 'package.json'),
+  lock: path.join(projectRoot, 'package-lock.json'),
   login: path.join(projectRoot, 'screens', 'mobile', 'LoginScreen.tsx'),
   loginWeb: path.join(projectRoot, 'screens', 'web', 'LoginScreen.web.tsx'),
 };
@@ -21,13 +22,22 @@ const files = {
 const original = new Map(Object.entries(files).map(([name, file]) => [name, fs.readFileSync(file, 'utf8')]));
 const appConfig = JSON.parse(original.get('app'));
 const packageConfig = JSON.parse(original.get('package'));
+const lockConfig = JSON.parse(original.get('lock'));
+
+if (lockConfig.name !== packageConfig.name || lockConfig.packages?.['']?.name !== packageConfig.name) {
+  console.error('package-lock.json não corresponde ao pacote do aplicativo.');
+  process.exit(1);
+}
 
 appConfig.expo.version = version;
 packageConfig.version = version;
+lockConfig.version = version;
+lockConfig.packages[''].version = version;
 
 const updated = new Map([
   ['app', `${JSON.stringify(appConfig, null, 2)}\n`],
   ['package', `${JSON.stringify(packageConfig, null, 2)}\n`],
+  ['lock', `${JSON.stringify(lockConfig, null, 2)}\n`],
   ['login', original.get('login').replace(/(<Text[^>]*>Versão )[^<]+(<\/Text>)/, `$1${version}$2`)],
   ['loginWeb', original.get('loginWeb').replace(/(<Text[^>]*>Versão )[^<]+(<\/Text>)/, `$1${version}$2`)],
 ]);
@@ -43,4 +53,4 @@ for (const [name, content] of updated) {
   fs.writeFileSync(files[name], content);
 }
 
-console.log(`Versão da aplicação atualizada para ${version}: app.json, package.json, screens/mobile/LoginScreen.tsx e screens/web/LoginScreen.web.tsx.`);
+console.log(`Versão da aplicação atualizada para ${version}: app.json, package.json, package-lock.json e telas de login.`);
