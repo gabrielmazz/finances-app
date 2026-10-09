@@ -7,14 +7,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "serve": "npm run build && npx -y firebase-tools@latest emulators:start --config ../firebase.json --only functions,firestore",
+    "serve": "npm run build && npx -y firebase-tools@15.33.0 emulators:start --config ../firebase.json --only functions,firestore",
     "test:rules": "tsx tests/firestore.rules.test.ts",
     "test:profile:rules": "tsx tests/userProfile.rules.test.ts",
     "test:assistant:rules": "tsx tests/lumusAssistant.rules.test.ts",
     "test:functions": "tsx tests/functions.emulator.test.ts",
     "test:balance-adjustments": "tsx tests/bankBalanceAdjustments.emulator.test.ts",
     "seed": "tsx scripts/seed.ts",
-    "test:emulator": "npm run build && npx -y firebase-tools@latest emulators:exec --project demo-lumus-financas --config ../firebase.json --only auth,functions,firestore \"npm run test:assistant:rules && npm run test:rules && npm run test:profile:rules && npm run test:functions && npm run test:balance-adjustments && npm --prefix .. run test:assistant:executor:emulator\""
+    "test:emulator": "npm run build && npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-financas --config ../firebase.json --only auth,functions,firestore \"export FIREBASE_PROJECT_ID=demo-lumus-financas FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_FUNCTIONS_EMULATOR_HOST=127.0.0.1:5001; npm run test:assistant:rules && npm run test:rules && npm run test:profile:rules && npm run test:functions && npm run test:balance-adjustments && npm --prefix .. run test:assistant:executor:emulator\""
   },
   "dependencies": {
     "firebase-admin": "^13.0.1",

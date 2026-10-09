@@ -5,9 +5,10 @@ import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebas
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 async function run() {
+	const [host, port] = (process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080').split(':');
 	const environment = await initializeTestEnvironment({
 		projectId: 'demo-lumus-profile-tests',
-		firestore: { rules: readFileSync(resolve(__dirname, '../../firestore.rules'), 'utf8'), host: '127.0.0.1', port: 8080 },
+		firestore: { rules: readFileSync(resolve(__dirname, '../../firestore.rules'), 'utf8'), host, port: Number(port) },
 	});
 	try {
 		await environment.withSecurityRulesDisabled(async context => {

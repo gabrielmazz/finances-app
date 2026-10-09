@@ -3,7 +3,7 @@ import type { FirebaseOptions } from 'firebase/app';
 export const DEMO_FIREBASE_PROJECT_ID = 'demo-lumus-financas';
 export const PRODUCTION_FIREBASE_PROJECT_ID = 'finances-app-e8685';
 
-export type FirebaseTarget = 'emulator' | 'production';
+export type FirebaseTarget = 'emulator' | 'preview' | 'production';
 
 export type FirebaseRuntimeConfig = Readonly<{
 	target: FirebaseTarget;
@@ -54,17 +54,17 @@ export const resolveFirebaseRuntimeConfig = (
 	environment: RuntimeEnvironment,
 ): FirebaseRuntimeConfig => {
 	const requestedTarget = environment.EXPO_PUBLIC_FIREBASE_TARGET;
-	const target: FirebaseTarget = requestedTarget === 'emulator' || requestedTarget === 'production'
+	const target: FirebaseTarget = requestedTarget === 'emulator' || requestedTarget === 'preview' || requestedTarget === 'production'
 		? requestedTarget
 		: isDevelopmentBuild(environment)
 			? 'emulator'
 			: hasProductionFirebaseConfig(environment)
 				? 'production'
-				: (() => { throw new Error('EXPO_PUBLIC_FIREBASE_TARGET must be emulator or production.'); })();
+					: (() => { throw new Error('EXPO_PUBLIC_FIREBASE_TARGET must be emulator, preview or production.'); })();
 
 	if (target === 'emulator') {
 		if (environment.EXPO_PUBLIC_APP_ENV === 'production' || environment.EXPO_PUBLIC_APP_ENV === 'preview') {
-			throw new Error('Preview and production builds must use the production Firebase target.');
+			throw new Error('Preview and production builds must use a remote Firebase target.');
 		}
 
 		const emulatorHost = environment.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST ?? '127.0.0.1';
@@ -94,13 +94,17 @@ export const resolveFirebaseRuntimeConfig = (
 	for (const key of requiredProductionKeys) {
 		if (!environment[key]) throw new Error(`Missing environment variable: ${key}`);
 	}
-	if (environment.EXPO_PUBLIC_FIREBASE_PROJECT_ID !== PRODUCTION_FIREBASE_PROJECT_ID) {
-		throw new Error('Production Firebase project ID is invalid.');
+	const projectId = environment.EXPO_PUBLIC_FIREBASE_PROJECT_ID!;
+	if (target === 'production' && (projectId !== PRODUCTION_FIREBASE_PROJECT_ID || environment.EXPO_PUBLIC_APP_ENV === 'preview')) {
+		throw new Error('Production Firebase target requires the production project and environment.');
+	}
+	if (target === 'preview' && (environment.EXPO_PUBLIC_APP_ENV !== 'preview' || projectId === PRODUCTION_FIREBASE_PROJECT_ID || projectId === DEMO_FIREBASE_PROJECT_ID)) {
+		throw new Error('Preview Firebase target requires a separate preview project and environment.');
 	}
 
 	return Object.freeze({
 		target,
-		projectId: PRODUCTION_FIREBASE_PROJECT_ID,
+		projectId,
 		firebaseOptions: {
 			apiKey: environment.EXPO_PUBLIC_FIREBASE_API_KEY!,
 			authDomain: environment.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN!,

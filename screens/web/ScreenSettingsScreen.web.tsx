@@ -515,7 +515,7 @@ export default function ScreenSettingsScreenWeb() {
 					keyboardDismissMode="on-drag"
 					nestedScrollEnabled
 					showsVerticalScrollIndicator={false}
-					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-10`}
+					className={`${webDashboardClassNames.sheet} ${cardBackground} web:relative web:z-sheet`}
 					style={{ marginTop: heroHeight - 64 }}
 					contentContainerStyle={{ paddingBottom: 48 }}
 				>

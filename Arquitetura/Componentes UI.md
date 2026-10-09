@@ -158,6 +158,7 @@ graph LR
 - `components/ui/` — Todos os componentes primitivos
 - `components/uiverse/` — Componentes customizados do domínio
 - `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel compartilhado que se encaixa sob o seletor/campo de banco para apresentar saldos relacionados
+- `components/uiverse/banks/bank-current-balance-attached-panel.tsx` — Composição do painel conectado com leitura do saldo atual e estados de carregamento/erro para o registro mensal Web/mobile
 - `components/uiverse/dashboard/home-expense-chart.tsx` — Sparkline Mantine Web em Expo DOM para as tendências compactas dos cards de resumo da Home
 - `components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx` — Bullet de pagamentos obrigatórios em Expo DOM, com faixa de 0 ao total do ciclo e preenchimento pelo valor efetivamente pago
 - `components/web/navigation/web-app-shell.web.tsx` / `components/mobile/navigation/web-app-shell.native.tsx` — Cascas independentes do layout autenticado por plataforma

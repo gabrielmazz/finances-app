@@ -108,7 +108,7 @@ export default function CategoryAnalysisMonthlyLineChart({
 					gridAxis="y"
 					strokeDasharray="4 4"
 					gridColor={colors.border}
-					textColor={colors.textMuted}
+					styles={{ root: { '--chart-text-color': colors.textMuted } }}
 					valueFormatter={formatCurrency}
 					xAxisProps={{ axisLine: false, tickLine: false, interval: 4, minTickGap: 8 }}
 					yAxisProps={{ axisLine: false, tickLine: false, width: 78 }}

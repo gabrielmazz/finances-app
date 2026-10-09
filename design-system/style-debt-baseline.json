@@ -778,5 +778,11 @@
     "rawHexLiterals": 0,
     "arbitraryTailwindValues": 0,
     "useScreenStyles": 0
+  },
+  "screens/web/ConfigurationsScreen.web.tsx": {
+    "inlineStyleProps": 10,
+    "rawHexLiterals": 6,
+    "arbitraryTailwindValues": 2,
+    "useScreenStyles": 1
   }
 }

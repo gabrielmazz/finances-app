@@ -158,5 +158,13 @@
     "risk": "Sem recalcular a posição ao rolar ou redimensionar, a lista pode se desprender do seletor.",
     "alternative": "Cores, bordas, tipografia e espaçamento continuam em tokens e classes; o estilo inline fica restrito à posição e ao tamanho calculados do portal.",
     "owner": "form-controls"
+  },
+  {
+    "files": ["screens/web/ConfigurationsScreen.web.tsx"],
+    "reason": "A composição Web legada usa altura do hero e sobreposição calculadas pelo viewport, além de cores resolvidas nas APIs de ícone e popover.",
+    "limitation": "O ScrollView exige contentContainerStyle e a geometria dinâmica não pode ser representada por classes estáticas.",
+    "risk": "As cores e classes arbitrárias anteriores ainda precisam de migração visual específica; a linha de base impede aumento dessa dívida.",
+    "alternative": "Novas alterações devem usar tokens semânticos e classes; somente geometria em runtime e APIs sem className preservam style.",
+    "owner": "configurations-web"
   }
 ]

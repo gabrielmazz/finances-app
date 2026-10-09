@@ -24,7 +24,7 @@ graph TD
     CALC --> HOME[Dashboard Home]
 ```
 
-1. `AddRegisterMonthlyBalanceScreen.tsx` registra ou atualiza o **saldo de abertura** de um banco para um mês; o banco é selecionado pelo ActionSheet compartilhado com ícone
+1. `AddRegisterMonthlyBalanceScreen.tsx` registra ou atualiza o **saldo de abertura** de um banco para um mês; o banco é selecionado pelo ActionSheet compartilhado com ícone. Depois da seleção, um painel conectado mostra o saldo atual calculado do banco, independentemente do mês de referência. O campo **Novo saldo disponível** fica vazio ao trocar banco ou mês e recebe somente o novo valor que será registrado; encontrar um snapshot existente altera o modo para atualização sem preencher esse campo.
 2. `MonthlyBalanceFirebase.ts` salva o snapshot no Firestore com: `bankId`, `year`, `month` e `valueInCents`
 3. Após salvar um snapshot novo ou existente, `AddRegisterMonthlyBalanceScreen.tsx` aplica [[Comportamento Pós-Registro]] depois do feedback de sucesso
 4. O [[Dashboard Home]] usa `HomeFirebase.ts` para:
@@ -77,6 +77,7 @@ Filtra movimentos que **não** devem entrar nos totais de ganhos/despesas reais:
 
 - `screens/mobile/AddRegisterMonthlyBalanceScreen.tsx` / `screens/web/AddRegisterMonthlyBalanceScreen.web.tsx` — Formulário de registro de snapshot por plataforma, com labels, popovers e campos alinhados ao padrão Web de despesas
 - `components/uiverse/banks/bank-actionsheet-selector.tsx` — Seletor de banco do snapshot mensal
+- `components/uiverse/banks/bank-current-balance-attached-panel.tsx` — Leitura do saldo atual pela função centralizada de bancos, com estados de carregamento, indisponibilidade e erro com nova tentativa, exibida sob o seletor nas duas plataformas e atualizada ao voltar à tela
 - `functions/MonthlyBalanceFirebase.ts` — CRUD de snapshots no Firestore
 - `utils/monthlyBalance.ts` — `calculateLegacyBankBalanceInCents()`, `shouldIncludeMovementInGainExpenseTotals()` e types
 - `functions/BankFirebase.ts` — leitura centralizada do saldo legado para Home, transferência, saque, investimento e Assistente Lumus
@@ -114,6 +115,7 @@ export type LegacyMonthlyBalanceSnapshot = {
 - No legado, snapshots são a base disponível. No razão, a reconciliação é a referência auditável e o lançamento de ajuste correspondente é imutável.
 - Snapshots legados são migrados com origem legacyMonthStart e aproximação explícita, pois não possuem horário exato.
 - No legado, o snapshot representa sempre o início do mês. Uma reconciliação com data/hora pertence ao razão financeiro pós-corte.
+- O saldo exibido junto ao banco é o saldo atual informativo, calculado pelo leitor centralizado para legado ou razão; ele não substitui o valor de abertura que a pessoa digita para o mês escolhido. Após salvar, o painel recarrega. A preferência de ocultar valores também mascara esse saldo.
 
 - Snapshots são a única fonte de verdade para saldo — sem snapshot, saldo parte de zero (`initialBalanceInCents = null` → `currentBalanceInCents = null`)
 - Ao cadastrar um banco, deve-se registrar o saldo inicial como um `MonthlyBalance`

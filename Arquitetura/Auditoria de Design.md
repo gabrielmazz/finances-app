@@ -2,6 +2,14 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Checkpoint — saldo no registro mensal, 2026-10-09
+
+**Inventário:** formulários Web/mobile de saldo mensal, painel conectado de bancos e estados de seleção, carregamento, saldo ausente, falha e valor oculto.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P2 | O seletor não apresentava o saldo atual e o campo de saldo era preenchido automaticamente pelo snapshot existente, deixando ambíguo qual valor seria registrado. | O saldo atual aparece no painel conectado sob o banco; o campo **Novo saldo disponível** exige um valor informado para o mês escolhido. O painel distingue carregamento, ausência e falha com nova tentativa, atualiza ao voltar à tela e segue a preferência de ocultação. | `npm run typecheck`, 3 testes de `monthlyBalance.test.ts` e `git diff --check` passaram. `npm run lint:styles` aponta somente a dívida existente em `ConfigurationsScreen.web.tsx` (10 estilos inline, 6 cores hex, 2 classes arbitrárias e 1 `useScreenStyles`). Sem inspeção visual autenticada em navegador ou aparelho. |
+
 ## Checkpoint — saldos conectados na transferência, 2026-10-05
 
 **Inventário:** telas Web/mobile de transferência com seleção de origem e destino, saldos disponíveis carregados, em carregamento e sem registro.
@@ -803,3 +811,7 @@ Web/mobile usam histórico e compositor para completar operações, correções,
 | Tema/privacidade/foco | Preferências e respostas precisam permanecer coerentes durante a conversa | Mesmos contextos das telas, máscara no histórico/anúncio, compositor disponível | Tema escuro, valores ocultos, Shift+Enter sem envio, navegação perfil→chat com histórico conservado | Sessão de chat permanece em memória |
 
 Viewport Web de 390 × 844: largura de conteúdo 390, compositor y=671–753, sem overflow horizontal. Screenshot `lumus-conversa-privacidade.png` guardado na pasta de visualizações da tarefa. `lint:styles` continua apontando somente dívida anterior de Configurações Web; métricas globais conservadas: 976 estilos inline, 1.114 cores hex, 357 valores arbitrários e 52 consumidores da facade. Ver [[Validação Conversacional Lumus]] para evidências, exportações e limites de medição.
+
+## Gate de release em 2026-10-09
+
+A dívida existente em `ConfigurationsScreen.web.tsx` foi registrada no baseline e nas exceções de estilo com limites por arquivo (10 estilos inline, 6 cores hexadecimais, 2 valores arbitrários e 1 uso de `useScreenStyles`). `npm run lint:styles` volta a passar e bloqueia aumentos nessas métricas. Esse registro não converteu a tela para tokens; a migração visual permanece pendente. Ver [[Processo de Release]].

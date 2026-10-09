@@ -24,6 +24,7 @@ import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankCurrentBalanceAttachedPanel from '@/components/uiverse/banks/bank-current-balance-attached-panel';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import { getAllBanksFirebase } from '@/functions/BankFirebase';
@@ -42,6 +43,7 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
+import { cn } from '@/lib/utils';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -120,6 +122,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 	const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
+	const [balanceRefreshKey, refreshBankBalance] = React.useReducer(value => value + 1, 0);
+	const lookupRequestRef = React.useRef(0);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const submitLockRef = React.useRef(false);
 
@@ -317,20 +321,23 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	);
 
 	const fetchExistingBalance = React.useCallback(
-		async (options?: { targetBankId?: string | null; targetMonthReference?: string }) => {
-			const bankIdToUse = options?.targetBankId ?? selectedBankId;
+		async () => {
+			const requestId = ++lookupRequestRef.current;
+			const bankIdToUse = selectedBankId;
 
 			if (!bankIdToUse) {
 				setExistingBalanceId(null);
+				setIsLoadingExisting(false);
 				lastLookupNotificationKeyRef.current = null;
 				return;
 			}
 
-			const monthReferenceToUse = options?.targetMonthReference ?? monthReference;
+			const monthReferenceToUse = monthReference;
 			const parsedMonth = parseMonthReference(monthReferenceToUse);
 
 			if (!parsedMonth) {
 				setExistingBalanceId(null);
+				setIsLoadingExisting(false);
 				lastLookupNotificationKeyRef.current = null;
 				return;
 			}
@@ -356,13 +363,10 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					year: parsedMonth.year,
 					month: parsedMonth.month,
 				});
+				if (requestId !== lookupRequestRef.current) return;
 
 				if (response.success && response.data) {
-					const value =
-						typeof response.data.valueInCents === 'number' ? response.data.valueInCents : 0;
 					setExistingBalanceId(response.data.id);
-					setBalanceDisplay(formatCurrencyBRL(value));
-					setBalanceValueInCents(value);
 					const notificationKey = `${bankIdToUse}:${monthReferenceToUse}:registered`;
 
 					if (lastLookupNotificationKeyRef.current !== notificationKey) {
@@ -371,8 +375,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					}
 				} else {
 					setExistingBalanceId(null);
-					setBalanceDisplay('');
-					setBalanceValueInCents(null);
 					const notificationKey = `${bankIdToUse}:${monthReferenceToUse}:missing`;
 
 					if (lastLookupNotificationKeyRef.current !== notificationKey) {
@@ -381,6 +383,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					}
 				}
 			} catch (error) {
+				if (requestId !== lookupRequestRef.current) return;
 				console.error('Erro ao obter saldo mensal:', error);
 				showNotifierAlert({
 					title: 'Erro ao buscar saldo',
@@ -390,7 +393,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 					isDarkMode,
 				});
 			} finally {
-				setIsLoadingExisting(false);
+				if (requestId === lookupRequestRef.current) setIsLoadingExisting(false);
 			}
 		},
 		[
@@ -407,14 +410,13 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			const sanitized = sanitizeMonthInput(value);
 			const formatted = formatMonthInput(sanitized);
 			setMonthReference(formatted);
-
-			if (parseMonthReference(formatted)) {
-				void fetchExistingBalance({ targetMonthReference: formatted });
-			} else {
-				setExistingBalanceId(null);
-			}
+			lookupRequestRef.current += 1;
+			setIsLoadingExisting(false);
+			setBalanceDisplay('');
+			setBalanceValueInCents(null);
+			setExistingBalanceId(null);
 		},
-		[fetchExistingBalance],
+		[],
 	);
 
 	React.useEffect(() => {
@@ -422,7 +424,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 	}, [fetchExistingBalance]);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitting || isLoadingExisting) {
 			return;
 		}
 
@@ -490,6 +492,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 			}
 
 			setExistingBalanceId(response.id);
+			refreshBankBalance();
 			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
 			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
 			applyPostSubmitBehavior({
@@ -513,6 +516,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		balanceValueInCents,
 		existingBalanceId,
 		isDarkMode,
+		isLoadingExisting,
 		isSubmitting,
 		monthReference,
 		selectedBankId,
@@ -536,6 +540,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		!monthReference ||
 		!hasValidMonthReference ||
 		balanceValueInCents === null ||
+		isLoadingExisting ||
 		isSubmitting;
 	const balanceStatusClassName = isLoadingExisting
 		? helperText
@@ -614,7 +619,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 														{...triggerProps}
 														hitSlop={8}
 														accessibilityRole="button"
-														accessibilityLabel="Informações sobre a observação da despesa"
+												accessibilityLabel="Informações sobre o banco do saldo mensal"
 													>
 														<Info
 															size={14}
@@ -641,12 +646,20 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											selectedId={selectedBankId}
 											selectedLabel={selectedBankLabel}
 											selectedOption={selectedBankOption}
-											onSelect={(bank: BankActionsheetOption) => setSelectedBankId(bank.id)}
+											onSelect={(bank: BankActionsheetOption) => {
+												if (bank.id === selectedBankId) return;
+												lookupRequestRef.current += 1;
+												setSelectedBankId(bank.id);
+												setIsLoadingExisting(false);
+												setBalanceDisplay('');
+												setBalanceValueInCents(null);
+												setExistingBalanceId(null);
+											}}
 											isDisabled={isLoadingBanks || banks.length === 0}
 											isDarkMode={isDarkMode}
 											bodyTextClassName={bodyText}
 											helperTextClassName={helperText}
-											triggerClassName={fieldBankContainerClassName}
+											triggerClassName={cn(fieldBankContainerClassName, 'relative z-10')}
 											placeholder="Selecione o banco vinculado"
 											sheetTitle="Escolha o banco do saldo mensal"
 											emptyMessage="Nenhum banco disponível."
@@ -658,6 +671,12 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											}
 											accessibilityLabel="Selecionar banco do saldo mensal"
 										/>
+										{selectedBankId && (
+											<BankCurrentBalanceAttachedPanel
+												key={`${selectedBankId}:${balanceRefreshKey}`}
+												bankId={selectedBankId}
+											/>
+										)}
 									</VStack>
 
 									<VStack className="mb-4">
@@ -675,7 +694,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 														{...triggerProps}
 														hitSlop={8}
 														accessibilityRole="button"
-														accessibilityLabel="Informações sobre a observação da despesa"
+												accessibilityLabel="Informações sobre o mês de referência"
 													>
 														<Info
 															size={14}
@@ -700,6 +719,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											<InputField
 												ref={monthReferenceInputRef as any}
 												placeholder="MM/AAAA"
+												accessibilityLabel="Mês de referência, formato MM/AAAA"
 												value={monthReference}
 												onChangeText={handleMonthChange}
 												keyboardType="numeric"
@@ -715,7 +735,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 									<VStack className="mb-4">
 										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-											Saldo disponível
+											Novo saldo disponível
 										</Text>
 										<Input
 											className={fieldContainerClassName}
@@ -723,7 +743,8 @@ export default function AddRegisterMonthlyBalanceScreen() {
 										>
 											<InputField
 												ref={balanceInputRef as any}
-												placeholder="Digite o saldo disponível"
+												placeholder="Digite o novo saldo disponível"
+												accessibilityLabel="Novo saldo disponível para o mês de referência"
 												value={balanceInputValue}
 												onChangeText={handleBalanceChange}
 												keyboardType="numeric"

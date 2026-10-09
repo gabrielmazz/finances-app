@@ -25,9 +25,14 @@ import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerp
 import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
 import { createAssistantAuthorizationSession } from '@/services/lumusAssistant/assistantAuthorization';
 
-const enabled = process.env.FIRESTORE_EMULATOR_HOST === '127.0.0.1:8080' && process.env.FIREBASE_AUTH_EMULATOR_HOST === '127.0.0.1:9099';
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? '';
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '';
+const functionsEmulatorHost = process.env.FIREBASE_FUNCTIONS_EMULATOR_HOST ?? '';
+const enabled = [firestoreEmulatorHost, authEmulatorHost, functionsEmulatorHost].every(host => /^127\.0\.0\.1:\d+$/.test(host));
 const suite = enabled ? describe : describe.skip;
-const projectId = 'demo-lumus-financas';
+const projectId = process.env.FIREBASE_PROJECT_ID ?? 'demo-lumus-financas';
+const [firestoreHost, firestorePort] = firestoreEmulatorHost.split(':');
+const [functionsHost, functionsPort] = functionsEmulatorHost.split(':');
 const runId = Date.now().toString(36);
 let actor: string;
 let app: ReturnType<typeof initializeApp>;
@@ -98,11 +103,11 @@ const legacyCases: Array<[AssistantActionKind, Record<string, unknown>, string, 
 suite('Legacy finance executor with real Emulator persistence', () => {
 	beforeAll(async () => {
 		app = initializeApp({ apiKey: 'test-only-key', projectId }, 'assistant-legacy-' + runId);
-		mockAuth = getAuth(app); connectAuthEmulator(mockAuth, 'http://127.0.0.1:9099', { disableWarnings: true });
+		mockAuth = getAuth(app); connectAuthEmulator(mockAuth, `http://${authEmulatorHost}`, { disableWarnings: true });
 		actor = (await signInAnonymously(mockAuth)).user.uid;
-		connectFunctionsEmulator(getFunctions(app, 'southamerica-east1'), '127.0.0.1', 5001);
-		mockDb = getFirestore(app); connectFirestoreEmulator(mockDb, '127.0.0.1', 8080);
-		const response = await fetch(`http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents/users/${actor}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { relatedIdUsers: { arrayValue: { values: [] } } } }) });
+		connectFunctionsEmulator(getFunctions(app, 'southamerica-east1'), functionsHost, Number(functionsPort));
+		mockDb = getFirestore(app); connectFirestoreEmulator(mockDb, firestoreHost, Number(firestorePort));
+		const response = await fetch(`http://${firestoreEmulatorHost}/v1/projects/${projectId}/databases/(default)/documents/users/${actor}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { relatedIdUsers: { arrayValue: { values: [] } } } }) });
 		if (!response.ok) throw new Error('Could not seed the synthetic Emulator user.');
 	});
 	afterAll(async () => { await deleteApp(app); });

@@ -1458,6 +1458,10 @@ export const migrateFinancialGroup = onCall(async (request) => {
     };
   }
   if (mode !== 'execute') throw new HttpsError('invalid-argument', 'mode must be dry-run or execute.');
+  // [[Gerenciamento de Bancos]]: o corte só pode ocorrer após resolver todas as pendências do dry-run.
+  if (plan.issues.length > 0) {
+    throw new HttpsError('failed-precondition', 'Resolve all migration issues before enabling the financial group.');
+  }
   if (requiredString(data.approvedFingerprint, 'approvedFingerprint') !== fingerprint) {
     throw new HttpsError('failed-precondition', 'The approved dry-run fingerprint no longer matches live legacy data.');
   }

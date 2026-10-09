@@ -11,6 +11,12 @@ const productionEnvironment = {
 	EXPO_PUBLIC_FIREBASE_PROJECT_ID: 'finances-app-e8685', EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: 'bucket',
 	EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: 'sender', EXPO_PUBLIC_FIREBASE_APP_ID: 'app',
 };
+const previewEnvironment = {
+	...productionEnvironment,
+	EXPO_PUBLIC_APP_ENV: 'preview',
+	EXPO_PUBLIC_FIREBASE_TARGET: 'preview',
+	EXPO_PUBLIC_FIREBASE_PROJECT_ID: 'lumus-preview-test',
+};
 
 describe('Firebase runtime isolation', () => {
 	it('accepts development only with the demo emulator', () => {
@@ -20,9 +26,11 @@ describe('Firebase runtime isolation', () => {
 	it('rejects a production target in development', () => {
 		expect(() => resolveFirebaseRuntimeConfig({ ...productionEnvironment, EXPO_PUBLIC_APP_ENV: 'development' })).toThrow('Development');
 	});
-	it('uses production in preview and in a local release with complete credentials', () => {
-		expect(resolveFirebaseRuntimeConfig({ ...productionEnvironment, EXPO_PUBLIC_APP_ENV: 'preview' }).projectId).toBe(PRODUCTION_FIREBASE_PROJECT_ID);
+	it('isolates preview from production and keeps local releases on the production project', () => {
+		expect(resolveFirebaseRuntimeConfig(previewEnvironment).projectId).toBe('lumus-preview-test');
 		expect(resolveFirebaseRuntimeConfig({ ...productionEnvironment, EXPO_PUBLIC_FIREBASE_TARGET: undefined }).projectId).toBe(PRODUCTION_FIREBASE_PROJECT_ID);
+		expect(() => resolveFirebaseRuntimeConfig({ ...productionEnvironment, EXPO_PUBLIC_APP_ENV: 'preview' })).toThrow('Production Firebase target');
+		expect(() => resolveFirebaseRuntimeConfig({ ...previewEnvironment, EXPO_PUBLIC_FIREBASE_PROJECT_ID: PRODUCTION_FIREBASE_PROJECT_ID })).toThrow('Preview Firebase target');
 	});
 	it('rejects emulator in preview/production and missing production credentials', () => {
 		expect(() => resolveFirebaseRuntimeConfig({ EXPO_PUBLIC_APP_ENV: 'preview', EXPO_PUBLIC_FIREBASE_TARGET: 'emulator' })).toThrow('Preview');

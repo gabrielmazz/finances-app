@@ -59,6 +59,7 @@ Esses componentes não recebem acesso a Firebase. Quando usados por uma tela, re
 - `components/mobile/` — Implementações Android/iOS dos componentes com divergência de plataforma
 - `components/shared/banks/bank-card-surface.tsx` — Superfície bancária única para Web e Android/iOS
 - `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel compartilhado para integrar saldo abaixo do seletor de banco
+- `components/uiverse/banks/bank-current-balance-attached-panel.tsx` — Painel de saldo atual ligado ao seletor no registro mensal Web/mobile
 - `design-system/` — Fundação Tailwind, adaptadores e guardrails de estilo
 - `Arquitetura/Componentes UI.md` — Design system e contratos dos componentes
 - `Arquitetura/Organização do Código.md` — Fronteiras entre rotas, telas e componentes
