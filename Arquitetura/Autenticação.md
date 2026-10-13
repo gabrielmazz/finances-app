@@ -8,6 +8,8 @@ versao: 1.4.0
 
 # Autenticação
 
+> Segurança e privacidade (2026-10-11): o logout explícito remove o token push e limpa cache financeiro e anotações antes de encerrar a sessão. A exclusão direta somente de `users/{uid}` foi retirada; `requestAccountDeletion` registra uma solicitação pendente de política de retenção e **não** conclui a exclusão da conta. Ver [[Remediação da Auditoria de Segurança]].
+
 Gerencia o estado de autenticação do usuário via Firebase Auth, expondo o contexto para toda a aplicação e controlando o redirecionamento de rotas com base no estado de login.
 
 ## Como funciona

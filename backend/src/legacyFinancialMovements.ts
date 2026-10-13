@@ -1,11 +1,13 @@
+import { secureOnCall } from './secureCallable';
 import { createHash } from 'node:crypto';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { calculateLegacyBankBalanceInCents } from '../../utils/monthlyBalance';
 import { createAssistantRecordFingerprint } from '../../utils/assistantRecordFingerprint';
 import { assertClientActionId } from '../../utils/financialLedger';
 import { endOfFinancialCivilDay } from '../../utils/financialCivilDate';
 import { getInvestmentAssetType, getInvestmentValuationMethod } from '../../utils/investmentPortfolio';
+import { enforceCallableRateLimit } from './callableRateLimit';
 
 type RecordData = Record<string, any>;
 const actions = ['create_transfer', 'create_cash_withdrawal', 'create_investment', 'deposit_investment', 'redeem_investment', 'update_investment', 'undo_investment_redemption', 'undo_investment_deposit'] as const;
@@ -27,9 +29,10 @@ const canonical = (value: unknown): unknown => {
 };
 
 // [[Comandos Financeiros Conversacionais]]: query completa e trava do banco no mesmo commit.
-export const executeLegacyFinancialMovement = onCall({ region: 'southamerica-east1' }, async request => {
+export const executeLegacyFinancialMovement = secureOnCall( async request => {
   const personId = request.auth?.uid;
   if (!personId) throw new HttpsError('unauthenticated', 'Entre na sua conta.');
+  await enforceCallableRateLimit(personId, 'execute-legacy-financial-movement', 120);
   const data = request.data as RecordData;
   if (!data || data.expectedActorId !== personId) throw new HttpsError('unauthenticated', 'A sessão mudou.');
   if (!actions.includes(data.kind)) throw new HttpsError('invalid-argument', 'Invalid legacy movement action.');
@@ -46,7 +49,20 @@ export const executeLegacyFinancialMovement = onCall({ region: 'southamerica-eas
   return db.runTransaction(async transaction => {
     const user = await transaction.get(db.doc('users/' + personId));
     if (!user.exists || user.data()?.financialGroupId || user.data()?.financialLegacyCutoverAt) throw new HttpsError('permission-denied', 'Use the ledger after financial cutover.');
-    const allowedIds = new Set<string>([personId, ...(Array.isArray(user.data()?.relatedIdUsers) ? user.data()!.relatedIdUsers.filter((value: unknown) => typeof value === 'string') : [])]);
+    const relatedIds: string[] = Array.isArray(user.data()?.relatedIdUsers)
+      ? user.data()!.relatedIdUsers.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0 && !value.includes('/'))
+      : [];
+    const acceptedIds = await Promise.all(relatedIds.map(async relatedId => {
+      const [ownerGrant, relatedGrant, relatedProfile] = await Promise.all([
+        transaction.get(db.doc(`userRelationshipGrants/${personId}/related/${relatedId}`)),
+        transaction.get(db.doc(`userRelationshipGrants/${relatedId}/related/${personId}`)),
+        transaction.get(db.doc(`users/${relatedId}`)),
+      ]);
+      return ownerGrant.exists && relatedGrant.exists
+        && Array.isArray(relatedProfile.data()?.relatedIdUsers)
+        && relatedProfile.data()!.relatedIdUsers.includes(personId) ? relatedId : null;
+    }));
+    const allowedIds = new Set<string>([personId, ...acceptedIds.filter((id): id is string => id !== null)]);
     const receiptRef = db.doc('assistantOperationReceipts/' + receiptId(personId, clientActionId));
     const receipt = await transaction.get(receiptRef);
     if (receipt.exists) {

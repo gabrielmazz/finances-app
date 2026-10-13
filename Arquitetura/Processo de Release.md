@@ -8,6 +8,10 @@ versao: 2.3.1
 
 # Processo de Release
 
+> Gate de segurança 2026-10-11: a implementação local da [[Remediação da Auditoria de Segurança]] exige backup de dados e Rules, revisão do diff, Emulator Suite e validação em homologação com contas sintéticas antes de publicar. Functions e Rules do novo protocolo de convite e consentimento devem estar ativos antes de distribuir clientes novos. Remover Analytics requer novo build nativo; export Web isolado não comprova a remoção no APK/AAB.
+
+O gate automatizado inclui `npm --prefix backend run test:app-check:emulator` e audit dos dois lockfiles com `--audit-level=high`: alertas altos/críticos ou falha da verificação bloqueiam deploy/build; não há exceção automática. `verify-offline` omite os emuladores, mas conserva o audit e não publica. Primeiro publicar clientes de homologação capazes de obter atestados reais, validar chamadas autorizadas e rejeições, então ligar `LUMUS_ENFORCE_APP_CHECK=true` nas Functions desse projeto. Não ativar enforcement de Auth/Firestore por inferência: cada produto exige seu teste real. [[Validação de Segurança de Ponta a Ponta]] reúne as evidências e dependências pendentes; o preview antigo apontava para produção e não satisfaz este gate.
+
 `script/release.js` é o gate único de exportação e publicação. Ele confere a versão em `app.json`, `package.json`, `package-lock.json` e nas duas telas de login; confere o alvo Firebase, o pacote Android e a política de versionCode remoto do EAS; executa `npm run check`, build do backend, testes de integração nos emuladores e exports Android/Web. As ações de publicação exigem uma árvore Git limpa. `npm run release:check:offline` executa as verificações sem emuladores quando só há acesso local, mas não libera uma publicação.
 
 ## Ambientes

@@ -1,3 +1,4 @@
+import { secureOnCall } from './secureCallable';
 import { findTagIconByLabel } from '../../utils/tagIconCatalog';
 import { createHash } from 'node:crypto';
 
@@ -12,7 +13,7 @@ import {
 } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
   assertCashBalanceWillRemainNonNegative,
@@ -36,14 +37,19 @@ import { fromFinancialCivilDate, toFinancialCivilDate } from '../../utils/financ
 import type { FinanceMonthlySummaryV1 } from '../../utils/financeReadModels';
 import { createAssistantRecordFingerprint } from '../../utils/assistantRecordFingerprint';
 import { getMandatoryInstallmentValueInCents, normalizeMandatoryInstallmentTotal, resolveMandatoryInstallmentsCompleted } from '../../utils/mandatoryInstallments';
+import { enforceCallableRateLimit } from './callableRateLimit';
 
 if (getApps().length === 0) initializeApp();
 
 const db = getFirestore();
 export { bankBalanceAdjustment } from './bankBalanceAdjustments';
 export { executeLegacyFinancialMovement } from './legacyFinancialMovements';
+export { financialMigrationConsent } from './financialMigrationConsent';
+export { requestAccountDeletion } from './accountDeletionRequests';
 const REGION = 'southamerica-east1';
 const MAX_MIGRATION_WRITES_PER_CALL = 400;
+const MAX_MIGRATION_MEMBERS = 5;
+const MAX_MIGRATION_DOCUMENTS_PER_COLLECTION = 2000;
 
 setGlobalOptions({ region: REGION, maxInstances: 20 });
 
@@ -68,6 +74,7 @@ type ExpoPushTicket = {
 
 const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send';
 const EXPO_PUSH_MESSAGE_LIMIT = 100;
+const PUSH_DEVICE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type FinancialAccountDocument = {
   groupId: string;
@@ -143,17 +150,30 @@ function isExpoPushToken(value: unknown): value is string {
 
 async function linkedRecipientIds(ownerId: string): Promise<string[]> {
   const owner = await db.doc('users/' + ownerId).get();
-  const related = Array.isArray(owner.data()?.relatedIdUsers)
+  const related: string[] = Array.isArray(owner.data()?.relatedIdUsers)
     ? owner.data()!.relatedIdUsers.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
     : [];
-  return Array.from(new Set([ownerId, ...related]));
+  const accepted = await Promise.all(related.map(async relatedId => {
+    const [ownerGrant, recipientGrant, recipientProfile] = await db.getAll(
+      db.doc(`userRelationshipGrants/${ownerId}/related/${relatedId}`),
+      db.doc(`userRelationshipGrants/${relatedId}/related/${ownerId}`),
+      db.doc(`users/${relatedId}`),
+    );
+    return ownerGrant.exists && recipientGrant.exists
+      && Array.isArray(recipientProfile.data()?.relatedIdUsers)
+      && recipientProfile.data()!.relatedIdUsers.includes(ownerId) ? relatedId : null;
+  }));
+  return Array.from(new Set([ownerId, ...accepted.filter((id): id is string => id !== null)]));
 }
 
 async function remoteDevicesForRecipients(recipientIds: string[]) {
   const snapshots = await Promise.all(recipientIds.map(userId => db.collection('users').doc(userId).collection('pushDevices').get()));
   return snapshots.flatMap(snapshot => snapshot.docs.flatMap(device => {
     const token = device.data().expoPushToken;
-    return isExpoPushToken(token) ? [{ token, reference: device.ref }] : [];
+    const updatedAt = device.data().updatedAt;
+    return isExpoPushToken(token) && updatedAt instanceof Timestamp
+      && updatedAt.toMillis() > Date.now() - PUSH_DEVICE_MAX_AGE_MS
+      ? [{ token, reference: device.ref }] : [];
   }));
 }
 
@@ -204,12 +224,12 @@ async function sendRemoteNotification({
   return { recipientCount: recipientIds.length, deviceCount: uniqueDevices.length, acceptedCount };
 }
 
-function mandatoryNotificationCopy(kind: MandatoryNotificationKind, operation: 'created' | 'updated' | 'deleted', name: string) {
+function mandatoryNotificationCopy(kind: MandatoryNotificationKind, operation: 'created' | 'updated' | 'deleted') {
   const subject = kind === 'expense' ? 'Gasto obrigatório' : 'Ganho obrigatório';
   const action = operation === 'created' ? 'adicionado' : operation === 'deleted' ? 'removido' : 'atualizado';
   return {
     title: `${subject} ${action}`,
-    body: `${name} foi ${action} em uma conta vinculada.`,
+    body: `Uma recorrência foi ${action} em uma conta vinculada.`,
   };
 }
 
@@ -224,10 +244,7 @@ async function notifyMandatoryDocumentChange(kind: MandatoryNotificationKind, ev
   const ownerId = typeof source.personId === 'string' ? source.personId : null;
   if (!ownerId) return;
   const operation = !before.exists ? 'created' : !after.exists ? 'deleted' : 'updated';
-  const name = typeof source.name === 'string' && source.name.trim().length > 0
-    ? source.name.trim()
-    : kind === 'expense' ? 'Gasto sem nome' : 'Ganho sem nome';
-  const copy = mandatoryNotificationCopy(kind, operation, name);
+  const copy = mandatoryNotificationCopy(kind, operation);
 
   try {
     await sendRemoteNotification({
@@ -619,8 +636,9 @@ function ledgerTransactionFromTransfer(data: JsonRecord, actorId: string): Ledge
   };
 }
 
-export const postMovement = onCall(async (request) => {
+export const postMovement = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'post-movement', 120);
   const data = asRecord(request.data);
   return db.runTransaction(async (transaction) => persistLedgerTransaction(
     transaction,
@@ -628,8 +646,9 @@ export const postMovement = onCall(async (request) => {
   ));
 });
 
-export const transferFunds = onCall(async (request) => {
+export const transferFunds = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'transfer-funds', 120);
   const data = asRecord(request.data);
   return db.runTransaction(async (transaction) => persistLedgerTransaction(
     transaction,
@@ -637,8 +656,9 @@ export const transferFunds = onCall(async (request) => {
   ));
 });
 
-export const correctMovement = onCall(async (request) => {
+export const correctMovement = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'correct-movement', 120);
   const data = asRecord(request.data);
   const groupId = requiredString(data.groupId, 'groupId');
   const originalTransactionId = requiredString(data.originalTransactionId, 'originalTransactionId');
@@ -687,8 +707,9 @@ export const notifyMandatoryGainChange = onDocumentWritten(
   event => notifyMandatoryDocumentChange('gain', event),
 );
 
-export const reverseTransaction = onCall(async (request) => {
+export const reverseTransaction = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'reverse-transaction', 120);
   const data = asRecord(request.data);
   const groupId = requiredString(data.groupId, 'groupId');
   const originalTransactionId = requiredString(data.transactionId, 'transactionId');
@@ -740,8 +761,9 @@ export const reverseTransaction = onCall(async (request) => {
   });
 });
 
-export const reconcileAccount = onCall(async (request) => {
+export const reconcileAccount = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'reconcile-account', 120);
   const data = asRecord(request.data);
   const groupId = requiredString(data.groupId, 'groupId');
   const accountId = requiredString(data.accountId, 'accountId');
@@ -879,8 +901,9 @@ function validatedMetadata(domain: string, raw: JsonRecord, current: JsonRecord 
   return output;
 }
 
-export const manageFinancialMetadata = onCall(async (request) => {
+export const manageFinancialMetadata = secureOnCall(async (request) => {
   const actorId = callableUserId(request); const data = asRecord(request.data);
+  await enforceCallableRateLimit(actorId, 'manage-financial-metadata', 120);
   const groupId = optionalString(data.groupId, 'groupId'); const domain = requiredString(data.domain, 'domain');
   const collectionName = metadataCollections[domain]; if (!collectionName) throw new HttpsError('invalid-argument', 'Unknown metadata domain.');
   const action = requiredString(data.action, 'action'); if (!['create', 'update', 'delete', 'upsert'].includes(action)) throw new HttpsError('invalid-argument', 'Unknown metadata action.');
@@ -931,8 +954,9 @@ export const manageFinancialMetadata = onCall(async (request) => {
   });
 });
 
-export const completeFinancialRecurring = onCall(async request => {
+export const completeFinancialRecurring = secureOnCall(async request => {
   const actorId = callableUserId(request); const data = asRecord(request.data);
+  await enforceCallableRateLimit(actorId, 'complete-financial-recurring', 120);
   const groupId = requiredString(data.groupId, 'groupId'); const templateId = requiredString(data.templateId, 'templateId');
   const recurringType = requiredString(data.recurringType, 'recurringType');
   if (!['expense', 'gain'].includes(recurringType)) throw new HttpsError('invalid-argument', 'Unknown recurring type.');
@@ -1003,8 +1027,9 @@ function validatedAccountMetadata(raw: unknown, kind: string): JsonRecord {
   return fields;
 }
 
-export const manageAccount = onCall(async (request) => {
+export const manageAccount = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'manage-account', 120);
   const data = asRecord(request.data);
   const groupId = requiredString(data.groupId, 'groupId');
   const action = requiredString(data.action, 'action');
@@ -1225,13 +1250,17 @@ async function legacyDocumentsForMembers(collectionName: string, memberIds: stri
   const documents: Array<{ id: string; data: DocumentData }> = [];
   for (let index = 0; index < memberIds.length; index += 10) {
     const personIds = memberIds.slice(index, index + 10);
-    const snapshot = await db.collection(collectionName).where('personId', 'in', personIds).get();
+    const snapshot = await db.collection(collectionName).where('personId', 'in', personIds)
+      .limit(MAX_MIGRATION_DOCUMENTS_PER_COLLECTION + 1).get();
+    if (snapshot.size > MAX_MIGRATION_DOCUMENTS_PER_COLLECTION) {
+      throw new HttpsError('resource-exhausted', 'This migration exceeds the per-collection safety limit. Use a reviewed offline migration.');
+    }
     snapshot.docs.forEach((document) => documents.push({ id: document.id, data: document.data() }));
   }
   return documents;
 }
 
-async function loadLegacyMigrationInput(groupId: string, memberIds: string[], confirmedCashBalanceInCents?: number | null): Promise<LegacyMigrationInput> {
+async function loadLegacyMigrationInput(groupId: string, memberIds: string[], confirmedCashBalanceInCents?: number | null, confirmedAt?: Date): Promise<LegacyMigrationInput> {
   const [banks, expenses, gains, bankTransfers, cashRescues, investments, monthlyBalances, balanceAdjustments] = await Promise.all([
     legacyDocumentsForMembers('banks', memberIds),
     legacyDocumentsForMembers('expenses', memberIds),
@@ -1327,19 +1356,21 @@ async function loadLegacyMigrationInput(groupId: string, memberIds: string[], co
       effectiveAt: readLegacyDate(data), note: stringOrNull(data.description),
     })),
     confirmedCashBalanceInCents,
+    confirmedAt,
     preflightIssues,
   };
 }
 
-function migrationFingerprint(plan: ReturnType<typeof createLegacyMigrationPlan>): string {
-  const documentIds = plan.transactions
-    .flatMap((transaction) => transaction.sourceReferences ?? [])
-    .concat(plan.reconciliations.flatMap((reconciliation) => [{ collection: 'accountReconciliations', id: reconciliation.id }]))
-    .sort((left, right) => (left.collection + left.id).localeCompare(right.collection + right.id));
+function migrationFingerprint(plan: ReturnType<typeof createLegacyMigrationPlan>, memberIds: string[]): string {
+  const byId = <T extends { id: string }>(items: T[]) => [...items].sort((left, right) => left.id.localeCompare(right.id));
+  // A confirmação inclui valores, datas, metadados e membros, não apenas IDs.
   return createHash('sha256').update(JSON.stringify({
-    documentIds,
-    issues: plan.issues,
-    accounts: plan.accounts.map((account) => account.id).sort(),
+    memberIds: [...memberIds].sort(),
+    accounts: byId(plan.accounts),
+    transactions: byId(plan.transactions),
+    reconciliations: byId(plan.reconciliations),
+    issues: [...plan.issues].sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    sourceDocumentCount: plan.sourceDocumentCount,
   })).digest('hex');
 }
 
@@ -1387,8 +1418,9 @@ function migrationItems(plan: ReturnType<typeof createLegacyMigrationPlan>, grou
  * Backfills one cursor page at a time. Group is always derived from the caller's
  * user document; callers cannot rebuild another account's data.
  */
-export const rebuildFinancialReadModels = onCall(async (request) => {
+export const rebuildFinancialReadModels = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
+  await enforceCallableRateLimit(actorId, 'rebuild-financial-read-models', 10);
   const data = asRecord(request.data ?? {});
   const dryRun = data.dryRun === true;
   const pageSize = Math.min(200, Math.max(1, typeof data.pageSize === 'number' ? Math.trunc(data.pageSize) : 100));
@@ -1419,7 +1451,26 @@ export const rebuildFinancialReadModels = onCall(async (request) => {
   };
 });
 
-export const migrateFinancialGroup = onCall(async (request) => {
+async function assertMigrationMembersAuthorized(actorId: string, groupId: string, memberIds: string[]) {
+  const refs = memberIds.map(memberId => db.doc(`users/${memberId}`));
+  const profiles = await db.getAll(...refs);
+  const cutovers = await db.getAll(...memberIds.map(memberId => db.doc(`financialCutovers/${memberId}`)));
+  const consentRefs = memberIds.filter(memberId => memberId !== actorId)
+    .map(memberId => db.doc(`financialMigrationConsents/${groupId}/members/${memberId}`));
+  const consents = consentRefs.length ? await db.getAll(...consentRefs) : [];
+  if (profiles.some(profile => !profile.exists || profile.data()?.financialGroupId || profile.data()?.financialLegacyCutoverAt)
+    || cutovers.some(cutover => cutover.exists)) {
+    throw new HttpsError('failed-precondition', 'A selected member is unavailable for migration.');
+  }
+  if (consents.some(consent => consent.data()?.actorId !== actorId
+    || consent.data()?.groupId !== groupId
+    || !(consent.data()?.expiresAt instanceof Timestamp)
+    || consent.data()!.expiresAt.toMillis() <= Date.now())) {
+    throw new HttpsError('permission-denied', 'Every selected member must approve this migration.');
+  }
+}
+
+export const migrateFinancialGroup = secureOnCall(async (request) => {
   const actorId = callableUserId(request);
   const data = asRecord(request.data);
   const mode = requiredString(data.mode, 'mode');
@@ -1433,17 +1484,47 @@ export const migrateFinancialGroup = onCall(async (request) => {
     ? data.memberIds.map((memberId) => requiredString(memberId, 'memberIds[]'))
     : [];
   const memberIds = Array.from(new Set([actorId, ...selectedMembers]));
-  if (memberIds.length === 0) throw new HttpsError('invalid-argument', 'At least one group member is required.');
+  if (selectedMembers.length > MAX_MIGRATION_MEMBERS || memberIds.length > MAX_MIGRATION_MEMBERS
+    || memberIds.some(memberId => memberId.includes('/') || memberId.length > 128)) {
+    throw new HttpsError('invalid-argument', 'Select at most five valid members.');
+  }
   const groupId = 'group-' + actorId + '-' + clientActionId;
+  if (mode !== 'dry-run' && mode !== 'execute') throw new HttpsError('invalid-argument', 'mode must be dry-run or execute.');
+  await enforceCallableRateLimit(actorId, `migration-${mode}`, mode === 'dry-run' ? 5 : 10);
   const confirmedCashBalanceInCents = data.confirmedCashBalanceInCents === undefined
     ? undefined
     : requiredCents(data.confirmedCashBalanceInCents, 'confirmedCashBalanceInCents');
+  const confirmedAt = confirmedCashBalanceInCents === undefined ? undefined : timestampToDate(data.confirmedAt);
+  if (confirmedAt && (typeof data.confirmedAt !== 'string' || !Number.isFinite(confirmedAt.valueOf()))) {
+    throw new HttpsError('invalid-argument', 'confirmedAt is required for a cash balance confirmation.');
+  }
+  const groupRef = db.doc('financialGroups/' + groupId);
+  const runRef = groupRef.collection('migrationRuns').doc(clientActionId);
+  if (mode === 'execute') {
+    const completedRun = await runRef.get();
+    if (completedRun.data()?.status === 'completed') {
+      const run = completedRun.data()!;
+      const group = await groupRef.get();
+      if (run.actorId !== actorId || run.fingerprint !== data.approvedFingerprint
+        || JSON.stringify(run.memberIds) !== JSON.stringify([...memberIds].sort())
+        || run.confirmedCashBalanceInCents !== (confirmedCashBalanceInCents ?? null)
+        || run.confirmedAtMillis !== (confirmedAt?.valueOf() ?? null)
+        || group.data()?.status !== 'active' || group.data()?.createdBy !== actorId
+        || group.data()?.members?.[actorId] !== 'admin') {
+        throw new HttpsError('failed-precondition', 'The completed migration request changed.');
+      }
+      return { groupId, fingerprint: run.fingerprint, cursor: run.cursor, totalItems: run.totalItems, complete: true, issueCount: 0 };
+    }
+  }
+  await assertMigrationMembersAuthorized(actorId, groupId, memberIds);
   const plan = createLegacyMigrationPlan(await loadLegacyMigrationInput(
     groupId,
     memberIds,
     confirmedCashBalanceInCents,
+    confirmedAt,
   ));
-  const fingerprint = migrationFingerprint(plan);
+  await assertMigrationMembersAuthorized(actorId, groupId, memberIds);
+  const fingerprint = migrationFingerprint(plan, memberIds);
 
   if (mode === 'dry-run') {
     return {
@@ -1466,27 +1547,39 @@ export const migrateFinancialGroup = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'The approved dry-run fingerprint no longer matches live legacy data.');
   }
 
-  const groupRef = db.doc('financialGroups/' + groupId);
-  const runRef = groupRef.collection('migrationRuns').doc(clientActionId);
-  const existingRun = await runRef.get();
-  const currentCursor = typeof existingRun.data()?.cursor === 'number' ? existingRun.data()?.cursor : 0;
   const items = migrationItems(plan, groupId);
-  const nextItems = items.slice(currentCursor, currentCursor + MAX_MIGRATION_WRITES_PER_CALL);
-  const nextCursor = currentCursor + nextItems.length;
-  const complete = nextCursor >= items.length;
-
-  if (!existingRun.exists) {
-    const userSnapshots = await db.getAll(...memberIds.map((memberId) => db.doc('users/' + memberId)));
-    userSnapshots.forEach((snapshot) => {
-      const existingGroupId = snapshot.data()?.financialGroupId;
-      if (typeof existingGroupId === 'string' && existingGroupId.length > 0) {
-        throw new HttpsError('failed-precondition', 'A selected member already belongs to a financial group.');
-      }
-    });
-  }
-
-  const batch = db.batch();
-  batch.set(groupRef, {
+  const progress = await db.runTransaction(async transaction => {
+    const memberRefs = memberIds.map(memberId => db.doc(`users/${memberId}`));
+    const cutoverRefs = memberIds.map(memberId => db.doc(`financialCutovers/${memberId}`));
+    const consentRefs = memberIds.filter(memberId => memberId !== actorId)
+      .map(memberId => db.doc(`financialMigrationConsents/${groupId}/members/${memberId}`));
+    const [existingRun, existingGroup, ...authorization] = await Promise.all([
+      transaction.get(runRef), transaction.get(groupRef),
+      ...memberRefs.map(ref => transaction.get(ref)),
+      ...cutoverRefs.map(ref => transaction.get(ref)),
+      ...consentRefs.map(ref => transaction.get(ref)),
+    ]);
+    const profiles = authorization.slice(0, memberRefs.length);
+    const cutovers = authorization.slice(memberRefs.length, memberRefs.length + cutoverRefs.length);
+    const consents = authorization.slice(memberRefs.length + cutoverRefs.length);
+    if (profiles.some(profile => !profile.exists || profile.data()?.financialGroupId || profile.data()?.financialLegacyCutoverAt)
+      || cutovers.some(cutover => cutover.exists)
+      || consents.some(consent => consent.data()?.actorId !== actorId
+        || consent.data()?.groupId !== groupId
+        || !(consent.data()?.expiresAt instanceof Timestamp)
+        || consent.data()!.expiresAt.toMillis() <= Date.now())) {
+      throw new HttpsError('permission-denied', 'Migration approval or membership changed.');
+    }
+    if (existingGroup.exists && (existingGroup.data()?.status !== 'migrating'
+      || existingGroup.data()?.migrationFingerprint !== fingerprint
+      || existingGroup.data()?.createdBy !== actorId)) {
+      throw new HttpsError('failed-precondition', 'The migration group changed.');
+    }
+    const currentCursor = typeof existingRun.data()?.cursor === 'number' ? existingRun.data()!.cursor : 0;
+    const nextItems = items.slice(currentCursor, currentCursor + MAX_MIGRATION_WRITES_PER_CALL - 2 - memberIds.length * 2);
+    const nextCursor = currentCursor + nextItems.length;
+    const complete = nextCursor >= items.length;
+    transaction.set(groupRef, {
     id: groupId,
     status: complete ? 'active' : 'migrating',
     members: Object.fromEntries(memberIds.map((memberId) => [memberId, memberId === actorId ? 'admin' : 'member'])),
@@ -1494,35 +1587,40 @@ export const migrateFinancialGroup = onCall(async (request) => {
     migrationFingerprint: fingerprint,
     updatedAt: FieldValue.serverTimestamp(),
     createdAt: existingRun.exists ? existingRun.data()?.createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
-  }, { merge: true });
-  nextItems.forEach((item) => batch.set(db.doc(item.path), item.data, { merge: false }));
-  batch.set(runRef, {
+    }, { merge: true });
+    nextItems.forEach((item) => transaction.set(db.doc(item.path), item.data, { merge: false }));
+    transaction.set(runRef, {
     groupId,
     actorId,
     fingerprint,
+    memberIds: [...memberIds].sort(),
+    confirmedCashBalanceInCents: confirmedCashBalanceInCents ?? null,
+    confirmedAtMillis: confirmedAt?.valueOf() ?? null,
     cursor: nextCursor,
     totalItems: items.length,
     status: complete ? 'completed' : 'running',
     updatedAt: FieldValue.serverTimestamp(),
     createdAt: existingRun.exists ? existingRun.data()?.createdAt ?? FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
-  }, { merge: true });
-  if (complete) {
-    memberIds.forEach((memberId) => {
-      batch.set(db.doc('users/' + memberId), {
+    }, { merge: true });
+    if (complete) memberIds.forEach((memberId) => {
+      transaction.set(db.doc('users/' + memberId), {
         financialGroupId: groupId,
         financialGroupRole: memberId === actorId ? 'admin' : 'member',
         financialLegacyCutoverAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+      transaction.set(db.doc('financialCutovers/' + memberId), {
+        groupId, cutoverAt: FieldValue.serverTimestamp(),
+      });
     });
-  }
-  await batch.commit();
+    return { nextCursor, complete };
+  });
 
   return {
     groupId,
     fingerprint,
-    cursor: nextCursor,
+    cursor: progress.nextCursor,
     totalItems: items.length,
-    complete,
+    complete: progress.complete,
     issueCount: plan.issues.length,
   };
 });

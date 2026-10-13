@@ -30,7 +30,8 @@ import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 
 import { updateUserRelationsFirebase } from '@/functions/RegisterUserFirebase';
-import { runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
+import { listIncomingRelationshipInvitesFirebase, runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
+import { setFinancialMigrationConsentFirebase } from '@/functions/FinancialMigrationConsentFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
@@ -73,6 +74,18 @@ export default function AddUserRelationScreen() {
 		} = useScreenStyles();
 
 	const [relatedUserId, setRelatedUserId] = React.useState('');
+	const [incomingInvites, setIncomingInvites] = React.useState<Array<{ id: string; name: string }>>([]);
+	const [migrationActionId, setMigrationActionId] = React.useState('');
+	const [isMigrationSubmitting, setIsMigrationSubmitting] = React.useState(false);
+	React.useEffect(() => {
+		const uid = auth.currentUser?.uid;
+		if (!uid) return;
+		let active = true;
+		void listIncomingRelationshipInvitesFirebase(uid).then(invites => {
+			if (active) setIncomingInvites(invites);
+		}).catch(() => undefined);
+		return () => { active = false; };
+	}, []);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const submitLockRef = React.useRef(false);
 	const relatedUserInputRef = React.useRef<TextInput | null>(null);
@@ -147,14 +160,16 @@ export default function AddUserRelationScreen() {
 
 
 			if (result.success) {
+				const accepted = result.data?.status === 'linked';
 
 				showNotifierAlert({
-					title: 'Usuário vinculado',
-					description: 'A relação entre os usuários foi registrada com sucesso.',
+					title: accepted ? 'Vínculo aceito' : 'Convite enviado',
+					description: accepted ? 'As duas contas autorizaram o compartilhamento.' : 'A outra pessoa precisa aceitar o convite na própria conta antes de compartilhar dados.',
 					type: 'success',
 					isDarkMode,
 					duration: 4000,
 				});
+				if (accepted) setIncomingInvites(invites => invites.filter(invite => invite.id !== trimmedId));
 
 				applyPostSubmitBehavior({ resetForm: resetRelationForm });
 
@@ -176,6 +191,22 @@ export default function AddUserRelationScreen() {
 			setIsSubmitting(false);
 		}
 	}, [relatedUserId, isDarkMode, isSubmitting, showScreenAlert, applyPostSubmitBehavior, resetRelationForm]);
+
+	const handleMigrationConsent = async (action: 'approve' | 'revoke') => {
+		const uid = auth.currentUser?.uid;
+		const actorId = relatedUserId.trim();
+		const clientActionId = migrationActionId.trim();
+		if (!uid || !actorId || !clientActionId || actorId === uid || isMigrationSubmitting) return;
+		setIsMigrationSubmitting(true);
+		try {
+			await setFinancialMigrationConsentFirebase(uid, actorId, clientActionId, action);
+			showScreenAlert(action === 'approve' ? 'Migração autorizada por 24 horas para este administrador e código.' : 'Autorização de migração revogada.', 'success');
+		} catch {
+			showScreenAlert('Não foi possível alterar a autorização da migração. Confira o ID e o código.', 'error');
+		} finally {
+			setIsMigrationSubmitting(false);
+		}
+	};
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -281,8 +312,7 @@ export default function AddUserRelationScreen() {
 												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
-															Informe o ID do usuário que deseja vincular com você. 
-															O vínculo permite compartilhar gastos e ganhos. A outra pessoa pode copiar o ID dela em Meu perfil.
+															Informe o ID da outra conta. Ela precisa aceitar o convite para compartilhar dados financeiros. O ID pode ser copiado em Meu perfil.
 														</Text>
 													</PopoverBody>
 												</PopoverContent>
@@ -291,7 +321,7 @@ export default function AddUserRelationScreen() {
 								<Input className={fieldContainerClassName}>
 									<InputField
 										ref={relatedUserInputRef as any}
-										placeholder="ID do usuário que será vinculado com você e vice-versa"
+										placeholder="ID da conta que receberá o convite"
 										value={relatedUserId}
 										onChangeText={setRelatedUserId}
 										autoCapitalize="none"
@@ -306,8 +336,15 @@ export default function AddUserRelationScreen() {
 								onPress={handleLinkUsers}
 								isDisabled={isSubmitting || !relatedUserId.trim()}
 							>
-								{isSubmitting ? <ButtonSpinner /> : <ButtonText>Vincular usuário</ButtonText>}
+								{isSubmitting ? <ButtonSpinner /> : <ButtonText>{incomingInvites.some(invite => invite.id === relatedUserId.trim()) ? 'Aceitar convite' : 'Enviar convite'}</ButtonText>}
 							</Button>
+							{incomingInvites.map(invite => <Button key={invite.id} onPress={() => setRelatedUserId(invite.id)} className="min-h-12"><ButtonText>Aceitar convite de {invite.name}</ButtonText></Button>)}
+							<VStack className="gap-3">
+								<Text className={bodyText}>Migração financeira: informe acima o ID do administrador e abaixo o código combinado. Autorizar permite que ele leia e migre seus dados financeiros por 24 horas.</Text>
+								<Input className={fieldContainerClassName}><InputField value={migrationActionId} onChangeText={setMigrationActionId} placeholder="Código da migração" autoCapitalize="none" className={inputField} /></Input>
+								<Button onPress={() => void handleMigrationConsent('approve')} isDisabled={isMigrationSubmitting || !relatedUserId.trim() || !migrationActionId.trim()} className="min-h-12"><ButtonText>Autorizar migração</ButtonText></Button>
+								<Button onPress={() => void handleMigrationConsent('revoke')} isDisabled={isMigrationSubmitting || !relatedUserId.trim() || !migrationActionId.trim()} className="min-h-12"><ButtonText>Revogar autorização</ButtonText></Button>
+							</VStack>
 						</VStack>
 					</ScrollView>
 				</View>

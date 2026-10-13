@@ -20,11 +20,11 @@ O formulário administrativo de cadastro foi removido. A tabela administrativa d
 
 ### Relacionamento entre Usuários
 1. As telas Web/mobile de vínculo recebem o ID informado pela pessoa. Não oferecem busca de outra conta por email.
-2. `UserRelationshipFirebase.ts` chama `userRelationship` no backend. O preview fornece somente nome e fingerprint; link/unlink usam transação bidirecional, receipt idempotente por `clientActionId` e evento de auditoria. `RegisterUserFirebase.ts` adapta os consumidores existentes a esse contrato.
+2. `UserRelationshipFirebase.ts` chama `userRelationship` no backend. Antes do aceite, o preview não revela o nome do alvo. `link` envia convite; somente a própria conta convidada pode aceitar ao chamar `link` com o ID do remetente. O aceite grava concessões recíprocas no servidor e as listas de relacionamento na mesma transação. `unlink` revoga ambos os lados. Convites expiram em sete dias; a tela lista convites recebidos. `RegisterUserFirebase.ts` adapta os consumidores existentes a esse contrato.
 3. Usuários relacionados compartilham visibilidade das transações no [[Dashboard Home]]
 4. O `HomeFirebase.ts` busca os `personIds` de usuários relacionados para agregar os dados
 5. Após salvar um vínculo, `AddUserRelationScreen.tsx` aplica [[Comportamento Pós-Registro]] após o feedback de sucesso. No [[Assistente Lumus]], o resumo e a confirmação acontecem no chat; o resultado confirmado invalida leituras financeiras.
-6. O backend revalida sessão, alvo e fingerprint do par. Vínculos com alvos diferentes podem compartilhar um lote preparado sem invalidar o snapshot dos outros pares. A mesma operação reenviada recupera o receipt; `financialGroupId`, `financialGroupRole` e `adminUser` não são alterados.
+6. O backend revalida sessão, alvo e fingerprint do par. Vínculos com alvos diferentes podem compartilhar um lote preparado sem invalidar o snapshot dos outros pares. A mesma operação reenviada recupera o receipt; `financialGroupId`, `financialGroupRole` e `adminUser` não são alterados. As Rules e as Functions financeiras exigem concessões recíprocas e perfis recíprocos; listas antigas sozinhas não autorizam leitura.
 
 ## Por que dois apps Firebase?
 
@@ -55,7 +55,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 ## Configuração
 
 - O seed do Firebase Emulator cria a conta `usuario@demo.lumus.local` com `adminUser: true`, permitindo testar os fluxos administrativos localmente.
-- Relacionamento é bidirecional no Firestore
+- O relacionamento aceito é bidirecional no Firestore; o convite pendente não concede leitura.
 
 ## Observações importantes
 
@@ -70,7 +70,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 
 [[Perfil do Usuário]] oferece Meu perfil em `/web/profile` e `/mobile/profile`, com telas independentes, nome editável no Firestore, e-mail de acesso/data de cadastro e ID copiável. O menu Config abre o perfil no lugar de Relacionar usuário; a ação de vínculo fica dentro dele e respeita `addUserRelation`. As telas de vínculo oferecem Voltar ao perfil, enquanto o pós-submit configurado permanece preservado.
 
-As regras continuam bloqueando alterações client-side de `relatedIdUsers` e leituras de usuários não relacionados. O novo caminho confiável evita essas operações pelo cliente. Não existe protocolo de convite, edição de papéis/grupos ou CRUD administrativo de contas neste fluxo.
+As regras continuam bloqueando alterações client-side de `relatedIdUsers` e leituras de usuários sem concessões recíprocas. O protocolo de convite é operado somente pela callable. Não existe edição de papéis/grupos ou CRUD administrativo de contas neste fluxo.
 
 ## Integração conversacional — 2026-10-02
 

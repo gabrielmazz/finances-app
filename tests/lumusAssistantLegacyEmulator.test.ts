@@ -43,8 +43,18 @@ const execute = (draft: AssistantDraftAction, catalog: AssistantResolvedCatalog)
 async function fixture(prefix: string): Promise<AssistantResolvedCatalog> {
 	const date = new Date('2026-10-01T15:00:00Z');
 	const source = async (name: string, handle: string, data: Record<string, unknown>) => {
-		const id = prefix + '-' + handle; const persisted = { personId: actor, ...data };
-		await setDoc(doc(mockDb, name, id), persisted);
+		const id = prefix + '-' + handle; const persisted: Record<string, unknown> = { personId: actor, ...data };
+		const serverOnly = name === 'cashRescues' || name === 'financeInvestmentSyncs' || data.isInvestmentDeposit || data.isInvestmentRedemption;
+		if (serverOnly) {
+			// These are historical backend records, not client operations under test.
+			const fields = Object.fromEntries(Object.entries(persisted).map(([key, value]) => [key,
+				value instanceof Date ? { timestampValue: value.toISOString() } : typeof value === 'number'
+					? { integerValue: String(value) } : typeof value === 'boolean' ? { booleanValue: value } : { stringValue: value }]));
+			const response = await fetch(`http://${firestoreEmulatorHost}/v1/projects/${projectId}/databases/(default)/documents/${name}/${id}`, {
+				method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }),
+			});
+			if (!response.ok) throw new Error('Could not seed historical server record.');
+		} else await setDoc(doc(mockDb, name, id), persisted);
 		return { collection: name, realId: id, handle, label: String(data.name ?? handle), data: persisted };
 	};
 	const bankId = prefix + '-b1'; const investmentId = prefix + '-i1';
@@ -113,7 +123,12 @@ suite('Legacy finance executor with real Emulator persistence', () => {
 	afterAll(async () => { await deleteApp(app); });
 	it.each(legacyCases)('%s commits its actual domain records and reconciles a response-loss retry', async (kind, payload, target, expected) => {
 		const prefix = runId + '-' + kind; const catalog = await fixture(prefix);
-		if (kind === 'delete_investment') { await deleteDoc(doc(mockDb, 'expenses', prefix + '-id1')); await deleteDoc(doc(mockDb, 'gains', prefix + '-ir1')); }
+		if (kind === 'delete_investment') {
+			for (const path of [`expenses/${prefix}-id1`, `gains/${prefix}-ir1`]) {
+				const response = await fetch(`http://${firestoreEmulatorHost}/v1/projects/${projectId}/databases/(default)/documents/${path}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+				if (!response.ok) throw new Error('Could not remove historical server fixture.');
+			}
+		}
 		const draft = (await prepareAssistantActions(actor, [{ kind, payload }], catalog)).actions[0]!;
 		const outcome = await execute(draft, catalog);
 		if (!outcome.success) throw new Error(kind + ': ' + JSON.stringify(outcome));
@@ -184,13 +199,13 @@ suite('Legacy finance executor with real Emulator persistence', () => {
 	it('redemption reversal refuses already-spent proceeds and reconciles the later persisted retry', async () => {
 		const prefix = runId + '-undo-spent'; const catalog = await fixture(prefix);
 		await setDoc(doc(mockDb, 'monthlyBalances', prefix + '-opening'), { valueInCents: 1_000 }, { merge: true });
-		await setDoc(doc(mockDb, 'gains', prefix + '-spent-income'), { personId: actor, bankId: prefix + '-b1', date: new Date('2026-10-02T15:00:00Z'), valueInCents: 100 });
+		await setDoc(doc(mockDb, 'gains', prefix + '-spent-income'), { personId: actor, name: 'Receita de teste', bankId: prefix + '-b1', date: new Date('2026-10-02T15:00:00Z'), valueInCents: 100 });
 		const draft = (await prepareAssistantActions(actor, [{ kind: 'undo_investment_redemption', payload: { recordRef: 'ir1' } }], catalog)).actions[0]!;
 		await expect(execute(draft, catalog)).resolves.toMatchObject({ success: false, errorCode: 'insufficient-bank-balance' });
 		expect((await getDoc(doc(mockDb, 'gains', prefix + '-ir1'))).exists()).toBe(true);
 		expect((await getDoc(doc(mockDb, 'financeInvestments', prefix + '-i1'))).data()?.currentValueInCents).toBe(1_000);
 		await expect(revertFinanceInvestmentRedemptionFirebase(prefix + '-ir1')).resolves.toMatchObject({ success: false });
-		await setDoc(doc(mockDb, 'gains', prefix + '-restored-income'), { personId: actor, bankId: prefix + '-b1', date: new Date('2026-10-02T15:00:00Z'), valueInCents: 500 });
+		await setDoc(doc(mockDb, 'gains', prefix + '-restored-income'), { personId: actor, name: 'Receita de teste', bankId: prefix + '-b1', date: new Date('2026-10-02T15:00:00Z'), valueInCents: 500 });
 		await expect(execute(draft, catalog)).resolves.toMatchObject({ success: true });
 		await expect(execute(draft, catalog)).resolves.toMatchObject({ success: true });
 		expect((await getDoc(doc(mockDb, 'gains', prefix + '-ir1'))).exists()).toBe(false);

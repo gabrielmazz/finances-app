@@ -6,6 +6,8 @@ jest.mock('@/utils/pdfFileName', () => ({ copyPdfToNamedCacheFile: (...args: unk
 import { exportHtmlReport as exportNative } from '@/utils/reportExport.native';
 import { exportHtmlReport as exportWeb } from '@/utils/reportExport.web';
 
+beforeEach(() => jest.clearAllMocks());
+
 it('não abre compartilhamento depois de troca de conta durante a geração nativa e remove o arquivo temporário', async () => {
  let current = true;
  mockPrintToFile.mockImplementation(async () => { current = false; return { uri: 'file:///temporary.pdf' }; });
@@ -13,6 +15,21 @@ it('não abre compartilhamento depois de troca de conta durante a geração nati
  expect(result).toMatchObject({ status: 'cancelled' });
  expect(mockCopy).not.toHaveBeenCalled(); expect(mockShare).not.toHaveBeenCalled(); expect(mockPrint).not.toHaveBeenCalled();
  expect(mockDelete).toHaveBeenCalledWith('file:///temporary.pdf', { idempotent: true });
+});
+
+it('remove as duas cópias depois de compartilhar ou falhar no compartilhamento', async () => {
+ mockPrintToFile.mockResolvedValue({ uri: 'file:///temporary.pdf' });
+ mockCopy.mockResolvedValue('file:///named.pdf');
+ mockCanShare.mockResolvedValue(true);
+ mockShare.mockResolvedValue(undefined);
+ await expect(exportNative({ html: '<p>dados</p>', fileName: 'Relatorio.pdf', dialogTitle: 'Relatório' })).resolves.toMatchObject({ status: 'shared' });
+ expect(mockDelete).toHaveBeenCalledWith('file:///temporary.pdf', { idempotent: true });
+ expect(mockDelete).toHaveBeenCalledWith('file:///named.pdf', { idempotent: true });
+ mockDelete.mockClear();
+ mockShare.mockRejectedValueOnce(new Error('share failed'));
+ await expect(exportNative({ html: '<p>dados</p>', fileName: 'Relatorio.pdf', dialogTitle: 'Relatório' })).rejects.toThrow('share failed');
+ expect(mockDelete).toHaveBeenCalledWith('file:///temporary.pdf', { idempotent: true });
+ expect(mockDelete).toHaveBeenCalledWith('file:///named.pdf', { idempotent: true });
 });
 
 it('recusa sessão revogada antes de abrir a janela Web', async () => {

@@ -90,8 +90,13 @@ try {
 	if (!['verify', 'verify-offline', 'deploy-backend', 'deploy-web', 'build-android'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, deploy-backend, deploy-web ou build-android.');
 	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
 	run('npm', ['run', 'check']);
+	run('npm', ['audit', '--audit-level=high']);
+	run('npm', ['--prefix', 'backend', 'audit', '--audit-level=high']);
 	run('npm', ['--prefix', 'backend', 'run', 'build']);
-	if (action !== 'verify-offline') run('npm', ['run', 'test:integration']);
+	if (action !== 'verify-offline') {
+		run('npm', ['run', 'test:integration']);
+		run('npm', ['--prefix', 'backend', 'run', 'test:app-check:emulator']);
+	}
 	exportBundles(env);
 	if (action === 'deploy-backend') {
 		run('npx', ['-y', 'firebase-tools@15.33.0', 'deploy', '--project', projectId, '--only', 'functions,firestore'], env);

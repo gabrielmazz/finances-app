@@ -21,6 +21,15 @@ service cloud.firestore {
       return currentUser().data.get('relatedIdUsers', []);
     }
 
+    function hasAcceptedRelationship(otherUserId) {
+      return signedIn()
+        && otherUserId in relatedUsers()
+        && exists(/databases/$(database)/documents/users/$(otherUserId))
+        && request.auth.uid in get(/databases/$(database)/documents/users/$(otherUserId)).data.get('relatedIdUsers', [])
+        && exists(/databases/$(database)/documents/userRelationshipGrants/$(request.auth.uid)/related/$(otherUserId))
+        && exists(/databases/$(database)/documents/userRelationshipGrants/$(otherUserId)/related/$(request.auth.uid));
+    }
+
     // =========================================================
     // FINANCIAL GROUPS
     // =========================================================
@@ -52,7 +61,8 @@ service cloud.firestore {
 
     function userHasCutOver() {
       return signedIn()
-        && currentUser().data.get('financialGroupId', null) is string;
+        && (exists(/databases/$(database)/documents/financialCutovers/$(request.auth.uid))
+          || currentUser().data.get('financialGroupId', null) is string);
     }
 
     // =========================================================
@@ -79,7 +89,7 @@ service cloud.firestore {
       return signedIn()
         && (
           personId == request.auth.uid
-          || personId in relatedUsers()
+          || hasAcceptedRelationship(personId)
         );
     }
 
@@ -90,7 +100,8 @@ service cloud.firestore {
     function canCreateLegacy() {
       return signedIn()
         && !userHasCutOver()
-        && request.resource.data.personId == request.auth.uid;
+        && request.resource.data.personId == request.auth.uid
+        && validLegacyShape(request.resource.data);
     }
 
     /*
@@ -104,7 +115,8 @@ service cloud.firestore {
       return signedIn()
         && !userHasCutOver()
         && resource.data.personId == request.auth.uid
-        && request.resource.data.personId == resource.data.personId;
+        && request.resource.data.personId == resource.data.personId
+        && validLegacyShape(request.resource.data);
     }
 
     /*
@@ -134,37 +146,215 @@ service cloud.firestore {
     // =========================================================
 
     function isIntegerCents(value) {
-      return value is int;
+      return value is int && value >= -1000000000000 && value <= 1000000000000;
+    }
+
+    function isPositiveCents(value) {
+      return isIntegerCents(value) && value > 0;
+    }
+
+    function isNonnegativeCents(value) {
+      return isIntegerCents(value) && value >= 0;
+    }
+
+    function isShortText(value, maxLength) {
+      return value == null || (value is string && value.size() <= maxLength);
+    }
+
+    function validLegacyShape(data) {
+      return data.keys().size() <= 64
+        && data.personId is string
+        && data.personId.size() <= 128
+        && isShortText(data.get('name', null), 200)
+        && isShortText(data.get('description', null), 2000)
+        && isShortText(data.get('explanation', null), 2000);
+    }
+
+    function validLegacyFields(fields) {
+      // Campos antigos desconhecidos podem permanecer, mas nunca ser criados ou alterados.
+      return (resource == null
+        ? request.resource.data.keys().hasOnly(fields)
+        : request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields))
+        && !request.resource.data.keys().hasAny(['groupId', 'financialGroupId', 'adminUser']);
+    }
+
+    function optionalTimestamp(value) { return value == null || value is timestamp; }
+    function optionalBoolean(value) { return value == null || value is bool; }
+    function optionalId(value) { return value == null || (value is string && value.size() > 0 && value.size() <= 128); }
+    function validDates(data) {
+      return optionalTimestamp(data.get('date', null))
+        && optionalTimestamp(data.get('createdAt', null))
+        && optionalTimestamp(data.get('updatedAt', null));
+    }
+    function validName(data) { return data.get('name', null) is string && data.name.size() > 0 && data.name.size() <= 200; }
+    function boundedInt(value, min, max) { return value is int && value >= min && value <= max; }
+    function validCycle(value) { return value == null || (value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')); }
+
+    function validTagReference(tagId) {
+      return tagId == null || (optionalId(tagId)
+        && canReadLegacy(getAfter(/databases/$(database)/documents/tags/$(tagId)).data.personId));
+    }
+
+    function isSpecialMovement(data) {
+      return data.get('isBankTransfer', false) == true
+        || data.get('isInvestmentDeposit', false) == true
+        || data.get('isInvestmentRedemption', false) == true;
+    }
+    function validMovement(data) {
+      return validName(data) && validDates(data)
+        && validTagReference(data.get('tagId', null))
+        && optionalBoolean(data.get('moneyFormat', null))
+        && optionalBoolean(data.get('isBankTransfer', null))
+        && optionalBoolean(data.get('isInvestmentDeposit', null))
+        && optionalBoolean(data.get('isInvestmentRedemption', null))
+        && !isSpecialMovement(data)
+        && (data.get('paymentFormats', []) is list && data.get('paymentFormats', []).size() <= 20)
+        && optionalId(data.get('mandatoryExpenseId', null))
+        && optionalId(data.get('mandatoryGainId', null))
+        && optionalId(data.get('mandatoryTemplateId', null))
+        && validCycle(data.get('mandatoryCycle', null));
+    }
+    function validRecurring(data) {
+      return validName(data) && validDates(data)
+        && boundedInt(data.get('dueDay', 1), 1, 31)
+        && optionalBoolean(data.get('usesBusinessDays', null))
+        && optionalBoolean(data.get('reminderEnabled', null))
+        && optionalBoolean(data.get('reminderOnDueDate', null))
+        && boundedInt(data.get('reminderDaysBefore', 1), 1, 3)
+        && boundedInt(data.get('reminderHour', 9), 0, 23)
+        && boundedInt(data.get('reminderMinute', 0), 0, 59)
+        && boundedInt(data.get('reminderConfigVersion', 1), 1, 10)
+        && validTagReference(data.get('tagId', null))
+        && (data.get('installmentTotal', null) == null || boundedInt(data.installmentTotal, 1, 1200))
+        && boundedInt(data.get('installmentsCompleted', 0), 0, data.get('installmentTotal', null) == null ? 1200 : data.installmentTotal)
+        && (data.get('installmentTotalValueInCents', null) == null || isPositiveCents(data.installmentTotalValueInCents))
+        && optionalTimestamp(data.get('installmentStartDate', null))
+        && optionalTimestamp(data.get('installmentEndDate', null))
+        && validCycle(data.get('lastPaymentCycle', null))
+        && validCycle(data.get('lastReceiptCycle', null))
+        && optionalId(data.get('lastPaymentExpenseId', null))
+        && optionalId(data.get('lastReceiptGainId', null))
+        && optionalTimestamp(data.get('lastPaymentDate', null))
+        && optionalTimestamp(data.get('lastReceiptDate', null));
+    }
+
+    function validRecurringHistory(data, collectionName, templateId) {
+      let history = data.get('completedCycles', {});
+      let previous = resource == null ? {} : resource.data.get('completedCycles', {});
+      let changed = history.diff(previous).affectedKeys();
+      let cycleField = collectionName == 'expenses' ? 'lastPaymentCycle' : 'lastReceiptCycle';
+      let priorCycle = resource == null ? null : resource.data.get(cycleField, null);
+      let cycle = data.get(cycleField, null) == null ? priorCycle : data.get(cycleField, null);
+      return history is map && history.size() <= 1200
+        && optionalBoolean(data.get('assistantCycleHistoryComplete', null))
+        && changed.size() <= 1
+        && (changed.size() == 0 || (cycle is string && changed.hasOnly([cycle])
+          && validRecurringCycleChange(history, previous, cycle, collectionName, templateId)));
+    }
+
+    function validRecurringCycleChange(history, previous, cycle, collectionName, templateId) {
+      let entry = history.get(cycle, null);
+      let prior = previous.get(cycle, null);
+      return validCycle(cycle) && (entry == null
+        ? (prior is map && optionalId(prior.get('transactionId', null))
+          && !existsAfter(/databases/$(database)/documents/$(collectionName)/$(prior.transactionId)))
+        : (entry is map && entry.keys().hasOnly(['transactionId', 'installmentsCount', 'amountInCents'])
+          && optionalId(entry.get('transactionId', null))
+          && boundedInt(entry.get('installmentsCount', 0), 1, 1200)
+          && isPositiveCents(entry.get('amountInCents', 0))
+          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.personId == request.auth.uid
+          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.valueInCents == entry.amountInCents
+          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.mandatoryCycle == cycle
+          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.mandatoryTemplateId == templateId));
+    }
+
+    function validInvestment(data) {
+      return validName(data) && validDates(data) && hasValidInvestmentCents(data)
+        && (data.get('initialValueInCents', null) == null || isNonnegativeCents(data.initialValueInCents))
+        && (data.get('initialInvestedInCents', null) == null || isNonnegativeCents(data.initialInvestedInCents))
+        && (data.get('currentValueInCents', null) == null || isNonnegativeCents(data.currentValueInCents))
+        && (data.get('lastManualSyncValueInCents', null) == null || isNonnegativeCents(data.lastManualSyncValueInCents))
+        && (data.get('cdiPercentageInBasisPoints', null) == null || boundedInt(data.cdiPercentageInBasisPoints, 0, 1000000))
+        && (data.get('cdiPercentage', null) == null || (data.cdiPercentage is number && data.cdiPercentage >= 0 && data.cdiPercentage <= 10000))
+        && data.get('assetType', 'fixed_income') in ['fixed_income', 'treasury', 'stock', 'fund']
+        && data.get('valuationMethod', 'cdi') in ['cdi', 'manual']
+        && data.get('redemptionTerm', 'anytime') in ['anytime', '1m', '3m', '6m', '1y', '2y', '3y']
+        && optionalTimestamp(data.get('lastManualSyncAt', null));
+    }
+
+    function investmentCurrentValue(data) {
+      return data.get('currentValueInCents', null) is int ? data.currentValueInCents
+        : data.get('lastManualSyncValueInCents', null) is int ? data.lastManualSyncValueInCents
+        : data.get('initialValueInCents', null) is int ? data.initialValueInCents
+        : data.get('initialInvestedInCents', 0);
+    }
+
+    function validInvestmentSync(data) {
+      let before = get(/databases/$(database)/documents/financeInvestments/$(data.investmentId)).data;
+      let after = getAfter(/databases/$(database)/documents/financeInvestments/$(data.investmentId)).data;
+      return before.personId == request.auth.uid && after.personId == request.auth.uid
+        && data.previousValueInCents == investmentCurrentValue(before)
+        && data.syncedValueInCents == investmentCurrentValue(after)
+        && data.get('bankId', null) == before.get('bankId', null)
+        && after.get('bankId', null) == before.get('bankId', null)
+        && validBankReference(data.get('bankId', null));
+    }
+
+    function validBankReference(bankId) {
+      return bankId == null || (bankId is string
+        && bankId.size() <= 128
+        && canReadLegacy(getAfter(/databases/$(database)/documents/banks/$(bankId)).data.personId));
     }
 
     function hasValidInvestmentCents(data) {
       return (
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('initialValueInCents', null)
         )
         ||
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('initialInvestedInCents', null)
         )
       )
       &&
       (
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('currentValueInCents', null)
         )
         ||
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('lastManualSyncValueInCents', null)
         )
         ||
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('initialValueInCents', null)
         )
         ||
-        isIntegerCents(
+        isNonnegativeCents(
           data.get('initialInvestedInCents', null)
         )
       );
+    }
+
+    // [[Gerenciamento de Usuários]]: convites e aceites são escritos somente pelo backend.
+    match /userRelationshipInvites/{userId}/incoming/{senderId} {
+      allow read, write: if false;
+    }
+    match /userRelationshipGrants/{userId}/related/{relatedUserId} {
+      allow get: if signedIn() && userId == request.auth.uid;
+      allow list, write: if false;
+    }
+    match /financialMigrationConsents/{groupId}/members/{memberId} {
+      allow read, write: if false;
+    }
+    match /financialCutovers/{userId} {
+      allow read, write: if false;
+    }
+    match /callableRateLimits/{id} {
+      allow read, write: if false;
+    }
+    match /accountDeletionRequests/{userId} {
+      allow read, write: if false;
     }
 
     // =========================================================
@@ -176,7 +366,7 @@ service cloud.firestore {
       allow read: if signedIn()
         && (
           userId == request.auth.uid
-          || userId in relatedUsers()
+          || hasAcceptedRelationship(userId)
         );
 
       /*
@@ -198,6 +388,9 @@ service cloud.firestore {
           'financialLegacyCutoverAt'
         ])
 
+        && !exists(/databases/$(database)/documents/financialCutovers/$(userId))
+        && request.resource.data.get('adminUser', false) == false
+
         && request.resource.data.get(
           'relatedIdUsers',
           []
@@ -217,11 +410,11 @@ service cloud.firestore {
             'financialGroupId',
             'financialGroupRole',
             'financialLegacyCutoverAt',
-            'relatedIdUsers'
+            'relatedIdUsers',
+            'adminUser'
           ]);
 
-      allow delete: if signedIn()
-        && userId == request.auth.uid;
+      allow delete: if false;
 
 
       // =======================================================
@@ -387,9 +580,19 @@ service cloud.firestore {
         resource.data.personId
       );
 
-      allow create: if canCreateLegacy();
+      allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'colorHex', 'iconKey', 'isActive'])
+        && validDates(request.resource.data)
+        && validName(request.resource.data) && optionalBoolean(request.resource.data.get('isActive', null)) && isShortText(request.resource.data.get('colorHex', null), 9) && isShortText(request.resource.data.get('iconKey', null), 100)
+        && request.resource.data.get('name', null) is string
+        && request.resource.data.name.size() > 0;
 
-      allow update: if canUpdateLegacy();
+      allow update: if canUpdateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'colorHex', 'iconKey', 'isActive'])
+        && validDates(request.resource.data)
+        && validName(request.resource.data) && optionalBoolean(request.resource.data.get('isActive', null)) && isShortText(request.resource.data.get('colorHex', null), 9) && isShortText(request.resource.data.get('iconKey', null), 100)
+        && request.resource.data.get('name', null) is string
+        && request.resource.data.name.size() > 0;
 
       allow delete: if canDeleteLegacy();
     }
@@ -408,16 +611,24 @@ service cloud.firestore {
       );
 
       allow create: if canCreateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
+        && validDates(request.resource.data)
+        && validMovement(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
       allow update: if canUpdateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
+        && validDates(request.resource.data)
+        && validMovement(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
-      allow delete: if canDeleteLegacy();
+      allow delete: if canDeleteLegacy() && !isSpecialMovement(resource.data);
     }
 
 
@@ -434,16 +645,24 @@ service cloud.firestore {
       );
 
       allow create: if canCreateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
+        && validDates(request.resource.data)
+        && validMovement(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
       allow update: if canUpdateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
+        && validDates(request.resource.data)
+        && validMovement(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
-      allow delete: if canDeleteLegacy();
+      allow delete: if canDeleteLegacy() && !isSpecialMovement(resource.data);
     }
 
 
@@ -459,17 +678,8 @@ service cloud.firestore {
         resource.data.personId
       );
 
-      allow create: if canCreateLegacy()
-        && isIntegerCents(
-          request.resource.data.valueInCents
-        );
-
-      allow update: if canUpdateLegacy()
-        && isIntegerCents(
-          request.resource.data.valueInCents
-        );
-
-      allow delete: if canDeleteLegacy();
+      // Movimentos compostos e coleção obsoleta são escritos somente pelo backend.
+      allow write: if false;
     }
 
 
@@ -485,16 +695,8 @@ service cloud.firestore {
         resource.data.personId
       );
 
-      allow create: if canCreateLegacy()
-        && isIntegerCents(
-          request.resource.data.valueInCents
-        );
-
-      allow update: if canUpdateLegacy()
-        && isIntegerCents(
-          request.resource.data.valueInCents
-        );
-
+      // Movimentos compostos e coleção obsoleta são escritos somente pelo backend.
+      allow create, update: if false;
       allow delete: if canDeleteLegacy();
     }
 
@@ -512,11 +714,21 @@ service cloud.firestore {
       );
 
       allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'bankId', 'year', 'month', 'valueInCents'])
+        && validDates(request.resource.data)
+        && boundedInt(request.resource.data.year, 1900, 2200) && boundedInt(request.resource.data.month, 1, 12)
+        && request.resource.data.get('bankId', null) is string
+        && validBankReference(request.resource.data.bankId)
         && isIntegerCents(
           request.resource.data.valueInCents
         );
 
       allow update: if canUpdateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'bankId', 'year', 'month', 'valueInCents'])
+        && validDates(request.resource.data)
+        && boundedInt(request.resource.data.year, 1900, 2200) && boundedInt(request.resource.data.month, 1, 12)
+        && request.resource.data.get('bankId', null) is string
+        && validBankReference(request.resource.data.bankId)
         && isIntegerCents(
           request.resource.data.valueInCents
         );
@@ -535,11 +747,8 @@ service cloud.firestore {
         resource.data.personId
       );
 
-      allow create: if canCreateLegacy();
-
-      allow update: if canUpdateLegacy();
-
-      allow delete: if canDeleteLegacy();
+      // Movimentos compostos e coleção obsoleta são escritos somente pelo backend.
+      allow write: if false;
     }
 
 
@@ -556,11 +765,19 @@ service cloud.firestore {
       );
 
       allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'bankId', 'bankNameSnapshot', 'initialValueInCents', 'initialInvestedInCents', 'currentValueInCents', 'lastManualSyncValueInCents', 'lastManualSyncAt', 'cdiPercentage', 'cdiPercentageInBasisPoints', 'assetType', 'valuationMethod', 'redemptionTerm', 'investmentDate'])
+        && validDates(request.resource.data)
+        && validInvestment(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
         && hasValidInvestmentCents(
           request.resource.data
         );
 
       allow update: if canUpdateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'bankId', 'bankNameSnapshot', 'initialValueInCents', 'initialInvestedInCents', 'currentValueInCents', 'lastManualSyncValueInCents', 'lastManualSyncAt', 'cdiPercentage', 'cdiPercentageInBasisPoints', 'assetType', 'valuationMethod', 'redemptionTerm', 'investmentDate'])
+        && validDates(request.resource.data)
+        && validInvestment(request.resource.data)
+        && validBankReference(request.resource.data.get('bankId', null))
         && hasValidInvestmentCents(
           request.resource.data
         );
@@ -582,13 +799,21 @@ service cloud.firestore {
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'annualRateInBasisPoints', 'effectiveFrom'])
+        && validDates(request.resource.data)
+        && true
         && request.resource.data.annualRateInBasisPoints is int
         && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.annualRateInBasisPoints <= 100000
         && request.resource.data.effectiveFrom is timestamp;
 
       allow update: if canUpdateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'annualRateInBasisPoints', 'effectiveFrom'])
+        && validDates(request.resource.data)
+        && true
         && request.resource.data.annualRateInBasisPoints is int
         && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.annualRateInBasisPoints <= 100000
         && request.resource.data.effectiveFrom is timestamp;
 
       allow delete: if canDeleteLegacy();
@@ -607,9 +832,15 @@ service cloud.firestore {
         resource.data.personId
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
-      allow create: if canCreateLegacy();
+      allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle'])
+        && validDates(request.resource.data)
+        && validName(request.resource.data) && request.resource.data.get('usageType', 'both') in ['expense', 'gain', 'both'] && optionalBoolean(request.resource.data.get('isMandatoryExpense', null)) && optionalBoolean(request.resource.data.get('isMandatoryGain', null)) && optionalBoolean(request.resource.data.get('showInBothLists', null)) && isShortText(request.resource.data.get('iconName', null), 100) && isShortText(request.resource.data.get('iconFamily', null), 100) && isShortText(request.resource.data.get('iconStyle', null), 100);
 
-      allow update: if canUpdateLegacy();
+      allow update: if canUpdateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle'])
+        && validDates(request.resource.data)
+        && validName(request.resource.data) && request.resource.data.get('usageType', 'both') in ['expense', 'gain', 'both'] && optionalBoolean(request.resource.data.get('isMandatoryExpense', null)) && optionalBoolean(request.resource.data.get('isMandatoryGain', null)) && optionalBoolean(request.resource.data.get('showInBothLists', null)) && isShortText(request.resource.data.get('iconName', null), 100) && isShortText(request.resource.data.get('iconFamily', null), 100) && isShortText(request.resource.data.get('iconStyle', null), 100);
 
       allow delete: if canDeleteLegacy();
     }
@@ -628,12 +859,22 @@ service cloud.firestore {
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && validDates(request.resource.data)
+        && validRecurring(request.resource.data)
+        && validRecurringHistory(request.resource.data, 'expenses', id)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
       allow update: if canUpdateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && validDates(request.resource.data)
+        && validRecurring(request.resource.data)
+        && validRecurringHistory(request.resource.data, 'expenses', id)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
@@ -654,12 +895,22 @@ service cloud.firestore {
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
 
       allow create: if canCreateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && validDates(request.resource.data)
+        && validRecurring(request.resource.data)
+        && validRecurringHistory(request.resource.data, 'gains', id)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
       allow update: if canUpdateLegacy()
-        && isIntegerCents(
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && validDates(request.resource.data)
+        && validRecurring(request.resource.data)
+        && validRecurringHistory(request.resource.data, 'gains', id)
+        && validBankReference(request.resource.data.get('bankId', null))
+        && isPositiveCents(
           request.resource.data.valueInCents
         );
 
@@ -680,18 +931,24 @@ service cloud.firestore {
       );
 
       allow create: if canCreateLegacy()
+        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'investmentId', 'bankId', 'investmentNameSnapshot', 'bankNameSnapshot', 'reason', 'previousValueInCents', 'syncedValueInCents', 'deltaInCents'])
+        && validDates(request.resource.data)
+        && optionalId(request.resource.data.get('investmentId', null))
+        && request.resource.data.get('reason', 'manual') in ['manual', 'deposit', 'withdrawal']
+        && validInvestmentSync(request.resource.data)
 
-        && isIntegerCents(
+        && isNonnegativeCents(
           request.resource.data.previousValueInCents
         )
 
-        && isIntegerCents(
+        && isNonnegativeCents(
           request.resource.data.syncedValueInCents
         )
 
         && isIntegerCents(
           request.resource.data.deltaInCents
-        );
+        )
+        && request.resource.data.deltaInCents == request.resource.data.syncedValueInCents - request.resource.data.previousValueInCents;
 
       // Mantido propositalmente sem UPDATE.
 

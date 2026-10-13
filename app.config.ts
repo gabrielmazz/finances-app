@@ -46,7 +46,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 	);
 	const appCheckDebugToken = isLocalAssistantDevelopment
 		? process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN?.trim()
-		: undefined;
+		: buildProfile === 'preview' && firebaseTarget === 'preview'
+			? process.env.FIREBASE_APP_CHECK_DEBUG_TOKEN?.trim()
+			: undefined;
 	const requiresNativeFirebase = ['development', 'preview', 'production', 'production-apk'].includes(buildProfile);
 	// O arquivo secreto do preview só existe no worker EAS; nunca usar o JSON local de produção.
 	const googleServicesFile = resolveGoogleServicesFile(buildProfile !== 'preview');

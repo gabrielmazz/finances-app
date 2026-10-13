@@ -49,6 +49,8 @@ async function run() {
 	const bankId = `${prefix}-bank`;
 	await seed({
 		[`users/${owner.uid}`]: { relatedIdUsers: [related.uid] }, [`users/${related.uid}`]: { relatedIdUsers: [owner.uid] }, [`users/${outsider.uid}`]: { relatedIdUsers: [] },
+		[`userRelationshipGrants/${owner.uid}/related/${related.uid}`]: { acceptedAt: Timestamp.now() },
+		[`userRelationshipGrants/${related.uid}/related/${owner.uid}`]: { acceptedAt: Timestamp.now() },
 		[`banks/${bankId}`]: { personId: owner.uid, name: 'Banco de teste', isActive: true },
 		[`monthlyBalances/${prefix}-opening`]: { personId: owner.uid, bankId, year: 2026, month: 9, valueInCents: 10_000 },
 		[`gains/${prefix}-gain`]: { personId: owner.uid, bankId, valueInCents: 500, date: Timestamp.fromDate(new Date('2026-09-11T12:00:00-03:00')) },
@@ -87,6 +89,15 @@ async function run() {
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', `${prefix}-client-write`), { personId: owner.uid, bankId, differenceInCents: 999 }));
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', saved.adjustmentId), { status: 'active' }, { merge: true }));
 	await assertFails(getDoc(doc(ownDb, 'bankBalanceAdjustmentOperations', `${owner.uid}_${command.clientActionId}`)));
+	const relatedAdjustment = await call(related, { ...command, expectedPreviousBalanceInCents: 10_000,
+		clientActionId: `${prefix}-related-before-cutover` });
+	// A remains legacy; B's bank has been migrated and its old accepted link must not reopen writes.
+	await seed({ [`financialCutovers/${owner.uid}`]: { groupId: `${prefix}-cutover`, cutoverAt: Timestamp.now() } });
+	for (const action of ['preview', 'save', 'revert']) {
+		await denied(related, { ...command, action, adjustmentId: action === 'revert' ? relatedAdjustment.adjustmentId : undefined,
+			clientActionId: `${prefix}-related-after-cutover-${action}` }, 'permission-denied');
+	}
+	await denied(owner, { action: 'preview', bankId, date: command.date }, 'permission-denied');
 	const groupId = `${prefix}-group`; const accountId = `${prefix}-account`;
 	await seed({
 		[`users/${admin.uid}`]: { financialGroupId: groupId, financialGroupRole: 'admin', relatedIdUsers: [] },

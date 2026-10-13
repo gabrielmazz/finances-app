@@ -1,3 +1,4 @@
+import { ensureNativeAppCheck } from '@/utils/firebaseAppCheck.native';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { auth } from '@/FirebaseConfig';
@@ -12,7 +13,6 @@ import {
 	createAssistantAuthTokenBridge,
 	createAssistantAiGateway,
 	normalizeAssistantAiConfig,
-	resolveAndroidAssistantAppCheckProvider,
 	shouldAttachAssistantAuthToken,
 	type AssistantPlatformAdapter,
 	type AssistantPlatformResponse,
@@ -25,21 +25,17 @@ import { canObtainAssistantAppCheckToken, getAssistantAppCheckErrorCode } from '
 import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
 import { assistantExpoGoAdapter } from '@/services/lumusAssistant/assistantPlatform.expoGo';
 import type { FirebaseApp as NativeFirebaseApp } from '@react-native-firebase/app';
-import type { FirebaseAppCheckTypes } from '@react-native-firebase/app-check';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import type { Content, FunctionDeclaration, Part } from '@react-native-firebase/ai';
 import type { RemoteConfig } from '@react-native-firebase/remote-config';
 
 type NativeFirebaseModules = {
 	app: typeof import('@react-native-firebase/app');
-	appCheck: typeof import('@react-native-firebase/app-check');
 	ai: typeof import('@react-native-firebase/ai');
 	remoteConfig: typeof import('@react-native-firebase/remote-config');
 };
 
 let nativeApp: NativeFirebaseApp | null = null;
-let nativeAppCheckModule: FirebaseAppCheckTypes.Module | null = null;
-let appCheckInitialization: Promise<FirebaseAppCheckTypes.Module> | null = null;
 let remoteConfigInstance: RemoteConfig | null = null;
 let remoteConfigLoaded = false;
 let configPromise: Promise<AssistantAiConfig> | null = null;
@@ -64,7 +60,6 @@ const loadNativeFirebaseModules = async (): Promise<NativeFirebaseModules> => {
 		// evaluated after a compatible development client is confirmed.
 		nativeFirebaseModulesPromise = Promise.resolve().then(() => ({
 			app: require('@react-native-firebase/app') as NativeFirebaseModules['app'],
-			appCheck: require('@react-native-firebase/app-check') as NativeFirebaseModules['appCheck'],
 			ai: require('@react-native-firebase/ai') as NativeFirebaseModules['ai'],
 			remoteConfig: require('@react-native-firebase/remote-config') as NativeFirebaseModules['remoteConfig'],
 		}));
@@ -87,53 +82,6 @@ const getConfiguredNativeApp = async () => {
 	return nativeApp;
 };
 
-const ensureNativeAppCheck = async () => {
-	if (nativeAppCheckModule) {
-		return nativeAppCheckModule;
-	}
-	if (appCheckInitialization) {
-		return appCheckInitialization;
-	}
-	appCheckInitialization = (async () => {
-		const app = await getConfiguredNativeApp();
-		const { appCheck } = await loadNativeFirebaseModules();
-		const module = appCheck.default(app);
-		const provider = module.newReactNativeFirebaseAppCheckProvider();
-		const configuredProvider = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_ANDROID_PROVIDER?.trim();
-		const selectedProvider = resolveAndroidAssistantAppCheckProvider(__DEV__, configuredProvider);
-		const useDebugProvider = selectedProvider === 'debug';
-		const configuredExtra = Constants.expoConfig?.extra as {
-			lumusAssistantAppCheckDebugToken?: unknown;
-		} | undefined;
-		const debugToken = typeof configuredExtra?.lumusAssistantAppCheckDebugToken === 'string'
-			? configuredExtra.lumusAssistantAppCheckDebugToken
-			: undefined;
-		provider.configure({
-			android: {
-				provider: selectedProvider,
-				...(useDebugProvider && debugToken
-					? { debugToken }
-					: {}),
-			},
-		});
-		try {
-			await module.initializeAppCheck({ provider, isTokenAutoRefreshEnabled: true });
-		} catch (error) {
-			const message = error instanceof Error ? error.message.toLocaleLowerCase('pt-BR') : '';
-			if (!message.includes('already') && !message.includes('inicializ')) {
-				throw error;
-			}
-		}
-		nativeAppCheckModule = module;
-		return module;
-	})();
-	try {
-		return await appCheckInitialization;
-	} catch (error) {
-		appCheckInitialization = null;
-		throw error;
-	}
-};
 
 const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig> => {
 	if (isExpoGoAssistantRuntime()) {

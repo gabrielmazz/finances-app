@@ -3,8 +3,10 @@ import { browserLocalPersistence, connectAuthEmulator, getAuth, initializeAuth, 
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { firebaseRuntime } from '@/utils/firebaseRuntime';
+import { initializeBusinessAppCheck } from '@/utils/firebaseAppCheck';
 
 const appInstance: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseRuntime.firebaseOptions) : getApp();
+initializeBusinessAppCheck(appInstance);
 
 // [[Autenticação]]: a sessão principal Web é compartilhada entre abas até o logout.
 // O Auth secundário do cadastro permanece apenas em memória.
@@ -24,6 +26,7 @@ const secondaryAppInstance: FirebaseApp =
 		: initializeApp(firebaseRuntime.firebaseOptions, 'SECONDARY');
 
 const secondaryAuthInstance = createWebAuthInstance(secondaryAppInstance, inMemoryPersistence);
+initializeBusinessAppCheck(secondaryAppInstance);
 
 export const app = appInstance;
 export const auth = authInstance;

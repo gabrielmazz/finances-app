@@ -170,7 +170,7 @@ it('consulta vínculos sem UID/email e prepara uma única versão antes da execu
 	await expect(executeAssistantApplicationCommand('owner', command, adapters)).rejects.toThrow('Confira o vínculo');
 	const prepared = await prepareAssistantApplicationCommand('owner', command, adapters);
 	expect(mockRelationshipCommand).toHaveBeenCalledWith('owner', { action: 'preview', relatedUserId: 'secret-target' });
-	await expect(executeAssistantApplicationCommand('owner', prepared.command!, adapters)).resolves.toMatchObject({ success: true, message: expect.stringContaining('Maria') });
+	await expect(executeAssistantApplicationCommand('owner', prepared.command!, adapters)).resolves.toMatchObject({ success: true, message: expect.stringContaining('Convite enviado') });
 	expect(mockRelationshipCommand).toHaveBeenLastCalledWith('owner', expect.objectContaining({ action: 'link', expectedFingerprint: 'prepared-snapshot' }));
 });
 

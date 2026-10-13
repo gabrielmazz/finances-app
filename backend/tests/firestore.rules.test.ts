@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 
 const projectId = 'demo-lumus-financas-ledger-rules';
 let environment: RulesTestEnvironment | undefined;
@@ -66,6 +66,17 @@ async function run(): Promise<void> {
   const admin = environment.authenticatedContext('admin').firestore();
   const outsider = environment.authenticatedContext('outsider').firestore();
 
+  await assertFails(getDoc(doc(member, 'users', 'admin')));
+  await environment.withSecurityRulesDisabled(async context => {
+    const firestore = context.firestore();
+    await setDoc(doc(firestore, 'userRelationshipGrants', 'member', 'related', 'admin'), { acceptedAt: new Date() });
+    await setDoc(doc(firestore, 'userRelationshipGrants', 'admin', 'related', 'member'), { acceptedAt: new Date() });
+  });
+  await assertSucceeds(getDoc(doc(member, 'users', 'admin')));
+  await assertFails(deleteDoc(doc(member, 'users', 'member')));
+  await assertFails(setDoc(doc(member, 'users', 'member'), { adminUser: true }, { merge: true }));
+  await assertFails(setDoc(doc(outsider, 'users', 'outsider'), { adminUser: true, relatedIdUsers: [] }));
+
   await assertSucceeds(getDoc(doc(member, 'investmentCdiRates', 'admin_20260801')));
   await assertSucceeds(getDocs(query(
     collection(member, 'investmentCdiRates'),
@@ -87,6 +98,13 @@ async function run(): Promise<void> {
     annualRateInBasisPoints: 1_300,
     effectiveFrom: new Date('2026-08-21T00:00:00.000Z'),
   }));
+  await assertFails(setDoc(doc(member, 'expenses', 'invalid-negative'), { personId: 'member', valueInCents: -1 }));
+  await assertFails(setDoc(doc(member, 'expenses', 'invalid-bank'), { personId: 'member', valueInCents: 100, bankId: 'missing' }));
+  await assertFails(setDoc(doc(member, 'expenses', 'invalid-extra-text'), { personId: 'member', valueInCents: 100, name: 'x'.repeat(201) }));
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'financialCutovers', 'member'), { groupId: 'group-1' });
+  });
+  await assertFails(setDoc(doc(member, 'expenses', 'after-cutover'), { personId: 'member', valueInCents: 100 }));
 
   await assertSucceeds(getDoc(doc(member, 'financialAccounts', 'bank-1')));
   await assertSucceeds(getDoc(doc(admin, 'ledgerTransactions', 'transaction-1')));

@@ -62,7 +62,6 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-firebase/ai": "25.1.0",
-    "@react-native-firebase/analytics": "25.1.0",
     "@react-native-firebase/app": "25.1.0",
     "@react-native-firebase/app-check": "25.1.0",
     "@react-native-firebase/auth": "25.1.0",
@@ -155,5 +154,6 @@
     "test-renderer": "^1.2.0",
     "typescript": "~6.0.3"
   },
+  "overrides": { "@grpc/grpc-js": "1.13.6" },
   "private": true
 }

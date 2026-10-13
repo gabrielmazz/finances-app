@@ -79,6 +79,7 @@ const installWebMocks = (options: WebMockOptions = {}) => {
 
 	jest.doMock('@/FirebaseConfig', () => ({ app, auth }));
 	jest.doMock('@/utils/firebaseRuntime', () => ({
+		firebaseRuntime: { target: options.emulator ? 'emulator' : 'production' },
 		PRODUCTION_FIREBASE_PROJECT_ID: 'finances-app-e8685',
 		isFirebaseEmulatorRuntime: () => options.emulator ?? false,
 	}));

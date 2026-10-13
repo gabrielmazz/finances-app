@@ -8,6 +8,8 @@ versao: 1.2.0
 
 # Perfil do Usuário
 
+> Auditoria 2026-10-11: **Contas vinculadas** mostra apenas relações com concessões recíprocas confirmadas. A tela de relacionamento lista convites recebidos e permite aceitá-los na sessão da conta convidada. A solicitação de exclusão de conta está preparada no backend, mas a experiência de exclusão e a execução aguardam a política de retenção; ver [[Remediação da Auditoria de Segurança]].
+
 **Meu perfil** permite consultar a própria conta e editar o nome. O item substitui **Relacionar usuário** no grupo Config dos menus Web e mobile.
 
 ## Como funciona
