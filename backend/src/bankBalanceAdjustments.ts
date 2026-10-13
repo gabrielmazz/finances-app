@@ -1,10 +1,12 @@
+import { secureOnCall } from './secureCallable';
 import { createHash } from 'node:crypto';
 import { createAssistantRecordFingerprint } from '../../utils/assistantRecordFingerprint';
 import { getFirestore, FieldValue, Timestamp, type Transaction } from 'firebase-admin/firestore';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { calculateLegacyBankBalanceInCents } from '../../utils/monthlyBalance';
 import { calculateBankBalanceAdjustment, canChangeBankBalanceAdjustment } from '../../utils/bankBalanceAdjustment';
 import { assertClientActionId, validateLedgerTransaction, type LedgerTransaction } from '../../utils/financialLedger';
+import { enforceCallableRateLimit } from './callableRateLimit';
 
 function fail(message: string): never { throw new HttpsError('failed-precondition', message); }
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
@@ -22,9 +24,10 @@ function effectiveDate(value: unknown, now: Date): Date {
 	return day === today ? now : date;
 }
 
-export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, async request => {
+export const bankBalanceAdjustment = secureOnCall( async request => {
 	const personId = request.auth?.uid;
 	if (!personId) throw new HttpsError('unauthenticated', 'Entre na sua conta para ajustar o saldo.');
+	await enforceCallableRateLimit(personId, 'bank-balance-adjustment', 120);
 	const data = request.data as Record<string, unknown>;
 	if (data?.expectedActorId !== undefined && data.expectedActorId !== personId) throw new HttpsError('unauthenticated', 'A conta autenticada mudou; confirme novamente na sessão atual.');
 	const action = data?.action;
@@ -70,8 +73,20 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 		}
 		if (action === 'revert' && !original) fail('Selecione o ajuste que será revertido.');
 		if (original && typeof data.expectedFingerprint === 'string' && createAssistantRecordFingerprint(original) !== data.expectedFingerprint) fail('O ajuste mudou após o resumo; confira a proposta atual.');
-		const relatedIds = Array.isArray(userData.relatedIdUsers) ? userData.relatedIdUsers : [];
-		const allowedIds = new Set([personId, ...relatedIds]);
+		const relatedIds = Array.isArray(userData.relatedIdUsers)
+			? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0 && !id.includes('/'))
+			: [];
+		const acceptedIds = await Promise.all(relatedIds.map(async relatedId => {
+			const [ownerGrant, relatedGrant, relatedProfile] = await Promise.all([
+				transaction.get(db.doc(`userRelationshipGrants/${personId}/related/${relatedId}`)),
+				transaction.get(db.doc(`userRelationshipGrants/${relatedId}/related/${personId}`)),
+				transaction.get(db.doc(`users/${relatedId}`)),
+			]);
+			return ownerGrant.exists && relatedGrant.exists
+				&& Array.isArray(relatedProfile.data()?.relatedIdUsers)
+				&& relatedProfile.data()!.relatedIdUsers.includes(personId) ? relatedId : null;
+		}));
+		const allowedIds = new Set([personId, ...acceptedIds.filter((id): id is string => id !== null)]);
 		let accountId: string | null = null;
 		let accountBalance = 0;
 		let previousBalance: number | null = null;
@@ -104,6 +119,16 @@ export const bankBalanceAdjustment = onCall({ region: 'southamerica-east1' }, as
 			const bank = await transaction.get(db.doc(`banks/${bankId}`));
 			if (!bank.exists || !allowedIds.has(bank.data()!.personId) || bank.data()!.isActive === false) {
 				throw new HttpsError('permission-denied', 'Selecione um banco ativo autorizado para sua conta.');
+			}
+			const bankOwnerId = bank.data()!.personId;
+			const [actorCutover, bankOwner, ownerCutover] = await Promise.all([
+				transaction.get(db.doc(`financialCutovers/${personId}`)),
+				transaction.get(db.doc(`users/${bankOwnerId}`)),
+				transaction.get(db.doc(`financialCutovers/${bankOwnerId}`)),
+			]);
+			if (userData.financialLegacyCutoverAt || actorCutover.exists || !bankOwner.exists
+				|| bankOwner.data()?.financialGroupId || bankOwner.data()?.financialLegacyCutoverAt || ownerCutover.exists) {
+				throw new HttpsError('permission-denied', 'O ajuste legado está bloqueado após a migração da conta.');
 			}
 			const load = async (name: string) => {
 				const snapshot = await transaction.get(db.collection(name).where('bankId', '==', bankId));

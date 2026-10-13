@@ -35,7 +35,7 @@ describe('Lumus Assistant Android function calling protocol', () => {
 		}));
 		jest.doMock('expo/virtual/env', () => ({ env: process.env }));
 		jest.doMock('@/FirebaseConfig', () => ({ auth: { currentUser: { uid: 'test-user' } } }));
-		jest.doMock('@/utils/firebaseRuntime', () => ({ isFirebaseEmulatorRuntime: () => true }));
+		jest.doMock('@/utils/firebaseRuntime', () => ({ firebaseRuntime: { target: 'emulator' }, isFirebaseEmulatorRuntime: () => true }));
 		jest.doMock('@react-native-firebase/app', () => ({ getApp: () => app }));
 		jest.doMock('@react-native-firebase/app-check', () => ({ __esModule: true, default: () => appCheck }));
 		jest.doMock('@react-native-firebase/ai', () => ({

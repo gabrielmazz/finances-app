@@ -38,7 +38,7 @@ export async function getUserProfileFirebase(uid: string): Promise<UserProfile> 
 		name: typeof data.name === 'string' ? data.name : user.displayName ?? '',
 		email: user.email ?? '',
 		createdAt: createdAt instanceof Date && Number.isFinite(createdAt.getTime()) ? createdAt : null,
-		adminUser: Boolean(data.adminUser),
+		adminUser: data.financialGroupRole === 'admin',
 	};
 }
 

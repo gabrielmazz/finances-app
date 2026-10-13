@@ -1,5 +1,5 @@
+import { ensureWebAppCheck } from '@/utils/firebaseAppCheck.web';
 import { auth, app } from '@/FirebaseConfig';
-import Constants from 'expo-constants';
 import {
 	PRODUCTION_FIREBASE_PROJECT_ID,
 	isFirebaseEmulatorRuntime,
@@ -36,10 +36,7 @@ import {
 	type Part,
 } from 'firebase/ai';
 import {
-	ReCaptchaEnterpriseProvider,
 	getToken,
-	initializeAppCheck,
-	type AppCheck,
 } from 'firebase/app-check';
 import {
 	fetchAndActivate,
@@ -53,9 +50,7 @@ import {
 
 const SITE_KEY = process.env.EXPO_PUBLIC_FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_KEY?.trim() ?? '';
 const ASSISTANT_DEVELOPMENT_APP_NAME = 'LUMUS_ASSISTANT_DEVELOPMENT';
-const expoExtra = Constants.expoConfig?.extra as { lumusAssistantAppCheckDebugToken?: unknown } | undefined;
 
-let webAppCheck: AppCheck | null = null;
 let remoteConfigInstance: RemoteConfig | null = null;
 let remoteConfigLoaded = false;
 let configPromise: Promise<AssistantAiConfig> | null = null;
@@ -95,25 +90,6 @@ const getAssistantFirebaseApp = (): FirebaseApp => {
 	);
 };
 
-const ensureWebAppCheck = (assistantApp: FirebaseApp) => {
-	if (webAppCheck) return webAppCheck;
-	if (!SITE_KEY) {
-		throw new Error('Firebase App Check reCAPTCHA Enterprise não configurado.');
-	}
-	const debugToken = typeof expoExtra?.lumusAssistantAppCheckDebugToken === 'string'
-		? expoExtra.lumusAssistantAppCheckDebugToken.trim()
-		: undefined;
-	if (isFirebaseEmulatorRuntime() || (process.env.NODE_ENV === 'development' && debugToken)) {
-		(globalThis as typeof globalThis & { FIREBASE_APPCHECK_DEBUG_TOKEN?: boolean | string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
-			debugToken && debugToken.toLocaleLowerCase('pt-BR') !== 'true' ? debugToken : true;
-	}
-	const initialized = initializeAppCheck(assistantApp, {
-		provider: new ReCaptchaEnterpriseProvider(SITE_KEY),
-		isTokenAutoRefreshEnabled: true,
-	});
-	webAppCheck = initialized;
-	return initialized;
-};
 
 const readRemoteConfig = async (forceRefresh = false): Promise<AssistantAiConfig> => {
 	if (!forceRefresh && configPromise) {

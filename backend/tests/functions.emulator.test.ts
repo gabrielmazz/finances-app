@@ -330,17 +330,41 @@ async function run(): Promise<void> {
   await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', { ...legacyOutflow, clientActionId: 'legacy_movement_after_cutover_' + runId }, 'permission-denied');
 
   const migrationOwner = await anonymousUser('migration-issues-owner-' + runId);
+  const migrationVictim = await anonymousUser('migration-unconsented-' + runId);
   const migrationActionId = 'migration_issues_' + runId;
   const migrationGroupId = 'group-' + migrationOwner.uid + '-' + migrationActionId;
   await environment.withSecurityRulesDisabled(async context => {
-    await setDoc(doc(context.firestore(), 'banks', 'invalid-migration-bank-' + runId), {
+    const firestore = context.firestore();
+    await setDoc(doc(firestore, 'users', migrationOwner.uid), { name: 'Migration owner', relatedIdUsers: [] });
+    await setDoc(doc(firestore, 'users', migrationVictim.uid), { name: 'Migration victim', relatedIdUsers: [] });
+    await setDoc(doc(firestore, 'banks', 'invalid-migration-bank-' + runId), {
       personId: migrationOwner.uid,
       // A ausência de name precisa ser relatada no dry-run e bloquear o corte.
     });
+	await setDoc(doc(firestore, 'banks', 'approved-migration-bank-' + runId), {
+	  personId: migrationVictim.uid, name: 'Banco autorizado', isActive: true,
+	});
   });
   const migrationRequest = { mode: 'dry-run', clientActionId: migrationActionId };
-  const migrationPreview = await invokeAs<typeof migrationRequest, { fingerprint: string; issueCount: number }>(migrationOwner, 'migrateFinancialGroup', migrationRequest);
+  await expectDenied(migrationOwner, 'migrateFinancialGroup', {
+    ...migrationRequest, memberIds: [migrationVictim.uid],
+  }, 'permission-denied');
+	const approval = { action: 'approve', actorId: migrationOwner.uid, clientActionId: migrationActionId };
+	await invokeAs(migrationVictim, 'financialMigrationConsent', approval);
+	const approvedPreview = await invokeAs<typeof migrationRequest & { memberIds: string[] }, { sourceDocumentCount: number; issueCount: number }>(
+	  migrationOwner, 'migrateFinancialGroup', { ...migrationRequest, memberIds: [migrationVictim.uid] });
+	await invokeAs(migrationVictim, 'financialMigrationConsent', { ...approval, action: 'revoke' });
+	await expectDenied(migrationOwner, 'migrateFinancialGroup', {
+	  ...migrationRequest, memberIds: [migrationVictim.uid],
+	}, 'permission-denied');
+  await expectDenied(migrationOwner, 'migrateFinancialGroup', {
+    ...migrationRequest, memberIds: Array.from({ length: 6 }, (_, index) => `synthetic-${index}`),
+  }, 'invalid-argument');
+  const migrationPreview = await invokeAs<typeof migrationRequest, { fingerprint: string; issueCount: number; sourceDocumentCount: number }>(migrationOwner, 'migrateFinancialGroup', migrationRequest);
   if (migrationPreview.issueCount !== 1) throw new Error('The migration dry-run must report the invalid bank.');
+	if (approvedPreview.sourceDocumentCount <= migrationPreview.sourceDocumentCount) {
+	  throw new Error('The approved member must contribute data only while consent remains active.');
+	}
   await expectDenied(migrationOwner, 'migrateFinancialGroup', {
     ...migrationRequest,
     mode: 'execute',
@@ -351,6 +375,18 @@ async function run(): Promise<void> {
       throw new Error('A migration with issues must not create or activate a financial group.');
     }
   });
+	for (let attempt = 0; attempt < 3; attempt++) {
+	  const deletion = await invokeAs<Record<string, never>, { status: string }>(migrationOwner, 'requestAccountDeletion', {});
+	  if (deletion.status !== 'pending-retention-policy') throw new Error('Deletion must remain pending until the retention policy is approved.');
+	}
+	await expectDenied(migrationOwner, 'requestAccountDeletion', {}, 'resource-exhausted');
+	await environment.withSecurityRulesDisabled(async context => {
+	  const firestore = context.firestore();
+	  if (!(await getDoc(doc(firestore, 'users', migrationOwner.uid))).exists()
+	    || (await getDoc(doc(firestore, 'accountDeletionRequests', migrationOwner.uid))).data()?.status !== 'pending-retention-policy') {
+	    throw new Error('A deletion request must not erase the profile before retention is resolved.');
+	  }
+	});
 
   let changedRetryDenied = false;
   try {

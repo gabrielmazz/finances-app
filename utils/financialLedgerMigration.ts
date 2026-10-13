@@ -487,7 +487,7 @@ export function createLegacyMigrationPlan(input: LegacyMigrationInput): LegacyMi
     const calculatedCashBalance = calculateAccountBalanceInCents({ accountId: cashId, transactions });
     const differenceInCents = input.confirmedCashBalanceInCents - calculatedCashBalance;
     const effectiveAt = input.confirmedAt ?? new Date();
-    const adjustmentId = 'migration-cash-confirmation';
+    const adjustmentId = 'migration-cash-confirmation-' + input.groupId;
 
     if (differenceInCents !== 0) {
       transactions.push({
@@ -506,7 +506,7 @@ export function createLegacyMigrationPlan(input: LegacyMigrationInput): LegacyMi
     }
 
     reconciliations.push({
-      id: 'migration-cash-confirmation-reconciliation',
+      id: 'migration-cash-confirmation-reconciliation-' + input.groupId,
       groupId: input.groupId,
       accountId: cashId,
       effectiveAt,

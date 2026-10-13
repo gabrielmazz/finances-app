@@ -2,7 +2,7 @@ jest.mock('@/FirebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'owne
 jest.mock('firebase/functions', () => ({ httpsCallable: jest.fn() }));
 jest.mock('firebase/firestore', () => ({
 	collection: (_db: unknown, name: string) => ({ name }),
-	doc: (_db: unknown, name: string, id: string) => ({ name, id }),
+	doc: (_db: unknown, name: string, id: string, ...rest: string[]) => ({ name, id: rest.at(-1) ?? id }),
 	query: (source: { name: string }, ...filters: unknown[]) => ({ ...source, filters }),
 	where: (field: string, operator: string, value: unknown) => ({ field, operator, value }),
 	orderBy: (field: string, direction = 'asc') => ({ orderBy: field, direction }),
@@ -44,6 +44,9 @@ beforeEach(() => {
 		banks: [], monthlyBalances: [], expenses: [], gains: [], cashRescues: [], mandatoryExpenses: [], mandatoryGains: [], financeInvestments: [], investmentCdiRates: [], bankBalanceAdjustments: [], ledgerTransactions: [],
 	};
 	(getDoc as jest.Mock).mockReset().mockImplementation(async ({ name, id }: { name: string; id: string }) => {
+		const relatedIds = (records.users.find(item => item.id === 'owner')?.relatedIdUsers ?? []) as string[];
+		if (name === 'userRelationshipGrants') return { exists: () => relatedIds.includes(id) };
+		if (name === 'users' && relatedIds.includes(id)) return snapshot({ id, relatedIdUsers: ['owner'] });
 		const row = records[name]?.find(item => item.id === id);
 		return row ? snapshot(row) : { exists: () => false };
 	});

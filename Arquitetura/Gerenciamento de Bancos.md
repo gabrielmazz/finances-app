@@ -10,9 +10,11 @@ versao: 1.7.6
 
 Permite criar e gerenciar contas bancárias, visualizar movimentos por período e acompanhar o saldo de cada conta. É o núcleo financeiro do app.
 
-> **Transição do razão (2026-08-11):** o fluxo abaixo continua sendo o legado para grupos ainda não migrados. Após o corte confirmado, bancos passam a ser financialAccounts do tipo bank, Caixa é uma conta do tipo cash e os saldos vêm de eventos imutáveis e reconciliações. Nenhum documento legado é removido; a ligação é preservada pelo legacyBankId. O `execute` da migração é recusado enquanto o dry-run registrar qualquer `issue`; veja [[Processo de Release]].
+> **Transição do razão (2026-10-11):** o fluxo abaixo continua sendo o legado para grupos ainda não migrados. Após o corte confirmado, bancos passam a ser financialAccounts do tipo bank, Caixa é uma conta do tipo cash e os saldos vêm de eventos imutáveis e reconciliações. Nenhum documento legado é removido; a ligação é preservada pelo legacyBankId. Cada membro adicional precisa aprovar, na própria sessão, o ID do administrador e o `clientActionId` do corte por `financialMigrationConsent`; a aprovação dura 24 horas e pode ser revogada. `migrateFinancialGroup` valida as aprovações antes de consultar dados, depois do plano e na transação de gravação. São aceitos no máximo cinco membros. O `execute` é recusado enquanto o dry-run registrar qualquer `issue`; veja [[Processo de Release]] e [[Remediação da Auditoria de Segurança]].
 
 ## Como funciona
+
+Na migração, o fingerprint aprovado inclui o conteúdo financeiro e a lista de membros. A confirmação física do Caixa exige `confirmedAt` (ISO) igual na prévia e execução. Cada coleção aceita no máximo 2.000 documentos; excesso é recusado, sem migração parcial por truncamento. Revogação entre lotes mantém o grupo `migrating`; a própria pessoa pode renovar a mesma aprovação e permitir retomada. Reenvio de uma migração concluída recupera o recibo somente para os mesmos argumentos. Ajustes legados verificam também o corte do dono do banco, impedindo que um vínculo antigo reabra escritas. [[Remediação da Auditoria de Segurança]] registra os testes e limites.
 
 ### Cadastro de Banco
 1. `screens/mobile/AddRegisterBankScreen.tsx` e `screens/web/AddRegisterBankScreen.web.tsx` coletam nome, cor visual e ícone do banco em composições próprias para cada plataforma; a Web reaproveita `BankActionsheetSelector` para listar as instituições com seus ícones, sem um modal dedicado

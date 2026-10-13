@@ -154,3 +154,7 @@ O título "Evolução da carteira" usa nas versões mobile e Web o mesmo tratame
 ### Estorno de aporte legado — 2026-10-04
 
 `undo_investment_deposit` compartilha a callable confiável com a conversa e o formulário, revalidando movimento/posição, fingerprint, ator, saldo e recibo na mesma transação. A posição atual precisa cobrir o aporte devolvido: valor já resgatado impede o estorno inteiro, sem crédito inventado no banco. Retry do mesmo pedido consulta recibo antes de um alvo removido; versão stale não grava. Os 68 testes SDK locais incluem recusa de aporte já resgatado, concorrência de retry e fingerprint stale. [[Comandos Financeiros Conversacionais]] registra a integração no legado/razão.
+
+### Integridade da sincronização legada — 2026-10-12
+
+As Rules de `financeInvestmentSyncs` conferem o investimento antes e depois da escrita atômica: proprietário, saldo anterior real, saldo final, delta em centavos e banco original. Não se aceita saldo anterior inventado nem vínculo com outro banco. Movimentos compostos de aporte/resgate são exclusivos da callable. Históricos anteriores permanecem legíveis, mas não devem ser recriados pelo cliente como se fossem novas sincronizações. A compatibilidade dos documentos reais ainda requer cópia isolada, conforme [[Remediação da Auditoria de Segurança]].

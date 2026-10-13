@@ -28,6 +28,7 @@ describe('compatibilidade Web', () => {
 		jest.dontMock('firebase/functions');
 		jest.dontMock('expo-print');
 		jest.dontMock('expo-sharing');
+		jest.dontMock('expo-file-system/legacy');
 		jest.dontMock('@/utils/pdfFileName');
 		process.env = { ...originalEnv };
 	});
@@ -125,6 +126,8 @@ describe('compatibilidade Web', () => {
 		jest.doMock('@/utils/pdfFileName', () => ({
 			copyPdfToNamedCacheFile: jest.fn(async () => 'file:///cache/named-report.pdf'),
 		}));
+		const mockDeleteAsync = jest.fn(async () => undefined);
+		jest.doMock('expo-file-system/legacy', () => ({ deleteAsync: mockDeleteAsync }));
 
 		const { exportHtmlReport } = require('@/utils/reportExport.native') as typeof import('@/utils/reportExport.native');
 		await expect(
@@ -136,6 +139,8 @@ describe('compatibilidade Web', () => {
 			mimeType: 'application/pdf',
 			UTI: 'com.adobe.pdf',
 		});
+		expect(mockDeleteAsync).toHaveBeenCalledWith('file:///cache/report.pdf', { idempotent: true });
+		expect(mockDeleteAsync).toHaveBeenCalledWith('file:///cache/named-report.pdf', { idempotent: true });
 	});
 
 	it('mantém lembretes agendados indisponíveis no navegador sem carregar o módulo nativo', async () => {

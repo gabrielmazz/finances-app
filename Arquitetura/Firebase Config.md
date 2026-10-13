@@ -8,6 +8,8 @@ versao: 1.4.7
 
 # Firebase Config
 
+> Auditoria 2026-10-12: o pacote nativo direto de Analytics foi removido e `firebase.json` define `analytics_auto_collection_enabled: false` e `analytics_collection_deactivated: true`; a coleta fica desligada nesta versão, inclusive se o módulo vier como dependência transitiva. Os apps de negócio e a IA compartilham inicialização App Check. No nativo, a ponte CustomProvider entrega token e expiração ao SDK JavaScript e exige projeto compatível; Expo Go remoto é recusado. As 15 callables usam `secureOnCall`, com enforcement controlado por `LUMUS_ENFORCE_APP_CHECK` (default `false`, ligar primeiro em homologação). Testes locais validaram rejeição de atestado ausente/falsificado; emissão real e configuração publicada continuam pendentes. Ver [[Remediação da Auditoria de Segurança]].
+
 Configuração e inicialização do Firebase no projeto. Usa dois apps Firebase de negócio e, somente no desenvolvimento Web, um terceiro app restrito à ponte de IA. No Expo Go, o adapter JavaScript usa os identificadores do app Web apenas para chamadas HTTPS de AI Logic/App Check, sem inicializar um app de negócio remoto. Resolve o adaptador de persistência pela plataforma, mantendo Auth e dados financeiros separados da ponte remota.
 
 ## Como funciona

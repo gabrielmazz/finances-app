@@ -44,6 +44,7 @@ Espaço pessoal para textos livres, listas e checklists. As páginas pertencem �
 ## Observações importantes
 
 - As anotações são somente locais: limpar dados do aplicativo, trocar de aparelho ou remover o app pode apagá-las.
+- A saída explícita também apaga as anotações deste UID no aparelho. A limpeza bloqueia novas mutações, espera a fila já iniciada e remove a chave antes de encerrar Auth; não remove notas de outra conta. Falha mantém a sessão ativa e permite retry. Ver [[Remediação da Auditoria de Segurança]].
 - Não incluir Firebase, sincronização, compartilhamento ou anexos neste fluxo sem documentar e aprovar a mudança de escopo.
 - O conteúdo permanece como Markdown em texto simples no `AsyncStorage`; a renderização rica acontece somente enquanto a página está aberta para edição.
 

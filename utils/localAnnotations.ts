@@ -62,15 +62,29 @@ export const loadLocalAnnotations = async (userId: string): Promise<LocalAnnotat
 };
 
 const annotationMutations = new Map<string, Promise<void>>();
+const blockedAnnotationAccounts = new Set<string>();
 
 function serializeAnnotationMutation<T>(userId: string, operation: () => Promise<T>): Promise<T> {
 	const previous = annotationMutations.get(userId) ?? Promise.resolve();
-	const result = previous.then(operation);
+	const result = previous.then(() => {
+		if (blockedAnnotationAccounts.has(userId)) throw new Error('A sessão está sendo encerrada.');
+		return operation();
+	});
 	const finished = result.then(() => undefined, () => undefined);
 	annotationMutations.set(userId, finished);
 	void finished.then(() => { if (annotationMutations.get(userId) === finished) annotationMutations.delete(userId); });
 	return result;
 }
+
+export const clearLocalAnnotationsForLogout = async (userId: string) => {
+	blockedAnnotationAccounts.add(userId);
+	await (annotationMutations.get(userId) ?? Promise.resolve());
+	await AsyncStorage.removeItem(getLocalAnnotationsStorageKey(userId));
+};
+
+export const resumeLocalAnnotationsAfterFailedLogout = (userId: string) => {
+	blockedAnnotationAccounts.delete(userId);
+};
 
 const writeAnnotations = async (userId: string, annotations: LocalAnnotation[]) => {
 	await AsyncStorage.setItem(

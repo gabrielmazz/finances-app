@@ -34,19 +34,25 @@ async function run() {
 		const command = { action: 'link', relatedUserId: target.uid, clientActionId: `${prefix}-link`, expectedFingerprint: preview.fingerprint };
 		const result = await call(owner, command);
 		assert.equal(result.changed, true);
+		assert.equal((result as any).status, 'invited');
 		const repeated = await call(owner, command);
 		assert.equal(repeated.idempotent, true);
+		await assertFails(getDoc(doc(environment.authenticatedContext(owner.uid).firestore(), 'users', target.uid)));
 		await environment.withSecurityRulesDisabled(async context => {
 			const firestore = context.firestore();
 			const ownerData = (await getDoc(doc(firestore, 'users', owner.uid))).data()!;
 			const targetData = (await getDoc(doc(firestore, 'users', target.uid))).data()!;
-			assert.deepEqual(ownerData.relatedIdUsers, [target.uid]);
-			assert.deepEqual(targetData.relatedIdUsers, [owner.uid]);
+			assert.deepEqual(ownerData.relatedIdUsers, []);
+			assert.deepEqual(targetData.relatedIdUsers, []);
 			assert.equal(ownerData.financialGroupId, 'group-owner');
 			assert.equal(ownerData.financialGroupRole, 'member');
 			assert.equal(targetData.financialGroupId, 'group-target');
 			assert.equal(targetData.financialGroupRole, 'admin');
 		});
+		const acceptPreview = await call(target, { action: 'preview', relatedUserId: owner.uid });
+		const accepted = await call(target, { action: 'link', relatedUserId: owner.uid, clientActionId: `${prefix}-accept`, expectedFingerprint: acceptPreview.fingerprint });
+		assert.equal((accepted as any).status, 'linked');
+		await getDoc(doc(environment.authenticatedContext(owner.uid).firestore(), 'users', target.uid));
 		await assert.rejects(call(owner, { ...command, clientActionId: `${prefix}-stale`, action: 'unlink' }), (error: any) => error.code === 'functions/failed-precondition');
 		await assert.rejects(call(owner, { ...command, action: 'unlink' }), (error: any) => error.code === 'functions/failed-precondition');
 		const unlinkPreview = await call(owner, { action: 'preview', relatedUserId: target.uid });
@@ -74,7 +80,7 @@ async function run() {
 		await call(owner, { action: 'link', relatedUserId: secondTarget.uid, clientActionId: `${prefix}-batch-two`, expectedFingerprint: secondPair.fingerprint });
 		await environment.withSecurityRulesDisabled(async context => {
 			const data = (await getDoc(doc(context.firestore(), 'users', owner.uid))).data()!;
-			assert.deepEqual(new Set(data.relatedIdUsers), new Set([target.uid, secondTarget.uid]));
+			assert.deepEqual(data.relatedIdUsers, []);
 			assert.equal(data.financialGroupRole, 'member');
 		});
 		console.log('User relationships: passed (bidirectional, idempotency, stale, independent batch pairs, account fields preserved, scope).');

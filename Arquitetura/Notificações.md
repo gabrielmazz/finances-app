@@ -13,9 +13,10 @@ Sistema de avisos do Lumus Finanças com três frentes: lembretes locais de venc
 ## Push remoto para dispositivos vinculados
 
 1. Após autenticar em uma build Android/iOS instalada e com permissão concedida, `app/_layout.tsx` chama `registerRemoteNotificationDevice()`. O token Expo fica em `users/{uid}/pushDevices/{installationId}`; somente o próprio UID pode gravar ou ler esse documento.
-2. `backend/src/index.ts` observa `mandatoryExpenses` e `mandatoryGains`. Criação, edição ou exclusão gera uma mensagem para o dono do template e seus `relatedIdUsers`, portanto a entrega não depende do celular que efetuou o save nem exige que as listas estejam abertas.
-3. A Function usa o endpoint Expo Push, nunca aceita uma lista de destinatários do cliente, deduplica tokens e remove tokens que o Expo informar como `DeviceNotRegistered`. O conteúdo não inclui valores financeiros.
+2. `backend/src/index.ts` observa `mandatoryExpenses` e `mandatoryGains`. Criação, edição ou exclusão considera o dono e apenas relações aceitas por ambas as contas, comprovadas por concessões recíprocas no servidor.
+3. A Function usa o endpoint Expo Push, nunca aceita uma lista de destinatários do cliente, deduplica tokens e remove tokens que o Expo informar como `DeviceNotRegistered`. Só usa registros atualizados nos últimos sete dias. O conteúdo é genérico e não inclui nome da recorrência nem valores financeiros.
 4. Expo Go e Web não registram tokens. Cada pessoa vinculada precisa abrir ao menos uma vez a build instalada e permitir notificações para que seu aparelho entre na lista de entrega.
+5. No logout explícito, `secureLogout` remove o registro `pushDevices` do UID antes de encerrar o Auth. Uma falha de remoção interrompe o logout para evitar deixar um token ativo em um aparelho compartilhado. Registro tardio revalida UID e a versão da sessão antes de gravar.
 
 ## Lembretes locais
 

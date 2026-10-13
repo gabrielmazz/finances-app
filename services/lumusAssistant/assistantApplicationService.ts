@@ -238,7 +238,7 @@ export function summarizeAssistantApplicationCommand(command: AssistantApplicati
 	switch (command.kind) {
 		case 'export_report': label = command.request.target === 'category_analysis' ? `Exportar análise da categoria ${command.request.categoryLabel || command.request.categoryName || 'informada'} em PDF` : command.request.target === 'mandatory_expenses' || command.request.target === 'mandatory_gains' ? `Exportar ${command.request.target === 'mandatory_expenses' ? 'despesas' : 'receitas'} fixas em PDF` : `Exportar o extrato de ${command.request.bankLabel || command.request.bankName || 'um banco'} em PDF`; break;
 		case 'update_profile_name': label = `Alterar seu nome de ${command.expectedProfileName || 'não informado'} para ${command.name}`; break;
-		case 'change_relationship': label = `${command.action === 'link' ? 'Vincular' : 'Desvincular'} ${command.relatedUserName || 'a conta informada'}; ${command.action === 'link' ? 'compartilhar' : 'remover o compartilhamento de'} dados autorizados entre as contas`; break;
+		case 'change_relationship': label = `${command.action === 'link' ? 'Convidar' : 'Desvincular'} ${command.relatedUserName || 'a conta informada'}; ${command.action === 'link' ? 'compartilhar dados somente após o aceite da outra pessoa' : 'remover o compartilhamento de dados entre as contas'}`; break;
 		case 'create_annotation': label = `Criar a anotação ${command.title} neste aparelho`; break;
 		case 'update_annotation': label = command.newTitle ? `Renomear a anotação ${command.title} para ${command.newTitle} neste aparelho` : `Substituir o conteúdo da anotação ${command.title} neste aparelho`; break;
 		case 'read_annotation': label = `Ler a anotação ${command.title}`; break;
@@ -521,7 +521,7 @@ async function executeApplicationCommand(
 			if (!command.expectedFingerprint || !command.relatedUserId) throw new Error('Confira o vínculo e confirme a alteração antes de salvar.');
 			const result = await runUserRelationshipFirebase(uid, { ...command, relatedUserId: command.relatedUserId });
 			requireApplicationScope(uid, adapters);
-			return { success: true, changed: 'relationships', message: command.action === 'link' ? `Vínculo com ${result.relatedUserName} registrado. As contas compartilham os dados autorizados.` : `Vínculo com ${result.relatedUserName} removido.` };
+			return { success: true, changed: 'relationships', message: command.action === 'link' ? result.status === 'linked' ? `Convite de ${result.relatedUserName} aceito. As contas compartilham os dados autorizados.` : `Convite enviado. A outra pessoa precisa aceitar antes de compartilhar dados.` : `Vínculo com ${result.relatedUserName} removido.` };
 		}
 		case 'navigate': {
 			if (!adapters?.navigate) return { success: false, message: 'A navegação ainda não está disponível nesta conversa.' };

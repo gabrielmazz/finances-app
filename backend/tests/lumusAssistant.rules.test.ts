@@ -46,7 +46,7 @@ async function run(): Promise<void> {
       const payment = await transaction.get(paymentRef);
       if (!template.exists() || payment.exists()) throw new Error('Invalid payment fixture.');
       transaction.set(paymentRef, {
-        personId: 'owner', valueInCents: 1200, assistantActionId: 'payment-1',
+        personId: 'owner', name: 'Pagamento de teste', date: new Date(), valueInCents: 1200, assistantActionId: 'payment-1',
       });
       transaction.set(doc(owner, 'assistantOperationReceipts', 'payment-1'), { personId: 'owner', clientActionId: 'payment-1', kind: 'pay_mandatory_expense', fingerprint: 'example-fingerprint', createdAt: new Date() });
       transaction.update(templateRef, {

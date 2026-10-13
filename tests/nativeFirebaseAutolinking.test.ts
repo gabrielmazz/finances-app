@@ -1,6 +1,5 @@
 const FIREBASE_PACKAGES = [
 	'@react-native-firebase/ai',
-	'@react-native-firebase/analytics',
 	'@react-native-firebase/app',
 	'@react-native-firebase/app-check',
 	'@react-native-firebase/auth',

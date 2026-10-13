@@ -8,6 +8,9 @@ import {
 	finalizeMandatoryReminderAccountCleanup,
 } from '@/utils/mandatoryReminderNotifications';
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
+import { finishRemoteNotificationLogout, unregisterRemoteNotificationDevice } from '@/utils/remoteNotifications';
+import { clearFinancePersistedDataForLogout, resumeFinancePersistedDataAfterFailedLogout } from '@/contexts/FinanceDataContext';
+import { clearLocalAnnotationsForLogout, resumeLocalAnnotationsAfterFailedLogout } from '@/utils/localAnnotations';
 
 type SecureLogoutOptions = {
 	isDarkMode: boolean;
@@ -79,6 +82,10 @@ export const logoutCurrentUser = async ({
 	}
 
 	try {
+		await unregisterRemoteNotificationDevice(accountId);
+		await clearFinancePersistedDataForLogout(accountId);
+		await clearLocalAnnotationsForLogout(accountId);
+		if (auth.currentUser?.uid !== accountId) return;
 		await signOut(auth);
 		try {
 			await finalizeMandatoryReminderAccountCleanup(accountId);
@@ -91,6 +98,8 @@ export const logoutCurrentUser = async ({
 			isDarkMode,
 		});
 	} catch (error) {
+		resumeFinancePersistedDataAfterFailedLogout(accountId);
+		resumeLocalAnnotationsAfterFailedLogout(accountId);
 		console.error('Erro ao deslogar usuário:', error);
 		const remindersRestored = await restoreCurrentAccountReminders();
 		showNotifierAlert({
@@ -100,5 +109,7 @@ export const logoutCurrentUser = async ({
 			type: 'error',
 			isDarkMode,
 		});
+	} finally {
+		finishRemoteNotificationLogout(accountId);
 	}
 };

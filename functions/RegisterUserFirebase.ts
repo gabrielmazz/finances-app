@@ -3,8 +3,9 @@
 // sem persistir a senha no Firestore.
 
 import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
-import { auth, db, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db, firebaseFunctions, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
 
 // Define os parâmetros necessários para registrar um usuário
@@ -82,22 +83,12 @@ export async function requestPasswordResetFirebase(email: string) {
     }
 }
 
-// Função para deletar um usuário registrado no Firebase
-export async function deleteUserFirebase(userId: string) {
-    try {
-        // Deleta o documento do usuário no Firestore
-        await deleteDoc(doc(db, 'users', userId));
-
-        // Note: Deleting a user from Firebase Authentication requires the user to be signed in.
-        // This function assumes that the user is already authenticated.
-
-        return { success: true };
-
-    } catch (error) {
-        
-        console.error('Erro ao deletar usuário:', error);
-        return { success: false, error };
-    }
+// [[Autenticação]]: registra o pedido sem apagar parcialmente dados financeiros.
+export async function requestAccountDeletionFirebase(userId: string) {
+    if (!userId || auth.currentUser?.uid !== userId) throw new Error('Entre na conta que deseja excluir.');
+    const result = await httpsCallable<Record<string, never>, { status: 'pending-retention-policy' }>(firebaseFunctions, 'requestAccountDeletion')({});
+    if (auth.currentUser?.uid !== userId) throw new Error('A conta mudou durante o pedido.');
+    return result.data;
 }
 
 // Função para atualizar os dados de um usuário que está logado no Firebase, essa função irá relacionar ele com
@@ -225,17 +216,21 @@ export async function getRelatedUsersFirebase(userId: string) {
         }
 
         const userData = userDoc.data();
-        const relatedIdUsers: string[] = userData.relatedIdUsers || [];
+        const relatedIdUsers = Array.isArray(userData.relatedIdUsers)
+            ? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+            : [];
 
         if (relatedIdUsers.length === 0) {
             return { success: true, data: [] };
         }
 
         const relatedUsersPromises = relatedIdUsers.map(async (relatedIdUser) => {
+            const grant = await getDoc(doc(db, 'userRelationshipGrants', userId, 'related', relatedIdUser));
+            if (!grant.exists()) return null;
             const relatedUserDocRef = doc(db, 'users', relatedIdUser);
-            const relatedUserDoc = await getDoc(relatedUserDocRef);
+            const relatedUserDoc = await getDoc(relatedUserDocRef).catch(() => null);
 
-            if (relatedUserDoc.exists()) {
+            if (relatedUserDoc?.exists()) {
                 return { id: relatedUserDoc.id, ...relatedUserDoc.data() };
             } else {
                 return null;
@@ -272,7 +267,13 @@ export async function getRelatedUsersIDsFirebase(userId: string) {
             return { success: true, data: [] };
         }
 
-        return { success: true, data: relatedIdUsers };
+        const authorized = await Promise.all(relatedIdUsers.map(async relatedId => {
+            const grant = await getDoc(doc(db, 'userRelationshipGrants', userId, 'related', relatedId));
+            if (!grant.exists()) return null;
+            const profile = await getDoc(doc(db, 'users', relatedId)).catch(() => null);
+            return profile?.exists() ? relatedId : null;
+        }));
+        return { success: true, data: authorized.filter((id): id is string => id !== null) };
     } catch (error) {
         console.error('Erro ao buscar usuários relacionados:', error);
         return { success: false, error };
