@@ -34,7 +34,8 @@ import {
 	normalizeHomeTabIndex,
 	type AppRoutePath,
 } from '@/utils/navigation';
-import { logoutCurrentUser } from '@/utils/secureLogout';
+import { useLogoutConfirmation } from '@/hooks/useLogoutConfirmation';
+import { LogoutConfirmation } from '@/components/uiverse/navigation/logout-confirmation';
 import { isWebDesktopLayout } from '@/utils/webLayout';
 import { LUMUS_NAVIGATION_CLASS_NAMES, LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
 
@@ -123,7 +124,7 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 	const { width } = useWindowDimensions();
 	const [openMobileGroup, setOpenMobileGroup] = React.useState<number | null>(null);
 	const [profileName, setProfileName] = React.useState(user?.displayName?.trim() || '');
-	const logoutInFlightRef = React.useRef(false);
+	const { requestLogout, isOpen, isLoggingOut, cancelLogout, confirmLogout } = useLogoutConfirmation();
 	const isDesktopWeb = isWebDesktopLayout('web', width);
 	const homeTab = normalizeHomeTabIndex(params.tab, defaultValue as 0 | 1 | 2);
 
@@ -200,20 +201,12 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 		(option: NavigatorOption) => {
 			setOpenMobileGroup(null);
 			if (option.id === 'logout') {
-				if (logoutInFlightRef.current) return;
-				logoutInFlightRef.current = true;
-				void logoutCurrentUser({
-					isDarkMode,
-					userId: user?.uid,
-					displayName: user?.displayName,
-				}).finally(() => {
-					logoutInFlightRef.current = false;
-				});
+				requestLogout();
 				return;
 			}
 			option.onSelect();
 		},
-		[isDarkMode, user?.displayName, user?.uid],
+		[requestLogout],
 	);
 
 	const items = React.useMemo(
@@ -238,32 +231,36 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 			: LUMUS_NAVIGATION_COLORS.light;
 
 		return (
-			<StaggeredMenu
-				className="finance-menu"
-				position="left"
-				isFixed
-				themeMode={isDarkMode ? 'dark' : 'light'}
-				colors={[...navigationColors.layers]}
-				accentColor={navigationColors.accent}
-				menuButtonColor={navigationColors.button}
-				openMenuButtonColor={navigationColors.buttonOpen}
-				profile={{
-					name: profileDisplayName || profileName || user?.email?.split('@')[0] || 'Usuário',
-					subtitle: user?.email || '',
-					imageUrl: user?.photoURL || '',
-					initials: (profileDisplayName || profileName || user?.email || 'U').trim().charAt(0).toUpperCase(),
-				}}
-				collapsedRail
-				displayItemNumbering={false}
-				displaySocials={false}
-				items={items}
-			/>
+			<>
+				<LogoutConfirmation isOpen={isOpen} isLoggingOut={isLoggingOut} onCancel={cancelLogout} onConfirm={confirmLogout} />
+				<StaggeredMenu
+					className="finance-menu"
+					position="left"
+					isFixed
+					themeMode={isDarkMode ? 'dark' : 'light'}
+					colors={[...navigationColors.layers]}
+					accentColor={navigationColors.accent}
+					menuButtonColor={navigationColors.button}
+					openMenuButtonColor={navigationColors.buttonOpen}
+					profile={{
+						name: profileDisplayName || profileName || user?.email?.split('@')[0] || 'Usuário',
+						subtitle: user?.email || '',
+						imageUrl: user?.photoURL || '',
+						initials: (profileDisplayName || profileName || user?.email || 'U').trim().charAt(0).toUpperCase(),
+					}}
+					collapsedRail
+					displayItemNumbering={false}
+					displaySocials={false}
+					items={items}
+				/>
+			</>
 		);
 	}
 
 	const activeMobileGroup = resolvedGroups.find(group => group.value === openMobileGroup) ?? null;
 	return (
 		<View role="navigation" accessibilityLabel="Navegação principal" className="bg-slate-950">
+			<LogoutConfirmation isOpen={isOpen} isLoggingOut={isLoggingOut} onCancel={cancelLogout} onConfirm={confirmLogout} />
 			{activeMobileGroup ? (
 				<View className="gap-1 border-t border-slate-800 p-2.5">
 					{activeMobileGroup.options.map(option => (

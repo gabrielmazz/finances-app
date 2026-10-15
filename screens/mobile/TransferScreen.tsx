@@ -616,11 +616,11 @@ export default function TransferScreen() {
 							onScroll={handleScroll}
 							scrollEventThrottle={scrollEventThrottle}
 						>
-							<VStack className={`h-full mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
+							<VStack className={`mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
-								<HStack className="w-full web:flex-wrap" space="md">
+								<HStack className="w-full flex-col gap-4 md:flex-row">
 
-									<VStack className="mb-4 flex-1 web:min-w-[280px]">
+									<VStack className="mb-4 min-w-0 w-full md:w-0 md:flex-1">
 										<HStack className="mb-2 ml-1 items-center gap-2">
 											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Banco de Origem</Text>
 											<Popover
@@ -704,7 +704,7 @@ export default function TransferScreen() {
 										)}
 									</VStack>
 
-									<VStack className="mb-4 flex-1 web:min-w-[280px]">
+									<VStack className="mb-4 min-w-0 w-full md:w-0 md:flex-1">
 										<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco de destino</Text>
 										<BankActionsheetSelector
 											options={targetBankOptions}

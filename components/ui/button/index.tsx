@@ -154,7 +154,7 @@ const buttonTextStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
+        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
     },
     {
       variant: 'solid',
@@ -247,7 +247,7 @@ const buttonIconStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
+        'text-lumus-on-accent data-[hover=true]:text-lumus-on-accent data-[active=true]:text-lumus-on-accent',
     },
     {
       variant: 'solid',

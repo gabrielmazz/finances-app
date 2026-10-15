@@ -33,15 +33,12 @@ resolve_expo_cmd() {
     return
   fi
 
-  if [[ -f pnpm-lock.yaml ]] && command -v pnpm >/dev/null 2>&1; then
-    EXPO_CMD=(pnpm exec expo)
-  elif [[ -f yarn.lock ]] && command -v yarn >/dev/null 2>&1; then
-    EXPO_CMD=(yarn expo)
-  elif { [[ -f bun.lock ]] || [[ -f bun.lockb ]]; } && command -v bun >/dev/null 2>&1; then
-    EXPO_CMD=(bunx expo)
-  else
-    EXPO_CMD=(npx expo)
+  local expo_cli
+  if ! expo_cli="$(node -p 'require.resolve("expo/bin/cli")' 2>/dev/null)"; then
+    echo "Expo local não encontrado. Execute npm install antes de iniciar." >&2
+    exit 1
   fi
+  EXPO_CMD=(node "$expo_cli")
 }
 
 run_doctor() {
@@ -56,7 +53,10 @@ run_doctor() {
   fi
 }
 
-resolve_expo_cmd
+case "$MODE" in
+  --help|help|--doctor|doctor) ;;
+  *) resolve_expo_cmd ;;
+esac
 
 EMULATOR_PID=""
 EXPO_PID=""
@@ -106,6 +106,13 @@ run_expo_with_restart() {
 }
 
 start_local_emulators() {
+  # Validate before starting/seeding the Suite; see [[Firebase Config]].
+  local expo_help
+  if ! expo_help="$("${EXPO_CMD[@]}" start --help 2>&1)" || [[ "$expo_help" != *"--go"* ]]; then
+    echo "CLI Expo incompatível ou indisponível: este projeto exige o CLI local do SDK 57 com suporte a --go. Confira a dependência expo, execute npm install e verifique EXPO_CLI, se definido." >&2
+    exit 1
+  fi
+
   local emulator_log
   emulator_log="${TMPDIR:-/tmp}/lumus-firebase-emulators.log"
   EMULATOR_PID=""

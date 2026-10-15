@@ -2324,7 +2324,7 @@ export default function FinancialListScreenWeb() {
 				</ScrollView>
 
 				<View
-					style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}
+					style={{ marginHorizontal: 0, paddingBottom: 0, flexShrink: 0 }}
 				>
 					<Navigator defaultValue={1} onHardwareBack={handleBackToHome} />
 				</View>
@@ -2334,7 +2334,7 @@ export default function FinancialListScreenWeb() {
 					onClose={handleCloseCdiSettings}
 				>
 					<ModalBackdrop />
-					<KeyboardAvoidingView
+					<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
@@ -2455,7 +2455,7 @@ export default function FinancialListScreenWeb() {
 					onClose={closeEditModal}
 				>
 					<ModalBackdrop />
-					<KeyboardAvoidingView
+					<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>

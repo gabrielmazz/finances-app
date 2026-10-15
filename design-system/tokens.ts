@@ -195,8 +195,8 @@ export const LUMUS_CLASS_NAMES = {
 	modal: 'rounded-modal border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	drawer: 'rounded-l-modal border-l border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950',
 	primaryButton:
-		'min-h-touch rounded-control border border-transparent bg-lumus-accent text-white data-[hover=true]:bg-lumus-accent-hover data-[active=true]:bg-lumus-accent-pressed focus-visible:ring-2 focus-visible:ring-lumus-focus focus-visible:ring-offset-2 disabled:opacity-50 data-[disabled=true]:opacity-50',
-	primaryButtonText: 'font-bold text-white',
+		'min-h-touch rounded-control border border-transparent bg-lumus-accent text-lumus-on-accent data-[hover=true]:bg-lumus-accent-hover data-[active=true]:bg-lumus-accent-pressed focus-visible:ring-2 focus-visible:ring-lumus-focus focus-visible:ring-offset-2 disabled:opacity-50 data-[disabled=true]:opacity-50',
+	primaryButtonText: 'font-bold text-lumus-on-accent',
 	secondaryButton:
 		'min-h-touch rounded-control border border-slate-300 bg-slate-200 text-slate-700 data-[hover=true]:bg-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:data-[hover=true]:bg-slate-700',
 	errorText: 'text-red-600 dark:text-red-400',

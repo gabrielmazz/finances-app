@@ -356,7 +356,7 @@ export default function AddUserRelationScreen() {
 
 					<View
 						style={{
-							marginHorizontal: -18,
+							marginHorizontal: 0,
 							paddingBottom: 0,
 							flexShrink: 0,
 						}}

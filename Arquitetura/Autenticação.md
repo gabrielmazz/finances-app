@@ -3,7 +3,7 @@ tags: [autenticacao, firebase, seguranca, contexto]
 relacionado: [[Segurança de Login]], [[Navegação]], [[Gerenciamento de Usuários]], [[Firebase Config]]
 status: ativo
 tipo: feature
-versao: 1.4.0
+versao: 1.5.0
 ---
 
 # Autenticação
@@ -35,8 +35,8 @@ sequenceDiagram
     Layout->>Layout: Home é a primeira rota autenticada disponível
 ```
 
-1. `AuthContext.tsx` registra um listener `onAuthStateChanged` do Firebase ao montar. O contexto não usa `onIdTokenChanged`, pois chamar `candidate.reload()` dentro de um listener de token pode disparar um novo evento e criar um loop de renovação
-2. Quando um usuário é detectado por uma mudança de autenticação, chama `candidate.reload()` antes de propagar. Cada callback recebe uma versão monotônica; somente a resolução mais recente e cujo UID ainda coincide com `auth.currentUser` pode atualizar o contexto. Erros de token expirado/inválido, usuário desabilitado ou inexistente limpam a sessão; falhas transitórias de rede/serviço preservam o usuário atual para não transformar uma oscilação em logout
+1. `AuthContext.tsx` registra um listener `onAuthStateChanged` do Firebase ao montar. A validação principal não roda em `onIdTokenChanged`, pois chamar `candidate.reload()` dentro de um listener de token pode disparar um novo evento e criar um loop de renovação
+2. Quando um usuário é detectado por uma mudança de autenticação, lê `getIdTokenResult().claims.auth_time`, confere os prazos e chama `candidate.reload()` + `getIdToken(true)` antes de propagar. Cada callback recebe uma versão monotônica; somente a resolução mais recente e cujo UID ainda coincide com `auth.currentUser` pode atualizar o contexto. Erros de token expirado/inválido, usuário desabilitado ou inexistente limpam a sessão; falhas transitórias de rede/serviço preservam somente a sessão cujo `auth_time` já foi validado; se esse horário não puder ser lido na restauração, o acesso é recusado
 3. Atualiza `user` (Firebase User completo) e marca `isAuthReady = true`
 4. `_layout.tsx` (Expo Router 6) consome `useAuth()` e mantém um único `Stack` com guards declarativos:
    - `Stack.Protected guard={!isAuthenticated}` contém `index` (`/`) e o login da plataforma atual (`/web` ou `/mobile`)
@@ -67,6 +67,8 @@ type AuthContextValue = {
   user: User | null;       // Firebase User completo ou null
   isAuthReady: boolean;    // true após primeira resolução do auth
   isAuthenticated: boolean; // Boolean(user)
+  sessionExpired: boolean; // Exibe aviso de novo login após expiração/invalidação
+  registerActivity: () => boolean; // Interação nativa, sem estender login absoluto
 };
 ```
 
@@ -99,8 +101,10 @@ type AuthContextValue = {
 - Firebase Auth configurado em `FirebaseConfig.ts`
 - Antes de o `AuthProvider` montar, [[Firebase Config]] resolve o alvo a partir de variáveis `EXPO_PUBLIC_*` incorporadas diretamente pelo Metro. Development usa o Emulator, preview usa o projeto isolado de homologação e releases de produção usam `finances-app-e8685`. Uma release local com credenciais completas também infere produção, evitando exceção de bootstrap antes da Login e permanência na splash nativa.
 - **App primário nativo usa persistência memory-only** — ao fechar o app Android/iOS, a sessão é encerrada e o usuário volta para a tela de login
-- **App primário Web usa `browserLocalPersistence`** — outra aba ou recarregamento da mesma origem restaura o usuário; fechar o navegador também preserva a autenticação até **Sair**, expiração ou invalidação pelo Firebase
+- **App primário Web usa `browserLocalPersistence`** — outra aba ou recarregamento da mesma origem restaura o usuário; fechar o navegador também preserva a autenticação até **Sair**, 15 minutos sem atividade, 8 horas desde o login ou invalidação pelo Firebase
 - O `user=null` inicial de uma abertura fria não é tratado como logout explícito pelo motor de notificações; isso preserva os alarmes locais do último UID enquanto a sessão precisa ser refeita
+- Antes de executar o logout pelo botão **Sair**, os navigators Web (desktop e compacto) e Android/iOS abrem `LogoutConfirmation`, com o título **Sair do Lumus?** e as ações **Cancelar** e **Sair**. O foco inicial fica em Cancelar; cancelar, fechar pelo backdrop, Escape ou voltar apenas descarta a confirmação, sem limpar dados nem encerrar a sessão.
+- `useLogoutConfirmation()` mantém a confirmação ligada ao UID original e a descarta quando a conta muda. Somente confirmar chama `logoutCurrentUser`; durante a operação, exibe **Saindo…**, desabilita os botões e ignora fechamento/toques concorrentes. Se a rotina segura preservar a sessão por falha, seu feedback existente é exibido e uma nova tentativa exige outra confirmação. O logout conversacional do [[Assistente Lumus]] continua com sua autorização própria.
 - O botão **Sair** bloqueia toques concorrentes, confirma que o UID originador ainda é o usuário do Firebase e chama `clearMandatoryReminderAccount(uid)` antes de `signOut(auth)`. A limpeza é recusada se outra conta já tiver assumido a sessão; ao entrar com outro UID, a ponte de `_layout.tsx` também limpa qualquer agenda anterior
 - A limpeza é preparada em duas fases: `clearMandatoryReminderAccount(uid)` cancela alarmes nativos, mas conserva configurações locais sem IDs como snapshot de rollback; somente depois do `signOut` bem-sucedido `finalizeMandatoryReminderAccountCleanup(uid)` apaga esse mapa
 - Se a limpeza nativa falhar, o logout não prossegue e a agenda do UID ainda autenticado é reconciliada novamente. Se o `signOut` falhar depois da limpeza, o snapshot local reconstitui a agenda imediatamente, inclusive offline, antes da tentativa complementar de sincronização com Firestore e da mensagem de erro
@@ -116,13 +120,39 @@ type AuthContextValue = {
 - O guard em `_layout.tsx` também aguarda `isLoadingTheme` do [[Sistema de Temas|ThemeContext]] para evitar flash de tema
 - O `user` retornado é o objeto Firebase User completo
 - O `reload()` na resolução de uma mudança de autenticação garante que sessões expiradas, revogadas ou inválidas sejam detectadas sem descartar uma sessão por uma falha transitória
-- `reload()` não é executado dentro de `onIdTokenChanged`: a combinação criaria um ciclo de evento de token e nova renovação
+- Eventos de renovação de token da instância atual não executam `reload()`. O observador de recuperação descrito abaixo só reage a nova instância User depois de expiração e falha de saída, evitando ciclos de renovação
 - Uma resposta atrasada de `reload()` nunca pode republicar um usuário depois de um evento mais novo de logout ou troca de conta
 - Login e logout atualizam os guards automaticamente via `onAuthStateChanged`, mantendo o mesmo Stack raiz montado
 - Cada plataforma concentra sua interface completa em `LoginScreen.tsx` ou `LoginScreen.web.tsx`. A Web usa o painel de identidade em gradiente; Android/iOS preservam wallpaper e logos claro/escuro. Inputs, teclado, validação, throttle e Firebase Auth permanecem nativos, sem WebGL, canvas, `ogl` ou WebView.
 - Todo novo arquivo de rota autenticada deve entrar primeiro em `APP_ROUTE_PATHS`; o layout deriva desse registro os nomes protegidos, e o teste de navegação verifica a paridade com os arquivos planos em `app/`
-- A sessão Android/iOS **não persiste** entre reinicializações do app — isso é intencional (memory-only); a sessão Web persiste até o logout explícito ou invalidação pelo Firebase
+- A sessão Android/iOS **não persiste** entre reinicializações do app — isso é intencional (memory-only); a sessão Web pode ser restaurada somente dentro dos limites de 15 minutos sem atividade e 8 horas desde o login
 - Os lembretes locais podem persistir entre reinicializações mesmo sem sessão persistida; eles são isolados pelo último UID ativo e nunca são mesclados com uma conta diferente
 - O serviço de notificações mantém um epoch/UID síncrono em memória; callbacks assíncronos de telas antigas são ignorados depois que logout ou troca de conta invalidam a sessão
 - A limpeza explícita recebe o UID esperado, varre inclusive alarmes nativos órfãos e não pode apagar a agenda de uma conta que se tornou ativa enquanto o logout anterior aguardava I/O
 - A finalização do mapa local só acontece após confirmação do Firebase; nunca antecipar a exclusão do snapshot de rollback
+
+## Sessão com prazo obrigatório — 2026-10-15
+
+A política escolhida é **15 minutos sem atividade e máximo de 8 horas desde a autenticação por credenciais**. `utils/authSessionPolicy.ts` centraliza os prazos do cliente e das callables. A renovação automática de ID token não muda `auth_time` e não reinicia as oito horas.
+
+- O provider verifica a sessão antes de liberar o usuário, a cada 15 segundos e antes de registrar qualquer interação. Ao retornar do segundo plano, de uma aba oculta ou do foco de outra janela, confere os prazos antes de revalidar o Firebase. Voltar ao foreground não conta como atividade.
+- Toques no contêiner do Stack contam como atividade nativa. Na Web, ponteiro, teclado e rolagem usam listeners globais; apenas metadados de última atividade, separados por UID e `auth_time`, são compartilhados em localStorage. Credenciais/tokens permanecem exclusivamente no SDK Firebase existente. Recarregar ou abrir outra aba não cria um novo prazo. Sem metadados, usa-se o instante do login como limite conservador; storage indisponível usa memória.
+- Sessões com horário inválido/futuro são recusadas. `reload()` + renovação forçada de token também rodam ao retornar e a cada cinco minutos em primeiro plano, fora de `onIdTokenChanged`. Erros definitivos invalidam o acesso; falhas transitórias preservam somente um prazo já validado e nunca o estendem. Se nem o horário do login puder ser lido, o acesso é recusado.
+- Na expiração, o contexto retira imediatamente o usuário, limpa cache/preferência financeira, anotações e lembretes via `cleanupExpiredSession`, tenta remover o push com espera máxima de dois segundos e chama `auth.signOut()`. A espera pela limpeza completa tem teto de três segundos, inclusive se um storage local não responder. Falhas de limpeza não restauram acesso expirado. Falha no signOut mantém as rotas bloqueadas e é repetida a cada 15 segundos. O retorno ao login anuncia **Sua sessão expirou. Entre novamente com email e senha.**
+- A saída automática não abre a confirmação manual de Sair nem usa o rollback dessa ação. A limpeza pode perder rascunhos locais conforme a política já aplicada ao logout explícito. Abertura fria nativa sem sessão continua preservando lembretes; expiração de uma sessão aberta solicita sua limpeza.
+- O Firestore exige `request.time` anterior a `auth_time + 8h` em `signedIn()`. Todas as callables de negócio passam por `assertCallableSession()` antes do handler. O tempo do login vem do token validado pelo Firebase, nunca de campos enviados pelo usuário. Inatividade é um bloqueio do aplicativo; o limite absoluto é imposto também no servidor após publicar regras e backend. Revogação global de todos os dispositivos não é parte deste fluxo.
+- No limite absoluto, a remoção remota de push pode ser recusada pelas regras; offline também pode ficar pendente. Isso não mantém o acesso aberto. A limpeza local é tentada e falhas são registradas sem credenciais.
+
+Validação: `tests/authContextSession.test.ts`, `tests/authSessionPolicy.test.ts`, `tests/authSessionActivity.test.ts`, `tests/secureLogout.test.ts`, `backend/tests/authSession.test.ts`, `backend/tests/authSession.rules.test.ts` e `backend/tests/authSession.emulator.test.ts`. Regras e backend preparados localmente; produção exige publicação coordenada com o cliente. AI Logic, Remote Config e os apps secundários de cadastro mantêm seu fluxo atual.
+
+Se o signOut falhar, o formulário de login continua interativo e o token antigo permanece bloqueado. Um observador de token restrito à recuperação reconhece nova instância de User após um novo login, inclusive no mesmo UID; não revalida eventos de refresh da instância expirada, evitando ciclos de reload. A primeira interação que detecta expiração é interceptada antes de alcançar ações de tela protegida.
+
+Validação final local de 2026-10-15: `npm run check` aprovado (80 suítes e 728 testes; quatro suítes/88 cenários de integração são ignorados pelo Jest sem Emulator), build do backend aprovado e testes das Rules de sessão, legado, perfil, razão e assistente aprovados em Firestore Emulator isolado. Auth + Functions em portas alternativas confirmaram senha incorreta rejeitada, email/senha corretos aceitos, login expirado recusado com401 e login recente chegando à validação de negócio. As revisões Standards e Spec terminaram sem pendências após as correções. Nenhum deploy ou smoke test em navegador/aparelho foi realizado; isso permanece necessário antes da publicação.
+
+## Continuidade no navegador — 2026-10-15
+
+Recarregar a página (F5), abrir diretamente outra tela do Lumus na mesma origem, abrir uma nova aba ou visitar outra aba/janela não são ações de logout. O Firebase restaura a sessão persistida e o provider a libera após validar seus prazos. O tempo de inatividade é contado desde a última interação registrada, e não desde o início do login; por exemplo, um login feito há uma hora continua válido ao recarregar se houve atividade há dois minutos.
+
+Voltar de outra aba dentro de 15 minutos preserva a sessão e reconsulta o Firebase. Passar 15 minutos sem atividade em nenhuma aba do Lumus, completar oito horas desde o login, sair explicitamente ou receber invalidação definitiva exige novo login. Recarregar/abrir outra tela não reinicia o prazo absoluto. A política não encerra a sessão no unload nem ao ocultar a aba.
+
+Validação adicional: 35 testes focados de contexto, atividade compartilhada, persistência/configuração Web e navegação passaram. Os novos casos reproduzem remount/restauração com login antigo e atividade recente, retorno de aba/janela dentro do prazo e preservação do limite absoluto após restauração. São testes automatizados com Firebase/DOM simulados, sem smoke test em navegador real nesta etapa.

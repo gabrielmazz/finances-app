@@ -77,8 +77,8 @@ export default function PerfilPersonScreen() {
 										<Button onPress={state.reload} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
 									</View>
 								) : profile ? <>
-									<HStack className="w-full items-start gap-4">
-										<View className="min-w-0 flex-1">
+									<HStack className="w-full flex-col items-start gap-4 sm:flex-row">
+										<View className="min-w-0 w-full sm:w-0 sm:flex-1">
 											<Text nativeID="profile-name-label" className={form.label}>Nome</Text>
 											<Input isInvalid={Boolean(state.nameError)} isDisabled={state.saving} className={cn(form.input, 'min-h-12')}>
 												<InputField ref={nameRef} value={state.name} onChangeText={state.changeName} editable={!state.saving} maxLength={100}
@@ -88,7 +88,7 @@ export default function PerfilPersonScreen() {
 											</Input>
 											{state.nameError && <Text nativeID="profile-name-error" accessibilityRole="alert" className={form.error}>{state.nameError}</Text>}
 										</View>
-										<View className="min-w-0 flex-1">
+										<View className="min-w-0 w-full sm:w-0 sm:flex-1">
 											<Text nativeID="profile-created-at-label" className={form.label}>Membro desde</Text>
 											{profile.createdAt ? <Input isReadOnly className={cn(form.input, 'min-h-12 opacity-40')}>
 												<InputField value={profile.createdAt.toLocaleDateString('pt-BR')} editable={false} selectTextOnFocus

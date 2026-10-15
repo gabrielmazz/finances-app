@@ -66,3 +66,7 @@ O [[Assistente Lumus]] consulta nome e informações de acesso por `getUserProfi
 Após perfil/vínculos confirmados, o contexto invalida as leituras financeiras escopadas pelo UID. `useUserProfile` recarrega ao recuperar foco e preserva um rascunho de nome que ainda não foi salvo; respostas de uma conta anterior continuam descartadas. O primeiro foco não duplica a leitura inicial.
 
 `tests/lumusAssistantContextIntegration.test.ts` verifica confirmação após consulta paralela, retomada, invalidação, memória entre rotas, TTS mascarado e revogação; `tests/userProfile.test.ts` cobre o refresh com rascunho preservado e o feedback “ID copiado.” no hook. Esses testes usam seams dos serviços/sistema e não são evidência de clipboard ou leitor de tela em aparelho. A tela também emite a notificação de sucesso ao copiar o ID.
+
+## Revisão de responsividade — 2026-10-15
+
+Nome e Membro desde empilham abaixo de 640px em Web/iOS/Android; isso mantém a data completa visível em 320px. As duas colunas reaparecem em tablet/desktop. Ver [[Auditoria de Design]].

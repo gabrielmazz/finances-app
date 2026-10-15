@@ -63,3 +63,7 @@ Gerencia a alternância entre modo claro e escuro em todo o app, com persistênc
 - O `styles` prop do Mantine aceita estilos inline simples, sem pseudo-seletores; estados internos de Tabs e TagsInput usam `classNames` com variantes `data-*` no adaptador `design-system/mantine.ts`.
 - Os estados selecionados de checkbox que representam ação principal devem manter o amarelo padrão do sistema, mesmo quando o componente base do Gluestack usar a cor `primary` do tema
 - O toggle de tema em `Configurações` deve manter o mesmo alinhamento estrutural do toggle de privacidade, com label e popover no bloco esquerdo e `Switch` fixo à direita
+
+## Contraste vigente — 2026-10-15
+
+A revisão atual substitui o foreground branco das ações amarelas por `lumus-on-accent` em botões/ícones e autenticação. As referências históricas à preferência por branco não representam o contrato vigente. Tokens financeiros, fundos, tema e dados permanecem iguais. Ver [[Auditoria de Design]].

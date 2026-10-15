@@ -1250,7 +1250,7 @@ export default function MandatoryGainsListScreen() {
 
 										{gains.length > 0 ? (
 											<HStack className="gap-4 web:flex-row web:flex-wrap">
-												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 w-full md:w-[calc(50%-8px)] md:min-w-0`}>
 													<VStack className="gap-2">
 														<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
 															Ganhos por categoria
@@ -1268,7 +1268,7 @@ export default function MandatoryGainsListScreen() {
 													</VStack>
 												</View>
 
-												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+												<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 w-full md:w-[calc(50%-8px)] md:min-w-0`}>
 													<VStack className="gap-2">
 														<Text className="text-slate-500 dark:text-slate-400 uppercase mt-1" style={{ color: monthlySummaryPalette.subtitle }}>
 															Dias de recebimento
@@ -1463,7 +1463,7 @@ export default function MandatoryGainsListScreen() {
 																							disabled={isGainCompleted}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Registrar recebimento de ${gain.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							style={{ opacity: isGainCompleted ? 0.45 : 1 }}
 																						>
 																							<Icon as={AddIcon} size="sm" className="text-white" />
@@ -1474,7 +1474,7 @@ export default function MandatoryGainsListScreen() {
 																							onPress={() => setPendingAction({ type: 'edit', gain })}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Editar ${gain.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																						>
 																							<Icon as={EditIcon} size="sm" className="text-white" />
 																							<RNText className="text-xs font-semibold text-white">Editar</RNText>
@@ -1485,7 +1485,7 @@ export default function MandatoryGainsListScreen() {
 																								onPress={() => setPendingAction({ type: 'reclaim', gain })}
 																								accessibilityRole="button"
 																								accessibilityLabel={`Desfazer recebimento de ${gain.name}`}
-																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							>
 																								<Icon as={RepeatIcon} size="sm" className="text-white" />
 																								<RNText className="text-xs font-semibold text-white">Reivindicar</RNText>
@@ -1496,7 +1496,7 @@ export default function MandatoryGainsListScreen() {
 																							onPress={() => setPendingAction({ type: 'delete', gain })}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Excluir ${gain.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
 																						>
 																							<Icon as={TrashIcon} size="sm" className="text-white" />
 																							<RNText className="text-xs font-semibold text-white">Excluir</RNText>
@@ -1520,7 +1520,7 @@ export default function MandatoryGainsListScreen() {
 					</View>
 				</View>
 
-				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+				<View style={{ marginHorizontal: 0, paddingBottom: 0, flexShrink: 0 }}>
 					<Navigator defaultValue={1} />
 				</View>
 

@@ -1,5 +1,6 @@
 'use client';
 import React from 'react';
+import { LUMUS_CLASS_NAMES } from '@/design-system/tokens';
 import { createModal as createDrawer } from '@gluestack-ui/core/modal/creator';
 import {
   Pressable,
@@ -141,7 +142,7 @@ const drawerContentStyle = tva({
 });
 
 const drawerCloseButtonStyle = tva({
-  base: 'z-10 rounded data-[focus-visible=true]:web:bg-background-100 web:outline-0 cursor-pointer',
+  base: `${LUMUS_CLASS_NAMES.iconButton} z-10 shrink-0 data-[focus-visible=true]:web:bg-background-100 cursor-pointer`,
 });
 
 const drawerHeaderStyle = tva({

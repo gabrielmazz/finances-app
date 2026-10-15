@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const readline = require('node:readline/promises');
 
 const root = path.resolve(__dirname, '..');
 const action = process.argv[2] ?? 'verify';
@@ -84,39 +85,119 @@ const exportBundles = env => {
 	if (!fs.existsSync(path.join(root, 'dist', 'index.html'))) fail('Exportação Web sem index.html.');
 };
 
-try {
-	const { env, projectId } = preflight();
-	if (action === 'preflight') process.exit(0);
-	if (!['verify', 'verify-offline', 'deploy-backend', 'deploy-web', 'build-android'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, deploy-backend, deploy-web ou build-android.');
-	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
+const verify = (env, offline = false) => {
 	run('npm', ['run', 'check']);
 	run('npm', ['audit', '--audit-level=high']);
 	run('npm', ['--prefix', 'backend', 'audit', '--audit-level=high']);
 	run('npm', ['--prefix', 'backend', 'run', 'build']);
-	if (action !== 'verify-offline') {
+	if (!offline) {
 		run('npm', ['run', 'test:integration']);
 		run('npm', ['--prefix', 'backend', 'run', 'test:app-check:emulator']);
 	}
 	exportBundles(env);
+};
+
+const deployBackend = (projectId, env) => {
+	run('npx', ['-y', 'firebase-tools@15.33.0', 'deploy', '--project', projectId, '--only', 'functions,firestore'], env);
+};
+
+const deployWeb = (profile, projectId, env) => {
+	const firebaseCli = ['-y', 'firebase-tools@15.33.0'];
+	if (profile === 'preview') {
+		run('npx', [...firebaseCli, 'hosting:channel:deploy', 'preview', '--project', projectId, '--expires', '7d'], env);
+	} else {
+		run('npx', [...firebaseCli, 'deploy', '--project', projectId, '--only', 'hosting'], env);
+	}
+};
+
+const buildAndroid = (buildProfile, env) => {
+	run('eas', ['build', '--platform', 'android', '--profile', buildProfile], env);
+};
+
+const RELEASE_TARGETS = ['firebase', 'web', 'apk', 'aab'];
+const RELEASE_TARGET_ALIASES = new Map([
+	['1', 'firebase'], ['backend', 'firebase'],
+	['2', 'web'], ['hosting', 'web'],
+	['3', 'apk'],
+	['4', 'aab'],
+]);
+
+const parseReleaseTargets = input => {
+	const selections = input.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
+	if (selections.length === 0 || (selections.length === 1 && selections[0] === '0')) return [];
+	if (selections.length === 1 && ['5', 'all', 'tudo'].includes(selections[0])) return RELEASE_TARGETS;
+	if (selections.includes('0') || selections.some(value => ['5', 'all', 'tudo'].includes(value))) {
+		fail('Use “tudo” sozinho ou escolha etapas individuais.');
+	}
+	const targets = selections.map(selection => RELEASE_TARGET_ALIASES.get(selection) ?? selection);
+	const invalidTargets = targets.filter(target => !RELEASE_TARGETS.includes(target));
+	if (invalidTargets.length > 0) {
+		fail(`Etapa inválida: ${invalidTargets.join(', ')}. Use firebase, web, apk, aab ou tudo.`);
+	}
+	return RELEASE_TARGETS.filter(target => targets.includes(target));
+};
+
+const chooseReleaseTargets = async () => {
+	const directSelection = process.argv.slice(4).join(' ');
+	if (directSelection) return parseReleaseTargets(directSelection);
+	if (!process.stdin.isTTY || !process.stdout.isTTY) {
+		fail('Informe as etapas sem interação: npm run release:production -- firebase,web,apk,aab.');
+	}
+
+	console.log('\nRelease de produção — selecione uma ou mais etapas:');
+	console.log('  1. Firebase (Functions, Rules e índices)');
+	console.log('  2. Web (Firebase Hosting)');
+	console.log('  3. Android APK (build interno para inspeção)');
+	console.log('  4. Android AAB (build para Play Store)');
+	console.log('  5. Tudo');
+	console.log('  0. Cancelar');
+	const prompt = readline.createInterface({ input: process.stdin, output: process.stdout });
+	try {
+		return parseReleaseTargets(await prompt.question('Escolha pelo número ou nome, separados por vírgula: '));
+	} finally {
+		prompt.close();
+	}
+};
+
+const main = async () => {
+	const { env, projectId } = preflight();
+	if (action === 'preflight') return;
+	if (!['verify', 'verify-offline', 'deploy-backend', 'deploy-web', 'build-android', 'release'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, deploy-backend, deploy-web, build-android ou release.');
+	if (action === 'release') {
+		if (profile !== 'production') fail('O seletor de release está disponível somente para production.');
+		const targets = await chooseReleaseTargets();
+		if (targets.length === 0) {
+			console.log('Release cancelado.');
+			return;
+		}
+		requireCleanTree();
+		console.log(`Etapas selecionadas: ${targets.join(', ')}.`);
+		verify(env);
+		// Executa somente as etapas escolhidas, na ordem definida em [[Processo de Release]].
+		if (targets.includes('firebase')) deployBackend(projectId, env);
+		if (targets.includes('web')) deployWeb(profile, projectId, env);
+		if (targets.includes('apk')) buildAndroid('production-apk', env);
+		if (targets.includes('aab')) buildAndroid('production', env);
+		return;
+	}
+	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
+	verify(env, action === 'verify-offline');
 	if (action === 'deploy-backend') {
-		run('npx', ['-y', 'firebase-tools@15.33.0', 'deploy', '--project', projectId, '--only', 'functions,firestore'], env);
+		deployBackend(projectId, env);
 	}
 	if (action === 'deploy-web') {
-		const firebaseCli = ['-y', 'firebase-tools@15.33.0'];
-		if (profile === 'preview') {
-			run('npx', [...firebaseCli, 'hosting:channel:deploy', 'preview', '--project', projectId, '--expires', '7d'], env);
-		} else {
-			run('npx', [...firebaseCli, 'deploy', '--project', projectId, '--only', 'hosting'], env);
-		}
+		deployWeb(profile, projectId, env);
 	}
 	if (action === 'build-android') {
 		const buildProfile = process.argv[4] ?? profile;
 		if (buildProfile !== profile && !(profile === 'production' && buildProfile === 'production-apk')) {
 			fail('Perfil EAS Android incompatível com o ambiente validado.');
 		}
-		run('eas', ['build', '--platform', 'android', '--profile', buildProfile], env);
+		buildAndroid(buildProfile, env);
 	}
-} catch (error) {
+};
+
+main().catch(error => {
 	console.error(error instanceof Error ? error.message : error);
 	process.exitCode = 1;
-}
+});

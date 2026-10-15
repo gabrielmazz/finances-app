@@ -1448,7 +1448,7 @@ export default function MandatoryExpensesListScreen() {
 
 												{expenses.length > 0 ? (
 													<HStack className="gap-4 web:flex-row web:flex-wrap">
-														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 w-full md:w-[calc(50%-8px)] md:min-w-0`}>
 															<VStack className="gap-2">
 																<VStack className="gap-1">
 																	<Text
@@ -1469,7 +1469,7 @@ export default function MandatoryExpensesListScreen() {
 															</VStack>
 														</View>
 
-														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 web:w-[calc(50%-8px)] web:min-w-[320px]`}>
+														<View className={`${compactCardClassName} min-w-0 flex-1 px-4 py-4 w-full md:w-[calc(50%-8px)] md:min-w-0`}>
 															<VStack className="gap-2">
 																<VStack className="gap-1">
 																	<Text
@@ -1719,7 +1719,7 @@ export default function MandatoryExpensesListScreen() {
 																							disabled={isExpenseCompleted}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Registrar pagamento de ${expense.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							style={{ opacity: isExpenseCompleted ? 0.45 : 1 }}
 																						>
 																							<Icon as={AddIcon} size="sm" className="text-white" />
@@ -1730,7 +1730,7 @@ export default function MandatoryExpensesListScreen() {
 																							onPress={() => setPendingAction({ type: 'edit', expense })}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Editar ${expense.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																						>
 																							<Icon as={EditIcon} size="sm" className="text-white" />
 																							<RNText className="text-xs font-semibold text-white">Editar</RNText>
@@ -1741,7 +1741,7 @@ export default function MandatoryExpensesListScreen() {
 																								onPress={() => handleCalendarAction('settle', expense)}
 																								accessibilityRole="button"
 																								accessibilityLabel={`Quitar parcelas restantes de ${expense.name}`}
-																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							>
 																								<Icon as={CheckCircleIcon} size="sm" className="text-white" />
 																								<RNText className="text-xs font-semibold text-white">Quitar parcelas</RNText>
@@ -1753,7 +1753,7 @@ export default function MandatoryExpensesListScreen() {
 																								onPress={() => setPendingAction({ type: 'reclaim', expense })}
 																								accessibilityRole="button"
 																								accessibilityLabel={`Desfazer pagamento de ${expense.name}`}
-																								className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
+																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-yellow-300"
 																							>
 																								<Icon as={RepeatIcon} size="sm" className="text-white" />
 																								<RNText className="text-xs font-semibold text-white">Reivindicar</RNText>
@@ -1764,7 +1764,7 @@ export default function MandatoryExpensesListScreen() {
 																							onPress={() => setPendingAction({ type: 'delete', expense })}
 																							accessibilityRole="button"
 																							accessibilityLabel={`Excluir ${expense.name}`}
-																							className="min-h-[40px] flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
+																							className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 text-white focus-visible:ring-2 focus-visible:ring-white/80"
 																						>
 																							<Icon as={TrashIcon} size="sm" className="text-white" />
 																							<RNText className="text-xs font-semibold text-white">Excluir</RNText>
@@ -1791,7 +1791,7 @@ export default function MandatoryExpensesListScreen() {
 
 				<View
 					style={{
-						marginHorizontal: -18,
+						marginHorizontal: 0,
 						paddingBottom: 0,
 						flexShrink: 0,
 					}}

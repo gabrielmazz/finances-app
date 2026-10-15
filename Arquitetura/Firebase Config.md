@@ -30,7 +30,7 @@ DB --> CF["backend/ (callable Functions do razão)"]
 ### App Primário
 - Inicializado em `FirebaseConfig.ts` (Android/iOS) ou `FirebaseConfig.web.ts` (navegador) com `initializeApp(firebaseConfig)`
 - Expõe: `app`, `auth` (Firebase Auth) e `db` (Firestore)
-- **Persistência por plataforma**: no nativo, `memoryOnlyAuthStorage` encerra a sessão ao fechar o app; no navegador, `browserLocalPersistence` compartilha a sessão entre abas da mesma origem e a restaura após recarregar ou reabrir o navegador
+- **Persistência por plataforma**: no nativo, `memoryOnlyAuthStorage` encerra a sessão ao fechar o app; no navegador, `browserLocalPersistence` compartilha a sessão entre abas da mesma origem e a restaura após recarregar ou reabrir o navegador somente se respeitar os prazos de [[Autenticação]] (15 minutos sem atividade e teto de oito horas)
 - No navegador, **Sair** chama `signOut(auth)` e remove a sessão compartilhada; o Firebase também pode invalidar a sessão. No nativo, o usuário volta para o login a cada abertura do app
 - Usado para autenticação da sessão atual e operações Firestore, exceto a criação do perfil da nova conta
 
@@ -49,12 +49,14 @@ DB --> CF["backend/ (callable Functions do razão)"]
 |---|---|---|---|
 | Android/iOS | Primário (`auth`) | Memory-only (sem storage) | Sessão encerra ao fechar o app |
 | Android/iOS | Secundário (`secondaryAuth`) | SecureStore + AsyncStorage fallback | Mantém credenciais temporárias durante criação de conta |
-| Web | Primário (`auth`) | `browserLocalPersistence` | Sessão compartilhada entre abas da mesma origem até logout explícito ou invalidação |
+| Web | Primário (`auth`) | `browserLocalPersistence` | Sessão compartilhada entre abas da mesma origem Dentro de 15 min sem atividade e no máximo 8h desde o login |
 | Web | Secundário (`secondaryAuth`) | `inMemoryPersistence` | O cadastro não persiste credenciais secundárias no navegador |
 
 ### Alvos isolados
 
 `utils/firebaseRuntime.ts` é o único resolvedor do alvo dos dados financeiros. `EXPO_PUBLIC_FIREBASE_TARGET=emulator` cria uma configuração sintética para `demo-lumus-financas`, conecta Auth (primário e secundário), Firestore e Functions nas portas 9099, 8080 e 5001. Os emuladores escutam em `0.0.0.0`; o script usa `adb reverse` no Android Emulator e o IP LAN privado para dispositivos físicos. Computador e celular devem estar na mesma rede e o firewall deve permitir essas portas. O fluxo `npm run dev:local` força `expo start --go --lan`; `npm run dev:local:web` inicia a mesma configuração no navegador; o modo `--dev-client` permanece disponível separadamente para validar módulos nativos. Se o processo Expo encerrar inesperadamente, o launcher tenta reiniciá-lo após dois segundos sem reiniciar a Suite nem executar o seed de novo; `Ctrl+C` encerra a sessão e os emuladores iniciados nessa execução. O seed imprime no terminal as credenciais da conta demo local, que não existem em produção, e grava essa conta com `adminUser: true` para permitir testar os fluxos administrativos. As três contas e seus saldos iniciais são vinculados ao usuário demo por `personId`.
+
+O launcher resolve diretamente o CLI do pacote `expo` instalado no projeto, sem fallback global ou download via `npx`; `EXPO_CLI` continua disponível como override explícito. Antes de iniciar/reutilizar os emuladores ou executar o seed, valida `start --help` e o suporte a `--go`. CLI ausente, legado ou com falha interrompe o comando com orientação, sem entrar no ciclo de reinício. A dependência `expo` fica fixada em `57.0.22`, versão já validada com os módulos Expo/React Native do projeto; remover `--go` não corrige uma instalação rebaixada para SDK 44.
 
 AI Logic e Remote Config não fazem parte dos produtos emulados. Por isso, no alvo Emulator existe uma ponte híbrida restrita a AI Logic, App Check e Remote Config: o navegador cria o app nomeado `LUMUS_ASSISTANT_DEVELOPMENT` com os identificadores públicos de `finances-app-e8685`, e o Android usa o app nativo do `google-services.json`. Auth, Firestore e Functions do negócio continuam integralmente em `demo-lumus-financas`; a ponte não exporta `db`, `auth` nem `functions` remotos e nunca grava dados financeiros no projeto real.
 

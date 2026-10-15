@@ -241,10 +241,16 @@ module.exports = {
 		'login-shell': '680px',
       },
       minWidth: {
+        'table-banks': '560px',
+        'table-tags': '520px',
         'date-chip': '58px',
         'detail-item': '130px',
       },
       maxWidth: {
+        'modal-xs': '360px',
+        'modal-sm': '420px',
+        'modal-md': '510px',
+        'modal-lg': '640px',
         content: '1180px',
         'hero-title': '620px',
         'bank-card': '610px',

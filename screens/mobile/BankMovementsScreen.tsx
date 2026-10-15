@@ -2058,6 +2058,12 @@ export default function BankMovementsScreen() {
 	);
 
 	const summaryPrimaryBalanceLabel = isCashView ? 'Saldo do período' : 'Saldo atual';
+	const summaryPrimaryBalanceInCents = isCashView ? allMovementsBalanceInCents : bankCurrentBalanceInCents;
+	const summaryPrimaryBalanceValueClassName = typeof summaryPrimaryBalanceInCents === 'number'
+		? summaryPrimaryBalanceInCents >= 0
+			? 'text-emerald-500'
+			: 'text-red-500'
+		: 'text-typography-600';
 
 	const summaryPrimaryBalanceValue = React.useMemo(() => {
 		if (isCashView) {
@@ -2879,7 +2885,7 @@ export default function BankMovementsScreen() {
 														}
 														accessibilityLabel="Escolher banco para consultar movimentações"
 													/>
-							</VStack>
+												</VStack>
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
@@ -2910,7 +2916,7 @@ export default function BankMovementsScreen() {
 												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
 													Tipo de movimentação
 												</Text>
-											<HStack className="w-full gap-1">
+												<HStack className="w-full gap-1">
 													{movementFilterOptions.map(option => {
 														const isSelected = movementFilter === option.value;
 														const iconClassName = isSelected
@@ -3114,6 +3120,28 @@ export default function BankMovementsScreen() {
 											{filteredSummaryTitle}
 										</Heading>
 									</VStack>
+
+									<View accessibilityLiveRegion="polite"
+										style={{
+											flex: 1,
+											minHeight: 100,
+											borderRadius: 24,
+											borderWidth: 1,
+											borderColor: periodSummaryPalette.neutralBorder,
+											paddingHorizontal: 16,
+											paddingVertical: 12,
+										}}
+										className="mb-3 min-h-24 rounded-section px-4 py-3"
+									>
+										<VStack className="flex-1 justify-between">
+											<Text className="text-xs uppercase tracking-wide" style={{ color: periodSummaryPalette.subtitle }}>
+												{summaryPrimaryBalanceLabel}
+											</Text>
+											<Heading size="md" className={`tabular-nums ${summaryPrimaryBalanceValueClassName}`}>
+												{summaryPrimaryBalanceValue}
+											</Heading>
+										</VStack>
+									</View>
 
 									<HStack className="gap-3">
 										<View
@@ -3801,7 +3829,7 @@ export default function BankMovementsScreen() {
 																				<TouchableOpacity
 																					activeOpacity={0.85}
 																					disabled={!canChangeAdjustment}
-																				 onPress={() => handleRequestMovementAction('delete', movement)}
+																					onPress={() => handleRequestMovementAction('delete', movement)}
 																					style={{
 																						flexDirection: 'row',
 																						alignItems: 'center',
@@ -3847,7 +3875,7 @@ export default function BankMovementsScreen() {
 						onClose={handleCloseFinanceEditModal}
 					>
 						<ModalBackdrop />
-						<KeyboardAvoidingView
+						<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 						>

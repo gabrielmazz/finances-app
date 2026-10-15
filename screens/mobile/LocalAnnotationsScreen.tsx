@@ -404,7 +404,8 @@ export default function LocalAnnotationsScreen() {
 						contentInsetAdjustmentBehavior="automatic"
 						contentContainerClassName="px-6 pb-6"
 						ListEmptyComponent={
-							isLoading ? (
+							// FlatList injeta arrays de style: View normaliza esses props antes do Box DOM Web.
+							<View>{isLoading ? (
 								<Box className="items-center px-6 py-14">
 									<Text size="sm" className="text-typography-500">
 										Carregando suas anotações...
@@ -419,7 +420,7 @@ export default function LocalAnnotationsScreen() {
 										Crie uma anotação para registrar uma ideia, uma lista ou algo para lembrar depois.
 									</Text>
 								</Box>
-							)
+							)}</View>
 						}
 					/>
 				</View>

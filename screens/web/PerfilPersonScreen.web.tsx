@@ -77,8 +77,8 @@ export default function PerfilPersonScreen() {
 									event.preventDefault();
 									if (!(await state.save())) nameRef.current?.focus();
 								}}>
-									<HStack className="w-full items-start gap-4">
-										<div className="min-w-0 flex-1">
+									<HStack className="w-full flex-col items-start gap-4 sm:flex-row">
+										<div className="min-w-0 w-full sm:w-0 sm:flex-1">
 											<label htmlFor="profile-name" className={`${webExpenseClassNames.fieldLabel} ${bodyText} block`}>Nome</label>
 										<div className={cn(
 												form.input.replace(` ${ui.focusRing}`, ''),
@@ -94,7 +94,7 @@ export default function PerfilPersonScreen() {
 											</div>
 											{state.nameError && <p id="profile-name-error" role="alert" className={form.error}>{state.nameError}</p>}
 										</div>
-										<div className="min-w-0 flex-1">
+										<div className="min-w-0 w-full sm:w-0 sm:flex-1">
 											<label htmlFor="profile-created-at" className={cn(form.label, 'block')}>Membro desde</label>
 											{profile.createdAt ? <input id="profile-created-at" name="createdAt" type="date" disabled
 												value={profile.createdAt.toISOString().slice(0, 10)} aria-label="Membro desde, somente leitura"
@@ -110,7 +110,7 @@ export default function PerfilPersonScreen() {
 						</div>
 										</div>
 									<HStack className="mt-6 w-full grow gap-3">
-										<button type="submit" disabled={state.saving || !state.dirty} aria-busy={state.saving} className={cn(ui.primaryButton, 'min-h-12 flex-1 px-5 font-bold text-white')}>
+										<button type="submit" disabled={state.saving || !state.dirty} aria-busy={state.saving} className={cn(ui.primaryButton, 'min-h-12 flex-1 px-5 font-bold text-lumus-on-accent')}>
 											{state.saving ? 'Salvando…' : 'Salvar alterações'}
 										</button>
 										{state.dirty && <button type="button" disabled={state.saving} onClick={state.reset} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 flex-1 px-5 disabled:opacity-50')}>Descartar alterações</button>}

@@ -80,3 +80,7 @@ Na busca do extrato bancário, `getBankMovementsByPeriodFirebase()` considera ta
 
 - O assistente resolve origem/destino por texto, exige bancos ativos distintos e resume o efeito para a confirmação da versão atual no chat.
 - No legado, três IDs e o recibo derivam da identidade do pedido; transferência, saída e entrada são escritos juntos. No razão, `transferFunds` grava as duas pernas, revalida escopo/papel/saldo e mantém recibo/auditoria. Os movimentos ficam fora dos totais de ganho/despesa. Ver [[Comandos Financeiros Conversacionais]] para evidência de saldo, autorização, retries e pedidos concorrentes no legado e no razão.
+
+## Layout adaptativo — 2026-10-15
+
+Origem e destino são empilhados abaixo de 768px e usam duas colunas a partir desse ponto em Web/iOS/Android. A pilha de campos tem altura intrínseca para a rolagem alcançar descrição e confirmação. Saldos e regras financeiras não mudam. Ver [[Auditoria de Design]].

@@ -14,7 +14,7 @@ async function run() {
 		await environment.withSecurityRulesDisabled(async context => {
 			await setDoc(doc(context.firestore(), 'users', 'owner'), { name: 'Maria', email: 'maria@example.com', adminUser: false, relatedIdUsers: ['related'] });
 		});
-		const owner = environment.authenticatedContext('owner').firestore();
+		const owner = environment.authenticatedContext('owner', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
 		const userRef = doc(owner, 'users', 'owner');
 		await assertSucceeds(updateDoc(userRef, { name: 'Maria Silva', updatedAt: serverTimestamp() }));
 		const saved = (await getDoc(userRef)).data();
@@ -22,7 +22,7 @@ async function run() {
 		assert.equal(saved?.email, 'maria@example.com');
 		assert.equal(saved?.adminUser, false);
 		assert.deepEqual(saved?.relatedIdUsers, ['related']);
-		await assertFails(updateDoc(doc(environment.authenticatedContext('other').firestore(), 'users', 'owner'), { name: 'Outra pessoa' }));
+		await assertFails(updateDoc(doc(environment.authenticatedContext('other', { auth_time: Math.floor(Date.now() / 1000) }).firestore(), 'users', 'owner'), { name: 'Outra pessoa' }));
 		await assertFails(updateDoc(doc(environment.unauthenticatedContext().firestore(), 'users', 'owner'), { name: 'Anônimo' }));
 		await assertFails(updateDoc(userRef, { name: 'Maria', relatedIdUsers: ['other'] }));
 		await assertFails(updateDoc(userRef, { name: 'Maria', financialGroupRole: 'admin' }));

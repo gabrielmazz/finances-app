@@ -8,7 +8,12 @@ service cloud.firestore {
     // =========================================================
 
     function signedIn() {
-      return request.auth != null;
+      // [[Segurança de Login]]: token renovado conserva o instante do login.
+      return request.auth != null
+        && request.auth.token.auth_time is int
+        && request.auth.token.auth_time > 0
+        && request.time >= timestamp.value(request.auth.token.auth_time * 1000)
+        && request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(8, 'h');
     }
 
     function currentUser() {

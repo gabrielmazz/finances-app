@@ -2234,7 +2234,7 @@ export default function FinancialListScreen() {
 				</View>
 				<Modal isOpen={isCdiSettingsOpen} onClose={handleCloseCdiSettings}>
 					<ModalBackdrop />
-					<KeyboardAvoidingView
+					<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
@@ -2334,7 +2334,7 @@ export default function FinancialListScreen() {
 				</Modal>
 				<Modal isOpen={Boolean(editingInvestment)} onClose={closeEditModal}>
 					<ModalBackdrop />
-					<KeyboardAvoidingView
+					<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>
