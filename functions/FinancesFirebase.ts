@@ -1,5 +1,5 @@
 import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
-import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, manageFinancialLedgerAccountFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
+import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, manageFinancialLedgerAccountFirebase, reconcileFinancialLedgerAccountFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
 import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
 import { auth, db } from '@/FirebaseConfig';
 import {
@@ -137,6 +137,14 @@ const parseFirestoreDate = (value: unknown): Date | null => {
 	return null;
 };
 
+const findLedgerInvestmentAccount = (
+	accounts: Awaited<ReturnType<typeof getFinancialLedgerAccountsFirebase>>,
+	investmentId: string,
+) => accounts.find(account =>
+	account.kind === 'investment' &&
+	(account.id === investmentId || account.legacyInvestmentId === investmentId),
+);
+
 export async function addFinanceInvestmentFirebase({ name, initialValueInCents, currentValueInCents, cdiPercentage, cdiPercentageInBasisPoints, assetType, valuationMethod, redemptionTerm, bankId, personId, description, date }: AddFinanceInvestmentParams) {
 	try {
 		const percentage = cdiPercentageInBasisPoints ?? normalizeCdiPercentageInBasisPoints(cdiPercentage);
@@ -155,14 +163,19 @@ export async function addFinanceInvestmentFirebase({ name, initialValueInCents, 
 	}
 }
 
-export async function moveFinanceInvestmentFirebase({ investmentId, valueInCents, date, type, expectedCurrentValueInCents }: { investmentId: string; valueInCents: number; date: Date; type: 'deposit' | 'redemption'; expectedCurrentValueInCents?: number }) {
+export async function moveFinanceInvestmentFirebase({ investmentId, bankId, valueInCents, date, type, expectedCurrentValueInCents }: { investmentId: string; bankId?: string; valueInCents: number; date: Date; type: 'deposit' | 'redemption'; expectedCurrentValueInCents?: number }) {
 	try {
 		const personId = auth.currentUser?.uid; if (!personId) return { success: false, error: 'Usuário não autenticado.' };
 		const ledger = await getFinancialLedgerContextFirebase(personId);
 		if (ledger) {
-			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId); const investment = accounts.find(account => account.id === investmentId && account.kind === 'investment');
-			const bank = accounts.find(account => account.id === investment?.bankAccountId && account.kind === 'bank');
-			if (!investment || !bank || expectedCurrentValueInCents !== undefined && investment.currentBalanceInCents !== expectedCurrentValueInCents) return { success: false, error: 'O investimento mudou ou o banco está indisponível. Confira o valor atual.' };
+			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+			const investment = findLedgerInvestmentAccount(accounts, investmentId);
+			const linkedBankId = bankId?.trim() || investment?.bankAccountId;
+			const bank = accounts.find(account =>
+				account.kind === 'bank' &&
+				(linkedBankId === account.id || linkedBankId === account.legacyBankId),
+			);
+			if (!investment || !bank || expectedCurrentValueInCents !== undefined && investment.currentBalanceInCents !== expectedCurrentValueInCents) return { success: false, error: 'O investimento mudou ou o banco está indisponível. Confira o valor atual e tente novamente.' };
 			await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, expectedActorId: personId, fromAccountId: type === 'deposit' ? bank.id : investment.id, toAccountId: type === 'deposit' ? investment.id : bank.id, amountInCents: valueInCents, effectiveAt: date, clientActionId: 'form_' + doc(collection(db, COLLECTION)).id, kind: type === 'deposit' ? 'investment_deposit' : 'investment_redemption' });
 		} else {
 			const snapshot = await getDoc(doc(db, COLLECTION, investmentId)); const investment = snapshot.data();
@@ -277,6 +290,24 @@ export async function getFinanceInvestmentsWithRelationsFirebase(personId: strin
 			id: docSnap.id,
 			...docSnap.data(),
 		}));
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		if (ledger) {
+			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+			const balanceByLegacyId = new Map(
+				accounts
+					.filter(account => account.kind === 'investment' && account.legacyInvestmentId)
+					.map(account => [account.legacyInvestmentId!, account.currentBalanceInCents]),
+			);
+			return {
+				success: true,
+				data: investments.map(investment => {
+					const ledgerBalance = balanceByLegacyId.get(investment.id);
+					return ledgerBalance === undefined
+						? investment
+						: { ...investment, currentValueInCents: ledgerBalance };
+				}),
+			};
+		}
 
 		return { success: true, data: investments };
 	} catch (error) {
@@ -345,6 +376,39 @@ export async function syncFinanceInvestmentValueFirebase({
 		if (!isSafeIntegerCents(syncedValueInCents) || syncedValueInCents < 0) {
 			return { success: false, error: 'O valor sincronizado deve ser um número inteiro de centavos.' };
 		}
+		const normalizedDate = normalizeDateValue(date);
+		const activePersonId =
+			typeof personId === 'string' && personId.trim().length > 0
+				? personId
+				: auth.currentUser?.uid ?? null;
+		if (activePersonId) {
+			const ledger = await getFinancialLedgerContextFirebase(activePersonId);
+			if (ledger) {
+				const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+				const investment = findLedgerInvestmentAccount(accounts, investmentId);
+				if (!investment) {
+					return { success: false, error: 'Investimento indisponível no grupo financeiro.' };
+				}
+				const reconciliation = await reconcileFinancialLedgerAccountFirebase({
+					groupId: ledger.groupId,
+					expectedActorId: activePersonId,
+					accountId: investment.id,
+					countedBalanceInCents: syncedValueInCents,
+					effectiveAt: normalizedDate,
+					clientActionId: 'form_' + doc(collection(db, SYNC_COLLECTION)).id,
+					note:
+						reason === 'withdrawal'
+							? 'Sincronização antes do resgate'
+							: reason === 'deposit'
+								? 'Sincronização antes do aporte'
+								: 'Sincronização manual do investimento',
+				});
+				return {
+					success: true,
+					currentValueInCents: investment.currentBalanceInCents + reconciliation.differenceInCents,
+				};
+			}
+		}
 		const investmentRef = doc(db, COLLECTION, investmentId);
 		if (!recordHistory) {
 			await setDoc(
@@ -357,13 +421,12 @@ export async function syncFinanceInvestmentValueFirebase({
 				},
 				{ merge: true },
 			);
-			return { success: true };
+			return { success: true, currentValueInCents: syncedValueInCents };
 		}
 
 		const investmentSnapshot = await getDoc(investmentRef);
 		const investmentData = investmentSnapshot.data() as FinanceInvestmentRecord | undefined;
 		const previousValueInCents = resolveInvestmentCurrentValue(investmentData);
-		const normalizedDate = normalizeDateValue(date);
 		const resolvedPersonId =
 			typeof personId === 'string' && personId.trim().length > 0
 				? personId
@@ -427,10 +490,10 @@ export async function syncFinanceInvestmentValueFirebase({
 		});
 
 		await batch.commit();
-		return { success: true };
+		return { success: true, currentValueInCents: syncedValueInCents };
 	} catch (error) {
 		console.error('Erro ao sincronizar manualmente o investimento:', error);
-		return { success: false, error };
+		return { success: false, error: 'Não foi possível sincronizar o investimento. Confira as permissões e tente novamente.' };
 	}
 }
 
@@ -639,6 +702,115 @@ export type FinanceInvestmentPortfolioActivity = {
 
 export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase(personId: string, startDate?: Date) {
 	try {
+		const ledger = await getFinancialLedgerContextFirebase(personId);
+		if (ledger) {
+			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);
+			const investmentAccounts = accounts.filter(account => account.kind === 'investment');
+			const portfolioIdByAccountId = new Map(
+				investmentAccounts.map(account => [account.id, account.legacyInvestmentId ?? account.id]),
+			);
+			const balanceByAccountId = new Map(
+				investmentAccounts.map(account => [account.id, account.currentBalanceInCents]),
+			);
+			const defaultStart = new Date();
+			defaultStart.setMonth(defaultStart.getMonth() - 6);
+			const from = startDate && !Number.isNaN(startDate.getTime()) ? startDate : defaultStart;
+			const ledgerSnapshot = await getDocs(query(
+				collection(db, 'ledgerTransactions'),
+				where('groupId', '==', ledger.groupId),
+				where('effectiveAt', '>=', from),
+				orderBy('effectiveAt', 'desc'),
+			));
+			const ledgerEvents = ledgerSnapshot.docs.flatMap(transactionDoc => {
+				const data = transactionDoc.data();
+				const date = parseFirestoreDate(data.effectiveAt);
+				if (!date || !Array.isArray(data.legs)) return [];
+				const legs = data.legs.filter((leg): leg is { accountId: string | null; deltaInCents: number } =>
+					Boolean(leg) &&
+					(typeof leg.accountId === 'string' || leg.accountId === null) &&
+					Number.isSafeInteger(leg.deltaInCents),
+				);
+				return [{
+					id: transactionDoc.id,
+					kind: typeof data.kind === 'string' ? data.kind : '',
+					date,
+					createdAt: parseFirestoreDate(data.createdAt),
+					note: typeof data.note === 'string' ? data.note : '',
+					reversesTransactionId: typeof data.reversesTransactionId === 'string' ? data.reversesTransactionId : null,
+					legs,
+				}];
+			});
+			const eventById = new Map(ledgerEvents.map(event => [event.id, event]));
+			const reversalIds = Array.from(new Set(
+				ledgerEvents
+					.filter(event => event.kind === 'reversal' && event.reversesTransactionId && !eventById.has(event.reversesTransactionId))
+					.map(event => event.reversesTransactionId!),
+			));
+			const reversalSnapshots = await Promise.all(
+				reversalIds.map(id => getDoc(doc(db, 'ledgerTransactions', id))),
+			);
+			const originalKindById = new Map<string, string>();
+			reversalSnapshots.forEach(snapshot => {
+				if (snapshot.exists() && typeof snapshot.data().kind === 'string') {
+					originalKindById.set(snapshot.id, snapshot.data().kind);
+				}
+			});
+			const originalKindByReversalId = new Map<string, string>();
+			ledgerEvents.forEach(event => {
+				if (event.kind !== 'reversal' || !event.reversesTransactionId) return;
+				const originalKind = eventById.get(event.reversesTransactionId)?.kind ?? originalKindById.get(event.reversesTransactionId);
+				if (originalKind) originalKindByReversalId.set(event.id, originalKind);
+			});
+			ledgerEvents.sort((left, right) => {
+				const dateDifference = right.date.getTime() - left.date.getTime();
+				if (dateDifference !== 0) return dateDifference;
+				const creationDifference = (right.createdAt?.getTime() ?? 0) - (left.createdAt?.getTime() ?? 0);
+				return creationDifference || right.id.localeCompare(left.id);
+			});
+
+			const balanceAfterByAccountId = new Map(balanceByAccountId);
+			const cashFlows: InvestmentCashFlow[] = [];
+			const syncs: InvestmentSync[] = [];
+			ledgerEvents.forEach(event => {
+				const investmentLeg = event.legs.find(leg =>
+					typeof leg.accountId === 'string' && portfolioIdByAccountId.has(leg.accountId),
+				);
+				if (!investmentLeg || typeof investmentLeg.accountId !== 'string' || investmentLeg.deltaInCents === 0) return;
+				const investmentId = portfolioIdByAccountId.get(investmentLeg.accountId)!;
+				const originalKind = originalKindByReversalId.get(event.id);
+				const isCashFlow =
+					event.kind === 'investment_deposit' ||
+					event.kind === 'investment_redemption' ||
+					(event.kind === 'reversal' && (originalKind === 'investment_deposit' || originalKind === 'investment_redemption'));
+				const isSync = event.kind === 'reconciliation_adjustment' ||
+					(event.kind === 'reversal' && originalKind === 'reconciliation_adjustment');
+				const balanceAfter = balanceAfterByAccountId.get(investmentLeg.accountId);
+				if (isSync && balanceAfter !== undefined) {
+					syncs.push({
+						investmentId,
+						syncedValueInCents: balanceAfter,
+						date: event.date,
+						reason: event.note.toLowerCase().includes('resgate')
+							? 'withdrawal'
+							: event.note.toLowerCase().includes('aporte')
+								? 'deposit'
+								: 'manual',
+					});
+				} else if (isCashFlow) {
+					cashFlows.push({
+						investmentId,
+						valueInCents: Math.abs(investmentLeg.deltaInCents),
+						date: event.date,
+						kind: investmentLeg.deltaInCents > 0 ? 'deposit' : 'withdrawal',
+					});
+				}
+				if (balanceAfter !== undefined) {
+					balanceAfterByAccountId.set(investmentLeg.accountId, balanceAfter - investmentLeg.deltaInCents);
+				}
+			});
+			return { success: true, data: { cashFlows, syncs } satisfies FinanceInvestmentPortfolioActivity };
+		}
+
 		const relatedResult = await getRelatedUsersIDsFirebase(personId);
 		if (!relatedResult.success) {
 			throw new Error('Erro ao buscar usuários relacionados.');

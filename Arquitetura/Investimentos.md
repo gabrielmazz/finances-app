@@ -3,7 +3,7 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.10
+versao: 1.6.11
 ---
 
 # Investimentos
@@ -96,6 +96,8 @@ Cada operação permite informar duas datas civis independentes, no formato `DD/
 - **Data do aporte/resgate:** registra em `expenses.date` ou `gains.date` o dia efetivo da movimentação financeira.
 
 As duas datas começam preenchidas com o dia atual, mas o usuário deve confirmar ou alterar cada uma antes de salvar. Hoje e qualquer data anterior são válidos; amanhã e qualquer data futura são rejeitados. A sincronização manual comum segue a mesma regra de data. Ao persistir, a tela mantém o dia escolhido e combina-o com o horário atual; valores continuam sendo enviados em centavos inteiros. A data da sincronização nunca substitui a data efetiva do aporte ou resgate.
+
+Após o cutover do grupo, a tela continua identificando investimentos legados por `legacyInvestmentId`, mas usa o saldo confirmado de `financialAccounts`. Sincronizar é uma reconciliação do razão com a data informada; aportar/resgatar resolve a conta pelo ID legado e transfere entre investimento e banco no mesmo grupo. A movimentação recente da carteira é lida de `ledgerTransactions`, sem criar ou atualizar documentos financeiros legados no cliente. A projeção mantém o último valor sincronizado ligado à data dele, separado do saldo atual após movimentos posteriores.
 
 ## Arquivos principais
 

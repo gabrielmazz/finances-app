@@ -328,15 +328,21 @@ const getInvestmentBadgeLabel = (value: string) => {
 const getInvestmentManualSyncLabel = (
 	investment: FinanceInvestment,
 	formatCurrencyBRL: (value: number) => string,
+	syncs: FinanceInvestmentPortfolioActivity['syncs'],
 ) => {
-	if (
-		typeof investment.lastManualSyncValueInCents !== 'number' ||
-		!investment.lastManualSyncAtISO
-	) {
+	const latestSync = syncs
+		.filter(sync => sync.investmentId === investment.id)
+		.reduce<(typeof syncs)[number] | null>(
+			(latest, sync) => !latest || sync.date > latest.date ? sync : latest,
+			null,
+		);
+	const syncValueInCents = latestSync?.syncedValueInCents ?? investment.lastManualSyncValueInCents;
+	const syncDateISO = latestSync?.date.toISOString() ?? investment.lastManualSyncAtISO;
+	if (typeof syncValueInCents !== 'number' || !syncDateISO) {
 		return 'Nunca sincronizado';
 	}
 
-	return `${formatCurrencyBRL(convertCentsToBRL(investment.lastManualSyncValueInCents))} em ${formatDateToBR(investment.lastManualSyncAtISO)}`;
+	return `${formatCurrencyBRL(convertCentsToBRL(syncValueInCents))} em ${formatDateToBR(syncDateISO)}`;
 };
 
 // A timeline mantém o acompanhamento por saldo base, projeção e sincronização manual conforme o fluxo descrito em [[Investimentos]].
@@ -802,6 +808,7 @@ export default function FinancialListScreen() {
 						bankId: investment.bankId || null,
 						initialValueInCents: investment.initialValueInCents,
 						currentValueInCents: resolveBaseValueInCents(investment),
+					lastManualSyncValueInCents: investment.lastManualSyncValueInCents,
 						cdiPercentageInBasisPoints: investment.cdiPercentageInBasisPoints,
 						assetType: investment.assetType,
 						valuationMethod: investment.valuationMethod,
@@ -1143,7 +1150,7 @@ export default function FinancialListScreen() {
 
 		setIsSavingDeposit(true);
 		try {
-			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit', expectedCurrentValueInCents: syncedDepositValueInCents });
+			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit', expectedCurrentValueInCents: syncedDepositValueInCents });
 			if (!result.success) throw new Error(result.error);
 
 			await loadData();
@@ -1289,11 +1296,12 @@ export default function FinancialListScreen() {
 			});
 
 			if (!result.success) {
-				throw new Error('Erro ao sincronizar investimento.');
+				showScreenAlert(result.error ?? 'Não foi possível sincronizar o investimento.', 'error');
+				return;
 			}
 
 			await loadData();
-			setSyncedWithdrawalValueInCents(syncedCents);
+			setSyncedWithdrawalValueInCents(result.currentValueInCents ?? syncedCents);
 			setInvestmentForWithdrawal(investmentForWithdrawalSync);
 			setInvestmentForWithdrawalSync(null);
 			setWithdrawInput('');
@@ -1350,8 +1358,11 @@ export default function FinancialListScreen() {
 
 		setIsSavingWithdrawal(true);
 		try {
-			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption', expectedCurrentValueInCents: availableCents });
-			if (!result.success) throw new Error(result.error);
+			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption', expectedCurrentValueInCents: availableCents });
+			if (!result.success) {
+				showScreenAlert(result.error ?? 'Não foi possível concluir o resgate.', 'error');
+				return;
+			}
 
 			await loadData();
 			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
@@ -1713,6 +1724,7 @@ export default function FinancialListScreen() {
 											const lastSyncLabel = getInvestmentManualSyncLabel(
 												investment,
 												formatCurrencyBRL,
+								portfolioActivity.syncs,
 											);
 											const summaryText = getInvestmentSummaryText(
 												investment,
