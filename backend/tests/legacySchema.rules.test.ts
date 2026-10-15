@@ -7,7 +7,7 @@ async function run() {
   const environment = await initializeTestEnvironment({ projectId: 'demo-lumus-legacy-schema',
     firestore: { rules: readFileSync(resolve(process.cwd(), '..', 'firestore.rules'), 'utf8') } });
   try {
-    const firestore = environment.authenticatedContext('owner').firestore();
+    const firestore = environment.authenticatedContext('owner', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
     const now = new Date('2026-10-11T12:00:00Z');
     const common = { personId: 'owner', createdAt: now, updatedAt: now };
     await environment.withSecurityRulesDisabled(async context => {

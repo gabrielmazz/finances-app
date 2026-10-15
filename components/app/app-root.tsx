@@ -6,7 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FontAwesome6, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 
-import { WebNotifierAlertHost } from '@/components/uiverse/feedback/notifier-alert';
+import { showNotifierAlert, WebNotifierAlertHost } from '@/components/uiverse/feedback/notifier-alert';
 import NotifierBoundary from '@/components/uiverse/feedback/notifier-boundary';
 import Loader from '@/components/uiverse/shared/loader';
 import WebAppShell from '@/components/uiverse/navigation/web-app-shell';
@@ -22,6 +22,7 @@ import { refreshMandatoryReminderNotifications } from '@/utils/mandatoryReminder
 import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAccountSync';
 import { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } from '@/utils/appRouteGuards';
 import { registerRemoteNotificationDevice } from '@/utils/remoteNotifications';
+import { cleanupExpiredSession } from '@/utils/secureLogout';
 
 const AuthBootstrapScreen = () => {
 	return (
@@ -76,31 +77,44 @@ const NotificationLifecycleBridge = () => {
 };
 
 const AuthenticatedStack = () => {
-	const { isLoadingTheme } = useAppTheme();
-	const { isAuthReady, isAuthenticated } = useAuth();
+	const { isLoadingTheme, themeMode } = useAppTheme();
+	const { isAuthReady, isAuthenticated, registerActivity, sessionExpired } = useAuth();
 	const { isLoadingRouteVisibility, isRouteVisible } = useRouteVisibility();
+	const expiryNoticeShown = React.useRef(false);
+	React.useEffect(() => {
+		if (!sessionExpired) expiryNoticeShown.current = false;
+		if (!sessionExpired || !isAuthReady || expiryNoticeShown.current) return;
+		expiryNoticeShown.current = true;
+		showNotifierAlert({
+			description: 'Sua sessão expirou. Entre novamente com email e senha.',
+			type: 'warn',
+			isDarkMode: themeMode === 'dark',
+		});
+	}, [isAuthReady, sessionExpired, themeMode]);
 
 	if (!isAuthReady || isLoadingTheme || isLoadingRouteVisibility) {
 		return <AuthBootstrapScreen />;
 	}
 
 	return (
-		<WebAppShell isAuthenticated={isAuthenticated}>
-			<Stack screenOptions={{ headerShown: false }}>
-				<Stack.Protected guard={!isAuthenticated}>
-					<Stack.Screen name="index" />
-				</Stack.Protected>
+		<View className="flex-1" onStartShouldSetResponderCapture={() => !registerActivity()} onTouchMove={registerActivity}>
+			<WebAppShell isAuthenticated={isAuthenticated}>
+				<Stack screenOptions={{ headerShown: false }}>
+					<Stack.Protected guard={!isAuthenticated}>
+						<Stack.Screen name="index" />
+					</Stack.Protected>
 
-				{APP_ROUTE_GUARD_ENTRIES.map(entry => (
-						<Stack.Protected
-							key={entry.name}
-							guard={isAppRouteAllowed(entry, isAuthenticated, isRouteVisible)}
-						>
-							<Stack.Screen name={entry.name} />
-						</Stack.Protected>
-				))}
-			</Stack>
-		</WebAppShell>
+					{APP_ROUTE_GUARD_ENTRIES.map(entry => (
+							<Stack.Protected
+								key={entry.name}
+								guard={isAppRouteAllowed(entry, isAuthenticated, isRouteVisible)}
+							>
+								<Stack.Screen name={entry.name} />
+							</Stack.Protected>
+					))}
+				</Stack>
+			</WebAppShell>
+		</View>
 	);
 };
 
@@ -112,7 +126,7 @@ const LayoutWithTheme = () => {
 			<GluestackUIProvider mode={themeMode}>
 				<NotifierBoundary>
 					<WebNotifierAlertHost />
-					<AuthProvider>
+					<AuthProvider onSessionExpired={cleanupExpiredSession}>
 						<FinanceDataProvider>
 							<NotificationLifecycleBridge />
 							<LumusAssistantProvider>

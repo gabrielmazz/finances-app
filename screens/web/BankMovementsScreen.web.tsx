@@ -2179,6 +2179,12 @@ export default function BankMovementsScreen() {
 	);
 
 	const summaryPrimaryBalanceLabel = isCashView ? 'Saldo do período' : 'Saldo atual';
+	const summaryPrimaryBalanceInCents = isCashView ? allMovementsBalanceInCents : bankCurrentBalanceInCents;
+	const summaryPrimaryBalanceValueClassName = typeof summaryPrimaryBalanceInCents === 'number'
+		? summaryPrimaryBalanceInCents >= 0
+			? 'text-emerald-500'
+			: 'text-red-500'
+		: 'text-typography-600';
 
 	const summaryPrimaryBalanceValue = React.useMemo(() => {
 		if (isCashView) {
@@ -3028,7 +3034,7 @@ export default function BankMovementsScreen() {
 														triggerHint="Selecione a conta que deseja consultar."
 														accessibilityLabel="Escolher banco para consultar movimentações"
 													/>
-							</VStack>
+												</VStack>
 											) : null}
 											<HStack className="w-full gap-4">
 												<VStack className="flex-1">
@@ -3124,8 +3130,8 @@ export default function BankMovementsScreen() {
 														acceptValueOnBlur={false}
 														clearable
 														clearButtonProps={{
-																	'aria-label': 'Limpar todas as categorias',
-																	style: MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLE,
+															'aria-label': 'Limpar todas as categorias',
+															style: MANTINE_TAGS_INPUT_CLEAR_BUTTON_STYLE,
 														}}
 														filter={tagInputFilter}
 														maxDropdownHeight={240}
@@ -3135,15 +3141,15 @@ export default function BankMovementsScreen() {
 																? 'Selecione um banco para filtrar categorias'
 																: selectedTagFilterIds.length > 0
 																	? undefined
-																: availableTagFilters.length > 0
-																	? 'Selecione alguma categoria'
-																	: 'Sem categorias disponíveis para este filtro'
+																	: availableTagFilters.length > 0
+																		? 'Selecione alguma categoria'
+																		: 'Sem categorias disponíveis para este filtro'
 														}
 														classNames={MANTINE_TAGS_INPUT_CLASS_NAMES}
 														styles={tagInputStyles}
 														renderOption={({ option }) => {
 															const tagOption = availableTagFilters.find(item => item.id === String(option.value));
-																const iconColor = LUMUS_RUNTIME_COLORS.light.surface;
+															const iconColor = LUMUS_RUNTIME_COLORS.light.surface;
 
 															return (
 																<span className="flex w-full items-center justify-between gap-2.5">
@@ -3176,8 +3182,8 @@ export default function BankMovementsScreen() {
 																	onRemove={onRemove}
 																	disabled={disabled}
 																	size="sm"
-																		removeButtonProps={{
-																			'aria-label': `Remover a categoria ${tagOption?.label ?? String(option.value)}`,
+																	removeButtonProps={{
+																		'aria-label': `Remover a categoria ${tagOption?.label ?? String(option.value)}`,
 																	}}
 																	style={MANTINE_SELECTED_PILL_STYLE}
 																	styles={MANTINE_SELECTED_PILL_SLOT_STYLES}
@@ -3205,6 +3211,28 @@ export default function BankMovementsScreen() {
 												{filteredSummaryTitle}
 											</Heading>
 										</VStack>
+
+										<View accessibilityLiveRegion="polite"
+											style={{
+												flex: 1,
+												minHeight: 100,
+												borderRadius: 24,
+												borderWidth: 1,
+												borderColor: periodSummaryPalette.neutralBorder,
+												paddingHorizontal: 16,
+												paddingVertical: 12,
+											}}
+											className="mb-3 min-h-24 rounded-section px-4 py-3"
+										>
+											<VStack className="flex-1 justify-between">
+												<Text className="text-xs uppercase tracking-wide" style={{ color: periodSummaryPalette.subtitle }}>
+													{summaryPrimaryBalanceLabel}
+												</Text>
+												<Heading size="md" className={`tabular-nums ${summaryPrimaryBalanceValueClassName}`}>
+													{summaryPrimaryBalanceValue}
+												</Heading>
+											</VStack>
+										</View>
 
 										<HStack className="gap-3">
 											<View
@@ -3347,7 +3375,7 @@ export default function BankMovementsScreen() {
 
 
 									{(activeBankId || isCashView) &&
-									(isLoading || (!errorMessage && dailyMovementChartData.length > 0)) ? (
+										(isLoading || (!errorMessage && dailyMovementChartData.length > 0)) ? (
 										<VStack className="mb-4">
 											<VStack className="px-2 pb-1">
 												<Heading className={webDashboardClassNames.sectionHeadingText} size="lg">
@@ -3780,7 +3808,7 @@ export default function BankMovementsScreen() {
 
 																							<Pressable
 																								disabled={!canChangeAdjustment}
-																				 onPress={() => handleRequestMovementAction('delete', movement)}
+																								onPress={() => handleRequestMovementAction('delete', movement)}
 																								accessibilityRole="button"
 																								accessibilityLabel={`${secondaryActionLabel} ${movement.name}`}
 																								className="min-h-touch flex-row items-center gap-2 rounded-xl px-2 focus-visible:ring-2 focus-visible:ring-lumus-focus"
@@ -3813,7 +3841,7 @@ export default function BankMovementsScreen() {
 
 				<View
 					style={{
-						marginHorizontal: -18,
+						marginHorizontal: 0,
 						paddingBottom: 0,
 						flexShrink: 0,
 					}}
@@ -3826,7 +3854,7 @@ export default function BankMovementsScreen() {
 					onClose={handleCloseFinanceEditModal}
 				>
 					<ModalBackdrop />
-					<KeyboardAvoidingView
+					<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
 						behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 						keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
 					>

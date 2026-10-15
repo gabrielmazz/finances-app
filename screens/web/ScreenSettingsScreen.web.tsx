@@ -895,7 +895,7 @@ export default function ScreenSettingsScreenWeb() {
 					</ModalContent>
 				</Modal>
 
-				<View style={{ marginHorizontal: -18, paddingBottom: 0, flexShrink: 0 }}>
+				<View style={{ marginHorizontal: 0, paddingBottom: 0, flexShrink: 0 }}>
 					<Navigator defaultValue={2} onHardwareBack={handleBackToConfigurations} />
 				</View>
 			</View>

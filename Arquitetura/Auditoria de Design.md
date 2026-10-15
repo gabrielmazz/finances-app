@@ -2,6 +2,128 @@
 
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
 
+## Auditoria de responsividade — 2026-10-15 (execução atual)
+
+### Escopo e método
+
+Inventário obtido de todos os arquivos de `app/`, `utils/navigation.ts`, containers de abas e `screens/`, preservando o working tree anterior. URLs abaixo recebem `/web/` no navegador e `/mobile/` em iOS/Android. Cada destino existe nas três plataformas; o grupo oposto é bloqueado pelo guard, não é outra tela disponível. `/` redireciona para o login da plataforma; `bank-summary` é compatibilidade que redireciona para Home. `home?tab=0` é o dashboard, `home?tab=1` reutiliza despesas e `home?tab=2` abre Configurações. Não contar fallbacks/adaptadores como telas adicionais.
+
+Ferramentas: Chromium 149 e Playwright existentes no cache local, Expo local porta 8092, Firebase Emulator `demo-lumus-financas`. Rede externa do navegador bloqueada durante a captura. Nenhuma instalação/deploy. Android SDK sem adb/AVD utilizável; iOS sem Xcode/simulador. Largura Web não equivale a renderização nativa.
+
+Matriz solicitada: 320, 360, 390, 430, 768, 1024, 1280, 1440 px. Tablets: 768×1024 e 1024×768; celulares com altura 844 e desktop com 900. Altura reduzida, foco e overlays têm cenários separados. **A matriz está em execução; nenhuma célula é aprovada apenas por existir no inventário.**
+
+### Inventário completo de destinos e composições
+
+Em cada linha: Web / iOS+Android. Componentes são imports diretos; cada um inclui seus próprios primitives. As composições `HomeTabsScreen` são orquestradores, não novas telas.
+
+| Rota | Composição Web / nativa | Componentes compartilhados | Estados |
+|---|---|---|---|
+| `add-finance` | AddFinanceScreen.web.tsx / AddFinanceScreen.tsx | button, input, popover, AnimatedContent, Grainient, StrokeText, bank-actionsheet-selector, date-picker, navigator, notifier-alert, web-select-field | ver ficha de estados abaixo |
+| `add-mandatory-expenses` | AddMandatoryExpensesScreen.web.tsx / AddMandatoryExpensesScreen.tsx | accordion, button, input, popover, textarea, date-picker, navigator, notifier-alert, screen-dismiss-keyboard, tag-actionsheet-selector, time-picker-field, web-screen-hero, web-select-field | ver ficha de estados abaixo |
+| `add-mandatory-gains` | AddMandatoryGainsScreen.web.tsx / AddMandatoryGainsScreen.tsx | accordion, button, input, popover, textarea, date-picker, navigator, notifier-alert, screen-dismiss-keyboard, tag-actionsheet-selector, time-picker-field, web-screen-hero, web-select-field | ver ficha de estados abaixo |
+| `add-register-bank` | AddRegisterBankScreen.web.tsx / AddRegisterBankScreen.tsx | actionsheet, button, input, bank-actionsheet-selector, navigator, notifier-alert, screen-dismiss-keyboard, web-screen-hero, web-select-field | ver ficha de estados abaixo |
+| `add-register-expenses` | AddRegisterExpensesScreen.web.tsx / AddRegisterExpensesScreen.tsx | button, input, modal, popover, textarea, AnimatedContent, Grainient, StrokeText, bank-actionsheet-selector, date-picker, navigator, notifier-alert, tag-actionsheet-selector | ver ficha de estados abaixo |
+| `add-register-gain` | AddRegisterGainScreen.web.tsx / AddRegisterGainScreen.tsx | button, input, popover, textarea, AnimatedContent, Grainient, StrokeText, bank-actionsheet-selector, date-picker, navigator, notifier-alert, tag-actionsheet-selector | ver ficha de estados abaixo |
+| `add-register-tag` | AddRegisterTagScreen.web.tsx / AddRegisterTagScreen.tsx | actionsheet, button, input, category-availability-selector, navigator, notifier-alert, screen-dismiss-keyboard, web-screen-hero | ver ficha de estados abaixo |
+| `add-rescue` | AddRescueScreen.web.tsx / AddRescueScreen.tsx | button, input, textarea, bank-actionsheet-selector, bank-balance-attached-panel, date-picker, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+| `add-user-relation` | AddUserRelationScreen.web.tsx / AddUserRelationScreen.tsx | button, input, popover, navigator, notifier-alert, screen-dismiss-keyboard, web-screen-hero | ver ficha de estados abaixo |
+| `annotations` | LocalAnnotationsScreen.tsx / LocalAnnotationsScreen.tsx | button, input, annotation-markdown-editor, navigator, notifier-alert | ver ficha de estados abaixo |
+| `bank-balance-adjustment` | BankBalanceAdjustmentScreen.web.tsx / BankBalanceAdjustmentScreen.tsx | bank-balance-adjustment-form, navigator, web-screen-hero | ver ficha de estados abaixo |
+| `bank-movements` | BankMovementsScreen.web.tsx / BankMovementsScreen.tsx | button, input, modal, popover, textarea, AnimatedContent, Grainient, bank-actionsheet-selector, bank-card-surface, bank-movements-daily-area-chart, date-picker, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+| `bank-summary` | redirect / redirect |  | redirecionamento; sem formulário |
+| `category-analysis` | CategoryAnalysisScreen.web.tsx / CategoryAnalysisScreen.tsx | button, popover, tabs, category-analysis-bank-donut-chart, category-analysis-monthly-line-chart, category-analysis-movement-pagination, category-analysis-period-fields, navigator, notifier-alert, tag-actionsheet-selector, web-screen-hero | ver ficha de estados abaixo |
+| `financial-forecast` | FinancialForecastScreen.web.tsx / FinancialForecastScreen.tsx | accordion, button, popover, tabs, financial-forecast-chart, navigator, web-screen-hero | ver ficha de estados abaixo |
+| `financial-list` | FinancialListScreen.web.tsx / FinancialListScreen.tsx | button, input, modal, tabs, textarea, AnimatedContent, Grainient, date-picker, investment-evolution-chart, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+| `home` | HomeTabsScreen.web.tsx / HomeTabsScreen.tsx |  | ver ficha de estados abaixo |
+| `index` | LoginScreen.web.tsx / LoginScreen.tsx | button, input, notifier-alert | ver ficha de estados abaixo |
+| `lumus-assistant` | LumusAssistantScreen.web.tsx / LumusAssistantScreen.tsx | button, modal, popover, AnimatedContent, Grainient, StrokeText, assistant-activity-trace, assistant-cards, assistant-composer-frame, navigator | ver ficha de estados abaixo |
+| `mandatory-expenses` | MandatoryExpensesListScreen.web.tsx / MandatoryExpensesListScreen.tsx | button, input, modal, AnimatedContent, Grainient, date-calendar, mandatory-expense-payment-bullet-chart, mandatory-expenses-radar-chart, mandatory-expenses-scatter-chart, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+| `mandatory-gains` | MandatoryGainsListScreen.web.tsx / MandatoryGainsListScreen.tsx | button, input, modal, AnimatedContent, Grainient, date-calendar, mandatory-expense-payment-bullet-chart, mandatory-expenses-radar-chart, mandatory-expenses-scatter-chart, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+| `profile` | PerfilPersonScreen.web.tsx / PerfilPersonScreen.tsx | button, input, navigator.native, navigator.web, notifier-alert, screen-dismiss-keyboard, web-screen-hero.native, web-screen-hero.web | ver ficha de estados abaixo |
+| `register-monthly-balance` | AddRegisterMonthlyBalanceScreen.web.tsx / AddRegisterMonthlyBalanceScreen.tsx | button, input, popover, bank-actionsheet-selector, bank-current-balance-attached-panel, navigator, notifier-alert, screen-dismiss-keyboard, web-screen-hero | ver ficha de estados abaixo |
+| `screen-settings` | ScreenSettingsScreen.web.tsx / ScreenSettingsScreen.tsx | accordion, actionsheet, button, input, modal, navigator, web-screen-hero | ver ficha de estados abaixo |
+| `transfer-screen` | TransferScreen.web.tsx / TransferScreen.tsx | button, input, popover, textarea, bank-actionsheet-selector, bank-balance-attached-panel, date-picker, navigator, notifier-alert, web-screen-hero | ver ficha de estados abaixo |
+
+### Fichas de estados e fluxos internos
+
+| Telas | Estados relevantes inspecionados no código; validação visual indicada separadamente |
+|---|---|
+| Login (index) | login, cadastro público e recuperação no mesmo painel; erro de campo/servidor, cooldown, enviando/desabilitado, confirmação neutra, senha visível; nome/email longos |
+| Home | bootstrap, skeletons parciais, bancos/carteira vazios, falha/retry, privacidade, timeline expandida, saldo mensal pendente e seu modal; nomes/valores longos |
+| Despesa/ganho | criação, edição, pré-preenchimento por recorrência/investimento; loading, seleção ausente, inválido, envio bloqueado/ocupado, erro/sucesso; radios/checkboxes e sugestão de obrigatório (despesa) |
+| Cadastros obrigatórios | criação/edição, carregamento, valor mensal/parcelado, datas inválidas, opções de vencimento/lembrete, calendário de parcelas, pickers, ações de ciclo, erro/sucesso e submit desabilitado |
+| Novo banco | cadastro/edição, catálogo sem busca correspondente, Outro Banco/cor personalizada, nome longo, inválido, carregando/salvando e feedback |
+| Nova categoria | criação/edição e retorno inline, disponibilidade, catálogo de ícones, prévia, sem resultados, dados inválidos, carregamento/envio/erro/sucesso |
+| Novo investimento | formulário, bancos ausentes, saldo carregando/indisponível/insuficiente, valor inválido, campo bloqueado, envio/erro/sucesso |
+| Saque, transferência, saldo mensal | seleção ausente, saldos carregando/erro/ocultos, sem banco, destino igual, inválido/desabilitado, envio/erro/sucesso, descrição longa |
+| Vínculo de usuários | pesquisa/ID inválido, convite/aceite, ocupado/desabilitado, erro/sucesso e retorno ao perfil |
+| Ajuste de saldo | sem banco, carregando, falha/retry, prévia mascarada, diferença zero/negativa, descrição obrigatória, edição/histórico, submit desabilitado/ocupado e sucesso |
+| Extrato | sem banco (filtros desabilitados), banco/Caixa, carregando, vazio, erro/retry, filtros/período inválido, privacidade, timeline longa/expandida, exportação, edição/estorno e confirmação |
+| Análise por categoria | categoria ausente, filtros desabilitados, histórico inválido, loading/erro/vazio, relatório, gráficos com privacidade, páginas de 20 e conteúdo longo |
+| Previsão | loading/erro/retry/vazio, horizontes 3/6/12, saldo positivo/negativo/oculto, gráfico longo com scroll interno, detalhamento expandido |
+| Carteira | loading/erro/vazio, privacidade, timeline/ações expandidas, tabs; oito modais: taxa CDI, edição, sincronização, exclusão, sincronização pré-aporte, aporte, sincronização pré-resgate e resgate; inválido/disabled/ocupado/erro/sucesso |
+| Listas obrigatórias | loading/vazio/erro, mês, calendário/dia selecionado e modal diário, pendente/pago/concluído, ações expandidas, confirmação, quitar parcelas (despesas), reivindicar, exclusão e PDF |
+| Perfil | carregando/erro/retry, nome válido/inválido/longo, email/data bloqueados, salvar/descartar, cópia do ID, contas vinculadas vazias/erro/sucesso, administrador/padrão |
+| Configurações | loading/erro/vazio de bancos/categorias, accordions, tabelas/paginação/busca, estados ativo/inativo, ações com confirmação, switches ocupados/desabilitados, privacidade/cache/tema e textos longos |
+| Configurações das telas | loading/vazio da busca, accordion, preferências de criação/edição, destino desabilitado, actionsheet de destinos, visibilidade e modal de recurso em desenvolvimento |
+| Anotações | recurso oculto por padrão, vazio/lista/busca, leitura/erro, editor em tela inteira sem navigator, toolbar horizontal, salvar/renomear/excluir e conteúdo longo |
+| Lumus IA | bootstrap, consentimento, indisponível/retry, vazio, conversa longa, enviando/desabilitado, voz/erro/sucesso, perguntas/relatórios/confirmar/cancelar, prompts em modal e preferências em drawer |
+
+Cada estado acima é um alvo de revisão, **não uma alegação de execução visual**. Estados financeiros com escrita não são submetidos na varredura de responsividade; regras e testes funcionais existentes permanecem responsáveis pelos contratos. Falhas e conteúdo longo precisam de cenários específicos além da captura normal.
+
+### Subtelas de Home (incluídas no inventário)
+
+| URL | Nome / composições | Componentes compartilhados |
+|---|---|---|
+| `home?tab=0` | Dashboard / `HomeScreen.web.tsx`, `HomeScreen.tsx` | Navigator, BankCardSurface, Carousel, Popover, Modal, gráficos de investimentos/gastos/atividade, compromissos e timeline |
+| `home?tab=1` | Controle / `AddRegisterExpensesScreen.web.tsx`, `AddRegisterExpensesScreen.tsx` | os mesmos do destino `add-register-expenses`; alias, não outra tela |
+| `home?tab=2` | Configurações / `ConfigurationsScreen.web.tsx`, `ConfigurationsScreen.tsx` | Navigator, Accordion, Table, ScrollView horizontal local, paginação, seletor de categorias, Switch, Popover, Modal |
+
+### Etapas e achados compartilhados
+
+| ID / gravidade | Tela, plataforma, largura / evidência e causa | Correção planejada | Validação / pendência |
+|---|---|---|---|
+| RS-01 / P1 | Modais em todas as plataformas, especialmente altura baixa: `components/ui/modal/index.tsx` sem teto de altura no Content; Body não declara encolhimento | limitar altura e tornar corpo rolável, mantendo header/footer acessíveis | antes da implementação; nativo pendente |
+| RS-02 / P2 | Ajuda do dashboard 24×24, fechar modal 40×40, ações de tabelas 40×40; abaixo do mínimo 44 em todas as larguras | consumir contrato de ícone/toque existente | inspeção estática; medir Web depois |
+| RS-03 / P1 | `WebSelectField`, qualquer largura com campo perto do rodapé: mínimo forçado de 120px abaixo do trigger excede viewport | abrir no lado com espaço e limitar geometria à viewport visual | inspeção do algoritmo; reproduzir Web |
+| RS-04 / P1 | Listas obrigatórias Web, 320–390: gráficos têm `web:min-w-[320px]` dentro de frame com gutters | retirar mínimo e usar colunas a partir de breakpoint que caiba | antes da implementação; captura em execução |
+| RS-05 / P1 | Transferência mobile e Web: origem/destino em linha sem adaptação; mínimos 280px Web e `h-full` no conteúdo | empilhar no compacto, duas colunas quando houver espaço e altura intrínseca | antes da implementação |
+
+### Checkpoint da etapa 1 — implementação e verificações
+
+Aplicadas RS-01 a RS-05: modal fluido com margem de 16px, teto de altura, Body encolhível e header/footer preservados; fechar e ajuda com alvo/foco compartilhados; ações/paginação de tabelas com 44px; select escolhe abertura acima/abaixo e acompanha `visualViewport`; gráficos obrigatórios passam a caber no frame; transferência empilha antes de 768px e remove `h-full` da pilha.
+
+Também corrigidos: gutters Web duplicados (sheet + frame) e recuos negativos legados do navigator em 13 composições Web, que criavam documento 18px mais largo em 320/768. O conteúdo começa fora da rail em 1024–1279px e volta ao frame central em 1280+. Cartões de banco recebem mais largura útil, padding compacto e valor tipográfico menor no compacto.
+
+Evidência antes: Home 320 quebrava `-R$ 21.405,00` em três linhas; em 1024, rail cobria início dos títulos. Cadastro de banco, categoria, saque, vínculo, extrato e carteira mediram documento de 338px em viewport de 320px e 786 em 768. Evidência depois: Home 320 mostra o saldo inteiro; Home 1024 inicia títulos em x=96 e a rail termina em x=68; primeiras rotas da nova matriz medem documento igual à viewport.
+
+`npm run lint:styles` e `npm run typecheck` passaram nesta etapa. Métricas do lint: 976 styles, 1.114 hex, 346 valores arbitrários, 52 consumidores da facade; sem aumento do baseline. Export Web Emulator concluído. `npm run check`: lint e types app/backend passaram; Jest teve 728 aprovados, 88 ignorados e três falhas em `releaseSecurityGate.test.ts`, ligadas ao script de release já alterado no working tree, fora desta auditoria. O Metro dev encerrou com `DependencyGraph._onHasteChange` / `addedFiles` ao recompilar Tailwind; a validação segue pelo export estático isolado. Não foi alterado o toolchain para contornar essa falha.
+
+### Evidência tabular reproduzível
+
+`Arquitetura/Matriz de Responsividade.csv` registra URL solicitada/renderizada, plataforma, largura/altura, largura do documento e erros de runtime de 224 capturas (200 da varredura, incluindo o alias Controle e oito redirects de Anotações, mais 24 de login/cadastro/recuperação). É evidência de renderização e medição DOM; a inspeção de screenshots foi feita em painéis comparativos e nas capturas dos achados, não equivale a testar todos os estados em todas as células. Screenshots e logs de trabalho ficam em `/tmp/lumus-responsive/` e são temporários.
+
+### Checkpoint da etapa 2 — conteúdo longo e overlays
+
+- **RS-10 / P2:** no Perfil Web 320px, Nome e Membro desde em meias colunas cortavam a data. Web e mobile agora empilham esses dois campos abaixo de 640px; em tablet/desktop continuam lado a lado. A data mantém o mesmo valor e não fica editável.
+
+- **RS-06 / P1:** revisão visual do modal de editar investimento em 320×568 encontrou cabeçalho e rodapé fora da tela mesmo após o teto compartilhado: `KeyboardAvoidingView` intermediário não tinha altura/largura limitadas. As duas variantes da carteira e o modal equivalente do extrato agora limitam esse wrapper e deixam o Body encolher. Revalidação visual em andamento; teclado nativo continua pendente.
+- **RS-07 / P2:** tabelas de Configurações tinham largura total sem espaço mínimo para nome/ícone e 2–3 ações, especialmente com nomes longos. Banco e categoria agora possuem largura mínima semântica e rolagem horizontal **local à tabela** nas duas plataformas; paginação permanece fora da rolagem. Não ocultar colunas/ações nem alterar dados.
+- **RS-08 / P2:** tabs nativas tinham 42px e horários Web 36px; ambos passam ao token de 44px. O fechar do drawer também usa o contrato de ícone. O menu de horário deixa a área recortável do formulário e usa Popover Mantine já instalado com portal, flip/shift/size e tema sincronizado; nenhum pacote novo.
+- **RS-09 / P2:** textos brancos nas ações amarelas tinham contraste insuficiente, inclusive na nova largura compacta. Os contratos de botão, ícone e autenticação usam `lumus-on-accent`, seguindo a regra crítica vigente da skill; links e ações destrutivas preservam suas variantes.
+
+Capturas adicionais: seletor de ícones e cor em oito larguras (cor abre acima perto do rodapé), detalhes de obrigatório, carteira carregada, tabelas abertas, actionsheet de retorno e confirmação de saída. Login/cadastro/recuperação receberam 24 capturas, além de erro/sucesso da recuperação no Auth Emulator e foco de teclado visível. Nenhuma operação financeira foi enviada.
+
+Anotações: primeira tentativa retornou tela sem conteúdo e esgotou a espera; a rota usa liberação local e precisa ser reavaliada com sessão nova. O guard não foi removido para completar a auditoria. Estados de voz/IA dependentes de serviço remoto não foram acionados; o navegador teve rede externa bloqueada.
+
+## Checkpoint — saldo atual no resumo do extrato, 2026-10-15
+
+**Inventário:** resumos do período nas composições mobile e Web de Movimentos Bancários, incluindo a leitura do saldo e a presença permanente do card nos modos banco e dinheiro.
+
+| Severidade | Achado/causa | Correção | Validação e risco residual |
+|---|---|---|---|
+| P2 | O resumo mostrava ganhos/despesas filtrados e saldo líquido, sem mostrar o saldo atual da conta bancária no mesmo padrão dos demais indicadores. | Adicionado um card permanente antes dos ganhos e despesas nas telas Web/mobile, com o mesmo estilo e hierarquia dos outros resumos. Para bancos, mostra o saldo atual sem depender do período/filtros; na visão de dinheiro, reaproveita o saldo do período do resumo. | Lint de estilos, typecheck e `git diff --check` nos arquivos desta tarefa passaram. A checagem global encontra whitespace na alteração não relacionada `screens/web/AddRegisterBankScreen.web.tsx:462`. Sem inspeção visual autenticada em navegador ou aparelho. |
+
 ## Checkpoint — ícones de categoria em todas as telas, 2026-10-09
 
 **Inventário:** Home, listagens e formulários Web/mobile que renderizam `<TagIcon />`, incluindo carregamento inicial, categoria sem ícone válido e fontes indisponíveis.

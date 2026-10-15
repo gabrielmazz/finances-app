@@ -6,7 +6,6 @@ import { BackHandler, Pressable, View } from 'react-native';
 import { Menu as GluestackMenu, MenuItem, MenuItemLabel } from '@/components/ui/menu';
 import { Text } from '@/components/ui/text';
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { LUMUS_NAVIGATION_CLASS_NAMES } from '@/design-system/tokens';
 import { cn } from '@/lib/utils';
@@ -20,7 +19,8 @@ import {
 	navigateToRoute,
 	normalizeHomeTabIndex,
 } from '@/utils/navigation';
-import { logoutCurrentUser } from '@/utils/secureLogout';
+import { useLogoutConfirmation } from '@/hooks/useLogoutConfirmation';
+import { LogoutConfirmation } from '@/components/uiverse/navigation/logout-confirmation';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -303,11 +303,10 @@ const getActiveRoute = (
 
 export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwareBack }) => {
 	const { isDarkMode } = useAppTheme();
-	const { user } = useAuth();
 	const { isRouteVisible } = useRouteVisibility();
 	const pathname = usePathname();
 	const routeParams = useLocalSearchParams() as RouteParams;
-	const logoutInFlightRef = React.useRef(false);
+	const { requestLogout, isOpen, isLoggingOut, cancelLogout, confirmLogout } = useLogoutConfirmation();
 	const normalizedDefault = React.useMemo(() => normalizeValue(defaultValue), [defaultValue]);
 	const [openGroupValue, setOpenGroupValue] = React.useState<number | null>(null);
 	const normalizedPathname = React.useMemo(() => normalizePathname(pathname), [pathname]);
@@ -431,17 +430,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 		(option: NavigatorOption) => {
 			setOpenGroupValue(null);
 			if (option.id === 'logout') {
-				if (logoutInFlightRef.current) {
-					return;
-				}
-				logoutInFlightRef.current = true;
-				void logoutCurrentUser({
-					isDarkMode,
-					userId: user?.uid,
-					displayName: user?.displayName,
-				}).finally(() => {
-					logoutInFlightRef.current = false;
-				});
+				requestLogout();
 				return;
 			}
 
@@ -451,7 +440,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 
 			option.onSelect();
 		},
-		[activeOptionId, isDarkMode, user?.uid, user?.displayName],
+		[activeOptionId, requestLogout],
 	);
 
 	const handleMenuOpen = React.useCallback((groupValue: number) => {
@@ -482,6 +471,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 				paddingBottom: 0,
 			}}
 		>
+			<LogoutConfirmation isOpen={isOpen} isLoggingOut={isLoggingOut} onCancel={cancelLogout} onConfirm={confirmLogout} />
 			<View
 				style={{
 					width: '100%',

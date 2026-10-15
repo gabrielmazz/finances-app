@@ -52,7 +52,30 @@ export default function WebSelectField({
 	const [isOpen, setIsOpen] = React.useState(false);
 	const [menuPosition, setMenuPosition] = React.useState<DropdownPosition | null>(null);
 	const triggerRef = React.useRef<React.ComponentRef<typeof Pressable> | null>(null);
+	const menuRef = React.useRef<HTMLDivElement | null>(null);
 	const selectedOption = options.find(option => option.value === value);
+
+	React.useEffect(() => {
+		if (!isOpen) return;
+		const dismissOutside = (event: PointerEvent) => {
+			const trigger = triggerRef.current as unknown as HTMLElement | null;
+			const target = event.target as Node;
+			if (!trigger?.contains(target) && !menuRef.current?.contains(target)) setIsOpen(false);
+		};
+		const dismissWithKeyboard = (event: KeyboardEvent) => {
+			if (event.key !== 'Escape') return;
+			event.preventDefault();
+			event.stopPropagation();
+			setIsOpen(false);
+			(triggerRef.current as unknown as HTMLElement | null)?.focus();
+		};
+		document.addEventListener('pointerdown', dismissOutside);
+		document.addEventListener('keydown', dismissWithKeyboard, true);
+		return () => {
+			document.removeEventListener('pointerdown', dismissOutside);
+			document.removeEventListener('keydown', dismissWithKeyboard, true);
+		};
+	}, [isOpen]);
 
 	React.useEffect(() => {
 		if (isDisabled) {
@@ -71,12 +94,22 @@ export default function WebSelectField({
 		}
 
 		const bounds = triggerElement.getBoundingClientRect();
-		const availableHeight = Math.max(120, window.innerHeight - bounds.bottom - WEB_SELECT_MENU_VIEWPORT_GAP);
+		// [[Auditoria de Design]]: o teclado/zoom podem reduzir a viewport visual.
+		const viewport = window.visualViewport;
+		const viewportTop = viewport?.offsetTop ?? 0;
+		const viewportLeft = viewport?.offsetLeft ?? 0;
+		const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+		const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
+		const below = Math.max(0, viewportBottom - bounds.bottom - WEB_SELECT_MENU_VIEWPORT_GAP);
+		const above = Math.max(0, bounds.top - viewportTop - WEB_SELECT_MENU_VIEWPORT_GAP);
+		const opensAbove = below < WEB_SELECT_MENU_MAX_HEIGHT && above > below;
+		const maxHeight = Math.min(WEB_SELECT_MENU_MAX_HEIGHT, opensAbove ? above : below);
+		const width = Math.min(bounds.width, Math.max(0, viewportRight - viewportLeft - 2 * WEB_SELECT_MENU_VIEWPORT_GAP));
 		setMenuPosition({
-			top: Math.round(bounds.bottom + 4),
-			left: Math.round(bounds.left),
-			width: Math.round(bounds.width),
-			maxHeight: Math.min(WEB_SELECT_MENU_MAX_HEIGHT, availableHeight),
+			top: Math.round(opensAbove ? bounds.top - maxHeight - 4 : bounds.bottom + 4),
+			left: Math.round(Math.max(viewportLeft + WEB_SELECT_MENU_VIEWPORT_GAP, Math.min(bounds.left, viewportRight - width - WEB_SELECT_MENU_VIEWPORT_GAP))),
+			width: Math.round(width),
+			maxHeight: Math.floor(maxHeight),
 		});
 	}, []);
 
@@ -89,9 +122,13 @@ export default function WebSelectField({
 		updateMenuPosition();
 		window.addEventListener('resize', updateMenuPosition);
 		window.addEventListener('scroll', updateMenuPosition, true);
+		window.visualViewport?.addEventListener('resize', updateMenuPosition);
+		window.visualViewport?.addEventListener('scroll', updateMenuPosition);
 		return () => {
 			window.removeEventListener('resize', updateMenuPosition);
 			window.removeEventListener('scroll', updateMenuPosition, true);
+			window.visualViewport?.removeEventListener('resize', updateMenuPosition);
+			window.visualViewport?.removeEventListener('scroll', updateMenuPosition);
 		};
 	}, [isOpen, updateMenuPosition]);
 
@@ -110,6 +147,7 @@ export default function WebSelectField({
 	const menu = isOpen && menuPosition && typeof document !== 'undefined'
 		? createPortal(
 				<div
+					ref={menuRef}
 					style={{
 						position: 'fixed',
 						top: menuPosition.top,

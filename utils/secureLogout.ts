@@ -1,4 +1,4 @@
-import { signOut } from 'firebase/auth';
+import { signOut, type User } from 'firebase/auth';
 
 import { auth } from '@/FirebaseConfig';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
@@ -16,6 +16,34 @@ type SecureLogoutOptions = {
 	isDarkMode: boolean;
 	userId?: string | null;
 	displayName?: string | null;
+};
+
+// [[Segurança de Login]]: falha de limpeza não autoriza manter acesso expirado.
+// O AuthProvider bloqueia as rotas antes de chamar esta rotina.
+export const cleanupExpiredSession = async (candidate: User) => {
+	if (auth.currentUser !== candidate) return;
+	const uid = candidate.uid;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	try {
+		const pushCleanup = unregisterRemoteNotificationDevice(uid);
+		const results = await Promise.allSettled([
+			clearFinancePersistedDataForLogout(uid),
+			clearLocalAnnotationsForLogout(uid),
+			clearMandatoryReminderAccount(uid).then(async cleared => {
+				if (cleared) await finalizeMandatoryReminderAccountCleanup(uid);
+			}),
+			Promise.race([
+				pushCleanup,
+				new Promise<void>(resolve => { timeout = setTimeout(resolve, 2000); }),
+			]),
+		]);
+		if (results.some(result => result.status === 'rejected')) {
+			console.warn('Parte dos dados locais da sessão expirada não pôde ser removida.');
+		}
+	} finally {
+		if (timeout) clearTimeout(timeout);
+		finishRemoteNotificationLogout(uid);
+	}
 };
 
 // [[Navegação]]: a sessão só encerra depois da limpeza confirmada dos lembretes

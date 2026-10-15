@@ -1,4 +1,5 @@
 import React from 'react';
+import { MantineProvider, Popover } from '@mantine/core';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
@@ -29,7 +30,7 @@ const WebPressable = Pressable as React.ComponentType<WebPressableProps>;
 
 const HOURS = Array.from({ length: 24 }, (_, index) => index);
 const MINUTES = Array.from({ length: 60 }, (_, index) => index);
-const TIME_OPTION_HEIGHT = 36;
+const TIME_OPTION_HEIGHT = 44;
 
 type TimeOptionColumnProps = {
 	title: string;
@@ -99,6 +100,7 @@ export function TimePickerField({
 		inputField: defaultInputClassName,
 		fieldContainerClassName,
 		webTimePickerClassNames,
+		isDarkMode,
 	} = useScreenStyles();
 	const [isPickerOpen, setIsPickerOpen] = React.useState(false);
 	const [selectedHour, setSelectedHour] = React.useState(DEFAULT_MANDATORY_REMINDER_HOUR);
@@ -151,7 +153,9 @@ export function TimePickerField({
 	};
 
 	return (
-		<View className={`relative w-full ${isPickerOpen ? 'z-50' : 'z-0'}`}>
+		<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'}>
+		<Popover opened={isPickerOpen} onChange={setIsPickerOpen} width="target" position="bottom-start" withinPortal unstyled middlewares={{ flip: true, shift: true, size: true }}>
+			<Popover.Target>
 			<WebPressable
 				onPress={handleOpen}
 				onKeyDown={handleTriggerKeyDown}
@@ -173,9 +177,10 @@ export function TimePickerField({
 					<ChevronDownIcon className={webTimePickerClassNames.icon} aria-hidden />
 				)}
 			</WebPressable>
+			</Popover.Target>
 
 			{isPickerOpen ? (
-				<View className={webTimePickerClassNames.menu}>
+				<Popover.Dropdown className={webTimePickerClassNames.menu}>
 					<TimeOptionColumn
 						title="Hora"
 						options={HOURS}
@@ -190,9 +195,10 @@ export function TimePickerField({
 						onSelect={handleMinuteSelect}
 						classNames={webTimePickerClassNames}
 					/>
-				</View>
+				</Popover.Dropdown>
 			) : null}
-		</View>
+		</Popover>
+		</MantineProvider>
 	);
 }
 

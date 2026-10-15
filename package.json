@@ -1,6 +1,6 @@
 {
   "name": "finances-app",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -16,6 +16,7 @@
     "release:preflight": "node script/release.js preflight production",
     "release:check": "node script/release.js verify production",
     "release:check:offline": "node script/release.js verify-offline production",
+    "release:production": "node script/release.js release production",
     "firebase:deploy:preview": "eas env:exec preview 'node script/release.js deploy-backend preview'",
     "firebase:deploy:production": "node script/release.js deploy-backend production",
     "android:build:preview": "eas env:exec preview 'node script/release.js build-android preview'",
@@ -81,7 +82,7 @@
     "dayjs": "^1.11.21",
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
-    "expo": "^57.0.0",
+    "expo": "57.0.22",
     "expo-asset": "~57.0.17",
     "expo-audio": "~57.0.5",
     "expo-clipboard": "~57.0.2",
@@ -128,7 +129,7 @@
     "react-native-worklets": "0.10.1",
     "react-stately": "3.42.0",
     "recharts": "^3.10.1",
-    "shadcn": "^4.17.0",
+    "shadcn": "^1.0.0",
     "styled-components": "^6.1.19",
     "superjson": "2.2.6",
     "tailwind-merge": "^3.6.0",
@@ -139,14 +140,14 @@
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.0.1",
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.20.2",
     "@types/react": "~19.2.4",
     "@types/react-dom": "~19.2.3",
-    "babel-jest": "^29.7.0",
+    "babel-jest": "^30.5.2",
     "babel-preset-expo": "~57.0.0",
-    "jest": "^29.7.0",
-    "patch-package": "^8.0.1",
+    "jest": "^30.5.2",
+    "patch-package": "^6.0.7",
     "postcss": "^8.5.26",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
@@ -154,6 +155,8 @@
     "test-renderer": "^1.2.0",
     "typescript": "~6.0.3"
   },
-  "overrides": { "@grpc/grpc-js": "1.13.6" },
+  "overrides": {
+    "@grpc/grpc-js": "1.13.6"
+  },
   "private": true
 }

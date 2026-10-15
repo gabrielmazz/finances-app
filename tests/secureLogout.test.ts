@@ -17,12 +17,33 @@ jest.mock('@/utils/remoteNotifications', () => ({ unregisterRemoteNotificationDe
 jest.mock('@/contexts/FinanceDataContext', () => ({ clearFinancePersistedDataForLogout: (...args: unknown[]) => mockClearFinance(...args), resumeFinancePersistedDataAfterFailedLogout: (...args: unknown[]) => mockResumeFinance(...args) }));
 jest.mock('@/utils/localAnnotations', () => ({ clearLocalAnnotationsForLogout: (...args: unknown[]) => mockClearNotes(...args), resumeLocalAnnotationsAfterFailedLogout: (...args: unknown[]) => mockResumeNotes(...args) }));
 let logoutCurrentUser: typeof import('@/utils/secureLogout').logoutCurrentUser;
+let cleanupExpiredSession: typeof import('@/utils/secureLogout').cleanupExpiredSession;
 
 beforeEach(() => {
   logoutCurrentUser = require('@/utils/secureLogout').logoutCurrentUser;
+  cleanupExpiredSession = require('@/utils/secureLogout').cleanupExpiredSession;
   jest.clearAllMocks(); mockAuth.currentUser = { uid: 'A' };
   mockSignOut.mockResolvedValue(undefined); mockUnregister.mockResolvedValue(undefined);
   mockClearFinance.mockResolvedValue(undefined); mockClearNotes.mockResolvedValue(undefined);
+});
+it('attempts every private store cleanup on expiration even if one fails', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  mockClearFinance.mockRejectedValueOnce(new Error('storage unavailable'));
+  await cleanupExpiredSession(mockAuth.currentUser as any);
+  expect(mockClearFinance).toHaveBeenCalledWith('A'); expect(mockClearNotes).toHaveBeenCalledWith('A');
+  expect(mockUnregister).toHaveBeenCalledWith('A'); expect(mockFinish).toHaveBeenCalledWith('A');
+  expect(mockResumeFinance).not.toHaveBeenCalled(); expect(mockResumeNotes).not.toHaveBeenCalled();
+  warn.mockRestore();
+});
+it('does not let an offline push removal indefinitely block expiration', async () => {
+  jest.useFakeTimers();
+  try {
+    mockUnregister.mockReturnValueOnce(new Promise(() => undefined));
+    const cleanup = cleanupExpiredSession(mockAuth.currentUser as any);
+    await jest.advanceTimersByTimeAsync(2000);
+    await cleanup;
+    expect(mockClearNotes).toHaveBeenCalledWith('A'); expect(mockFinish).toHaveBeenCalledWith('A');
+  } finally { jest.useRealTimers(); }
 });
 it('waits for push removal and both private stores before signing out', async () => {
   let finish!: () => void;

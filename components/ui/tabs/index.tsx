@@ -49,7 +49,7 @@ const tabsListStyle = tva({
 });
 
 const tabsTriggerStyle = tva({
-  base: 'relative z-30 min-h-[42px] flex-row items-center justify-center gap-1 px-3 py-1.5',
+  base: 'relative z-30 min-h-touch min-w-0 flex-row items-center justify-center gap-1 px-3 py-1.5',
 });
 
 const tabsTriggerTextStyle = tva({

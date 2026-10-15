@@ -459,7 +459,7 @@ export default function AddRegisterBankScreenWeb() {
 						</View>
 					</KeyboardAvoidingView>
 
-					<View className="-mx-4.5 shrink-0">
+					<View className="shrink-0">
 						<Navigator defaultValue={2} onHardwareBack={handleBackToHome} />
 					</View>
 				</View>

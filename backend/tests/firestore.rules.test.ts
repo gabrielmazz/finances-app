@@ -62,9 +62,9 @@ async function run(): Promise<void> {
   });
   await seed();
 
-  const member = environment.authenticatedContext('member').firestore();
-  const admin = environment.authenticatedContext('admin').firestore();
-  const outsider = environment.authenticatedContext('outsider').firestore();
+  const member = environment.authenticatedContext('member', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
+  const admin = environment.authenticatedContext('admin', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
+  const outsider = environment.authenticatedContext('outsider', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
 
   await assertFails(getDoc(doc(member, 'users', 'admin')));
   await environment.withSecurityRulesDisabled(async context => {

@@ -602,11 +602,11 @@ export default function TransferScreen() {
 							onScroll={handleScroll}
 							scrollEventThrottle={scrollEventThrottle}
 						>
-							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} h-full mt-4`}>
+							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4`}>
 
-								<HStack className="w-full web:flex-wrap" space="md">
+								<HStack className="w-full flex-col gap-4 md:flex-row">
 
-									<VStack className="mb-4 flex-1 web:min-w-[280px]">
+									<VStack className="mb-4 min-w-0 w-full md:w-0 md:flex-1">
 										<HStack className={`${webExpenseClassNames.sectionLabel} mb-2`}>
 											<Text className={`${webExpenseClassNames.fieldInlineLabel} ${bodyText}`}>Banco de Origem</Text>
 											<Popover
@@ -690,7 +690,7 @@ export default function TransferScreen() {
 										)}
 									</VStack>
 
-									<VStack className="mb-4 flex-1 web:min-w-[280px]">
+									<VStack className="mb-4 min-w-0 w-full md:w-0 md:flex-1">
 										<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco de destino</Text>
 										<BankActionsheetSelector
 											options={targetBankOptions}
@@ -820,7 +820,7 @@ export default function TransferScreen() {
 
 				<View
 					style={{
-						marginHorizontal: -18,
+						marginHorizontal: 0,
 						paddingBottom: 0,
 						flexShrink: 0,
 					}}

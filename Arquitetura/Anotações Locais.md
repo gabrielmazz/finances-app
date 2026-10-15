@@ -66,3 +66,7 @@ A remontagem de efeitos restaura a marca de montagem do editor. No provider do a
 ### Renomeação pela conversa — 2026-10-04
 
 “Renomeie a anotação Teclado para Compras da semana” prepara o título novo, apresenta o efeito e aceita “confirmo” para aquela versão. Conteúdo Markdown, ID e demais notas permanecem preservados; CAS e fila por UID também protegem esta alteração. A renomeação e a leitura do conteúdo foram verificadas no navegador com conta sintética. Os testes cobrem título novo, conflito, reenvio, sessão e confirmação pelo chat, sem seletor ou edição financeira em cartão.
+
+## Revisão de responsividade — 2026-10-15
+
+O estado vazio do FlatList tem `View` nativa como raiz. A lista injeta um array de styles nesse elemento; o `View` normaliza o array na Web antes de montar os Boxes DOM. Passar o Box diretamente causava tela em branco ao liberar a rota, com erro de índice em CSSStyleDeclaration. Persistência, visibilidade e guard são preservados. Ver [[Auditoria de Design]].

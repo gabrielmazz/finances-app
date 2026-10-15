@@ -46,7 +46,7 @@ cssInterop(AnimatedPressable, { className: 'style' });
 cssInterop(MotionView, { className: 'style' });
 
 const modalStyle = tva({
-  base: 'group/modal w-full h-full justify-center items-center web:pointer-events-none',
+  base: 'group/modal w-full h-full justify-center items-center p-4 web:pointer-events-none',
   variants: {
     size: {
       xs: '',
@@ -63,32 +63,32 @@ const modalBackdropStyle = tva({
 });
 
 const modalContentStyle = tva({
-  base: 'bg-background-0 rounded-[28px] overflow-hidden border border-outline-200 shadow-hard-5 p-0',
+  base: 'min-h-0 max-h-full shrink bg-background-0 rounded-modal overflow-hidden border border-outline-200 shadow-hard-5 p-0',
   parentVariants: {
     size: {
-      xs: 'w-[60%] max-w-[360px]',
-      sm: 'w-[70%] max-w-[420px]',
-      md: 'w-[80%] max-w-[510px]',
-      lg: 'w-[90%] max-w-[640px]',
+      xs: 'w-full max-w-modal-xs',
+      sm: 'w-full max-w-modal-sm',
+      md: 'w-full max-w-modal-md',
+      lg: 'w-full max-w-modal-lg',
       full: 'w-full',
     },
   },
 });
 
 const modalBodyStyle = tva({
-  base: 'w-full px-6 pt-4 web:overscroll-contain',
+  base: 'min-h-0 w-full shrink px-4 pt-4 sm:px-6 web:overscroll-contain',
 });
 
 const modalCloseButtonStyle = tva({
-  base: 'group/modal-close-button z-10 h-10 w-10 items-center justify-center rounded-2xl bg-transparent dark:bg-transparent data-[focus-visible=true]:web:bg-background-100 web:outline-0 cursor-pointer',
+  base: 'group/modal-close-button z-10 h-touch w-touch shrink-0 items-center justify-center rounded-control bg-transparent dark:bg-transparent data-[focus-visible=true]:web:bg-background-100 data-[focus-visible=true]:web:ring-2 data-[focus-visible=true]:web:ring-lumus-focus cursor-pointer',
 });
 
 const modalHeaderStyle = tva({
-  base: 'w-full justify-between items-center flex-row gap-4 px-6 pt-6',
+  base: 'w-full shrink-0 justify-between items-center flex-row gap-3 px-4 pt-4 sm:px-6 sm:pt-6',
 });
 
 const modalFooterStyle = tva({
-  base: 'w-full flex-row flex-wrap justify-end items-center gap-3 px-6 pb-6 pt-4',
+  base: 'w-full shrink-0 flex-row flex-wrap justify-end items-center gap-3 px-4 pb-4 pt-4 sm:px-6 sm:pb-6',
 });
 
 type IModalProps = React.ComponentProps<typeof UIModal> &
@@ -118,7 +118,7 @@ function ModalTitle({ className, size = 'lg', ...props }: IModalTitleProps) {
   return (
     <Heading
       size={size}
-      className={`text-slate-900 dark:text-slate-100 uppercase tracking-widest ${className ?? ''}`.trim()}
+      className={`min-w-0 shrink text-slate-900 dark:text-slate-100 uppercase tracking-widest ${className ?? ''}`.trim()}
       {...props}
     />
   );

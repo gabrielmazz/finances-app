@@ -1675,7 +1675,7 @@ export default function ConfigurationsScreen() {
 															})}
 															{banksTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
+																	<ScrollView horizontal nestedScrollEnabled className="w-full" accessibilityLabel="Tabela de bancos. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
 																		<TableHeader>
 															<TableRow className={tableHeaderRowClassName}>
 																<TableHead className={tableHeadTextClassName}>Banco</TableHead>
@@ -1773,7 +1773,7 @@ export default function ConfigurationsScreen() {
 																		<TableCaption className={tableCaptionClassName}>
 																			{banksTable.totalItems} banco(s) cadastrados.
 																		</TableCaption>
-																	</Table>
+																	</Table></ScrollView>
 																	{renderTablePagination('banks', banksTable)}
 																</Box>
 															) : (
@@ -1809,7 +1809,7 @@ export default function ConfigurationsScreen() {
 															</Box>
 															{tagsTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
+																	<ScrollView horizontal nestedScrollEnabled className="w-full" accessibilityLabel="Tabela de categorias. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
 																		<TableHeader>
 																			<TableRow className={tableHeaderRowClassName}>
 																				<TableHead className={tableHeadTextClassName}>Categoria</TableHead>
@@ -1881,7 +1881,7 @@ export default function ConfigurationsScreen() {
 																		<TableCaption className={tableCaptionClassName}>
 																			{tagsTable.totalItems} categoria(s) encontradas para o filtro atual.
 																		</TableCaption>
-																	</Table>
+																	</Table></ScrollView>
 																	{renderTablePagination('tags', tagsTable)}
 																</Box>
 															) : (

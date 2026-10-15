@@ -26,8 +26,8 @@ async function run(): Promise<void> {
       });
     });
 
-    const owner = environment.authenticatedContext('owner').firestore();
-    const other = environment.authenticatedContext('other').firestore();
+    const owner = environment.authenticatedContext('owner', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
+    const other = environment.authenticatedContext('other', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
     const anonymous = environment.unauthenticatedContext().firestore();
     const templateRef = doc(owner, 'mandatoryExpenses', 'obligation');
     const paymentRef = doc(owner, 'expenses', 'assistant_12345678_mandatory_payment');

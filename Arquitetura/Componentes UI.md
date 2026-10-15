@@ -86,7 +86,7 @@ Componentes primitivos baseados em `@gluestack-ui/core` com estilos Tailwind:
 
 | Componente | Descrição |
 |---|---|
-| `components/mobile/navigation/navigator.native.tsx` / `components/web/navigation/navigator.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. Ambas usam os helpers de `utils/navigation.ts`, aplicam os mesmos guards visuais e delegam o logout seguro para `utils/secureLogout.ts` |
+| `components/mobile/navigation/navigator.native.tsx` / `components/web/navigation/navigator.web.tsx` | Navegação por plataforma: Android/iOS preservam barra inferior e menus Gluestack; o navegador abre `StaggeredMenu` pela esquerda a partir de 1024px. Ambas usam os helpers de `utils/navigation.ts`, aplicam os mesmos guards visuais e abrem `logout-confirmation.tsx` antes de delegar o logout seguro para `utils/secureLogout.ts` |
 | `components/mobile/navigation/web-app-shell.native.tsx` / `components/web/navigation/web-app-shell.web.tsx` | Mantém o workspace autenticado; o nativo monta somente o frame dos filhos e o Web adiciona fundo, transição DOM e nenhuma coluna fixa enquanto o menu deslizante está fechado |
 | `components/mobile/navigation/web-route-transition.native.tsx` / `components/web/navigation/web-route-transition.web.tsx` | O nativo não monta feedback; o Web usa `motion/react` em portal no `document.body`, revela a nova página com opacidade e `scaleX`, não captura ponteiros e respeita `prefers-reduced-motion` |
 | `components/web/navigation/StaggeredMenu.jsx` / `.css` | Componente React DOM adaptado para a navegação Web: painel desktop com variante navy/amarelo no dark mode e white/slate com camadas amarelo suave no light mode, recortado a uma rail fixa de 68px quando fechado e expandido por animação contínua para mostrar as seções Home/Controle/Config e o perfil do usuário autenticado; mantém foco visível, Escape/clique externo, posicionamento explícito conforme `position` e variante de movimento reduzido |
@@ -277,3 +277,9 @@ graph LR
 - Cards do assistente nunca renderizam HTML/código do modelo. Referências como banco, categoria e investimento devem ser editáveis por escolhas locais, e a ação de escrita exige o segundo estágio explícito **Confirmar agora**.
 
 - [[Análise por Categoria]] compartilha os campos de datas e a paginação. O seletor de categoria é seguido por Divider Mantine (`size="sm"`) na Web e Divider Gluestack no mobile.
+
+## Responsividade compartilhada — 2026-10-15
+
+Modal mantém margem de 16px e largura fluida até os limites semânticos XS/SM/MD/LG, com altura limitada, Body encolhível e header/footer no fluxo. Wrappers intermediários de teclado também precisam de `min-h-0 max-h-full w-full shrink items-center` para não invalidar o limite. Fechar modal/drawer, ajuda, tabs, horários e ações/paginação de tabelas respeitam 44px. Botões sólidos amarelos usam `lumus-on-accent` no texto/ícone, inclusive estados hover/pressed.
+
+Select Web ancora o portal na viewport visual e abre acima quando há mais espaço, sem mínimo que exceda o rodapé. Horários reutilizam Popover Mantine com portal e flip/shift/size; nenhuma nova dependência. Tabelas de banco/categoria em Configurações têm mínimos semânticos de 560/520px e scroll horizontal local; paginação fica fora. Ver [[Auditoria de Design]].

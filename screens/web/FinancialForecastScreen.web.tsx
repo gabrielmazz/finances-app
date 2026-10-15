@@ -635,7 +635,7 @@ export default function FinancialForecastScreenWeb() {
 							</View>
 						</ScrollView>
 
-						<View className="-mx-4.5 pb-0">
+						<View className="pb-0">
 							<Navigator defaultValue={0} />
 						</View>
 					</View>
