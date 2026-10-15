@@ -36,6 +36,7 @@ export type InvestmentPortfolioInvestment = {
 	bankId: string | null;
 	initialValueInCents: number;
 	currentValueInCents: number;
+	lastManualSyncValueInCents?: number | null;
 	cdiPercentageInBasisPoints: number;
 	assetType: InvestmentAssetType;
 	valuationMethod: InvestmentValuationMethod;
@@ -439,7 +440,9 @@ const buildTimelineEvents = ({
 				date: snapshotDate,
 				priority: 3,
 				type: 'set',
-				valueInCents: normalizeCents(investment.currentValueInCents),
+				valueInCents: normalizeCents(
+					investment.lastManualSyncValueInCents ?? investment.currentValueInCents,
+				),
 			});
 		}
 	}
