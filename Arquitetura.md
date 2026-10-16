@@ -278,12 +278,14 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Release exclusivo Firebase, 2026-10-16: a opção **1/Firebase**, `release:production -- firebase` e `firebase:deploy:*` validam o projeto independente `backend/`: audit com bloqueio em high/critical ou erro de rede, build TypeScript, integrações e App Check nos emuladores. As seleções com Web/Android e `release:check*` conservam o gate completo e os dois audits; alertas do cliente continuam pendentes nesses fluxos. Os 21 testes do script e o build do backend passaram; audit real do backend aprovado, com nove alertas moderados e nenhum alto/crítico. Sem novo teste de Emulator ou deploy remoto nesta correção. Ver [[Processo de Release]].
+
 - Auditoria de responsividade, 2026-10-15: inventário dos 25 destinos por plataforma (82 arquivos físicos) e 49 composições, com matriz Web nas oito larguras solicitadas e estados internos. Correções locais em gutters/rail, overflow de navegação, modais, seletores, transferência, gráficos obrigatórios, tabelas e alvos de toque. Foreground de ações amarelas segue `lumus-on-accent`. Registros, evidências e pendências em [[Auditoria de Design]]; sem deploy ou validação instalada Android/iOS. Alterações anteriores do working tree preservadas.
 
 
 - Continuidade do login Web, 2026-10-15: confirmado por 35 testes focados que recarga, restauração de outra tela e retorno de aba/janela dentro dos prazos mantêm a sessão. Última atividade define os 15 minutos; a restauração conserva o limite de oito horas desde o login. Persistência existente preservada, sem deploy nem smoke test em navegador real. Ver [[Autenticação]].
 
-- Release selecionável em 2026-10-15: `npm run release:production` oferece Firebase, Hosting, APK, AAB ou tudo; aceita combinações e argumentos não interativos, roda os gates completos uma vez, exige árvore Git limpa e interrompe na primeira falha. O AAB ainda precisa de submissão externa à Play Store. Ver [[Processo de Release]].
+- Release selecionável em 2026-10-15: `npm run release:production` oferece Firebase, Hosting, APK, AAB ou tudo; aceita combinações e argumentos não interativos, roda os gates correspondentes uma vez, exige árvore Git limpa e interrompe na primeira falha. O AAB ainda precisa de submissão externa à Play Store. Ver [[Processo de Release]].
 
 - Expiração de autenticação, 2026-10-15: política escolhida de 15 minutos sem atividade e oito horas desde o login Firebase, sem renovação automática do prazo; validação ao restaurar/retornar, saída automática com bloqueio imediato e limpeza local, e teto absoluto no Firestore/callables. Validação concluída: `npm run check` passou (80 suítes/728 testes, 88 testes de integração ignorados no Jest padrão), build do backend, testes de Rules no Firestore Emulator e login email/senha + callable com sessão vencida em Auth/Functions isolados passaram. Revisões de padrões e requisitos sem pendências após correções. Sem deploy remoto nem teste em aparelho. Ver [[Autenticação]] e [[Segurança de Login]].
 
