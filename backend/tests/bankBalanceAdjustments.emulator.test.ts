@@ -46,6 +46,8 @@ async function run() {
 	connectFunctionsEmulator(unauthenticatedFunctions, functionsEmulatorHost, Number(functionsEmulatorPort));
 	await assert.rejects(httpsCallable(unauthenticatedFunctions, 'bankBalanceAdjustment')({ action: 'preview', bankId: 'unknown', date: '2026-09-10' }), (error: unknown) => (error as { code: string }).code === 'functions/unauthenticated');
 	const [owner, related, outsider, admin, member] = await Promise.all(['owner', 'related', 'outsider', 'admin', 'member'].map(user));
+	// [[Segurança de Login]]: leituras autorizadas precisam simular um login recente.
+	const sessionClaims = { auth_time: Math.floor(Date.now() / 1000) };
 	const bankId = `${prefix}-bank`;
 	await seed({
 		[`users/${owner.uid}`]: { relatedIdUsers: [related.uid] }, [`users/${related.uid}`]: { relatedIdUsers: [owner.uid] }, [`users/${outsider.uid}`]: { relatedIdUsers: [] },
@@ -82,10 +84,10 @@ async function run() {
 	assert.equal(negative.differenceInCents, -10_600);
 	assert.equal((await call(owner, { action: 'preview', bankId, date: '2026-09-12' })).previousBalanceInCents, -100);
 	await call(owner, { action: 'revert', bankId, adjustmentId: negative.adjustmentId, clientActionId: `${prefix}-negative-reverse` });
-	const ownDb = environment.authenticatedContext(owner.uid).firestore();
+	const ownDb = environment.authenticatedContext(owner.uid, sessionClaims).firestore();
 	await assertSucceeds(getDoc(doc(ownDb, 'bankBalanceAdjustments', saved.adjustmentId)));
-	await assertSucceeds(getDoc(doc(environment.authenticatedContext(related.uid).firestore(), 'bankBalanceAdjustments', saved.adjustmentId)));
-	await assertFails(getDoc(doc(environment.authenticatedContext(outsider.uid).firestore(), 'bankBalanceAdjustments', saved.adjustmentId)));
+	await assertSucceeds(getDoc(doc(environment.authenticatedContext(related.uid, sessionClaims).firestore(), 'bankBalanceAdjustments', saved.adjustmentId)));
+	await assertFails(getDoc(doc(environment.authenticatedContext(outsider.uid, sessionClaims).firestore(), 'bankBalanceAdjustments', saved.adjustmentId)));
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', `${prefix}-client-write`), { personId: owner.uid, bankId, differenceInCents: 999 }));
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', saved.adjustmentId), { status: 'active' }, { merge: true }));
 	await assertFails(getDoc(doc(ownDb, 'bankBalanceAdjustmentOperations', `${owner.uid}_${command.clientActionId}`)));
@@ -121,7 +123,7 @@ async function run() {
 	await assert.rejects(httpsCallable(getFunctions(admin.auth.app, 'southamerica-east1'), 'reverseTransaction')({ groupId, transactionId: `bank-adjustment-${ledgerSaved.adjustmentId}`, clientActionId: `${prefix}-alternate-reversal` }), (error: unknown) => (error as { code: string }).code === 'functions/failed-precondition');
 	assert.equal((await read(`financeMonthlySummaries/${groupId}-2026-09`)).transactionCount, 1);
 	assert.equal((await read(`financeMonthlySummaries/${groupId}-2026-09`)).bankDeltaInCents[accountId], 2_000);
-	await assertSucceeds(getDoc(doc(environment.authenticatedContext(member.uid).firestore(), 'bankBalanceAdjustments', ledgerSaved.adjustmentId)));
+	await assertSucceeds(getDoc(doc(environment.authenticatedContext(member.uid, sessionClaims).firestore(), 'bankBalanceAdjustments', ledgerSaved.adjustmentId)));
 	const ledgerEdit = await call(admin, { ...ledgerCommand, adjustmentId: ledgerSaved.adjustmentId, targetBalanceInCents: 9_000, clientActionId: `${prefix}-ledger-edit` });
 	assert.equal((await read(`financialAccounts/${accountId}`)).currentBalanceInCents, 9_500);
 	const reverseLedger = { action: 'revert', bankId: accountId, adjustmentId: ledgerEdit.adjustmentId, clientActionId: `${prefix}-ledger-reverse` };

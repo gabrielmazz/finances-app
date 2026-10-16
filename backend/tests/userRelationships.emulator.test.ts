@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInAnonymously, type User } from 'firebase/auth';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
-import { assertFails, initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const projectId = 'demo-lumus-financas';
@@ -25,6 +25,8 @@ async function run() {
 	const environment = await environmentPromise;
 	try {
 		const [owner, target] = await Promise.all([makeUser('owner'), makeUser('target')]);
+		// [[Segurança de Login]]: leituras autorizadas precisam simular um login recente.
+		const sessionClaims = { auth_time: Math.floor(Date.now() / 1000) };
 		await environment.withSecurityRulesDisabled(async context => {
 			const firestore = context.firestore();
 			await setDoc(doc(firestore, 'users', owner.uid), { name: 'Ana', relatedIdUsers: [], financialGroupId: 'group-owner', financialGroupRole: 'member' });
@@ -37,7 +39,7 @@ async function run() {
 		assert.equal((result as any).status, 'invited');
 		const repeated = await call(owner, command);
 		assert.equal(repeated.idempotent, true);
-		await assertFails(getDoc(doc(environment.authenticatedContext(owner.uid).firestore(), 'users', target.uid)));
+		await assertFails(getDoc(doc(environment.authenticatedContext(owner.uid, sessionClaims).firestore(), 'users', target.uid)));
 		await environment.withSecurityRulesDisabled(async context => {
 			const firestore = context.firestore();
 			const ownerData = (await getDoc(doc(firestore, 'users', owner.uid))).data()!;
@@ -52,7 +54,7 @@ async function run() {
 		const acceptPreview = await call(target, { action: 'preview', relatedUserId: owner.uid });
 		const accepted = await call(target, { action: 'link', relatedUserId: owner.uid, clientActionId: `${prefix}-accept`, expectedFingerprint: acceptPreview.fingerprint });
 		assert.equal((accepted as any).status, 'linked');
-		await getDoc(doc(environment.authenticatedContext(owner.uid).firestore(), 'users', target.uid));
+		await assertSucceeds(getDoc(doc(environment.authenticatedContext(owner.uid, sessionClaims).firestore(), 'users', target.uid)));
 		await assert.rejects(call(owner, { ...command, clientActionId: `${prefix}-stale`, action: 'unlink' }), (error: any) => error.code === 'functions/failed-precondition');
 		await assert.rejects(call(owner, { ...command, action: 'unlink' }), (error: any) => error.code === 'functions/failed-precondition');
 		const unlinkPreview = await call(owner, { action: 'preview', relatedUserId: target.uid });
@@ -66,7 +68,7 @@ async function run() {
 		});
 		await assert.rejects(call(owner, { action: 'preview', relatedUserId: owner.uid }), (error: any) => error.code === 'functions/invalid-argument');
 		await assert.rejects(call(owner, { action: 'preview', relatedUserId: `${prefix}-missing` }), (error: any) => error.code === 'functions/not-found');
-		await assertFails(getDoc(doc(environment.authenticatedContext(owner.uid).firestore(), 'users', target.uid)));
+		await assertFails(getDoc(doc(environment.authenticatedContext(owner.uid, sessionClaims).firestore(), 'users', target.uid)));
 		const secondTarget = await makeUser('second-target');
 		await environment.withSecurityRulesDisabled(async context => {
 			await setDoc(doc(context.firestore(), 'users', secondTarget.uid), { name: 'Pedro', relatedIdUsers: [] });

@@ -18,6 +18,12 @@ O gate automatizado inclui `npm --prefix backend run test:app-check:emulator` e 
 
 Correção de 2026-10-16: o release exclusivo Firebase deixou de ser bloqueado pelo audit do cliente Expo/Tailwind, cujos pacotes não são publicados em `backend/`. Os alertas do lockfile raiz continuam pendentes e bloqueiam os gates completos; essa mudança de escopo não corrige nem aceita esses alertas para releases Web/Android. A compilação e os testes do backend, inclusive o teste do executor cliente contra o Emulator incluído em `test:integration`, continuam obrigatórios antes do deploy Firebase.
 
+Os contextos autenticados simulados em `backend/tests/userRelationships.emulator.test.ts`, `backend/tests/functions.emulator.test.ts` e `backend/tests/bankBalanceAdjustments.emulator.test.ts` incluem `auth_time` recente, conforme [[Segurança de Login]]. Sem esse claim válido, uma leitura permitida pelo vínculo/grupo falhava no limite absoluto de sessão e bloqueava `test:integration`. Tanto os casos permitidos quanto os negados por escopo usam uma sessão válida, para que o teste de permissões não passe indevidamente por sessão inválida. Os testes dedicados de expiração conservam seus claims vencidos/inválidos.
+
+A execução integrada também identificou o limite de 1.000 expressões das Rules ao registrar ciclos legados do assistente. A validação agora reutiliza a leitura `getAfter` do lançamento, os valores de parcelas/ciclo e o claim de login, e executa a validação de datas uma vez em cada domínio. As condições de autorização e os campos conferidos permanecem equivalentes; os testes do schema verificam recusas de histórico adulterado nos dois tipos de recorrência. Ver [[Firebase Config]], [[Despesas Fixas]] e [[Receitas Fixas]].
+
+Validação final dessa correção em 2026-10-16: `npm run test:integration` passou em Auth/Firestore/Functions locais, incluindo todos os scripts do backend e os 68 testes do executor financeiro. `npm --prefix backend run test:app-check:emulator` passou: as 15 callables rejeitam chamadas autenticadas sem atestado e o transporte SDK rejeita tokens ausentes/falsificados antes do handler. Os emuladores usados no diagnóstico foram encerrados; nenhum deploy remoto foi executado.
+
 ## Ambientes
 
 - `production` usa `finances-app-e8685`, App Check Android Play Integrity e o `google-services.json` desse projeto. O AAB vem de `npm run android:build:production`; `production-apk` produz um APK interno com a mesma configuração para inspeção em aparelho.

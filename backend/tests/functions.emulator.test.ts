@@ -78,6 +78,8 @@ async function run(): Promise<void> {
   const admin = await anonymousUser('financial-admin');
   const outsider = await anonymousUser('financial-outsider');
   environment = await initializeTestEnvironment({ projectId });
+  // [[Segurança de Login]]: leituras autorizadas precisam simular um login recente.
+  const sessionClaims = { auth_time: Math.floor(Date.now() / 1000) };
   await seed(member.uid, admin.uid);
 
   const action = {
@@ -132,7 +134,7 @@ async function run(): Promise<void> {
   };
   const corrected = await invokeAs(admin, 'correctMovement', correction) as { transactionId: string };
   const correctedAgain = await invokeAs(admin, 'correctMovement', correction) as { transactionId: string; idempotent: boolean };
-  const correctedBank = await getDoc(doc(environment.authenticatedContext(admin.uid).firestore(), 'financialAccounts', bankAccountId));
+  const correctedBank = await getDoc(doc(environment.authenticatedContext(admin.uid, sessionClaims).firestore(), 'financialAccounts', bankAccountId));
   if (!correctedAgain.idempotent || corrected.transactionId !== correctedAgain.transactionId || correctedBank.data()?.currentBalanceInCents !== 600) {
     throw new Error('A correction must reverse and replace the original atomically without duplicating on retry.');
   }
@@ -159,7 +161,7 @@ async function run(): Promise<void> {
   const opening = await invokeAs<typeof openingCommand, { accountId: string }>(admin, 'manageAccount', openingCommand);
   const repeatedOpening = await invokeAs<typeof openingCommand, { accountId: string }>(admin, 'manageAccount', openingCommand);
   if (opening.accountId !== repeatedOpening.accountId) throw new Error('Opening retry must preserve the account identity.');
-  const readDb = environment.authenticatedContext(admin.uid).firestore();
+  const readDb = environment.authenticatedContext(admin.uid, sessionClaims).firestore();
   const openedAccount = await getDoc(doc(readDb, 'financialAccounts', opening.accountId));
   const openingEvent = await getDoc(doc(readDb, 'ledgerTransactions', 'opening-' + openingCommand.clientActionId));
   if (openedAccount.data()?.currentBalanceInCents !== 12_345 || openingEvent.data()?.legs?.[0]?.deltaInCents !== 12_345) {
@@ -174,13 +176,13 @@ async function run(): Promise<void> {
   const settle = { groupId, templateId: plan.recordId, recurringType: 'expense', action: 'settle', accountId: opening.accountId, effectiveAt: '2026-10-01T15:00:00.000Z', installmentsToAdvance: 3, clientActionId: 'emulator_settle_' + runId };
   const settled = await invokeAs(member, 'completeFinancialRecurring', settle) as { transactionId: string; amountInCents: number };
   const settledAgain = await invokeAs(member, 'completeFinancialRecurring', settle) as { idempotent: boolean };
-  const planAfter = await getDoc(doc(environment.authenticatedContext(member.uid).firestore(), 'mandatoryExpenses', plan.recordId));
+  const planAfter = await getDoc(doc(environment.authenticatedContext(member.uid, sessionClaims).firestore(), 'mandatoryExpenses', plan.recordId));
   const accountAfter = await getDoc(doc(readDb, 'financialAccounts', opening.accountId));
   if (settled.amountInCents !== 1_000 || !settledAgain.idempotent || planAfter.data()?.installmentsCompleted !== 3 || accountAfter.data()?.currentBalanceInCents !== 11_345) throw new Error('Settling all three installments must post exactly the contractual 1000 cents once and advance the plan atomically.');
   const undo = { groupId, templateId: plan.recordId, recurringType: 'expense', action: 'undo', effectiveAt: '2026-10-01T15:00:00.000Z', clientActionId: 'emulator_undo_plan_' + runId };
   await invokeAs(member, 'completeFinancialRecurring', undo);
   await invokeAs(member, 'completeFinancialRecurring', undo);
-  const planRestored = await getDoc(doc(environment.authenticatedContext(member.uid).firestore(), 'mandatoryExpenses', plan.recordId));
+  const planRestored = await getDoc(doc(environment.authenticatedContext(member.uid, sessionClaims).firestore(), 'mandatoryExpenses', plan.recordId));
   if (planRestored.data()?.installmentsCompleted !== 0 || planRestored.data()?.lastPaymentCycle !== null) throw new Error('Recurring reversal must restore exactly the three advanced installments.');
   let otherOwnerDenied = false;
   try { await invokeAs(admin, 'manageFinancialMetadata', { groupId, domain: 'mandatoryExpense', action: 'delete', recordId: plan.recordId, clientActionId: 'emulator_other_owner_' + runId, fields: {} }); } catch { otherOwnerDenied = true; }
@@ -299,7 +301,7 @@ async function run(): Promise<void> {
   await environment.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'ledgerTransactions', foreignLinkId)); });
   const deletedLegacyCategory = await invokeAs(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete) as { idempotent: boolean };
   const retriedLegacyCategory = await invokeAs(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete) as { idempotent: boolean };
-  if (deletedLegacyCategory.idempotent || !retriedLegacyCategory.idempotent || (await getDoc(doc(environment.authenticatedContext(legacyOwner.uid).firestore(), 'tags', legacyCategoryId))).exists()) throw new Error('Legacy category deletion must check all historical references and preserve its response-loss receipt.');
+  if (deletedLegacyCategory.idempotent || !retriedLegacyCategory.idempotent || (await getDoc(doc(environment.authenticatedContext(legacyOwner.uid, sessionClaims).firestore(), 'tags', legacyCategoryId))).exists()) throw new Error('Legacy category deletion must check all historical references and preserve its response-loss receipt.');
   await expectDenied(legacyOwner, 'manageFinancialMetadata', { ...legacyCategoryDelete, assistantRequestFingerprint: 'changed-delete-version' });
   await expectDenied(legacyOwner, 'manageFinancialMetadata', { ...legacyCategoryDelete, expectedActorId: outsider.uid }, 'unauthenticated');
   await environment.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'users', legacyOwner.uid), { financialLegacyCutoverAt: new Date() }, { merge: true }); });

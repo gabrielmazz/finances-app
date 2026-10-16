@@ -10,10 +10,14 @@ service cloud.firestore {
     function signedIn() {
       // [[Segurança de Login]]: token renovado conserva o instante do login.
       return request.auth != null
-        && request.auth.token.auth_time is int
-        && request.auth.token.auth_time > 0
-        && request.time >= timestamp.value(request.auth.token.auth_time * 1000)
-        && request.time < timestamp.value(request.auth.token.auth_time * 1000) + duration.value(8, 'h');
+        && hasFreshLogin(request.auth.token.auth_time);
+    }
+
+    function hasFreshLogin(authTime) {
+      return authTime is int
+        && authTime > 0
+        && request.time >= timestamp.value(authTime * 1000)
+        && request.time < timestamp.value(authTime * 1000) + duration.value(8, 'h');
     }
 
     function currentUser() {
@@ -65,9 +69,9 @@ service cloud.firestore {
     // =========================================================
 
     function userHasCutOver() {
-      return signedIn()
-        && (exists(/databases/$(database)/documents/financialCutovers/$(request.auth.uid))
-          || currentUser().data.get('financialGroupId', null) is string);
+      // Os três guards can*Legacy validam signedIn() antes desta consulta.
+      return exists(/databases/$(database)/documents/financialCutovers/$(request.auth.uid))
+        || currentUser().data.get('financialGroupId', null) is string;
     }
 
     // =========================================================
@@ -91,11 +95,11 @@ service cloud.firestore {
      * O cutover bloqueia apenas CREATE / UPDATE / DELETE.
      */
     function canReadLegacy(personId) {
-      return signedIn()
-        && (
-          personId == request.auth.uid
-          || hasAcceptedRelationship(personId)
-        );
+      return signedIn() && isLegacyOwnerOrRelated(personId);
+    }
+
+    function isLegacyOwnerOrRelated(personId) {
+      return personId == request.auth.uid || hasAcceptedRelationship(personId);
     }
 
     /*
@@ -196,8 +200,9 @@ service cloud.firestore {
     function validCycle(value) { return value == null || (value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')); }
 
     function validTagReference(tagId) {
+      // Os guards de escrita já validaram a sessão antes de validar referências.
       return tagId == null || (optionalId(tagId)
-        && canReadLegacy(getAfter(/databases/$(database)/documents/tags/$(tagId)).data.personId));
+        && isLegacyOwnerOrRelated(getAfter(/databases/$(database)/documents/tags/$(tagId)).data.personId));
     }
 
     function isSpecialMovement(data) {
@@ -220,6 +225,7 @@ service cloud.firestore {
         && validCycle(data.get('mandatoryCycle', null));
     }
     function validRecurring(data) {
+      let total = data.get('installmentTotal', null);
       return validName(data) && validDates(data)
         && boundedInt(data.get('dueDay', 1), 1, 31)
         && optionalBoolean(data.get('usesBusinessDays', null))
@@ -230,8 +236,8 @@ service cloud.firestore {
         && boundedInt(data.get('reminderMinute', 0), 0, 59)
         && boundedInt(data.get('reminderConfigVersion', 1), 1, 10)
         && validTagReference(data.get('tagId', null))
-        && (data.get('installmentTotal', null) == null || boundedInt(data.installmentTotal, 1, 1200))
-        && boundedInt(data.get('installmentsCompleted', 0), 0, data.get('installmentTotal', null) == null ? 1200 : data.installmentTotal)
+        && (total == null || boundedInt(total, 1, 1200))
+        && boundedInt(data.get('installmentsCompleted', 0), 0, total == null ? 1200 : total)
         && (data.get('installmentTotalValueInCents', null) == null || isPositiveCents(data.installmentTotalValueInCents))
         && optionalTimestamp(data.get('installmentStartDate', null))
         && optionalTimestamp(data.get('installmentEndDate', null))
@@ -248,8 +254,8 @@ service cloud.firestore {
       let previous = resource == null ? {} : resource.data.get('completedCycles', {});
       let changed = history.diff(previous).affectedKeys();
       let cycleField = collectionName == 'expenses' ? 'lastPaymentCycle' : 'lastReceiptCycle';
-      let priorCycle = resource == null ? null : resource.data.get(cycleField, null);
-      let cycle = data.get(cycleField, null) == null ? priorCycle : data.get(cycleField, null);
+      let currentCycle = data.get(cycleField, null);
+      let cycle = currentCycle == null ? (resource == null ? null : resource.data.get(cycleField, null)) : currentCycle;
       return history is map && history.size() <= 1200
         && optionalBoolean(data.get('assistantCycleHistoryComplete', null))
         && changed.size() <= 1
@@ -267,10 +273,19 @@ service cloud.firestore {
           && optionalId(entry.get('transactionId', null))
           && boundedInt(entry.get('installmentsCount', 0), 1, 1200)
           && isPositiveCents(entry.get('amountInCents', 0))
-          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.personId == request.auth.uid
-          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.valueInCents == entry.amountInCents
-          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.mandatoryCycle == cycle
-          && getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data.mandatoryTemplateId == templateId));
+          && recurringTransactionMatches(entry, cycle, collectionName, templateId)));
+    }
+
+    function recurringTransactionMatches(entry, cycle, collectionName, templateId) {
+      // [[Despesas Fixas]] / [[Receitas Fixas]]: reutiliza a leitura dentro do limite de expressões.
+      let movement = getAfter(/databases/$(database)/documents/$(collectionName)/$(entry.transactionId)).data;
+      let expected = {
+        'personId': request.auth.uid,
+        'valueInCents': entry.amountInCents,
+        'mandatoryCycle': cycle,
+        'mandatoryTemplateId': templateId
+      };
+      return movement.diff(expected).unchangedKeys().hasAll(expected.keys());
     }
 
     function validInvestment(data) {
@@ -306,9 +321,10 @@ service cloud.firestore {
     }
 
     function validBankReference(bankId) {
+      // Os guards de escrita já validaram a sessão antes de validar referências.
       return bankId == null || (bankId is string
         && bankId.size() <= 128
-        && canReadLegacy(getAfter(/databases/$(database)/documents/banks/$(bankId)).data.personId));
+        && isLegacyOwnerOrRelated(getAfter(/databases/$(database)/documents/banks/$(bankId)).data.personId));
     }
 
     function hasValidInvestmentCents(data) {
@@ -617,7 +633,6 @@ service cloud.firestore {
 
       allow create: if canCreateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
-        && validDates(request.resource.data)
         && validMovement(request.resource.data)
         && validBankReference(request.resource.data.get('bankId', null))
         && isPositiveCents(
@@ -626,7 +641,6 @@ service cloud.firestore {
 
       allow update: if canUpdateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
-        && validDates(request.resource.data)
         && validMovement(request.resource.data)
         && validBankReference(request.resource.data.get('bankId', null))
         && isPositiveCents(
@@ -651,7 +665,6 @@ service cloud.firestore {
 
       allow create: if canCreateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
-        && validDates(request.resource.data)
         && validMovement(request.resource.data)
         && validBankReference(request.resource.data.get('bankId', null))
         && isPositiveCents(
@@ -660,7 +673,6 @@ service cloud.firestore {
 
       allow update: if canUpdateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'bankNameSnapshot', 'moneyFormat', 'isInvestmentDeposit', 'isInvestmentRedemption', 'investmentId', 'investmentNameSnapshot', 'isBankTransfer', 'bankTransferPairId', 'bankTransferDirection', 'bankTransferSourceBankId', 'bankTransferTargetBankId', 'bankTransferSourceBankNameSnapshot', 'bankTransferTargetBankNameSnapshot', 'bankTransferExpenseId', 'bankTransferGainId', 'mandatoryTemplateId', 'mandatoryExpenseId', 'mandatoryGainId', 'mandatoryType', 'mandatoryCycle', 'installmentsCount', 'isMandatoryExpensePayment', 'isMandatoryGainReceipt', 'mandatoryExpenseCycle', 'mandatoryGainCycle', 'paymentFormats'])
-        && validDates(request.resource.data)
         && validMovement(request.resource.data)
         && validBankReference(request.resource.data.get('bankId', null))
         && isPositiveCents(
@@ -865,7 +877,6 @@ service cloud.firestore {
 
       allow create: if canCreateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
-        && validDates(request.resource.data)
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'expenses', id)
         && validBankReference(request.resource.data.get('bankId', null))
@@ -875,7 +886,6 @@ service cloud.firestore {
 
       allow update: if canUpdateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
-        && validDates(request.resource.data)
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'expenses', id)
         && validBankReference(request.resource.data.get('bankId', null))
@@ -901,7 +911,6 @@ service cloud.firestore {
 
       allow create: if canCreateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
-        && validDates(request.resource.data)
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'gains', id)
         && validBankReference(request.resource.data.get('bankId', null))
@@ -911,7 +920,6 @@ service cloud.firestore {
 
       allow update: if canUpdateLegacy()
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
-        && validDates(request.resource.data)
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'gains', id)
         && validBankReference(request.resource.data.get('bankId', null))
