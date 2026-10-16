@@ -7,6 +7,7 @@ async function run() {
   const environment = await initializeTestEnvironment({ projectId: 'demo-lumus-legacy-schema',
     firestore: { rules: readFileSync(resolve(process.cwd(), '..', 'firestore.rules'), 'utf8') } });
   try {
+    await environment.clearFirestore();
     const firestore = environment.authenticatedContext('owner', { auth_time: Math.floor(Date.now() / 1000) }).firestore();
     const now = new Date('2026-10-11T12:00:00Z');
     const common = { personId: 'owner', createdAt: now, updatedAt: now };
@@ -50,10 +51,37 @@ async function run() {
       }
     }
     for (const collection of ['mandatoryExpenses', 'mandatoryGains']) {
-      for (const invalid of [{ dueDay: 32 }, { reminderHour: 24 }, { reminderDaysBefore: 4 }, { installmentsCompleted: 13 },
+      for (const invalid of [{ date: '2026-10-11' }, { dueDay: 32 }, { reminderHour: 24 }, { reminderDaysBefore: 4 }, { installmentsCompleted: 13 },
         { installmentTotal: 0 }, { installmentTotalValueInCents: -1 }, { lastPaymentCycle: '2026-13' }, { tagId: 'private-tag' }]) {
         await assertFails(setDoc(doc(firestore, collection, 'invalid'), { ...recurring, ...invalid }));
       }
+    }
+    // The cached getAfter must preserve every linkage check for both recurring domains.
+    for (const [templates, movements, cycleField] of [
+      ['mandatoryExpenses', 'expenses', 'lastPaymentCycle'],
+      ['mandatoryGains', 'gains', 'lastReceiptCycle'],
+    ]) {
+      const templateId = `history-${templates}`;
+      const transactionId = `history-${movements}`;
+      const templateRef = doc(firestore, templates, templateId);
+      await assertSucceeds(setDoc(templateRef, recurring));
+      const linkedMovement = { ...movement, mandatoryCycle: '2026-10', mandatoryTemplateId: templateId };
+      const completion = {
+        [cycleField]: '2026-10',
+        completedCycles: { '2026-10': { transactionId, installmentsCount: 1, amountInCents: 100 } },
+      };
+      const seedMovement = (data: Record<string, unknown>) => environment.withSecurityRulesDisabled(async context => {
+        await setDoc(doc(context.firestore(), movements, transactionId), data);
+      });
+      for (const mismatch of [
+        { personId: 'stranger' }, { valueInCents: 101 },
+        { mandatoryCycle: '2026-09' }, { mandatoryTemplateId: 'another-template' },
+      ]) {
+        await seedMovement({ ...linkedMovement, ...mismatch });
+        await assertFails(updateDoc(templateRef, completion));
+      }
+      await seedMovement(linkedMovement);
+      await assertSucceeds(updateDoc(templateRef, completion));
     }
     for (const invalid of [{ month: 0 }, { month: 13 }, { year: 1 }, { year: 2026.5 }]) {
       await assertFails(setDoc(doc(firestore, 'monthlyBalances', 'invalid'), { ...fixtures.monthlyBalances, ...invalid }));
