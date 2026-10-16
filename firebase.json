@@ -7,7 +7,7 @@
     {
       "source": "backend",
       "codebase": "financial-core",
-      "runtime": "nodejs20",
+      "runtime": "nodejs22",
       "predeploy": ["npm --prefix backend run build"]
     }
   ],

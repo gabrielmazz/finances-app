@@ -5,10 +5,11 @@ import vm from 'node:vm';
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'script/release.js'), 'utf8');
 
-async function executeRelease(failingArguments?: string, args = ['deploy-backend', 'production']) {
+async function executeRelease(failingArguments?: string | string[], args = ['deploy-backend', 'production'], node = '22.19.0') {
 	const calls: string[] = [];
 	const releaseProcess = {
 		argv: ['node', 'release.js', ...args], env: {}, exitCode: 0,
+		versions: { node },
 		stdin: { isTTY: true }, stdout: { isTTY: true },
 	};
 	await vm.runInNewContext(source, {
@@ -23,7 +24,7 @@ async function executeRelease(failingArguments?: string, args = ['deploy-backend
 				spawnSync: (command: string, args: string[]) => {
 					const invocation = `${command} ${args.join(' ')}`;
 					calls.push(invocation);
-					return { status: invocation === failingArguments ? 1 : 0, stdout: '' };
+					return { status: [failingArguments].flat().includes(invocation) ? 1 : 0, stdout: '' };
 				},
 			};
 			if (name === 'node:fs') return {
@@ -59,6 +60,7 @@ test.each([
 });
 
 test.each([
+	'npm --prefix backend ci --dry-run --ignore-scripts --no-audit --no-fund --loglevel=error',
 	'npm --prefix backend audit --audit-level=high',
 	'npm --prefix backend run build',
 	'npm run test:integration',
@@ -68,6 +70,13 @@ test.each([
 	expect(result.exitCode).toBe(1);
 	expect(result.calls.some(call => call.includes(' deploy '))).toBe(false);
 	expect(result.calls[result.calls.length - 1]).toBe(failure);
+});
+
+test('an incomplete client lockfile blocks publication before audits, tests and export', async () => {
+	const failure = 'npm ci --dry-run --ignore-scripts --no-audit --no-fund --loglevel=error';
+	const result = await executeRelease(failure, ['release', 'production', 'web']);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls).toEqual(['git status --porcelain', failure]);
 });
 
 test.each([
@@ -86,10 +95,48 @@ test.each([
 	for (const audit of ['npm audit --audit-level=high', 'npm --prefix backend audit --audit-level=high']) {
 		const result = await executeRelease(audit, args);
 		expect(result.exitCode).toBe(1);
-		expect(result.calls).toContain('npm run check');
+		expect(result.calls).not.toContain('npm run check');
 		expect(result.calls[result.calls.length - 1]).toBe(audit);
 		expect(result.calls.some(call => call.includes(' deploy ') || call.startsWith('eas build '))).toBe(false);
 	}
+});
+
+test('diagnosis reports independent failures, completes remaining gates and never publishes', async () => {
+	const result = await executeRelease([
+		'npm audit --audit-level=high', 'npm run check', 'npm run test:integration',
+	], ['diagnose', 'production']);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls).toContain('npm --prefix backend audit --audit-level=high');
+	expect(result.calls).toContain('npm --prefix backend run test:app-check:emulator');
+	expect(result.calls.some(call => call.includes('export --platform android'))).toBe(true);
+	expect(result.calls.some(call => call.includes('export --platform web'))).toBe(true);
+	expect(result.calls.some(call => call.includes(' deploy ') || call.startsWith('eas build '))).toBe(false);
+	expect(result.calls).not.toContain('git status --porcelain');
+});
+
+test('invalid Android profile is rejected before expensive gates', async () => {
+	const result = await executeRelease(undefined, ['build-android', 'production', 'preview']);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls).toEqual([]);
+});
+
+test.each(['20.19.0', '22.12.0'])('old Node runtime is rejected before verification: %s', async node => {
+	const result = await executeRelease(undefined, ['verify', 'production'], node);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls).toEqual([]);
+});
+
+test('diagnosis still exports Web after an Android export failure', async () => {
+	const failure = `${path.join(root, 'node_modules/.bin/expo')} export --platform android --output-dir /tmp/lumus-release-test`;
+	const result = await executeRelease(failure, ['diagnose', 'production']);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls.some(call => call.includes('export --platform web'))).toBe(true);
+});
+
+test('publication stops before all gates when the Git state cannot be approved', async () => {
+	const result = await executeRelease('git status --porcelain', ['release', 'production', 'tudo']);
+	expect(result.exitCode).toBe(1);
+	expect(result.calls).toEqual(['git status --porcelain']);
 });
 
 test('deployment follows successful dependency, integration and App Check gates', async () => {

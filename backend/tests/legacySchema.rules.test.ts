@@ -81,6 +81,9 @@ async function run() {
         await assertFails(updateDoc(templateRef, completion));
       }
       await seedMovement(linkedMovement);
+      for (const invalidCycle of [null, 42, '']) {
+        await assertFails(updateDoc(templateRef, { ...completion, [cycleField]: invalidCycle }));
+      }
       await assertSucceeds(updateDoc(templateRef, completion));
     }
     for (const invalid of [{ month: 0 }, { month: 13 }, { year: 1 }, { year: 2026.5 }]) {

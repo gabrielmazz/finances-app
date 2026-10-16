@@ -165,6 +165,9 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 
 ### Razão financeiro e implantação
 
+- O backend usa Node 22 em `backend/package.json` e `firebase.json`; o preflight de release verifica o alinhamento. Node 20 foi removido da configuração por estar descontinuado e ter retirada prevista para 30/10/2026. O log de 16/10/2026 confirma que o deploy de Functions foi bloqueado pela exigência de Blaze/Cloud Build no projeto; testes locais não verificam esse requisito de cobrança. Ver [[Auditoria do Processo de Release]] e [[Processo de Release]].
+- O ciclo usado na validação de histórico recorrente é normalizado para string antes de consultar o mapa: ausência ou tipo inválido não produzem chave válida. As recusas de ciclo nulo, numérico e vazio são testadas em despesas e ganhos, preservando a vinculação ao lançamento real.
+
 - As Functions são postMovement, transferFunds, reconcileAccount, reverseTransaction, manageAccount e migrateFinancialGroup.
 - As regras negam escrita client-side em contas, razão, reconciliações e auditoria. A leitura é limitada aos membros do grupo ativo.
 - As coleções legadas usadas pela Home (`tags`, `mandatoryExpenses`, `mandatoryGains`, `financeInvestmentSyncs` e `investmentCdiRates`) têm regras explícitas de leitura por `personId` para o usuário e seus relacionados; escritas continuam limitadas ao dono do documento e exigem as validações específicas de cada coleção.

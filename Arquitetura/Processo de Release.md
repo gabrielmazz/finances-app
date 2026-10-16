@@ -24,6 +24,24 @@ A execução integrada também identificou o limite de 1.000 expressões das Rul
 
 Validação final dessa correção em 2026-10-16: `npm run test:integration` passou em Auth/Firestore/Functions locais, incluindo todos os scripts do backend e os 68 testes do executor financeiro. `npm --prefix backend run test:app-check:emulator` passou: as 15 callables rejeitam chamadas autenticadas sem atestado e o transporte SDK rejeita tokens ausentes/falsificados antes do handler. Os emuladores usados no diagnóstico foram encerrados; nenhum deploy remoto foi executado.
 
+## Diagnóstico local de falhas — 2026-10-16
+
+Antes das auditorias, os gates validam os lockfiles do escopo com `npm ci --dry-run --ignore-scripts --no-audit --no-fund --loglevel=error`, sem substituir o ambiente instalado nem executar scripts. Uma instalação limpa real revelou `EUSAGE` no backend: faltavam 26 entradas opcionais (plataformas esbuild e `fsevents`). O lockfile foi reparado preservando as versões das dependências já travadas, e a instalação limpa passou. Testes executados sobre um `node_modules` antigo não detectavam essa falha que impediria um worker novo de instalar o backend.
+
+`npm run release:diagnose` executa as auditorias, `check`, compilação, integrações, App Check e as duas exportações, mesmo quando uma etapa anterior falha. Exibe o resultado de cada etapa e termina com código 1 se alguma falhar; nunca publica, solicita build EAS ou exige árvore limpa. Os comandos de publicação continuam parando na primeira falha. As auditorias agora precedem os testes longos, evitando repetir toda a suíte quando uma vulnerabilidade já bloqueia o release. Perfil Android incompatível é recusado antes das verificações.
+
+O preflight exige Node >=22.13.0 e confere `backend/package.json`/`firebase.json` com Node 22. O Node 20 antes configurado está descontinuado desde 30/04/2026 e tem retirada prevista para 30/10/2026 segundo o [calendário oficial](https://docs.cloud.google.com/functions/docs/runtime-support).
+
+`test:assistant:executor:emulator` preserva o nome público e chama `script/test_client_emulators.js`. O runner habilita as quatro suítes funcionais do cliente (executor legado, lotes, conversa e leitores do razão), remove filtros de famílias herdados e exige o projeto `demo-lumus-financas` e as portas locais 8080/9099/5001 antes de iniciar. Antes desta correção, o gate executava somente os 68 testes do executor; as outras três suítes ficavam ignoradas. Medições opcionais prolongadas de desempenho continuam fora do gate funcional.
+
+O `patch-package` foi atualizado de 6.0.7 para 8.0.1 e `postinstall` usa `--error-on-fail`: um patch que não aplica agora bloqueia também instalações locais. O audit do cliente caiu de 61 alertas (24 altos) para 53 (20 altos). As origens altas restantes são `braces` e `node-forge`, sem versões corrigidas publicadas na data da análise; os demais resultados altos representam a propagação no grafo. O gate permanece bloqueado. O audit do backend tem nove alertas moderados e nenhum alto/crítico. Não usar `npm audit fix --force`: as propostas observadas rebaixam Expo para SDK 44 ou migram Tailwind para 4, rompendo o conjunto validado.
+
+O log fornecido também mostra bloqueio de cobrança: o projeto `finances-app-e8685` não podia habilitar `cloudbuild.googleapis.com` sem Blaze. Emuladores e testes aprovados não comprovam que Functions podem ser publicadas. A [documentação Firebase](https://firebase.google.com/docs/functions/get-started) exige Blaze para deploy de Functions. O diagnóstico local não consulta nem altera cobrança; a habilitação do plano e sua configuração financeira dependem do titular do projeto. Hosting e Android também não ficam liberados enquanto o audit do cliente falhar.
+
+Evidências, causas, limites e pendências detalhadas em [[Auditoria do Processo de Release]].
+
+A primeira execução do gate ampliado revelou também cinco famílias de lotes incompatíveis com a cota vigente das callables (120 chamadas/minuto por UID/operação), além de duas fixtures de recorrência que usavam strings onde o schema atual exige timestamps. As fixtures foram corrigidas; o gate integrado permanece bloqueado pelas falhas de lote. A evidência antiga de 211 itens em [[Validação de Lotes Conversacionais]] não substitui a revalidação atual.
+
 ## Ambientes
 
 - `production` usa `finances-app-e8685`, App Check Android Play Integrity e o `google-services.json` desse projeto. O AAB vem de `npm run android:build:production`; `production-apk` produz um APK interno com a mesma configuração para inspeção em aparelho.

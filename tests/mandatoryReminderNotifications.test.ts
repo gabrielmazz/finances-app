@@ -349,9 +349,14 @@ describe('mandatory reminder notifications', () => {
 			throw new Error('AlarmManager limit');
 		});
 
-		const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification(buildExpenseSchedule());
-
-		expect(result).toMatchObject({ success: false, reason: 'schedule-error' });
+		const expectedError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		try {
+			const result = await mandatoryReminderNotifications.scheduleMandatoryReminderNotification(buildExpenseSchedule());
+			expect(result).toMatchObject({ success: false, reason: 'schedule-error' });
+			expect(expectedError).toHaveBeenCalledWith(expect.stringContaining('user-1:expense:rent'), expect.any(Error));
+		} finally {
+			expectedError.mockRestore();
+		}
 		expect(state.scheduledNotifications).toHaveLength(0);
 		const store = JSON.parse(state.storage['@lumusMandatoryReminders:expo-v1']);
 		expect(store.entries['user-1:expense:rent']).toMatchObject({
