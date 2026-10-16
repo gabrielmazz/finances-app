@@ -159,26 +159,28 @@ const chooseReleaseTargets = async () => {
 	}
 };
 
-const main = async () => {
+const executeRelease = (env, projectId, targets) => {
+	if (targets.length === 0) {
+		console.log('Release cancelado.');
+		return;
+	}
+	requireCleanTree();
+	console.log(`Etapas selecionadas: ${targets.join(', ')}.`);
+	verify(env);
+	// Executa somente as etapas escolhidas, na ordem definida em [[Processo de Release]].
+	if (targets.includes('firebase')) deployBackend(projectId, env);
+	if (targets.includes('web')) deployWeb(profile, projectId, env);
+	if (targets.includes('apk')) buildAndroid('production-apk', env);
+	if (targets.includes('aab')) buildAndroid('production', env);
+};
+
+const main = () => {
 	const { env, projectId } = preflight();
 	if (action === 'preflight') return;
 	if (!['verify', 'verify-offline', 'deploy-backend', 'deploy-web', 'build-android', 'release'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, deploy-backend, deploy-web, build-android ou release.');
 	if (action === 'release') {
 		if (profile !== 'production') fail('O seletor de release está disponível somente para production.');
-		const targets = await chooseReleaseTargets();
-		if (targets.length === 0) {
-			console.log('Release cancelado.');
-			return;
-		}
-		requireCleanTree();
-		console.log(`Etapas selecionadas: ${targets.join(', ')}.`);
-		verify(env);
-		// Executa somente as etapas escolhidas, na ordem definida em [[Processo de Release]].
-		if (targets.includes('firebase')) deployBackend(projectId, env);
-		if (targets.includes('web')) deployWeb(profile, projectId, env);
-		if (targets.includes('apk')) buildAndroid('production-apk', env);
-		if (targets.includes('aab')) buildAndroid('production', env);
-		return;
+		return chooseReleaseTargets().then(targets => executeRelease(env, projectId, targets));
 	}
 	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
 	verify(env, action === 'verify-offline');
@@ -197,7 +199,14 @@ const main = async () => {
 	}
 };
 
-main().catch(error => {
+const reportError = error => {
 	console.error(error instanceof Error ? error.message : error);
 	process.exitCode = 1;
-});
+};
+
+try {
+	const pending = main();
+	if (pending && typeof pending.catch === 'function') pending.catch(reportError);
+} catch (error) {
+	reportError(error);
+}
