@@ -23,7 +23,7 @@ Implementação e validação local da auditoria de 2026-10-09, no worktree do L
 | Export Web | Aprovado | Bundle Web gerado após atualização de dependências, com alvo local demo. Não prova Hosting publicado ou emissão real reCAPTCHA. |
 | Export Android | Aprovado | Bundle JavaScript/Hermes gerado após atualização de dependências; não substitui novo APK/AAB, manifesto, aparelho e App Check nativo. |
 | `git diff --check` | Aprovado | Ausência de erros de whitespace no diff. |
-| Auditoria de dependências | Parcial, bloqueia publicação | Zero alertas críticos nos dois lockfiles; alertas altos permanecem no app. |
+| Auditoria de dependências | Parcial, bloqueia publicação do cliente | Zero alertas críticos nos dois lockfiles; alertas altos permanecem no app. Ver abaixo o escopo exclusivo Firebase adotado em 2026-10-16. |
 
 Os testes locais usam Node 22.13.0 e Java 21. O backend declara Node 20; execução no runtime remoto continua pendente. App Check Emulator ignora validação real da assinatura: por isso o caso de token falsificado usa servidor HTTP local com o SDK Functions fora do bypass do Emulator. Emissão e validação de atestados legítimos pelos provedores ainda exigem homologação.
 
@@ -76,7 +76,9 @@ Corrigidos: `proxy-addr` 2.0.8, `shell-quote` 1.12.0, Tiptap 3.31.4, `brace-expa
 
 Fontes: [gRPC](https://github.com/advisories/GHSA-m9gg-hp2v-232j), [qs](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g), [braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), [node-forge](https://github.com/advisories/GHSA-86w9-cpqp-85rv), [uuid](https://github.com/advisories/GHSA-w5hq-g745-h8pq).
 
-`script/release.js` executa audit dos dois projetos com `--audit-level=high`; falha de auditoria ou de App Check interrompe antes de deploy/build. Não há exceção automática nem `audit fix --force`. Quatro testes verificam que falhas de cada audit e App Check bloqueiam o deploy e que o caminho aprovado executa os gates antes de publicar. O gate integral continua bloqueado pelos alertas altos restantes, mesmo com suites funcionais aprovadas.
+`script/release.js` executa audit com `--audit-level=high` do backend no release exclusivo Firebase, e dos dois projetos nos gates gerais e em releases que incluem Web/Android. A seleção **1/Firebase**, `release:production -- firebase` e `firebase:deploy:*` publicam o projeto independente `backend/`; por isso, não executam o audit nem os exports do cliente Expo/Tailwind. Falha da auditoria pertinente, da compilação, da integração ou do App Check interrompe antes do deploy/build. Não há exceção automática de advisory nem `audit fix --force`. Os 21 testes de `tests/releaseSecurityGate.test.ts` cobrem a seleção interativa, os comandos diretos, os bloqueios do backend e a preservação dos dois audits nas demais seleções. O gate integral continua bloqueado pelos alertas altos do cliente, mesmo com suites funcionais aprovadas. Ver [[Processo de Release]].
+
+Validação de 2026-10-16: os 21 testes do script e o build TypeScript do backend passaram. `npm --prefix backend audit --audit-level=high` retornou sucesso, com nove alertas moderados e nenhum alto/crítico. O audit exigiu acesso de rede fora da restrição local de DNS; uma falha de rede continua bloqueando a release. Os emuladores e o deploy remoto não foram executados novamente nesta correção do script.
 
 ## Ambiente recuperado
 
@@ -86,7 +88,7 @@ O preview anterior herdava produção no commit `1d6d0d0`. `.firebaserc` contém
 
 ## Trabalho necessário antes da publicação
 
-1. Resolver os alertas altos restantes com solução compatível ou avaliação explícita e revisada; o gate não os ignora.
+1. Para releases do cliente Web/Android, resolver os alertas altos restantes com solução compatível ou avaliação explícita e revisada; o gate integral não os ignora. Uma publicação exclusiva Firebase mantém a auditoria e as verificações do backend descritas acima.
 2. Provisionar/identificar Firebase de homologação realmente separado, preencher EAS preview e arquivo Android do mesmo projeto; conferir Auth, Hosting, AI Logic, Remote Config, App Check, quotas e alertas.
 3. Exportar backup de produção e regras atuais; restaurar cópia isolada e confrontar documentos históricos com os schemas. Normalizar somente formatos legítimos identificados e repetir os testes.
 4. Publicar Functions/Rules em homologação, testar cliente Web/APK com atestados válidos e inválidos e ligar gradualmente `LUMUS_ENFORCE_APP_CHECK=true`. O default local/remoto permanece falso até essa validação.

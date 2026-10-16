@@ -85,16 +85,21 @@ const exportBundles = env => {
 	if (!fs.existsSync(path.join(root, 'dist', 'index.html'))) fail('Exportação Web sem index.html.');
 };
 
-const verify = (env, offline = false) => {
-	run('npm', ['run', 'check']);
-	run('npm', ['audit', '--audit-level=high']);
+const verify = (env, { offline = false, backendOnly = false } = {}) => {
+	// Firebase isolado valida o projeto backend/ publicado, conforme [[Processo de Release]].
+	if (backendOnly) {
+		console.log('Verificações Firebase: audit do backend, compilação, integração e App Check.');
+	} else {
+		run('npm', ['run', 'check']);
+		run('npm', ['audit', '--audit-level=high']);
+	}
 	run('npm', ['--prefix', 'backend', 'audit', '--audit-level=high']);
 	run('npm', ['--prefix', 'backend', 'run', 'build']);
 	if (!offline) {
 		run('npm', ['run', 'test:integration']);
 		run('npm', ['--prefix', 'backend', 'run', 'test:app-check:emulator']);
 	}
-	exportBundles(env);
+	if (!backendOnly) exportBundles(env);
 };
 
 const deployBackend = (projectId, env) => {
@@ -166,7 +171,7 @@ const executeRelease = (env, projectId, targets) => {
 	}
 	requireCleanTree();
 	console.log(`Etapas selecionadas: ${targets.join(', ')}.`);
-	verify(env);
+	verify(env, { backendOnly: targets.length === 1 && targets[0] === 'firebase' });
 	// Executa somente as etapas escolhidas, na ordem definida em [[Processo de Release]].
 	if (targets.includes('firebase')) deployBackend(projectId, env);
 	if (targets.includes('web')) deployWeb(profile, projectId, env);
@@ -183,7 +188,7 @@ const main = () => {
 		return chooseReleaseTargets().then(targets => executeRelease(env, projectId, targets));
 	}
 	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
-	verify(env, action === 'verify-offline');
+	verify(env, { offline: action === 'verify-offline', backendOnly: action === 'deploy-backend' });
 	if (action === 'deploy-backend') {
 		deployBackend(projectId, env);
 	}
