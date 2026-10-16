@@ -11,7 +11,10 @@ export async function enforceCallableRateLimit(uid: string, operation: string, l
     const snapshot = await transaction.get(reference);
     const count = snapshot.data()?.windowStart === windowStart && typeof snapshot.data()?.count === 'number'
       ? snapshot.data()!.count : 0;
-    if (count >= limit) throw new HttpsError('resource-exhausted', 'Muitos pedidos. Aguarde um minuto e tente novamente.');
+    if (count >= limit) throw new HttpsError('resource-exhausted', 'Muitos pedidos. Aguarde um minuto e tente novamente.', {
+      reason: 'rate-limit',
+      retryAfterMs: Math.max(250, (windowStart + 1) * 60_000 - Date.now() + 250),
+    });
     transaction.set(reference, {
       count: count + 1,
       windowStart,

@@ -40,7 +40,9 @@ O log fornecido também mostra bloqueio de cobrança: o projeto `finances-app-e8
 
 Evidências, causas, limites e pendências detalhadas em [[Auditoria do Processo de Release]].
 
-A primeira execução do gate ampliado revelou também cinco famílias de lotes incompatíveis com a cota vigente das callables (120 chamadas/minuto por UID/operação), além de duas fixtures de recorrência que usavam strings onde o schema atual exige timestamps. As fixtures foram corrigidas; o gate integrado permanece bloqueado pelas falhas de lote. A evidência antiga de 211 itens em [[Validação de Lotes Conversacionais]] não substitui a revalidação atual.
+A primeira execução do gate ampliado revelou cinco famílias de lotes incompatíveis com a cota vigente das callables (120 chamadas/minuto por UID/operação), além de duas fixtures de recorrência que usavam strings onde o schema atual exige timestamps. As fixtures foram corrigidas e o executor agora aguarda a janela informada pelo servidor sem reduzir a cota nem o volume de 211 itens. Há no máximo três novas tentativas por chamada, revalidação de UID/grant e cancelamento da espera; erros de rede/resultado incerto continuam sem repetição automática. O gate inclui `test:rate-limit` do backend, e cada família tem orçamento de 600 segundos para atravessar as janelas reais. Publicar o backend com `reason=rate-limit`/`retryAfterMs` antes de distribuir o cliente. A revalidação atual fica em [[Validação de Lotes Conversacionais]] e [[Auditoria do Processo de Release]]; os bloqueios independentes de Blaze/audit continuam registrados.
+
+Revalidação após essa correção: `npm run test:integration` terminou com código 0, incluindo os scripts do backend e as quatro suítes do cliente (86 testes aprovados, um benchmark opcional ignorado, 780,74 s). A suíte de lotes passou as treze famílias de 211 itens e os dois cenários de recuperação/cancelamento. `npm run check` passou 82 suítes/788 testes e os exports Web/Android passaram novamente. As pausas por cota aumentam o tempo do gate; não interromper a execução apenas pela ausência momentânea de novas chamadas durante a espera.
 
 ## Ambientes
 

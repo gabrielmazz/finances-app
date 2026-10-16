@@ -68,7 +68,7 @@ Dinheiro e diferenças são centavos inteiros seguros; CDI usa basis points. Cic
 - `backend/tests/lumusAssistant.rules.test.ts` prova recibos privados, criação imutável no legado, leituras de metadados compartilhados do grupo e recusa de escrita legada após o corte.
 - `tests/lumusAssistantCatalogCompleteness.test.ts` prova 251 registros locais, grupo/ownership, identidade de criação e 502 propostas locais com dependência global além do antigo limite de 20.
 
-O gate opt-in `npm run test:assistant:executor:emulator` exige hosts locais exatos e executa E. O gate `npm run test:integration` compila o backend e inicia um projeto demo local com regras, callables, ajustes e E; nunca aponta para produção. Os testes em uma Suite já aberta usam UIDs/prefixos próprios, sem apagar fixtures de outro fluxo.
+O gate `npm run test:assistant:executor:emulator` exige hosts locais exatos e habilita as quatro suítes funcionais: E, lotes, conversa e leitores do razão. O gate `npm run test:integration` compila o backend e inicia um projeto demo local com regras, callables, ajustes, contrato de cota e essas quatro suítes; nunca aponta para produção. Os testes em uma Suite já aberta usam UIDs/prefixos próprios, sem apagar fixtures de outro fluxo. Medições opcionais prolongadas continuam separadas.
 
 ## Operações legadas confiáveis
 
@@ -76,7 +76,7 @@ O gate opt-in `npm run test:assistant:executor:emulator` exige hosts locais exat
 
 `addCashRescueFirebase`, `transferBetweenBanksFirebase`, `addFinanceInvestmentFirebase`, `moveFinanceInvestmentFirebase`, `updateFinanceInvestmentFirebase` e `revertFinanceInvestmentDepositFirebase` e `revertFinanceInvestmentRedemptionFirebase` compartilham esse executor no legado e escolhem as APIs do razão após o corte. A correção do principal que debita o banco projeta o investimento atualizado nas consultas completas do banco, verifica o período original e o saldo atual; trocar banco valida o destino, sem débito parcial. Reduzir principal no mesmo banco pode reparar saldo legado já negativo sem gerar novo débito. Desfazer resgate verifica o saldo atual após retirar o crédito e restaura a posição no mesmo commit; se o crédito já foi gasto, nada muda. Desfazer aporte exige posição atual suficiente para devolver aquele aporte: se o valor já foi resgatado, a operação inteira é recusada, sem zerar a posição nem devolver dinheiro inexistente ao banco. Fingerprints normalizam somente Date/Timestamp reais e preservam nomes e centavos, evitando interpretar nomes de banco como datas no fuso da plataforma.
 
-A preparação de ajustes em lote faz no máximo oito previews simultâneos; mantém todos os itens e a ordem das dependências. `deleteTagFirebase` utiliza o mesmo guard autoritativo de referência histórica da conversa.
+A preparação de ajustes em lote faz no máximo oito previews simultâneos; mantém todos os itens e a ordem das dependências. Preview e execução aguardam a próxima janela quando a callable identifica uma recusa de cota anterior ao handler. O limite continua 120/minuto; até três novas tentativas por chamada conservam IDs, argumentos e grants, revalidando UID/autorização antes do envio. Cancelamento ou sessão revogada impede reenvios; resultado financeiro já confirmado permanece sucesso. Erros de rede/resultado incerto não são repetidos automaticamente. `deleteTagFirebase` utiliza o mesmo guard autoritativo de referência histórica da conversa.
 
 Os handlers de aporte/resgate das listas Web/mobile chamam uma única operação de domínio; não sincronizam e depois gravam um lançamento separado.
 

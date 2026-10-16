@@ -1,6 +1,6 @@
 import type {
 	AssistantAiConversationResponse, AssistantDraftAction, AssistantMessage,
-	AssistantReportRequest, AssistantResolvedCatalog, FinanceCommandService, AssistantSendProgress,
+	AssistantReportRequest, AssistantResolvedCatalog, FinanceCommandService, AssistantSendProgress, AssistantOperationOptions,
 } from '@/types/lumusAssistant';
 import {
 	createAssistantId, formatCents, getActionAmountInCents,
@@ -14,6 +14,7 @@ import {
 } from './assistantAuthorization';
 import { mapAssistantError } from '@/utils/lumusAssistantErrors';
 import { expandAssistantBatch, getExplicitAssistantBatchCount, parseAssistantLocalRequest } from './assistantBatchService';
+import { isCallableRateLimitError } from './assistantCallableRetry';
 
 type State = { messages: AssistantMessage[]; drafts: AssistantDraftAction[]; catalog: AssistantResolvedCatalog; busy: boolean; progress: AssistantSendProgress | null };
 type Options = {
@@ -37,6 +38,8 @@ export function createAssistantConversation(options: Options) {
 	let epoch = 0;
 	let confirmation: Confirmation | null = null;
 	let controller: AbortController | null = null;
+	let activeOperation: { id: string; controller: AbortController } | null = null;
+	let rateLimitNoticeShown = false;
 	let cancelled = false;
 	let queue = Promise.resolve();
 	let queueGeneration = 0;
@@ -54,7 +57,16 @@ export function createAssistantConversation(options: Options) {
 		const message: AssistantMessage = { id: createAssistantId('message'), createdAt: new Date().toISOString(), role, type, text, ...(type === 'text' && role === 'assistant' ? { excludeFromModelHistory: !includeInModelHistory } : {}) };
 		state.messages = [...state.messages, message]; publish(); return message.id;
 	};
-	const replace = (draft: AssistantDraftAction) => { state.drafts = state.drafts.map(item => item.clientActionId === draft.clientActionId ? draft : item); publish(); };
+	const replace = (draft: AssistantDraftAction) => { state.drafts = state.drafts.map(item => item.clientActionId === draft.clientActionId && item.status !== 'cancelled' ? draft : item); publish(); };
+	const operationOptions = (): AssistantOperationOptions => {
+		const signal = controller?.signal;
+		const requestEpoch = epoch;
+		return { signal, onRateLimit: () => {
+			if (disposed || epoch !== requestEpoch || signal?.aborted || rateLimitNoticeShown) return;
+			rateLimitNoticeShown = true;
+			say('O serviço atingiu um limite temporário. Vou aguardar e continuar este pedido; você pode cancelar.', 'warning');
+		} };
+	};
 	const cancelTargets = (ids: string[]) => {
 		const selected = new Set(ids);
 		for (let changed = true; changed;) {
@@ -62,6 +74,7 @@ export function createAssistantConversation(options: Options) {
 			for (const item of state.drafts) if (!selected.has(item.clientActionId) && item.dependsOnActionIds.some(id => selected.has(id))) {selected.add(item.clientActionId);changed = true;}
 		}
 		confirmation = null;
+		if (activeOperation && selected.has(activeOperation.id)) activeOperation.controller.abort();
 		state.drafts = state.drafts.map(item => selected.has(item.clientActionId) && pending(item) ? {...item,status:'cancelled'} : item);publish();
 		say(state.drafts.some(item => selected.has(item.clientActionId) && item.status === 'executing') ? 'A operação já está em andamento. Vou informar o resultado real; seus dependentes não serão iniciados.' : 'Esse pedido e suas dependências foram cancelados. Os demais pedidos permanecem.');
 	};
@@ -107,11 +120,22 @@ export function createAssistantConversation(options: Options) {
 			if (draft.missingFields.length || draft.dependsOnActionIds.some(dependency => state.drafts.find(item => item.clientActionId === dependency)?.status !== 'succeeded')) { blocked++; continue; }
 			const grant = authorization.authorize(draft, messageId, mode);
 			if (!grant) { blocked++; continue; }
+			const requestOptions = operationOptions();
+			const itemController = new AbortController();
+			const cancelItem = () => itemController.abort();
+			requestOptions.signal?.addEventListener('abort', cancelItem, { once: true });
+			if (requestOptions.signal?.aborted) itemController.abort();
+			activeOperation = { id, controller: itemController };
 			replace({ ...draft, status: 'executing' });
 			let result;
-			try { result = await options.finance.execute(options.uid, draft, state.catalog, grant); }
+			try { result = await options.finance.execute(options.uid, draft, state.catalog, grant, { ...requestOptions, signal: itemController.signal }); }
 			catch { result = { success: false, message: 'Resultado incerto. Peça para tentar novamente; a mesma operação será conferida antes de repetir.', errorCode: 'transaction-failed' }; }
+			finally {
+				requestOptions.signal?.removeEventListener('abort', cancelItem);
+				activeOperation = null;
+			}
 			if (disposed || epoch !== currentEpoch) return;
+			if (!result.success && result.errorCode === 'cancelled') { replace({ ...draft, status: 'cancelled', error: undefined }); continue; }
 			if (!result.success) {
 				failures++; replace({ ...draft, status: result.errorCode === 'stale' ? 'stale' : 'failed', error: result.message });
 				if (ids.length <= 8) say(result.message, 'error');
@@ -134,7 +158,7 @@ export function createAssistantConversation(options: Options) {
 							const created = source && catalog[source]?.find(candidate => candidate.data?.assistantActionId === id);
 							if (created) patch[key] = created.handle;
 						}
-						if (Object.keys(patch).length) replace(await options.finance.updateDraft(options.uid, item, patch, catalog));
+						if (Object.keys(patch).length) replace(await options.finance.updateDraft(options.uid, item, patch, catalog, operationOptions()));
 					}
 				}
 			} catch { say('A operação foi salva; não consegui atualizar todas as leituras agora.', 'warning'); }
@@ -165,6 +189,7 @@ export function createAssistantConversation(options: Options) {
 	};
 	const process = async (text: string, messageId: string, currentEpoch: number) => {
 		if (disposed || epoch !== currentEpoch) return;
+		rateLimitNoticeShown = false;
 		state.busy = true; state.progress = { active: 'loading_data', completed: [] }; publish();
 		const abort = new AbortController(); controller = abort;
 		try {
@@ -246,14 +271,18 @@ export function createAssistantConversation(options: Options) {
 					}
 				}
 				if (Object.keys(patch).length) {
-					const updated = await options.finance.updateDraft(options.uid, questionDraft, patch, state.catalog);
-					if (disposed || epoch !== currentEpoch) return;
+					const updated = await options.finance.updateDraft(options.uid, questionDraft, patch, state.catalog, operationOptions());
+					if (disposed || epoch !== currentEpoch || abort.signal.aborted) return;
 					replace(updated);
 					const group = current.filter(item => origins.get(item.clientActionId) === origins.get(questionDraft.clientActionId));
 					for (const item of group) {
 						if (item.clientActionId === questionDraft.clientActionId) continue;
 						const shared = Object.fromEntries(Object.entries(patch).filter(([key]) => item.missingFields.some(field => field.key === key && field.allowApplyToSimilar)));
-						if (Object.keys(shared).length) replace(await options.finance.updateDraft(options.uid, item, shared, state.catalog));
+						if (Object.keys(shared).length) {
+							const updated = await options.finance.updateDraft(options.uid, item, shared, state.catalog, operationOptions());
+							if (disposed || epoch !== currentEpoch || abort.signal.aborted) return;
+							replace(updated);
+						}
 					}
 					await finish(group.map(item => item.clientActionId), currentEpoch); return;
 				}
@@ -299,8 +328,8 @@ export function createAssistantConversation(options: Options) {
 			for (const update of response.draftUpdates ?? []) {
 				const draft = state.drafts.find(item => item.clientActionId === update.actionId && pending(item));
 				if (!draft) continue;
-				const updated = await options.finance.updateDraft(options.uid, draft, update.patch, catalog);
-				if (disposed || epoch !== currentEpoch) return;
+				const updated = await options.finance.updateDraft(options.uid, draft, update.patch, catalog, operationOptions());
+				if (disposed || epoch !== currentEpoch || abort.signal.aborted) return;
 				replace(updated);
 				for (const item of state.drafts.filter(item => pending(item) && origins.get(item.clientActionId) === origins.get(draft.clientActionId))) if (!affected.includes(item.clientActionId)) affected.push(item.clientActionId);
 			}
@@ -316,8 +345,8 @@ export function createAssistantConversation(options: Options) {
 			}
 			if (response.actions.length) {
 				state.progress={active:'preparing_actions',completed:['loading_data','interpreting_request']};publish();
-				const prepared = await options.finance.prepareActions(options.uid, response.actions, catalog);
-				if (disposed || epoch !== currentEpoch) return;
+				const prepared = await options.finance.prepareActions(options.uid, response.actions, catalog, operationOptions());
+				if (disposed || epoch !== currentEpoch || abort.signal.aborted) return;
 				state.drafts = [...state.drafts, ...prepared.actions];
 				for (const draft of prepared.actions) { origins.set(draft.clientActionId, messageId); affected.push(draft.clientActionId); }
 			}
@@ -336,7 +365,7 @@ export function createAssistantConversation(options: Options) {
 					else say(response.text || 'Não consegui associar o pedido a uma operação disponível.','text','assistant',true);
 				}
 			}
-		} catch (error) { if (!disposed && epoch === currentEpoch && !abort.signal.aborted) say(mapAssistantError(error).message, 'error'); }
+		} catch (error) { if (!disposed && epoch === currentEpoch && !abort.signal.aborted) say(isCallableRateLimitError(error) ? 'O serviço continua no limite temporário. Aguarde antes de preparar este pedido novamente.' : mapAssistantError(error).message, 'error'); }
 		finally { receivedConfirmations.delete(messageId); receivedApplicationConfirmations.delete(messageId); if (epoch === currentEpoch && !disposed) { state.busy = false; state.progress = null; publish(); } if (controller === abort) controller = null; }
 	};
 	return {

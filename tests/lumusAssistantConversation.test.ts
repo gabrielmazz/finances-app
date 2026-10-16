@@ -6,8 +6,128 @@ import { createAssistantConversation } from '@/services/lumusAssistant/assistant
 import { canAssistantExecuteDirectly, createAssistantAuthorizationSession, validateAssistantExecutionAuthorization } from '@/services/lumusAssistant/assistantAuthorization';
 import { buildAssistantDraft } from '@/utils/lumusAssistant';
 import type { FinanceCommandService, AssistantDraftAction } from '@/types/lumusAssistant';
+import { AssistantOperationCancelled, withCallableRateLimitRetry } from '@/services/lumusAssistant/assistantCallableRetry';
+
+const temporaryQuota = { code: 'functions/resource-exhausted', details: { reason: 'rate-limit', retryAfterMs: 1000 } };
+
+function quotaConversation() {
+	let waiting!: () => void;
+	const enteredWait = new Promise<void>(resolve => { waiting = resolve; });
+	const commits: string[] = [];
+	const request = jest.fn(async (draft: AssistantDraftAction) => {
+		if (draft.payload.name === 'Mercado') throw temporaryQuota;
+		commits.push(draft.clientActionId);
+		return { success: true, message: 'Despesa registrada.' };
+	});
+	const finance: FinanceCommandService = {
+		loadCatalog: async () => ({}),
+		prepareActions: async (_uid, items) => ({ actions: items.map(item => buildAssistantDraft(item)), catalog: {} }),
+		updateDraft: async (_uid, draft) => draft,
+		retryNotification: async () => ({ success: true, message: '' }),
+		execute: async (uid, draft, _catalog, grant, options) => {
+			try {
+				return await withCallableRateLimitRetry(() => request(draft), {
+					...options, canContinue: () => validateAssistantExecutionAuthorization(uid, draft, grant),
+					onRateLimit: () => { options?.onRateLimit?.(); waiting(); },
+				});
+			} catch (error) {
+				if (error instanceof AssistantOperationCancelled) return { success: false, message: 'Cancelada', errorCode: 'cancelled' };
+				throw error;
+			}
+		},
+	};
+	const { conversation } = harness([proposal, { ...proposal, payload: { ...proposal.payload, name: 'Internet' } }], { finance });
+	return { conversation, enteredWait, request, commits };
+}
+
+test.each(['cancel', 'clear', 'dispose'] as const)('%s interrompe a espera por cota e não deixa escrita atrasada', async operation => {
+	jest.useFakeTimers();
+	try {
+		const { conversation, enteredWait, request, commits } = quotaConversation();
+		await conversation.send('Registre duas despesas');
+		const running = conversation.send('confirmo');
+		await enteredWait;
+		expect(conversation.snapshot().messages.filter(item => 'text' in item && item.text.includes('limite temporário'))).toHaveLength(1);
+		if (operation === 'cancel') await conversation.send('cancele');
+		else conversation[operation]();
+		await running;
+		await jest.advanceTimersByTimeAsync(5000);
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(commits).toHaveLength(0);
+		if (operation === 'cancel') expect(conversation.snapshot().drafts.map(item => item.status)).toEqual(['cancelled', 'cancelled']);
+		if (operation === 'clear') expect(conversation.snapshot().drafts).toHaveLength(0);
+		conversation.dispose();
+	} finally { jest.clearAllTimers(); jest.useRealTimers(); }
+});
+
+test('cancelar por nome durante a espera impede esse reenvio e conserva a outra despesa autorizada', async () => {
+	jest.useFakeTimers();
+	try {
+		const { conversation, enteredWait, request, commits } = quotaConversation();
+		await conversation.send('Registre duas despesas');
+		const running = conversation.send('confirmo');
+		await enteredWait;
+		await conversation.send('cancele a despesa Mercado');
+		await running;
+		await jest.advanceTimersByTimeAsync(5000);
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(conversation.snapshot().drafts.map(item => item.status)).toEqual(['cancelled', 'succeeded']);
+		expect(commits).toEqual([conversation.snapshot().drafts[1]!.clientActionId]);
+		conversation.dispose();
+	} finally { jest.clearAllTimers(); jest.useRealTimers(); }
+});
+
+test('cancelar na prévia interrompe a espera sem adicionar propostas atrasadas', async () => {
+	jest.useFakeTimers();
+	try {
+		let waiting!: () => void;
+		const enteredWait = new Promise<void>(resolve => { waiting = resolve; });
+		const preview = jest.fn(async () => { throw temporaryQuota; });
+		const finance: FinanceCommandService = {
+			loadCatalog: async () => ({}), updateDraft: async (_uid, draft) => draft,
+			execute: jest.fn(), retryNotification: async () => ({ success: true, message: '' }),
+			prepareActions: async (_uid, items, _catalog, options) => {
+				await withCallableRateLimitRetry(preview, { ...options, canContinue: () => true, onRateLimit: waiting });
+				return { actions: items.map(item => buildAssistantDraft(item)), catalog: {} };
+			},
+		};
+		const { conversation } = harness([proposal], { finance });
+		const running = conversation.send('Registre a despesa Mercado');
+		await enteredWait;
+		await conversation.send('cancele');
+		await running;
+		await jest.advanceTimersByTimeAsync(5000);
+		expect(preview).toHaveBeenCalledTimes(1);
+		expect(finance.execute).not.toHaveBeenCalled();
+		expect(conversation.snapshot().drafts).toHaveLength(0);
+		conversation.dispose();
+	} finally { jest.clearAllTimers(); jest.useRealTimers(); }
+});
 
 const proposal = { kind: 'create_expense' as const, payload: { name: 'Mercado', valueInCents: 8290, date: '2026-10-01', bankRef: 'nubank', categoryRef: 'food' } };
+
+test.each(['cancele', 'cancele a despesa Mercado'])('uma correção já enviada não reabre pedido após "%s"', async cancellation => {
+	let entered!: () => void; let release!: () => void;
+	const inFlight = new Promise<void>(resolve => { entered = resolve; });
+	const response = new Promise<void>(resolve => { release = resolve; });
+	const execute = jest.fn(async (_uid: string, _draft: AssistantDraftAction) => ({ success: true, message: 'Salva' }));
+	const finance: FinanceCommandService = {
+		loadCatalog: async () => ({}), execute, retryNotification: async () => ({ success: true, message: '' }),
+		prepareActions: async (_uid, items) => ({ actions: items.map(item => buildAssistantDraft(item)), catalog: {} }),
+		updateDraft: async (_uid, draft, patch) => { entered(); await response; return buildAssistantDraft({ ...draft, payload: { ...draft.payload, ...patch } }); },
+	};
+	const { conversation } = harness([proposal], { finance, interpret: async (_text, state) => ({ text: '', actions: state.drafts.length ? [] : [proposal, { ...proposal, payload: { ...proposal.payload, name: 'Internet' } }], reportRequests: [], toolCallCount: 0,
+		draftUpdates: state.drafts.length ? [{ actionId: state.drafts[0]!.clientActionId, patch: { valueInCents: 9000 } }] : [] }) });
+	await conversation.send('Registre duas despesas');
+	const correcting = conversation.send('corrija a primeira para noventa reais');
+	await inFlight;
+	await conversation.send(cancellation);
+	release(); await correcting;
+	expect(conversation.snapshot().drafts[0]?.status).toBe('cancelled');
+	await conversation.send('sim');
+	expect(execute.mock.calls.some(([, draft]) => draft.payload.name === 'Mercado')).toBe(false);
+	conversation.dispose();
+});
 
 test('autorização direta distingue categoria, movimento e recorrência do pedido original', () => {
 	expect(canAssistantExecuteDirectly('Registre R$ 82,90 de mercado hoje no Nubank, categoria alimentação', buildAssistantDraft({kind:'create_category',payload:{categoryName:'Mercado',usageType:'expense'}}))).toBe(false);

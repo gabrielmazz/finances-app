@@ -64,6 +64,7 @@ import { financeCommandService } from '@/services/lumusAssistant/financeCommandS
 import { createAssistantAuthorizationSession } from '@/services/lumusAssistant/assistantAuthorization';
 import { completeFinancialRecurringFirebase, correctFinancialLedgerMovementFirebase, getFinancialLedgerContextFirebase, manageFinancialMetadataFirebase, manageFinancialLedgerAccountFirebase, parseFinancialAccount, postLedgerMovementFirebase, reconcileFinancialLedgerAccountFirebase, reverseFinancialLedgerTransactionFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
 import { runBankBalanceAdjustmentFirebase } from '@/functions/BankBalanceAdjustmentFirebase';
+import { auth } from '@/FirebaseConfig';
 import { getTagReferenceSummary } from '@/functions/TagFirebase';
 import type { AssistantActionKind, AssistantDraftAction } from '@/types/lumusAssistant';
 import type { AssistantResolvedCatalog } from '@/types/lumusAssistant';
@@ -449,4 +450,72 @@ describe('Migrated domain dispatch and authorization', () => {
 		await expect(confirmDraft(draft, catalog)).resolves.toMatchObject({ success: true });
 		expect(manageFinancialLedgerAccountFirebase).toHaveBeenCalledWith(expect.objectContaining({ action: 'update', initialValueInCents: 800 }));
 	});
+});
+
+describe('Callable quota recovery in the financial executor', () => {
+ const error = {code:'functions/resource-exhausted',details:{reason:'rate-limit',retryAfterMs:1000}};
+ beforeEach(() => {
+  jest.useFakeTimers();mockDocuments.clear();mockWrites.length=0;mockDenyMissingAssistantRead=false;
+  jest.mocked(getFinancialLedgerContextFirebase).mockResolvedValue(null);
+  jest.mocked(executeLegacyFinancialMovementFirebase).mockReset();
+  jest.mocked(runBankBalanceAdjustmentFirebase).mockReset();
+ });
+ afterEach(() => { jest.clearAllTimers();jest.useRealTimers();(auth as any).currentUser={uid:'test-user'}; });
+ const withdrawal = async () => {
+  const catalog=domainFixture();
+  const draft=(await prepareAssistantActions('test-user',[{kind:'create_cash_withdrawal',payload:{bankRef:'b1',valueInCents:700,date:'2026-10-02'}}],catalog)).actions[0]!;
+  const session=createAssistantAuthorizationSession('test-user');session.recordUserMessage('confirmation','confirmo');
+  return {catalog,draft,session,grant:session.authorize(draft,'confirmation','confirmation')!};
+ };
+ it('reuses the immutable callable identity after a rejected attempt',async()=>{
+  const {catalog,draft,grant}=await withdrawal();
+  const call=jest.mocked(executeLegacyFinancialMovementFirebase);
+  call.mockRejectedValueOnce(error).mockResolvedValue({recordId:'saved',idempotent:false});
+  const result=financeCommandService.execute('test-user',draft,catalog,grant);
+  await jest.advanceTimersByTimeAsync(1000);
+  await expect(result).resolves.toMatchObject({success:true});
+  expect(call).toHaveBeenCalledTimes(2);
+  expect(call.mock.calls[0]![0]).toEqual(call.mock.calls[1]![0]);
+  expect(call.mock.calls[1]![0].clientActionId).toBe(draft.clientActionId);
+ });
+ it.each(['uid','authorization'] as const)('does not resend when %s changes during a quota wait',async reason=>{
+  const {catalog,draft,grant,session}=await withdrawal();
+  const call=jest.mocked(executeLegacyFinancialMovementFirebase).mockRejectedValue(error);
+  const result=financeCommandService.execute('test-user',draft,catalog,grant);
+  await jest.advanceTimersByTimeAsync(1);
+  expect(call).toHaveBeenCalledTimes(1);
+  if(reason==='uid')(auth as any).currentUser={uid:'other-user'};else session.dispose();
+  await jest.advanceTimersByTimeAsync(1000);
+  await expect(result).resolves.toMatchObject({success:false,errorCode:'cancelled'});
+  expect(call).toHaveBeenCalledTimes(1);
+ });
+ it('keeps all 211 adjustment drafts when previews need to wait, with at most eight requests in flight',async()=>{
+  const banks=Array.from({length:211},(_,index)=>({handle:`b${index}`,realId:`bank-${index}`,label:`Bank ${index}`,collection:'banks',data:{personId:'test-user',isActive:true}}));
+  const firstAttempts=new Set<string>();let active=0;let peak=0;
+  jest.mocked(runBankBalanceAdjustmentFirebase).mockImplementation(async input=>{
+   active++;peak=Math.max(peak,active);
+   try{await Promise.resolve();if(!firstAttempts.has(input.bankId)){firstAttempts.add(input.bankId);throw {...error,details:{...error.details,retryAfterMs:10}};}return {previousBalanceInCents:1000};}
+   finally{active--;}
+  });
+  const result=financeCommandService.prepareActions('test-user',banks.map(bank=>({kind:'upsert_balance_adjustment',payload:{bankRef:bank.handle,date:'2026-10-02',targetBalanceInCents:1200}})),{banks});
+  await jest.runAllTimersAsync();
+  const prepared=await result;
+  expect(prepared.actions).toHaveLength(211);
+  expect(prepared.actions.every(item=>item.status==='ready'&&item.payload.expectedPreviousBalanceInCents===1000)).toBe(true);
+  expect(new Set(prepared.actions.map(item=>item.clientActionId)).size).toBe(211);
+  expect(peak).toBeLessThanOrEqual(8);
+  expect(jest.mocked(runBankBalanceAdjustmentFirebase).mock.calls.every(([input])=>input.action==='preview')).toBe(true);
+ });
+ it.each(['abort','uid'] as const)('discards an already sent preview when %s changes before the response',async reason=>{
+  let entered!:()=>void;let release!:(value:any)=>void;
+  const inFlight=new Promise<void>(resolve=>{entered=resolve;});
+  jest.mocked(runBankBalanceAdjustmentFirebase).mockImplementation(()=>new Promise(resolve=>{release=resolve;entered();}));
+  const controller=new AbortController();
+  const preparing=financeCommandService.prepareActions('test-user',[{kind:'upsert_balance_adjustment',payload:{bankRef:'b1',date:'2026-10-02',targetBalanceInCents:1200}}],domainFixture(),{signal:controller.signal});
+  const rejected=expect(preparing).rejects.toThrow('Pedido cancelado');
+  await inFlight;
+  if(reason==='abort')controller.abort();else(auth as any).currentUser={uid:'other-user'};
+  release({previousBalanceInCents:1000});await rejected;
+  expect(jest.mocked(runBankBalanceAdjustmentFirebase)).toHaveBeenCalledTimes(1);
+ });
 });
