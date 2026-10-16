@@ -377,20 +377,27 @@ export type AssistantExecuteResult = {
 /** Token emitido somente para um evento do usuário na sessão local ativa. */
 export type AssistantExecutionAuthorization = { readonly token: string };
 
+export type AssistantOperationOptions = {
+	signal?: AbortSignal;
+	onRateLimit?(): void;
+};
+
 export interface FinanceCommandService {
 	loadCatalog(personId: string): Promise<AssistantResolvedCatalog>;
 	prepareActions(
 		personId: string,
 		proposals: AssistantModelActionProposal[],
 		catalog?: AssistantResolvedCatalog,
+		options?: AssistantOperationOptions,
 	): Promise<AssistantPrepareActionsResult>;
 	updateDraft(
 		personId: string,
 		draft: AssistantDraftAction,
 		patch: Record<string, unknown>,
 		catalog: AssistantResolvedCatalog,
+		options?: AssistantOperationOptions,
 	): Promise<AssistantDraftAction>;
-	execute(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog, authorization: AssistantExecutionAuthorization): Promise<AssistantExecuteResult>;
+	execute(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog, authorization: AssistantExecutionAuthorization, options?: AssistantOperationOptions): Promise<AssistantExecuteResult>;
 	retryNotification(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantExecuteResult>;
 }
 

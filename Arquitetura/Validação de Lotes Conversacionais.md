@@ -8,7 +8,25 @@ versao: 1.0.0
 
 # Validação de Lotes Conversacionais
 
-> Revalidação de 16/10/2026: a evidência abaixo é histórica. A inclusão desta suíte no gate de [[Processo de Release]] revelou sete falhas: duas fixtures de recorrência incompatíveis com timestamps exigidos pelas Rules e cinco famílias conflitantes com a cota atual de 120 chamadas/minuto por UID/operação. As fixtures de recorrência foram corrigidas; a incompatibilidade de lotes/cota permanece bloqueando a integração. Detalhes e resultados em [[Auditoria do Processo de Release]]. Não apresentar a rodada de 03/10 como aprovação do release atual.
+> Revalidação de 16/10/2026: as treze famílias de 211 itens e os dois cenários de recuperação/cancelamento passaram em 714,05 s; somente o benchmark opcional ficou ignorado. As duas fixtures foram alinhadas aos timestamps das Rules e as cinco famílias dependentes de callable agora aguardam a cota real de 120/minuto, preservando IDs, autorização, saldos e recibos. O limite e os contadores dos lotes não foram alterados. Detalhes da integração completa em [[Auditoria do Processo de Release]]. As métricas de 03/10 abaixo permanecem históricas.
+
+## Revalidação com cota vigente — 16/10/2026
+
+Recusa identificada pelo servidor (`reason=rate-limit`, `retryAfterMs`) aguarda a próxima janela, com até três novas tentativas por chamada e cancelamento imediato do timer. O teste de cada família tem orçamento de 600 segundos para comportar as janelas reais. Não há relógio simulado, limpeza de contador ou redução dos 211 itens nos lotes. O guard possui teste separado com UID próprio. Benchmarks opcionais de vinte amostras não foram repetidos nesta correção.
+
+| Fase, 211 itens | Lote (s) | Chamadas SDK, incluindo recusas/reenvios |
+|---|---:|---:|
+| Ajustes: preparar e salvar | 183,32 | 432, incluindo 211 previews |
+| Ajustes: estornar | 119,02 | 213 |
+| Transferências | 61,50 | 212 |
+| Caixa: sacar | 58,84 | 212 |
+| Investimentos: aportar | 57,27 | 212 |
+| Investimentos: resgatar | 116,43 | 213 |
+| Razão: corrigir despesa | 49,89 | 212 |
+
+Uma amostra local por fase, sem promessa de latência em produção. Os asserts conferem 211 efeitos/recibos únicos, saldo persistido, uma confirmação e execução serial; previews de ajuste conservam concorrência máxima oito. Recusas não executam o handler financeiro. Testes unitários adicionais verificam troca de UID, grant revogado, cancelar/limpar/encerrar durante a espera, resposta tardia de prévia/correção, limite de tentativas e preservação de commit confirmado. Evidência em `.expo/release-audit-2026-10-16/quota-fixed-integration.log` e `quota-fixed-check.log`.
+
+## Evidência histórica — 03/10/2026
 
 Evidência local de 2026-10-03 em `tests/lumusAssistantBatchEmulator.test.ts`. A rodada final passou quinze testes: treze famílias com 211 alvos cada e dois cenários de recuperação. O benchmark de vinte amostras foi executado separadamente. Auth, Firestore e Functions usam exclusivamente `demo-lumus-financas` nos emuladores locais, com usuários/fixtures únicos e limpeza restrita aos documentos de cada fixture. A Suite compartilhada não foi resetada; nenhum dado financeiro de produção, deploy ou configuração externa foi alterado.
 
@@ -40,7 +58,7 @@ Um lote compartilha a coordenação, mas mantém a atomicidade do seu domínio p
 
 Uma seleção de 211 despesas injeta apenas dois defeitos de transporte: falha comprovada antes de um commit e perda da resposta depois de outro commit real. A primeira rodada persiste 210 alterações/recibos, informa 209 sucessos e duas falhas. “Tente novamente” não grava; a confirmação seguinte visita somente os dois IDs falhos. O executor confere o recibo do commit cuja resposta se perdeu, grava apenas o item realmente ausente e termina com 211 alterações e 211 recibos únicos, saldo 99.957.800 e duas invalidações. Sucessos anteriores não são repetidos.
 
-Outra seleção pausa a chamada do item 51, aceita “cancele” e deixa a operação em andamento concluir pelo executor real. Persistem 51 alterações/recibos; os 160 itens não iniciados conservam o valor anterior e ficam cancelados. Saldo confirmado 99.973.800. Pedir retry não reabre os cancelados nem apaga os commits. A pausa/falha é simulada na fronteira de transporte; os efeitos e a reconciliação são reais.
+Outra seleção retém a resposta confirmada do item 51 depois do commit real e aceita “cancele” antes de entregar essa resposta ao controlador. Persistem 51 alterações/recibos; os 160 itens não iniciados conservam o valor anterior e ficam cancelados. Saldo confirmado 99.973.800. Pedir retry não reabre os cancelados nem apaga os commits. A pausa/falha é simulada na fronteira de transporte; os efeitos e a reconciliação são reais. O wrapper instrumentado também encaminha o sinal de cancelamento ao executor.
 
 O lote também revelou uma falha real de categoria: depois dos aportes, a busca geral podia escolher “Investimento” restrita a despesas para um resgate. O backend recusava corretamente. O helper agora exige uso compatível (`gain`, `both` ou legado sem `usageType`); os 211 resgates seguintes passaram com a categoria de ganho correta.
 

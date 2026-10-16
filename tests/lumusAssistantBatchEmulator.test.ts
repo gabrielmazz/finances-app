@@ -142,11 +142,11 @@ function measuredConversation(kind: AssistantActionKind, payload: Record<string,
 	const attempts: string[] = [];
 	let modelInterpretations = 0;
 	let invalidations = 0;
-	const finance: FinanceCommandService = { ...financeCommandService, execute: async (actor, draft, catalog, grant) => {
+	const finance: FinanceCommandService = { ...financeCommandService, execute: async (actor, draft, catalog, grant, options) => {
 		expect(validateAssistantExecutionAuthorization(actor, draft, grant)).toBe(true);
 		attempts.push(draft.clientActionId);
 		const started = performance.now();
-		try { return await (executionBoundary ?? financeCommandService.execute)(actor, draft, catalog, grant); }
+		try { return await (executionBoundary ?? financeCommandService.execute)(actor, draft, catalog, grant, options); }
 		finally { durations.push(performance.now() - started); }
 	} };
 	const conversation = createAssistantConversation({ uid, finance, onChange: () => {}, onCommit: async () => { invalidations++; }, report: async () => '', interpret: async (_text, state): Promise<AssistantAiConversationResponse> => {
@@ -414,17 +414,18 @@ suite('financial batches with real local demo persistence', () => {
 			return;
 		}
 		throw new Error('Family implementation pending: ' + family);
-	}, 180000);
+	// Real 120/min quotas can span several windows across preview, save and reversal.
+	}, 600000);
 
 	(selected.length ? it : it.skip)('retries only two failed identities after a pre-commit failure and a lost real commit response', async () => {
 		await seedFamily('expense');
 		const injected = new Set<string>();
-		const harness = measuredConversation('update_expense', { valueInCents: 200 }, prefix, undefined, async (actor, draft, catalog, grant) => {
+		const harness = measuredConversation('update_expense', { valueInCents: 200 }, prefix, undefined, async (actor, draft, catalog, grant, options) => {
 			const target = catalog.expenses?.find(item => item.handle === draft.payload.recordRef)?.realId;
 			if (target?.endsWith('-005') && !injected.has(draft.clientActionId)) {
 				injected.add(draft.clientActionId); return { success: false, message: 'Synthetic transport failed before commit.' };
 			}
-			const result = await financeCommandService.execute(actor, draft, catalog, grant);
+			const result = await financeCommandService.execute(actor, draft, catalog, grant, options);
 			if (target?.endsWith('-200') && !injected.has(draft.clientActionId) && result.success) {
 				injected.add(draft.clientActionId); throw new Error('Synthetic response lost after real commit.');
 			}
@@ -459,9 +460,11 @@ suite('financial batches with real local demo persistence', () => {
 		const inFlight = new Promise<void>(resolve => { entered = resolve; });
 		const pause = new Promise<void>(resolve => { release = resolve; });
 		let started = 0;
-		const harness = measuredConversation('update_expense', { valueInCents: 200 }, prefix, undefined, async (actor, draft, catalog, grant) => {
+		const harness = measuredConversation('update_expense', { valueInCents: 200 }, prefix, undefined, async (actor, draft, catalog, grant, options) => {
+			const result = await financeCommandService.execute(actor, draft, catalog, grant, options);
+			// Hold a confirmed response: cancellation must preserve this real commit.
 			if (++started === 51) { entered(); await pause; }
-			return financeCommandService.execute(actor, draft, catalog, grant);
+			return result;
 		});
 		await harness.conversation.send('Altere todas as despesas do conjunto sintético para R$ 2,00');
 		const committing = harness.conversation.send('confirmo');

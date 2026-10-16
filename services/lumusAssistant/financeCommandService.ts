@@ -1,6 +1,7 @@
 import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
 import { auth, db } from '@/FirebaseConfig';
 import { validateAssistantExecutionAuthorization } from '@/services/lumusAssistant/assistantAuthorization';
+import { AssistantOperationCancelled, isCallableRateLimitError, withCallableRateLimitRetry, type CallableRetryOptions } from './assistantCallableRetry';
 import {
 	completeFinancialRecurringFirebase, manageFinancialMetadataFirebase, correctFinancialLedgerMovementFirebase, getFinancialLedgerContextFirebase, manageFinancialLedgerAccountFirebase, parseFinancialAccount,
 	postLedgerMovementFirebase, reconcileFinancialLedgerAccountFirebase, reverseFinancialLedgerTransactionFirebase,
@@ -62,6 +63,7 @@ type ExecuteContext = {
 	draft: AssistantDraftAction;
 	payload: Record<string, unknown>;
 	catalog: AssistantResolvedCatalog;
+	callOptions?: CallableRetryOptions;
 };
 
 class FinanceCommandError extends Error {
@@ -470,13 +472,13 @@ const upsertMonthlyBalance = async (context: ExecuteContext): Promise<AssistantE
 
 const createTransfer = async (context: ExecuteContext): Promise<AssistantExecuteResult> => {
 	const source = resolveItem(context, 'sourceBankRef'); const target = resolveItem(context, 'targetBankRef');
-	await executeLegacyFinancialMovementFirebase({ kind: 'create_transfer', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), sourceBankId: source.realId!, targetBankId: target.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description') });
+	await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: 'create_transfer', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), sourceBankId: source.realId!, targetBankId: target.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description') }), context.callOptions);
 	return { success: true, message: 'Transferência registrada com segurança.' };
 };
 
 const createCashWithdrawal = async (context: ExecuteContext): Promise<AssistantExecuteResult> => {
 	const bank = resolveItem(context, 'bankRef');
-	await executeLegacyFinancialMovementFirebase({ kind: 'create_cash_withdrawal', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), bankId: bank.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description') });
+	await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: 'create_cash_withdrawal', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), bankId: bank.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description') }), context.callOptions);
 	return { success: true, message: 'Saque em dinheiro registrado.' };
 };
 
@@ -954,7 +956,7 @@ const undoRecurringCycle = async (
 
 const createInvestment = async (context: ExecuteContext): Promise<AssistantExecuteResult> => {
 	const bank = resolveItem(context, 'bankRef'); const payload = context.payload;
-	await executeLegacyFinancialMovementFirebase({ kind: 'create_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), bankId: bank.realId!, name: getString(payload, 'name'), initialValueInCents: getInteger(payload, 'initialValueInCents'), ...(typeof payload.currentValueInCents === 'number' ? { currentValueInCents: payload.currentValueInCents } : {}), cdiPercentageInBasisPoints: getInteger(payload, 'cdiPercentageInBasisPoints'), assetType: getInvestmentAssetType(payload.assetType), valuationMethod: getInvestmentValuationMethod(payload.valuationMethod, getInvestmentAssetType(payload.assetType)), redemptionTerm: getString(payload, 'redemptionTerm'), date: parseActionDate(payload), description: getOptionalString(payload, 'description') });
+	await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: 'create_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), bankId: bank.realId!, name: getString(payload, 'name'), initialValueInCents: getInteger(payload, 'initialValueInCents'), ...(typeof payload.currentValueInCents === 'number' ? { currentValueInCents: payload.currentValueInCents } : {}), cdiPercentageInBasisPoints: getInteger(payload, 'cdiPercentageInBasisPoints'), assetType: getInvestmentAssetType(payload.assetType), valuationMethod: getInvestmentValuationMethod(payload.valuationMethod, getInvestmentAssetType(payload.assetType)), redemptionTerm: getString(payload, 'redemptionTerm'), date: parseActionDate(payload), description: getOptionalString(payload, 'description') }), context.callOptions);
 	return { success: true, message: 'Investimento registrado.', recordHandle: `action:${context.draft.clientActionId}` };
 };
 
@@ -966,7 +968,7 @@ const updateInvestment = async (context: ExecuteContext): Promise<AssistantExecu
 	const { recordRef: _recordRef, bankRef: _bankRef, overdraftReason: _overdraftReason, ...fields } = context.payload;
 	if (typeof context.payload.bankRef === 'string') fields.bankId = resolveItem(context, 'bankRef').realId;
 	if (fields.assetType !== undefined || fields.valuationMethod !== undefined) fields.valuationMethod = getInvestmentValuationMethod(fields.valuationMethod, getInvestmentAssetType(fields.assetType ?? owned.data.assetType));
-	await executeLegacyFinancialMovementFirebase({ kind: 'update_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), investmentId: owned.item.realId!, expectedFingerprint: createAssistantRecordFingerprint(owned.data), date: new Date(context.draft.preparedAt), fields });
+	await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: 'update_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), investmentId: owned.item.realId!, expectedFingerprint: createAssistantRecordFingerprint(owned.data), date: new Date(context.draft.preparedAt), fields }), context.callOptions);
 	return { success: true, message: 'Investimento atualizado.' };
 };
 
@@ -1020,7 +1022,7 @@ const moveInvestment = async (context: ExecuteContext, type: 'deposit' | 'redemp
 	const investment = await readOwnedItem(context, 'investmentRef');
 	if (investment.item.collection !== 'financeInvestments') return fail('O investimento selecionado é inválido.', 'invalid-reference');
 	const tag = findOrCreateInvestmentTagReference(context, type === 'deposit' ? 'expense' : 'gain');
-	await executeLegacyFinancialMovementFirebase({ kind: type === 'deposit' ? 'deposit_investment' : 'redeem_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), investmentId: investment.item.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description'), expectedFingerprint: createAssistantRecordFingerprint(investment.data), ...(!tag.shouldCreate ? { categoryId: tag.reference.id } : {}) });
+	await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: type === 'deposit' ? 'deposit_investment' : 'redeem_investment', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), investmentId: investment.item.realId!, valueInCents: getInteger(context.payload, 'valueInCents'), date: parseActionDate(context.payload), description: getOptionalString(context.payload, 'description'), expectedFingerprint: createAssistantRecordFingerprint(investment.data), ...(!tag.shouldCreate ? { categoryId: tag.reference.id } : {}) }), context.callOptions);
 	return { success: true, message: type === 'deposit' ? 'Aporte registrado.' : 'Resgate registrado.' };
 };
 
@@ -1084,7 +1086,7 @@ const undoInvestmentMovement = async (
 	if (type !== 'sync') {
 		const currentInvestment = (await getDoc(investmentRef)).data();
 		if (!currentInvestment || currentInvestment.personId !== context.personId) return fail('O investimento não está disponível para esta conta.', 'permission-denied');
-		await executeLegacyFinancialMovementFirebase({ kind: type === 'redemption' ? 'undo_investment_redemption' : 'undo_investment_deposit', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), movementId: movement.item.realId!, expectedMovementFingerprint: createAssistantRecordFingerprint(movement.data), expectedInvestmentFingerprint: createAssistantRecordFingerprint(currentInvestment), date: new Date(context.draft.preparedAt) });
+		await withCallableRateLimitRetry(() => executeLegacyFinancialMovementFirebase({ kind: type === 'redemption' ? 'undo_investment_redemption' : 'undo_investment_deposit', expectedActorId: context.personId, clientActionId: context.draft.clientActionId, assistantRequestFingerprint: legacyReceiptFingerprint(context), movementId: movement.item.realId!, expectedMovementFingerprint: createAssistantRecordFingerprint(movement.data), expectedInvestmentFingerprint: createAssistantRecordFingerprint(currentInvestment), date: new Date(context.draft.preparedAt) }), context.callOptions);
 		return { success: true, message: type === 'redemption' ? 'Resgate desfeito.' : 'Aporte desfeito.' };
 	}
 	await runLegacyAssistantTransaction(context, async transaction => {
@@ -1252,16 +1254,17 @@ const deleteCategory = async (context: ExecuteContext): Promise<AssistantExecute
 	const references = await getTagReferenceSummary(owned.item.realId!);
 	if (!references.success || !references.data) return fail('Não foi possível conferir os vínculos da categoria.', 'references-unavailable');
 	if (Object.values(references.data).some(value => typeof value === 'number' && value > 0)) return fail('Esta categoria está em uso. Reclassifique os registros vinculados antes de excluir.', 'linked-record');
-	await manageFinancialMetadataFirebase({ expectedActorId: context.personId, domain: 'category', action: 'delete', recordId: owned.item.realId!, fields: {}, clientActionId: context.draft.clientActionId, expectedFingerprint: context.draft.originalSnapshot?.fingerprint, assistantRequestFingerprint: legacyReceiptFingerprint(context) });
+	await withCallableRateLimitRetry(() => manageFinancialMetadataFirebase({ expectedActorId: context.personId, domain: 'category', action: 'delete', recordId: owned.item.realId!, fields: {}, clientActionId: context.draft.clientActionId, expectedFingerprint: context.draft.originalSnapshot?.fingerprint, assistantRequestFingerprint: legacyReceiptFingerprint(context) }), context.callOptions);
 	return { success: true, message: 'Categoria excluída conforme as regras atuais do Lumus.' };
 };
 
-const prepareBalanceAdjustment = async (personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog) => {
+const prepareBalanceAdjustment = async (personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog, options?: CallableRetryOptions) => {
 	if (draft.kind !== 'upsert_balance_adjustment' || draft.status !== 'ready') return draft;
 	const context = { personId, draft, payload: draft.payload, catalog };
 	const bank = resolveItem(context, 'bankRef');
 	const adjustment = typeof draft.payload.recordRef === 'string' ? await readOwnedItem(context, 'recordRef') : null;
-	const preview = await runBankBalanceAdjustmentFirebase({ action: 'preview', expectedActorId: personId, bankId: bank.realId!, date: getString(draft.payload, 'date'), adjustmentId: adjustment?.item.realId ?? undefined });
+	const preview = await withCallableRateLimitRetry(() => runBankBalanceAdjustmentFirebase({ action: 'preview', expectedActorId: personId, bankId: bank.realId!, date: getString(draft.payload, 'date'), adjustmentId: adjustment?.item.realId ?? undefined }), options);
+	if (options && (options.signal?.aborted || !options.canContinue())) throw new AssistantOperationCancelled();
 	return updatePreparedAssistantDraft(draft, { expectedPreviousBalanceInCents: preview.previousBalanceInCents }, catalog);
 };
 
@@ -1270,14 +1273,15 @@ const upsertBalanceAdjustment = async (context: ExecuteContext): Promise<Assista
 	const adjustment = typeof context.payload.recordRef === 'string' ? await readOwnedItem(context, 'recordRef', { skipSnapshotCheck: true }) : null;
 	if (adjustment && adjustment.item.collection !== 'bankBalanceAdjustments') return fail('O ajuste selecionado é inválido.', 'invalid-reference');
 	if (typeof context.payload.expectedPreviousBalanceInCents !== 'number') return fail('Atualize a prévia do saldo antes de confirmar este ajuste.', 'stale');
-	await runBankBalanceAdjustmentFirebase({ action: 'save', expectedActorId: context.personId, expectedFingerprint: adjustment ? context.draft.originalSnapshot?.fingerprint : undefined, bankId: bank.realId!, date: getString(context.payload, 'date'), adjustmentId: adjustment?.item.realId ?? undefined, clientActionId: context.draft.clientActionId, targetBalanceInCents: getInteger(context.payload, 'targetBalanceInCents'), expectedPreviousBalanceInCents: getInteger(context.payload, 'expectedPreviousBalanceInCents'), description: getOptionalString(context.payload, 'description') ?? undefined });
+	await withCallableRateLimitRetry(() => runBankBalanceAdjustmentFirebase({ action: 'save', expectedActorId: context.personId, expectedFingerprint: adjustment ? context.draft.originalSnapshot?.fingerprint : undefined, bankId: bank.realId!, date: getString(context.payload, 'date'), adjustmentId: adjustment?.item.realId ?? undefined, clientActionId: context.draft.clientActionId, targetBalanceInCents: getInteger(context.payload, 'targetBalanceInCents'), expectedPreviousBalanceInCents: getInteger(context.payload, 'expectedPreviousBalanceInCents'), description: getOptionalString(context.payload, 'description') ?? undefined }), context.callOptions);
 	return { success: true, message: 'Ajuste de saldo registrado; o histórico foi preservado.', recordHandle: `action:${context.draft.clientActionId}` };
 };
 
 const revertBalanceAdjustment = async (context: ExecuteContext): Promise<AssistantExecuteResult> => {
 	const adjustment = await readOwnedItem(context, 'recordRef', { skipSnapshotCheck: true });
 	if (adjustment.item.collection !== 'bankBalanceAdjustments' || typeof adjustment.data.bankId !== 'string') return fail('O ajuste selecionado é inválido.', 'invalid-reference');
-	await runBankBalanceAdjustmentFirebase({ action: 'revert', expectedActorId: context.personId, expectedFingerprint: context.draft.originalSnapshot?.fingerprint, bankId: adjustment.data.bankId, adjustmentId: adjustment.item.realId!, clientActionId: context.draft.clientActionId });
+	const bankId = adjustment.data.bankId;
+	await withCallableRateLimitRetry(() => runBankBalanceAdjustmentFirebase({ action: 'revert', expectedActorId: context.personId, expectedFingerprint: context.draft.originalSnapshot?.fingerprint, bankId, adjustmentId: adjustment.item.realId!, clientActionId: context.draft.clientActionId }), context.callOptions);
 	return { success: true, message: 'Ajuste de saldo estornado; o histórico foi preservado.' };
 };
 
@@ -1333,8 +1337,8 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 			if (typeof payload.reminderTime === 'string') { const time = getReminderTime(payload); fields.reminderHour = time.hour; fields.reminderMinute = time.minute; }
 		}
 		const recordId = cdi ? context.personId + '_' + getString(payload, 'effectiveFrom').replace(/-/g, '') : owned?.item.realId ?? undefined;
-		const saved = await manageFinancialMetadataFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, domain: category ? 'category' : cdi ? 'cdi' : type === 'expense' ? 'mandatoryExpense' : 'mandatoryGain', action, clientActionId, fields, recordId,
-			expectedFingerprint: owned ? context.draft.originalSnapshot?.fingerprint : undefined });
+		const saved = await withCallableRateLimitRetry(() => manageFinancialMetadataFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, domain: category ? 'category' : cdi ? 'cdi' : type === 'expense' ? 'mandatoryExpense' : 'mandatoryGain', action, clientActionId, fields, recordId,
+			expectedFingerprint: owned ? context.draft.originalSnapshot?.fingerprint : undefined }), context.callOptions);
 		let notificationWarning: string | undefined;
 		if (!category && !cdi) {
 			try {
@@ -1350,9 +1354,9 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 		const type = kind.includes('expense') ? 'expense' : 'gain'; const undo = kind.startsWith('undo_');
 		const owned = await readOwnedItem(context, 'recordRef', { skipSnapshotCheck: true });
 		const date = undo ? new Date(context.draft.preparedAt) : parseActionDate(payload);
-		const saved = await completeFinancialRecurringFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, templateId: owned.item.realId!, recurringType: type, action: undo ? 'undo' : 'settle', effectiveAt: date, clientActionId,
+		const saved = await withCallableRateLimitRetry(() => completeFinancialRecurringFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, templateId: owned.item.realId!, recurringType: type, action: undo ? 'undo' : 'settle', effectiveAt: date, clientActionId,
 			accountId: undo ? undefined : ledgerAccount(context, ledger, 'bankRef').realId!, installmentsToAdvance: typeof payload.installmentsToAdvance === 'number' ? payload.installmentsToAdvance : undefined,
-			valueInCents: typeof payload.valueInCents === 'number' ? payload.valueInCents : undefined, overdraftReason: getOptionalString(payload, 'overdraftReason'), expectedFingerprint: context.draft.originalSnapshot?.fingerprint });
+			valueInCents: typeof payload.valueInCents === 'number' ? payload.valueInCents : undefined, overdraftReason: getOptionalString(payload, 'overdraftReason'), expectedFingerprint: context.draft.originalSnapshot?.fingerprint }), context.callOptions);
 		let notificationWarning: string | undefined;
 		try {
 			if (undo) notificationWarning = await scheduleRecurringNotification(type, context.personId, owned.item.realId!, owned.data);
@@ -1365,7 +1369,7 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 	if (kind === 'create_expense' || kind === 'create_gain') {
 		const account = ledgerAccount(context, ledger, 'bankRef');
 		const category = resolveItem(context, 'categoryRef');
-		await postLedgerMovementFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: account.realId!, direction: kind === 'create_expense' ? 'expense' : 'income', amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, categoryId: category.realId, note: [getString(payload, 'name'), getOptionalString(payload, 'explanation')].filter(Boolean).join('\n'), overdraftReason: getOptionalString(payload, 'overdraftReason') });
+		await withCallableRateLimitRetry(() => postLedgerMovementFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: account.realId!, direction: kind === 'create_expense' ? 'expense' : 'income', amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, categoryId: category.realId, note: [getString(payload, 'name'), getOptionalString(payload, 'explanation')].filter(Boolean).join('\n'), overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result(kind === 'create_expense' ? 'Despesa registrada no razão.' : 'Receita registrada no razão.');
 	}
 	if (kind === 'create_transfer' || kind === 'create_cash_withdrawal') {
@@ -1373,14 +1377,14 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 		const cash = (context.catalog.banks ?? []).filter(item => item.data?.kind === 'cash' && item.data.groupId === ledger.groupId && !item.data.archivedAt);
 		const target = kind === 'create_transfer' ? ledgerAccount(context, ledger, 'targetBankRef') : cash.length === 1 ? cash[0]! : fail('A conta Caixa do grupo não está disponível.', 'invalid-reference');
 		if (source.data?.kind !== 'bank' || (kind === 'create_transfer' && target.data?.kind !== 'bank') || source.realId === target.realId || !target.realId) return fail('Informe contas bancárias de origem e destino diferentes.', 'invalid-reference');
-		await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, fromAccountId: source.realId!, toAccountId: target.realId, amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') });
+		await withCallableRateLimitRetry(() => transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, fromAccountId: source.realId!, toAccountId: target.realId!, amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result(kind === 'create_transfer' ? 'Transferência registrada.' : 'Saque registrado no Caixa do grupo.');
 	}
 	if (kind === 'deposit_investment' || kind === 'redeem_investment') {
 		const investment = ledgerAccount(context, ledger, 'investmentRef');
 		const bank = typeof payload.bankRef === 'string' ? ledgerAccount(context, ledger, 'bankRef') : context.catalog.banks?.find(item => item.realId === investment.data?.bankAccountId);
 		if (!bank?.realId || bank.data?.kind !== 'bank' || bank.data.groupId !== ledger.groupId || investment.data?.kind !== 'investment') return fail('Informe em qual banco registrar este aporte ou resgate.', 'bank-required');
-		await transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, fromAccountId: kind === 'deposit_investment' ? bank.realId : investment.realId!, toAccountId: kind === 'deposit_investment' ? investment.realId! : bank.realId, amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, kind: kind === 'deposit_investment' ? 'investment_deposit' : 'investment_redemption', note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') });
+		await withCallableRateLimitRetry(() => transferFundsFinancialLedgerFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, fromAccountId: kind === 'deposit_investment' ? bank.realId! : investment.realId!, toAccountId: kind === 'deposit_investment' ? investment.realId! : bank.realId!, amountInCents: getInteger(payload, 'valueInCents'), effectiveAt: parseActionDate(payload), clientActionId, kind: kind === 'deposit_investment' ? 'investment_deposit' : 'investment_redemption', note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result(kind === 'deposit_investment' ? 'Aporte registrado.' : 'Resgate registrado.');
 	}
 	if (kind === 'update_expense' || kind === 'update_gain') {
@@ -1393,38 +1397,38 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 		if (!originalLeg?.accountId) return fail('O lançamento original não possui conta válida.', 'invalid-reference');
 		const originalName = typeof record.data.note === 'string' ? record.data.note.split('\n')[0] : direction === 'expense' ? 'Despesa' : 'Receita';
 		const accountId = typeof payload.bankRef === 'string' ? ledgerAccount(context, ledger, 'bankRef').realId! : originalLeg.accountId;
-		await correctFinancialLedgerMovementFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, originalTransactionId: record.item.realId!, accountId, direction,
+		await withCallableRateLimitRetry(() => correctFinancialLedgerMovementFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, originalTransactionId: record.item.realId!, accountId, direction,
 			amountInCents: typeof payload.valueInCents === 'number' ? payload.valueInCents : Math.abs(originalLeg.deltaInCents),
 			effectiveAt: typeof payload.date === 'string' ? parseActionDate(payload) : toDate(record.data.effectiveAt) ?? fail('A data original é inválida.', 'invalid-date'), clientActionId,
 			categoryId: typeof payload.categoryRef === 'string' ? resolveItem(context, 'categoryRef').realId : typeof record.data.categoryId === 'string' ? record.data.categoryId : null,
 			note: typeof payload.name === 'string' || typeof payload.explanation === 'string' ? [getOptionalString(payload, 'name') ?? originalName, getOptionalString(payload, 'explanation')].filter(Boolean).join('\n') : typeof record.data.note === 'string' ? record.data.note : null,
-			overdraftReason: getOptionalString(payload, 'overdraftReason') });
+			overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result('Lançamento corrigido por estorno e substituição; o histórico foi preservado.');
 	}
 	const reversibleKinds: Partial<Record<AssistantActionKind, string>> = { delete_expense: 'expense', delete_gain: 'income', undo_cash_withdrawal: 'transfer', undo_investment_deposit: 'investment_deposit', undo_investment_redemption: 'investment_redemption', undo_investment_sync: 'reconciliation_adjustment' };
 	if (reversibleKinds[kind]) {
 		const record = await readLedgerRecord(context, ledger, 'recordRef');
 		if (record.item.collection !== 'ledgerTransactions' || record.data.kind !== reversibleKinds[kind]) return fail('Este lançamento usa outra operação de correção.', 'invalid-reference');
-		await reverseFinancialLedgerTransactionFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, transactionId: record.item.realId!, clientActionId, effectiveAt: new Date(context.draft.preparedAt), note: 'Estorno solicitado pela conversa' });
+		await withCallableRateLimitRetry(() => reverseFinancialLedgerTransactionFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, transactionId: record.item.realId!, clientActionId, effectiveAt: new Date(context.draft.preparedAt), note: 'Estorno solicitado pela conversa' }), context.callOptions);
 		return result('Lançamento estornado; o histórico foi preservado.');
 	}
 	if (kind === 'upsert_monthly_balance' || kind === 'sync_investment') {
 		if (ledger.role !== 'admin') return fail('A reconciliação exige acesso de administrador do grupo.', 'permission-denied');
 		const account = ledgerAccount(context, ledger, kind === 'sync_investment' ? 'investmentRef' : 'bankRef');
-		await reconcileFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: account.realId!, countedBalanceInCents: getInteger(payload, kind === 'sync_investment' ? 'syncedValueInCents' : 'valueInCents'), effectiveAt: kind === 'sync_investment' ? parseActionDate(payload) : parseIsoDateAtLocalNoon(`${getString(payload, 'cycle')}-01`)!, clientActionId, note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') });
+		await withCallableRateLimitRetry(() => reconcileFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: account.realId!, countedBalanceInCents: getInteger(payload, kind === 'sync_investment' ? 'syncedValueInCents' : 'valueInCents'), effectiveAt: kind === 'sync_investment' ? parseActionDate(payload) : parseIsoDateAtLocalNoon(`${getString(payload, 'cycle')}-01`)!, clientActionId, note: getOptionalString(payload, 'description'), overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result('Saldo contado reconciliado no razão.');
 	}
 	if (kind === 'create_investment') {
 		if (ledger.role !== 'admin') return fail('Criar contas de investimento exige acesso de administrador do grupo.', 'permission-denied');
 		const bank = ledgerAccount(context, ledger, 'bankRef'); const initialValue = getInteger(payload, 'initialValueInCents');
 		if (bank.data?.kind !== 'bank') return fail('Informe um banco ativo para vincular o investimento.', 'bank-required');
-		await manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, action: 'create', kind: 'investment', name: getString(payload, 'name'), clientActionId, initialBalanceInCents: initialValue, initialCountedBalanceInCents: typeof payload.currentValueInCents === 'number' ? payload.currentValueInCents : undefined, effectiveAt: parseActionDate(payload), fundingAccountId: initialValue > 0 ? bank.realId! : undefined,
-			metadata: { bankAccountId: bank.realId!, cdiPercentageInBasisPoints: getInteger(payload, 'cdiPercentageInBasisPoints'), assetType: getInvestmentAssetType(payload.assetType), valuationMethod: getInvestmentValuationMethod(payload.valuationMethod, getInvestmentAssetType(payload.assetType)), redemptionTerm: getString(payload, 'redemptionTerm'), description: getOptionalString(payload, 'description') } });
+		await withCallableRateLimitRetry(() => manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, action: 'create', kind: 'investment', name: getString(payload, 'name'), clientActionId, initialBalanceInCents: initialValue, initialCountedBalanceInCents: typeof payload.currentValueInCents === 'number' ? payload.currentValueInCents : undefined, effectiveAt: parseActionDate(payload), fundingAccountId: initialValue > 0 ? bank.realId! : undefined,
+			metadata: { bankAccountId: bank.realId!, cdiPercentageInBasisPoints: getInteger(payload, 'cdiPercentageInBasisPoints'), assetType: getInvestmentAssetType(payload.assetType), valuationMethod: getInvestmentValuationMethod(payload.valuationMethod, getInvestmentAssetType(payload.assetType)), redemptionTerm: getString(payload, 'redemptionTerm'), description: getOptionalString(payload, 'description') } }), context.callOptions);
 		return result('Investimento criado com o aporte inicial registrado no razão.');
 	}
 	if (kind === 'create_bank') {
 		if (ledger.role !== 'admin') return fail('Criar contas exige acesso de administrador do grupo.', 'permission-denied');
-		await manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, action: 'create', kind: 'bank', name: getString(payload, 'bankName'), clientActionId, initialBalanceInCents: getInteger(payload, 'initialBalanceInCents'), effectiveAt: parseIsoDateAtLocalNoon(`${getString(payload, 'initialBalanceCycle')}-01`)!, overdraftReason: getOptionalString(payload, 'overdraftReason'), metadata: { colorHex: getOptionalString(payload, 'colorHex'), iconKey: getOptionalString(payload, 'iconKey') } });
+		await withCallableRateLimitRetry(() => manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, action: 'create', kind: 'bank', name: getString(payload, 'bankName'), clientActionId, initialBalanceInCents: getInteger(payload, 'initialBalanceInCents'), effectiveAt: parseIsoDateAtLocalNoon(`${getString(payload, 'initialBalanceCycle')}-01`)!, overdraftReason: getOptionalString(payload, 'overdraftReason'), metadata: { colorHex: getOptionalString(payload, 'colorHex'), iconKey: getOptionalString(payload, 'iconKey') } }), context.callOptions);
 		return result('Banco e saldo inicial registrados no grupo.');
 	}
 	if (['update_bank', 'delete_bank', 'update_investment', 'delete_investment'].includes(kind)) {
@@ -1436,9 +1440,9 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 		for (const key of ['isActive', 'colorHex', 'iconKey', 'cdiPercentageInBasisPoints', 'assetType', 'valuationMethod', 'redemptionTerm', 'description']) if (payload[key] !== undefined) metadata[key] = payload[key];
 		if (kind === 'update_investment' && (payload.assetType !== undefined || payload.valuationMethod !== undefined)) metadata.valuationMethod = getInvestmentValuationMethod(payload.valuationMethod, getInvestmentAssetType(payload.assetType ?? record.data.assetType));
 		if (typeof payload.bankRef === 'string') metadata.bankAccountId = ledgerAccount(context, ledger, 'bankRef').realId!;
-		await manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: record.item.realId!, action: deleting ? 'archive' : 'update', name: deleting ? undefined : getOptionalString(payload, kind === 'update_bank' ? 'bankName' : 'name') ?? undefined,
+		await withCallableRateLimitRetry(() => manageFinancialLedgerAccountFirebase({ groupId: ledger.groupId, assistantRequestFingerprint, expectedActorId: context.personId, accountId: record.item.realId!, action: deleting ? 'archive' : 'update', name: deleting ? undefined : getOptionalString(payload, kind === 'update_bank' ? 'bankName' : 'name') ?? undefined,
 			expectedFingerprint: createAssistantRecordFingerprint(record.data), clientActionId, metadata,
-			initialValueInCents: typeof payload.initialValueInCents === 'number' ? payload.initialValueInCents : undefined, countedBalanceInCents: typeof payload.currentValueInCents === 'number' ? payload.currentValueInCents : undefined, effectiveAt: new Date(context.draft.preparedAt), overdraftReason: getOptionalString(payload, 'overdraftReason') });
+			initialValueInCents: typeof payload.initialValueInCents === 'number' ? payload.initialValueInCents : undefined, countedBalanceInCents: typeof payload.currentValueInCents === 'number' ? payload.currentValueInCents : undefined, effectiveAt: new Date(context.draft.preparedAt), overdraftReason: getOptionalString(payload, 'overdraftReason') }), context.callOptions);
 		return result(deleting ? 'Conta arquivada; o histórico foi preservado.' : 'Dados da conta atualizados; o histórico foi preservado.');
 	}
 	return fail('Esta operação ainda não possui um comando seguro para o razão financeiro do grupo. Nenhum registro foi alterado.', 'capability-unavailable');
@@ -1487,19 +1491,21 @@ const ACTION_EXECUTORS: Record<AssistantActionKind, (context: ExecuteContext) =>
 
 export const financeCommandService: FinanceCommandService = {
 	loadCatalog: loadAssistantResolvedCatalog,
-	async prepareActions(personId, proposals, catalog) {
+	async prepareActions(personId, proposals, catalog, options) {
+		const callOptions = { ...options, canContinue: () => auth.currentUser?.uid === personId };
 		const resolvedCatalog = catalog ?? await loadAssistantResolvedCatalog(personId);
 		const prepared = await prepareAssistantActions(personId, proposals, resolvedCatalog);
 		const actions: AssistantDraftAction[] = [];
 		for (let offset = 0; offset < prepared.actions.length; offset += 8) {
-			actions.push(...await Promise.all(prepared.actions.slice(offset, offset + 8).map(draft => prepareBalanceAdjustment(personId, draft, resolvedCatalog))));
+			actions.push(...await Promise.all(prepared.actions.slice(offset, offset + 8).map(draft => prepareBalanceAdjustment(personId, draft, resolvedCatalog, callOptions))));
 		}
 		return { ...prepared, actions };
 	},
-	async updateDraft(personId, draft, patch, catalog) {
-		return prepareBalanceAdjustment(personId, updatePreparedAssistantDraft(draft, patch, catalog), catalog);
+	async updateDraft(personId, draft, patch, catalog, options) {
+		return prepareBalanceAdjustment(personId, updatePreparedAssistantDraft(draft, patch, catalog), catalog, { ...options, canContinue: () => auth.currentUser?.uid === personId });
 	},
-	async execute(personId, draft, catalog, authorization) {
+	async execute(personId, draft, catalog, authorization, options) {
+		const callOptions = { ...options, canContinue: () => auth.currentUser?.uid === personId && validateAssistantExecutionAuthorization(personId, draft, authorization) };
 		try {
 			if (!personId.trim()) return fail('Usuário não autenticado.', 'authentication');
 			if (!validateAssistantExecutionAuthorization(personId, draft, authorization)) {
@@ -1531,18 +1537,15 @@ export const financeCommandService: FinanceCommandService = {
 					return { success: true, message: 'Operação já registrada no razão; nenhum lançamento foi repetido.', recordHandle: `action:${draft.clientActionId}` };
 				}
 			}
-			if (ledger && draft.kind !== 'upsert_balance_adjustment' && draft.kind !== 'revert_balance_adjustment') return await executeLedgerCommand({ personId, draft, payload: validation.payload, catalog }, ledger);
-			const legacyContext = { personId, draft, payload: validation.payload, catalog };
+			const legacyContext = { personId, draft, payload: validation.payload, catalog, callOptions };
+			if (ledger && draft.kind !== 'upsert_balance_adjustment' && draft.kind !== 'revert_balance_adjustment') return await executeLedgerCommand(legacyContext, ledger);
 			if (draft.kind !== 'upsert_balance_adjustment' && draft.kind !== 'revert_balance_adjustment') {
 				const receipt = await readLegacyAssistantReceipt(legacyContext); if (receipt) return receipt;
 			}
-			return await ACTION_EXECUTORS[draft.kind]({
-				personId,
-				draft,
-				payload: validation.payload,
-				catalog,
-			});
+			return await ACTION_EXECUTORS[draft.kind](legacyContext);
 		} catch (error) {
+			if (error instanceof AssistantOperationCancelled) return { success: false, message: error.message, errorCode: 'cancelled' };
+			if (isCallableRateLimitError(error)) return { success: false, message: 'O serviço continua no limite temporário. Aguarde e peça para retomar os itens pendentes.', errorCode: 'rate-limited' };
 			const reason = error && typeof error === 'object' && 'details' in error && error.details && typeof error.details === 'object' && 'reason' in error.details ? String(error.details.reason) : '';
 			const domainMessages: Record<string, string> = {
 				'inactive-account': 'O banco foi desativado. Reative-o ou escolha outro banco na conversa.',
