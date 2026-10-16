@@ -15,6 +15,7 @@
     "web:deploy:preview": "eas env:exec preview 'node script/release.js deploy-web preview'",
     "release:preflight": "node script/release.js preflight production",
     "release:check": "node script/release.js verify production",
+    "release:diagnose": "node script/release.js diagnose production",
     "release:check:offline": "node script/release.js verify-offline production",
     "release:production": "node script/release.js release production",
     "firebase:deploy:preview": "eas env:exec preview 'node script/release.js deploy-backend preview'",
@@ -32,8 +33,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "tsc --noEmit -p backend/tsconfig.json",
     "check": "npm run lint:styles && npm run typecheck && npm run typecheck:backend && npm run test -- --runInBand",
-    "postinstall": "patch-package",
-    "test:assistant:executor:emulator": "node script/check_assistant_emulator_target.js && jest --runInBand tests/lumusAssistantLegacyEmulator.test.ts"
+    "postinstall": "patch-package --error-on-fail",
+    "test:assistant:executor:emulator": "node script/test_client_emulators.js"
   },
   "engines": {
     "node": ">=22.13.0"
@@ -147,7 +148,7 @@
     "babel-jest": "^30.5.2",
     "babel-preset-expo": "~57.0.0",
     "jest": "^30.5.2",
-    "patch-package": "^6.0.7",
+    "patch-package": "8.0.1",
     "postcss": "^8.5.26",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",

@@ -8,6 +8,8 @@ versao: 1.0.0
 
 # Validação de Lotes Conversacionais
 
+> Revalidação de 16/10/2026: a evidência abaixo é histórica. A inclusão desta suíte no gate de [[Processo de Release]] revelou sete falhas: duas fixtures de recorrência incompatíveis com timestamps exigidos pelas Rules e cinco famílias conflitantes com a cota atual de 120 chamadas/minuto por UID/operação. As fixtures de recorrência foram corrigidas; a incompatibilidade de lotes/cota permanece bloqueando a integração. Detalhes e resultados em [[Auditoria do Processo de Release]]. Não apresentar a rodada de 03/10 como aprovação do release atual.
+
 Evidência local de 2026-10-03 em `tests/lumusAssistantBatchEmulator.test.ts`. A rodada final passou quinze testes: treze famílias com 211 alvos cada e dois cenários de recuperação. O benchmark de vinte amostras foi executado separadamente. Auth, Firestore e Functions usam exclusivamente `demo-lumus-financas` nos emuladores locais, com usuários/fixtures únicos e limpeza restrita aos documentos de cada fixture. A Suite compartilhada não foi resetada; nenhum dado financeiro de produção, deploy ou configuração externa foi alterado.
 
 ## Fronteira comprovada

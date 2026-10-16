@@ -119,7 +119,7 @@ async function seedFamily(family: Family) {
 		const id = `${prefix}-item-${String(index).padStart(3, '0')}`;
 		const common = { personId: uid, name: `${prefix} item ${index}`, date: civilDate };
 		if (family === 'expense' || family === 'gain') seeds.push({ path: `${family === 'expense' ? 'expenses' : 'gains'}/${id}`, data: { ...common, bankId, tagId, valueInCents: 100 } });
-		if (family === 'recurring_expense' || family === 'recurring_gain') seeds.push({ path: `${family === 'recurring_expense' ? 'mandatoryExpenses' : 'mandatoryGains'}/${id}`, data: { ...common, categoryId: tagId, tagId, valueInCents: 100, dueDay: 1, installmentTotal: 3, installmentsCompleted: 0, installmentStartDate: `${cycle}-01`, installmentEndDate: `${year + 1}-12-31`, completedCycles: {} } });
+		if (family === 'recurring_expense' || family === 'recurring_gain') seeds.push({ path: `${family === 'recurring_expense' ? 'mandatoryExpenses' : 'mandatoryGains'}/${id}`, data: { ...common, tagId, valueInCents: 100, dueDay: 1, installmentTotal: 3, installmentsCompleted: 0, installmentStartDate: parseIsoDateAtLocalNoon(`${cycle}-01`), installmentEndDate: parseIsoDateAtLocalNoon(`${year + 1}-12-31`), completedCycles: {} } });
 		if (['bank', 'opening', 'adjustment', 'transfer', 'cash'].includes(family)) {
 			seeds.push({ path: `banks/${id}`, data: { ...common, isActive: true } });
 			seeds.push({ path: `monthlyBalances/${id}-opening`, data: { personId: uid, bankId: id, year, month, valueInCents: 100_000 } });

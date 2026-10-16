@@ -38,6 +38,11 @@ const releaseEnvironment = () => ({
 
 const preflight = () => {
 	if (!['production', 'preview'].includes(profile) || !build) fail('Use o perfil production ou preview.');
+	const [major, minor] = process.versions.node.split('.').map(Number);
+	if (major < 22 || (major === 22 && minor < 13)) fail('O release exige Node.js >=22.13.0.');
+	const backendNode = require(path.join(root, 'backend/package.json')).engines.node;
+	const runtime = require(path.join(root, 'firebase.json')).functions[0].runtime;
+	if (backendNode !== '22' || runtime !== 'nodejs22') fail('Alinhe backend/package.json e firebase.json ao runtime Node.js 22.');
 	const version = app.version;
 	if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version) ||
 		pkg.version !== version || lock.version !== version || lock.packages?.['']?.version !== version) {
@@ -73,33 +78,60 @@ const preflight = () => {
 	return { env, projectId };
 };
 
-const exportBundles = env => {
-	const androidOutput = fs.mkdtempSync(path.join(os.tmpdir(), 'lumus-android-export-'));
+const exportBundle = (platform, env) => {
+	const output = platform === 'android'
+		? fs.mkdtempSync(path.join(os.tmpdir(), 'lumus-android-export-')) : path.join(root, 'dist');
 	try {
-		run(path.join(root, 'node_modules/.bin/expo'), ['export', '--platform', 'android', '--output-dir', androidOutput], env);
-		if (!fs.existsSync(path.join(androidOutput, 'metadata.json'))) fail('Exportação Android sem metadata.json.');
+		run(path.join(root, 'node_modules/.bin/expo'), ['export', '--platform', platform, '--output-dir', output], env);
+		const artifact = platform === 'android' ? 'metadata.json' : 'index.html';
+		if (!fs.existsSync(path.join(output, artifact))) fail(`Exportação ${platform} sem ${artifact}.`);
 	} finally {
-		fs.rmSync(androidOutput, { recursive: true, force: true });
+		if (platform === 'android') fs.rmSync(output, { recursive: true, force: true });
 	}
-	run(path.join(root, 'node_modules/.bin/expo'), ['export', '--platform', 'web', '--output-dir', 'dist'], env);
-	if (!fs.existsSync(path.join(root, 'dist', 'index.html'))) fail('Exportação Web sem index.html.');
 };
 
-const verify = (env, { offline = false, backendOnly = false } = {}) => {
+const verify = (env, { offline = false, backendOnly = false, diagnostic = false } = {}) => {
+	const results = [];
+	const stage = (name, task) => {
+		console.log(`\n[Release] ${name}`);
+		try {
+			task();
+			results.push({ etapa: name, resultado: 'PASSOU' });
+		} catch (error) {
+			console.error(`[Release] FALHOU: ${name}.`);
+			if (!diagnostic) throw error;
+			results.push({ etapa: name, resultado: 'FALHOU' });
+			console.error(error instanceof Error ? error.message : error);
+		}
+	};
 	// Firebase isolado valida o projeto backend/ publicado, conforme [[Processo de Release]].
 	if (backendOnly) {
-		console.log('Verificações Firebase: audit do backend, compilação, integração e App Check.');
-	} else {
-		run('npm', ['run', 'check']);
-		run('npm', ['audit', '--audit-level=high']);
+		console.log('Verificações Firebase: lockfile, audit do backend, compilação, integração e App Check.');
 	}
-	run('npm', ['--prefix', 'backend', 'audit', '--audit-level=high']);
-	run('npm', ['--prefix', 'backend', 'run', 'build']);
+	if (!backendOnly) {
+		stage('Consistência do lockfile do aplicativo', () => run('npm', ['ci', '--dry-run', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error']));
+	}
+	stage('Consistência do lockfile do backend', () => run('npm', ['--prefix', 'backend', 'ci', '--dry-run', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error']));
+	if (!backendOnly) {
+		stage('Auditoria de dependências do aplicativo', () => run('npm', ['audit', '--audit-level=high']));
+	}
+	stage('Auditoria de dependências do backend', () => run('npm', ['--prefix', 'backend', 'audit', '--audit-level=high']));
+	if (!backendOnly) stage('Estilos, tipos e testes do aplicativo', () => run('npm', ['run', 'check']));
+	stage('Compilação do backend', () => run('npm', ['--prefix', 'backend', 'run', 'build']));
 	if (!offline) {
-		run('npm', ['run', 'test:integration']);
-		run('npm', ['--prefix', 'backend', 'run', 'test:app-check:emulator']);
+		stage('Integração nos emuladores', () => run('npm', ['run', 'test:integration']));
+		stage('App Check nos emuladores', () => run('npm', ['--prefix', 'backend', 'run', 'test:app-check:emulator']));
 	}
-	if (!backendOnly) exportBundles(env);
+	if (!backendOnly) {
+		stage('Exportação Android', () => exportBundle('android', env));
+		stage('Exportação Web', () => exportBundle('web', env));
+	}
+	if (diagnostic) {
+		console.table(results);
+		console.log('Diagnóstico local: não verifica cobrança Blaze, credenciais EAS nem funcionamento em aparelho.');
+		const failures = results.filter(result => result.resultado === 'FALHOU');
+		if (failures.length) fail(`Diagnóstico: ${failures.length} etapa(s) com falha. Nenhuma publicação executada.`);
+	}
 };
 
 const deployBackend = (projectId, env) => {
@@ -182,13 +214,17 @@ const executeRelease = (env, projectId, targets) => {
 const main = () => {
 	const { env, projectId } = preflight();
 	if (action === 'preflight') return;
-	if (!['verify', 'verify-offline', 'deploy-backend', 'deploy-web', 'build-android', 'release'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, deploy-backend, deploy-web, build-android ou release.');
+	if (!['verify', 'verify-offline', 'diagnose', 'deploy-backend', 'deploy-web', 'build-android', 'release'].includes(action)) fail('Ação inválida: preflight, verify, verify-offline, diagnose, deploy-backend, deploy-web, build-android ou release.');
 	if (action === 'release') {
 		if (profile !== 'production') fail('O seletor de release está disponível somente para production.');
 		return chooseReleaseTargets().then(targets => executeRelease(env, projectId, targets));
 	}
+	const buildProfile = process.argv[4] ?? profile;
+	if (action === 'build-android' && buildProfile !== profile && !(profile === 'production' && buildProfile === 'production-apk')) {
+		fail('Perfil EAS Android incompatível com o ambiente validado.');
+	}
 	if (['deploy-backend', 'deploy-web', 'build-android'].includes(action)) requireCleanTree();
-	verify(env, { offline: action === 'verify-offline', backendOnly: action === 'deploy-backend' });
+	verify(env, { offline: action === 'verify-offline', backendOnly: action === 'deploy-backend', diagnostic: action === 'diagnose' });
 	if (action === 'deploy-backend') {
 		deployBackend(projectId, env);
 	}
@@ -196,10 +232,6 @@ const main = () => {
 		deployWeb(profile, projectId, env);
 	}
 	if (action === 'build-android') {
-		const buildProfile = process.argv[4] ?? profile;
-		if (buildProfile !== profile && !(profile === 'production' && buildProfile === 'production-apk')) {
-			fail('Perfil EAS Android incompatível com o ambiente validado.');
-		}
 		buildAndroid(buildProfile, env);
 	}
 };

@@ -255,7 +255,8 @@ service cloud.firestore {
       let changed = history.diff(previous).affectedKeys();
       let cycleField = collectionName == 'expenses' ? 'lastPaymentCycle' : 'lastReceiptCycle';
       let currentCycle = data.get(cycleField, null);
-      let cycle = currentCycle == null ? (resource == null ? null : resource.data.get(cycleField, null)) : currentCycle;
+      let resolvedCycle = currentCycle == null ? (resource == null ? null : resource.data.get(cycleField, null)) : currentCycle;
+      let cycle = resolvedCycle is string ? resolvedCycle : '';
       return history is map && history.size() <= 1200
         && optionalBoolean(data.get('assistantCycleHistoryComplete', null))
         && changed.size() <= 1
