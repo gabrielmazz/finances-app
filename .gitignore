@@ -57,6 +57,7 @@ Desktop.ini
 
 # typescript
 *.tsbuildinfo
+/spark-backups/
 
 # generated native folders
 /ios

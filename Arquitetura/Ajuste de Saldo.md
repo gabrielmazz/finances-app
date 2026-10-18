@@ -3,10 +3,12 @@ tags: [bancos, saldo, reconciliacao, firebase, formularios, web, mobile]
 relacionado: [[Gerenciamento de Bancos]], [[Balanço Mensal]], [[Configurações]], [[Navegação]], [[Previsão de Fluxo de Caixa]], [[Cache e Leituras Firebase]], [[Privacidade de Valores]], [[Auditoria de Design]]
 status: ativo
 tipo: feature
-versao: 1.0.0
+versao: 1.0.2
 ---
 
 # Ajuste de Saldo
+
+Prova Spark v0.5 em desenvolvimento: [[Protocolo Financeiro Spark]] implementa ajuste atual/retroativo, substituição atômica e estorno único. `SparkAdjustmentReplacementFirebase.ts` exige o mesmo banco e autor ainda administrador, calcula a base sem a contribuição antiga elegível e grava evento composto com inverso na data antiga e substituto na nova. Claim único compartilhado impede substituir e estornar o mesmo original. É possível substituir o componente novo de um substituto e depois estorná-lo, sem desfazer novamente inversos anteriores. Projeção pelas Rules confere ambas as datas, abertura elegível, fim do dia passado São Paulo ou commit de hoje e referências posteriores. Originais permanecem imutáveis; estado substituído/revertido é derivado do claim. Bootstrap, adaptação do extrato/formulário/chat e integração desta prova permanecem pendentes; os serviços publicados descritos abaixo continuam sendo o caminho atual. Ver [[Reconciliação de Dados Spark]].
 
 Recurso de último caso para registrar a diferença entre o saldo calculado no Lumus e o saldo real conferido pelo usuário no banco. O aplicativo não consulta nem altera a conta da instituição financeira.
 

@@ -3,10 +3,12 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.4.7
+versao: 1.4.8
 ---
 
 # Firebase Config
+
+Implementação Spark em andamento: [[Protocolo Financeiro Spark]] adiciona um serviço Firestore compartilhado e Rules para grupos sintéticos explicitamente habilitados por campo protegido. `npm run test:spark` valida esse protocolo e as Rules atuais com Auth/Firestore locais, sem Functions. Não altera os exports/configuração abaixo nem o roteamento dos usuários atuais; ainda não há perfil de publicação Spark ou corte de dados reais.
 
 > Auditoria 2026-10-12: o pacote nativo direto de Analytics foi removido e `firebase.json` define `analytics_auto_collection_enabled: false` e `analytics_collection_deactivated: true`; a coleta fica desligada nesta versão, inclusive se o módulo vier como dependência transitiva. Os apps de negócio e a IA compartilham inicialização App Check. No nativo, a ponte CustomProvider entrega token e expiração ao SDK JavaScript e exige projeto compatível; Expo Go remoto é recusado. As 15 callables usam `secureOnCall`, com enforcement controlado por `LUMUS_ENFORCE_APP_CHECK` (default `false`, ligar primeiro em homologação). Testes locais validaram rejeição de atestado ausente/falsificado; emissão real e configuração publicada continuam pendentes. Ver [[Remediação da Auditoria de Segurança]].
 
@@ -120,7 +122,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - [[Gerenciamento de Usuários]] — Consome `secondaryApp`/`secondaryAuth` para criar usuários
 - Todos os `functions/*.ts` — Consomem `db` (Firestore) para operações CRUD
 - [[Segurança de Login]] — `firebaseAuthStorage` configura persistência do `secondaryAuth`
-- [[Assistente Lumus]] — Usa Firebase AI Logic, App Check e Remote Config, sem Cloud Functions
+- [[Assistente Lumus]] — A inferência usa Firebase AI Logic, App Check e Remote Config; no código atual, execução financeira e comandos de vínculos/exclusão dependem das callables conforme a operação e o estado de migração. [[Viabilidade do Plano Spark]] registra essas dependências, e [[Plano de Funcionalidade Completa sem Blaze]] define o redesenho confirmado para Firestore/Rules sem servidor externo. [[Protocolo Financeiro Spark]] contém a prova isolada e [[Reconciliação de Dados Spark]] a análise local; ainda não substituem o transporte das telas/chat.
 
 ## Firebase AI Logic
 
