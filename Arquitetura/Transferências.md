@@ -8,6 +8,8 @@ versao: 1.4.0
 
 # Transferências
 
+Prova Spark v0.2 em desenvolvimento: [[Protocolo Financeiro Spark]] adiciona estorno único de transferências/aportes/resgates, com claim por operação original, duas posições e cota atômicos. Membro só estorna o próprio lançamento e admin pode estornar outro do grupo. A prova permanece separada das telas e dos dados reais; o contrato atual está descrito abaixo.
+
 Permite mover valores entre contas bancárias do mesmo usuário. Gera dois movimentos simultâneos: um débito no banco de origem e um crédito no banco de destino.
 
 > **Após o corte do grupo financeiro**, uma transferência é um único evento do razão com duas pernas, clientActionId idempotente e referências de origem. O extrato continua mostrando saída na origem e entrada no destino, mas não existem dois documentos financeiros mutáveis.

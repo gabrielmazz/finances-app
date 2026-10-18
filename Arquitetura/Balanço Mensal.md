@@ -3,10 +3,12 @@ tags: [balanco, snapshot, bancos, reconciliacao]
 relacionado: [[Gerenciamento de Bancos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.4.2
+versao: 1.4.4
 ---
 
 # Balanço Mensal
+
+Prova Spark v0.4 em desenvolvimento: [[Protocolo Financeiro Spark]] implementa abertura zero única, contagem atual/retroativa e upsert mensal canônico por conta/ciclo. Abertura futura mantém saldo/checkpoint atuais e registra `nextActivationAt`; após vencer, as Rules bloqueiam movimentação com saldo antigo. Qualquer membro pode atualizar a posição com projeção certificada, preservando a data/ID da abertura original, inclusive após meses sem acesso. A leitura guardada confere atualidade no servidor. A projeção preserva a fronteira inclusiva do mês, a revisão da prévia e contagens posteriores. [[Reconciliação de Dados Spark]] analisa snapshots locais; importação futura, bootstrap e integração desta tela continuam pendentes. O fluxo publicado abaixo permanece no contrato atual até o corte validado.
 
 Sistema de snapshots mensais do saldo de cada banco. Funciona como um "marco" de reconciliação — o saldo real de um banco é calculado a partir do último snapshot + movimentos posteriores a ele.
 

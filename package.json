@@ -28,13 +28,19 @@
     "dev:local": "./script/build_and_run.sh start",
     "dev:local:web": "./script/build_and_run.sh --web",
     "test:integration": "npm --prefix backend run test:emulator",
+    "test:spark": "npm --prefix backend run test:spark:emulator",
+    "spark:reconcile": "npm --prefix backend run spark:reconcile --",
     "test": "jest",
     "lint:styles": "node script/check_style_architecture.js",
     "typecheck": "tsc --noEmit",
     "typecheck:backend": "tsc --noEmit -p backend/tsconfig.json",
-    "check": "npm run lint:styles && npm run typecheck && npm run typecheck:backend && npm run test -- --runInBand",
+    "check": "npm run lint:styles && npm run typecheck && npm run typecheck:backend && npm run typecheck:spark-tools && npm run test:spark:tools && npm run test -- --runInBand",
     "postinstall": "patch-package --error-on-fail",
-    "test:assistant:executor:emulator": "node script/test_client_emulators.js"
+    "test:assistant:executor:emulator": "node script/test_client_emulators.js",
+    "spark:snapshot": "npm --prefix backend run spark:snapshot --",
+    "typecheck:spark-tools": "tsc --noEmit -p backend/tsconfig.spark-tools.json",
+    "test:spark:tools": "npm --prefix backend run test:spark:tools",
+    "test:spark:restore": "npm --prefix backend run test:spark:restore:emulator"
   },
   "engines": {
     "node": ">=22.13.0"

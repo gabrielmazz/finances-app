@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  "include": ["scripts/lib/spark*.ts", "scripts/sparkSnapshot.ts", "tests/sparkSnapshot*.test.ts", "tests/sparkLedgerImport*.test.ts"]
+}
