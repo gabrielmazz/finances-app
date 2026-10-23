@@ -48,6 +48,13 @@ export type AppRouteKey = keyof typeof APP_ROUTE_PATHS;
 export type AppRoutePath = (typeof APP_ROUTE_PATHS)[AppRouteKey];
 
 export const ROUTE_VISIBILITY_PATHS: Record<RouteVisibilityKey, readonly AppRoutePath[]> = {
+	// A Home também contém Configurações; somente a aba Dashboard é controlada no container.
+	homeDashboard: [],
+	bankMovements: [APP_ROUTE_PATHS.bankMovements],
+	categoryAnalysis: [APP_ROUTE_PATHS.categoryAnalysis],
+	financialForecast: [APP_ROUTE_PATHS.financialForecast],
+	bankBalanceAdjustment: [APP_ROUTE_PATHS.bankBalanceAdjustment],
+	profile: [APP_ROUTE_PATHS.profile],
 	addRegisterExpenses: [APP_ROUTE_PATHS.addRegisterExpenses],
 	addRegisterGain: [APP_ROUTE_PATHS.addRegisterGain],
 	addMandatoryExpenses: [APP_ROUTE_PATHS.mandatoryExpenses, APP_ROUTE_PATHS.addMandatoryExpenses],
@@ -116,6 +123,22 @@ export const HOME_TAB_INDEX = {
 
 export type HomeTabKey = keyof typeof HOME_TAB_INDEX;
 export type HomeTabIndex = (typeof HOME_TAB_INDEX)[HomeTabKey];
+
+export const getVisibleHomeTab = (
+	tab: HomeTabIndex,
+	isRouteVisible: (key: RouteVisibilityKey) => boolean,
+): HomeTabIndex => {
+	if (tab === HOME_TAB_INDEX.config) return tab;
+	const key = tab === HOME_TAB_INDEX.dashboard ? 'homeDashboard' : 'addRegisterExpenses';
+	if (isRouteVisible(key)) return tab;
+	return isRouteVisible('homeDashboard') ? HOME_TAB_INDEX.dashboard : HOME_TAB_INDEX.config;
+};
+
+export const getPostSubmitDestinationVisibilityKey = (destination: PostSubmitDestinationKey): RouteVisibilityKey | null => {
+	if (destination === 'homeDashboard') return 'homeDashboard';
+	const pathname = getPostSubmitDestinationPath(destination);
+	return pathname ? getRouteVisibilityKeyForPath(pathname) : null;
+};
 
 export type NavigationParams = UnknownInputParams;
 

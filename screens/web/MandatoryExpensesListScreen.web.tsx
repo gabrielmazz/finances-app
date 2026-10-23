@@ -1,3 +1,8 @@
+import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
+import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
+import SparkRecurringContracts from '@/components/uiverse/recurring/spark-recurring-contracts';
+import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, TextInput, View, StatusBar, Text as RNText } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -100,6 +105,7 @@ type PendingExpenseAction =
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
 
 type MandatoryExpenseItem = DateCalendarItem & {
+	sparkPlan?: boolean;
 	usesBusinessDays?: boolean;
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
@@ -117,7 +123,7 @@ type MandatoryExpenseItem = DateCalendarItem & {
 	remainingInstallments?: number;
 	remainingValueInCents?: number | null;
 	isInstallmentComplete?: boolean;
-	reminderDaysBefore?: 1 | 2 | 3;
+	reminderDaysBefore?: 0 | 1 | 2 | 3;
 	reminderOnDueDate?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
@@ -334,6 +340,7 @@ function MandatoryExpensesTimelineSkeleton({
 }
 
 export default function MandatoryExpensesListScreen() {
+	const { submit: submitSparkRecurringAction } = useSparkRecurringAction('expense');
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -366,6 +373,7 @@ export default function MandatoryExpensesListScreen() {
 		return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 	}, [params.focusMandatoryExpenseId]);
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
@@ -569,7 +577,7 @@ export default function MandatoryExpensesListScreen() {
 
 		try {
 			const [expensesResult, tagsResult, relatedUsersResult] = await Promise.all([
-				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
+				getMandatoryExpensesWithRelationsFirebase(currentUser.uid, true),
 				getAllTagsFirebase(),
 				getRelatedUsersIDsFirebase(currentUser.uid),
 			]);
@@ -610,8 +618,11 @@ export default function MandatoryExpensesListScreen() {
 					});
 			}
 
-			const referenceDate = new Date();
-			const formattedExpenses: MandatoryExpenseItem[] = expensesResult.data.map((expense: any) => {
+			const referenceDate = expensesResult.data.some((row: any) => row.sparkPlan === true) ? toFinancialCivilDate(new Date()) : new Date();
+			setRetainedPlans(expensesResult.data.filter((row: any) => row.sparkPlan === true && row.sparkPlanActive === false && !row.sparkSuccessorPlanId && !row.sparkReplanCancelled && row.personId === currentUser.uid)
+                .map((row: any) => ({ id: row.id, name: row.name })));
+            const activeRows = expensesResult.data.filter((row: any) => row.sparkPlan !== true || row.sparkPlanActive !== false);
+            const formattedExpenses: MandatoryExpenseItem[] = activeRows.map((expense: any) => {
 				const dueDay = typeof expense?.dueDay === 'number' ? expense.dueDay : 1;
 				const usesBusinessDays = expense?.usesBusinessDays === true;
 				const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
@@ -631,6 +642,7 @@ export default function MandatoryExpensesListScreen() {
 
 				return {
 					id: expense.id,
+					sparkPlan: expense.sparkPlan === true,
 					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
 					valueInCents: typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0,
 					dueDay,
@@ -669,9 +681,10 @@ export default function MandatoryExpensesListScreen() {
 			});
 
 			const expensesWithStatus = formattedExpenses.map(expense => {
-				const isPaidForCurrentCycle = isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
+				const isPaidForCurrentCycle = expense.sparkPlan ? isSparkRecurringCycleCurrent(expense.lastPaymentCycle) : isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
 				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: expense.installmentsCompleted ?? 0,
+					explicitCompletion: expense.sparkPlan === true,
 					installmentTotal: expense.installmentTotal ?? null,
 					startDate: expense.installmentStartDate ?? null,
 					isCurrentCycleCompleted: isPaidForCurrentCycle,
@@ -938,6 +951,14 @@ export default function MandatoryExpensesListScreen() {
 
 		setIsActionProcessing(true);
 		try {
+			if (pendingAction.expense.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
+				const result = await submitSparkRecurringAction({ planId: pendingAction.expense.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
+				if (!result) throw new Error('O contexto financeiro mudou.');
+				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
+				await loadData();
+				return;
+			}
+
 			if (pendingAction.type === 'delete') {
 				const result = await deleteMandatoryExpenseFirebase(pendingAction.expense.id);
 				if (result.success) {
@@ -1013,7 +1034,7 @@ export default function MandatoryExpensesListScreen() {
 			setIsActionProcessing(false);
 			setPendingAction(null);
 		}
-	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents]);
+	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents, submitSparkRecurringAction]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading) {
@@ -1236,19 +1257,20 @@ export default function MandatoryExpensesListScreen() {
 		if (pendingAction.type === 'reclaim') {
 			return {
 				title: 'Reivindicar pagamento',
-				message: `Deseja cancelar o pagamento registrado para "${expenseName}"? A despesa vinculada será removida.`,
+				message: pendingAction.expense.sparkPlan ? 'O valor efetivado será estornado e o ciclo ficará pendente. O histórico será preservado.' : `Deseja cancelar o pagamento registrado para "${expenseName}"? A despesa vinculada será removida.`,
 				confirmLabel: 'Reivindicar',
 				action: 'secondary' as const,
 			};
 		}
 
 		return {
-			title: 'Excluir gasto obrigatório',
-			message: `Tem certeza de que deseja excluir "${expenseName}"? Essa ação não pode ser desfeita.`,
-			confirmLabel: 'Excluir',
+			title: pendingAction.expense.sparkPlan ? 'Arquivar recorrência' : 'Excluir gasto obrigatório',
+			message: pendingAction.expense.sparkPlan ? 'O histórico e as parcelas concluídas serão preservados. Você poderá restaurar a recorrência nesta lista.' : `Tem certeza de que deseja excluir "${expenseName}"? Essa ação não pode ser desfeita.`,
+			confirmLabel: pendingAction.expense.sparkPlan ? 'Arquivar' : 'Excluir',
 			action: 'negative' as const,
 		};
 	}, [formatCurrencyBRL, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents]);
+
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
 			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
@@ -1317,7 +1339,9 @@ export default function MandatoryExpensesListScreen() {
 						>
 							<VStack className={`${webStyles.contentFrame} ${webStyles.contentPadding} justify-between pb-8`}>
 
-								{isLoading ? (
+								{!isLoading && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
+								{!isLoading && <SparkRecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
+                            {isLoading ? (
 									<MandatoryExpensesTimelineSkeleton
 										compactCardClassName={compactCardClassName}
 										tintedCardClassName={tintedCardClassName}

@@ -120,6 +120,9 @@ export function canApplySparkHistorySegment(proof: SparkHistoryProof, segment: S
   if (segment.accountId !== proof.accountId || segment.lastRevision !== proof.cursorRevision || segment.lastOperationId !== proof.nextOperationId) return false;
   if (proof.phase === 'checkpoints') return true;
   if (proof.phase !== 'movements') return false;
+  // O segmento não guarda a distinção entre data declarada e commit. Na fronteira exata, conferir cada revisão.
+  if (proof.baselineAt && !proof.includesBoundary && compareSparkTime(segment.minAt, proof.baselineAt) <= 0
+    && compareSparkTime(segment.maxAt, proof.baselineAt) >= 0) return false;
   const kind = sparkSegmentClass(proof, segment.minAt);
   if (kind !== sparkSegmentClass(proof, segment.maxAt)) return false;
   const value = kind === 'balance' ? proof.balanceInCents : kind === 'tail' ? proof.tailDeltaInCents : 0;

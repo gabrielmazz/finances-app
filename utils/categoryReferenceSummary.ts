@@ -4,6 +4,7 @@ export type TagReferenceSummary = {
 	mandatoryExpenses: number;
 	mandatoryGains: number;
 	total: number;
+	permanentHistory?: boolean;
 };
 
 export function createTagReferenceSummary(
@@ -20,5 +21,5 @@ export function createTagReferenceSummary(
 }
 
 export function hasTagReferences(summary: TagReferenceSummary) {
-	return summary.total > 0;
+	return summary.total > 0 || summary.permanentHistory === true;
 }

@@ -82,11 +82,11 @@ const createGroups = (): NavigatorGroup[] => [
 		label: 'Home',
 		value: HOME_TAB_INDEX.dashboard,
 		options: [
-			{ id: 'home-start', label: 'Início', icon: <Home size={18} />, matchPaths: [APP_ROUTE_PATHS.home], onSelect: navigateToHomeDashboard },
-			{ id: 'bank-movements', label: 'Movimentos do banco', icon: <Landmark size={18} />, matchPaths: [APP_ROUTE_PATHS.bankMovements], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.bankMovements) },
+			{ id: 'home-start', visibilityKey: 'homeDashboard', label: 'Início', icon: <Home size={18} />, matchPaths: [APP_ROUTE_PATHS.home], onSelect: navigateToHomeDashboard },
+			{ id: 'bank-movements', visibilityKey: 'bankMovements', label: 'Movimentos do banco', icon: <Landmark size={18} />, matchPaths: [APP_ROUTE_PATHS.bankMovements], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.bankMovements) },
 			{ id: 'lumus-assistant', label: 'Lumus IA', icon: <Sparkles size={18} />, visibilityKey: 'lumusAssistant', matchPaths: [APP_ROUTE_PATHS.lumusAssistant], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.lumusAssistant) },
-			{ id: 'category-analysis', label: 'Análise por categoria', icon: <BarChart3 size={18} />, matchPaths: [APP_ROUTE_PATHS.categoryAnalysis], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.categoryAnalysis) },
-			{ id: 'financial-forecast', label: 'Previsão financeira', icon: <TrendingUp size={18} />, matchPaths: [APP_ROUTE_PATHS.financialForecast], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialForecast) },
+			{ id: 'category-analysis', visibilityKey: 'categoryAnalysis', label: 'Análise por categoria', icon: <BarChart3 size={18} />, matchPaths: [APP_ROUTE_PATHS.categoryAnalysis], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.categoryAnalysis) },
+			{ id: 'financial-forecast', visibilityKey: 'financialForecast', label: 'Previsão financeira', icon: <TrendingUp size={18} />, matchPaths: [APP_ROUTE_PATHS.financialForecast], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.financialForecast) },
 			{ id: 'annotations', label: 'Anotações', icon: <NotebookPen size={18} />, visibilityKey: 'annotations', matchPaths: [APP_ROUTE_PATHS.annotations], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.annotations) },
 		],
 	},
@@ -109,7 +109,7 @@ const createGroups = (): NavigatorGroup[] => [
 		value: HOME_TAB_INDEX.config,
 		options: [
 			{ id: 'settings', label: 'Configurações', icon: <Settings2 size={18} />, matchPaths: [APP_ROUTE_PATHS.home], onSelect: navigateToHomeConfigurations },
-			{ id: 'profile', label: 'Meu perfil', icon: <UserRound size={18} />, matchPaths: [APP_ROUTE_PATHS.profile, APP_ROUTE_PATHS.addUserRelation], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.profile) },
+			{ id: 'profile', visibilityKey: 'profile', label: 'Meu perfil', icon: <UserRound size={18} />, matchPaths: [APP_ROUTE_PATHS.profile, APP_ROUTE_PATHS.addUserRelation], onSelect: () => navigateToRoute(APP_ROUTE_PATHS.profile) },
 			{ id: 'logout', label: 'Sair', icon: <LogOut size={18} />, onSelect: () => {} },
 		],
 	},
@@ -152,7 +152,7 @@ export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, pro
 		const visibleGroups = createGroups().map(group => ({
 			...group,
 			options: group.options.filter(option => !option.visibilityKey || isRouteVisible(option.visibilityKey)),
-		}));
+		})).filter(group => group.options.length > 0);
 
 		return visibleGroups;
 	}, [isRouteVisible]);

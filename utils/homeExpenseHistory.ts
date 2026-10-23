@@ -1,3 +1,5 @@
+import { addHomeCents } from './homeCents';
+
 export type HomeExpenseHistorySource = {
 	date: Date | null;
 	valueInCents: number;
@@ -27,6 +29,7 @@ export const buildHomeExpenseHistory = (
 	expenseSources: HomeExpenseHistorySource[],
 	gainSources: HomeExpenseHistorySource[] = [],
 	referenceDate = new Date(),
+	options: { allowSigned?: boolean } = {},
 ): HomeExpenseHistoryMonth[] => {
 	if (!isValidDate(referenceDate)) {
 		return [];
@@ -58,7 +61,7 @@ export const buildHomeExpenseHistory = (
 				!isValidDate(date) ||
 				date.getTime() > referenceDate.getTime() ||
 				!Number.isSafeInteger(source.valueInCents) ||
-				source.valueInCents <= 0
+				(options.allowSigned ? source.valueInCents === 0 : source.valueInCents <= 0)
 			) {
 				continue;
 			}
@@ -71,9 +74,9 @@ export const buildHomeExpenseHistory = (
 			if (field === 'totalExpensesInCents') {
 				const dayKey = String(date.getDate());
 				month.dailyExpensesInCents[dayKey] =
-					(month.dailyExpensesInCents[dayKey] ?? 0) + source.valueInCents;
+					addHomeCents(month.dailyExpensesInCents[dayKey] ?? 0, source.valueInCents);
 			}
-			month[field] += source.valueInCents;
+			month[field] = addHomeCents(month[field], source.valueInCents);
 		}
 	}
 

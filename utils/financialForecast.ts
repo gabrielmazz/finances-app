@@ -1,14 +1,14 @@
-import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
-import { RedemptionTerm } from '@/utils/finance';
-import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
+import { resolveMonthlyOccurrence } from './businessCalendar';
+import { RedemptionTerm } from './finance';
+import { getCycleKeyFromDate } from './mandatoryExpenses';
 import {
 	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	normalizeMandatoryInstallmentsCompleted,
 	resolveMandatoryInstallmentsCompleted,
-} from '@/utils/mandatoryInstallments';
-import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+} from './mandatoryInstallments';
+import { shouldIncludeMovementInGainExpenseTotals } from './monthlyBalance';
 
 export const FINANCIAL_FORECAST_PERIOD_OPTIONS = [3, 6, 12] as const;
 
@@ -122,6 +122,7 @@ export type FinancialForecastData = {
 	totalExpensesInCents: number;
 	historicalMonthsUsed: number;
 	missingSnapshotBankNames: string[];
+	hasScheduledMonthlyOpenings?: boolean;
 	months: FinancialForecastMonth[];
 };
 
@@ -400,7 +401,7 @@ const buildHistoricalAverages = ({
 		{
 			type: FinancialForecastMovementType;
 			tagName: string | null;
-			totalInCents: number;
+			totalInCents: bigint;
 			occurrenceMonthKeys: Set<string>;
 		}
 	>();
@@ -420,10 +421,12 @@ const buildHistoricalAverages = ({
 		const current = totals.get(aggregateKey) ?? {
 			type: movement.type,
 			tagName: movement.tagName,
-			totalInCents: 0,
+			totalInCents: 0n,
 			occurrenceMonthKeys: new Set<string>(),
 		};
-		current.totalInCents += normalizeMoneyInCents(movement.valueInCents);
+		const value = normalizeMoneyInCents(movement.valueInCents);
+		if (!Number.isSafeInteger(value)) throw new Error('O histórico excede o limite de centavos inteiros.');
+		current.totalInCents += BigInt(value);
 		current.occurrenceMonthKeys.add(getCycleKeyFromDate(movement.date));
 		if (!current.tagName && movement.tagName) {
 			current.tagName = movement.tagName;
@@ -444,7 +447,10 @@ const buildHistoricalAverages = ({
 			return;
 		}
 
-		const averageInCents = Math.round(total.totalInCents / HISTORICAL_MONTH_COUNT);
+		// A divisão em Number pode arredondar 1/3 para 1/2 em agregados grandes.
+		const divisor = BigInt(HISTORICAL_MONTH_COUNT);
+		const averageInCents = Number((2n * total.totalInCents + divisor) / (2n * divisor));
+		if (!Number.isSafeInteger(averageInCents)) throw new Error('A média excede o limite de centavos inteiros.');
 		if (averageInCents <= 0) {
 			return;
 		}

@@ -1,3 +1,4 @@
+import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
 import React from 'react';
 import {
 	Image as RNImage,
@@ -83,6 +84,7 @@ const mergeDateWithCurrentTime = (date: Date) => {
 };
 
 export default function AddFinanceScreenWeb() {
+	const sparkInvestment = useSparkInvestmentForm();
 	const { width, height } = useWindowDimensions();
 	const compact = width < 720;
 	const isDesktop = width >= 1024;
@@ -166,6 +168,7 @@ export default function AddFinanceScreenWeb() {
 	const isFormValid = hasInvestmentName && hasInitialValue && hasValidInvestmentDate && hasValidCdi && Boolean(selectedBankId) && hasValidBalance;
 
 	const resetForm = React.useCallback(() => {
+		sparkInvestment.reset();
 		setInvestmentName('');
 		setInitialValueInput('');
 		setInitialValueInCents(null);
@@ -271,7 +274,7 @@ export default function AddFinanceScreenWeb() {
 		submitLockRef.current = true;
 		setIsSaving(true);
 		try {
-			const result = await addFinanceInvestmentFirebase({
+			const investmentParams = {
 				name: investmentName.trim(),
 				initialValueInCents,
 				currentValueInCents: initialValueInCents,
@@ -282,7 +285,8 @@ export default function AddFinanceScreenWeb() {
 				personId: currentUser.uid,
 				date: mergeDateWithCurrentTime(parsedInvestmentDate),
 				bankNameSnapshot: bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null,
-			});
+			};
+			const result = (await sparkInvestment.create(investmentParams)) ?? await addFinanceInvestmentFirebase(investmentParams);
 			if (!result.success) throw new Error('Erro ao registrar investimento no Firebase.');
 			setHasSavedOnce(true);
 			showScreenAlert('Investimento salvo com sucesso!', 'success');

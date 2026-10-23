@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildSparkLedgerImport, financialFields, importSparkLedgerLocal } from '../scripts/lib/sparkLedgerImport';
+import { buildSparkLedgerImport, financialFields, importSparkLedgerLocal, sparkImportedIdentityId } from '../scripts/lib/sparkLedgerImport';
 import { normalizeSparkLegacy } from '../scripts/lib/sparkLegacyNormalization';
 import { canonical, digest, LocalFirestore } from '../scripts/lib/sparkLocalSnapshot';
-import { prepareSparkBootstrap } from '../scripts/lib/sparkBootstrapPreflight';
-import { importAsOf, ledgerImportFixture, legacyImportFixture, resealImportFixture } from './fixtures/sparkImportFixture';
+import { decodeSparkFinancialValue, prepareSparkBootstrap } from '../scripts/lib/sparkBootstrapPreflight';
+import { buildSparkFinancialReadEvents } from '../../utils/sparkFinancialReadModel';
+import { importAsOf, ledgerImportFixture, legacyImportFixture, recurringLedgerImportFixture, resealImportFixture } from './fixtures/sparkImportFixture';
+import { sparkImportedRecurringPlanId, sparkImportedRecurringReceiptId } from '../scripts/lib/sparkRecurringImport';
 
 test('plano determinístico conserva bruto e metadados, bloqueia grupo e não ativa protocolo', () => {
   const snapshot = ledgerImportFixture(), before = canonical(snapshot);
@@ -17,6 +19,82 @@ test('plano determinístico conserva bruto e metadados, bloqueia grupo e não at
   const manifest = plan.documents.find(row => row.path === plan.manifestPath)!;
   assert.deepEqual((manifest.fields.originalGroupFields.mapValue as any).fields, snapshot.documents[0].fields);
   assert(plan.mappings.some(mapping => mapping.sourceAccountId === 'cash-group' && mapping.accountId === 'cash'));
+});
+test('conversão conserva contador, parcelas exatas, metadados e recibos sem repetir pernas financeiras', () => {
+  const source = recurringLedgerImportFixture(), plan = buildSparkLedgerImport(source, 'group', importAsOf);
+  assert.equal(plan.recurringImport.converted.length, 1); assert.equal(plan.recurringImport.issues.length, 0);
+  const id = sparkImportedRecurringPlanId('group', 'mandatoryGains/contract');
+  const definition = plan.generatedDocuments.find(row => row.path === `financialGroups/group/sparkRecurringPlans/${id}`)!.fields;
+  assert.equal(definition.installmentsCompleted.integerValue, '3'); assert.equal(definition.historyFromCycle.stringValue, '2026-07');
+  const metadata = plan.generatedDocuments.find(row => row.path === `financialGroups/group/sparkRecurringMetadata/${id}`)!.fields;
+  assert.equal(metadata.dueDay.integerValue, '5'); assert.equal(metadata.usesBusinessDays.booleanValue, true); assert.equal(metadata.reminderEnabled.booleanValue, true);
+  assert.equal(metadata.description.stringValue, 'Metadados preservados');
+  for (const [index, month] of ['07', '08', '09'].entries()) {
+    const cycle = plan.generatedDocuments.find(row => row.path.endsWith(`/sparkRecurringPlans/${id}/cycles/2026-${month}`))!.fields;
+    assert.equal(cycle.installmentsBefore.integerValue, String(index)); assert.equal(cycle.installmentsAfter.integerValue, String(index + 1));
+    assert.equal(cycle.amountInCents.integerValue, index === 2 ? '334' : '333');
+    assert.equal(cycle.settlementOperationId.stringValue, sparkImportedRecurringReceiptId('group', `recurring-${month}`));
+  }
+  assert.equal(plan.documents.find(row => row.path === 'financialGroups/group/sparkPositions/bank-a')!.fields.balanceInCents.integerValue, '1134');
+  assert.equal(plan.generatedDocuments.filter(row => row.fields.kind?.stringValue === 'imported_movement' && row.fields.sourcePath?.stringValue === 'ledgerTransactions/recurring-09').length, 1);
+  assert.deepEqual(plan.documents.find(row => row.path === 'mandatoryGains/contract'), source.documents.find(row => row.path === 'mandatoryGains/contract'));
+});
+for (const [name, mutate, code] of [
+  ['contador inferido', (s: any, row: any) => row.fields.installmentsCompleted = { integerValue: '4' }, 'recurring-unproven-installment-counter'],
+  ['principal ausente', (s: any, row: any) => delete row.fields.installmentTotalValueInCents, 'recurring-unproven-installment-contract'],
+  ['ordem sem evidência', (s: any) => delete s.documents.find((r: any) => r.path === 'ledgerTransactions/recurring-07').fields.createdAt, 'recurring-ambiguous-installment-order'],
+  ['instantes empatados', (s: any) => s.documents.find((r: any) => r.path === 'ledgerTransactions/recurring-08').fields.createdAt = { timestampValue: '2026-09-20T12:00:00.000001Z' }, 'recurring-ambiguous-installment-order'],
+  ['ciclo órfão', (s: any, row: any) => row.fields.completedCycles = financialFields({ v: { '2026-07': { transactionId: 'missing', installmentsCount: 1, amountInCents: 333 } } }).v, 'recurring-orphan-cycle'],
+  ['histórico declarado incompleto', (s: any, row: any) => row.fields.completedCycles = { mapValue: {} }, 'recurring-incomplete-declared-history'],
+  ['último vínculo divergente', (s: any, row: any) => row.fields.lastReceiptGainId = { stringValue: 'income' }, 'recurring-orphan-last-payment'],
+  ['valor do ciclo divergente', (s: any, row: any) => (row.fields.completedCycles.mapValue.fields['2026-09'].mapValue.fields.amountInCents = { integerValue: '333' }), 'recurring-cycle-amount-conflict'],
+  ['versão futura de lembrete', (s: any, row: any) => row.fields.reminderConfigVersion = { integerValue: '2' }, 'recurring-unsupported-reminder-version'],
+  ['proprietário fora do grupo', (s: any, row: any) => row.fields.personId = { stringValue: 'outsider' }, 'recurring-owner-scope-conflict'],
+  ['início do histórico sem prova', (s: any, row: any) => { delete row.fields.createdAt; delete row.fields.installmentStartDate; row.fields.installmentTotal = { nullValue: null }; row.fields.installmentTotalValueInCents = { nullValue: null }; row.fields.installmentsCompleted = { integerValue: '0' }; delete row.fields.installmentEndDate; }, 'recurring-missing-history-start'],
+] as const) test(`recorrência com ${name} permanece bruta e gera pendência sem subconjunto parcial`, () => {
+  const source = recurringLedgerImportFixture(), row = source.documents.find(row => row.path === 'mandatoryGains/contract')!; mutate(source, row);
+  const plan = buildSparkLedgerImport(resealImportFixture(source), 'group', importAsOf);
+  assert.equal(plan.recurringImport.converted.length, 0); assert.equal(plan.recurringImport.issues[0].code, code);
+  assert(!plan.generatedDocuments.some(row => row.path.includes('/sparkRecurringPlans/'))); assert.equal(plan.activationAllowed, false);
+  assert.deepEqual(plan.documents.find(row => row.path === 'mandatoryGains/contract')!.fields, row.fields);
+});
+test('histórico incompleto preserva pagamentos conhecidos e restringe efetivação ao mês posterior ao corte', () => {
+  const source = recurringLedgerImportFixture(), row = source.documents.find(row => row.path === 'mandatoryGains/contract')!;
+  row.fields.assistantCycleHistoryComplete = { booleanValue: false };
+  const plan = buildSparkLedgerImport(resealImportFixture(source), 'group', new Date('2026-09-30T12:00:00Z'));
+  assert.equal(plan.recurringImport.converted[0].historyFromCycle, '2026-10');
+  assert(plan.recurringImport.warnings.some(row => row.code === 'recurring-history-restricted-after-cutoff'));
+});
+test('configuração anterior à versão um mantém lembrete desativado e conserva fonte original', () => {
+  const source = recurringLedgerImportFixture(), row = source.documents.find(row => row.path === 'mandatoryGains/contract')!;
+  delete row.fields.reminderConfigVersion;
+  const plan = buildSparkLedgerImport(resealImportFixture(source), 'group', importAsOf);
+  const metadata = plan.generatedDocuments.find(row => row.path.includes('/sparkRecurringMetadata/'))!;
+  assert.equal(metadata.fields.reminderEnabled.booleanValue, false);
+  assert(plan.recurringImport.warnings.some(row => row.code === 'recurring-unversioned-reminder-kept-disabled'));
+});
+test('calendário da importação inclui vigência contratual futura sem ativar movimento antecipado', () => {
+  const source = recurringLedgerImportFixture(), row = source.documents.find(row => row.path === 'mandatoryGains/contract')!;
+  Object.assign(row.fields, financialFields({ installmentTotal: 15, installmentTotalValueInCents: 5000, installmentEndDate: new Date('2027-09-01T03:00:00Z') }));
+  const history = row.fields.completedCycles.mapValue as any; history.fields['2026-09'].mapValue.fields.amountInCents = { integerValue: '333' };
+  source.documents.find(row => row.path === 'ledgerTransactions/recurring-09')!.fields.legs = financialFields({ v: [{ accountId: 'bank-a', deltaInCents: 333 }, { accountId: null, deltaInCents: -333 }] }).v;
+  source.documents.find(row => row.path === 'financialAccounts/bank-a')!.fields.currentBalanceInCents = { integerValue: '1133' };
+  const plan = buildSparkLedgerImport(resealImportFixture(source), 'group', importAsOf);
+  assert.equal(plan.recurringImport.issues.length, 0); assert(plan.generatedDocuments.some(row => row.path === 'sparkCivilMonths/2027-09'));
+  assert.equal(plan.documents.find(row => row.path === 'financialGroups/group/sparkPositions/bank-a')!.fields.balanceInCents.integerValue, '1133');
+});
+test('pagamento já estornado não é recriado como ciclo ativo na conversão', () => {
+  const source = recurringLedgerImportFixture(), row = source.documents.find(row => row.path === 'mandatoryGains/contract')!;
+  source.documents.push({ path: 'ledgerTransactions/recurring-reversed', fields: financialFields({ groupId: 'group', actorId: 'owner', kind: 'reversal',
+    reversesTransactionId: 'recurring-09', clientActionId: 'old_recurring_reverse', effectiveAt: new Date('2026-09-25Z'),
+    legs: [{ accountId: 'bank-a', deltaInCents: -334 }, { accountId: null, deltaInCents: 334 }] }) });
+  source.documents.find(row => row.path === 'financialAccounts/bank-a')!.fields.currentBalanceInCents = { integerValue: '800' };
+  const stale = buildSparkLedgerImport(resealImportFixture(source), 'group', importAsOf);
+  assert.equal(stale.recurringImport.issues[0].code, 'recurring-orphan-cycle');
+  delete (row.fields.completedCycles.mapValue as any).fields['2026-09'];
+  Object.assign(row.fields, financialFields({ installmentsCompleted: 2, lastReceiptCycle: '2026-08', lastReceiptGainId: 'recurring-08' }));
+  const plan = buildSparkLedgerImport(resealImportFixture(source), 'group', importAsOf);
+  assert.equal(plan.recurringImport.converted[0].cycles, 2); assert(!plan.generatedDocuments.some(row => row.path.includes('/sparkRecurringPlans/') && row.path.endsWith('/cycles/2026-09')));
 });
 test('cadeias contíguas, autoria histórica, ponteiros e raiz neutra têm proveniência', () => {
   const snapshot = ledgerImportFixture(), plan = buildSparkLedgerImport(snapshot, 'group', importAsOf);
@@ -41,6 +119,110 @@ test('corte faz parte do hash normalizado e do plano', () => {
   const snapshot = ledgerImportFixture(), another = new Date('2026-10-02T12:00:00Z');
   assert.notEqual(prepareSparkBootstrap(snapshot, 'group', importAsOf).normalizedSha256, prepareSparkBootstrap(snapshot, 'group', another).normalizedSha256);
   assert.notEqual(buildSparkLedgerImport(snapshot, 'group', importAsOf).planSha256, buildSparkLedgerImport(snapshot, 'group', another).planSha256);
+});
+
+test('ponte imutável contém uma identidade por transação e todas as pernas sem duplicar saldo', () => {
+  const plan = buildSparkLedgerImport(ledgerImportFixture(), 'group', importAsOf);
+  const identities = plan.generatedDocuments.filter(row => row.path.includes('/sparkImportedIdentities/'));
+  assert.equal(identities.length, 3);
+  const income = identities.find(row => row.path.endsWith(sparkImportedIdentityId('group', 'income')))!;
+  assert.equal(income.fields.kind.stringValue, 'income'); assert.equal(income.fields.actorId.stringValue, 'guest');
+  assert.equal(income.fields.ordinaryResolutionAllowed.booleanValue, true);
+  const transfer = identities.find(row => row.fields.kind.stringValue === 'transfer')!;
+  assert.equal(transfer.fields.fromAccountId.stringValue, 'bank-a'); assert.equal(transfer.fields.toAccountId.stringValue, 'bank-b');
+  assert.equal(transfer.fields.amountInCents.integerValue, '300');
+  for (const identity of identities) for (const node of (identity.fields.historyNodes.arrayValue as any).values) {
+    const fields = node.mapValue.fields;
+    const linked = plan.generatedDocuments.find(row => row.path.endsWith('/sparkOperations/' + fields.operationId.stringValue))!;
+    assert.equal(linked.fields.accountId.stringValue, fields.accountId.stringValue);
+    assert.equal(linked.fields.sourcePath.stringValue, identity.fields.sourcePath.stringValue);
+    assert.equal(linked.fields.sourceDocumentSha256.stringValue, identity.fields.sourceDocumentSha256.stringValue);
+  }
+});
+test('projeção imutável importada alimenta a leitura sem reler fontes anteriores nem somar identidades duas vezes', () => {
+  const plan = buildSparkLedgerImport(ledgerImportFixture(), 'group', importAsOf);
+  const rows = (collection: string) => plan.generatedDocuments.filter(row => row.path.includes(`/${collection}/`)).map(row => ({
+    id: row.path.split('/').at(-1)!, data: decodeSparkFinancialValue({ mapValue: { fields: row.fields } }) as Record<string, any>,
+  }));
+  const operations = rows('sparkOperations'), identities = rows('sparkImportedIdentities');
+  const events = buildSparkFinancialReadEvents('group', operations, identities);
+  assert.equal(events.filter(event => event.economicKind === 'income').length, 1);
+  assert.equal(events.filter(event => event.economicKind === 'income').reduce((total, event) => total + event.deltaInCents, 0), 200);
+  assert.equal(events.filter(event => event.accountId === 'bank-a' && event.term === 'delta').reduce((total, event) => total + event.deltaInCents, 0), -200);
+  const old = identities.map(row => ({ ...row, data: { ...row.data, readModel: undefined } }));
+  assert.throws(() => buildSparkFinancialReadEvents('group', operations, old), /preparação/);
+});
+
+function correctedLedgerFixture() {
+  const snapshot = ledgerImportFixture();
+  snapshot.documents.push({ path: 'ledgerTransactions/income-reversed', fields: financialFields({ groupId: 'group', kind: 'reversal',
+    actorId: 'owner', clientActionId: 'income_correction_reverse', reversesTransactionId: 'income', effectiveAt: new Date('2026-09-05Z'),
+    legs: [{ accountId: 'bank-a', deltaInCents: -200 }, { accountId: null, deltaInCents: 200 }] }) });
+  snapshot.documents.push({ path: 'ledgerTransactions/replacement', fields: financialFields({ groupId: 'group', kind: 'income',
+    actorId: 'owner', clientActionId: 'income_correction_replace', effectiveAt: new Date('2026-09-05Z'),
+    legs: [{ accountId: 'bank-b', deltaInCents: 250 }, { accountId: null, deltaInCents: -250 }] }) });
+  snapshot.documents.push({ path: 'financialGroups/group/operations/correction', fields: financialFields({ operation: 'correctMovement',
+    actorId: 'owner', result: { transactionId: 'replacement', reversalTransactionId: 'income-reversed', idempotent: false } }) });
+  snapshot.documents.find(row => row.path === 'financialAccounts/bank-a')!.fields.currentBalanceInCents = { integerValue: '600' };
+  snapshot.documents.find(row => row.path === 'financialAccounts/bank-b')!.fields.currentBalanceInCents = { integerValue: '1050' };
+  return resealImportFixture(snapshot);
+}
+test('edição importada liga claim ao estorno e ao substituto, preservando suas identidades independentes', () => {
+  const plan = buildSparkLedgerImport(correctedLedgerFixture(), 'group', importAsOf);
+  const claim = plan.generatedDocuments.find(row => row.path.endsWith('/sparkImportedClaims/' + sparkImportedIdentityId('group', 'income')))!;
+  assert.equal(claim.fields.resolution.stringValue, 'correction');
+  assert.equal(claim.fields.reversalOperationId.stringValue, sparkImportedIdentityId('group', 'income-reversed'));
+  assert.equal(claim.fields.replacementIdentityId.stringValue, sparkImportedIdentityId('group', 'replacement'));
+  assert(plan.generatedDocuments.some(row => row.path.endsWith('/sparkImportedIdentities/' + sparkImportedIdentityId('group', 'replacement'))));
+});
+for (const [name, mutate] of [
+  ['ausente', (snapshot: any) => snapshot.documents.find((row: any) => row.path.endsWith('/operations/correction')).fields.result = financialFields({ result: { transactionId: 'missing', reversalTransactionId: 'income-reversed' } }).result],
+  ['duplicado', (snapshot: any) => snapshot.documents.push({ ...snapshot.documents.find((row: any) => row.path.endsWith('/operations/correction')), path: 'financialGroups/group/operations/duplicate' })],
+  ['data divergente', (snapshot: any) => snapshot.documents.find((row: any) => row.path === 'ledgerTransactions/replacement').fields.effectiveAt = { timestampValue: '2026-09-06T00:00:00Z' }],
+  ['autor divergente', (snapshot: any) => snapshot.documents.find((row: any) => row.path.endsWith('/operations/correction')).fields.actorId = { stringValue: 'guest' }],
+] as const) test(`recibo de edição ${name} impede plano`, () => {
+  const snapshot = correctedLedgerFixture(); mutate(snapshot);
+  assert.throws(() => buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf), /Vínculo/);
+});
+test('marcador parcial de edição não vira estorno simples silenciosamente', () => {
+  const snapshot = correctedLedgerFixture();
+  const receipt = snapshot.documents.find(row => row.path.endsWith('/operations/correction'))!;
+  delete receipt.fields.result; receipt.fields.transactionId = { stringValue: 'income-reversed' };
+  assert.throws(() => buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf), /vínculo completo/);
+});
+test('recibo auxiliar de edição é conservado quando o resultado principal vincula todas as fontes', () => {
+  const snapshot = correctedLedgerFixture(); snapshot.documents.push({ path: 'financialGroups/group/operations/reversal_of_historical',
+    fields: financialFields({ actorId: 'owner', operation: 'correctMovement', transactionId: 'income-reversed' }) });
+  assert.equal(buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf).activationAllowed, false);
+});
+test('par de investimento com contas bancárias é bloqueado em vez de receber identidade enganosa', () => {
+  const snapshot = ledgerImportFixture(); snapshot.documents.find(row => row.path === 'ledgerTransactions/transfer')!.fields.kind = { stringValue: 'investment_deposit' };
+  assert.throws(() => buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf), /incompatível com as contas/);
+});
+test('ciclo de edições entre transações existentes é bloqueado', () => {
+  const snapshot = correctedLedgerFixture();
+  snapshot.documents.push({ path: 'ledgerTransactions/replacement-reversed', fields: financialFields({ groupId: 'group', kind: 'reversal',
+    actorId: 'guest', clientActionId: 'cycle_reverse_123456', reversesTransactionId: 'replacement', effectiveAt: new Date('2026-09-02T12:00:00Z'),
+    legs: [{ accountId: 'bank-b', deltaInCents: -250 }, { accountId: null, deltaInCents: 250 }] }) });
+  snapshot.documents.push({ path: 'financialGroups/group/operations/cycle', fields: financialFields({ actorId: 'guest', operation: 'correctMovement',
+    result: { transactionId: 'income', reversalTransactionId: 'replacement-reversed' } }) });
+  snapshot.documents.find(row => row.path === 'financialAccounts/bank-b')!.fields.currentBalanceInCents = { integerValue: '800' };
+  assert.throws(() => buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf), /Ciclo/);
+});
+test('par com fontes especiais exige adaptador em vez de liberar estorno genérico', () => {
+  const snapshot = ledgerImportFixture();
+  snapshot.documents.find(row => row.path === 'ledgerTransactions/transfer')!.fields.sourceReferences = financialFields({ refs: [{ collection: 'mandatoryExpenses', id: 'definition' }] }).refs;
+  const plan = buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf);
+  const identity = plan.generatedDocuments.find(row => row.path.endsWith('/sparkImportedIdentities/' + sparkImportedIdentityId('group', 'transfer')))!;
+  assert.equal(identity.fields.pairResolutionAllowed.booleanValue, false);
+});
+test('fonte de recorrência preservada impede resolução ordinária sem adaptar o ciclo', () => {
+  const snapshot = ledgerImportFixture();
+  snapshot.documents.find(row => row.path === 'ledgerTransactions/income')!.fields.sourceReferences = financialFields({ refs: [{ collection: 'mandatoryExpenses', id: 'definition' }] }).refs;
+  const plan = buildSparkLedgerImport(resealImportFixture(snapshot), 'group', importAsOf);
+  const identity = plan.generatedDocuments.find(row => row.path.endsWith('/sparkImportedIdentities/' + sparkImportedIdentityId('group', 'income')))!;
+  assert.equal(identity.fields.ordinaryResolutionAllowed.booleanValue, false);
+  assert.equal(plan.activationAllowed, false);
 });
 for (const [name, mutate] of [
   ['arquivada', (snapshot: any) => snapshot.documents.find((row: any) => row.path === 'financialAccounts/bank-a').fields.archivedAt = { timestampValue: '2026-09-30T12:00:00Z' }],

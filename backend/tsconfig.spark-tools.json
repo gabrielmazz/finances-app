@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "noEmit": true, "types": ["node"] },
-  "include": ["scripts/lib/spark*.ts", "scripts/sparkSnapshot.ts", "tests/sparkSnapshot*.test.ts", "tests/sparkLedgerImport*.test.ts"]
+  "include": ["scripts/lib/spark*.ts", "scripts/sparkSnapshot.ts", "scripts/sparkDemoSeed.ts", "tests/sparkDemo*.test.ts", "tests/sparkPair*.test.ts", "tests/sparkBalanceForms*.test.ts", "tests/sparkRecurringForms*.test.ts", "tests/sparkInvestmentForms*.test.ts", "tests/sparkSnapshot*.test.ts", "tests/sparkLedgerImport*.test.ts"]
 }

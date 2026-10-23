@@ -3,10 +3,23 @@ tags: [autenticacao, firebase, seguranca, contexto]
 relacionado: [[Segurança de Login]], [[Navegação]], [[Gerenciamento de Usuários]], [[Firebase Config]]
 status: ativo
 tipo: feature
-versao: 1.5.0
+versao: 1.5.1
+spark_module: U01
+spark_progress: 85
+spark_reviewed_at: 2026-10-19
 ---
 
 # Autenticação
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**U01 — Auth, sessão, perfil e privacidade visual: 85% implementado / 15% restante.** Notas P/I/D/E: **100/75/75/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Homologar login/perfil/sessão, App Check e limpeza de cache no ambiente Spark instalado.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 > Segurança e privacidade (2026-10-11): o logout explícito remove o token push e limpa cache financeiro e anotações antes de encerrar a sessão. A exclusão direta somente de `users/{uid}` foi retirada; `requestAccountDeletion` registra uma solicitação pendente de política de retenção e **não** conclui a exclusão da conta. Ver [[Remediação da Auditoria de Segurança]].
 

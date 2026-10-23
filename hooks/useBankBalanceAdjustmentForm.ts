@@ -1,7 +1,8 @@
 import React from 'react';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { auth } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
+import { prepareSparkBalanceFormFirebase, submitSparkBalanceFormFirebase, type SparkBalanceFormState } from '@/functions/SparkBalanceFormFirebase';
 import { useAppTheme } from '@/contexts/ThemeContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
@@ -44,6 +45,9 @@ export function useBankBalanceAdjustmentForm() {
 	const [previewReloadKey, setPreviewReloadKey] = React.useState(0);
 	const [retryPending, setRetryPending] = React.useState(false);
 	const submitLock = React.useRef(false);
+	const sparkState = React.useRef<SparkBalanceFormState>({});
+	const [preparationProgress, setPreparationProgress] = React.useState<string | null>(null);
+	const preparationRequest = React.useRef<AbortController | null>(null);
 	const focused = React.useRef(false);
 	useFocusEffect(React.useCallback(() => { focused.current = true; return () => { focused.current = false; }; }, []));
 	const command = React.useRef<{ signature: string; input: BankBalanceAdjustmentCommand } | null>(null);
@@ -74,11 +78,27 @@ export function useBankBalanceAdjustmentForm() {
 		setBase(null); setPreviewError(null);
 		if (!bankId || !parsedDate || loading || error) { setPreviewLoading(false); return; }
 		setPreviewLoading(true);
-		void runBankBalanceAdjustmentFirebase({ action: 'preview', bankId, date: parsedDate, adjustmentId })
-			.then(result => { if (active && auth.currentUser?.uid === uid) setBase(result.previousBalanceInCents); })
-			.catch(reason => { if (active) setPreviewError(reason instanceof Error ? reason.message : 'Não foi possível calcular o saldo.'); })
-			.finally(() => { if (active) setPreviewLoading(false); });
-		return () => { active = false; };
+        const controller = new AbortController(); preparationRequest.current = controller;
+        const selection = { actorId: uid!, accountId: bankId, mode: 'adjustment' as const, date: parsedDate, adjustmentId };
+        const previous = sparkState.current.preview;
+        if (sparkState.current.intent?.status !== 'uncertain' && previous && (previous.accountId !== bankId || previous.date !== parsedDate || previous.adjustmentId !== adjustmentId)) sparkState.current = {};
+        const work = sparkState.current;
+        void (async () => {
+            const spark = await prepareSparkBalanceFormFirebase(db, work, selection, () => createFinancialClientActionId('adjustment_form'), { signal: controller.signal });
+            if (!active || auth.currentUser?.uid !== uid) return;
+            if (spark) {
+                setPreparationProgress(spark.proof ? `Histórico: ${spark.proof.workRevision} etapas concluídas.` : null);
+                if (spark.base === null) throw new Error('A preparação está parcial. Continue para conferir o saldo.');
+                setBase(spark.base); return;
+            }
+            const result = await runBankBalanceAdjustmentFirebase({ action: 'preview', bankId, date: parsedDate, adjustmentId, expectedActorId: uid });
+            if (active && auth.currentUser?.uid === uid) setBase(result.previousBalanceInCents);
+        })().catch(reason => {
+            if (!active || auth.currentUser?.uid !== uid) return;
+            if ((reason as { reason?: string }).reason === 'stale') sparkState.current = {};
+            setPreviewError(reason instanceof Error ? reason.message : 'Não foi possível calcular o saldo.');
+        }).finally(() => { if (active) setPreviewLoading(false); });
+        return () => { active = false; controller.abort(); };
 	}, [bankId, parsedDate, adjustmentId, loading, error, previewReloadKey, uid]);
 	const onValueChange = (input: string) => {
 		const digits = input.replace(/\D/g, '');
@@ -97,7 +117,7 @@ export function useBankBalanceAdjustmentForm() {
 	const signature = JSON.stringify([bankId, parsedDate, target, description, adjustmentId]);
 	const retrySameInput = retryPending && command.current?.signature === signature;
 	const noDifference = difference === 0 && !adjustmentId && !retrySameInput;
-	const submitDisabled = loading || submitting || !bankId || !parsedDate || !!valueError || !!descriptionError ||
+	const submitDisabled = loading || submitting || (retryPending && !retrySameInput) || !bankId || !parsedDate || !!valueError || !!descriptionError ||
 		(!retrySameInput && (previewLoading || !!error || !!previewError || difference === null || noDifference));
 	const back = React.useCallback(() => bankId
 		? navigateToRoute(APP_ROUTE_PATHS.bankMovements, { bankId, bankName: banks.find(bank => bank.id === bankId)?.name, focusDate: date })
@@ -106,25 +126,30 @@ export function useBankBalanceAdjustmentForm() {
 		if (submitLock.current || submitDisabled || !bankId || !parsedDate || target === null) return;
 		if (!retrySameInput) {
 			if (base === null) return;
-			command.current = { signature, input: { action: 'save', bankId, date: parsedDate, adjustmentId, clientActionId: createFinancialClientActionId('bank_adjustment'), targetBalanceInCents: target, expectedPreviousBalanceInCents: base, description } };
+			command.current = { signature, input: { action: 'save', expectedActorId: uid, bankId, date: parsedDate, adjustmentId, clientActionId: createFinancialClientActionId('bank_adjustment'), targetBalanceInCents: target, expectedPreviousBalanceInCents: base, description } };
 		}
 		if (!command.current) return;
 		submitLock.current = true; setSubmitting(true);
 		try {
-			await runBankBalanceAdjustmentFirebase(command.current.input);
-			void client.invalidateQueries({ refetchType: 'all' });
+            if (sparkState.current.preview) {
+                await submitSparkBalanceFormFirebase(db, sparkState.current, { actorId: uid!, accountId: bankId, mode: 'adjustment', date: parsedDate,
+                    adjustmentId, targetBalanceInCents: target, note: description });
+            } else await runBankBalanceAdjustmentFirebase(command.current.input);
+			setRetryPending(false);
+			void Promise.resolve(client.invalidateQueries({ queryKey: ['finance', uid], refetchType: 'all' })).catch(error => console.warn('Falha ao atualizar os saldos após o ajuste.', error));
 			if (!focused.current || auth.currentUser?.uid !== uid) return;
 			showNotifierAlert({ title: adjustmentId ? 'Ajuste atualizado' : 'Saldo ajustado', description: 'A diferença foi registrada nas movimentações do banco.', type: 'success', isDarkMode });
 			redirectToRoute(APP_ROUTE_PATHS.bankMovements, { bankId, bankName: banks.find(bank => bank.id === bankId)?.name, focusDate: date });
 		} catch (reason) {
 			if (!focused.current || auth.currentUser?.uid !== uid) return;
 			const code = (reason as { code?: string })?.code;
-			const rejected = ['functions/failed-precondition', 'functions/invalid-argument', 'functions/permission-denied', 'functions/unauthenticated'].includes(code ?? '');
-			if (rejected) command.current = null;
+			const sparkRejected = !!sparkState.current.preview && sparkState.current.intent?.status !== 'uncertain';
+			const rejected = sparkRejected || ['functions/failed-precondition', 'functions/invalid-argument', 'functions/permission-denied', 'functions/unauthenticated'].includes(code ?? '');
+			if (rejected) { command.current = null; sparkState.current = {}; }
 			setRetryPending(!rejected);
 			showNotifierAlert({ description: reason instanceof Error ? reason.message : 'Não foi possível salvar o ajuste.', type: 'error', isDarkMode });
 			setPreviewReloadKey(key => key + 1);
 		} finally { submitLock.current = false; setSubmitting(false); }
 	};
-	return { banks, bankId, setBankId, date, setDate, value, onValueChange, target, description, setDescription, base, difference, loading, previewLoading, submitting, error, previewError, valueError, dateError, descriptionError, noDifference, submitDisabled, submit, back, adjustmentId, retry: () => error ? setReloadKey(key => key + 1) : setPreviewReloadKey(key => key + 1) };
+	return { preparationProgress, pausePreparation: () => preparationRequest.current?.abort(), banks, bankId, setBankId, date, setDate, value, onValueChange, target, description, setDescription, base, difference, loading, previewLoading, submitting, error, previewError, valueError, dateError, descriptionError, noDifference, submitDisabled, submit, back, adjustmentId, retry: () => error ? setReloadKey(key => key + 1) : setPreviewReloadKey(key => key + 1) };
 }

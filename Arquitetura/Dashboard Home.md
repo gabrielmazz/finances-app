@@ -3,16 +3,52 @@ tags: [dashboard, home, graficos, bancos, investimentos]
 relacionado: [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Investimentos]], [[Monitoramento de Investimentos]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Análise por Categoria]], [[Previsão de Fluxo de Caixa]]
 status: ativo
 tipo: feature
-versao: 1.5.5
+versao: 1.6.1
+spark_module: F10
+spark_progress: 78
+spark_reviewed_at: 2026-10-23
 ---
 
 # Dashboard Home
+
+<!-- spark-progress:start -->
+## Progresso Spark — 23/10/2026
+
+**F10 — Home, extrato e análise por categoria: 78% implementado / 22% restante.** Notas P/I/D/E: **100/75/50/50**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Completar ações especiais de referências/importados, medir leituras e homologar Web/aparelhos. Home usa projeção CDI somente com proveniência completa.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Parcelas vencidas e referências nativas — 22/10/2026
+
+Parcelas finitas não quitadas após o prazo permanecem explícitas: a Home mostra o saldo remanescente como vencido e a previsão inclui esse saldo uma vez no primeiro mês. Um pagamento parcial no ciclo reduz o contador/saldo restantes, sem esconder a dívida ou projetá-la novamente nos meses seguintes. Contratos substituídos/cancelados não geram novos compromissos. Carteira/Home reconhecem avaliação composta e sua referência corretiva sob `financial-proof-v17`; estes eventos não são renda, despesa, aporte ou resgate. Ver [[Recorrências Spark]] e [[Investimentos]].
+
 
 Tela principal do app após login. Exibe uma visão consolidada de todas as contas bancárias, resumo de entradas/saídas, linha do tempo de movimentos e portfólio de investimentos do usuário.
 
 Nas composições Web e mobile, os títulos de seção — **Meus Bancos e Dinheiro**, **Investimentos**, **Gastos por dia**, **Atividade no ano**, **Próximos compromissos** e **Últimas Movimentações** — usam o contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText`, alinhado ao cabeçalho **Calendário de Vencimentos**. Os rótulos internos dos detalhes da timeline também usam `WEB_DASHBOARD_CLASS_NAMES.detailLabel` nas duas plataformas.
 
 ## Como funciona
+
+### Transporte Spark — 19/10/2026
+
+`HomeFirebase` seleciona `getSparkContextFirebase` antes de consultar vínculos, `financialAccounts` ou movimentos legados. Grupos v16 usam `SparkHomeFirebase`; contexto recusado não autoriza fallback. Overview, timeline e carteira mantêm erros independentes e as interfaces Web/mobile continuam consumindo o mesmo contrato. As consultas focadas usadas pelo assistente também passam pelo novo transporte; seu catálogo, executor e os demais relatórios ainda precisam de adaptação própria.
+
+- Bancos e Caixa exibem apenas posições ativas, verificadas pelo guard de atualidade do servidor. Contas arquivadas conservam seus movimentos nos indicadores históricos, embora não apareçam como contas correntes no carrossel. A consulta focada de saldo dispensa eventos, categorias, recorrências e carteira.
+- O snapshot compartilha a leitura completa do journal. Compara contas antes/depois e refaz a fotografia até três vezes se houver alteração. Overview/timeline também comparam as contas após ler compromissos: pagamento concorrente não pode juntar saldo anterior e ciclo quitado posterior. Alterações contínuas produzem erro explícito.
+- Ganhos/gastos usam `projectSparkEconomicMovements`, com inversos assinados na família original. Caixa é retornado em seu campo próprio, fora dos mapas bancários, evitando sua soma dupla nos totais Web. Agregados, histórico diário/mensal e carteira recusam somas fora do intervalo inteiro seguro. O caminho legado continua ignorando valores não positivos no calculador histórico; o Spark habilita explicitamente os valores assinados.
+- O heatmap conta uma ação por namespace e identidade original; pares com duas pernas e correções com dois componentes não contam duas ações. A timeline apresenta componentes econômicos, transferências uma vez, perna bancária dos aportes/resgates e sincronizações explícitas de investimento. Referência de avaliação inicial não é uma sincronização manual. Datas usam o calendário de São Paulo. IDs visuais não substituem referências executáveis.
+- Um estorno de pagamento recorrente recebe nome de estorno e a direção real do dinheiro; não é marcado como um novo recebimento obrigatório concluído. O nome do plano é usado quando não há descrição específica do evento.
+- Compromissos vêm de `SparkRecurringReadFirebase` e `sparkRecurringReadModel`: planos/metadados paginados, ciclos entre o mês corrente e mais 24 meses, cobertura declarada e revisões reconferidas. Não deduzir parcelas quitadas por meses decorridos. Usar o resto contratual na última parcela. Arquivadas, completas e sem vencimento declarado não geram compromisso. A janela de ciclos lida acompanha o resultado e não prova histórico fora dela. Falha de consulta não retorna uma lista vazia de sucesso.
+- A carteira da Home mostra contas de investimento Spark ativas com catálogo/principal comprovados. Não inventa capital para fontes ainda sem reconciliação. Não atribui taxas CDI ao último editor do catálogo: sem vínculo canônico de titularidade, conserva saldo confirmado, estimativa adicional zero e `projectionStatus:confirmed_only`. Ambas as telas mostram **Confirmado** e explicam a ausência de projeção adicional. A carteira completa e a projeção por titular ainda permanecem pendentes.
+
+O histórico Web considera dias com valores negativos mesmo quando o total mensal é zero ou negativo. Os sinais de aporte/resgate Spark na timeline seguem o fluxo bancário; apresentação anterior permanece no transporte legado. A inicialização/corte real deverá invalidar caches financeiros do mesmo UID; nenhum grupo real foi ativado nesta entrega. A leitura do journal segue O(N), e custo/volume ainda exigem homologação antes da transição real.
+
+O snapshot Spark informa `financialSource` e o primeiro `currentUntil` de conta ativa. Esse prazo orienta a atualização visual pelo relógio do dispositivo; não substitui o guard de tempo do servidor nem autoriza qualquer escrita. `useHomeQuery` revalida Spark ao montar, recuperar foco/primeiro plano e reconectar, sem aplicar o TTL de dez minutos dos caminhos anteriores. `FinanceDataContext` conecta AppState ao `focusManager` no nativo; consultas que não optaram por foco conservam sua política anterior. O temporizador de vencimento respeita o limite do runtime e para após erro; não há polling sem abertura futura. `useHomeScreenData` oculta o cache Spark durante revalidação, depois de erro ou vencimento, inclusive dados restaurados de dispositivo confiável. Enquanto busca, mostra loading; sem busca/resultado atual, pede atualização. A verificação de acesso/atualidade continua acontecendo no servidor a cada consulta. Homologar também relógio incorreto, background e retorno em aparelho.
+
+### Caminhos anteriores e composição compartilhada
 
 ```mermaid
 graph TD
@@ -35,7 +71,7 @@ graph TD
    - **movements** — até seis movimentos do mês corrente (despesas, receitas e transferências/ajustes elegíveis)
    - **investments** — portfólio com valores atuais calculados pela taxa CDI por vigência
 2. Cada seção tem seu próprio `loading` e `error`, permitindo carregamento parcial
-3. O hook usa cache compartilhado TanStack Query por UID com TTL de 10 minutos. Retornar à Home não consulta o Firebase dentro da janela; `reload()` é a recarga manual por pull-to-refresh.
+3. O hook usa cache compartilhado TanStack Query por UID. Caminhos anteriores mantêm TTL de dez minutos e recarga manual; Spark revalida na montagem/foco/retorno e no vencimento conhecido da próxima abertura, ocultando resultados anteriores durante essa conferência. `reload()` continua sendo a recarga manual por pull-to-refresh.
 4. A implementação Android/iOS renderiza:
    - Carrossel de cartões bancários (`bank-card-surface.tsx`) com gradiente por cor do banco
    - Gráfico de pizza de distribuição de gastos por tag
@@ -152,3 +188,9 @@ Com `MEASURE_ASSISTANT_EMULATOR_READS=1`, a mesma suíte mede 20 leituras de cad
 | Posição de bancos e Caixa | 11,16 | 13,34 | 2 | 1 | 3 |
 
 A comparação usa os caminhos completo/focado no mesmo código/dataset, zero chamadas ao modelo e zero escritas durante a medição. Contadores de `getDoc`/`getDocs` delegam ao SDK real; são chamadas de leitura ao SDK, não contagem de frames HTTP/streams do transporte Firestore. É latência dos leitores no Emulator, sem renderização Web/mobile, áudio ou rede de produção; não é p50/p95 ponta a ponta da conversa. As 20 amostras intercaladas não justificam uma meta absoluta para produção.
+
+## Primeiro percurso utilizável — 23/10/2026
+
+As duas composições oferecem **Atualizar saldos** e **Tentar novamente** se qualquer seção falhar. A ação chama o `reload` existente, bloqueada durante recarga, mantendo os erros independentes. Os totais mensais Web exibem carregamento/indisponibilidade em vez de converter ausência de leitura em R$ 0,00; curvas ficam neutras. A Home nativa observa o UID pelo AuthContext e o hook não publica snapshot residual sem usuário.
+
+Extrato e Home usam a mesma semântica econômica de correções: estorno de despesa reduz despesas, estorno de ganho reduz ganhos, sem criar renda/despesa na família oposta. O resumo do extrato, os filtros, gráfico e PDF preservam essa regra, mantendo a direção real e os componentes na timeline. Cenário sintético de abertura R$ 1.000 + ganho R$ 200 - despesa corrigida para R$ 70: saldo R$ 1.130, ganhos R$ 200, despesas R$ 70. A liberação local está na revisão `statement-dashboard-2026-10-23`; não significa homologação ou corte real. F10 permanece 78%; ver [[Versão Usável por Telas]].

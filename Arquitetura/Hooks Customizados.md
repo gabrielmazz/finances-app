@@ -3,10 +3,25 @@ tags: [hooks, react, estilo, dados, home, tags, icones]
 relacionado: [[Dashboard Home]], [[Sistema de Temas]], [[Componentes UI]], [[Gerenciamento de Tags]]
 status: ativo
 tipo: componente
-versao: 1.5.1
+versao: 1.7.0
+spark_module: F10
+spark_progress: 78
+spark_reviewed_at: 2026-10-23
 ---
 
 # Hooks Customizados
+
+Continuação de 20/10/2026: `useSparkMovementForm` compartilha carregamento, intenção/reenvio e invalidação financeira entre os quatro formulários de despesa/receita. Sequência de carregamento descarta respostas substituídas, mudança de UID impede feedback/navegação e falha de invalidação não converte commit confirmado em erro financeiro. O estado da intenção permanece em memória; reload/desmontagem não é recuperação persistente de uma resposta incerta. Fluxos especiais e assistente continuam pendentes em [[Status da Implementação Spark]].
+
+<!-- spark-progress:start -->
+## Progresso Spark — 23/10/2026
+
+**F10 — Home, extrato e análise por categoria: 78% implementado / 22% restante.** Notas P/I/D/E: **100/75/50/50**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Completar ações especiais de referências/importados, medir leituras e homologar Web/aparelhos. Home usa projeção CDI somente com proveniência completa.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 Hooks React personalizados do projeto. Existem hooks centrais para fetching de dados da home, centralização de estilos, resolução de ícones de tags e comportamento de teclado em formulários.
 
@@ -40,8 +55,8 @@ type HomeSectionState<T> = {
 
 ### Como funciona
 1. Recebe `personId` do usuário autenticado
-2. Usa `useHomeQuery` (TanStack Query), com cache compartilhado por UID e TTL de 10 minutos; foco, reconexão e remount não refazem a consulta
-3. Chama `getHomeSnapshotFirebase(personId)` somente em cache miss, expiração ou `reload()` explícito
+2. Usa `useHomeQuery` (TanStack Query), com cache por UID. Caminhos anteriores conservam TTL de dez minutos e sem refetch automático em foco/reconexão/remount; Spark opta por revalidação nesses eventos
+3. Chama `getHomeSnapshotFirebase(personId)` nas condições do transporte. Spark também agenda a conferência no primeiro vencimento de conta ativa; o prazo no cache não é autoridade para ler/escrever no servidor
 4. Cada seção atualiza seu próprio estado de loading/error independentemente
 5. Se `personId` for null/undefined, reseta todas as seções com mensagem de erro
 6. Expõe `reload()` para pull-to-refresh/recarga manual, sem duplicar a lógica de busca
@@ -49,6 +64,8 @@ type HomeSectionState<T> = {
 `overview.data.upcomingMandatoryItems` contém os próximos ciclos pendentes de gastos e ganhos obrigatórios para a Home Web. A seleção é feita no agregador, mantendo a tela sem consultas Firebase próprias.
 
 No caminho legado, o agregador também consulta tags e sincronizações de investimentos para montar a timeline e o heatmap. Consultas auxiliares de compromissos, histórico e heatmap são tolerantes a falha e retornam listas vazias sem invalidar bancos, saldos e totais mensais do `overview`.
+
+No Spark, `useHomeScreenData` oculta snapshot em cache durante a revalidação, após erro da consulta ou quando seu prazo de atualidade venceu. Cada seção conserva seu resultado/erro independente em uma fotografia vigente. `homeSnapshotFreshness` determina expiração e intervalo limitado do timer; sem abertura futura, não agenda polling. `FinanceDataContext` liga AppState ao `focusManager` do React Query no nativo, mantendo os defaults anteriores das outras consultas. Ver [[Dashboard Home]] para o leitor novo e suas limitações.
 
 ### Arquivo
 - `hooks/useHomeScreenData.ts`
@@ -267,7 +284,7 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 - `webSelectClassNames` deve permanecer no hook para que selects Web reutilizados compartilhem altura, contorno, padding, foco amarelo, hover, seleção e contraste claro/escuro; o componente `web-select-field.tsx` não deve duplicar esses tokens na tela.
 - `webTimePickerClassNames` deve permanecer no hook e reaproveitar a base de `webSelectClassNames`; assim, `time-picker-field.web.tsx` mantém o mesmo trigger, seta, padding, menu e estados visuais do select sem espalhar classes específicas pela tela.
 - `useHomeScreenData` centraliza o fetching para evitar lógica complexa dentro de `HomeScreen.tsx`
-- `useHomeScreenData` usa `useFocusEffect`, não `useEffect` — dados são recarregados a cada foco
+- `useHomeScreenData` usa `useHomeQuery`; foco/retorno e recarga seguem a política por transporte descrita acima, sem `useFocusEffect` local
 - Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais para estado
 - `useTagIcons` mantém o catálogo em `useMemo` para evitar recriação a cada render
 
@@ -281,3 +298,23 @@ Compartilhado pelas variantes Web e mobile da [[Análise por Categoria]]. Manté
 
 - Arquivo: `hooks/useCategoryAnalysisData.ts`.
 - Cálculos e limites de período: `utils/categoryAnalysis.ts`.
+
+## useCategoryFormRecord(tagId)
+
+Carregamento canônico compartilhado pelas telas Web/mobile de [[Gerenciamento de Tags]]. Expõe registro, carregamento, erro e reload. Consulta o servidor, confere sessão/proprietário, descarta resposta substituída/desmontada e bloqueia uso do registro anterior durante a recarga pós-edição. Na criação não lê documento. Não grava nem modifica preferências de navegação.
+
+## useMovementFormEntry(options)
+
+Compartilhado por [[Transações de Despesas]] e [[Transações de Receitas]] Web/mobile. Na criação aguarda initialize de useSparkMovementForm; na edição aguarda loadSpark e só lê a coleção antiga quando o contexto confirma legado. Expõe record, loading, ready, error e retry. Falha mantém ready falso; chave inclui ID e fonte para descartar respostas substituídas. UID é conferido antes de publicar. O hook prepara a entrada; não grava, não limpa rascunhos financeiros nem altera visibilidade.
+
+## `useBankMovementsRequest(scope)` — 23/10/2026
+
+Compartilhado pelos extratos Web/mobile: observa UID no AuthContext e cria um guard por consulta de banco/Caixa/período. `beginRequest` substitui a geração anterior; `cancelRequest` é usado no cleanup do foco, e desmontagem invalida os guards. Cada continuação assíncrona verifica também o UID atual do Firebase antes de publicar dados/erro/finalização. Não cancela a chamada de rede nem altera protocolo de gravação. UI limpa os valores no início e permite retry em falhas. Ver [[Gerenciamento de Bancos]].
+
+## `useTransferFormData(sourceBankId, targetBankId)` — 23/10/2026
+
+Reutiliza o seletor canônico de bancos, observa UID pelo AuthContext e compartilha os estados do catálogo e dos dois saldos entre os formulários de [[Transferências]]. Cada leitura tem chave por UID/conta/revisão de recarga; resultados de outras seleções/sessões são descartados e o saldo não é apresentado como zero após falha. `reload()` renova catálogo e ambas as posições conservando os campos da tela. Erro explicita retry e seleções que deixaram a lista ativa são recusadas. O hook apenas lê dados: não executa nem repete uma transferência.
+
+## `useRescueFormData(selectedBankId)` — 23/10/2026
+
+Compartilhado por [[Resgate de Caixa]] Web/mobile. Resolve Spark antes do razão anterior e legado, exige o Caixa canônico ativo no Spark e confirma o saldo da origem. Erro não escolhe outra fonte nem produz saldo zero. Chaves por UID, conta e revisão de recarga invalidam respostas antigas; banco que deixa o catálogo ativo é recusado. `reload()` limpa a posição anterior e reconfirma bancos/Caixa/saldo sem escrever dinheiro ou repetir envio. Expõe estados de carregamento, erro, ausência de banco e recarga para MovementFormStatus; o formulário preserva seus campos e sua intenção incerta.

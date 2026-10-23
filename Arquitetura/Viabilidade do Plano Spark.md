@@ -1,12 +1,23 @@
 ---
 tags: [firebase, spark, viabilidade, backend, seguranca, release]
 relacionado: [[Firebase Config]], [[Processo de Release]], [[Auditoria do Processo de Release]], [[Comandos Financeiros Conversacionais]], [[Gerenciamento de Usuários]], [[Ajuste de Saldo]], [[Notificações]]
-status: ativo
+status: historico
 tipo: arquitetura
-versao: 1.0.0
+versao: 1.1.0
+spark_scope: projeto
+spark_progress: 56
+spark_reviewed_at: 2026-10-22
 ---
 
 # Viabilidade do Plano Spark
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**Estudo histórico de 16/10/2026.** O plano vigente é [[Plano de Funcionalidade Completa sem Blaze]]: projeto geral **56%**, financeiro completo **78%**. A matriz e as alternativas abaixo preservam o diagnóstico daquela data; não são o status atual de cada operação. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
 
 Análise do código em 16/10/2026, a pedido do proprietário que não pode ativar Blaze neste momento. Este documento é uma proposta de escopo e de implementação posterior. Não ativa faturamento, não publica serviços, não altera Rules nem implementa um modo Spark.
 

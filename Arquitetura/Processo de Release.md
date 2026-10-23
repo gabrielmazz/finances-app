@@ -3,10 +3,23 @@ tags: [release, expo, firebase, web, android]
 relacionado: [[Firebase Config]], [[Versão Web]], [[Gerenciamento de Bancos]], [[Assistente Lumus]]
 status: ativo
 tipo: arquitetura
-versao: 2.3.2
+versao: 2.3.3
+spark_scope: release
+spark_progress: 9
+spark_reviewed_at: 2026-10-20
 ---
 
 # Processo de Release
+
+<!-- spark-progress:start -->
+## Progresso Spark — 20/10/2026
+
+Release/homologação/operação Spark: **9% implementado / 91% restante**. Perfil de publicação Spark (R01): **0%**; homologação/transição (R02): **23%**; dependências/cotas/custo (R03): **13%**. Exports locais aprovados não implementam o perfil: `script/release.js` ainda inclui `functions,firestore`. Publicação Spark não aprovada. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
+
+Em 20/10/2026, [[Guia de Testes Locais]] acrescenta um cenário Spark autenticado e reproduzível para os fluxos principais. `npm run dev:spark:web` usa a porta 8082 e inicia somente Auth/Firestore/Expo; a preparação é sintética e efêmera, sem ativação de conta real. `npm run test:spark:demo` ensaia nove caminhos dos serviços e um dos leitores com Functions desligadas. A regressão da entrega confirma 1.037 cenários Spark + cinco suítes existentes de Rules, e exports Web/Android aprovados. Não substitui o perfil de publicação Spark, os audits de dependências, o piloto, a reversão e a homologação em aparelhos ainda pendentes.
 
 Prova local Spark iniciada em 16/10/2026: `npm run test:spark` sobe apenas Auth/Firestore e valida o [[Protocolo Financeiro Spark]] em grupos sintéticos, seguido das cinco suítes existentes de Rules. Não substitui `test:integration`, não porta as treze famílias e não libera publicação. O perfil Spark de release continua pendente; os comandos de deploy documentados abaixo ainda incluem Functions quando aplicável.
 

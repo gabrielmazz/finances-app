@@ -66,7 +66,7 @@ export type AssistantApplicationResult = {
 
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 
-const routeNames: Array<{ key: RouteVisibilityKey; names: string[] }> = [
+const postSubmitRouteNames: Array<{ key: PostSubmitScreenKey; names: string[] }> = [
 	{ key: 'addRegisterExpenses', names: ['despesa', 'despesas', 'registro de despesas'] },
 	{ key: 'addRegisterGain', names: ['ganho', 'ganhos', 'receita', 'receitas', 'registro de ganhos'] },
 	{ key: 'addMandatoryExpenses', names: ['despesas fixas', 'gastos obrigatorios', 'despesas obrigatorias'] },
@@ -78,9 +78,22 @@ const routeNames: Array<{ key: RouteVisibilityKey; names: string[] }> = [
 	{ key: 'addRegisterBank', names: ['banco', 'bancos', 'novo banco'] },
 	{ key: 'addRegisterTag', names: ['categoria', 'categorias', 'nova categoria'] },
 	{ key: 'addUserRelation', names: ['vinculo', 'vinculos', 'relacionar usuario', 'vinculos de usuario'] },
+];
+
+const routeNames: Array<{ key: RouteVisibilityKey; names: string[] }> = [
+	...postSubmitRouteNames,
+	{ key: 'homeDashboard', names: ['dashboard', 'inicio', 'home'] },
+	{ key: 'bankMovements', names: ['extrato', 'movimentos do banco'] },
+	{ key: 'categoryAnalysis', names: ['analise por categoria'] },
+	{ key: 'financialForecast', names: ['previsao financeira', 'previsao de fluxo de caixa'] },
+	{ key: 'bankBalanceAdjustment', names: ['ajuste de saldo'] },
+	{ key: 'profile', names: ['perfil', 'meu perfil'] },
 	{ key: 'lumusAssistant', names: ['lumus ia', 'assistente', 'assistente lumus'] },
 	{ key: 'annotations', names: ['anotacoes', 'anotacao'] },
 ];
+
+const isPostSubmitScreenKey = (key: RouteVisibilityKey): key is PostSubmitScreenKey =>
+	postSubmitRouteNames.some(option => option.key === key);
 
 const resolveRouteName = (text: string) => {
 	const name = normalize(text).replace(/^(?:a |o |uma |um )/, '');
@@ -134,7 +147,7 @@ export function parseAssistantApplicationCommand(text: string): AssistantApplica
 	const readReturn = /^(?:como (?:esta|ficou)|mostre|consulte) (?:o )?(?:retorno|comportamento) (?:depois de|ao) (cadastrar|registrar|criar|editar) (.+)$/.exec(normalized);
 	if (readReturn) {
 		const key = resolveRouteName(readReturn[2]);
-		if (key && key !== 'annotations' && key !== 'lumusAssistant') return { kind: 'read_post_submit', key, mode: readReturn[1] === 'editar' ? 'edit' : 'create', requiresConfirmation: false };
+		if (key && isPostSubmitScreenKey(key)) return { kind: 'read_post_submit', key, mode: readReturn[1] === 'editar' ? 'edit' : 'create', requiresConfirmation: false };
 	}
 	if (/^(?:mostre|consulte|quais sao) (?:as )?minhas preferencias$/.test(normalized)) return { kind: 'read_preferences', requiresConfirmation: false };
 	if (/^(?:ative|use|aplique|mude para) (?:o )?(?:tema|modo) (?:escuro|claro)$/.test(normalized)) return {
@@ -157,7 +170,7 @@ export function parseAssistantApplicationCommand(text: string): AssistantApplica
 	if (behavior) {
 		const key = resolveRouteName(behavior[2]);
 		const destination = returnAfter ? destinations[returnAfter[3]] : undefined;
-		if (key && key !== 'annotations' && key !== 'lumusAssistant' && (!returnAfter || destination)) return {
+		if (key && isPostSubmitScreenKey(key) && (!returnAfter || destination)) return {
 			kind: 'set_post_submit', key, mode: behavior[1] === 'editar' ? 'edit' : 'create', requiresConfirmation: false,
 			patch: returnAfter ? { shouldReturnAfterSubmit: true, returnDestination: destination!, shouldClearFieldsAfterSubmit: false }
 				: { shouldReturnAfterSubmit: false, shouldClearFieldsAfterSubmit: behavior[1] !== 'editar' && (!stayAfter?.[3] || stayAfter[3] === 'limpe') },
@@ -569,7 +582,7 @@ async function executeApplicationCommand(
 			if (!adapters) return { success: false, message: 'As preferências deste aparelho ainda não estão disponíveis.' };
 			if (command.kind === 'read_route_visibility') return { success: true, message: routeNames.map(route => `${route.names[0]}: ${adapters.isRouteVisible(route.key) ? 'visível' : 'oculta'}`).join('\n') };
 			if (command.kind === 'read_post_submit') {
-				const routes = routeNames.filter((route): route is { key: PostSubmitScreenKey; names: string[] } => route.key !== 'lumusAssistant' && route.key !== 'annotations' && (!command.key || command.key === route.key));
+				const routes = routeNames.filter((route): route is { key: PostSubmitScreenKey; names: string[] } => isPostSubmitScreenKey(route.key) && (!command.key || command.key === route.key));
 				const modes: PostSubmitBehaviorMode[] = command.mode ? [command.mode] : ['create', 'edit'];
 				return { success: true, message: routes.flatMap(route => modes.map(mode => {
 					const behavior = adapters.getBehaviorForScreen(route.key, mode);

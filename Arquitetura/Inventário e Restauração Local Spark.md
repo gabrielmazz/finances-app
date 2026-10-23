@@ -3,10 +3,23 @@ tags: [spark, inventario, backup, restauracao, migracao, seguranca]
 relacionado: [[Reconciliação de Dados Spark]], [[Plano de Funcionalidade Completa sem Blaze]], [[Protocolo Financeiro Spark]], [[Agregados Históricos Spark]], [[Firebase Config]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.2.0
+versao: 0.2.1
+spark_module: D01
+spark_progress: 48
+spark_reviewed_at: 2026-10-19
 ---
 
 # Inventário e Restauração Local Spark
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**D01 — Inventário, backup e restauração: 48% implementado / 52% restante.** Notas P/I/D/E: **75/0/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Preparar captura autorizada real, Rules implantadas e produtos fora da cópia Firestore; ensaiar a cópia específica.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 Ferramentas de manutenção local para capturar documentos brutos do Firestore Emulator, inventariar identidades e ensaiar sua restauração. O objetivo é preparar a compatibilidade dos dados antes de conectar o protocolo Spark ao aplicativo. Não há captura de produção ou corte de contas. A continuação em [[Importação Financeira Local Spark]] acrescenta normalização diagnóstica e importação do razão em grupo bloqueado no Emulator.
 

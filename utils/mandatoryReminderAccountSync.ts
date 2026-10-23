@@ -34,6 +34,7 @@ const buildInstallmentState = (
 		typeof source[completedCycleField] === 'string' ? (source[completedCycleField] as string) : null;
 	const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
 		storedCompleted: source.installmentsCompleted,
+		explicitCompletion: source.sparkPlan === true,
 		installmentTotal,
 		startDate: normalizeMandatoryInstallmentDate(source.installmentStartDate),
 		isCurrentCycleCompleted: isCycleKeyCurrent(completedCycle),

@@ -1,3 +1,5 @@
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkMovementListFirebase } from './SparkMovementListFirebase';
 // O arquivo ExpenseFirebase.ts é responsável por gerenciar as operações relacionadas
 // às despesas registradas no aplicativo.
 
@@ -234,6 +236,8 @@ export async function getAllExpensesFirebase() {
 	try {
 		const personId = auth.currentUser?.uid;
 		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, personId, spark.groupId, 'expense') };
 		const related = await getRelatedUsersIDsFirebase(personId);
 		if (!related.success) return related;
 		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
@@ -276,6 +280,8 @@ export async function getLimitedExpensesFirebase({ limit, personId }: GetLimited
 	try {
 		const scopedPersonId = personId ?? auth.currentUser?.uid;
 		if (!scopedPersonId) return { success: false, error: 'Usuário não autenticado.' };
+		const spark = await getSparkContextFirebase(db, scopedPersonId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, scopedPersonId, spark.groupId, 'expense', limit) };
 		const related = await getRelatedUsersIDsFirebase(scopedPersonId);
 		if (!related.success) return related;
 		const personIds = Array.from(new Set([scopedPersonId, ...(Array.isArray(related.data) ? related.data : [])]));
@@ -309,6 +315,8 @@ export async function getLimitedExpensesWithPeopleFirebase({ limit, personId }: 
 			return { success: true, data: [] };
 		}
 		
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, personId, spark.groupId, 'expense', limit) };
 		// Primeiro, obterm os IDs dos usuários relacionados às despesas
 		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
 

@@ -3,10 +3,23 @@ tags: [usuarios, perfil, firebase, web, mobile]
 relacionado: [[Gerenciamento de Usuários]], [[Autenticação]], [[Navegação]], [[Firebase Config]], [[Visibilidade de Rotas]], [[Configurações]]
 status: ativo
 tipo: feature
-versao: 1.2.0
+versao: 1.2.1
+spark_module: U01
+spark_progress: 85
+spark_reviewed_at: 2026-10-19
 ---
 
 # Perfil do Usuário
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**U01 — Auth, sessão, perfil e privacidade visual: 85% implementado / 15% restante.** Notas P/I/D/E: **100/75/75/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Homologar login/perfil/sessão, App Check e limpeza de cache no ambiente Spark instalado.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 > Auditoria 2026-10-11: **Contas vinculadas** mostra apenas relações com concessões recíprocas confirmadas. A tela de relacionamento lista convites recebidos e permite aceitá-los na sessão da conta convidada. A solicitação de exclusão de conta está preparada no backend, mas a experiência de exclusão e a execução aguardam a política de retenção; ver [[Remediação da Auditoria de Segurança]].
 
@@ -14,7 +27,7 @@ versao: 1.2.0
 
 ## Como funciona
 
-- Rotas autenticadas `/web/profile` e `/mobile/profile`, registradas em `APP_ROUTE_PATHS.profile`. O perfil está sempre disponível para uma sessão autenticada, independentemente da preferência de visibilidade do vínculo.
+- Rotas autenticadas `/web/profile` e `/mobile/profile`, registradas em `APP_ROUTE_PATHS.profile`. O perfil exige sessão autenticada e a chave local `profile` habilitada em [[Visibilidade de Rotas]]. Começa desativado na etapa [[Versão Usável por Telas]]; a preferência de vínculo continua independente.
 - Composições independentes: Web usa formulário HTML com labels associados, foco e grid responsivo; Android/iOS usa Gluestack e teclado nativo, com o conteúdo inteiro dentro de um `ScrollView` limitado pelo sheet flexível para alcançar também **Contas vinculadas**. Ambas reutilizam os tokens, o hero e `assets/UnDraw/perfilPersonScreen.svg`.
 - O hero acompanha o padrão das demais telas: `max(28% da altura da janela, 250 px) + safe area superior`, com o sheet sobreposto em 64 px. Na Web, shell e hero usam largura de viewport e a imagem React Native declara posição e dimensões para cobrir toda a camada sem expor o fundo lateral.
 - O nome é editável, obrigatório ao salvar, aceita nomes internacionais de um único caractere e tem limite de 100 caracteres. Espaços nas extremidades são removidos. Não há exigência de sobrenome.

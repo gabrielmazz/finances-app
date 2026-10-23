@@ -1253,6 +1253,7 @@ const deleteCategory = async (context: ExecuteContext): Promise<AssistantExecute
 	if (owned.item.collection !== 'tags') return fail('A categoria selecionada é inválida.', 'invalid-reference');
 	const references = await getTagReferenceSummary(owned.item.realId!);
 	if (!references.success || !references.data) return fail('Não foi possível conferir os vínculos da categoria.', 'references-unavailable');
+	if (references.data.permanentHistory) return fail('Esta categoria pertence ao histórico financeiro e precisa ser preservada, inclusive após estornos.', 'linked-record');
 	if (Object.values(references.data).some(value => typeof value === 'number' && value > 0)) return fail('Esta categoria está em uso. Reclassifique os registros vinculados antes de excluir.', 'linked-record');
 	await withCallableRateLimitRetry(() => manageFinancialMetadataFirebase({ expectedActorId: context.personId, domain: 'category', action: 'delete', recordId: owned.item.realId!, fields: {}, clientActionId: context.draft.clientActionId, expectedFingerprint: context.draft.originalSnapshot?.fingerprint, assistantRequestFingerprint: legacyReceiptFingerprint(context) }), context.callOptions);
 	return { success: true, message: 'Categoria excluída conforme as regras atuais do Lumus.' };

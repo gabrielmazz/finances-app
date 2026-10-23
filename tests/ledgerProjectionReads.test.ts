@@ -1,4 +1,5 @@
 jest.mock('@/FirebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'owner' } }, firebaseFunctions: {} }));
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: async () => null }));
 jest.mock('firebase/functions', () => ({ httpsCallable: jest.fn() }));
 jest.mock('firebase/firestore', () => ({
 	collection: (_db: unknown, name: string) => ({ name }),

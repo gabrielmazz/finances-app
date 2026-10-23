@@ -29,8 +29,6 @@ import { HStack } from '@/components/ui/hstack';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
-	getBanksWithUsersByPersonFirebase,
-	getLegacyBankBalanceInCentsFirebase,
 	transferBetweenBanksFirebase,
 } from '@/functions/BankFirebase';
 import { auth } from '@/FirebaseConfig';
@@ -45,13 +43,11 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { cn } from '@/lib/utils';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { useSparkPairForm } from '@/hooks/useSparkPairForm';
+import { useTransferFormData } from '@/hooks/useTransferFormData';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 
-type BankOption = {
-	id: string;
-	name: string;
-	iconKey?: string | null;
-	colorHex?: string | null;
-};
 type FocusableInputKey = 'transfer-value' | 'transfer-description';
 
 const formatCurrencyBRL = (valueInCents: number) =>
@@ -129,24 +125,23 @@ export default function TransferScreen() {
 		insets
 	} = useScreenStyles();
 
-	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedSourceBankId, setSelectedSourceBankId] = React.useState<string | null>(null);
 	const [selectedTargetBankId, setSelectedTargetBankId] = React.useState<string | null>(null);
 	const [transferValueDisplay, setTransferValueDisplay] = React.useState('');
 	const [transferValueInCents, setTransferValueInCents] = React.useState<number | null>(null);
-	const [transferDate, setTransferDate] = React.useState(formatDateToBR(new Date()));
+	const [transferDate, setTransferDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [transferDescription, setTransferDescription] = React.useState<string | null>(null);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [originBalanceInCents, setOriginBalanceInCents] = React.useState<number | null>(null);
-	const [isLoadingBalance, setIsLoadingBalance] = React.useState(false);
-	const [targetBalanceInCents, setTargetBalanceInCents] = React.useState<number | null>(null);
-	const [isLoadingTargetBalance, setIsLoadingTargetBalance] = React.useState(false);
+	const { personId, banks, isLoadingBanks, banksError, originBalanceInCents, isLoadingBalance,
+		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
+	const mounted = React.useRef(true);
+	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const submitLockRef = React.useRef(false);
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const previousUnavailableBalanceRef = React.useRef(false);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('transferScreen');
+	const { submit: submitSparkPair, reset: resetSparkPair, isUncertain: isPairUncertain } = useSparkPairForm();
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
 		[],
@@ -219,148 +214,16 @@ export default function TransferScreen() {
 	}, []);
 
 	const resetTransferForm = React.useCallback(() => {
+		resetSparkPair();
 		setSelectedSourceBankId(null);
 		setSelectedTargetBankId(null);
 		setTransferValueDisplay('');
 		setTransferValueInCents(null);
-		setTransferDate(formatDateToBR(new Date()));
+		setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
 		setTransferDescription(null);
-		setOriginBalanceInCents(null);
-		setTargetBalanceInCents(null);
-	}, []);
+	}, [resetSparkPair]);
 
-	const loadOriginBalance = React.useCallback(async (bankId: string) => {
-		setIsLoadingBalance(true);
-		setOriginBalanceInCents(null);
-
-		try {
-			const currentUser = auth.currentUser;
-			if (!currentUser) {
-				showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-				return;
-			}
-
-			const balanceResult = await getLegacyBankBalanceInCentsFirebase({
-				personId: currentUser.uid,
-				bankId,
-			});
-			if (!balanceResult.success) {
-				throw balanceResult.error;
-			}
-			setOriginBalanceInCents(balanceResult.data);
-		} catch (error) {
-			console.error('Erro ao carregar saldo do banco:', error);
-			showScreenAlert('Não foi possível carregar o saldo atual do banco de origem.', 'error');
-			setOriginBalanceInCents(null);
-		} finally {
-			setIsLoadingBalance(false);
-		}
-	}, [showScreenAlert]);
-
-	React.useEffect(() => {
-		let isMounted = true;
-		setIsLoadingBanks(true);
-
-		const loadBanks = async () => {
-			try {
-				const currentUser = auth.currentUser;
-				if (!currentUser) {
-					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-					return;
-				}
-
-				const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
-				if (!isMounted) {
-					return;
-				}
-
-				if (banksResult.success && Array.isArray(banksResult.data)) {
-					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name:
-							typeof bank?.name === 'string' && bank.name.trim().length > 0
-								? bank.name.trim()
-								: 'Banco sem nome',
-						iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-						colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-					}));
-					setBanks(formattedBanks);
-				} else {
-					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
-				}
-			} catch (error) {
-				console.error('Erro ao carregar bancos para transferência:', error);
-				if (isMounted) {
-					showScreenAlert('Erro inesperado ao carregar bancos.', 'error');
-				}
-			} finally {
-				if (isMounted) {
-					setIsLoadingBanks(false);
-				}
-			}
-		};
-
-		void loadBanks();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [showScreenAlert]);
-
-	React.useEffect(() => {
-		if (!selectedSourceBankId) {
-			setOriginBalanceInCents(null);
-			return;
-		}
-		void loadOriginBalance(selectedSourceBankId);
-	}, [selectedSourceBankId, loadOriginBalance]);
-
-	React.useEffect(() => {
-		let isCurrent = true;
-
-		if (!selectedTargetBankId) {
-			setTargetBalanceInCents(null);
-			setIsLoadingTargetBalance(false);
-			return () => {
-				isCurrent = false;
-			};
-		}
-
-		const loadTargetBalance = async () => {
-			setIsLoadingTargetBalance(true);
-			setTargetBalanceInCents(null);
-
-			try {
-				const currentUser = auth.currentUser;
-				if (!currentUser) {
-					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-					return;
-				}
-
-				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
-					personId: currentUser.uid,
-					bankId: selectedTargetBankId,
-				});
-				if (!balanceResult.success) {
-					throw balanceResult.error;
-				}
-				if (isCurrent) setTargetBalanceInCents(balanceResult.data);
-			} catch (error) {
-				console.error('Erro ao carregar saldo do banco de destino:', error);
-				if (isCurrent) {
-					showScreenAlert('Não foi possível carregar o saldo atual do banco de destino.', 'error');
-					setTargetBalanceInCents(null);
-				}
-			} finally {
-				if (isCurrent) setIsLoadingTargetBalance(false);
-			}
-		};
-
-		void loadTargetBalance();
-		return () => {
-			isCurrent = false;
-		};
-	}, [selectedTargetBankId, showScreenAlert]);
+	React.useEffect(() => { resetTransferForm(); }, [personId, resetTransferForm]);
 
 	const hasInsufficientBalance =
 		typeof originBalanceInCents === 'number' &&
@@ -392,15 +255,16 @@ export default function TransferScreen() {
 		() => banks.find(bank => bank.id === selectedTargetBankId) ?? null,
 		[banks, selectedTargetBankId],
 	);
-	const hasTransferValue = transferValueInCents !== null && transferValueInCents > 0;
-	const isSourceBankDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
+	const hasTransferValue = transferValueInCents !== null && Number.isSafeInteger(transferValueInCents) && transferValueInCents > 0;
+	const isFormLocked = isSubmitting || isPairUncertain || isLoadingBanks || Boolean(banksError);
+	const isSourceBankDisabled = isFormLocked || banks.length === 0;
 	const isTargetBankDisabled =
-		isLoadingBanks || isSubmitting || !selectedSourceBankId || targetBankOptions.length === 0;
-	const isTransferValueDisabled = isSubmitting || !selectedSourceBankId || !selectedTargetBankId;
+		isFormLocked || !selectedSourceBankId || targetBankOptions.length === 0;
+	const isTransferValueDisabled = isFormLocked || !selectedSourceBankId || !selectedTargetBankId;
 	const isTransferDateDisabled =
-		isSubmitting || !selectedSourceBankId || !selectedTargetBankId || !hasTransferValue;
+		isFormLocked || !selectedSourceBankId || !selectedTargetBankId || !hasTransferValue;
 	const isTransferDescriptionDisabled =
-		isSubmitting ||
+		isFormLocked ||
 		!selectedSourceBankId ||
 		!selectedTargetBankId ||
 		!hasTransferValue ||
@@ -408,14 +272,11 @@ export default function TransferScreen() {
 	const isSubmitDisabled =
 		isSubmitting ||
 		isLoadingBanks ||
-		isLoadingBalance ||
 		!selectedSourceBankId ||
 		!selectedTargetBankId ||
 		!hasTransferValue ||
 		!parsedTransferDate ||
-		hasUnavailableBalance ||
-		hasInsufficientBalance ||
-		isBalanceValidationUnavailable;
+		(!isPairUncertain && (isLoadingBalance || isLoadingTargetBalance || Boolean(transferDataError) || hasUnavailableBalance || hasInsufficientBalance || isBalanceValidationUnavailable));
 	const screenTitle = 'Transferência entre bancos';
 
 	React.useEffect(() => {
@@ -425,6 +286,7 @@ export default function TransferScreen() {
 
 	React.useEffect(() => {
 		if (
+			isPairUncertain ||
 			!selectedSourceBankId ||
 			isLoadingBalance ||
 			transferValueInCents === null ||
@@ -444,6 +306,7 @@ export default function TransferScreen() {
 	}, [
 		hasInsufficientBalance,
 		hasUnavailableBalance,
+		isPairUncertain,
 		isLoadingBalance,
 		selectedSourceBankId,
 		showUnavailableBalanceNotification,
@@ -451,12 +314,12 @@ export default function TransferScreen() {
 	]);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitDisabled) {
 			return;
 		}
 
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
 			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 			return;
 		}
@@ -481,7 +344,7 @@ export default function TransferScreen() {
 			return;
 		}
 
-		if (typeof originBalanceInCents === 'number') {
+		if (!isPairUncertain && typeof originBalanceInCents === 'number') {
 			if (originBalanceInCents <= 0) {
 				showUnavailableBalanceNotification();
 				return;
@@ -490,7 +353,7 @@ export default function TransferScreen() {
 				showUnavailableBalanceNotification();
 				return;
 			}
-		} else {
+		} else if (!isPairUncertain) {
 			showScreenAlert(
 				'Registre ou carregue o saldo do banco de origem antes de transferir.',
 				'warn',
@@ -513,6 +376,15 @@ export default function TransferScreen() {
 		setIsSubmitting(true);
 
 		try {
+			const handled = await submitSparkPair({ actorId: currentUser.uid, mode: 'transfer', fromAccountId: selectedSourceBankId,
+				toAccountId: selectedTargetBankId, amountInCents: transferValueInCents, selectedDate: parsedTransferDate, note: transferDescription });
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
+			if (handled) {
+				reloadTransferData();
+				showSuccessfulTransferNotification();
+				applyPostSubmitBehavior({ resetForm: resetTransferForm });
+				return;
+			}
 			const result = await transferBetweenBanksFirebase({
 				personId: currentUser.uid,
 				sourceBankId: selectedSourceBankId,
@@ -524,22 +396,26 @@ export default function TransferScreen() {
 				targetBankNameSnapshot: targetBankName,
 			});
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
 			if (!result.success) {
 				showScreenAlert('Não foi possível registrar a transferência. Tente novamente.', 'error');
 				return;
 			}
 
+			reloadTransferData();
 			showSuccessfulTransferNotification();
 			applyPostSubmitBehavior({ resetForm: resetTransferForm });
 		} catch (error) {
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
 			console.error('Erro ao registrar transferência:', error);
-			showScreenAlert('Erro inesperado ao registrar a transferência.', 'error');
+			showScreenAlert(error instanceof Error ? error.message : 'Erro inesperado ao registrar a transferência.', 'error');
 		} finally {
 			submitLockRef.current = false;
-			setIsSubmitting(false);
+			if (mounted.current) setIsSubmitting(false);
 		}
 	}, [
 		banks,
+		isSubmitDisabled, personId, reloadTransferData,
 		isSubmitting,
 		originBalanceInCents,
 		showScreenAlert,
@@ -551,7 +427,7 @@ export default function TransferScreen() {
 		selectedTargetBankId,
 		parsedTransferDate,
 		transferDescription,
-		transferValueInCents,
+		transferValueInCents, submitSparkPair, isPairUncertain,
 	]);
 
 	return (
@@ -603,6 +479,9 @@ export default function TransferScreen() {
 							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} mt-4`}>
+								<MovementFormStatus loading={isLoadingBanks || isLoadingBalance || isLoadingTargetBalance} error={transferDataError} onRetry={reloadTransferData} />
+								{needsBanks ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre pelo menos dois bancos ativos para transferir entre contas.</Text><Button variant="outline" onPress={reloadTransferData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
+								{isPairUncertain ? <Text className="mb-4 text-warning-600 dark:text-warning-400" accessibilityRole="alert">O envio anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados até a confirmação.</Text> : null}
 
 								<HStack className="w-full flex-col gap-4 md:flex-row">
 
@@ -636,9 +515,7 @@ export default function TransferScreen() {
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
 															Selecione o banco de origem para a transferência. O saldo disponível será
-															carregado para validar se a transferência pode ser realizada. Se o banco de origem
-															não tiver saldo registrado para o mês atual, a transferência não poderá ser
-															realizada.
+															carregado para validar se a transferência pode ser realizada. A transferência exige saldo atual confirmado e suficiente na origem.
 														</Text>
 													</PopoverBody>
 												</PopoverContent>
@@ -810,7 +687,7 @@ export default function TransferScreen() {
 											<ButtonText>Registrando transferência</ButtonText>
 										</>
 									) : (
-										<ButtonText>Confirmar transferência</ButtonText>
+										<ButtonText>{isPairUncertain ? 'Confirmar envio anterior' : 'Confirmar transferência'}</ButtonText>
 									)}
 								</Button>
 							</VStack>

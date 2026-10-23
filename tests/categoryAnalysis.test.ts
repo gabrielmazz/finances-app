@@ -1,6 +1,7 @@
 const mockGetDocs = jest.fn();
 const mockGetRelatedUsers = jest.fn();
 jest.mock('@/FirebaseConfig', () => ({ db: {} }));
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: async () => null }));
 jest.mock('@/functions/RegisterUserFirebase', () => ({ getRelatedUsersIDsFirebase: (...args: unknown[]) => mockGetRelatedUsers(...args) }));
 jest.mock('firebase/firestore', () => ({
 	collection: (_db: unknown, name: string) => name,

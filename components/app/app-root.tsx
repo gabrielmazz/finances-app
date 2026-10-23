@@ -23,6 +23,9 @@ import { synchronizeMandatoryReminderAccount } from '@/utils/mandatoryReminderAc
 import { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } from '@/utils/appRouteGuards';
 import { registerRemoteNotificationDevice } from '@/utils/remoteNotifications';
 import { cleanupExpiredSession } from '@/utils/secureLogout';
+import { synchronizeSparkSharedChanges } from '@/utils/sparkSharedChanges';
+import SparkActivationNotice from '@/components/uiverse/banks/spark-activation-notice';
+import SparkOperationRecoveryNotice from '@/components/uiverse/banks/spark-operation-recovery-notice';
 
 const AuthBootstrapScreen = () => {
 	return (
@@ -36,6 +39,13 @@ const AuthBootstrapScreen = () => {
 
 const NotificationLifecycleBridge = () => {
 	const { user, isAuthReady } = useAuth();
+	const { themeMode } = useAppTheme();
+	const themeRef = React.useRef(themeMode);
+	themeRef.current = themeMode;
+	const announceChanges = React.useCallback((count: number, hasMore: boolean) => showNotifierAlert({
+		title: 'Alterações no seu grupo', description: `${count ? `${count} alteração(ões) em recorrências foram feitas por outra pessoa. Abra suas listas para conferir.` : 'Há atualizações no histórico do grupo.'}${hasMore ? ' A conferência continuará na próxima abertura.' : ''}`,
+		type: 'info', isDarkMode: themeRef.current === 'dark',
+	}), []);
 
 	React.useEffect(() => {
 		if (!isAuthReady || !user?.uid) {
@@ -47,16 +57,16 @@ const NotificationLifecycleBridge = () => {
 		void synchronizeMandatoryReminderAccount(accountId, () => !isCancelled).catch(error => {
 			console.error('Erro ao sincronizar lembretes após autenticação:', error);
 		});
-		void registerRemoteNotificationDevice(accountId).then(result => {
-			if (!result.registered && result.reason === 'token-error') {
-				console.warn('Não foi possível registrar este aparelho para notificações remotas.');
-			}
-		});
+		void synchronizeSparkSharedChanges(accountId, () => !isCancelled, announceChanges).then(async mode => {
+			if (mode !== 'legacy' || isCancelled) return;
+			const result = await registerRemoteNotificationDevice(accountId);
+			if (!result.registered && result.reason === 'token-error') console.warn('Não foi possível registrar este aparelho para notificações remotas.');
+		}).catch(error => console.error('Não foi possível conferir os avisos do grupo:', error));
 
 		return () => {
 			isCancelled = true;
 		};
-	}, [isAuthReady, user?.uid]);
+	}, [announceChanges, isAuthReady, user?.uid]);
 
 	React.useEffect(() => {
 		if (!user?.uid) {
@@ -64,14 +74,17 @@ const NotificationLifecycleBridge = () => {
 		}
 
 		const accountId = user.uid;
+		let isCancelled = false;
 		const subscription = AppState.addEventListener('change', nextState => {
 			if (nextState === 'active') {
 				void refreshMandatoryReminderNotifications(accountId);
+				void synchronizeMandatoryReminderAccount(accountId, () => !isCancelled).catch(error => console.error('Não foi possível atualizar os lembretes do grupo:', error));
+				void synchronizeSparkSharedChanges(accountId, () => !isCancelled, announceChanges).catch(error => console.error('Não foi possível atualizar os avisos do grupo:', error));
 			}
 		});
 
-		return () => subscription.remove();
-	}, [user?.uid]);
+		return () => { isCancelled = true; subscription.remove(); };
+	}, [announceChanges, user?.uid]);
 
 	return null;
 };
@@ -98,6 +111,8 @@ const AuthenticatedStack = () => {
 
 	return (
 		<View className="flex-1" onStartShouldSetResponderCapture={() => !registerActivity()} onTouchMove={registerActivity}>
+			{isAuthenticated && <SparkOperationRecoveryNotice />}
+			{isAuthenticated && <SparkActivationNotice />}
 			<WebAppShell isAuthenticated={isAuthenticated}>
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Protected guard={!isAuthenticated}>

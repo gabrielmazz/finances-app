@@ -3,10 +3,39 @@ tags: [firebase, spark, financeiro, cotas, seguranca]
 relacionado: [[Protocolo Financeiro Spark]], [[Plano de Funcionalidade Completa sem Blaze]], [[Reconciliação de Dados Spark]], [[Ajuste de Saldo]], [[Balanço Mensal]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.2.0
+versao: 0.2.1
+spark_module: F01
+spark_progress: 80
+spark_reviewed_at: 2026-10-22
 ---
 
 # Preparação Histórica Spark
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F01 — Protocolo, histórico e preparação: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir restauração dos argumentos/provas/fases descritivas e progresso/pausa no assistente; medir custo em volumes representativos. Identificação, conferência e cancelamento já sobrevivem ao reload pelo executor comum. Ativação mensal conserva sua fila própria.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Continuação v17 — 22/10/2026
+
+A projeção desempata por revisão os movimentos confirmados sem data declarada no mesmo instante de uma referência. Se a revisão do movimento for posterior à referência, ele continua no saldo; operações com data explícita conservam a cobertura original. Segmentos que cruzam essa fronteira não inclusiva não aceleram a página, para que cada nó seja conferido. O ensaio de resgate após sincronização reproduz esse empate de forma determinística.
+
+Marcador protegido e destino do plano local: `financial-proof-v17`; o novo hash não habilita grupos reais. O histórico reconhece os nós de avaliação composta e a referência corretiva como checkpoints. O propósito exclusivo `valuation_undo` vincula uma única referência vigente excluída, permanece imutável e não autoriza comandos comuns. Contratos replanejados usam sucessor/predecessor e metadados no mesmo commit; listas atualizam a agenda depois da confirmação e não estendem lembretes de contrato vencido silenciosamente. Ver [[Protocolo Financeiro Spark]], [[Recorrências Spark]], [[Investimentos]] e [[Status da Implementação Spark]].
+
+
+## Fila de ativação e retomada persistente — 22/10/2026
+
+`SparkActivationQueueFirebase` lista posições bancárias ativas com prazo vencido, sem materializar durante a leitura. O aviso na raiz compartilha a entrada Web/mobile e reapresenta a fila ao retornar ao primeiro plano. Cada continuação trabalha até vinte páginas; pausa aborta as próximas etapas e conserva trabalho confirmado. A conclusão invalida consultas financeiras do mesmo UID. O guard autoritativo continua decidindo atualidade; leitura de relógio local somente seleciona candidatos.
+
+Ao retomar, a consulta privada de provas filtra UID/conta/finalidade/cabeça e ordena por `asOf`; conserva instante e identidade de prova elegível, em vez de começar outra a cada reload. O índice composto foi registrado. Revisão alterada, prova de outra conta/ator, frontier já ultrapassada ou sessão revogada não autorizam ativação. Membro pode aplicar a referência previamente autorizada; não pode criar nova contagem. Dois controles SDK novos ensaiam preparação parcial, pausa, reload sem estado local, replay e revogação.
+
+Essa descoberta não recupera automaticamente novos lançamentos/contagens/intenção composta. Persistência das demais intenções, integração do progresso na carteira/chat e medições representativas permanecem pendentes. A varredura de posições/consulta de provas tem custo adicional e não é contabilização da franquia.
+
 
 Controla o trabalho admitido para certificar o histórico sem Functions. Implementação isolada, compartilhada por Web/native, usando Auth e transações do SDK Firestore. Não conecta os serviços publicados nem habilita grupos reais. O marcador atual é `financial-proof-v6`; provas/grupos anteriores exigem transição explícita.
 
@@ -99,3 +128,11 @@ Integração de progresso, pausa e retomada nas telas/chat, homologação em apa
 ## Continuação com agregados
 
 A v0.7 acrescenta `segmentId` à prova e `useSegments` opcional. O caminho sem aceleração e seus números históricos acima permanecem válidos. Consultas aquecidas reservam até 16 páginas; cada certificado novo consome 20 unidades de leitura/três escritas nos mesmos contadores, usando schema privado alternativo `workKind: segment`. Totais não reiniciam ao alternar modos. A estimativa de progresso é explicitamente o limite sem aceleração; diagnóstico acrescenta páginas de segmento/nós reutilizados. Ver custos completos e limites em [[Agregados Históricos Spark]].
+
+### Evidência posterior: compilação de Rules sem avisos de tipo
+
+A compilação local deixou de emitir os avisos de `null` versus string/map. Histórico recorrente mantém o fallback anterior para campo ausente/nulo, mas usa referência textual na validação. A cadeia histórica valida explicitamente a raiz antes de aceitar ponteiro nulo. Cotas passam mapa anterior e presença separadamente, obtidos de `resource`/`exists`, sem adicionar flag controlada pelo cliente nem permitir reiniciar uma cota existente. Limites, receitas e efeitos não foram afrouxados.
+
+Depois da mudança, `.expo/spark-no-warning-rules.log` aprovou **1.050 cenários Spark e os cinco scripts anteriores de Rules na mesma cadeia**, com saída zero. `.expo/spark-no-warning-sdk.log` aprovou **33 cenários**; `spark-no-warning-import.log` aprovou **18** em emuladores próprios, com compilação sem aqueles avisos. Testes positivos de páginas, reservas e agregados continuam dentro do orçamento de expressões; recusas não são aceitas por esgotamento. A Home também conserva o saldo confirmado quando faltam taxas CDI do titular, mesmo se a consulta retornar sucesso com lista vazia ou somente taxa de outro membro.
+
+O gate e os bundles foram repetidos após esse último ajuste da Home: `.expo/spark-financial-accepted-check.log` (**104 ferramentas, 989 comuns**, 89 condicionais ignorados) e `spark-financial-{web,android}-accepted.log` (ambos exportados, aviso conhecido de fallback Android). Os 47 cenários dirigidos passaram nos dois fusos em `spark-financial-accepted-{tokyo,la}.log`. “Accepted” nesses nomes identifica somente a verificação local, sem aprovação de release. Sem dado real, publicação ou nova homologação visual/aparelho; percentuais e pendências anteriores permanecem.

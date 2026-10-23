@@ -37,7 +37,10 @@ import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert'
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTagScreen.svg';
 import { auth } from '@/FirebaseConfig';
-import { addTagFirebase, getTagDataFirebase, updateTagFirebase } from '@/functions/TagFirebase';
+import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
+import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
+import { createAssistantRecordFingerprint, serializeAssistantRecord } from '@/utils/assistantRecordFingerprint';
+import { useCategoryFormRecord } from '@/hooks/useCategoryFormRecord';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
@@ -162,14 +165,16 @@ export default function AddRegisterTagScreen() {
 	const [selectedAvailabilityPreset, setSelectedAvailabilityPreset] =
 		React.useState<CategoryAvailabilityPreset | null>(null);
 	const [savedAvailability, setSavedAvailability] = React.useState<CategoryAvailabilityFields | null>(null);
-	const [isLoadingExisting, setIsLoadingExisting] = React.useState(Boolean(editingTagId));
-	const [isExistingTagAvailable, setIsExistingTagAvailable] = React.useState(!editingTagId);
+	const { record: existingTag, isLoading: isLoadingExisting, error: categoryLoadError, reload: reloadCategory } = useCategoryFormRecord(editingTagId);
+	const isExistingTagAvailable = !editingTagId || Boolean(existingTag && !isLoadingExisting && !categoryLoadError);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPlacementSelectorOpen, setIsPlacementSelectorOpen] = React.useState(false);
 	const [isPresetSelectorOpen, setIsPresetSelectorOpen] = React.useState(false);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const [tagIconSearch, setTagIconSearch] = React.useState('');
 	const submitLockRef = React.useRef(false);
+	const intentRef = React.useRef<{ signature: string; id: string } | null>(null);
+	const originalFingerprint = existingTag ? createAssistantRecordFingerprint(existingTag) : undefined;
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
 	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
@@ -181,64 +186,31 @@ export default function AddRegisterTagScreen() {
 	}, [isEditing, routeCreationPreset]);
 
 	React.useEffect(() => {
-		if (!editingTagId) {
-			setIsLoadingExisting(false);
-			setIsExistingTagAvailable(true);
-			return;
-		}
+		if (!existingTag) return;
+		const tag = existingTag;
+		intentRef.current = null;
+		setTagName(typeof tag.name === 'string' ? tag.name : '');
+		setSelectedTagIcon(
+			resolveTagIcon({
+				iconFamily: typeof tag.iconFamily === 'string' ? tag.iconFamily as any : null,
+				iconName: typeof tag.iconName === 'string' ? tag.iconName : null,
+				iconStyle: typeof tag.iconStyle === 'string' ? tag.iconStyle as any : null,
+			}),
+		);
 
-		let isMounted = true;
-		setIsLoadingExisting(true);
-		setIsExistingTagAvailable(false);
-
-		void (async () => {
-			const result = await getTagDataFirebase(editingTagId);
-			if (!isMounted) {
-				return;
-			}
-
-			if (!result.success) {
-				showNotifierAlert({
-					title: 'Categoria indisponível',
-					description: 'Não foi possível carregar a categoria para edição.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				setIsLoadingExisting(false);
-				return;
-			}
-
-			const tag = result.data as Record<string, unknown>;
-			setTagName(typeof tag.name === 'string' ? tag.name : '');
-			setSelectedTagIcon(
-				resolveTagIcon({
-					iconFamily: typeof tag.iconFamily === 'string' ? tag.iconFamily as any : null,
-					iconName: typeof tag.iconName === 'string' ? tag.iconName : null,
-					iconStyle: typeof tag.iconStyle === 'string' ? tag.iconStyle as any : null,
-				}),
-			);
-
-			const usageType = normalizeTagUsageType(tag.usageType);
-			setSavedAvailability(
-				usageType
-					? {
-						usageType,
-						isMandatoryExpense: Boolean(tag.isMandatoryExpense),
-						isMandatoryGain: Boolean(tag.isMandatoryGain),
-						showInBothLists: Boolean(tag.showInBothLists),
-					}
-					: null,
-			);
-			setSelectedAvailabilityPreset(null);
-			setIsExistingTagAvailable(true);
-			setIsLoadingExisting(false);
-		})();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [editingTagId, isDarkMode, resolveTagIcon]);
+		const usageType = normalizeTagUsageType(tag.usageType);
+		setSavedAvailability(
+			usageType
+				? {
+					usageType,
+					isMandatoryExpense: Boolean(tag.isMandatoryExpense),
+					isMandatoryGain: Boolean(tag.isMandatoryGain),
+					showInBothLists: Boolean(tag.showInBothLists),
+				}
+				: null,
+		);
+		setSelectedAvailabilityPreset(null);
+	}, [existingTag, resolveTagIcon]);
 
 	const activeCreationPreset = routeCreationPreset ?? selectedCreationPreset;
 	const creationFields = activeCreationPreset
@@ -260,7 +232,7 @@ export default function AddRegisterTagScreen() {
 	const currentCreationPresetOption = activeCreationPreset
 		? getCategoryAvailabilityPresetOption(activeCreationPreset)
 		: null;
-	const isIconSelectionEnabled = tagName.trim().length > 0;
+	const isIconSelectionEnabled = tagName.trim().length > 0 && !isSubmitting && !isLoadingExisting && isExistingTagAvailable;
 	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
 	const filteredIconOptions = React.useMemo(() => {
 		const query = normalizeSearchText(tagIconSearch);
@@ -348,10 +320,15 @@ export default function AddRegisterTagScreen() {
 		submitLockRef.current = true;
 		setIsSubmitting(true);
 		const iconPayload = serializeTagIcon(selectedTagIcon);
+		const signature = serializeAssistantRecord({ actorId: auth.currentUser?.uid, editingTagId, name: trimmedName, ...iconPayload,
+			fields: isEditing ? selectedEditFields : creationFields, expectedFingerprint: originalFingerprint });
+		if (intentRef.current?.signature !== signature) intentRef.current = { signature, id: createFinancialClientActionId('category_form') };
+		const clientActionId = intentRef.current.id;
 
 		try {
 			if (isEditing && editingTagId) {
 				const result = await updateTagFirebase({
+					clientActionId, expectedFingerprint: originalFingerprint,
 					tagId: editingTagId,
 					tagName: trimmedName,
 					...(selectedEditFields ?? {}),
@@ -376,6 +353,7 @@ export default function AddRegisterTagScreen() {
 					isDarkMode,
 					duration: 4000,
 				});
+				reloadCategory();
 				applyPostSubmitBehavior({ isEditing: true });
 				return;
 			}
@@ -393,6 +371,7 @@ export default function AddRegisterTagScreen() {
 			}
 
 			const result = await addTagFirebase({
+				clientActionId,
 				tagName: trimmedName,
 				personId,
 				...creationFields,
@@ -431,6 +410,7 @@ export default function AddRegisterTagScreen() {
 
 			applyPostSubmitBehavior({
 				resetForm: () => {
+					intentRef.current = null;
 					setTagName('');
 					setSelectedTagIcon(defaultTagIcon);
 				},
@@ -450,6 +430,8 @@ export default function AddRegisterTagScreen() {
 		}
 	}, [
 		applyPostSubmitBehavior,
+		reloadCategory,
+		originalFingerprint,
 		creationFields,
 		defaultTagIcon,
 		editingTagId,
@@ -529,6 +511,15 @@ export default function AddRegisterTagScreen() {
 										</VStack>
 									) : null}
 
+									{categoryLoadError ? (
+										<VStack className={`${fieldContainerCardClassName} gap-3 px-4 py-5`}>
+											<Text accessibilityRole="alert" className={`${helperText} text-sm`}>{categoryLoadError}</Text>
+											<Button variant="outline" onPress={reloadCategory} accessibilityLabel="Tentar carregar a categoria novamente">
+												<ButtonText>Tentar novamente</ButtonText>
+											</Button>
+										</VStack>
+									) : null}
+
 									{!isEditing && !activeCreationPreset ? (
 										<Pressable
 											onPress={() => setIsPlacementSelectorOpen(true)}
@@ -548,7 +539,7 @@ export default function AddRegisterTagScreen() {
 										<>
 											<Pressable
 												onPress={isEditing ? () => setIsPresetSelectorOpen(true) : undefined}
-												disabled={!isEditing}
+												disabled={!isEditing || isSubmitting || isLoadingExisting || !isExistingTagAvailable}
 												accessibilityRole={isEditing ? 'button' : undefined}
 												accessibilityLabel={isEditing ? 'Alterar disponibilidade da categoria' : undefined}
 												className={`${fieldContainerCardClassName} px-4 py-4 ${isEditing ? '' : 'opacity-95'}`}
@@ -581,6 +572,8 @@ export default function AddRegisterTagScreen() {
 													<InputField
 														ref={tagNameInputRef as any}
 														value={tagName}
+														editable={!isSubmitting && !isLoadingExisting && isExistingTagAvailable}
+														maxLength={160}
 														onChangeText={setTagName}
 														placeholder="Ex.: mercado, aluguel, salário..."
 														className={inputField}

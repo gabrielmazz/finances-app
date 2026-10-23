@@ -3,10 +3,37 @@ tags: [previsao, fluxo-de-caixa, financeiro, graficos, mantine]
 relacionado: [[Dashboard Home]], [[Balanço Mensal]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Navegação]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.2.8
+versao: 1.2.9
+spark_module: F11
+spark_progress: 75
+spark_reviewed_at: 2026-10-22
 ---
 
 # Previsão de Fluxo de Caixa
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F11 — Previsão de fluxo de caixa: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir formatos antigos, integração conversacional e homologação dos horizontes. A previsão canônica já parte das posições atuais e projeta compromissos sem reaplicar o journal.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Parcelas vencidas e referências nativas — 22/10/2026
+
+Parcelas finitas não quitadas após o prazo permanecem explícitas: a Home mostra o saldo remanescente como vencido e a previsão inclui esse saldo uma vez no primeiro mês. Um pagamento parcial no ciclo reduz o contador/saldo restantes, sem esconder a dívida ou projetá-la novamente nos meses seguintes. Contratos substituídos/cancelados não geram novos compromissos. Carteira/Home reconhecem avaliação composta e sua referência corretiva sob `financial-proof-v17`; estes eventos não são renda, despesa, aporte ou resgate. Ver [[Recorrências Spark]] e [[Investimentos]].
+
+
+## Fonte canônica Spark — 22/10/2026
+
+`FinancialForecastFirebase` seleciona Spark antes dos leitores antigos. `SparkForecastFirebase` lê contas, journal, planos/ciclos e categorias, confere a fotografia e o acesso ao grupo e entrega a mesma apresentação Web/mobile. A abertura é banco+Caixa correntes; posições já incluem os eventos efetivados. Não reaplicar receitas/despesas históricas ao saldo inicial, nem contar transferência/aporte/resgate como resultado econômico. Investimento já financiado é informação de liquidez, não nova entrada/saída automática.
+
+O horizonte 3/6/12 combina estimativa variável baseada no histórico econômico e compromissos canônicos ainda pendentes. Usa contador explícito, vigência, dias úteis e resto da última parcela; ciclo confirmado não é projetado outra vez. Cobertura insuficiente, Caixa ausente e posição sem prova de atualidade falham explicitamente. Médias acumulam com BigInt e divisão inteira com arredondamento positivo, validando os limites antes de voltar a Number. Contagens mensais agendadas são sinalizadas: o cenário estima fluxos partindo de hoje, sem antecipar essas observações como renda. Não promete prever o saldo que um usuário ainda vai contar no futuro.
+
+Nove testes específicos de previsão, controle SDK autenticado e reexecução dos consumidores em Tóquio/Los Angeles comprovam os contratos ensaiados; não equivalem a homologação visual ou aparelho. Importados sem proveniência e executor conversacional permanecem pendentes. Fluxo anterior abaixo descreve o leitor legado.
+
 
 Tela de planejamento financeiro de curto e médio prazo. Ela estima o saldo líquido global para 3, 6 ou 12 meses sem persistir, alterar ou criar qualquer movimentação.
 

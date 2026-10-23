@@ -245,13 +245,13 @@ const movementTone = (movement: HomeTimelineMovement) => {
 		return {
 			accent: "#38BDF8",
 			gradient: ["#0C4A6E", "#38BDF8"] as [string, string],
-			prefix: "-",
+			prefix: movement.isSparkMovement ? (movement.type === "gain" ? "+" : "-") : "-",
 		};
 	if (movement.isInvestmentDeposit)
 		return {
 			accent: "#7C3AED",
 			gradient: ["#312E81", "#7C3AED"] as [string, string],
-			prefix: "+",
+			prefix: movement.isSparkMovement ? (movement.type === "gain" ? "+" : "-") : "+",
 		};
 	if (movement.isFromMandatory)
 		return {
@@ -510,6 +510,8 @@ export default function HomeScreen() {
 	}, [user]);
 	const { overview, movements, investments, reload } =
 		useHomeScreenData(currentUserId);
+	const homeReadError = overview.error || movements.error || investments.error;
+	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
 	const [expandedMovements, setExpandedMovements] = React.useState<string[]>(
@@ -588,7 +590,7 @@ export default function HomeScreen() {
 	);
 	const expenseHistory = overview.data.expenseHistoryLastThreeMonths;
 	const hasExpenseHistory = expenseHistory.some(
-		(month) => month.totalExpensesInCents > 0,
+		(month) => Object.values(month.dailyExpensesInCents).some(value => value !== 0),
 	);
 	const gainTrendData = expenseHistory.map((month) => month.totalGainsInCents);
 	const expenseTrendData = expenseHistory.map((month) => month.totalExpensesInCents);
@@ -756,6 +758,12 @@ export default function HomeScreen() {
 					>
 						<View className={webDashboardClassNames.sheetInner}>
 							<View className={webDashboardClassNames.scrollContent}>
+								<View className="mb-4 gap-2">
+									{homeReadError ? <Text accessibilityRole="alert" className="text-sm text-error-600 dark:text-error-400">{homeReadError}</Text> : null}
+									<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
+										<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : homeReadError ? 'Tentar novamente' : 'Atualizar saldos'}</ButtonText>
+									</Button>
+								</View>
 								<View
 									className={`${webStyles.topColumns} ${desktop ? webStyles.topColumnsDesktop : ''} ${desktop && !shouldShowInvestmentSection ? webStyles.topColumnsDesktopCentered : ''}`}
 								>
@@ -817,6 +825,7 @@ export default function HomeScreen() {
 													O gráfico mostra a distribuição pelo valor atual/base dos
 													investimentos registrados. Clique em uma fatia para ver o
 													ativo.
+													{investments.data.projectionStatus === 'confirmed_only' ? ' Os valores são confirmados, sem projeção adicional de rendimento.' : ''}
 												</InfoTip>
 											</View>
 											{investments.error ? (
@@ -866,7 +875,7 @@ export default function HomeScreen() {
 															<Text
 																className={webStyles.totalLabel} style={{ color: webDashboardPalette.primaryText }}
 															>
-																Simulado
+																{investments.data.projectionStatus === 'confirmed_only' ? 'Confirmado' : 'Simulado'}
 															</Text>
 															<Text
 																className={`${webStyles.totalValue} ${webStyles.simulatedValue}`}
@@ -896,7 +905,7 @@ export default function HomeScreen() {
 													Total ganho
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.gainValue}`}>
-													{formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
+													{overview.loading ? 'Carregando…' : overview.error ? 'Indisponível' : formatCurrency(monthlyTotals.gainsInCents, shouldHideValues)}
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -905,7 +914,7 @@ export default function HomeScreen() {
 												</Text>
 											</View>
 											<HomeExpenseChart
-												data={shouldHideValues ? neutralTrendData : gainTrendData}
+												data={shouldHideValues || overview.loading || overview.error ? neutralTrendData : gainTrendData}
 												label="Tendência de ganhos nos últimos três meses"
 												color="#10B981"
 												isDarkMode={isDarkMode}
@@ -927,7 +936,7 @@ export default function HomeScreen() {
 													Total gasto
 												</Text>
 												<Text className={`${webStyles.monthlySummaryValue} ${webStyles.expenseValue}`}>
-													{formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
+													{overview.loading ? 'Carregando…' : overview.error ? 'Indisponível' : formatCurrency(monthlyTotals.expensesInCents, shouldHideValues)}
 												</Text>
 												<Text
 													className={webStyles.monthlySummaryHelper} style={{ color: webDashboardPalette.secondaryText }}
@@ -936,7 +945,7 @@ export default function HomeScreen() {
 												</Text>
 											</View>
 											<HomeExpenseChart
-												data={shouldHideValues ? neutralTrendData : expenseTrendData}
+												data={shouldHideValues || overview.loading || overview.error ? neutralTrendData : expenseTrendData}
 												label="Tendência de gastos nos últimos três meses"
 												color="#EF4444"
 												isDarkMode={isDarkMode}

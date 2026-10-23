@@ -1,3 +1,4 @@
+import { readSparkRecurringFormRowsFirebase } from './SparkRecurringFormFirebase';
 import { readRecurringDefinitionsFirebase } from '@/functions/RecurringReadFirebase';
 import { db } from '@/FirebaseConfig';
 import { collection, deleteDoc, doc, documentId, getDoc, getDocs, query, runTransaction, setDoc, where } from 'firebase/firestore';
@@ -308,8 +309,10 @@ export async function getMandatoryGainFirebase(gainTemplateId: string) {
 	}
 }
 
-export async function getMandatoryGainsWithRelationsFirebase(personId: string) {
+export async function getMandatoryGainsWithRelationsFirebase(personId: string, includeInactive = false) {
 	try {
+		const sparkRows = await readSparkRecurringFormRowsFirebase(db, personId, 'gain', new Date(), includeInactive);
+		if (sparkRows) return { success: true, data: sparkRows };
 		const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
 
 		const relatedIds =

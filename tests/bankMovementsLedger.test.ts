@@ -1,5 +1,6 @@
 jest.mock('@/FirebaseConfig', () => ({ db: {}, auth: {} }));
 jest.mock('@/functions/RegisterUserFirebase', () => ({}));
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: async () => null }));
 jest.mock('@/functions/FinancialLedgerFirebase', () => ({
 	getFinancialLedgerContextFirebase: jest.fn(), getFinancialLedgerAccountsFirebase: jest.fn(),
 }));

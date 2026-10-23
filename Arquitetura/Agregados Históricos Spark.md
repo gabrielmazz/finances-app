@@ -3,12 +3,36 @@ tags: [firebase, spark, financeiro, desempenho, seguranca]
 relacionado: [[Preparação Histórica Spark]], [[Protocolo Financeiro Spark]], [[Reconciliação de Dados Spark]], [[Plano de Funcionalidade Completa sem Blaze]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.1.0
+versao: 0.3.1
+spark_module: F01
+spark_progress: 80
+spark_reviewed_at: 2026-10-22
 ---
 
 # Agregados Históricos Spark
 
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F01 — Protocolo, histórico e preparação: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir restauração dos argumentos/provas/fases descritivas e progresso/pausa no assistente; medir custo em volumes representativos. Identificação, conferência e cancelamento já sobrevivem ao reload pelo executor comum. Ativação mensal conserva sua fila própria.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Continuação v17 — 22/10/2026
+
+Segmentos que abrangem exatamente uma referência não inclusiva recuam para conferência nó a nó. Eles não armazenam se a data foi declarada ou veio do commit; só a leitura individual permite incluir commits posteriores pela revisão, sem incluir indevidamente movimentos retroativos na mesma fronteira.
+
+Marcador protegido e destino do plano local: `financial-proof-v17`; o novo hash não habilita grupos reais. O histórico reconhece os nós de avaliação composta e a referência corretiva como checkpoints. O propósito exclusivo `valuation_undo` vincula uma única referência vigente excluída, permanece imutável e não autoriza comandos comuns. Contratos replanejados usam sucessor/predecessor e metadados no mesmo commit; listas atualizam a agenda depois da confirmação e não estendem lembretes de contrato vencido silenciosamente. Ver [[Protocolo Financeiro Spark]], [[Recorrências Spark]], [[Investimentos]] e [[Status da Implementação Spark]].
+
+
+Continuação de 19/10/2026: [[Troca do Banco de Financiamento Spark]] acrescenta devolução como terceira cadeia, com revisão/predecessor próprios, delta positivo do principal anterior, débito do novo principal e diferença no investimento. Marcador vigente `financial-proof-v14`. A normalização das folhas separa evento de uma conta, correção comum e par/três contas; cada forma calcula somente seus campos aplicáveis para conservar o limite de 1.000 expressões após a extensão. Schema, vinculação, somas, referências e cotas dos certificados continuam obrigatórios.
+
 Implementação local em 17/10/2026, protocolo v0.7 e marcador protegido `financial-proof-v6`. Certifica blocos imutáveis de movimentos para reutilizar trabalho entre consultas de datas diferentes, usuários autorizados e novas cabeças. O transporte continua no SDK Firestore compartilhado por Web/native, sem Functions ou servidor externo. As telas publicadas ainda não usam esse protocolo.
+
+Continuação em 18/10/2026: [[Operações Ordinárias Spark]] v0.8 usa marcador `financial-proof-v7` e normaliza edições comuns pelo líquido por conta na nova data. O guard da folha calcula uma representação por evento, reaproveitando revisão, predecessor e termos. O guard do nó exige cota realmente nova/alterada nesta transação e timestamp atual; os guards obrigatórios dos documentos de cota conferem os totais e a cobrança do projeto. Evita repetir esse cálculo no nó para caber no limite real de 1.000 expressões, conservando a validação atômica. O harness de projeção após contagem usa o timestamp confirmado pelo servidor para não depender da ordem de relógios/precisão local.
 
 ## Como funciona
 

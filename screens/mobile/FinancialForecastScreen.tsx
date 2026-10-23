@@ -430,6 +430,7 @@ export default function FinancialForecastScreen() {
 												</View>
 											</HStack>
 
+											{forecast.hasScheduledMonthlyOpenings && <Text className={LUMUS_CLASS_NAMES.helper}>Há saldos mensais agendados. Esta previsão parte do saldo atual e estima receitas e despesas; essas contagens futuras não são antecipadas como entradas de dinheiro.</Text>}
 											{forecast.missingSnapshotBankNames.length > 0 ? (
 												<View className="rounded-card border border-lumus-accent/60 bg-lumus-accent-soft px-4 py-3.5 dark:border-lumus-accent-dark/40 dark:bg-lumus-accent-dark/10">
 													<VStack className="gap-3">

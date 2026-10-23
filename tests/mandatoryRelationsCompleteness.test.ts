@@ -1,6 +1,7 @@
 const mockRows: Record<string, Array<Record<string, any>>> = {};
 const mockGetDocs = jest.fn();
 jest.mock('@/FirebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'owner' } } }));
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: async () => null }));
 jest.mock('@/functions/RegisterUserFirebase', () => ({ getRelatedUsersIDsFirebase: async () => ({ success: true, data: Array.from({ length: 35 }, (_, index) => `related-${index}`) }) }));
 jest.mock('firebase/firestore', () => ({
  collection: (_db: unknown, name: string) => ({ name }),

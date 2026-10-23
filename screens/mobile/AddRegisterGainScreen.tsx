@@ -1,3 +1,9 @@
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
+import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
+import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
+import { useSparkMovementForm } from '@/hooks/useSparkMovementForm';
 import React from 'react';
 import {
 	BackHandler,
@@ -219,7 +225,7 @@ export default function AddRegisterGainScreen() {
 	const [gainName, setGainName] = React.useState('');
 	const [gainValueDisplay, setGainValueDisplay] = React.useState('');
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
-	const [gainDate, setGainDate] = React.useState(formatDateToBR(new Date()));
+	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 
 	const [tags, setTags] = React.useState<OptionItem[]>([]);
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
@@ -230,7 +236,6 @@ export default function AddRegisterGainScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
@@ -240,6 +245,9 @@ export default function AddRegisterGainScreen() {
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
+	const { initialize: initializeSparkMovement, load: loadSparkMovement, submit: submitSparkMovement, reset: resetSparkMovement } = useSparkMovementForm('income');
+	const { submit: submitSparkRecurring, reset: resetSparkRecurring } = useSparkRecurringAction('gain');
+	const sparkInvestment = useSparkInvestmentForm();
 	const submitLockRef = React.useRef(false);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterGain');
 	const gainNameInputRef = React.useRef<any>(null);
@@ -280,6 +288,7 @@ export default function AddRegisterGainScreen() {
 
 	const params = useLocalSearchParams<{
 		gainId?: string | string[];
+		sparkSource?: string | string[];
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
 		templateTagId?: string | string[];
@@ -304,7 +313,11 @@ export default function AddRegisterGainScreen() {
 		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
 		return value && value.trim().length > 0 ? value : null;
 	}, [params.gainId]);
+	const sparkSource = Array.isArray(params.sparkSource) ? params.sparkSource[0] : params.sparkSource;
 	const isEditing = Boolean(editingGainId);
+	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry({
+		movementId: editingGainId, source: sparkSource, initialize: initializeSparkMovement, loadSpark: loadSparkMovement, loadLegacy: getGainDataFirebase,
+	});
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -456,7 +469,7 @@ export default function AddRegisterGainScreen() {
 	}, [banks, selectedBankId, selectedMovementBankName, templateData]);
 	const parsedGainDate = React.useMemo(() => parseDateFromBR(gainDate), [gainDate]);
 	const isBankSelectionRequired = isBankSelectionLocked ? true : !moneyFormat;
-	const isFormBusy = isLoadingExisting || isSubmitting;
+	const isFormBusy = isLoadingExisting || isSubmitting || !isMovementReady;
 	const isGainFormatPendingSelection =
 		shouldShowPaymentFormatSelection && paymentFormat.length === 0;
 	const isSubmitDisabled =
@@ -788,10 +801,13 @@ export default function AddRegisterGainScreen() {
 	}, []);
 
 	const resetNewGainForm = React.useCallback(() => {
+		sparkInvestment.reset();
+		resetSparkRecurring();
+		resetSparkMovement();
 		setGainName('');
 		setGainValueDisplay('');
 		setGainValueCents(null);
-		setGainDate(formatDateToBR(new Date()));
+		setGainDate(formatDateToBR(toFinancialCivilDate(new Date())));
 		setSelectedTagId(null);
 		setSelectedBankId(null);
 		setPaymentFormat([]);
@@ -800,10 +816,10 @@ export default function AddRegisterGainScreen() {
 		setSelectedMovementTagName(null);
 		setSelectedMovementTagIcon(null);
 		setSelectedMovementBankName(null);
-	}, []);
+	}, [resetSparkMovement]);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitting || !isMovementReady) {
 			return;
 		}
 
@@ -915,6 +931,39 @@ export default function AddRegisterGainScreen() {
 				return;
 			}
 
+			if (linkedMandatoryGainId && pendingInvestmentAdjustment) throw new Error('Selecione apenas uma origem para esta movimentação.');
+			if (pendingInvestmentAdjustment && !isEditing) {
+				const investmentResult = await sparkInvestment.moveTemplate({ ...pendingInvestmentAdjustment, amountInCents: gainValueCents, movementKind: 'income',
+					selectedDate: parsedGainDate, bankId: selectedBankId, moneyFormat });
+				if (investmentResult) {
+					if (!investmentResult.success) throw new Error(investmentResult.error);
+					showSuccessfulGainNotification(false);
+					applyPostSubmitBehavior({ resetForm: resetNewGainForm });
+					return;
+				}
+			}
+
+			if (linkedMandatoryGainId && !isEditing && await submitSparkRecurring({
+				action: 'settle', planId: linkedMandatoryGainId, selectedDate: parsedGainDate,
+				accountId: moneyFormat ? 'cash' : selectedBankId!, amountInCents: gainValueCents, installmentsCount: installmentsToAdvance ?? 1, note: explanationGain?.trim() || null,
+			})) {
+				showSuccessfulGainNotification(false);
+				applyPostSubmitBehavior({ resetForm: resetNewGainForm });
+				return;
+			}
+
+			if (await submitSparkMovement({
+				actorId: personId, name: gainName.trim(), amountInCents: gainValueCents, selectedDate: parsedGainDate,
+				bankId: isBankSelectionRequired ? selectedBankId : null, moneyFormat, categoryId: selectedTagId,
+				explanation: explanationGain?.trim() || null, paymentFormats: paymentFormat,
+				isEditing, editingReference: editingGainId && (sparkSource === 'live' || sparkSource === 'imported') ? { source: sparkSource, operationId: editingGainId, family: 'ordinary' } : null,
+				specialSource: Boolean(linkedMandatoryGainId || pendingInvestmentAdjustment),
+			})) {
+				showSuccessfulGainNotification(isEditing);
+				applyPostSubmitBehavior({ isEditing, resetForm: resetNewGainForm });
+				return;
+			}
+
 			if (isEditing && editingGainId) {
 				const result = await updateGainFirebase({
 					gainId: editingGainId,
@@ -1023,7 +1072,7 @@ export default function AddRegisterGainScreen() {
 			console.error('Erro ao registrar/atualizar ganho:', error);
 			showNotifierAlert({
 				title: 'Erro ao registrar ganho',
-				description: 'Erro inesperado ao salvar o ganho.',
+				description: error instanceof Error ? error.message : 'Erro inesperado ao salvar o ganho.',
 				type: 'error',
 				isDarkMode,
 				duration: 4000,
@@ -1041,6 +1090,7 @@ export default function AddRegisterGainScreen() {
 			gainValueCents,
 			isEditing,
 			isSubmitting,
+			isMovementReady,
 			linkedMandatoryGainId,
 			paymentFormat,
 			selectedBankId,
@@ -1051,82 +1101,38 @@ export default function AddRegisterGainScreen() {
 			shouldShowPaymentFormatSelection,
 			templateData,
 			parsedGainDate,
+			submitSparkMovement,
+		submitSparkRecurring,
+			sparkSource,
 			resetNewGainForm,
 			applyPostSubmitBehavior,
 			showSuccessfulGainNotification,
 		]);
 
 	React.useEffect(() => {
-		if (!editingGainId) {
-			return;
+		if (!existingMovement) return;
+		const data = existingMovement;
+		const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+		setGainName(typeof data.name === 'string' ? data.name : '');
+		setGainValueCents(value);
+		setGainValueDisplay(formatCurrencyBRL(value));
+
+		const normalizedDate = normalizeDateValue(data.date) ?? new Date();
+		setGainDate(formatDateToBR(normalizedDate));
+
+		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+
+		if (Array.isArray(data.paymentFormats)) {
+			const validFormats = (data.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[];
+			setPaymentFormat(validFormats);
+		} else {
+			setPaymentFormat([]);
 		}
 
-		let isMounted = true;
-		setIsLoadingExisting(true);
-
-		const loadGain = async () => {
-			try {
-				const response = await getGainDataFirebase(editingGainId);
-				if (!isMounted) {
-					return;
-				}
-
-				if (!response.success || !response.data) {
-					showNotifierAlert({
-						title: 'Erro ao carregar ganho',
-						description: 'Não foi possível carregar os dados do ganho selecionado.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-					return;
-				}
-
-				const data = response.data as Record<string, unknown>;
-				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
-				setGainName(typeof data.name === 'string' ? data.name : '');
-				setGainValueCents(value);
-				setGainValueDisplay(formatCurrencyBRL(value));
-
-				const normalizedDate = normalizeDateValue(data.date) ?? new Date();
-				setGainDate(formatDateToBR(normalizedDate));
-
-				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
-				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
-
-				if (Array.isArray(data.paymentFormats)) {
-					const validFormats = (data.paymentFormats as unknown[]).filter(item => typeof item === 'string') as string[];
-					setPaymentFormat(validFormats);
-				} else {
-					setPaymentFormat([]);
-				}
-
-				setExplanationGain(typeof data.explanation === 'string' ? data.explanation : null);
-				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
-			} catch (error) {
-				console.error('Erro ao carregar ganho para edição:', error);
-				if (isMounted) {
-					showNotifierAlert({
-						title: 'Erro ao carregar ganho',
-						description: 'Erro inesperado ao carregar os dados do ganho.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-				}
-			} finally {
-				if (isMounted) {
-					setIsLoadingExisting(false);
-				}
-			}
-		};
-
-		void loadGain();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [editingGainId, isDarkMode]);
+		setExplanationGain(typeof data.explanation === 'string' ? data.explanation : null);
+		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
+	}, [existingMovement]);
 
 	React.useEffect(() => {
 		const matchedTag = tags.find(tag => tag.id === selectedTagId);
@@ -1700,18 +1706,14 @@ export default function AddRegisterGainScreen() {
 									)}
 								</VStack>
 
-								{isEditing && isLoadingExisting && (
-									<Text className={`${helperText} mb-4 text-sm`}>
-										Carregando informações do ganho selecionado...
-									</Text>
-								)}
+								<MovementFormStatus loading={isLoadingExisting} error={movementLoadError} onRetry={retryMovementLoad} />
 
 								<Button
 									className={submitButtonClassName}
 									onPress={handleSubmit}
 									isDisabled={isSubmitDisabled}
 								>
-									{isFormBusy ? (
+									{isSubmitting || isLoadingExisting ? (
 										<ButtonSpinner />
 									) : (
 										<ButtonText>{isEditing ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>

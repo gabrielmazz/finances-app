@@ -1,6 +1,9 @@
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import type { InvestmentCdiRate } from '@/utils/investmentPortfolio';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { executeSparkMetadataCommandFirebase } from './SparkMetadataCommandFirebase';
+import { fromFinancialCivilDate, toFinancialCivilDate } from '../utils/financialCivilDate';
 import {
 	collection,
 	doc,
@@ -42,13 +45,11 @@ const parseDateValue = (value: unknown): Date | null => {
 
 const normalizeRate = (id: string, data: Record<string, unknown>): InvestmentCdiRate | null => {
 	const personId = typeof data.personId === 'string' ? data.personId.trim() : '';
-	const annualRateInBasisPoints =
-		typeof data.annualRateInBasisPoints === 'number' && Number.isFinite(data.annualRateInBasisPoints)
-			? Math.max(0, Math.round(data.annualRateInBasisPoints))
-			: 0;
+	const annualRateInBasisPoints = data.annualRateInBasisPoints;
 	const effectiveFrom = parseDateValue(data.effectiveFrom);
 
-	if (!personId || annualRateInBasisPoints <= 0 || !effectiveFrom) {
+	if (!personId || typeof annualRateInBasisPoints !== 'number' || !Number.isSafeInteger(annualRateInBasisPoints)
+		|| annualRateInBasisPoints < 0 || annualRateInBasisPoints > 100_000 || !effectiveFrom) {
 		return null;
 	}
 
@@ -56,7 +57,7 @@ const normalizeRate = (id: string, data: Record<string, unknown>): InvestmentCdi
 		id,
 		personId,
 		annualRateInBasisPoints,
-		effectiveFrom: normalizeStartOfDay(effectiveFrom),
+		effectiveFrom: normalizeStartOfDay(data.schemaVersion === 1 ? toFinancialCivilDate(effectiveFrom) : effectiveFrom),
 		createdAt: parseDateValue(data.createdAt),
 	};
 };
@@ -82,10 +83,9 @@ export async function getInvestmentCdiRatesByPersonIdsFirebase(personIds: string
 			return { success: true, data: [] as InvestmentCdiRate[] };
 		}
 
-		const snapshot = await getDocs(
-			query(collection(db, COLLECTION), where('personId', 'in', allowedIds)),
-		);
-		const rates = snapshot.docs
+		const snapshots = await Promise.all(Array.from({ length: Math.ceil(allowedIds.length / 30) }, (_, index) =>
+			getDocs(query(collection(db, COLLECTION), where('personId', 'in', allowedIds.slice(index * 30, index * 30 + 30))))));
+		const rates = snapshots.flatMap(snapshot => snapshot.docs)
 			.map(rateDoc => normalizeRate(rateDoc.id, rateDoc.data() as Record<string, unknown>))
 			.filter((rate): rate is InvestmentCdiRate => rate !== null)
 			.sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime());
@@ -105,10 +105,18 @@ export async function getInvestmentCdiRatesWithRelationsFirebase(personId: strin
 		}
 
 		const relatedIds = Array.isArray(relatedResult.data) ? relatedResult.data : [];
-		return getInvestmentCdiRatesByPersonIdsFirebase([
+		const [spark, personal] = await Promise.all([getSparkContextFirebase(db, personId), getInvestmentCdiRatesByPersonIdsFirebase([
 			personId,
 			...relatedIds.filter((id): id is string => typeof id === 'string'),
-		]);
+		])]);
+		if (!spark || !personal.success) return personal;
+		const shared = await getDocs(query(collection(db, COLLECTION), where('groupId', '==', spark.groupId)));
+		const rates = new Map((personal.data ?? []).map(rate => [rate.id, rate]));
+		for (const document of shared.docs) {
+			const rate = normalizeRate(document.id, document.data());
+			if (rate) rates.set(rate.id, rate);
+		}
+		return { success: true, data: [...rates.values()].sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime()) };
 	} catch (error) {
 		console.error('Erro ao buscar o histórico de CDI relacionado:', error);
 		return { success: false, error };
@@ -119,16 +127,18 @@ export async function upsertInvestmentCdiRateFirebase({
 	personId,
 	annualRateInBasisPoints,
 	effectiveFrom,
+	clientActionId,
 }: {
 	personId: string;
 	annualRateInBasisPoints: number;
 	effectiveFrom: Date;
+	clientActionId?: string;
 }) {
 	try {
 		const normalizedPersonId = personId.trim();
-		const normalizedRate = Math.max(0, Math.round(annualRateInBasisPoints));
+		const normalizedRate = annualRateInBasisPoints;
 		const normalizedEffectiveFrom = normalizeStartOfDay(effectiveFrom);
-		if (!normalizedPersonId || normalizedRate <= 0 || Number.isNaN(normalizedEffectiveFrom.getTime())) {
+		if (!normalizedPersonId || !Number.isSafeInteger(normalizedRate) || normalizedRate < 0 || normalizedRate > 100_000 || Number.isNaN(normalizedEffectiveFrom.getTime())) {
 			return { success: false, error: 'Dados inválidos para salvar a taxa CDI.' };
 		}
 
@@ -136,6 +146,12 @@ export async function upsertInvestmentCdiRateFirebase({
 			collection(db, COLLECTION),
 			buildRateDocumentId(normalizedPersonId, normalizedEffectiveFrom),
 		);
+		const spark = await getSparkContextFirebase(db, normalizedPersonId);
+		if (spark) {
+			await executeSparkMetadataCommandFirebase(db, { ...spark, clientActionId: clientActionId ?? `cdi_${doc(collection(db, COLLECTION)).id}`,
+				domain: 'cdi', action: 'upsert', recordId: rateRef.id, fields: { annualRateInBasisPoints: normalizedRate, effectiveFrom: fromFinancialCivilDate(normalizedEffectiveFrom) } });
+			return { success: true, rateId: rateRef.id };
+		}
 		const existingRate = await getDoc(rateRef);
 		await setDoc(
 			rateRef,

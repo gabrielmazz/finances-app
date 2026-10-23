@@ -3,10 +3,23 @@ tags: [spark, financeiro, migracao, reconciliacao, seguranca]
 relacionado: [[Protocolo Financeiro Spark]], [[Plano de Funcionalidade Completa sem Blaze]], [[Balanço Mensal]], [[Ajuste de Saldo]], [[Investimentos]], [[Firebase Config]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.2.0
+versao: 0.2.1
+spark_module: D02
+spark_progress: 48
+spark_reviewed_at: 2026-10-19
 ---
 
 # Reconciliação de Dados Spark
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**D02 — Normalização e importação financeira: 48% implementado / 52% restante.** Notas P/I/D/E: **75/0/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir formatos legados/especiais, capital/cadastros e contas inativas/futuras, conservando proveniência.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 Análise local de snapshots normalizados do legado ou do razão. Compara posições com histórico e prepara entradas temporais por conta para revisão. Não acessa Firebase, não contém credenciais, não inicializa saldos reais e não executa migração.
 

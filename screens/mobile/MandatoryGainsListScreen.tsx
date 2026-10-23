@@ -1,3 +1,8 @@
+import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
+import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
+import SparkRecurringContracts from '@/components/uiverse/recurring/spark-recurring-contracts';
+import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import { ScrollView, View, StatusBar, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -79,6 +84,7 @@ import { buildPdfFileName } from '@/utils/pdfFileName';
 import { exportHtmlReport } from '@/utils/reportExport';
 
 type MandatoryGainItem = DateCalendarItem & {
+	sparkPlan?: boolean;
 	usesBusinessDays?: boolean;
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
@@ -290,6 +296,7 @@ function MandatoryGainsTimelineSkeleton({
 }
 
 export default function MandatoryGainsListScreen() {
+	const { submit: submitSparkRecurringAction } = useSparkRecurringAction('gain');
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -311,6 +318,7 @@ export default function MandatoryGainsListScreen() {
 		submitButtonCancelClassName,
 	} = useScreenStyles();
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
 	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
 	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
@@ -448,7 +456,7 @@ export default function MandatoryGainsListScreen() {
 
 		try {
 			const [gainsResult, tagsResult, relatedUsersResult] = await Promise.all([
-				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
+				getMandatoryGainsWithRelationsFirebase(currentUser.uid, true),
 				getAllTagsFirebase(),
 				getRelatedUsersIDsFirebase(currentUser.uid),
 			]);
@@ -489,8 +497,11 @@ export default function MandatoryGainsListScreen() {
 					});
 			}
 
-			const referenceDate = new Date();
-			const formattedGains: MandatoryGainItem[] = gainsResult.data.map((gain: any) => {
+			const referenceDate = gainsResult.data.some((row: any) => row.sparkPlan === true) ? toFinancialCivilDate(new Date()) : new Date();
+			setRetainedPlans(gainsResult.data.filter((row: any) => row.sparkPlan === true && row.sparkPlanActive === false && !row.sparkSuccessorPlanId && !row.sparkReplanCancelled && row.personId === currentUser.uid)
+                .map((row: any) => ({ id: row.id, name: row.name })));
+            const activeRows = gainsResult.data.filter((row: any) => row.sparkPlan !== true || row.sparkPlanActive !== false);
+            const formattedGains: MandatoryGainItem[] = activeRows.map((gain: any) => {
 				const dueDay = typeof gain?.dueDay === 'number' ? gain.dueDay : 1;
 				const usesBusinessDays = gain?.usesBusinessDays === true;
 				const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
@@ -508,6 +519,7 @@ export default function MandatoryGainsListScreen() {
 
 				return {
 					id: gain.id,
+					sparkPlan: gain.sparkPlan === true,
 					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
 					valueInCents: typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0,
 					dueDay,
@@ -532,9 +544,10 @@ export default function MandatoryGainsListScreen() {
 			});
 
 			const gainsWithStatus = formattedGains.map(gain => {
-				const isReceivedForCurrentCycle = isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
+				const isReceivedForCurrentCycle = gain.sparkPlan ? isSparkRecurringCycleCurrent(gain.lastReceiptCycle) : isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
 				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: gain.installmentsCompleted ?? 0,
+					explicitCompletion: gain.sparkPlan === true,
 					installmentTotal: gain.installmentTotal ?? null,
 					startDate: gain.installmentStartDate ?? null,
 					isCurrentCycleCompleted: isReceivedForCurrentCycle,
@@ -733,6 +746,14 @@ export default function MandatoryGainsListScreen() {
 
 		setIsActionProcessing(true);
 		try {
+			if (pendingAction.gain.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
+				const result = await submitSparkRecurringAction({ planId: pendingAction.gain.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
+				if (!result) throw new Error('O contexto financeiro mudou.');
+				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
+				await loadData();
+				return;
+			}
+
 			if (pendingAction.type === 'delete') {
 				const accountId = auth.currentUser?.uid;
 				if (!accountId) {
@@ -815,7 +836,7 @@ export default function MandatoryGainsListScreen() {
 			setIsActionProcessing(false);
 			setPendingAction(null);
 		}
-	}, [handleEdit, handleRegisterGain, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents]);
+	}, [handleEdit, handleRegisterGain, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents, submitSparkRecurringAction]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading) {
@@ -1037,19 +1058,20 @@ export default function MandatoryGainsListScreen() {
 		if (pendingAction.type === 'reclaim') {
 			return {
 				title: 'Reivindicar recebimento',
-				message: `Deseja cancelar o recebimento registrado para "${gainName}"? O ganho vinculado será removido.`,
+				message: pendingAction.gain.sparkPlan ? 'O valor efetivado será estornado e o ciclo ficará pendente. O histórico será preservado.' : `Deseja cancelar o recebimento registrado para "${gainName}"? O ganho vinculado será removido.`,
 				confirmLabel: 'Reivindicar',
 				action: 'secondary' as const,
 			};
 		}
 
 		return {
-			title: 'Excluir ganho obrigatório',
-			message: `Tem certeza de que deseja excluir "${gainName}"? Essa ação não pode ser desfeita.`,
-			confirmLabel: 'Excluir',
+			title: pendingAction.gain.sparkPlan ? 'Arquivar recorrência' : 'Excluir ganho obrigatório',
+			message: pendingAction.gain.sparkPlan ? 'O histórico e as parcelas concluídas serão preservados. Você poderá restaurar a recorrência nesta lista.' : `Tem certeza de que deseja excluir "${gainName}"? Essa ação não pode ser desfeita.`,
+			confirmLabel: pendingAction.gain.sparkPlan ? 'Arquivar' : 'Excluir',
 			action: 'negative' as const,
 		};
 	}, [formatCurrencyBRL, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents]);
+
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
 			return isDarkMode ? 'rounded-2xl bg-rose-500' : 'rounded-2xl bg-rose-600';
@@ -1099,7 +1121,9 @@ export default function MandatoryGainsListScreen() {
 					>
 						<VStack className="justify-between mt-4">
 
-							{isLoading ? (
+							{!isLoading && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
+							{!isLoading && <SparkRecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
+                            {isLoading ? (
 								<MandatoryGainsTimelineSkeleton
 									compactCardClassName={compactCardClassName}
 									tintedCardClassName={tintedCardClassName}
@@ -1600,7 +1624,7 @@ export default function MandatoryGainsListScreen() {
 																					}}
 																				>
 																					<Icon as={TrashIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">Excluir</Text>
+																					<Text className="text-xs font-semibold text-white">{gain.sparkPlan ? 'Arquivar' : 'Excluir'}</Text>
 																				</TouchableOpacity>
 																			</HStack>
 																		</VStack>

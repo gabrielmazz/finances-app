@@ -166,6 +166,8 @@ export const loadAssistantResolvedCatalog = async (personId: string): Promise<As
 			for (const item of groupMetadata[index]!) if (!ids.has(item.id)) target.push(item);
 		}
 	}
+	// [[Categorias e CDI Spark]]: exclusão conserva a identidade, mas não oferece o registro para novos comandos.
+	tags.splice(0, tags.length, ...tags.filter(item => item.data.deleted !== true));
 
 	const linkedExpenseIds = new Set(
 		mandatoryExpenses

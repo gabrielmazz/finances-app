@@ -3,10 +3,21 @@ tags: [usuarios, cadastro, relacionamentos, firebase-auth]
 relacionado: [[Autenticação]], [[Firebase Config]], [[Dashboard Home]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.5.0
+versao: 1.5.1
+spark_scope: usuarios
+spark_progress: 22
+spark_reviewed_at: 2026-10-19
 ---
 
 # Gerenciamento de Usuários
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+Usuários e privacidade no escopo Spark: **22% implementado / 78% restante**. Auth/perfil/privacidade visual (U01): **85%**; convites/aceite/revogação (U02): **10%**; solicitação/processamento de exclusão Spark (U03): **0%**. As callables descritas abaixo ainda precisam de substituição protegida. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
 
 Módulo responsável pelo cadastro de novos usuários no sistema e pelo estabelecimento de relacionamentos entre usuários, permitindo visibilidade compartilhada de dados financeiros.
 

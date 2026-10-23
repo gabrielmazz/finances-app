@@ -23,6 +23,8 @@ type InvestmentMovement = {
 };
 
 type GainExpenseTotalsMovement = {
+	isSparkMovement?: boolean | null;
+	isCashRescue?: boolean | null;
 	isBalanceAdjustment?: boolean | null;
 	isInvestmentDeposit?: boolean | null;
 	isInvestmentRedemption?: boolean | null;
@@ -147,6 +149,7 @@ export const shouldIncludeMovementInGainExpenseTotals = (
 	movement: GainExpenseTotalsMovement | null | undefined,
 ) => {
 	return !Boolean(
+		(movement?.isSparkMovement && movement?.isCashRescue) ||
 		movement?.isFinanceInvestment ||
 			movement?.isBalanceAdjustment ||
 			movement?.isInvestmentDeposit ||

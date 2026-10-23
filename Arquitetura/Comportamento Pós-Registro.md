@@ -27,7 +27,7 @@ Preferência global que define o que cada formulário faz depois de salvar com s
 10. Antes de aplicar qualquer ação, o hook verifica se a tela continua focada. Uma requisição que terminar depois de o usuário sair da tela não pode redirecionar a rota atual nem limpar um formulário já desmontado.
 11. O próximo frame permite que o `finally` do submit libere locks/loading e que o fechamento do teclado seja solicitado antes da transição. O orquestrador cancela redirects pendentes concorrentes e envia somente um `router.replace()` para o Expo Router.
 12. O cadastro público de conta não tem preferência pós-registro: o sucesso retorna ao login no mesmo painel. Preferências antigas de cadastro administrativo são ignoradas na hidratação.
-13. Destinos desativados em [[Visibilidade de Rotas]] não aparecem no seletor. Se uma preferência persistida antiga ainda apontar para um deles, o hook retorna ao Dashboard para não solicitar uma rota protegida.
+13. Destinos desativados em [[Visibilidade de Rotas]] não aparecem no seletor. Se uma preferência persistida antiga ainda apontar para um deles, o hook retorna ao Dashboard se habilitado ou a Configurações quando ele estiver oculto. O próprio Dashboard também é filtrado do seletor.
 
 ## Arquivos principais
 
@@ -61,7 +61,7 @@ Preferência global que define o que cada formulário faz depois de salvar com s
 - Edições usam uma preferência independente por tela e podem escolher qualquer destino suportado pela lista de retorno. A normalização da preferência e o hook forçam `shouldClearFieldsAfterSubmit = false` em edição, inclusive para dados persistidos antes desta regra.
 - Preferências persistidas antes da separação são migradas em memória como configurações de cadastro; edições sem destino persistido continuam com o padrão de retorno para a Home.
 - Destinos que precisam de parâmetros dinâmicos, como extrato de um banco específico, não entram na lista de retorno.
-- Ao ocultar um destino já escolhido, a preferência pós-submit é preservada, mas a execução faz fallback para a Home até que o destino volte a ficar visível ou seja alterado.
+- Ao ocultar um destino já escolhido, a preferência pós-submit é preservada, mas a execução faz fallback para o Dashboard habilitado ou para Configurações até que o destino volte a ficar visível ou seja alterado.
 - Não usar `router.back()` como pós-submit configurável; o hook centralizado evita histórico inválido e mantém a navegação alinhada com [[Navegação]].
 - Não usar `dismissTo`, `dismissAll`, `withAnchor` nem combinações de duas ações como fallback. A política pós-submit é uma única ação `REPLACE`, validada em testes unitários e no bundle Android de produção.
 - `replace` troca a rota atual sem reutilizar uma `Screen` antiga destacada pelo NativeStack. Ele pode manter uma entrada anterior equivalente no histórico; `/home` intercepta o botão físico para encerrar o app e impedir que essa entrada ou um formulário antigo reapareçam. Uma futura política de reset só deve substituir isso depois de validada em release.

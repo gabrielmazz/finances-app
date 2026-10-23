@@ -1,3 +1,5 @@
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkInvestmentPortfolioFirebase } from './SparkInvestmentReadFirebase';
 import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
 import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, manageFinancialLedgerAccountFirebase, reconcileFinancialLedgerAccountFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
 import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
@@ -265,8 +267,10 @@ export async function deleteFinanceInvestmentFirebase(investmentId: string) {
 	}
 }
 
-export async function getFinanceInvestmentsWithRelationsFirebase(personId: string) {
+export async function getFinanceInvestmentsWithRelationsFirebase(personId: string, includeInactive = false) {
 	try {
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: (await readSparkInvestmentPortfolioFirebase(db, personId, spark.groupId, new Date(), includeInactive)).investments };
 		const relatedResult = await getRelatedUsersIDsFirebase(personId);
 		if (!relatedResult.success) {
 			throw new Error('Erro ao buscar usuários relacionados.');
@@ -499,6 +503,13 @@ export async function syncFinanceInvestmentValueFirebase({
 
 export async function getFinanceInvestmentDataFirebase(investmentId: string) {
 	try {
+		const actorId = auth.currentUser?.uid;
+		if (!actorId) throw new Error('Usuário não autenticado.');
+		const spark = await getSparkContextFirebase(db, actorId);
+		if (spark) {
+			const data = (await readSparkInvestmentPortfolioFirebase(db, actorId, spark.groupId, new Date(), true)).investments.find(investment => investment.id === investmentId);
+			return data ? { success: true, data } : { success: false, error: 'Investimento indisponível.' };
+		}
 		const investmentDoc = await getDoc(doc(db, COLLECTION, investmentId));
 
 		if (investmentDoc.exists()) {
@@ -702,6 +713,8 @@ export type FinanceInvestmentPortfolioActivity = {
 
 export async function getFinanceInvestmentPortfolioActivityWithRelationsFirebase(personId: string, startDate?: Date) {
 	try {
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: (await readSparkInvestmentPortfolioFirebase(db, personId, spark.groupId)).activity };
 		const ledger = await getFinancialLedgerContextFirebase(personId);
 		if (ledger) {
 			const accounts = await getFinancialLedgerAccountsFirebase(ledger.groupId);

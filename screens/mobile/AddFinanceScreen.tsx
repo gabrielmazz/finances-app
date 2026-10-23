@@ -1,3 +1,4 @@
+import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
 import React from 'react';
 import {
 	KeyboardAvoidingView,
@@ -133,6 +134,7 @@ const formatCurrencyBRL = (valueInCents: number) =>
 	}).format(valueInCents / 100);
 
 export default function AddFinanceScreen() {
+	const sparkInvestment = useSparkInvestmentForm();
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -406,6 +408,7 @@ export default function AddFinanceScreen() {
 
 	// Função utilitária para limpar o formulário após o salvamento.
 	const resetForm = React.useCallback(() => {
+		sparkInvestment.reset();
 		setInvestmentName('');
 		setInitialValueInput('');
 		setInitialValueInCents(null);
@@ -584,7 +587,7 @@ export default function AddFinanceScreen() {
 		submitLockRef.current = true;
 		setIsSaving(true);
 		try {
-			const result = await addFinanceInvestmentFirebase({
+			const investmentParams = {
 				name: investmentName.trim(),
 				initialValueInCents: initialInCents,
 				currentValueInCents: initialInCents,
@@ -595,7 +598,8 @@ export default function AddFinanceScreen() {
 				personId: currentUser.uid,
 				date: dateWithCurrentTime,
 				bankNameSnapshot: bankSnapshotName,
-			});
+			};
+			const result = (await sparkInvestment.create(investmentParams)) ?? await addFinanceInvestmentFirebase(investmentParams);
 
 			if (!result.success) {
 				throw new Error('Erro ao registrar investimento no Firebase.');

@@ -1,3 +1,4 @@
+import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import {
 	ScrollView,
@@ -135,6 +136,7 @@ const parseDateFromBR = (value: string) => {
 
 const sanitizeDueDay = (value: string) => value.replace(/\D/g, '').slice(0, 2);
 const MANDATORY_REMINDER_DAY_OPTIONS: Array<{ value: string; label: string }> = [
+	{ value: '0', label: 'Somente no vencimento' },
 	{ value: '1', label: '1 dia antes (1 aviso)' },
 	{ value: '2', label: '2 dias antes (2 avisos)' },
 	{ value: '3', label: '3 dias antes (3 avisos)' },
@@ -190,7 +192,7 @@ export default function AddMandatoryGainsScreen() {
 	const [description, setDescription] = React.useState('');
 	const [reminderEnabled, setReminderEnabled] = React.useState(false);
 	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
-	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<1 | 2 | 3>(1);
+	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<0 | 1 | 2 | 3>(1);
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
 	const [openDueSection, setOpenDueSection] = React.useState<string | null>(null);
 	const [openOptionalSection, setOpenOptionalSection] = React.useState<string | null>(null);
@@ -199,6 +201,7 @@ export default function AddMandatoryGainsScreen() {
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
 	const [lastReceiptCycle, setLastReceiptCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef(false);
+	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, isSpark } = useSparkRecurringForm('gain');
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryGains');
 	const selectedTagLabel = React.useMemo(
 		() =>
@@ -319,6 +322,7 @@ export default function AddMandatoryGainsScreen() {
 
 	const handleReminderDaysBeforeChange = React.useCallback((value: string) => {
 		setReminderDaysBefore(normalizeMandatoryReminderDaysBefore(value));
+		if (value === '0') setReminderOnDueDate(true);
 	}, []);
 
 	const isDueDayValid = React.useMemo(() => {
@@ -352,6 +356,7 @@ export default function AddMandatoryGainsScreen() {
 			installmentsEnabled && normalizedInstallmentTotal !== null
 				? resolveMandatoryInstallmentsCompleted({
 					storedCompleted: settledInstallmentsCount,
+					explicitCompletion: isSpark !== false,
 					installmentTotal: normalizedInstallmentTotal,
 					startDate: parsedInstallmentStartDate,
 					isCurrentCycleCompleted: false,
@@ -362,6 +367,7 @@ export default function AddMandatoryGainsScreen() {
 			normalizedInstallmentTotal,
 			parsedInstallmentStartDate,
 			settledInstallmentsCount,
+			isSpark,
 		],
 	);
 	const isInstallmentTotalBelowSettled =
@@ -509,6 +515,7 @@ export default function AddMandatoryGainsScreen() {
 		useKeyboardAwareScroll<FocusableInputKey>({ getInputRef, keyboardScrollOffset });
 
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
+		resetSparkRecurring();
 		setSelectedGainTemplateId(null);
 		setGainName('');
 		setValueDisplay('');
@@ -658,7 +665,7 @@ export default function AddMandatoryGainsScreen() {
 
 			setIsPrefilling(true);
 			try {
-				const response = await getMandatoryGainFirebase(editingGainTemplateId);
+				const response = (await loadSparkRecurring(editingGainTemplateId)) ?? await getMandatoryGainFirebase(editingGainTemplateId);
 				if (!isMounted) {
 					return;
 				}
@@ -711,6 +718,7 @@ export default function AddMandatoryGainsScreen() {
 						: null;
 				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: data.installmentsCompleted,
+					explicitCompletion: data.sparkPlan === true,
 					installmentTotal: installmentTotalValue,
 					startDate: installmentStartDateValue,
 					isCurrentCycleCompleted: isCycleKeyCurrent(lastReceiptCycle),
@@ -833,7 +841,10 @@ export default function AddMandatoryGainsScreen() {
 
 			let persistedId = selectedGainTemplateId;
 			const successTitle = selectedGainTemplateId ? 'Ganho obrigatório atualizado' : 'Ganho obrigatório registrado';
-			if (selectedGainTemplateId) {
+			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedGainTemplateId });
+			if (sparkResult) {
+				persistedId = sparkResult.id;
+			} else if (selectedGainTemplateId) {
 				const result = await updateMandatoryGainFirebase({ gainTemplateId: selectedGainTemplateId, ...payload });
 				if (!result.success) throw new Error('Erro ao atualizar o ganho obrigatório.');
 			} else {
@@ -943,6 +954,7 @@ export default function AddMandatoryGainsScreen() {
 		reminderOnDueDate,
 		reminderTime,
 		resetForm,
+		submitSparkRecurring,
 		resolvedSettledInstallmentsCount,
 		selectedGainTemplateId,
 		selectedTagId,
@@ -1362,7 +1374,7 @@ export default function AddMandatoryGainsScreen() {
 																				<Switch
 																					value={reminderOnDueDate}
 																					onValueChange={setReminderOnDueDate}
-																					disabled={isFormBusy}
+																					disabled={isFormBusy || reminderDaysBefore === 0}
 																					trackColor={switchTrackColor}
 																					thumbColor={switchThumbColor}
 																					activeThumbColor={switchActiveThumbColor}

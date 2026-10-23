@@ -40,6 +40,13 @@ test('restaura caminhos e tipos após paginação de coleções/documentos e pai
       nested: { arrayValue: { values: [{ mapValue: { fields: { amount: { integerValue: '123' } } } }] } },
     } },
     { path: 'empty/document', fields: {} },
+    { path: 'sparkOperationRecovery/synthetic', fields: { schemaVersion: { integerValue: '1' }, groupId: { stringValue: 'synthetic-group' },
+      operationId: { stringValue: 'cancelled_action_123456' }, updatedAt: { timestampValue: '2026-10-22T12:00:00.123456Z' } } },
+    { path: 'sparkOperationRecovery/synthetic/intents/cancelled_action_123456', fields: { schemaVersion: { integerValue: '1' },
+      groupId: { stringValue: 'synthetic-group' }, kind: { stringValue: 'transfer' }, status: { stringValue: 'cancelled' },
+      createdAt: { timestampValue: '2026-10-22T12:00:00.123456Z' }, updatedAt: { timestampValue: '2026-10-22T12:00:01.123456Z' } } },
+    { path: 'sparkOperationIntentQuotas/synthetic', fields: { groupId: { stringValue: 'synthetic-group' }, operationId: { stringValue: 'cancelled_action_123456' },
+      windowStartInMillis: { integerValue: '1792670400000' }, count: { integerValue: '1' }, updatedAt: { timestampValue: '2026-10-22T12:00:00.123456Z' } } },
     { path: 'financialGroups/missing/sparkHistorySegments/bank/nodes/two', fields: { nodeCount: { integerValue: '2' } } },
     { path: 'special/space % ? ç', fields: { text: { stringValue: 'synthetic' } } },
   ];

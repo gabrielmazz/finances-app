@@ -1,0 +1,276 @@
+{
+  "score": 4,
+  "summary": "Recorte local de 22/10/2026, protocolo financial-proof-v17: contratos sucessores, liquidação após prazo, edição composta, desfazimento de avaliação vigente e histórico em fronteiras temporais. Controles positivos e ataques por SDK direto passaram. Recuperação persistente, compatibilidade, consumidores e aceitação continuam incompletos; nota não certifica a aplicação inteira ou produção. Continuação: reserva privada e cancelamento atômico ligados ao executor; recuperação do material e aceitação em aparelhos permanecem pendentes.",
+  "findings": [
+    {
+      "check": "Resource exhaustion / business support",
+      "severity": "major",
+      "issue": "Novos ramos elevavam o custo de conferências legítimas acima de 1000 expressões.",
+      "recommendation": "Selecionar o mesmo contrato temporal antes dos demais, preservando todas as invariantes.",
+      "status": "resolved",
+      "evidence": ".expo/spark-v17-balance-budget-fixed.log: 15; spark-v17-sdk-closed.log: 40; regressão final: 1120."
+    },
+    {
+      "check": "Financial history / temporal boundaries",
+      "severity": "major",
+      "issue": "Movimento de commit posterior por revisão e no mesmo instante de uma referência podia desaparecer da prova histórica.",
+      "recommendation": "Desempatar commits pela revisão, manter cobertura dos datados e conferir individualmente segmentos na fronteira.",
+      "status": "resolved",
+      "evidence": "Reprodução determinística no cenário funded opening remains coherent; spark-v17-regression-closed.log aprovado."
+    },
+    {
+      "check": "Integrity / recoverability",
+      "severity": "minor",
+      "issue": "Identificação/status e cancelamento já sobrevivem ao reload; argumentos/provas e fases descritivas completas ainda não são restaurados.",
+      "recommendation": "Concluir restauração material e aceitação Web/aparelhos; preservar cancelamentos e nova autorização conversacional após reload.",
+      "status": "partially_resolved"
+    },
+    {
+      "check": "Legacy negative controls / expression budget",
+      "severity": "minor",
+      "issue": "Os cinco scripts anteriores ainda contêm recusas de payloads legados por limite de expressões; saída zero não comprova a invariante específica desses casos.",
+      "recommendation": "Auditar esses controles separadamente antes de certificar compatibilidade legada; não usar esgotamento como prova da regra de negócio.",
+      "status": "open"
+    }
+  ],
+  "scope": [
+    "financialGroups/sparkOperations",
+    "financialGroups/sparkPositions",
+    "financialGroups/sparkAccountCatalog",
+    "financialGroups/sparkMovementClaims",
+    "financialGroups/sparkMovementDetails",
+    "users/financialGroupId",
+    "bloqueio de banks após corte",
+    "sparkRecurringPlans/sucessores",
+    "sparkRecurringMetadata",
+    "sparkOperations/investment_edit_valuation",
+    "sparkHistoryProofs/valuation_undo",
+    "sparkInvestmentValuationReversals",
+    "sparkInvestmentCapital",
+    "sparkCheckpoints",
+    "sparkHistorySegments/fronteiras"
+  ],
+  "checks": {
+    "create_vs_update": "Schemas fechados; predecessor e sucessor recíprocos com configuração no mesmo commit. Predecessor não opera isoladamente; cancelado não restaura; revisões e contadores preservados.",
+    "authority": "UID e grupo protegidos v17; proprietário em contratos e administrador em capital/avaliação. Perfil/Remote Config não concedem papel. Replay exige autorização atual.",
+    "atomicity": "Edição composta exige dois nós ligados, bancos/capital/posição/checkpoint/cota; desfazimento exige prova/claim/referência. Omissão e falsificação são recusadas sem efeitos parciais.",
+    "types": "Centavos inteiros, quantidade/contrato limitados, Timestamps exatos e motivo limitado. Zero de avaliação é válido; resultado negativo recusa a transação.",
+    "proofs": "Exclusão é imutável, restrita à avaliação vigente e ao propósito valuation_undo. Prova exclusiva não autoriza comandos normais. Cabeça/revisão e fronteiras são conferidas nas Rules.",
+    "resource_limits": "Mantidos limites/cotas e paginação. Despacho temporal corrigido após falha positiva; controles Spark de recusa não aceitam esgotamento. Consumidores ainda exigem medição de volumes.",
+    "ownership": "CDI e origem preservados; banco não muda ao desfazer avaliação. Nenhuma ativação, credencial Admin em cliente ou dado real alterado."
+  },
+  "evidence": {
+    "rules": ".expo/spark-v17-regression-closed.log: 1120 Spark + cinco scripts anteriores, cadeia exit 0; limitações dos controles negativos legados explicitadas.",
+    "sdk": ".expo/spark-v17-sdk-closed.log: 40; spark-v17-import-closed.log: 18 isolados.",
+    "gate": ".expo/spark-v17-check-closed.log: estilos/tipos, 104 ferramentas e 992 comuns; 89 condicionais ignorados.",
+    "exports": ".expo/spark-v17-{web,android}-closed.log: exportados; aviso Android mantido; sem aparelho.",
+    "timezones": ".expo/spark-v17-{tokyo,la}.log: os mesmos 57 cenários em cada fuso."
+  },
+  "pair_integration_review": {
+    "reviewed_at": "2026-10-20",
+    "scope": "Integração cliente de transferência/saque nativo e estorno; Rules mantidas. Não certifica a aplicação inteira nem produção.",
+    "checks": {
+      "atomicity": "SDK real: dois efeitos e claim únicos, replay sem duplicação, concorrência sem exceder saldo e estorno com Caixa insuficiente recusado sem efeitos parciais.",
+      "authority": "Revogação e sessão encerrada recusadas; contexto Spark ausente/erro não libera escritor antigo; autoria/admin conferidos no protocolo.",
+      "time": "Hoje usa commit autoritativo, testado com relógio cliente +1500 ms; retroativos conservam Timestamp e respeitam referências independentes.",
+      "presentation": "Saque Spark e estorno excluídos dos totais econômicos; nomes atuais do catálogo não são autoridade. Navegador confirmou ambos os estornos e saldos restaurados."
+    },
+    "findings": [],
+    "evidence": {
+      "sdk": ".expo/spark-pairs-sdk-verified.log: 10 aprovados, zero falhas/ignorados",
+      "gate": ".expo/spark-pairs-final-gate.log: estilos/tipos, 104 ferramentas, 960 comuns; 89 condicionais ignorados",
+      "final_ui": ".expo/spark-pairs-ui-final.log: estilos/tipos após ajuste das ações somente leitura",
+      "exports": ".expo/spark-pairs-web-final.log e spark-pairs-android-final.log: exportados; nenhum aparelho instalado",
+      "rules": "A regressão de 1037 cenários em evidence é anterior e reaproveitada; sem alteração de Rules nem nova execução integral neste bloco."
+    },
+    "limitations": [
+      "Intenção em memória não recupera reload/desmontagem.",
+      "Assistente e pares importados/de investimentos ainda não conectados por esta entrega.",
+      "Aparelhos, custo em volume, ativação e release pendentes."
+    ]
+  },
+  "balance_integration_review": {
+    "reviewed_at": "2026-10-21",
+    "scope": "Ponte Web/mobile de mensal e ajustes nativos; dispatch do mesmo contrato de edição antecipado nas Rules. Sem certificação geral ou de produção.",
+    "findings": [
+      {
+        "check": "Business Logic vs. Rules / resource exhaustion",
+        "severity": "major",
+        "issue": "Edição de hoje com saldo negativo excedia 1000 expressões e recusava um comando legítimo.",
+        "recommendation": "Selecionar o mesmo contrato de substituição antes dos contratos não pertinentes; conservar papel, schema, atomicidade e validações. Enviar justificativa somente se necessária.",
+        "status": "resolved",
+        "evidence": ".expo/spark-balances-sdk-rules-ordered.log: 13 controles aprovados; regressão integral em spark-balances-rules-regression.log."
+      }
+    ],
+    "checks": {
+      "authority": "Administrador do grupo protegido, UID atual e recusa de papel member/revogação ensaiados com SDK real.",
+      "concurrency": "Revisão esperada e ponteiro mensal recusam prévias desatualizadas; replay não duplica o efeito.",
+      "history": "Prova completa obrigatória, parcial/pausa não confirma; abertura futura não muda saldo atual; ativação vencida materializa referência autorizada.",
+      "adjustments": "Edição e estorno mantêm autoria/banco/datas, claim único e movimentos posteriores; inversos/referências/importados não ganham escrita genérica.",
+      "boundaries": "Fachadas recusam callable/escrita antiga no Spark; motivo negativo limitado e calendário protegido; nenhuma validação das Rules removida."
+    },
+    "evidence": {
+      "sdk": ".expo/spark-balances-sdk-rules-ordered.log: 13 aprovados, zero ignorados",
+      "gate": ".expo/spark-balances-closed-check.log: 104 ferramentas, 966 comuns; 89 condicionais ignorados",
+      "final_ui": ".expo/spark-balances-ui-final.log: estilos/tipos e ferramentas após o campo de justificativa mensal",
+      "rules": ".expo/spark-balances-rules-regression.log: 1037 cenários Spark + cinco suítes anteriores, execução nova aprovada",
+      "initial_budget_failure": ".expo/spark-balances-sdk-budget.log: recusa de controle positivo por esgotamento; corrigida sem afrouxar validações",
+      "exports": ".expo/spark-balances-web-final.log e spark-balances-android-final.log: exportados após o campo de motivo mensal; não equivalem a aparelhos ou publicação."
+    },
+    "limitations": [
+      "Navegador bloqueou aquisição da aba por política; sem ensaio visual novo ou aparelho.",
+      "IDs de preparação e intenção mantidos somente em memória na UI.",
+      "Assistente/importados, ativação real e release pendentes."
+    ]
+  },
+  "financial_consumers_review": {
+    "reviewed_at": "2026-10-22",
+    "score": 4,
+    "summary": "Recorte local das pontes financeiras, quitação negociada e confirmação de revisão em pares. Não certifica toda a aplicação ou produção. Operações ensaiadas preservam ACL, centavos, atomicidade e replay; recuperação persistente das intenções financeiras permanece incompleta.",
+    "checks": {
+      "create_vs_update": "Modalidade e nominal são iguais no receipt/ciclo; reversão só muda atividade/revisão e conserva negociação original. Definições e contrato anterior não são reescritos.",
+      "authority": "Ator autenticado e papel/grupo protegidos; negociação exclusiva de despesa finita. Fila usa prova privada da mesma cabeça; membro só aplica contagem previamente autorizada.",
+      "business_support": "SDK real cobre parcelas, desconto/estorno, investimento, financiamento, pares/estorno, ciclo de vida e retomada de ativação sem estado local.",
+      "resource_limits": "Mantidos schema hasOnly, limites de texto/centavos, cotas, paginação e orçamento de Rules. Índice de recuperação acrescentado; leituras de consumidores ainda precisam de medição representativa.",
+      "types": "Nominal/caixa/revisões inteiros, timestamps preservados e médias por aritmética inteira. SDK direto com revisão forjada é recusado sem efeitos parciais.",
+      "ownership": "CDI usa criador da abertura imutável. Importados só resolvem pares com permissão protegida explícita; abertura/principal/avaliação não são pares editáveis.",
+      "nullable_types": "Compilação local sem avisos de tipos: referência textual para ciclo, raiz explícita na cadeia e mapa anterior/presença separados para cotas. A presença vem de resource/exists; campos de autoridade e limites preservados."
+    },
+    "findings": [
+      {
+        "check": "Recoverability / integrity",
+        "severity": "minor",
+        "issue": "Após reload, novas intenções financeiras ainda não recuperam automaticamente identidade, data e material. Recriar um pedido incerto com outro ID pode causar duplicação por ação do próprio usuário.",
+        "recommendation": "Implementar journal/recuperação autenticada, conferência e cancelamento seguros antes de declarar paridade; até lá conservar a intenção no formulário e conferir o extrato.",
+        "status": "open"
+      },
+      {
+        "check": "Business Logic vs. Rules",
+        "severity": "major",
+        "issue": "Quitação antecipada com desconto/acréscimo era recusada como divergência contratual.",
+        "recommendation": "Modalidade explícita, motivo, nominal exato da faixa e valor pago separados; transação e estorno atômicos.",
+        "status": "resolved"
+      },
+      {
+        "check": "Types / financial arithmetic",
+        "severity": "minor",
+        "issue": "Média histórica muito alta podia diferir um centavo; linha temporal agrupada por dia podia perder aporte posterior à avaliação.",
+        "recommendation": "Soma/divisão inteira e timestamp/revisão na ordem dos eventos nativos.",
+        "status": "resolved"
+      },
+      {
+        "check": "Civil time / intent integrity",
+        "severity": "minor",
+        "issue": "Adaptador de formulário convertia data civil em instante e exibia outro dia no fuso de Tóquio; referência Date compartilhada podia mudar durante espera de contexto.",
+        "recommendation": "Preservar campos civis na apresentação e instantes nos ciclos; copiar datas antes das esperas e comparar ciclo financeiro.",
+        "status": "resolved",
+        "evidence": ".expo/spark-recurring-date-repro.log e spark-recurring-date-fixed.log; gate e dois fusos finais aprovados."
+      },
+      {
+        "check": "Business Logic / projection labeling",
+        "severity": "minor",
+        "issue": "Consulta de CDI bem-sucedida mas sem taxa do titular podia rotular a carteira como projetada.",
+        "recommendation": "Exigir configuração completa e pelo menos um investimento projetável por CDI; caso contrário manter valor confirmado.",
+        "status": "resolved"
+      }
+    ],
+    "evidence": {
+      "gate": ".expo/spark-financial-accepted-check.log: 104 ferramentas e 989 comuns; 89 condicionais ignorados",
+      "sdk": ".expo/spark-no-warning-sdk.log: 33; spark-no-warning-import.log: 18 em emuladores próprios",
+      "rules": ".expo/spark-no-warning-rules.log: 1050 Spark e cinco scripts anteriores com saída zero, após correção de nulidade/presença; compilação local sem avisos de tipos",
+      "exports": ".expo/spark-financial-web-accepted.log e spark-financial-android-accepted.log: exportados após último ajuste da Home; aviso de pacote Android mantido",
+      "timezones": ".expo/spark-financial-accepted-tokyo.log e spark-financial-accepted-la.log: os mesmos 47 casos em cada fuso"
+    },
+    "limitations": [
+      "Sem nova homologação visual por bloqueio de política do navegador; sem aparelhos.",
+      "Replanejamento de contratos, edição composta e desfazimento de avaliação permanecem bloqueados explicitamente.",
+      "Sem migração/corte real, deploy, mudança de cobrança, audit de dependências ou medição de franquia."
+    ]
+  },
+  "previous_initial_scope": {
+    "score": 5,
+    "summary": "Auditoria de escopo limitado em 2026-10-20: nenhuma vulnerabilidade confirmada nos guards de abertura/edição bancária e movimentos ordinários exercitados nesta entrega. A nota se refere somente a esse recorte e aos ataques ensaiados; não certifica a aplicação inteira, publicação, ativação real ou ausência de falhas em combinações não testadas. O estouro de expressões encontrado no teste positivo foi corrigido antecipando a seleção do mesmo contrato ordinário, sem remover validações.",
+    "findings": [],
+    "scope": [
+      "financialGroups/sparkOperations",
+      "financialGroups/sparkPositions",
+      "financialGroups/sparkAccountCatalog",
+      "financialGroups/sparkMovementClaims",
+      "financialGroups/sparkMovementDetails",
+      "users/financialGroupId",
+      "bloqueio de banks após corte",
+      "sparkRecurringPlans/sucessores",
+      "sparkRecurringMetadata",
+      "sparkOperations/investment_edit_valuation",
+      "sparkHistoryProofs/valuation_undo",
+      "sparkInvestmentValuationReversals",
+      "sparkInvestmentCapital",
+      "sparkCheckpoints",
+      "sparkHistorySegments/fronteiras"
+    ],
+    "checks": {
+      "create_vs_update": "Abertura zero exige catálogo, checkpoint, receipt e cota atômicos; edição exige revisão e não muda saldo. Campos de autoridade e alteração isolada de saldo recusados.",
+      "authority": "UID atual, papel obtido do grupo protegido, status ativo e protocolo v16; perfil não cria grupo nem concede papel.",
+      "business_support": "Ensaio real encadeia login, cadastro, receita, despesa com categoria, correção, estorno, Home e extrato sem Functions.",
+      "resource_limits": "Mantidos limites de campos, cotas e orçamento de Rules. Novo controle positivo cobre categoria em banco recém-aberto com checkpoint; a recusa por esgotamento não foi aceita como proteção.",
+      "types": "Centavos inteiros, dados de catálogo validados, timestamps e revisões preservados; nenhum schema afrouxado.",
+      "ownership": "ACL do grupo obrigatório, administrador para cadastro, autoria de movimentos/claims e negação de escrita legada após corte. SDK cliente não recebe credencial Admin."
+    },
+    "evidence": {
+      "sdk_demo": ".expo/spark-local-demo-fixed.log: 9 ensaios dos serviços + 1 ensaio dos leitores, zero falhas/ignorados",
+      "rules_regression": ".expo/spark-local-rules-regression.log: 1037 cenários Spark, zero falhas/ignorados, seguidos das cinco suítes existentes de Rules com saída zero",
+      "initial_failure": ".expo/spark-local-demo.log: falha inicial de orçamento preservada",
+      "general_gate": ".expo/spark-local-check.log: estilos/tipos, 104 ensaios de ferramentas, 951 testes comuns; 89 condicionais ignorados não são aceitação integrada"
+    }
+  },
+  "limitations": [
+    "Recuperação persistente, compatibilidade, assistente e aceitação ainda abertos.",
+    "Somente avaliação vigente pode ser desfeita; referências anteriores não ganham estorno genérico.",
+    "Sem inspeção visual nova por bloqueio de política do navegador, aparelhos, deploy, migração real ou audit de dependências."
+  ],
+  "recovery_review": {
+    "reviewed_at": "2026-10-22",
+    "score": 4,
+    "summary": "Auditoria limitada ao journal privado e ao executor comum; não certifica produção ou a aplicação inteira.",
+    "scope": [
+      "sparkOperationRecovery/{uid}",
+      "sparkOperationRecovery/{uid}/intents/{operationId}",
+      "sparkOperationIntentQuotas/{uid}",
+      "sparkTransferQuotas/validSparkRecoveryCommit",
+      "SparkOperationRecoveryFirebase",
+      "sparkFinancialProtocol",
+      "spark-operation-recovery-notice"
+    ],
+    "checks": {
+      "authority": "Leitura/transição do próprio UID com login válido; reserva exige grupo protegido. Cancelamento privado continua possível após revogação do papel financeiro.",
+      "atomicity": "Reserva antecede dinheiro; confirmação exige recibo novo com autor/tipo correspondentes. Cancelamento e commit disputam a mesma intenção. Sem delete/reabertura cliente.",
+      "types_and_limits": "Schemas fechados, IDs limitados, tipo por regex, estados/timestamps conferidos; até 120 admissões novas/minuto por UID, sem alterar cota financeira.",
+      "privacy": "Nenhum valor, rascunho, conversa ou grant persistido; callbacks e memória vinculados à sessão/UID.",
+      "compatibility": "SDK direto sem intenção conserva guardas financeiras. ID cancelado e índice pendente não autorizam dinheiro; reconhecimento de confirmado é barreira do executor atual.",
+      "test_isolation": "Controles de domínio usam financialRejection para retirar somente tombstones cancelados da fixture Admin após recusa, sem alterar recibos/saldos/cota financeira; testes de recuperação não usam esse helper e validam as barreiras completas.",
+      "current_clock": "Carteira atual considera cabeça/referência confirmadas; sync de hoje conserva o máximo do instante local e referência do mesmo dia, inclusive nanossegundos. Retroativo preservado; caso unitário e SDK determinísticos."
+    },
+    "findings": [
+      {
+        "check": "Recoverability / acceptance",
+        "severity": "minor",
+        "issue": "Restauração integral de material/fases após reload e aceitação visual/aparelhos ainda pendentes.",
+        "recommendation": "Completar essa matriz antes de declarar paridade ou elevar E a 100."
+      },
+      {
+        "check": "Resource limits / retention",
+        "severity": "minor",
+        "issue": "Reserva e listeners aumentam leituras/escritas; volume diário e fluxo geral de exclusão/retenção não estão concluídos.",
+        "recommendation": "Medir consumo representativo e integrar U03 sem apagar tombstones que liberem IDs antigos."
+      }
+    ],
+    "evidence": {
+      "rules": ".expo/spark-recovery-closed-rules.log: 1147 + cinco scripts anteriores; exit 0, ressalva de esgotamento em negativos legados.",
+      "sdk": ".expo/spark-recovery-verified-sdk.log: 51/51, zero ignorados.",
+      "snapshot_import": ".expo/spark-recovery-verified-restore.log: 22/22; tombstones incluídos, sem Rules/Auth reais ou ativação.",
+      "gate": ".expo/spark-recovery-final-check.log: estilos/tipos; 104 ferramentas e 999 comuns, 89 condicionais ignorados.",
+      "timezones": ".expo/spark-recovery-{tokyo,la}.log: os mesmos 32 em cada fuso.",
+      "exports": ".expo/spark-recovery-final-{web,android}.log: completos; aviso conhecido Android, sem aparelho."
+    }
+  }
+}

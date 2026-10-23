@@ -1,8 +1,14 @@
 # Cache e Leituras Firebase
 
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+F10 — Home/extrato/análise: **78% implementado / 22% restante** no módulo completo. O cache da Home Spark já revalida montagem/foco/primeiro plano/reconexão e o vencimento conhecido, ocultando o snapshot durante revalidação, erro ou expiração. Restam medição por volume/custo e homologação em aparelhos. Ver [[Status da Implementação Spark]] e [[Dashboard Home]].
+<!-- spark-progress:end -->
+
 ## Política do cliente
 
-- As queries financeiras usam TanStack Query com `staleTime` de **10 minutos**. Foco, reconexão e remount não fazem refetch automático; pull-to-refresh faz uma única recarga explícita.
+- As queries financeiras anteriores usam TanStack Query com `staleTime` de **10 minutos**, sem refetch automático por foco/reconexão/remount. A Home Spark opta por revalidação nesses eventos e agenda o vencimento conhecido; o snapshot anterior não é apresentado durante a conferência, erro ou expiração. Pull-to-refresh continua sendo recarga explícita.
 - A chave começa sempre com `['finance', uid, ...]`. Assim, consumidores simultâneos deduplicam a mesma promessa e dados de contas diferentes não se misturam.
 - A Home é uma única query compartilhada. Ela não usa mais `useFocusEffect` para disparar uma consulta a cada retorno de tela.
 - `ReadAuditEntry` registra em desenvolvimento chave, origem, gatilho e duração. Novas leituras devem passar por hooks/gateway, não por effects de tela.

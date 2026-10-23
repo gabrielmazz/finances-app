@@ -3,14 +3,39 @@ tags: [analise, categorias, tags, gastos, bancos, graficos]
 relacionado: [[Dashboard Home]], [[Gerenciamento de Tags]], [[Gerenciamento de Bancos]], [[Transações de Despesas]], [[Transações de Receitas]], [[Navegação]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.0.15
+versao: 1.0.17
+spark_module: F10
+spark_progress: 78
+spark_reviewed_at: 2026-10-22
 ---
 
 # Análise por Categoria
 
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F10 — Home, extrato e análise por categoria: 78% implementado / 22% restante.** Notas P/I/D/E: **100/75/50/50**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Completar ações especiais de referências/importados, medir leituras e homologar Web/aparelhos. Home usa projeção CDI somente com proveniência completa.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
 Tela de relatório dinâmico que compara gastos e ganhos de uma tag contra a média histórica recente. Existe para detectar variações incomuns, como uma categoria ficar acima, abaixo ou próxima da média dos últimos meses.
 
 ## Como funciona
+
+### Fonte Spark
+
+Grupos com `financial-proof-v16` usam [[Integração Financeira Spark]] antes de selecionar o razão anterior. `CategoryAnalysisFirebase` lê as contas canônicas e `sparkOperations`/identidades pelo leitor consistente; não consulta os movimentos antigos nem executa Functions nesse ramo. Arquivados continuam no histórico. Categorias seguem o mesmo escopo do writer, com tombstones ocultos e rejeição de categoria nativa de outro grupo.
+
+Os totais econômicos são líquidos: despesa de 100 corrigida para 120 produz termos `100 − 100 + 120`; receita invertida continua reduzindo receitas. Correção entre categorias reduz a antiga e atribui o substituto à nova. Correção entre contas preserva ambas. Estorno neste mês de uma despesa do mês anterior pode deixar o resultado deste mês negativo; não é uma nova receita. Transferências, capital, financiamento, avaliação, abertura e conferência não integram receitas/despesas.
+
+Web/mobile e PDF conservam os valores negativos por conta. Quando houver valores negativos, a distribuição mostra o total líquido e a lista explicativa em lugar de uma pizza incompatível; nenhuma conta negativa é escondida. Evolução mensal/diária e movimentos mantêm sinais e nomes de estorno. As contagens representam os componentes exibidos no journal. A privacidade continua mascarando valores. Validação local cobre troca de categoria/conta/mês, receita corrigida, exclusão de pares/referências, dia civil de São Paulo, falhas de consulta e troca de grupo. Isso não conclui Home, previsão ou formulários ordinários.
+
+### Fontes anteriores e apresentação compartilhada
+
+Somas mensais/diárias/por conta, média histórica e diferença recusam valores que excedam o inteiro seguro em centavos; não retornam total arredondado como confirmado. A ordenação dos totais combinados usa inteiros exatos. A distribuição reaproveita o total líquido validado do indicador, sem somar novamente os componentes na tela.
 
 ```mermaid
 graph TD

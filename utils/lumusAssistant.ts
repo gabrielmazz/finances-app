@@ -7,6 +7,7 @@ import type {
 	AssistantModelActionProposal,
 } from '@/types/lumusAssistant';
 import { getActionValidation, getFieldDefinition, isAssistantActionKind } from '@/utils/lumusAssistantSchemas';
+import { createOpaqueHandle } from './opaqueHandle';
 
 export const ASSISTANT_TIME_ZONE = 'America/Sao_Paulo' as const;
 export const ASSISTANT_MAX_INPUT_CHARACTERS = 4_000;
@@ -107,24 +108,7 @@ const createSaoPauloDate = (
 export const createAssistantId = (prefix: string) =>
 	`${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 
-const hashAssistantText = (value: string, seed: number) => {
-	let hash = seed;
-	for (let index = 0; index < value.length; index += 1) {
-		hash ^= value.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return (hash >>> 0).toString(36).padStart(7, '0');
-};
-
-export const createAssistantOpaqueHandle = (
-	prefix: string,
-	collectionName: string,
-	realId: string,
-	sessionSalt: string,
-) => {
-	const material = `${sessionSalt}\u0000${collectionName}\u0000${realId}`;
-	return `${prefix}_${hashAssistantText(material, 2166136261)}${hashAssistantText(material, 2246822519)}`;
-};
+export const createAssistantOpaqueHandle = createOpaqueHandle;
 
 export const formatIsoDate = (date: Date) => {
 	const { year, month, day } = getSaoPauloDateParts(date);

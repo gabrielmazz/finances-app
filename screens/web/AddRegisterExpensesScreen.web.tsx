@@ -1,3 +1,9 @@
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
+import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
+import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
+import { useSparkMovementForm } from '@/hooks/useSparkMovementForm';
 import React from 'react';
 import {
 	Image as RNImage,
@@ -173,7 +179,7 @@ export default function AddRegisterExpensesScreen() {
 	const [expenseName, setExpenseName] = React.useState('');
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
-	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(new Date()));
+	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [tags, setTags] = React.useState<OptionItem[]>([]);
 	const [banks, setBanks] = React.useState<OptionItem[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
@@ -184,7 +190,6 @@ export default function AddRegisterExpensesScreen() {
 	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
 	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
@@ -195,6 +200,9 @@ export default function AddRegisterExpensesScreen() {
 	const [valuesRadioMoneyFormat, setValuesRadioMoneyFormat] = React.useState<
 		'Pagamento em Dinheiro' | 'Pagamento em Banco'
 	>('Pagamento em Banco');
+	const { initialize: initializeSparkMovement, load: loadSparkMovement, submit: submitSparkMovement, reset: resetSparkMovement } = useSparkMovementForm('expense');
+	const { submit: submitSparkRecurring, reset: resetSparkRecurring } = useSparkRecurringAction('expense');
+	const sparkInvestment = useSparkInvestmentForm();
 	const submitLockRef = React.useRef(false);
 	const expenseNameInputRef = React.useRef<any>(null);
 	const expenseValueInputRef = React.useRef<any>(null);
@@ -218,6 +226,7 @@ export default function AddRegisterExpensesScreen() {
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
+		sparkSource?: string | string[];
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
 		templateTagId?: string | string[];
@@ -255,7 +264,11 @@ export default function AddRegisterExpensesScreen() {
 		const value = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
 		return value?.trim() || null;
 	}, [params.expenseId]);
+	const sparkSource = Array.isArray(params.sparkSource) ? params.sparkSource[0] : params.sparkSource;
 	const isEditing = Boolean(editingExpenseId);
+	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry({
+		movementId: editingExpenseId, source: sparkSource, initialize: initializeSparkMovement, loadSpark: loadSparkMovement, loadLegacy: getExpenseDataFirebase,
+	});
 	const templateData = React.useMemo(() => {
 		const name = decodeParam(params.templateName);
 		const description = decodeParam(params.templateDescription);
@@ -336,7 +349,7 @@ export default function AddRegisterExpensesScreen() {
 	}, [isEditing, templateData]);
 	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
 	const isBankSelectionRequired = !moneyFormat;
-	const isFormBusy = isLoadingExisting || isSubmitting;
+	const isFormBusy = isLoadingExisting || isSubmitting || !isMovementReady;
 	const isSubmitDisabled =
 		isFormBusy ||
 		!expenseName.trim() ||
@@ -390,10 +403,13 @@ export default function AddRegisterExpensesScreen() {
 	);
 
 	const resetNewExpenseForm = React.useCallback(() => {
+		sparkInvestment.reset();
+		resetSparkRecurring();
+		resetSparkMovement();
 		setExpenseName('');
 		setExpenseValueDisplay('');
 		setExpenseValueCents(null);
-		setExpenseDate(formatDateToBR(new Date()));
+		setExpenseDate(formatDateToBR(toFinancialCivilDate(new Date())));
 		setSelectedTagId(null);
 		setSelectedBankId(null);
 		setSelectedMovementTagName(null);
@@ -403,7 +419,7 @@ export default function AddRegisterExpensesScreen() {
 		setMoneyFormat(false);
 		setValuesRadioMoneyFormat('Pagamento em Banco');
 		setIgnoredMandatorySuggestionKey(null);
-	}, []);
+	}, [resetSparkMovement]);
 
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
@@ -421,7 +437,7 @@ export default function AddRegisterExpensesScreen() {
 		async (options: SubmitOptions = {}) => {
 			const notifyError = (title: string, description: string, duration = 4000) =>
 				showNotifierAlert({ title, description, type: 'error', isDarkMode, duration });
-			if (submitLockRef.current || isSubmitting) return;
+			if (submitLockRef.current || isSubmitting || !isMovementReady) return;
 			if (!expenseName.trim()) return notifyError('Erro ao registrar despesa', 'Informe o nome da despesa.');
 			if (expenseValueCents === null) return notifyError('Erro ao registrar despesa', 'Informe o valor da despesa.');
 			if (expenseValueCents <= 0)
@@ -444,11 +460,34 @@ export default function AddRegisterExpensesScreen() {
 			try {
 				const personId = auth.currentUser?.uid;
 				if (!personId) return notifyError('Erro ao registrar despesa', 'Não foi possível identificar o usuário atual.');
+				if (linkedMandatoryExpenseId && pendingInvestmentAdjustment) throw new Error('Selecione apenas uma origem para esta movimentação.');
+				if (pendingInvestmentAdjustment && !isEditing) {
+					const investmentResult = await sparkInvestment.moveTemplate({ ...pendingInvestmentAdjustment, amountInCents: expenseValueCents, movementKind: 'expense',
+						selectedDate: parsedExpenseDate, bankId: selectedBankId, moneyFormat });
+					if (investmentResult) {
+						if (!investmentResult.success) throw new Error(investmentResult.error);
+						showSuccessfulExpenseNotification(false);
+						applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
+						return;
+					}
+				}
+
+				if (linkedMandatoryExpenseId && !isEditing && await submitSparkRecurring({
+					action: 'settle', planId: linkedMandatoryExpenseId, selectedDate: parsedExpenseDate,
+					accountId: moneyFormat ? 'cash' : selectedBankId!, amountInCents: expenseValueCents, installmentsCount: installmentsToSettle ?? 1, note: explanationExpense?.trim() || null,
+					...(isMandatoryExpenseSettlement ? { settlementMode: 'negotiated' as const } : {}),
+				})) {
+					showSuccessfulExpenseNotification(false, isMandatoryExpenseSettlement);
+					applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
+					return;
+				}
+
+
 				const shouldCheckSuggestion =
 					!isEditing &&
 					!linkedMandatoryExpenseId &&
 					!pendingInvestmentAdjustment &&
-					getCycleKeyFromDate(dateWithCurrentTime) === getCycleKeyFromDate(new Date());
+					getCycleKeyFromDate(dateWithCurrentTime) === getCycleKeyFromDate(toFinancialCivilDate(new Date()));
 				if (shouldCheckSuggestion) {
 					const mandatoryResult = await getMandatoryExpensesWithRelationsFirebase(personId);
 					if (!mandatoryResult.success || !Array.isArray(mandatoryResult.data))
@@ -471,6 +510,18 @@ export default function AddRegisterExpensesScreen() {
 						setMandatoryExpenseSuggestion(suggestion);
 						return;
 					}
+				}
+
+				if (await submitSparkMovement({
+					actorId: personId, name: expenseName.trim(), amountInCents: expenseValueCents, selectedDate: parsedExpenseDate,
+					bankId: isBankSelectionRequired ? selectedBankId : null, moneyFormat, categoryId: selectedTagId,
+					explanation: explanationExpense?.trim() || null,
+					isEditing, editingReference: editingExpenseId && (sparkSource === 'live' || sparkSource === 'imported') ? { source: sparkSource, operationId: editingExpenseId, family: 'ordinary' } : null,
+					specialSource: Boolean(linkedMandatoryExpenseId || pendingInvestmentAdjustment),
+				})) {
+					showSuccessfulExpenseNotification(isEditing);
+					applyPostSubmitBehavior({ isEditing, resetForm: resetNewExpenseForm });
+					return;
 				}
 
 				if (isEditing && editingExpenseId) {
@@ -556,7 +607,7 @@ export default function AddRegisterExpensesScreen() {
 				applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
 			} catch (error) {
 				console.error('Erro ao registrar/atualizar despesa:', error);
-				notifyError('Erro ao registrar despesa', 'Erro inesperado ao salvar a despesa.');
+				notifyError('Erro ao registrar despesa', error instanceof Error ? error.message : 'Erro inesperado ao salvar a despesa.');
 			} finally {
 				submitLockRef.current = false;
 				setIsSubmitting(false);
@@ -573,11 +624,15 @@ export default function AddRegisterExpensesScreen() {
 			isEditing,
 			isMandatoryExpenseSettlement,
 			isSubmitting,
+			isMovementReady,
 			isDarkMode,
 			linkedMandatoryExpenseId,
 			moneyFormat,
 			parsedExpenseDate,
 			pendingInvestmentAdjustment,
+			submitSparkMovement,
+		submitSparkRecurring,
+			sparkSource,
 			resetNewExpenseForm,
 			selectedBankId,
 			selectedTagId,
@@ -733,42 +788,18 @@ export default function AddRegisterExpensesScreen() {
 	}, [hasAppliedTemplate, isEditing, templateData]);
 
 	React.useEffect(() => {
-		if (!editingExpenseId) return;
-		let isMounted = true;
-		setIsLoadingExisting(true);
-		void getExpenseDataFirebase(editingExpenseId)
-			.then((response) => {
-				if (!isMounted) return;
-				if (!response.success || !response.data) return;
-				const data = response.data as Record<string, unknown>;
-				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
-				setExpenseName(typeof data.name === 'string' ? data.name : '');
-				setExpenseValueCents(value);
-				setExpenseValueDisplay(formatCurrencyBRL(value));
-				setExpenseDate(formatDateToBR(normalizeDateValue(data.date) ?? new Date()));
-				setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
-				setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
-				setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
-				setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
-			})
-			.catch((error: unknown) => {
-				console.error('Erro ao carregar despesa para edição:', error);
-				if (isMounted)
-					showNotifierAlert({
-						title: 'Erro ao carregar despesa',
-						description: 'Erro inesperado ao carregar a despesa selecionada.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-			})
-			.finally(() => {
-				if (isMounted) setIsLoadingExisting(false);
-			});
-		return () => {
-			isMounted = false;
-		};
-	}, [editingExpenseId]);
+		if (!existingMovement) return;
+		const data = existingMovement;
+		const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+		setExpenseName(typeof data.name === 'string' ? data.name : '');
+		setExpenseValueCents(value);
+		setExpenseValueDisplay(formatCurrencyBRL(value));
+		setExpenseDate(formatDateToBR(normalizeDateValue(data.date) ?? new Date()));
+		setSelectedTagId(typeof data.tagId === 'string' ? data.tagId : null);
+		setSelectedBankId(typeof data.bankId === 'string' ? data.bankId : null);
+		setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
+		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
+	}, [existingMovement]);
 
 	React.useEffect(() => {
 		const matched = tags.find((tag) => tag.id === selectedTagId);
@@ -1244,17 +1275,13 @@ export default function AddRegisterExpensesScreen() {
 													)}
 												</VStack>
 											</View>
-											{isEditing && isLoadingExisting ? (
-												<Text className={`${helperText} mt-5 text-sm`}>
-													Carregando informações da despesa selecionada...
-												</Text>
-											) : null}
+											<MovementFormStatus loading={isLoadingExisting} error={movementLoadError} onRetry={retryMovementLoad} />
 											<Button
 												className={`${submitButtonClassName} ${webExpenseClassNames.submit}`}
 												onPress={() => void handleSubmit()}
 												isDisabled={isSubmitDisabled}
 											>
-												{isFormBusy ? (
+												{isSubmitting || isLoadingExisting ? (
 													<ButtonSpinner color={isDarkMode ? '#0F172A' : '#FFFFFF'} />
 												) : (
 													<ButtonText className={submitButtonTextClassName}>

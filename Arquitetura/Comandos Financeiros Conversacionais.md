@@ -3,14 +3,31 @@ tags: [assistente, financeiro, validacao, firestore]
 relacionado: [[Assistente Lumus]], [[Cobertura Conversacional Lumus]], [[Gerenciamento de Bancos]], [[Investimentos]], [[Despesas Fixas]], [[Receitas Fixas]], [[Gerenciamento de Tags]], [[Ajuste de Saldo]]
 status: ativo
 tipo: arquitetura
-versao: 1.1.0
+versao: 1.2.0
+spark_module: A02
+spark_progress: 25
+spark_reviewed_at: 2026-10-19
 ---
 
 # Comandos Financeiros Conversacionais
 
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**A02 — Catálogo, consultas e execução Spark: 25% implementado / 75% restante.** Notas P/I/D/E: **25/25/25/25**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Migrar catálogo/relatórios e comandos de todas as famílias, receipts Spark, confirmações e retomada por UID.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
 Matriz do executor financeiro do Lumus IA, auditada em 2026-10-04. As 38 ações de `ASSISTANT_ACTION_KINDS` têm executor concreto no legado e no razão; esta nota descreve efeitos e evidências, enquanto [[Cobertura Conversacional Lumus]] compara as rotas físicas e os demais módulos do aplicativo. O modelo propõe argumentos, o aplicativo valida a autorização autenticada vinculada ao pedido/versão e o domínio revalida escopo e persistência. Confirmações são mensagens da conversa, sem controles financeiros obrigatórios.
 
 ## Como funciona
+
+Continuação de 20/10/2026: formulários/listas e ações ordinárias do extrato já usam `SparkMovementCommandFirebase` por `SparkMovementFormFirebase`, mas o executor conversacional, catálogo e relatórios ainda exigem essa adaptação com autorização de conversa e recuperação em `sparkOperations`. A02 continua em 25%; a entrega nas telas não comprova execução financeira por conversa.
+
+Continuação Spark de 19/10/2026: `SparkMovementCommandFirebase` implementa o contrato ordinário compartilhado com confirmação material integral, fingerprint da proposta/alvo, namespace nativo/importado e data com nanossegundos. As Rules continuam responsáveis por autorização e efeitos; fingerprints são controles de versão/replay. O catálogo, os relatórios, a recuperação de receipts e o executor conversacional ainda não chamam essa ponte para os movimentos ordinários. A02 permanece em 25%; existência do contrato não comprova execução por conversa.
 
 `financeCommandService.execute` recebe uma autorização emitida pelo aplicativo para a mensagem atual do usuário. Consulta recibos antes do alvo já alterado pelo commit, revalida fingerprints e escolhe o armazenamento pelo estado do grupo. Bancos, categorias e registros do modelo são handles temporários. O catálogo local é paginado em páginas de 200, mantém todos os dados elegíveis e envia somente uma projeção reduzida ao modelo. `assistantActionId` criado no domínio é conservado nas edições para resolver dependências como criar banco/categoria e registrar nele.
 

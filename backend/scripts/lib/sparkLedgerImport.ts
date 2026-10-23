@@ -1,10 +1,12 @@
 import { createSparkCivilMonthCalendar, type SparkImportedEntry } from '../../../utils/sparkFinancialReconciliation';
-import { prepareSparkBootstrap } from './sparkBootstrapPreflight';
+import { decodeSparkFinancialValue, prepareSparkBootstrap } from './sparkBootstrapPreflight';
 import { canonical, dataDigest, digest, LocalFirestore, LocalSnapshotError, validateDocumentSet, type Fields, type LocalSnapshot, type SnapshotDocument } from './sparkLocalSnapshot';
+import { prepareSparkRecurringImport } from './sparkRecurringImport';
 
 /** [[Importação Financeira Local Spark]]: projeção de ensaio, sem ativação nem perda do bruto. */
-export const LOCAL_SPARK_IMPORT_VERSION = 'ledger-stage-v1';
-export const LOCAL_SPARK_IMPORT_PROTOCOL = 'financial-proof-v6';
+export const LOCAL_SPARK_IMPORT_VERSION = 'ledger-stage-v4';
+export const LOCAL_SPARK_IMPORT_PROTOCOL = 'financial-proof-v17';
+export const sparkImportedIdentityId = (groupId: string, transactionId: string) => 'imported_' + digest({ groupId, transactionId });
 function fail(message: string): never { throw new LocalSnapshotError(message); }
 export function financialFields(value: Record<string, any>): Fields {
   const encode = (item: any): Fields[string] => {
@@ -68,11 +70,16 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   const add = (path: string, value: Record<string, unknown>) => additions.push({ path, fields: financialFields(value) });
   const mappings: Array<{ sourceAccountId: string; accountId: string; balanceInCents: number; revision: number }> = [];
   const allEntries = preflight.reconciliation.accounts.flatMap(account => account.entries);
-  const firstYear = Math.max(1970, allEntries.reduce((year, entry) => Math.min(year, entry.effectiveAt.getUTCFullYear()), asOf.getUTCFullYear()));
-  const lastYear = asOf.getUTCFullYear();
+  const recurring = prepareSparkRecurringImport({ snapshot, groupId, asOf, importId, members: Object.keys((group.fields.members.mapValue as { fields: Fields }).fields),
+    transactions: preflight.normalized.transactions, mappings: preflight.reconciliation.accounts.map(row => ({ sourceAccountId: row.sourceAccountId, accountId: row.accountId })) });
+  const plans = recurring.documents.filter(row => row.path.split('/').length === 4 && row.path.includes('/sparkRecurringPlans/'));
+  const firstYear = Math.max(1970, plans.reduce((year, row) => Math.min(year, Number(row.value.startCycle.slice(0, 4))),
+    allEntries.reduce((year, entry) => Math.min(year, entry.effectiveAt.getUTCFullYear()), asOf.getUTCFullYear())));
+  const lastYear = plans.reduce((year, row) => Math.max(year, Number((row.value.endCycle ?? row.value.startCycle).slice(0, 4))), asOf.getUTCFullYear());
   if (lastYear > 2100 || firstYear > lastYear) fail('Corte fora do calendário Spark suportado.');
   const calendar = createSparkCivilMonthCalendar(firstYear, lastYear);
   const sourcePaths = new Map(snapshot.documents.map(row => [row.path, row]));
+  const nodes = new Map<string, Array<{ accountId: string; operationId: string }>>();
   for (const month of calendar) {
     const path = `sparkCivilMonths/${month.cycle}`, fields = financialFields(month);
     if (sourcePaths.has(path)) {
@@ -98,6 +105,9 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
       const id = 'node_' + digest({ importId, accountId: account.accountId, source: entry.source, entryId: entry.id });
       const path = `${entry.source.collection}/${entry.source.id}`, original = sourcePaths.get(path);
       if (!original) fail('Documento original de entrada histórica ausente.');
+      if (entry.source.collection === 'ledgerTransactions') {
+        const links = nodes.get(entry.source.id) ?? []; links.push({ accountId: account.accountId, operationId: id }); nodes.set(entry.source.id, links);
+      }
       add(`${prefix}/sparkOperations/${id}`, { schemaVersion: 1, kind: entry.kind === 'checkpoint' ? 'imported_checkpoint' : 'imported_movement',
         accountId: account.accountId, actorId: entry.actorId ?? null, expectedRevision: revision, previousOperationId: previous,
         effectiveAt: entry.effectiveAt, createdAt: asOf, differenceInCents: entry.kind === 'movement' ? entry.amountInCents : 0,
@@ -121,17 +131,85 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
     mappings.push(mapping);
     add(`${prefix}/sparkImportAccounts/${digest(account.sourceAccountId)}`, { ...mapping, importId, sourceDocumentSha256: digest(sourceAccount.fields) });
   }
+  // Identidades não entram novamente na cadeia: as pernas já estão nos nós importados.
+  const transactions = preflight.normalized.transactions;
+  const correctionLinks = new Map<string, string>();
+  const replacements = new Set<string>();
+  const correctionReversals = new Set<string>();
+  const correctionReceipts = snapshot.documents.filter(row => row.path.startsWith(`${prefix}/operations/`) && row.path.split('/').length === 4
+    && row.fields.operation?.stringValue === 'correctMovement');
+  for (const row of correctionReceipts.filter(row => row.fields.result)) {
+    let result: any;
+    try { result = decodeSparkFinancialValue(row.fields.result); } catch { fail('Recibo de edição possui resultado incompatível.'); }
+    const reversal = transactions.find(event => event.id === result?.reversalTransactionId);
+    const replacement = transactions.find(event => event.id === result?.transactionId);
+    const original = transactions.find(event => event.id === reversal?.reversesTransactionId);
+    if (!reversal || reversal.kind !== 'reversal' || !replacement || !original
+      || !['income', 'expense'].includes(original.kind) || replacement.kind !== original.kind
+      || reversal.effectiveAt.valueOf() !== replacement.effectiveAt.valueOf()
+      || reversal.actorId !== replacement.actorId || row.fields.actorId?.stringValue !== replacement.actorId
+      || correctionLinks.has(original.id) || replacements.has(replacement.id)
+      || original.id === replacement.id) fail('Vínculo de edição ausente, duplicado ou incompatível.');
+    correctionLinks.set(original.id, replacement.id); replacements.add(replacement.id); correctionReversals.add(reversal.id);
+  }
+  for (const row of correctionReceipts.filter(row => !row.fields.result)) {
+    if (!correctionReversals.has(row.fields.transactionId?.stringValue as string)) fail('Recibo de edição sem vínculo completo com estorno e substituto.');
+  }
+  for (const originalId of correctionLinks.keys()) {
+    const visited = new Set<string>(); let cursor: string | undefined = originalId;
+    while (cursor !== undefined) {
+      if (visited.has(cursor)) fail('Ciclo entre originais e substitutos de edição.');
+      visited.add(cursor); cursor = correctionLinks.get(cursor);
+    }
+  }
+  for (const event of transactions) {
+    const legs = event.legs.filter(leg => leg.accountId !== null);
+    const mapped = (id: string) => mappings.find(mapping => mapping.sourceAccountId === id)?.accountId ?? fail('Conta da identidade ausente.');
+    const ordinary = ['income', 'expense'].includes(event.kind) && legs.length === 1 && event.legs.length === 2
+      && legs[0].deltaInCents * (event.kind === 'income' ? 1 : -1) > 0;
+    const pair = ['transfer', 'investment_deposit', 'investment_redemption'].includes(event.kind) && legs.length === 2
+      && event.legs.length === 2 && legs.some(leg => leg.deltaInCents < 0) && legs.some(leg => leg.deltaInCents > 0);
+    if (['income', 'expense'].includes(event.kind) && !ordinary || ['transfer', 'investment_deposit', 'investment_redemption'].includes(event.kind) && !pair) fail('Pernas incompatíveis com a identidade financeira.');
+    if (pair) {
+      const from = preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs.find(leg => leg.deltaInCents < 0)!.accountId)!.kind;
+      const to = preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs.find(leg => leg.deltaInCents > 0)!.accountId)!.kind;
+      if (!(event.kind === 'transfer' ? from !== 'investment' && to !== 'investment'
+        : event.kind === 'investment_deposit' ? from !== 'investment' && to === 'investment' : from === 'investment' && to !== 'investment')) fail('Tipo de investimento incompatível com as contas da identidade.');
+    }
+    const id = sparkImportedIdentityId(groupId, event.id), source = sourcePaths.get(`ledgerTransactions/${event.id}`)!;
+    add(`${prefix}/sparkImportedIdentities/${id}`, { schemaVersion: 1, kind: event.kind, actorId: event.actorId,
+      effectiveAt: event.effectiveAt, categoryId: event.categoryId ?? null, note: event.note ?? null,
+      ordinaryResolutionAllowed: ordinary && !(event.sourceReferences?.length)
+        && preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs[0].accountId)!.kind !== 'investment',
+      pairResolutionAllowed: pair && !(event.sourceReferences?.length),
+      ...(ordinary ? { accountId: mapped(legs[0].accountId!), amountInCents: Math.abs(legs[0].deltaInCents) } : {}),
+      ...(pair ? { fromAccountId: mapped(legs.find(leg => leg.deltaInCents < 0)!.accountId!),
+        toAccountId: mapped(legs.find(leg => leg.deltaInCents > 0)!.accountId!), amountInCents: legs.find(leg => leg.deltaInCents > 0)!.deltaInCents } : {}),
+      sourcePath: source.path, sourceDocumentSha256: digest(source.fields), sourceReferences: event.sourceReferences ?? [],
+      readModel: { schemaVersion: 1, groupId, kind: event.kind, actorId: event.actorId, effectiveAt: event.effectiveAt,
+        categoryId: event.categoryId ?? null, note: event.note ?? null, sourceReferences: event.sourceReferences ?? [],
+        legs: event.legs.map(leg => ({ accountId: leg.accountId === null ? null : mapped(leg.accountId), deltaInCents: leg.deltaInCents })),
+        reversesIdentityId: event.reversesTransactionId ? sparkImportedIdentityId(groupId, event.reversesTransactionId) : null },
+      historyNodes: nodes.get(event.id) ?? [], importId });
+    if (event.reversesTransactionId) add(`${prefix}/sparkImportedClaims/${sparkImportedIdentityId(groupId, event.reversesTransactionId)}`, {
+      schemaVersion: 1, actorId: event.actorId, reversalOperationId: id, createdAt: event.effectiveAt, importId,
+      resolution: correctionLinks.has(event.reversesTransactionId) ? 'correction' : 'reversal',
+      replacementIdentityId: correctionLinks.has(event.reversesTransactionId) ? sparkImportedIdentityId(groupId, correctionLinks.get(event.reversesTransactionId)!) : null,
+      sourcePath: source.path, sourceDocumentSha256: digest(source.fields) });
+  }
   const manifestPath = `${prefix}/migrationRuns/${importId}`;
+  for (const row of recurring.documents) add(row.path, row.value);
   const manifestFields = financialFields({ schemaVersion: 1, ...basis, status: 'staged-locked', activationAllowed: false,
     accountCount: mappings.length, generatedDocumentsSha256: dataDigest(additions),
-    limitations: ['generic-history-not-editable-operation-identities', 'no-old-writer-cutover', 'no-live-activation'] });
+    recurringImport: recurring.report,
+    limitations: ['special-source-resolution-requires-adapter', 'no-old-writer-cutover', 'no-live-activation'] });
   manifestFields.originalGroupFields = { mapValue: { fields: group.fields } };
   additions.push({ path: manifestPath, fields: manifestFields });
   const lockedGroup: SnapshotDocument = { ...group, fields: { ...group.fields, status: { stringValue: 'spark_importing' }, sparkImportId: { stringValue: importId } } };
   const documents: SnapshotDocument[] = [...snapshot.documents.map(row => row.path === prefix ? lockedGroup : row), ...additions];
   validateDocumentSet(documents);
   const plan = { format: 'lumus-spark-ledger-import-plan', schemaVersion: 1, ...basis, importId, manifestPath,
-    activationAllowed: false, mappings, generatedDocuments: additions, stagedDataSha256: dataDigest(documents) };
+    activationAllowed: false, mappings, recurringImport: recurring.report, generatedDocuments: additions, stagedDataSha256: dataDigest(documents) };
   return { ...plan, planSha256: digest(plan), documents };
 }
 

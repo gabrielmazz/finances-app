@@ -137,14 +137,17 @@ export const resolveMandatoryInstallmentsCompleted = ({
 	startDate,
 	isCurrentCycleCompleted,
 	referenceDate = new Date(),
+	explicitCompletion = false,
 }: {
 	storedCompleted: unknown;
 	installmentTotal: number | null;
 	startDate: Date | null;
 	isCurrentCycleCompleted: boolean;
 	referenceDate?: Date;
+	explicitCompletion?: boolean;
 }) => {
 	const normalizedStoredCompleted = normalizeMandatoryInstallmentsCompleted(storedCompleted, installmentTotal);
+	if (explicitCompletion) return normalizedStoredCompleted;
 	const elapsedCompleted = getMandatoryInstallmentsCompletedFromStartDate({
 		startDate,
 		installmentTotal,

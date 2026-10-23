@@ -3,10 +3,23 @@ tags: [privacidade, visibilidade, contexto, ui]
 relacionado: [[Dashboard Home]], [[Assistente Lumus]], [[Previsão de Fluxo de Caixa]], [[Monitoramento de Investimentos]], [[Sistema de Temas]], [[Configurações]]
 status: ativo
 tipo: feature
-versao: 1.3.3
+versao: 1.3.4
+spark_module: U01
+spark_progress: 85
+spark_reviewed_at: 2026-10-19
 ---
 
 # Privacidade de Valores
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**U01 — Auth, sessão, perfil e privacidade visual: 85% implementado / 15% restante.** Notas P/I/D/E: **100/75/75/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Homologar login/perfil/sessão, App Check e limpeza de cache no ambiente Spark instalado.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
 
 Toggle de privacidade que oculta todos os valores financeiros na interface, útil para consultar o app em público sem expor informações sensíveis.
 

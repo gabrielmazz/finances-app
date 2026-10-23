@@ -1,12 +1,12 @@
-import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
-import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
+import { resolveMonthlyOccurrence } from './businessCalendar';
+import { getCycleKeyFromDate } from './mandatoryExpenses';
 import {
 	formatMandatoryInstallmentLabel,
 	isMandatoryInstallmentPlanComplete,
 	normalizeMandatoryInstallmentDate,
 	normalizeMandatoryInstallmentTotal,
 	resolveMandatoryInstallmentsCompleted,
-} from '@/utils/mandatoryInstallments';
+} from './mandatoryInstallments';
 
 export type HomeMandatoryItem = {
 	id: string;

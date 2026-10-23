@@ -16,6 +16,7 @@ export type InvestmentCdiRate = {
 };
 
 export type InvestmentCashFlow = {
+  sequence?: number;
 	investmentId: string;
 	date: Date;
 	valueInCents: number;
@@ -23,6 +24,7 @@ export type InvestmentCashFlow = {
 };
 
 export type InvestmentSync = {
+  sequence?: number;
 	investmentId: string;
 	date: Date;
 	syncedValueInCents: number;
@@ -30,6 +32,7 @@ export type InvestmentSync = {
 };
 
 export type InvestmentPortfolioInvestment = {
+  timelinePrecision?: 'day' | 'instant';
 	id: string;
 	personId: string;
 	name: string;
@@ -160,7 +163,8 @@ const sortRates = (rates: InvestmentCdiRate[]) =>
 			rate =>
 			typeof rate.personId === 'string' &&
 			rate.personId.trim().length > 0 &&
-			normalizeBasisPoints(rate.annualRateInBasisPoints) > 0 &&
+				Number.isSafeInteger(rate.annualRateInBasisPoints) &&
+				rate.annualRateInBasisPoints >= 0 && rate.annualRateInBasisPoints <= 100_000 &&
 			isValidDate(rate.effectiveFrom),
 		)
 		.sort((left, right) => left.effectiveFrom.getTime() - right.effectiveFrom.getTime());
@@ -378,8 +382,8 @@ const resolveInvestmentStartDate = (investment: InvestmentPortfolioInvestment, a
 	getSafeDate(investment.investmentDate ?? investment.createdAt, asOfDate);
 
 type InvestmentTimelineEvent =
-	| { date: Date; priority: number; type: 'adjust'; valueInCents: number }
-	| { date: Date; priority: number; type: 'set'; valueInCents: number };
+	| { date: Date; priority: number; sequence?: number; type: 'adjust'; valueInCents: number }
+	| { date: Date; priority: number; sequence?: number; type: 'set'; valueInCents: number };
 
 const buildTimelineEvents = ({
 	investment,
@@ -393,6 +397,7 @@ const buildTimelineEvents = ({
 	asOfDate: Date;
 }) => {
 	const startDate = resolveInvestmentStartDate(investment, asOfDate);
+	const eventDate = (date: Date) => investment.timelinePrecision === 'instant' ? new Date(date) : startOfLocalDay(date);
 	const events: InvestmentTimelineEvent[] = [
 		{
 			date: startDate,
@@ -405,13 +410,14 @@ const buildTimelineEvents = ({
 	cashFlows
 		.filter(flow => flow.investmentId === investment.id && isValidDate(flow.date))
 		.forEach(flow => {
-			const date = startOfLocalDay(flow.date);
+			const date = eventDate(flow.date);
 			if (date.getTime() < startDate.getTime()) {
 				return;
 			}
 			events.push({
 				date,
 				priority: 2,
+				sequence: flow.sequence,
 				type: 'adjust',
 				valueInCents:
 					flow.kind === 'deposit' ? normalizeCents(flow.valueInCents) : -normalizeCents(flow.valueInCents),
@@ -421,20 +427,22 @@ const buildTimelineEvents = ({
 	syncs
 		.filter(sync => sync.investmentId === investment.id && isValidDate(sync.date))
 		.forEach(sync => {
-			const date = startOfLocalDay(sync.date);
+			const date = eventDate(sync.date);
 			if (date.getTime() < startDate.getTime()) {
 				return;
 			}
 			events.push({
 				date,
 				priority: 1,
+				sequence: sync.sequence,
 				type: 'set',
 				valueInCents: normalizeCents(sync.syncedValueInCents),
 			});
 		});
 
-	if (isValidDate(investment.lastManualSyncAt)) {
-		const snapshotDate = startOfLocalDay(investment.lastManualSyncAt);
+	if (isValidDate(investment.lastManualSyncAt) && !(investment.timelinePrecision === 'instant'
+		&& syncs.some(sync => sync.investmentId === investment.id && sync.date.getTime() === investment.lastManualSyncAt!.getTime()))) {
+		const snapshotDate = eventDate(investment.lastManualSyncAt);
 		if (snapshotDate.getTime() >= startDate.getTime()) {
 			events.push({
 				date: snapshotDate,
@@ -449,7 +457,8 @@ const buildTimelineEvents = ({
 
 	return events.sort((left, right) => {
 		const dateDifference = left.date.getTime() - right.date.getTime();
-		return dateDifference !== 0 ? dateDifference : left.priority - right.priority;
+		return dateDifference !== 0 ? dateDifference : investment.timelinePrecision === 'instant' && left.sequence !== undefined && right.sequence !== undefined
+			? left.sequence - right.sequence : left.priority - right.priority;
 	});
 };
 
@@ -467,6 +476,7 @@ const getValueAtDate = ({
 	date: Date;
 }) => {
 	const targetDate = startOfLocalDay(date);
+	if (investment.timelinePrecision === 'instant') targetDate.setHours(23, 59, 59, 999);
 	const startDate = resolveInvestmentStartDate(investment, targetDate);
 	if (targetDate.getTime() < startDate.getTime()) {
 		return 0;
