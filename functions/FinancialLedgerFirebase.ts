@@ -1,7 +1,9 @@
-import { db, firebaseFunctions } from '@/FirebaseConfig';
+import { auth, db, firebaseFunctions } from '@/FirebaseConfig';
 import { collection, doc, documentId, getDoc, getDocs, limit, orderBy, query, startAfter, where, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { validateLedgerTransaction, type LedgerTransaction } from '@/utils/financialLedger';
+import { executeSparkMetadataCommandFirebase } from './SparkMetadataCommandFirebase';
+import { getSparkContextFirebase } from './SparkContextFirebase';
 
 export type FinancialLedgerContext = {
   groupId: string;
@@ -219,6 +221,15 @@ export async function manageFinancialMetadataFirebase(input: {
   action: 'create' | 'update' | 'delete' | 'upsert'; clientActionId: string; fields: Record<string, unknown>;
   recordId?: string; expectedFingerprint?: string;
 }) {
+  if (['category', 'cdi'].includes(input.domain)) {
+    const actorId = auth.currentUser?.uid;
+    if (!actorId || input.expectedActorId && input.expectedActorId !== actorId) throw new Error('A sessão autenticada mudou.');
+    const spark = await getSparkContextFirebase(db, actorId);
+    if (spark) {
+      if (input.groupId && input.groupId !== spark.groupId) throw new Error('O grupo financeiro mudou. Atualize a confirmação.');
+      return executeSparkMetadataCommandFirebase(db, { ...input, groupId: spark.groupId, actorId, domain: input.domain as 'category' | 'cdi' });
+    }
+  }
   return (await httpsCallable<typeof input, { recordId: string; idempotent: boolean }>(financialFunctions, 'manageFinancialMetadata')(input)).data;
 }
 

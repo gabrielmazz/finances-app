@@ -1,6 +1,6 @@
 export const MANDATORY_REMINDER_CONFIG_VERSION = 1 as const;
 
-export type MandatoryReminderDaysBefore = 1 | 2 | 3;
+export type MandatoryReminderDaysBefore = 0 | 1 | 2 | 3;
 
 type ReminderConfigurationSource = Record<string, unknown> | null | undefined;
 
@@ -22,8 +22,8 @@ export const normalizeMandatoryReminderDaysBefore = (
 	value: unknown,
 	fallback: MandatoryReminderDaysBefore = 1,
 ): MandatoryReminderDaysBefore => {
-	const normalized = typeof value === 'number' ? Math.trunc(value) : Number(value);
-	return normalized === 2 || normalized === 3 ? normalized : normalized === 1 ? 1 : fallback;
+	const normalized = typeof value === 'number' ? Math.trunc(value) : typeof value === 'string' && value.trim() ? Number(value) : NaN;
+	return normalized === 2 || normalized === 3 ? normalized : normalized === 0 || normalized === 1 ? normalized : fallback;
 };
 
 export const normalizeMandatoryReminderLeadDays = (value: unknown, fallback = 0) => {

@@ -1,4 +1,6 @@
 import { db } from '@/FirebaseConfig';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkForecastFirebase } from './SparkForecastFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, getFinancialLedgerTransactionsFirebase } from '@/functions/FinancialLedgerFirebase';
 import type { RedemptionTerm } from '@/utils/finance';
@@ -333,6 +335,8 @@ export const getFinancialForecastFirebase = async (
 			return { success: false, error: 'Usuário não informado.' };
 		}
 
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await readSparkForecastFirebase(db, personId, spark.groupId, periodInMonths) };
 		const allowedPersonIds = await getAllowedPersonIds(personId);
 		const ledgerContext = await getFinancialLedgerContextFirebase(personId);
 		const asOfInstant = new Date();

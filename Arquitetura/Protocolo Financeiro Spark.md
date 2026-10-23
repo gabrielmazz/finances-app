@@ -3,18 +3,58 @@ tags: [firebase, spark, firestore, seguranca, financeiro, testes]
 relacionado: [[Plano de Funcionalidade Completa sem Blaze]], [[Firebase Config]], [[Transferências]], [[Investimentos]], [[Processo de Release]], [[Preparação Histórica Spark]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.7.0
+versao: 0.20.0
+spark_module: F01
+spark_progress: 80
+spark_reviewed_at: 2026-10-22
 ---
 
 # Protocolo Financeiro Spark
 
-Implementação local em 16–17/10/2026. Prova de transferências, aportes/resgates, abertura zero, contagens, aberturas mensais canônicas, ajustes retroativos, substituição atômica e estornos com Firebase Auth e transações do SDK Firestore compartilhado por Web/native. Inclui projeção histórica verificável e análise local de snapshots legados/do razão. Não usa callable, servidor externo ou gatilho. Ainda não substitui os serviços das telas e do assistente nem habilita grupos reais.
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F01 — Protocolo, histórico e preparação: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir restauração dos argumentos/provas/fases descritivas e progresso/pausa no assistente; medir custo em volumes representativos. Identificação, conferência e cancelamento já sobrevivem ao reload pelo executor comum. Ativação mensal conserva sua fila própria.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Contratos e avaliações — protocolo v17, 22/10/2026
+
+Adição vigente: [[Recuperação de Operações Spark]] envolve o executor comum com uma reserva privada antes do envio. Recibo/cota financeira e confirmação da intenção são atômicos; cancelamento permanente do ID concorre com esse commit. Índice e admissão têm cota própria de 120 novas intenções/minuto, sem alterar a cota financeira existente. O marcador financeiro permanece v17; journal versão 1. Replays seguem conferência material e autoridade atuais. O aviso compartilhado recupera identificação/status após reload, sem restaurar rascunhos ou permissões conversacionais. A nota F01 permanece 80% por integração/dados/aceitação ainda parciais.
+
+O marcador vigente é `financial-proof-v17`; o importador local incorpora esse destino no plano/hash e continua sem ativação real. Renegociação possui receipts `recurring_replan`/`recurring_replan_reversal`, vínculos recíprocos e bloqueio dos contratos substituídos/cancelados. Não reescreve parcelas anteriores.
+
+A edição de capital/financiamento pode acrescentar um nó `investment_edit_valuation` na **mesma transação**: banco(s)/capital usam o pai na data original; o investimento aponta ao filho, com revisão +2 e referência observada no commit. Os dois receipts, posições, capital, checkpoint e cota são vinculados nas Rules. Nenhum observador lê um estado intermediário. A cota admite uma intenção composta, não dois envios independentes.
+
+`valuation_undo` é uma finalidade exclusiva de preparação: `excludedCheckpointOperationId` fica imutável, deve ser a avaliação vigente e não pode aparecer em prova comum. A seleção ignora somente o checkpoint indicado, sem transformar sua diferença em movimento. `investment_valuation_reversal` exige prova concluída, cabeça/revisão, instante, claim e referência; não apaga a observação. Provas desse propósito não autorizam sincronizações/aberturas normais. Referências anteriores à vigente não têm estorno genérico.
+
+Os novos ramos de conferência são selecionados antes dos contratos não pertinentes para manter margem no limite de expressões; todas as verificações de domínio/autoridade continuam aplicadas.
+
+Na fronteira exata de uma referência, um movimento **sem data declarada**, confirmado no mesmo instante do servidor e com revisão posterior à referência, continua incluído na projeção. A revisão desempata esses commits; um movimento datado explicitamente na mesma fronteira mantém a regra de cobertura anterior. Segmentos não conservam essa distinção e por isso não são aplicados sobre uma fronteira exata não inclusiva: a preparação confere os nós individualmente. O caso foi reproduzido deterministicamente com resgate após sincronização no mesmo instante; posição atual e saldo histórico devem continuar iguais.
+
+
+Implementação local em 16–18/10/2026. Prova de transferências, aportes/resgates, receitas/despesas comuns, abertura zero, contagens, aberturas mensais canônicas, ajustes retroativos, substituição atômica e estornos com Firebase Auth e transações do SDK Firestore compartilhado por Web/native. Inclui projeção histórica verificável, ponte de identidades importadas e análise local de snapshots legados/do razão. Não usa callable, servidor externo ou gatilho. Ainda não substitui os serviços das telas e do assistente nem habilita grupos reais.
 
 ## Como funciona
 
-Os serviços exigem o UID autenticado atual, um `clientActionId` estável e grupo protegido com `sparkProtocol: 'financial-proof-v6'`. A troca do marcador acrescenta certificados de movimentos e seleção opcional por página, mantendo reservas diárias obrigatórias e revisão estável de trabalho, preservando encadeamento completo, prazo de ativação e os dois termos de substituição; grupos das provas anteriores não são habilitados implicitamente. O cliente não pode criar/alterar o grupo nem importar saldos derivados de histórico. O executor comum em `sparkFinancialProtocol.ts` verifica identidade/papel em cada tentativa, confere recibos e torna a cota obrigatória. Comparação de timestamps materiais usa `Timestamp.isEqual`, para reconhecer um recibo após nova leitura.
+Atualização de 19/10/2026: o marcador v16 acrescenta [[Categorias e CDI Spark]], [[Ciclo de Vida de Contas Spark]] e abertura bancária com saldo declarado, catálogo e checkpoint atômicos em [[Cadastros de Contas Spark]]. O contexto protegido e a primeira integração de metadados estão em [[Integração Financeira Spark]]. Os avisos ao abrir/retornar ao aplicativo seguem a decisão do proprietário em [[Notificações]]. A enumeração v15 abaixo conserva o histórico das extensões anteriores; não implica que a integração completa ou o corte estejam concluídos.
+
+Os serviços exigem o UID autenticado atual, um `clientActionId` estável e grupo protegido com `sparkProtocol: 'financial-proof-v16'`. A troca atual acrescenta [[Criação Retroativa de Investimentos Spark]]: modo/data materiais na abertura financiada, efeito bancário por referência e correções posteriores ancoradas na data financeira da raiz. Grupos v15 não são habilitados implicitamente. Preserva [[Troca do Banco de Financiamento Spark]], pares datados, abertura financiada de commit, edição do principal, sincronização datada, definições/ciclos, receitas/despesas, edição composta, identidades importadas, certificados, reservas, encadeamento e prazo de ativação. O cliente não pode criar/alterar o grupo nem importar saldos derivados de histórico. O executor comum em `sparkFinancialProtocol.ts` verifica identidade/papel em cada tentativa, confere recibos e torna a cota obrigatória. Comparação de timestamps materiais usa `Timestamp.isEqual`, para reconhecer um recibo após nova leitura. A abertura retroativa recusa precisão inferior a microssegundos, que o armazenamento não conserva. Ver também [[Edição do Principal Spark]], [[Movimentos Datados em Par Spark]], [[Financiamento Inicial de Investimentos Spark]], [[Sincronização de Investimentos Spark]], [[Conversão de Recorrências Spark]], [[Recorrências Spark]] e [[Operações Ordinárias Spark]].
+
+### Cadastros de contas
+
+Os ensaios temporais de ativação agora observam `createdAt` confirmado pelo servidor em uma conta auxiliar antes de exigir rejeição por vencimento. Esperar apenas o relógio local ultrapassar a data não comprova `request.time`. A conta e a prova sob teste permanecem intactas; o batch bruto usa a cota corrente, para que a recusa venha do prazo financeiro. A evolução do caso e os logs malsucedidos ficam em `.expo/spark-proof-2026-10-19/closure/`.
+
+Continuação v16: [[Ciclo de Vida de Contas Spark]] já possui atividade/arquivamento/restauração protegidos; o formulário ainda precisa da ponte. [[Operações Ordinárias Spark]] acrescenta detalhes materiais tipados e imutáveis, com documento descritivo atômico e replay recursivo. A validação final do saldo e dos efeitos de uma correção é feita pelos guards obrigatórios das posições. [[Integração Financeira Spark]] conecta extratos, análise por categoria e Home; os demais formulários/listas, previsão, carteira completa e assistente continuam pendentes.
+
+[[Cadastros de Contas Spark]] acrescenta catálogo descritivo com revisão própria e administração protegida. A abertura zero aceita investimento e catálogo opcional atômico. Nome/aparência, banco vinculado, produto, método de avaliação, percentual contratado do CDI, liquidez e descrição não alteram saldos. [[Financiamento Inicial de Investimentos Spark]] cria investimento financiado com principal e avaliação inicial distintos no commit; [[Criação Retroativa de Investimentos Spark]] acrescenta a data explícita da aplicação/referência inicial. [[Edição do Principal Spark]] corrige capital pelo banco canônico vigente; [[Troca do Banco de Financiamento Spark]] troca essa origem e pode corrigir o principal na mesma intenção, preservando avaliações. Avaliação simultânea na edição e integração dos formulários de ativação/arquivamento permanecem pendentes; os serviços de ciclo de vida já existem; sincronização em outra data possui o caminho próprio descrito em [[Sincronização de Investimentos Spark]].
 
 ### Transferências e aportes/resgates
+
+Os serviços de commit abaixo continuam disponíveis. [[Movimentos Datados em Par Spark]] acrescenta APIs explícitas de data; novos receipts de ambos os modos incluem `dated`, e somente os datados incluem os três campos de data/efeitos atuais. Nesse modo, cada posição recebe seu efeito após a própria referência, enquanto a projeção conserva as duas pernas históricas completas. Não confundir esse comportamento com o débito/crédito integral do modo commit descrito a seguir.
 
 Na mesma transação:
 
@@ -23,11 +63,11 @@ Na mesma transação:
 3. Criar a operação imutável, debitar/creditar as posições e incrementar suas revisões. Atualizar também a cota global desse UID, obrigatória em qualquer grupo da prova.
 4. As Rules verificam os quatro documentos em conjunto com `getAfter`, usam `request.time` para timestamps/cota e recusam efeitos com recibo preexistente. Também recusam recibo sem contrapartida, alteração de tipo/atividade, posição extra, cota isolada ou saldo inventado.
 
-Se o SDK devolver recusa ou resultado incerto após disputa concorrente, o serviço tenta somente uma reconciliação por leitura. Só confirma sucesso se houver recibo exato e o usuário ainda tiver acesso ao grupo. Não transforma uma recusa genérica em rate limit e não reenvia a escrita. O retry nativo do SDK para conflitos transacionais continua utilizando o mesmo ID e os mesmos argumentos.
+Se o SDK devolver recusa ou resultado incerto após disputa concorrente, o serviço faz reconciliação por leitura. Só confirma sucesso se houver recibo exato e o usuário ainda tiver acesso ao grupo. Não transforma uma recusa genérica em rate limit. A única exceção de reenvio é a virada exata de um minuto da cota, após confirmar recibo ausente e autorização atual, com uma tentativa adicional limitada; ver [[Operações Ordinárias Spark]]. O retry nativo do SDK para conflitos transacionais continua utilizando o mesmo ID e os mesmos argumentos.
 
 ### Abertura e contagem explícita
 
-`openSparkAccountFirebase` cria posição de banco/caixa com **zero**, revisão zero e recibo na mesma transação, somente por administrador. `accountId` é a identidade estável do recurso; duas tentativas com action IDs distintos para a mesma conta não podem abrir duas posições. Caixa usa sempre `cash` dentro do grupo. O cliente que futuramente integrar esse serviço deve reutilizar a identidade do banco, sem gerar outra conta a cada reenvio. Abertura zero é raiz neutra, não uma contagem posterior que apagaria uma abertura mensal anterior ao cadastro. Definição/metadados de bancos e integração do cadastro continuam pendentes.
+`openSparkAccountFirebase` cria posição de banco/Caixa/investimento com **zero**, revisão zero e recibo na mesma transação, somente por administrador. `accountId` é a identidade estável do recurso; duas tentativas com action IDs distintos para a mesma conta não podem abrir duas posições. Caixa usa sempre `cash` dentro do grupo. O cliente que futuramente integrar esse serviço deve reutilizar a identidade do banco, sem gerar outra conta a cada reenvio. Abertura zero é raiz neutra, não uma contagem posterior que apagaria uma abertura mensal anterior ao cadastro. O catálogo pode acompanhar a abertura atomicamente; sua integração aos formulários continua pendente.
 
 `countSparkAccountFirebase` recebe conta, `expectedRevision`, saldo contado, nota e justificativa. Requer administrador e conta ativa de banco/caixa. Investimentos não podem ser financiados por essa contagem. A Rule confere saldo anterior, alvo, diferença, incremento da posição, recibo e cota. Valor negativo bancário exige justificativa. Mudança na revisão desde a prévia recusa o comando; o callback não recalcula silenciosamente a intenção confirmada. Diferença zero também cria evento/revisão, preservando a referência auditável.
 
@@ -88,6 +128,8 @@ Replay compara conta, original, data solicitada, alvo, revisão e textos. O reci
 |---|---|
 | `financialGroups/{groupId}` | `status`, `members` e `sparkProtocol` protegidos; nenhuma escrita cliente. |
 | `financialGroups/{groupId}/sparkPositions/{accountId}` | `schemaVersion: 1`, `kind`, `active`, `balanceInCents`, `revision`, `lastOperationId`, `nextActivationAt`, `updatedAt`. Criação zero vinculada à abertura admin com prazo nulo; exclusão proibida; update exige novo evento correspondente e prazo válido. |
+| `financialGroups/{groupId}/sparkAccountCatalog/{accountId}` | Catálogo descritivo de [[Cadastros de Contas Spark]]: revisão própria, campos limitados por tipo de conta, edição admin e vínculo ao receipt novo; sem efeitos financeiros ou exclusão cliente. |
+| `financialGroups/{groupId}/sparkInvestmentCapital/{accountId}` | Principal e banco canônicos corrigíveis pelos serviços próprios; operação permanente da abertura financiada, autoria da criação, revisão/cabeça. Update somente pelo protocolo atômico específico; delete proibido. Posições anteriores sem esse registro não recebem principal inferido. |
 | `financialGroups/{groupId}/sparkCurrentPositions/{accountId}` | Caminho virtual de leitura, sem documento gravado: Rules conferem na posição `nextActivationAt == null || request.time < nextActivationAt`. Sem listagem/escrita. Usado em transação para certificar atualidade no servidor. |
 | `financialGroups/{groupId}/sparkOperations/{clientActionId}` | `schemaVersion`, `actorId`, `kind`, `fromAccountId`, `toAccountId`, `amountInCents`, `fromRevision`, `toRevision`, `note`, `overdraftReason`, `createdAt`. Imutável; é evento e recibo da prova. |
 | `financialGroups/{groupId}/sparkReversals/{originalOperationId}` | Claim imutável de estorno de transferência/aporte/resgate: `schemaVersion`, `actorId`, `reversalOperationId`, `createdAt`. |

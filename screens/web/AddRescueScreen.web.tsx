@@ -27,15 +27,10 @@ import { navigateToHomeDashboard } from '@/utils/navigation';
 
 import {
 	addCashRescueFirebase,
-	getBanksWithUsersByPersonFirebase,
-	getLegacyBankBalanceInCentsFirebase,
 } from '@/functions/BankFirebase';
 import {
 	createFinancialClientActionId,
-	getFinancialLedgerAccountsFirebase,
-	getFinancialLedgerContextFirebase,
 	transferFundsFinancialLedgerFirebase,
-	type FinancialLedgerContext,
 } from '@/functions/FinancialLedgerFirebase';
 import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -47,14 +42,11 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { cn } from '@/lib/utils';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { useSparkPairForm } from '@/hooks/useSparkPairForm';
+import { useRescueFormData } from '@/hooks/useRescueFormData';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 
-type BankOption = {
-	id: string;
-	name: string;
-	iconKey?: string | null;
-	colorHex?: string | null;
-	currentBalanceInCents?: number | null;
-};
 type FocusableInputKey = 'rescue-value' | 'rescue-description';
 
 const formatCurrencyBRL = (valueInCents: number) =>
@@ -129,23 +121,22 @@ export default function AddRescueScreen() {
 		insets,
 	} = useScreenStyles();
 
-	const [banks, setBanks] = React.useState<BankOption[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [rescueValueDisplay, setRescueValueDisplay] = React.useState('');
 	const [rescueValueInCents, setRescueValueInCents] = React.useState<number | null>(null);
-	const [rescueDate, setRescueDate] = React.useState(formatDateToBR(new Date()));
+	const [rescueDate, setRescueDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [rescueDescription, setRescueDescription] = React.useState<string | null>(null);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
-	const [financialLedgerContext, setFinancialLedgerContext] = React.useState<FinancialLedgerContext | null>(null);
-	const [cashAccountId, setCashAccountId] = React.useState<string | null>(null);
-	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+	const { personId, banks, isSparkMode, financialLedgerContext, cashAccountId, isLoadingBanks, banksError,
+		currentBankBalanceInCents, isLoadingBankBalance, error: rescueDataError, needsBank, reload: reloadRescueData } = useRescueFormData(selectedBankId);
+	const mounted = React.useRef(true);
+	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const submitLockRef = React.useRef(false);
 	const rescueValueInputRef = React.useRef<TextInput | null>(null);
 	const rescueDescriptionInputRef = React.useRef<TextInput | null>(null);
 	const previousUnavailableBalanceRef = React.useRef(false);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addRescue');
+	const { submit: submitSparkPair, reset: resetSparkPair, isUncertain: isPairUncertain } = useSparkPairForm();
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'rescue-description' ? 180 : 120),
 		[],
@@ -214,74 +205,15 @@ export default function AddRescueScreen() {
 	}, []);
 
 	const resetRescueForm = React.useCallback(() => {
+		resetSparkPair();
 		setSelectedBankId(null);
 		setRescueValueDisplay('');
 		setRescueValueInCents(null);
-		setRescueDate(formatDateToBR(new Date()));
+		setRescueDate(formatDateToBR(toFinancialCivilDate(new Date())));
 		setRescueDescription(null);
-		setCurrentBankBalanceInCents(null);
-	}, []);
+	}, [resetSparkPair]);
 
-	React.useEffect(() => {
-		if (!selectedBankId) {
-			setCurrentBankBalanceInCents(null);
-			setIsLoadingBankBalance(false);
-			return;
-		}
-
-		if (financialLedgerContext) {
-			const selectedLedgerBank = banks.find(bank => bank.id === selectedBankId);
-			setIsLoadingBankBalance(false);
-			setCurrentBankBalanceInCents(
-				typeof selectedLedgerBank?.currentBalanceInCents === 'number'
-					? selectedLedgerBank.currentBalanceInCents
-					: null,
-			);
-			return;
-		}
-
-		let isMounted = true;
-		setIsLoadingBankBalance(true);
-		setCurrentBankBalanceInCents(null);
-
-		const loadBankBalance = async () => {
-			try {
-				const currentUser = auth.currentUser;
-				if (!currentUser) {
-					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-					return;
-				}
-
-				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
-					personId: currentUser.uid,
-					bankId: selectedBankId,
-				});
-				if (!isMounted) {
-					return;
-				}
-				if (!balanceResult.success) {
-					throw balanceResult.error;
-				}
-				setCurrentBankBalanceInCents(balanceResult.data);
-			} catch (error) {
-				console.error('Erro ao carregar saldo do banco:', error);
-				if (isMounted) {
-					showScreenAlert('Não foi possível carregar o saldo atual do banco.', 'error');
-				}
-				setCurrentBankBalanceInCents(null);
-			} finally {
-				if (isMounted) {
-					setIsLoadingBankBalance(false);
-				}
-			}
-		};
-
-		void loadBankBalance();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [banks, financialLedgerContext, selectedBankId, showScreenAlert]);
+	React.useEffect(() => { resetRescueForm(); }, [personId, resetRescueForm]);
 
 	const hasInsufficientBalance =
 		typeof currentBankBalanceInCents === 'number' &&
@@ -293,13 +225,13 @@ export default function AddRescueScreen() {
 		selectedBankId !== null && !isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number';
 
 	React.useEffect(() => {
-		if (!selectedBankId || isLoadingBankBalance || rescueValueInCents === null || rescueValueInCents <= 0) {
+		if (isPairUncertain || !selectedBankId || isLoadingBankBalance || rescueValueInCents === null || rescueValueInCents <= 0) {
 			previousUnavailableBalanceRef.current = false;
 			return;
 		}
 
 		const shouldShowUnavailableBalanceAlert =
-			!financialLedgerContext && (hasUnavailableBalance || hasInsufficientBalance);
+			!financialLedgerContext && !isSparkMode && (hasUnavailableBalance || hasInsufficientBalance);
 
 		if (shouldShowUnavailableBalanceAlert && !previousUnavailableBalanceRef.current) {
 			showUnavailableBalanceNotification();
@@ -307,9 +239,10 @@ export default function AddRescueScreen() {
 
 		previousUnavailableBalanceRef.current = shouldShowUnavailableBalanceAlert;
 	}, [
+		isPairUncertain,
 		hasInsufficientBalance,
 		hasUnavailableBalance,
-		financialLedgerContext,
+		financialLedgerContext, isSparkMode,
 		isLoadingBankBalance,
 		rescueValueInCents,
 		selectedBankId,
@@ -320,82 +253,6 @@ export default function AddRescueScreen() {
 		setRescueDate(formatted);
 	}, [showScreenAlert]);
 
-	React.useEffect(() => {
-		let isMounted = true;
-		setIsLoadingBanks(true);
-
-		const loadBanks = async () => {
-			try {
-				const currentUser = auth.currentUser;
-				if (!currentUser) {
-					showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-					return;
-				}
-
-				const ledgerContext = await getFinancialLedgerContextFirebase(currentUser.uid);
-				if (ledgerContext) {
-					const ledgerAccounts = await getFinancialLedgerAccountsFirebase(ledgerContext.groupId);
-					if (!isMounted) {
-						return;
-					}
-					const cashAccount = ledgerAccounts.find(account => account.kind === 'cash') ?? null;
-					const formattedBanks = ledgerAccounts
-						.filter(account => account.kind === 'bank')
-						.map(account => ({
-							id: account.id,
-							name: account.name,
-							iconKey: account.iconKey ?? null,
-							colorHex: account.colorHex ?? null,
-							currentBalanceInCents: account.currentBalanceInCents,
-						}));
-					setFinancialLedgerContext(ledgerContext);
-					setCashAccountId(cashAccount?.id ?? null);
-					setBanks(formattedBanks);
-					if (!cashAccount) {
-						showScreenAlert('O grupo financeiro não possui uma conta Caixa configurada.', 'error');
-					}
-					return;
-				}
-
-				const banksResult = await getBanksWithUsersByPersonFirebase(currentUser.uid);
-				if (!isMounted) {
-					return;
-				}
-
-				if (banksResult.success && Array.isArray(banksResult.data)) {
-					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name:
-							typeof bank?.name === 'string' && bank.name.trim().length > 0
-								? bank.name.trim()
-								: 'Banco sem nome',
-						iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-						colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-					}));
-					setBanks(formattedBanks);
-					setFinancialLedgerContext(null);
-					setCashAccountId(null);
-				} else {
-					showScreenAlert('Não foi possível carregar os bancos disponíveis.', 'error');
-				}
-			} catch (error) {
-				console.error('Erro ao carregar bancos para saque:', error);
-				if (isMounted) {
-					showScreenAlert('Erro inesperado ao carregar bancos.', 'error');
-				}
-			} finally {
-				if (isMounted) {
-					setIsLoadingBanks(false);
-				}
-			}
-		};
-
-		void loadBanks();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [showScreenAlert]);
 
 	const parsedRescueDate = React.useMemo(() => parseDateFromBR(rescueDate), [rescueDate]);
 	const selectedBankLabel = React.useMemo(
@@ -406,29 +263,30 @@ export default function AddRescueScreen() {
 		() => banks.find(bank => bank.id === selectedBankId) ?? null,
 		[banks, selectedBankId],
 	);
-	const hasRescueValue = rescueValueInCents !== null && rescueValueInCents > 0;
+	const hasRescueValue = rescueValueInCents !== null && Number.isSafeInteger(rescueValueInCents) && rescueValueInCents > 0;
 	const requiresOverdraftReason =
-		financialLedgerContext !== null &&
+		(financialLedgerContext !== null || isSparkMode) &&
 		typeof currentBankBalanceInCents === 'number' &&
 		typeof rescueValueInCents === 'number' &&
 		rescueValueInCents > currentBankBalanceInCents;
-	const isBankSelectDisabled = isLoadingBanks || isSubmitting || banks.length === 0;
-	const isRescueValueDisabled = isSubmitting || !selectedBankId;
-	const isRescueDateDisabled = isSubmitting || !selectedBankId || !hasRescueValue;
-	const isRescueDescriptionDisabled = isSubmitting || !selectedBankId || !hasRescueValue || !parsedRescueDate;
+	const isFormLocked = isSubmitting || isPairUncertain || isLoadingBanks || Boolean(banksError);
+	const isOverdraftReasonInvalid = requiresOverdraftReason && (!rescueDescription || rescueDescription.trim().length < 3 || (isSparkMode && rescueDescription.trim().length > 500));
+	const isBankSelectDisabled = isFormLocked || banks.length === 0;
+	const isRescueValueDisabled = isFormLocked || !selectedBankId;
+	const isRescueDateDisabled = isFormLocked || !selectedBankId || !hasRescueValue;
+	const isRescueDescriptionDisabled = isFormLocked || !selectedBankId || !hasRescueValue || !parsedRescueDate;
 	const isSubmitDisabled =
 		isSubmitting ||
 		isLoadingBanks ||
-		isLoadingBankBalance ||
 		!selectedBankId ||
 		!hasRescueValue ||
 		!parsedRescueDate ||
-		(financialLedgerContext !== null && !cashAccountId) ||
-		(!financialLedgerContext && (hasUnavailableBalance || hasInsufficientBalance)) ||
-		isBalanceValidationUnavailable;
+		(!isPairUncertain && (isLoadingBankBalance || Boolean(rescueDataError) || isOverdraftReasonInvalid || ((financialLedgerContext !== null || isSparkMode) && !cashAccountId))) ||
+		(!isPairUncertain && !financialLedgerContext && !isSparkMode && (hasUnavailableBalance || hasInsufficientBalance)) ||
+		(!isPairUncertain && isBalanceValidationUnavailable);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitDisabled) {
 			return;
 		}
 
@@ -442,7 +300,7 @@ export default function AddRescueScreen() {
 			return;
 		}
 
-		if (!financialLedgerContext && typeof currentBankBalanceInCents === 'number') {
+		if (!isPairUncertain && !financialLedgerContext && !isSparkMode && typeof currentBankBalanceInCents === 'number') {
 			if (currentBankBalanceInCents <= 0) {
 				showUnavailableBalanceNotification();
 				return;
@@ -453,7 +311,7 @@ export default function AddRescueScreen() {
 				return;
 			}
 		} else {
-			if (typeof currentBankBalanceInCents !== 'number') {
+			if (!isPairUncertain && typeof currentBankBalanceInCents !== 'number') {
 				showScreenAlert(
 					'Registre ou carregue o saldo do banco de origem antes de registrar o saque.',
 					'warn',
@@ -462,9 +320,9 @@ export default function AddRescueScreen() {
 			}
 		}
 
-		if (requiresOverdraftReason && !(rescueDescription && rescueDescription.trim().length >= 3)) {
+		if (!isPairUncertain && requiresOverdraftReason && !(rescueDescription && rescueDescription.trim().length >= 3 && (!isSparkMode || rescueDescription.trim().length <= 500))) {
 			showScreenAlert(
-				'Informe uma justificativa de pelo menos 3 caracteres para deixar o banco negativo.',
+				isSparkMode ? 'Informe uma justificativa de 3 a 500 caracteres para deixar o banco negativo.' : 'Informe uma justificativa de pelo menos 3 caracteres para deixar o banco negativo.',
 				'warn',
 			);
 			return;
@@ -476,7 +334,7 @@ export default function AddRescueScreen() {
 		}
 
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
 			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
 			return;
 		}
@@ -490,6 +348,16 @@ export default function AddRescueScreen() {
 		setIsSubmitting(true);
 
 		try {
+			const handled = await submitSparkPair({ actorId: currentUser.uid, mode: 'withdrawal', fromAccountId: selectedBankId,
+				amountInCents: rescueValueInCents, selectedDate: parsedRescueDate, note: rescueDescription,
+				overdraftReason: rescueDescription && rescueDescription.trim().length >= 3 && rescueDescription.trim().length <= 500 ? rescueDescription : null });
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
+			if (handled) {
+				reloadRescueData();
+				showSuccessfulRescueNotification();
+				applyPostSubmitBehavior({ resetForm: resetRescueForm });
+				return;
+			}
 			if (financialLedgerContext) {
 				if (!cashAccountId) {
 					showScreenAlert('A conta Caixa do grupo não está disponível.', 'error');
@@ -515,22 +383,27 @@ export default function AddRescueScreen() {
 					description: rescueDescription?.trim() ? rescueDescription.trim() : null,
 				});
 
+				if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
 				if (!result.success) {
 					showScreenAlert('Não foi possível registrar o saque. Tente novamente.', 'error');
 					return;
 				}
 			}
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
+			reloadRescueData();
 			showSuccessfulRescueNotification();
 			applyPostSubmitBehavior({ resetForm: resetRescueForm });
 		} catch (error) {
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
 			console.error('Erro ao registrar saque em dinheiro:', error);
-			showScreenAlert('Erro inesperado ao registrar o saque.', 'error');
+			showScreenAlert(error instanceof Error ? error.message : 'Erro inesperado ao registrar o saque.', 'error');
 		} finally {
 			submitLockRef.current = false;
-			setIsSubmitting(false);
+			if (mounted.current) setIsSubmitting(false);
 		}
 	}, [
+		personId, isSubmitDisabled, reloadRescueData,
 		selectedBankId,
 		rescueValueInCents,
 		currentBankBalanceInCents,
@@ -545,7 +418,7 @@ export default function AddRescueScreen() {
 		showUnavailableBalanceNotification,
 		showSuccessfulRescueNotification,
 		applyPostSubmitBehavior,
-		resetRescueForm,
+		resetRescueForm, submitSparkPair, isPairUncertain, isSparkMode,
 	]);
 
 	return (
@@ -597,6 +470,9 @@ export default function AddRescueScreen() {
 							scrollEventThrottle={scrollEventThrottle}
 						>
 							<VStack className={`${webDashboardClassNames.contentFrame} ${webDashboardClassNames.contentPadding} justify-between mt-4`}>
+								<MovementFormStatus loading={isLoadingBanks || isLoadingBankBalance} error={rescueDataError} onRetry={reloadRescueData} />
+								{needsBank ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre um banco ativo para registrar o saque.</Text><Button variant="outline" onPress={reloadRescueData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
+								{isPairUncertain ? <Text className="mb-4 text-warning-600 dark:text-warning-400" accessibilityRole="alert">O saque anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados até a confirmação.</Text> : null}
 								<VStack className="mb-4">
 									<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Banco de origem</Text>
 									<BankActionsheetSelector
@@ -640,9 +516,9 @@ export default function AddRescueScreen() {
 											)}
 											{!isLoadingBankBalance && typeof currentBankBalanceInCents !== 'number' && (
 												<Text className="text-sm text-amber-600 dark:text-amber-400 text-center">
-													{financialLedgerContext
+													{(financialLedgerContext || isSparkMode)
 														? 'Não foi possível verificar o saldo materializado desta conta.'
-														: 'Saldo não registrado para este mês. Registre o saldo mensal para validar o saque.'}
+														: 'Não foi possível confirmar o saldo do banco. Tente carregar novamente.'}
 												</Text>
 											)}
 										</BankBalanceAttachedPanel>
@@ -690,6 +566,7 @@ export default function AddRescueScreen() {
 											onFocus={() => handleInputFocus('rescue-description')}
 										/>
 									</Textarea>
+									{requiresOverdraftReason && !isPairUncertain ? <Text className="mt-2 text-sm text-warning-600 dark:text-warning-400" accessibilityLiveRegion="polite">{isSparkMode ? 'Este saque deixa o banco negativo. Informe uma justificativa de 3 a 500 caracteres nas observações.' : 'Este saque deixa o banco negativo. Justifique nas observações (mínimo de 3 caracteres).'}</Text> : null}
 								</VStack>
 
 								<Button
@@ -697,7 +574,7 @@ export default function AddRescueScreen() {
 									onPress={handleSubmit}
 									isDisabled={isSubmitDisabled}
 								>
-									{isSubmitting ? <ButtonSpinner /> : <ButtonText>Registrar saque</ButtonText>}
+									{isSubmitting ? <ButtonSpinner /> : <ButtonText>{isPairUncertain ? 'Confirmar saque anterior' : 'Registrar saque'}</ButtonText>}
 								</Button>
 							</VStack>
 						</ScrollView>

@@ -337,3 +337,11 @@ it('nega comandos conflitantes sobre o mesmo alvo e execução concorrente reuti
 	mockAuth.currentUser = { uid: 'another-owner' };
 	await expect(executeAssistantApplicationBatch('owner', prepared.batch!, adapters)).rejects.toThrow('A conta mudou');
 });
+
+
+it('reconhece as novas telas de validação sem tratá-las como formulários de pós-registro', () => {
+	for (const [name, key] of [['dashboard', 'homeDashboard'], ['extrato', 'bankMovements'], ['análise por categoria', 'categoryAnalysis'], ['previsão financeira', 'financialForecast'], ['ajuste de saldo', 'bankBalanceAdjustment'], ['perfil', 'profile']]) {
+		expect(parseAssistantApplicationCommand('Mostre a tela de ' + name)).toMatchObject({ kind: 'set_route_visibility', key, visible: true });
+		expect(parseAssistantApplicationCommand('Depois de editar ' + name + ' volte para home')).toBeNull();
+	}
+});

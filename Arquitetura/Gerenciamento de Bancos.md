@@ -3,16 +3,55 @@ tags: [bancos, financeiro, movimentos, saldo]
 relacionado: [[Dashboard Home]], [[Análise por Categoria]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Resgate de Caixa]], [[Balanço Mensal]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.7.6
+versao: 1.10.0
+spark_module: F02
+spark_progress: 75
+spark_reviewed_at: 2026-10-22
 ---
 
 # Gerenciamento de Bancos
+
+## Primeiro fluxo: banco e saldo inicial — 23/10/2026
+
+As telas Web/mobile de cadastro Spark agora coletam o saldo disponível no momento da criação. Abertura zero continua válida; saldo negativo exige justificativa. Banco, catálogo, posição, checkpoint, receipt e cota usam a transação existente de abertura declarada. Não registrar esse patrimônio como receita nem criar um segundo saldo mensal automaticamente. A referência é o instante do commit: saldo de início de mês continua no fluxo específico de [[Balanço Mensal]], que preserva lançamentos posteriores.
+
+Nome/ícone/cor continuam editáveis por revisão canônica sem alterar dinheiro. O valor inicial e o motivo integram a assinatura da intenção: reenvio incerto exige os mesmos argumentos e conserva conta/ID. Contexto inválido não cai no escritor legado; a abertura com saldo não é ignorada caso o contexto deixe de ser Spark.
+
+Novo cadastro confere o contexto antes de liberar o formulário. Carregamento e falha são visíveis, com **Tentar carregar novamente** e salvamento bloqueado enquanto a conferência estiver incompleta. O campo de saldo aparece somente no cadastro Spark; o fluxo legado confirmado conserva cadastro e saldo mensal separados. Não há ativação automática de grupo real nem alteração das preferências de telas já escolhidas pelo usuário.
+
+Arquivos: SparkBankFormFirebase, useSparkBankForm, BankOpeningBalanceFields e AddRegisterBankScreen Web/mobile. [[Versão Usável por Telas]] acompanha o aceite. Testes de serviço/hook/controles e tipos verificam a entrega; aceite visual autenticado e execução instalada permanecem pendentes.
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F02 — Bancos, cadastro e ciclo de vida: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Converter cadastros antigos e homologar aparelhos. Criação, edição, arquivamento, restauração e atividade já possuem entradas Web/mobile.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Ciclo de vida Spark nas configurações — 22/10/2026
+
+As configurações Web/mobile incluem contas inativas/arquivadas na leitura administrativa. `SparkAccountLifecycleFormFirebase` preserva a intenção, posição e revisão de estado; arquivo/restauração/atividade usam a transação protegida, sem alterar saldo, cabeça financeira ou identidade. Restaurar conserva o indicador de atividade anterior; se a conta também estava desativada, ativá-la é uma ação separada. Seletores de novos lançamentos continuam excluindo essas contas por padrão. Nenhuma escrita legada é usada para uma conta Spark.
+
+
+Atualização de 20/10/2026: criação/edição de bancos conectadas ao Spark nas telas Web/mobile via `useSparkBankForm` e `SparkBankFormFirebase`. Na entrega de 20/10, a criação abria com zero e catálogo/checkpoint/receipt/cota atômicos; a coleta do saldo declarado foi conectada em 23/10, conforme o primeiro fluxo acima. Edição lê catálogo/revisão do servidor e só altera dados descritivos; concorrência exige recarregar. Reenvio incerto conserva identidade/material e bloqueia campos diferentes. UID/papel/grupo continuam obrigatórios; sucesso invalida as consultas financeiras, sem transformar erro de atualização da tela em erro do commit. Ciclo de vida nas telas, conversão legada e recuperação após desmontar/reabrir continuam pendentes. Roteiro reproduzível em [[Guia de Testes Locais]].
+
+
+> **Integração Spark em 19/10/2026:** [[Integração Financeira Spark]] conecta o extrato de bancos/Caixa à projeção semântica nativa/importada, com componentes, datas civis, saldo corrente guardado no servidor e consulta histórica de arquivados. Web/mobile evitam juntar novamente as fontes anteriores de ajustes/investimentos e leem a abertura mensal canônica. [[Cadastros de Contas Spark]] e [[Ciclo de Vida de Contas Spark]] oferecem abertura com saldo declarado, catálogo e ciclo de atividade; sua ligação integral aos formulários continua pendente. Os eventos Spark no extrato permanecem somente leitura até essa adaptação de mutações. Nenhum grupo real foi ativado.
+
+> **Prova Spark em 18/10/2026:** [[Cadastros de Contas Spark]] implementa nome/aparência com revisão própria e abertura zero com cadastro atômico, administrados por Rules e transações cliente. Os formulários descritos abaixo continuam nos serviços publicados; desativação/reativação, conversão dos cadastros e integração ainda precisam de adaptação específica.
 
 Permite criar e gerenciar contas bancárias, visualizar movimentos por período e acompanhar o saldo de cada conta. É o núcleo financeiro do app.
 
 > **Transição do razão (2026-10-11):** o fluxo abaixo continua sendo o legado para grupos ainda não migrados. Após o corte confirmado, bancos passam a ser financialAccounts do tipo bank, Caixa é uma conta do tipo cash e os saldos vêm de eventos imutáveis e reconciliações. Nenhum documento legado é removido; a ligação é preservada pelo legacyBankId. Cada membro adicional precisa aprovar, na própria sessão, o ID do administrador e o `clientActionId` do corte por `financialMigrationConsent`; a aprovação dura 24 horas e pode ser revogada. `migrateFinancialGroup` valida as aprovações antes de consultar dados, depois do plano e na transação de gravação. São aceitos no máximo cinco membros. O `execute` é recusado enquanto o dry-run registrar qualquer `issue`; veja [[Processo de Release]] e [[Remediação da Auditoria de Segurança]].
 
 ## Como funciona
+
+Continuação de 20/10/2026: o extrato Web/mobile já oferece editar/estornar referências ordinárias Spark não resolvidas. IDs de componentes não são usados como alvo: a rota conserva fonte e operação, e o carregador consulta documento/claim/conta protegidos. O estorno exige confirmação e conserva o histórico com compensação na data atual. Categorias/contas/data/fingerprint são revalidados pelo comando; pares, ajustes e investimentos não foram liberados genericamente. `getBankDataFirebase` também lê o catálogo canônico para apresentar um banco selecionado fora da lista ativa, sem inventar titularidade pelo editor. Ver [[Operações Ordinárias Spark]].
+
+Continuação Spark de 19/10/2026: `getAllBanksFirebase`, `getBanksByPersonFirebase` e `getBanksWithUsersByPersonFirebase` resolvem o contexto protegido antes das consultas anteriores e usam `SparkBankSelectionFirebase`. Para Spark, o parâmetro de pessoa identifica a sessão solicitante; a seleção é do grupo autorizado, não uma inferência de dono individual. A seleção padrão contém bancos ativos não arquivados com catálogo conferido; `getAllBanksFirebase(true)` inclui inativos/arquivados para administração. Não retorna Caixa/investimentos nem usa `catalogActorId` como titular. Revogação, rede/contexto inválidos ou cadastro ausente retornam falha, sem consultar coleções antigas. A consulta de catálogo não certifica saldo corrente. Os seletores de despesas/receitas já usam essa ponte; escrita, ações administrativas e conversão dos cadastros continuam pendentes.
 
 Na migração, o fingerprint aprovado inclui o conteúdo financeiro e a lista de membros. A confirmação física do Caixa exige `confirmedAt` (ISO) igual na prévia e execução. Cada coleção aceita no máximo 2.000 documentos; excesso é recusado, sem migração parcial por truncamento. Revogação entre lotes mantém o grupo `migrating`; a própria pessoa pode renovar a mesma aprovação e permitir retomada. Reenvio de uma migração concluída recupera o recibo somente para os mesmos argumentos. Ajustes legados verificam também o corte do dono do banco, impedindo que um vínculo antigo reabra escritas. [[Remediação da Auditoria de Segurança]] registra os testes e limites.
 
@@ -143,3 +182,13 @@ graph TD
 ## Ajuste de saldo — 2026-09-30
 
 [[Ajuste de Saldo]] registra somente a diferença conferida pelo usuário no banco, em uma coleção própria. O saldo legado centralizado e a Home incorporam diferenças após o snapshot; elas não entram em ganhos/despesas. Os extratos Web/mobile mostram originais, substituições e estornos em magenta, com edição/reversão pelo autor. O card de saldo no resumo do período é sempre exibido; na visão de banco, **Saldo atual** usa `getBankCurrentBalanceInCentsFirebase`, independentemente do período selecionado. Após cutover, o seletor e o extrato leem contas/lançamentos do grupo e não oferecem alterações legadas aos eventos imutáveis.
+
+## Extrato utilizável — 23/10/2026
+
+Web/mobile usam `useBankMovementsRequest` para vincular cada resposta ao UID autenticado, banco/Caixa e datas da consulta. Início de nova consulta limpa movimentos, saldo atual, abertura e expansões; saída de foco/desmontagem invalida respostas pendentes. Uma resposta antiga não substitui dados, erro nem loading da consulta mais recente. Mudança de UID também limpa categorias, opções de banco e ações locais. O leitor Spark não ganha fallback legado.
+
+Falha na leitura do saldo corrente falha o carregamento do extrato com retry, em vez de misturar histórico confirmado com saldo desconhecido. Falhas/datas inválidas mostram **Tentar novamente**, saldos/totais indisponíveis não aparecem como zero e o PDF fica bloqueado. A consulta de um período vazio concluída com sucesso continua mostrando zero nos indicadores econômicos.
+
+`SparkStatementFirebase` conserva `sparkEconomicKind`/`sparkDeltaInCents`; `bankMovementTotals` mantém o inverso na família original e soma centavos inteiros com BigInt. Exemplo: abertura 100.000 + ganho 20.000 + despesa -5.000 + inverso 5.000 + substituto -7.000 resulta em saldo 113.000, ganhos 20.000 e despesas 7.000. A abertura e pares continuam fora dos indicadores. A timeline preserva direção real/crédito do estorno e todos os componentes, com nome **Estorno:**. Filtro por ganhos/despesas considera a família econômica Spark, incluindo seus inversos; o PDF e gráfico usam a mesma seleção. O gráfico Web agrupa eventos Spark pelo dia civil de São Paulo. Totais fora do intervalo inteiro seguro são recusados.
+
+Revisão de liberação `statement-dashboard-2026-10-23`: extrato e dashboard habilitados uma vez, com escolhas alheias e desligamentos posteriores preservados. Aceite autenticado Web/mobile e integração Emulator desta revisão ainda pendentes. Ver [[Versão Usável por Telas]].

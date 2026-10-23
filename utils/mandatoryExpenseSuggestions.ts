@@ -16,6 +16,7 @@ type MandatoryExpenseSuggestionDraft = {
 };
 
 export type MandatoryExpenseSuggestionCandidate = {
+	sparkPlan?: unknown;
 	id?: unknown;
 	name?: unknown;
 	valueInCents?: unknown;
@@ -314,6 +315,7 @@ const normalizeCandidate = (
 
 	const installmentsCompleted = resolveMandatoryInstallmentsCompleted({
 		storedCompleted: storedInstallmentsCompleted,
+		explicitCompletion: candidate.sparkPlan === true,
 		installmentTotal,
 		startDate: installmentStartDate,
 		isCurrentCycleCompleted: false,

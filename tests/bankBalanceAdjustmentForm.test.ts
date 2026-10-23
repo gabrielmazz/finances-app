@@ -5,6 +5,7 @@ const mockCommand = jest.fn();
 const mockRedirect = jest.fn();
 const mockInvalidate = jest.fn();
 const mockParams: { bankId: string; adjustmentId?: string } = { bankId: 'bank' };
+jest.mock('@/functions/SparkBalanceFormFirebase', () => ({ prepareSparkBalanceFormFirebase: jest.fn().mockResolvedValue(null) }));
 jest.mock('expo-router', () => ({
 	useLocalSearchParams: () => mockParams,
 	useFocusEffect: (effect: () => void) => require('react').useEffect(effect, [effect]),

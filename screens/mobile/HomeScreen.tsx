@@ -23,6 +23,7 @@ import {
 } from '@/functions/HomeFirebase';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
+import { useAuth } from '@/contexts/AuthContext';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import { Box } from '@/components/ui/box';
 import { Heading } from '@/components/ui/heading';
@@ -438,7 +439,8 @@ export default function HomeScreen() {
 	const investmentChartContainerWidth = bankCarouselWidth;
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
-	const currentUserId = auth.currentUser?.uid ?? null;
+	const { user } = useAuth();
+	const currentUserId = user?.uid ?? null;
 	const authDisplayFirstName = extractFirstName(auth.currentUser?.displayName);
 	const { overview, movements, investments, reload } = useHomeScreenData(currentUserId);
 
@@ -465,6 +467,8 @@ export default function HomeScreen() {
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
 	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
 	const [currentUserFirstName, setCurrentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
+	const homeReadError = overview.error || movements.error || investments.error;
+	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [selectedInvestmentPopoverTarget, setSelectedInvestmentPopoverTarget] = React.useState<{
 		investmentId: string;
@@ -1207,6 +1211,12 @@ export default function HomeScreen() {
 								/>
 							}
 						>
+							<View className="mb-4 gap-2">
+								{homeReadError ? <Text accessibilityRole="alert" className="text-sm text-error-600 dark:text-error-400">{homeReadError}</Text> : null}
+								<Button className="min-h-touch self-end rounded-control lumus-focus" action="primary" isDisabled={isHomeLoading || isRefreshing} onPress={() => void handleRefresh()}>
+									<ButtonText className="text-lumus-on-accent">{isHomeLoading || isRefreshing ? 'Atualizando…' : homeReadError ? 'Tentar novamente' : 'Atualizar saldos'}</ButtonText>
+								</Button>
+							</View>
 							<View
 								style={{
 									flexDirection: isDesktopWeb ? 'row' : 'column',
@@ -1455,6 +1465,7 @@ export default function HomeScreen() {
 													<Text className={`${bodyText} text-xs leading-5`}>
 														Exibimos aqui um resumo dos seus investimentos registrados. O gráfico de distribuição é baseado no valor atual/base dos investimentos, então se algum investimento não possui esse valor registrado ou ele é zero, ele não aparecerá na distribuição. Toque em cada fatia do gráfico para ver o valor atual/base de cada investimento.
 														Se você não vê um investimento que espera, verifique se ele está registrado corretamente na seção de investimentos. Os dados aqui refletem o que foi registrado lá.
+														{investments.data.projectionStatus === 'confirmed_only' ? ' Os valores são confirmados, sem projeção adicional de rendimento.' : ''}
 													</Text>
 												</PopoverBody>
 											</PopoverContent>
@@ -1690,7 +1701,7 @@ export default function HomeScreen() {
 															textAlign: 'right',
 														}}
 													>
-														Simulado
+														{investments.data.projectionStatus === 'confirmed_only' ? 'Confirmado' : 'Simulado'}
 													</Text>
 													<Text
 														style={{

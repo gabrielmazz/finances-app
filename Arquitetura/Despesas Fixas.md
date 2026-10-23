@@ -3,10 +3,49 @@ tags: [despesas-fixas, recorrencia, notificacoes, financeiro]
 relacionado: [[Transações de Despesas]], [[Notificações]], [[Receitas Fixas]], [[Previsão de Fluxo de Caixa]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 3.8.0
+versao: 3.10.1
+spark_module: F07
+spark_progress: 80
+spark_reviewed_at: 2026-10-22
 ---
 
 # Despesas Fixas
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F07 — Recorrências e parcelas: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir restauração integral das intenções, compatibilidade restante, assistente e homologação. Replanejamento com sucessor/configuração atômicos, desfazimento ordenado e liquidação de parcelas após o prazo já possuem serviço/Rules e entradas Web/mobile.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Renegociação e parcelas após o prazo — 22/10/2026
+
+`SparkRecurringReplanFirebase` cria sucessor finito para o **saldo negociado restante**, arquiva o predecessor e grava metadados/receipt/cota atomicamente. Nome, tipo, categoria e configuração são preservados pela ponte; a tela pede total, quantidade, primeiro ciclo e motivo, mostra a revisão do acordo e confirma uma vez. Não soma o novo valor aos pagamentos antigos nem inventa quitação pelo calendário. O primeiro ciclo deve ser atual/futuro e não pode já ter pagamento no predecessor. Total inteiro, divisão e resto são validados no cliente e nas Rules. Despesa e receita usam o mesmo protocolo.
+
+O predecessor guarda sucessor/origem e não pode ser pago, restaurado ou ter pagamentos desfeitos isoladamente. O sucessor conserva o vínculo de origem. Desfazer replanejamento exige revisões atuais, ausência de pagamentos pendentes de desfazimento no sucessor e resolução de sucessores posteriores; reativa o anterior e marca o novo contrato como cancelado, preservando ambos. Contratos cancelados não ganham restauração comum. O fluxo está nas listas Web/mobile; falha de agenda posterior não repete o commit.
+
+`lateSettlement:true` permite liquidar **parcelas finitas restantes** depois de `endCycle`, com motivo e ciclo/data compatíveis. Sem essa marca o prazo continua obrigatório; recorrências ilimitadas não a aceitam. Receipt/ciclo têm a mesma marca, quantidade e faixa originais; quitação negociada continua exclusiva de despesa finita. Home mostra o saldo vencido no vencimento original e a previsão o inclui uma única vez no primeiro mês, inclusive após uma liquidação parcial no mês. Leitura valida a marca antes de aceitar ciclo posterior ao prazo. O prazo original e os lembretes contratados não são prorrogados silenciosamente; um novo calendário exige renegociação.
+
+Intenções incertas ainda precisam do formulário montado e dos mesmos dados/IDs. Após recarga, os vínculos permitem consultar/desfazer um acordo confirmado, mas não há journal geral para recuperar qualquer rascunho financeiro.
+
+
+## Fluxo Spark conectado — 22/10/2026
+
+Datas de início/fim e do pagamento são adaptadas como campos civis para a interface; o serviço mantém instantes reais nos ciclos. As listas conferem o mês de São Paulo, inclusive quando o aparelho já está no dia/mês seguinte. O ensaio de Tóquio reproduziu e eliminou o avanço indevido do fim do contrato para o mês seguinte.
+
+No Spark, cadastro/edição de metadados, pagamento, quitação, desfazimento e arquivo/restauração usam a ponte compartilhada de [[Recorrências Spark]]. Não se cria despesa comum antes de marcar o ciclo. A sugestão nos formulários ordinários consulta os planos canônicos e respeita pagamento/vigência/contador explícito. Reivindicar cria compensação financeira; arquivar conserva pagamentos e oferece Restaurar. Os controles nomeiam essas ações sem prometer exclusão irreversível. A descrição do fluxo legado nas seções abaixo permanece aplicável somente ao transporte legado.
+
+Quitação com desconto/acréscimo mantém nominal da faixa e caixa pago distintos, exige observação do motivo e admite estorno exato. Contrato 333+333+334 continua somando 1.000 nominalmente; pagar 900 pela quitação das três parcelas reduz o banco em 900, não em 1.000. Desfazer retorna 900 e recua três parcelas. Não existe quitação por tempo transcorrido. Replanejamento do contrato e parcelas após a vigência permanecem no inventário aberto.
+
+
+## Núcleo Spark em preparação
+
+[[Recorrências Spark]] acrescenta cadastro financeiro, edição/arquivamento da definição e pagamento/desfazimento atômicos com ciclo, conta, evento, revisão e cota. Parcelas usam soma exata do contrato; desfazimento de faixa finita exige remover primeiro as faixas efetivadas depois. Arquivar preserva histórico e permite desfazer pagamento. Esse módulo ainda não substitui as telas/listas, os templates antigos, seus lembretes ou os comandos do assistente; conversão de dados e adaptação de metadados continuam pendentes.
+
+[[Conversão de Recorrências Spark]] v0.10 converte os formatos compatíveis de templates/ciclos do razão em candidato bloqueado, preservando pagamentos/contadores comprovados e gerando pendências para ambiguidades. Acrescenta serviço para vencimento, dias úteis, descrição e configuração de lembrete, sem agendamento automático. Integração com esta lista/formulário, legado sem evidência suficiente e ativação real continuam pendentes.
 
 Gerencia despesas recorrentes mensais (ex: aluguel, streaming, academia) com rastreamento de pagamento por ciclo, lembretes locais de vencimento e aviso remoto aos usuários vinculados quando o template muda.
 

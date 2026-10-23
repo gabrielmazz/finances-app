@@ -6,6 +6,9 @@ import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
 import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase } from '@/functions/FinancialLedgerFirebase';
 import type { BankBalanceAdjustment } from '@/utils/bankBalanceAdjustment';
 import type { BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkAccountsFirebase } from './SparkAccountReadFirebase';
+import { readSparkAdjustmentFormFirebase } from './SparkBalanceFormFirebase';
 
 export type BankBalanceAdjustmentCommand = {
 	action: 'preview' | 'save' | 'revert';
@@ -21,6 +24,9 @@ export type BankBalanceAdjustmentCommand = {
 };
 
 export async function runBankBalanceAdjustmentFirebase(input: BankBalanceAdjustmentCommand) {
+	const uid = auth.currentUser?.uid;
+	if (!uid) throw new Error('Entre na sua conta para ajustar o saldo.');
+	if (await getSparkContextFirebase(db, uid)) throw new Error('Use a prévia e o comando Spark para ajustar este saldo.');
 	const callable = httpsCallable<BankBalanceAdjustmentCommand, { adjustmentId?: string; previousBalanceInCents: number; differenceInCents?: number }>(firebaseFunctions, 'bankBalanceAdjustment');
 	return (await callable(input)).data;
 }
@@ -40,12 +46,17 @@ function parseAdjustment(id: string, data: Record<string, unknown>): BankBalance
 }
 
 export async function getBankBalanceAdjustmentFirebase(id: string) {
+	const uid = auth.currentUser?.uid;
+	if (!uid) throw new Error('Entre na sua conta para abrir o ajuste.');
+	const spark = await readSparkAdjustmentFormFirebase(db, uid, id);
+	if (spark) return spark;
 	const snapshot = await getDoc(doc(db, 'bankBalanceAdjustments', id));
 	if (!snapshot.exists()) throw new Error('Ajuste não encontrado.');
 	return parseAdjustment(snapshot.id, snapshot.data());
 }
 
 export async function getBankBalanceAdjustmentsFirebase(personId: string, bankId: string, startDate: Date, endDate: Date) {
+	if (await getSparkContextFirebase(db, personId)) throw new Error('Consulte os ajustes no extrato Spark, preservando suas referências nativas.');
 	const context = await getFinancialLedgerContextFirebase(personId);
 	const load = async (field: string, values: string[]) => {
 		const snapshots = await Promise.all(Array.from({ length: Math.ceil(values.length / 10) }, (_, index) =>
@@ -69,6 +80,13 @@ export async function getBankBalanceAdjustmentsFirebase(personId: string, bankId
 export async function getBalanceAdjustmentBanksFirebase(): Promise<BankActionsheetOption[]> {
 	const uid = auth.currentUser?.uid;
 	if (!uid) throw new Error('Entre na sua conta para ajustar o saldo.');
+	const spark = await getSparkContextFirebase(db, uid);
+	if (spark) {
+		if (spark.role !== 'admin') throw new Error('O ajuste de saldo deste grupo exige acesso de administrador.');
+		return (await readSparkAccountsFirebase(db, uid, spark.groupId, { requireCurrent: false }))
+			.filter(account => account.position.kind === 'bank' && account.position.active && account.catalog)
+			.map(account => ({ id: account.accountId, name: account.catalog!.name, iconKey: account.catalog!.iconKey, colorHex: account.catalog!.colorHex }));
+	}
 	const context = await getFinancialLedgerContextFirebase(uid);
 	if (context) {
 		if (context.role !== 'admin') throw new Error('O ajuste de saldo deste grupo exige acesso de administrador.');

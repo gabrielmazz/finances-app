@@ -1,3 +1,4 @@
+import { readSparkRecurringFormRowsFirebase } from './SparkRecurringFormFirebase';
 import { readRecurringDefinitionsFirebase } from '@/functions/RecurringReadFirebase';
 // Funções responsáveis por gerenciar os gastos obrigatórios registrados no aplicativo.
 
@@ -27,7 +28,7 @@ interface AddMandatoryExpenseParams {
 	description?: string | null;
 	reminderEnabled?: boolean;
 	reminderConfigVersion?: number;
-	reminderDaysBefore?: 1 | 2 | 3;
+	reminderDaysBefore?: 0 | 1 | 2 | 3;
 	reminderOnDueDate?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
@@ -48,7 +49,7 @@ interface UpdateMandatoryExpenseParams {
 	description?: string | null;
 	reminderEnabled?: boolean;
 	reminderConfigVersion?: number;
-	reminderDaysBefore?: 1 | 2 | 3;
+	reminderDaysBefore?: 0 | 1 | 2 | 3;
 	reminderOnDueDate?: boolean;
 	reminderHour?: number;
 	reminderMinute?: number;
@@ -394,8 +395,10 @@ export async function getMandatoryExpenseFirebase(expenseId: string) {
 	}
 }
 
-export async function getMandatoryExpensesWithRelationsFirebase(personId: string) {
+export async function getMandatoryExpensesWithRelationsFirebase(personId: string, includeInactive = false) {
 	try {
+		const sparkRows = await readSparkRecurringFormRowsFirebase(db, personId, 'expense', new Date(), includeInactive);
+		if (sparkRows) return { success: true, data: sparkRows };
 		const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
 
 		const relatedIds =

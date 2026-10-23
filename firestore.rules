@@ -68,7 +68,7 @@ service cloud.firestore {
     function sparkProofRole(groupId) {
       let data = group(groupId).data;
       return signedIn() && data.get('status', null) == 'active'
-        && data.get('sparkProtocol', null) == 'financial-proof-v6'
+        && data.get('sparkProtocol', null) == 'financial-proof-v17'
         ? data.get('members', {}).get(request.auth.uid, null) : null;
     }
 
@@ -87,7 +87,7 @@ service cloud.firestore {
     function validSparkPosition(data) {
       return data.keys().hasAll(['schemaVersion', 'kind', 'active', 'balanceInCents', 'revision', 'lastOperationId', 'nextActivationAt', 'updatedAt'])
         && data.keys().hasOnly(['schemaVersion', 'kind', 'active', 'balanceInCents', 'revision', 'lastOperationId', 'nextActivationAt', 'updatedAt'])
-        && data.schemaVersion is int && data.schemaVersion == 1 && data.active == true
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.active is bool
         && data.kind in ['bank', 'cash', 'investment']
         && isIntegerCents(data.balanceInCents)
         && (data.kind == 'bank' || data.balanceInCents >= 0)
@@ -97,20 +97,44 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
-    function validSparkPositionEffect(accountId, operation) {
+    function sparkPairPositionDelta(groupId, accountId, operation) {
+      let delta = operation.kind == 'investment_funding_change' ? sparkFundingDelta(operation, accountId)
+        : operation.fromAccountId == accountId ? -operation.amountInCents : operation.amountInCents;
+      return 'effectiveAt' in operation ? sparkMovementEffect(groupId, accountId, operation.effectiveAt, delta) : delta;
+    }
+    function sparkFundingDelta(op, accountId) {
+      return op.refundAccountId == accountId ? op.previousPrincipalInCents : op.fromAccountId == accountId ? -op.principalInCents : op.differenceInCents;
+    }
+    function validSparkPositionEffect(groupId, accountId, operation) {
       return operation.actorId == request.auth.uid
-        && (operation.kind in ['account_count', 'balance_adjustment', 'adjustment_reversal', 'adjustment_replacement', 'dated_adjustment', 'dated_reconciliation', 'monthly_opening', 'monthly_activation']
+        && (operation.kind == 'investment_edit_valuation'
+          ? resource.data.kind == 'investment' && operation.accountId == accountId && operation.expectedRevision == resource.data.revision + 1
+            && request.resource.data.balanceInCents == operation.targetBalanceInCents
+          : operation.kind in ['recurring_settlement', 'recurring_reversal', 'income', 'expense', 'movement_reversal', 'account_count', 'balance_adjustment', 'adjustment_reversal', 'adjustment_replacement', 'dated_adjustment', 'dated_reconciliation', 'investment_sync', 'investment_valuation_reversal', 'monthly_opening', 'monthly_activation']
           ? operation.accountId == accountId && operation.expectedRevision == resource.data.revision
             && validSparkOperationId(operation.previousOperationId) && operation.previousOperationId == resource.data.lastOperationId
             && request.resource.data.balanceInCents == resource.data.balanceInCents + operation.currentEffectInCents
+          : operation.kind == 'movement_correction'
+            ? ((operation.fromAccountId == accountId && resource.data.revision == operation.fromRevision && resource.data.lastOperationId == operation.fromPreviousOperationId)
+                || (operation.toAccountId == accountId && resource.data.revision == operation.toRevision && resource.data.lastOperationId == operation.toPreviousOperationId))
+              && request.resource.data.balanceInCents == resource.data.balanceInCents
+                + (operation.fromAccountId == accountId ? operation.fromCurrentEffectInCents : 0)
+                + (operation.toAccountId == accountId ? operation.toCurrentEffectInCents : 0)
+              && (operation.fromAccountId != accountId || operation.fromCurrentEffectInCents == sparkMovementEffect(groupId, accountId, operation.effectiveAt, -operation.originalDeltaInCents))
+              && (operation.toAccountId != accountId || operation.toCurrentEffectInCents == sparkMovementEffect(groupId, accountId, operation.effectiveAt, operation.differenceInCents))
+              && validSparkMovementBalance(request.resource.data.balanceInCents, operation.overdraftReason)
           : ((operation.fromAccountId == accountId
               && resource.data.revision == operation.fromRevision
               && validSparkOperationId(operation.fromPreviousOperationId) && operation.fromPreviousOperationId == resource.data.lastOperationId
-              && request.resource.data.balanceInCents == resource.data.balanceInCents - operation.amountInCents)
+              && request.resource.data.balanceInCents == resource.data.balanceInCents + sparkPairPositionDelta(groupId, accountId, operation))
           || (operation.toAccountId == accountId
               && resource.data.revision == operation.toRevision
               && validSparkOperationId(operation.toPreviousOperationId) && operation.toPreviousOperationId == resource.data.lastOperationId
-              && request.resource.data.balanceInCents == resource.data.balanceInCents + operation.amountInCents)));
+              && request.resource.data.balanceInCents == resource.data.balanceInCents + sparkPairPositionDelta(groupId, accountId, operation))
+          || (operation.kind == 'investment_funding_change' && operation.refundAccountId == accountId
+              && resource.data.revision == operation.refundRevision && validSparkOperationId(operation.refundPreviousOperationId)
+              && operation.refundPreviousOperationId == resource.data.lastOperationId
+              && request.resource.data.balanceInCents == resource.data.balanceInCents + sparkPairPositionDelta(groupId, accountId, operation))));
     }
 
     function validSparkPositionUpdate(groupId, accountId) {
@@ -118,14 +142,15 @@ service cloud.firestore {
       let operationPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(after.lastOperationId);
       let operation = getAfter(operationPath).data;
       return validSparkPosition(resource.data) && validSparkPosition(after)
+        && resource.data.active && after.active
         && validSparkOperationId(after.lastOperationId)
         && after.diff(resource.data).affectedKeys().hasOnly(['balanceInCents', 'revision', 'lastOperationId', 'nextActivationAt', 'updatedAt'])
-        && after.revision == resource.data.revision + 1
+        && after.revision == resource.data.revision + (operation.kind == 'investment_edit_valuation' ? 2 : 1)
         && after.updatedAt == request.time
         // Um recibo anterior jamais autoriza novos efeitos.
         && !exists(operationPath)
         && validSparkPositionDeadline(resource.data, after, operation)
-        && validSparkPositionEffect(accountId, operation);
+        && validSparkPositionEffect(groupId, accountId, operation);
     }
 
     function validSparkPositionDeadline(before, after, operation) {
@@ -164,14 +189,83 @@ service cloud.firestore {
         && ((resource == null && data.count == 1)
           || (resource != null && ((resource.data.windowStartInMillis == data.windowStartInMillis && data.count == resource.data.count + 1)
             || (resource.data.windowStartInMillis < data.windowStartInMillis && data.count == 1))))
-        && !exists(operationPath) && operation.actorId == uid && operation.createdAt == request.time;
+        && !exists(operationPath) && operation.actorId == uid && operation.createdAt == request.time
+        && validSparkRecoveryCommit(uid, data.groupId, data.lastOperationId, operation.kind);
+    }
+
+    // [[Recuperação de Operações Spark]]: o recibo e o cancelamento disputam a mesma intenção privada.
+    function validSparkRecoveryCommit(uid, groupId, operationId, kind) {
+      let indexPath = /databases/$(database)/documents/sparkOperationRecovery/$(uid);
+      let intentPath = /databases/$(database)/documents/sparkOperationRecovery/$(uid)/intents/$(operationId);
+      return (!exists(indexPath) || get(indexPath).data.operationId == operationId
+          || get(/databases/$(database)/documents/sparkOperationRecovery/$(uid)/intents/$(get(indexPath).data.operationId)).data.status != 'pending')
+        && (!exists(intentPath) || (get(intentPath).data.status == 'pending'
+          && get(intentPath).data.groupId == groupId && get(intentPath).data.kind == kind
+          && getAfter(intentPath).data.status == 'committed' && getAfter(intentPath).data.updatedAt == request.time));
+    }
+    function validSparkRecoveryIndex(uid) {
+      let data = request.resource.data;
+      let intentPath = /databases/$(database)/documents/sparkOperationRecovery/$(uid)/intents/$(data.operationId);
+      return signedIn() && request.auth.uid == uid
+        && data.keys().hasAll(['schemaVersion', 'groupId', 'operationId', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'groupId', 'operationId', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && validSparkId(data.groupId) && validSparkOperationId(data.operationId)
+        && data.updatedAt == request.time && !exists(intentPath)
+        && getAfter(intentPath).data.status == 'pending' && getAfter(intentPath).data.groupId == data.groupId
+        && (resource == null || getAfter(/databases/$(database)/documents/sparkOperationRecovery/$(uid)/intents/$(resource.data.operationId)).data.status in ['resolved', 'cancelled']);
+    }
+    function validSparkRecoveryCreate(uid, operationId) {
+      let data = request.resource.data;
+      let quota = getAfter(/databases/$(database)/documents/sparkOperationIntentQuotas/$(uid)).data;
+      let index = getAfter(/databases/$(database)/documents/sparkOperationRecovery/$(uid)).data;
+      return signedIn() && request.auth.uid == uid && validSparkOperationId(operationId)
+        && data.keys().hasAll(['schemaVersion', 'groupId', 'kind', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'groupId', 'kind', 'status', 'createdAt', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && validSparkId(data.groupId) && isSparkProofMember(data.groupId)
+        && data.kind is string && data.kind.matches('^[a-z_]{1,64}$') && data.status == 'pending'
+        && data.createdAt == request.time && data.updatedAt == request.time
+        && !exists(/databases/$(database)/documents/financialGroups/$(data.groupId)/sparkOperations/$(operationId))
+        && !existsAfter(/databases/$(database)/documents/financialGroups/$(data.groupId)/sparkOperations/$(operationId))
+        && index.groupId == data.groupId && index.operationId == operationId && index.updatedAt == request.time
+        && quota.groupId == data.groupId && quota.operationId == operationId && quota.updatedAt == request.time;
+    }
+    function validSparkRecoveryUpdate(uid, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(resource.data.groupId)/sparkOperations/$(operationId);
+      return signedIn() && request.auth.uid == uid
+        && data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) && data.updatedAt == request.time
+        && ((resource.data.status == 'pending' && data.status == 'cancelled' && !existsAfter(path))
+          || (resource.data.status == 'pending' && data.status == 'committed' && !exists(path)
+            && getAfter(path).data.actorId == uid && getAfter(path).data.kind == resource.data.kind && getAfter(path).data.createdAt == request.time)
+          || (resource.data.status == 'committed' && data.status == 'resolved'));
+    }
+    function validSparkIntentQuota(uid) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/sparkOperationRecovery/$(uid)/intents/$(data.operationId);
+      return signedIn() && request.auth.uid == uid
+        && data.keys().hasAll(['groupId', 'operationId', 'windowStartInMillis', 'count', 'updatedAt'])
+        && data.keys().hasOnly(['groupId', 'operationId', 'windowStartInMillis', 'count', 'updatedAt'])
+        && validSparkId(data.groupId) && validSparkOperationId(data.operationId)
+        && data.windowStartInMillis is int && data.windowStartInMillis == int(request.time.toMillis() / 60000) * 60000
+        && data.count is int && data.count > 0 && data.count <= 120 && data.updatedAt == request.time
+        && (resource == null ? data.count == 1 : (resource.data.windowStartInMillis == data.windowStartInMillis && data.count == resource.data.count + 1)
+          || (resource.data.windowStartInMillis < data.windowStartInMillis && data.count == 1))
+        && !exists(path) && getAfter(path).data.groupId == data.groupId && getAfter(path).data.createdAt == request.time;
     }
 
     function validSparkTransferReversal(groupId, operationId, data, role) {
-      let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.reversesOperationId)).data;
-      let claimPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkReversals/$(data.reversesOperationId);
+      let imported = data.get('originalSource', 'live') == 'imported';
+      let originalPath = imported
+        ? /databases/$(database)/documents/financialGroups/$(groupId)/sparkImportedIdentities/$(data.reversesOperationId)
+        : /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.reversesOperationId);
+      let original = get(originalPath).data;
+      let claimPath = imported
+        ? /databases/$(database)/documents/financialGroups/$(groupId)/sparkImportedClaims/$(data.reversesOperationId)
+        : /databases/$(database)/documents/financialGroups/$(groupId)/sparkReversals/$(data.reversesOperationId);
       return validSparkOperationId(data.reversesOperationId)
+        && data.get('originalSource', 'live') in ['live', 'imported']
         && original.kind in ['transfer', 'investment_deposit', 'investment_redemption']
+        && (!imported || original.pairResolutionAllowed == true)
         && (original.actorId == request.auth.uid || role == 'admin')
         && data.fromAccountId == original.toAccountId && data.toAccountId == original.fromAccountId
         && data.amountInCents == original.amountInCents
@@ -196,6 +290,18 @@ service cloud.firestore {
             && operation.replacesOperationId == originalId && validSparkReplacementSource(groupId, originalId, operation));
     }
 
+    function validSparkImportedPairClaim(groupId, originalId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.reversalOperationId);
+      let operation = getAfter(path).data;
+      return isSparkProofMember(groupId) && data.keys().hasAll(['schemaVersion', 'actorId', 'reversalOperationId', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'reversalOperationId', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkOperationId(originalId) && validSparkOperationId(data.reversalOperationId) && !exists(path)
+        && operation.kind == 'transfer_reversal' && operation.originalSource == 'imported'
+        && operation.reversesOperationId == originalId && operation.actorId == request.auth.uid && operation.createdAt == request.time;
+    }
+
     function validSparkReplacementSource(groupId, originalId, operation) {
       let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(originalId)).data;
       return original.kind in ['balance_adjustment', 'dated_adjustment', 'adjustment_replacement']
@@ -208,10 +314,12 @@ service cloud.firestore {
       let data = request.resource.data;
       let operationPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
       let operation = getAfter(operationPath).data;
-      return validSparkPosition(data) && data.revision == 0 && data.balanceInCents == 0 && data.nextActivationAt == null
+      return validSparkPosition(data) && data.active && data.revision == 0 && data.nextActivationAt == null
         && data.updatedAt == request.time && !exists(operationPath)
-        && operation.kind == 'account_opening' && operation.actorId == request.auth.uid
-        && operation.accountId == accountId && operation.accountKind == data.kind;
+        && operation.actorId == request.auth.uid
+        && (operation.kind == 'investment_opening'
+          ? data.kind == 'investment' && operation.toAccountId == accountId && data.balanceInCents == operation.openingBalanceInCents
+          : operation.kind in ['account_opening', 'bank_opening'] && data.balanceInCents == operation.openingBalanceInCents && operation.accountId == accountId && operation.accountKind == data.kind);
     }
 
     function validSparkOpening(groupId, operationId) {
@@ -220,35 +328,883 @@ service cloud.firestore {
       let position = getAfter(positionPath).data;
       let quota = getAfter(/databases/$(database)/documents/sparkTransferQuotas/$(request.auth.uid)).data;
       return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'openingBalanceInCents', 'note', 'createdAt'])
-        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'openingBalanceInCents', 'note', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'openingBalanceInCents', 'note', 'createdAt', 'overdraftReason', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description'])
         && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid
-        && validSparkId(data.accountId) && data.accountKind in ['bank', 'cash']
-        && ((data.accountKind == 'cash' && data.accountId == 'cash') || (data.accountKind == 'bank' && data.accountId != 'cash'))
-        && data.openingBalanceInCents is int && data.openingBalanceInCents == 0
+        && validSparkId(data.accountId) && data.accountKind in ['bank', 'cash', 'investment']
+        && ((data.accountKind == 'cash' && data.accountId == 'cash') || (data.accountKind != 'cash' && data.accountId != 'cash'))
+        && (data.kind == 'account_opening' ? data.openingBalanceInCents is int && data.openingBalanceInCents == 0 && !('overdraftReason' in data)
+          : data.accountKind == 'bank' && isIntegerCents(data.openingBalanceInCents) && data.keys().hasAll(['name', 'overdraftReason'])
+            && isShortText(data.overdraftReason, 500) && validSparkMovementBalance(data.openingBalanceInCents, data.overdraftReason)
+            && !exists(/databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.accountId))
+            && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.accountId)).data.operationId == operationId)
         && (data.note == null || (data.note is string && data.note.size() <= 2000))
         && data.createdAt == request.time && !exists(positionPath)
         && position.lastOperationId == operationId && position.kind == data.accountKind
+        && (data.keys().hasAny(['name'])
+          ? !exists(/databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountCatalog/$(data.accountId))
+            && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountCatalog/$(data.accountId)).data.lastOperationId == operationId
+          : data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'openingBalanceInCents', 'note', 'createdAt']))
         && quota.groupId == groupId && quota.lastOperationId == operationId && quota.updatedAt == request.time;
     }
 
+    // [[Financiamento Inicial de Investimentos Spark]]: valor observado não é principal aplicado.
+    function validSparkInvestmentOpening(groupId, operationId) {
+      let data = request.resource.data;
+      let fromPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.fromAccountId);
+      let toPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.toAccountId);
+      let catalogPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountCatalog/$(data.toAccountId);
+      let capitalPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkInvestmentCapital/$(data.toAccountId);
+      let checkpointPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.toAccountId);
+      let bank = get(fromPath).data;
+      let after = getAfter(fromPath).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountKind', 'fromAccountId', 'toAccountId', 'fromRevision', 'fromPreviousOperationId', 'amountInCents', 'openingBalanceInCents', 'valuationDifferenceInCents', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'note', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'dated', 'effectiveAt', 'fromCurrentEffectInCents', 'accountKind', 'fromAccountId', 'toAccountId', 'fromRevision', 'fromPreviousOperationId', 'amountInCents', 'openingBalanceInCents', 'valuationDifferenceInCents', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'note', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && data.accountKind == 'investment' && validSparkId(data.fromAccountId) && validSparkId(data.toAccountId)
+        && data.fromAccountId != data.toAccountId && data.toAccountId != 'cash' && data.bankAccountId == data.fromAccountId
+        && isIntegerCents(data.amountInCents) && data.amountInCents > 0
+        && isIntegerCents(data.openingBalanceInCents) && data.openingBalanceInCents >= 0
+        && isIntegerCents(data.valuationDifferenceInCents) && data.valuationDifferenceInCents == data.openingBalanceInCents - data.amountInCents
+        && data.fromRevision is int && bank.kind == 'bank' && bank.active
+        && validSparkPair(bank, after, data.fromRevision, operationId)
+        && data.dated is bool
+        && (data.dated ? data.effectiveAt is timestamp && data.effectiveAt >= timestamp.value(0)
+            && data.effectiveAt <= request.time && isIntegerCents(data.fromCurrentEffectInCents)
+            && after.balanceInCents == bank.balanceInCents + data.fromCurrentEffectInCents
+          : !data.keys().hasAny(['effectiveAt', 'fromCurrentEffectInCents'])
+            && after.balanceInCents == bank.balanceInCents - data.amountInCents)
+        && after.balanceInCents >= 0
+        && !exists(toPath) && getAfter(toPath).data.lastOperationId == operationId
+        && !exists(catalogPath) && getAfter(catalogPath).data.lastOperationId == operationId
+        && !exists(capitalPath) && getAfter(capitalPath).data.lastOperationId == operationId
+        && !exists(checkpointPath) && getAfter(checkpointPath).data.operationId == operationId
+        && (data.note == null || data.note is string && data.note.size() <= 2000)
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkInvestmentCapital(groupId, accountId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId)
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'initialValueInCents', 'fundingAccountId', 'openingOperationId', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'initialValueInCents', 'fundingAccountId', 'openingOperationId', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.updatedAt == request.time
+        && data.revision is int && data.revision == 0 && validSparkOperationId(data.lastOperationId)
+        && isIntegerCents(data.initialValueInCents) && data.initialValueInCents > 0
+        && data.openingOperationId == data.lastOperationId && !exists(path)
+        && op.kind == 'investment_opening' && op.toAccountId == accountId && op.actorId == request.auth.uid && op.createdAt == request.time
+        && data.initialValueInCents == op.amountInCents && data.fundingAccountId == op.fromAccountId;
+    }
+    // [[Edição do Principal Spark]]: o capital serializa correções; a raiz permanece imutável.
+    function validSparkEditedInvestment(groupId, operationId, data, before, after) {
+      return data.keys().hasAny(['valuationOperationId', 'observedValueInCents'])
+        ? validSparkOperationId(data.valuationOperationId) && data.valuationOperationId != operationId
+          && isIntegerCents(data.observedValueInCents) && data.observedValueInCents >= 0
+          && after.revision == before.revision + 2 && before.revision == data.toRevision
+          && after.lastOperationId == data.valuationOperationId && after.balanceInCents == data.observedValueInCents
+          && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.valuationOperationId)).data.parentOperationId == operationId
+        : validSparkPair(before, after, data.toRevision, operationId) && after.balanceInCents == before.balanceInCents + data.toCurrentEffectInCents;
+    }
+    function validSparkInvestmentEditValuation(groupId, operationId) {
+      let data = request.resource.data;
+      let parentPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.parentOperationId);
+      let parent = getAfter(parentPath).data;
+      let positionPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId);
+      let before = get(positionPath).data;
+      let after = getAfter(positionPath).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'parentOperationId', 'previousOperationId', 'expectedRevision', 'targetBalanceInCents', 'previousBalanceInCents', 'differenceInCents', 'currentEffectInCents', 'effectiveAt', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'parentOperationId', 'previousOperationId', 'expectedRevision', 'targetBalanceInCents', 'previousBalanceInCents', 'differenceInCents', 'currentEffectInCents', 'effectiveAt', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time && data.effectiveAt == request.time
+        && validSparkId(data.accountId) && validSparkOperationId(data.parentOperationId) && data.parentOperationId != operationId
+        && !exists(parentPath) && parent.kind in ['investment_principal_update', 'investment_funding_change']
+        && parent.actorId == request.auth.uid && parent.createdAt == request.time && parent.toAccountId == data.accountId
+        && parent.valuationOperationId == operationId && parent.observedValueInCents == data.targetBalanceInCents
+        && before.kind == 'investment' && before.active && before.lastOperationId == parent.toPreviousOperationId && before.revision == parent.toRevision
+        && data.previousOperationId == data.parentOperationId && data.expectedRevision is int && data.expectedRevision == before.revision + 1
+        && isIntegerCents(data.targetBalanceInCents) && data.targetBalanceInCents >= 0
+        && parent.toCurrentEffectInCents == sparkMovementEffect(groupId, data.accountId, parent.effectiveAt,
+          parent.kind == 'investment_funding_change' ? parent.differenceInCents : parent.amountInCents)
+        && isIntegerCents(data.previousBalanceInCents) && data.previousBalanceInCents == before.balanceInCents + parent.toCurrentEffectInCents && data.previousBalanceInCents >= 0
+        && isIntegerCents(data.differenceInCents) && data.differenceInCents == data.targetBalanceInCents - data.previousBalanceInCents
+        && data.currentEffectInCents == data.differenceInCents
+        && after.revision == before.revision + 2 && after.balanceInCents == data.targetBalanceInCents && after.lastOperationId == operationId
+        && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.accountId)).data.operationId == operationId
+        && validSparkMovementQuota(groupId, data.parentOperationId);
+    }
+    function validSparkInvestmentValuationReversal(groupId, operationId) {
+      let data = request.resource.data;
+      let positionPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId);
+      let before = get(positionPath).data;
+      let after = getAfter(positionPath).data;
+      let proof = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkHistoryProofs/$(data.proofId)).data;
+      let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.reversesOperationId)).data;
+      let referencePath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.accountId);
+      let claimPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkInvestmentValuationReversals/$(data.reversesOperationId);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'reversesOperationId', 'expectedRevision', 'proofId', 'effectiveAt', 'note', 'previousOperationId', 'targetBalanceInCents', 'previousBalanceInCents', 'differenceInCents', 'currentEffectInCents', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'reversesOperationId', 'expectedRevision', 'proofId', 'effectiveAt', 'note', 'previousOperationId', 'targetBalanceInCents', 'previousBalanceInCents', 'differenceInCents', 'currentEffectInCents', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.accountId) && validSparkOperationId(data.reversesOperationId) && data.proofId == operationId
+        && data.note is string && data.note.size() > 0 && data.note.size() <= 2000 && data.note.matches('\\S([\\s\\S]*\\S)?')
+        && original.kind in ['investment_sync', 'investment_edit_valuation'] && original.accountId == data.accountId && data.effectiveAt == original.effectiveAt
+        && get(referencePath).data.operationId == data.reversesOperationId
+        && before.kind == 'investment' && validSparkPair(before, after, data.expectedRevision, operationId)
+        && data.previousOperationId == before.lastOperationId && data.previousBalanceInCents == before.balanceInCents
+        && proof.actorId == request.auth.uid && proof.accountId == data.accountId && proof.phase == 'done' && proof.purpose == 'valuation_undo'
+        && proof.excludedCheckpointOperationId == data.reversesOperationId && proof.asOf == data.effectiveAt
+        && proof.headRevision == before.revision && proof.headOperationId == before.lastOperationId
+        && isIntegerCents(data.targetBalanceInCents) && data.targetBalanceInCents >= 0 && data.targetBalanceInCents == proof.balanceInCents
+        && isIntegerCents(data.differenceInCents) && data.differenceInCents == data.targetBalanceInCents - original.targetBalanceInCents
+        && isIntegerCents(data.currentEffectInCents) && data.currentEffectInCents == data.targetBalanceInCents + proof.tailDeltaInCents - before.balanceInCents
+        && after.balanceInCents == before.balanceInCents + data.currentEffectInCents
+        && getAfter(referencePath).data.operationId == operationId && !exists(claimPath) && getAfter(claimPath).data.reversalOperationId == operationId
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkInvestmentPrincipal(groupId, operationId) {
+      let data = request.resource.data;
+      let fromPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.fromAccountId);
+      let toPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.toAccountId);
+      let capitalPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkInvestmentCapital/$(data.toAccountId);
+      let bank = get(fromPath).data;
+      let investment = get(toPath).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'openingOperationId', 'expectedCapitalRevision', 'expectedCapitalOperationId', 'fromRevision', 'toRevision', 'principalInCents', 'previousPrincipalInCents', 'amountInCents', 'effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'fromPreviousOperationId', 'toPreviousOperationId', 'note', 'overdraftReason', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'openingOperationId', 'expectedCapitalRevision', 'expectedCapitalOperationId', 'fromRevision', 'toRevision', 'principalInCents', 'previousPrincipalInCents', 'amountInCents', 'effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'fromPreviousOperationId', 'toPreviousOperationId', 'note', 'overdraftReason', 'valuationOperationId', 'observedValueInCents', 'createdAt'])
+        && validSparkMovementText(data) && validSparkId(data.fromAccountId) && validSparkId(data.toAccountId)
+        && data.fromAccountId != data.toAccountId && bank.kind == 'bank' && investment.kind == 'investment'
+        && isIntegerCents(data.principalInCents) && data.principalInCents >= 0
+        && isIntegerCents(data.previousPrincipalInCents) && data.previousPrincipalInCents >= 0
+        && isIntegerCents(data.amountInCents) && data.amountInCents == data.principalInCents - data.previousPrincipalInCents
+        && data.expectedCapitalRevision is int && data.expectedCapitalRevision >= 0 && data.expectedCapitalRevision < 1000000000000
+        && get(capitalPath).data.revision == data.expectedCapitalRevision
+        && getAfter(capitalPath).data.revision == data.expectedCapitalRevision + 1 && getAfter(capitalPath).data.lastOperationId == operationId
+        && data.fromRevision is int && data.toRevision is int
+        && validSparkPair(bank, getAfter(fromPath).data, data.fromRevision, operationId)
+        && validSparkEditedInvestment(groupId, operationId, data, investment, getAfter(toPath).data)
+        && isIntegerCents(data.fromCurrentEffectInCents) && isIntegerCents(data.toCurrentEffectInCents)
+        && getAfter(fromPath).data.balanceInCents == bank.balanceInCents + data.fromCurrentEffectInCents
+        && validSparkMovementBalance(getAfter(fromPath).data.balanceInCents, data.overdraftReason)
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkInvestmentCapitalUpdate(groupId, accountId) {
+      let before = resource.data;
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      let opening = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(before.openingOperationId)).data;
+      return sparkProofRole(groupId) == 'admin'
+        && data.diff(before).affectedKeys().hasOnly(['initialValueInCents', 'fundingAccountId', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.revision is int && data.revision <= 1000000000000
+        && data.revision == before.revision + 1 && data.revision == op.expectedCapitalRevision + 1
+        && isIntegerCents(data.initialValueInCents) && data.initialValueInCents >= 0
+        && validSparkOperationId(data.lastOperationId) && !exists(path) && data.updatedAt == request.time
+        && op.kind in ['investment_principal_update', 'investment_funding_change'] && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.toAccountId == accountId
+        && (op.kind == 'investment_funding_change' ? op.refundAccountId == before.fundingAccountId && data.fundingAccountId == op.fromAccountId
+          : op.fromAccountId == before.fundingAccountId && data.fundingAccountId == before.fundingAccountId)
+        && op.principalInCents == data.initialValueInCents && op.previousPrincipalInCents == before.initialValueInCents
+        && op.expectedCapitalOperationId == before.lastOperationId && op.openingOperationId == before.openingOperationId
+        && opening.kind == 'investment_opening' && opening.toAccountId == accountId
+        && op.effectiveAt == opening.get('effectiveAt', opening.createdAt);
+    }
+    function validSparkFundingChange(groupId, operationId) {
+      let data = request.resource.data;
+      let fromPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.fromAccountId);
+      let toPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.toAccountId);
+      let refundPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.refundAccountId);
+      let capitalPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkInvestmentCapital/$(data.toAccountId);
+      let from = get(fromPath).data;
+      let to = get(toPath).data;
+      let refund = get(refundPath).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'refundAccountId', 'fromRevision', 'toRevision', 'refundRevision', 'openingOperationId', 'expectedCapitalRevision', 'expectedCapitalOperationId', 'principalInCents', 'previousPrincipalInCents', 'amountInCents', 'differenceInCents', 'effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'refundCurrentEffectInCents', 'fromPreviousOperationId', 'toPreviousOperationId', 'refundPreviousOperationId', 'note', 'overdraftReason', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'refundAccountId', 'fromRevision', 'toRevision', 'refundRevision', 'openingOperationId', 'expectedCapitalRevision', 'expectedCapitalOperationId', 'principalInCents', 'previousPrincipalInCents', 'amountInCents', 'differenceInCents', 'effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'refundCurrentEffectInCents', 'fromPreviousOperationId', 'toPreviousOperationId', 'refundPreviousOperationId', 'note', 'overdraftReason', 'valuationOperationId', 'observedValueInCents', 'createdAt'])
+        && validSparkMovementText(data) && validSparkId(data.fromAccountId) && validSparkId(data.toAccountId) && validSparkId(data.refundAccountId)
+        && data.fromAccountId != data.toAccountId && data.fromAccountId != data.refundAccountId && data.toAccountId != data.refundAccountId
+        && from.kind == 'bank' && refund.kind == 'bank' && to.kind == 'investment'
+        && isIntegerCents(data.principalInCents) && data.principalInCents >= 0
+        && isIntegerCents(data.previousPrincipalInCents) && data.previousPrincipalInCents >= 0
+        && isIntegerCents(data.amountInCents) && data.amountInCents == data.principalInCents
+        && isIntegerCents(data.differenceInCents) && data.differenceInCents == data.principalInCents - data.previousPrincipalInCents
+        && data.expectedCapitalRevision is int && data.expectedCapitalRevision >= 0 && data.expectedCapitalRevision < 1000000000000
+        && get(capitalPath).data.revision == data.expectedCapitalRevision
+        && getAfter(capitalPath).data.revision == data.expectedCapitalRevision + 1 && getAfter(capitalPath).data.lastOperationId == operationId
+        && data.fromRevision is int && data.toRevision is int && data.refundRevision is int
+        && validSparkPair(from, getAfter(fromPath).data, data.fromRevision, operationId)
+        && validSparkEditedInvestment(groupId, operationId, data, to, getAfter(toPath).data)
+        && validSparkPair(refund, getAfter(refundPath).data, data.refundRevision, operationId)
+        && isIntegerCents(data.fromCurrentEffectInCents) && isIntegerCents(data.toCurrentEffectInCents) && isIntegerCents(data.refundCurrentEffectInCents)
+        && getAfter(fromPath).data.balanceInCents == from.balanceInCents + data.fromCurrentEffectInCents
+        && getAfter(refundPath).data.balanceInCents == refund.balanceInCents + data.refundCurrentEffectInCents
+        && validSparkMovementBalance(getAfter(fromPath).data.balanceInCents, data.overdraftReason)
+        && validSparkMovementBalance(getAfter(refundPath).data.balanceInCents, data.overdraftReason)
+        && validSparkMovementQuota(groupId, operationId);
+    }
     function validSparkOperation(groupId, operationId) {
       let role = sparkProofRole(groupId);
+      let kind = request.resource.data.kind;
       return role in ['admin', 'member'] && validSparkOperationId(operationId)
-        && (request.resource.data.kind == 'account_opening'
-          ? role == 'admin' && validSparkOpening(groupId, operationId)
-          : request.resource.data.kind == 'monthly_activation'
+        // Fluxos ordinários são frequentes e não devem percorrer todos os demais contratos.
+        && (kind in ['income', 'expense', 'movement_reversal']
+          ? validSparkMovement(groupId, operationId)
+          : kind == 'movement_correction'
+            ? validSparkMovementCorrection(groupId, operationId)
+          // Conferências temporais também precisam de margem para histórico e saldo negativo.
+          : kind in ['dated_adjustment', 'dated_reconciliation', 'investment_sync', 'monthly_opening']
+            ? role == 'admin' && validSparkDatedChange(groupId, operationId)
+          : kind == 'monthly_activation'
             ? validSparkMonthlyActivation(groupId, operationId)
-          : request.resource.data.kind == 'adjustment_replacement'
+          // Ajuste composto negativo também precisa caber no orçamento de expressões.
+          : kind == 'adjustment_replacement'
             ? role == 'admin' && validSparkAdjustmentReplacement(groupId, operationId)
-          : request.resource.data.kind in ['account_count', 'balance_adjustment']
+          : kind in ['account_opening', 'bank_opening']
+          ? role == 'admin' && validSparkOpening(groupId, operationId)
+          : kind == 'investment_opening'
+            ? role == 'admin' && validSparkInvestmentOpening(groupId, operationId)
+          : kind == 'investment_principal_update'
+            ? role == 'admin' && validSparkInvestmentPrincipal(groupId, operationId)
+          : kind == 'investment_funding_change'
+            ? role == 'admin' && validSparkFundingChange(groupId, operationId)
+          : kind == 'investment_edit_valuation'
+            ? role == 'admin' && validSparkInvestmentEditValuation(groupId, operationId)
+          : kind == 'investment_valuation_reversal'
+            ? role == 'admin' && validSparkInvestmentValuationReversal(groupId, operationId)
+          : kind == 'account_catalog_update'
+            ? role == 'admin' && validSparkAccountCatalogReceipt(groupId, operationId)
+          : kind == 'account_lifecycle_update'
+            ? role == 'admin' && validSparkAccountLifecycleReceipt(groupId, operationId)
+          : kind == 'investment_cdi_update'
+            ? validSparkCdiReceipt(groupId, operationId)
+          : kind in ['category_save', 'category_delete']
+            ? validSparkCategoryReceipt(groupId, operationId)
+          : kind == 'recurring_plan_create'
+            ? validSparkRecurringCreationReceipt(groupId, operationId)
+          : kind == 'recurring_plan_update'
+            ? validSparkRecurringUpdateReceipt(groupId, operationId)
+          : kind in ['recurring_replan', 'recurring_replan_reversal']
+            ? validSparkRecurringReplanReceipt(groupId, operationId)
+          : kind == 'recurring_metadata_update'
+            ? validSparkRecurringMetadataReceipt(groupId, operationId)
+          : kind in ['recurring_settlement', 'recurring_reversal']
+            ? validSparkRecurringMovement(groupId, operationId)
+          : kind in ['account_count', 'balance_adjustment']
             ? role == 'admin' && validSparkBalanceChange(groupId, operationId)
-            : request.resource.data.kind == 'adjustment_reversal'
+            : kind == 'adjustment_reversal'
               ? role == 'admin' && validSparkAdjustmentReversal(groupId, operationId)
-              : request.resource.data.kind in ['dated_adjustment', 'dated_reconciliation', 'monthly_opening']
-                ? role == 'admin' && validSparkDatedChange(groupId, operationId)
               : validSparkPairOperation(groupId, operationId, role));
     }
 
+    // [[Operações Ordinárias Spark]]: efeito atual respeita a referência, histórico conserva a data.
+    function sparkMovementEffect(groupId, accountId, at, delta) {
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(accountId);
+      return !exists(path) || at > get(path).data.effectiveAt || (at == get(path).data.effectiveAt && get(path).data.includesBoundary) ? delta : 0;
+    }
+
+    function validSparkMovementText(data) {
+      return data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid
+        && data.effectiveAt is timestamp && data.effectiveAt >= timestamp.value(0) && data.effectiveAt <= request.time
+        && data.createdAt == request.time
+        && (data.note == null || data.note is string && data.note.size() <= 2000)
+        && (data.overdraftReason == null || data.overdraftReason is string && data.overdraftReason.size() <= 500);
+    }
+
+    function validSparkMovementBalance(balance, reason) {
+      return balance >= 0 || reason is string && reason.size() >= 3 && reason.matches('\\S([\\s\\S]*\\S)?');
+    }
+
+    function validSparkMovementQuota(groupId, operationId) {
+      let quota = getAfter(/databases/$(database)/documents/sparkTransferQuotas/$(request.auth.uid)).data;
+      return quota.groupId == groupId && quota.lastOperationId == operationId && quota.updatedAt == request.time;
+    }
+
+    function validSparkMetadataConfirmation(data) {
+      return isShortText(data.get('expectedFingerprint', null), 160) && isShortText(data.get('assistantRequestFingerprint', null), 160)
+        && isShortText(data.get('commandMaterial', null), 16000);
+    }
+    function validSparkAccountLifecycleReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let state = getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountStates/$(data.accountId)).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'expectedPositionRevision', 'expectedLifecycleRevision', 'isActive', 'archived', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'expectedPositionRevision', 'expectedLifecycleRevision', 'isActive', 'archived', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.accountId) && state.lastOperationId == operationId && state.updatedAt == request.time
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkAccountState(groupId, accountId) {
+      let data = request.resource.data;
+      let position = getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(accountId)).data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return sparkProofRole(groupId) == 'admin'
+        && data.keys().hasAll(['schemaVersion', 'accountId', 'isActive', 'archived', 'archivedAt', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'accountId', 'isActive', 'archived', 'archivedAt', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.accountId == accountId && validSparkId(accountId)
+        && data.isActive is bool && data.archived is bool && position.kind in ['bank', 'investment']
+        && position.active == (data.isActive && !data.archived) && position.revision == op.expectedPositionRevision
+        && data.archivedAt == (data.archived ? resource == null ? request.time : resource.data.get('archivedAt', null) == null ? request.time : resource.data.archivedAt : null)
+        && data.revision is int && data.revision >= 0 && data.revision <= 1000000000000
+        && data.revision == (resource == null ? 0 : resource.data.revision + 1)
+        && data.updatedAt == request.time && validSparkOperationId(data.lastOperationId) && !exists(path)
+        && op.kind == 'account_lifecycle_update' && op.actorId == request.auth.uid && op.createdAt == request.time && op.accountId == accountId
+        && op.expectedLifecycleRevision == (resource == null ? null : resource.data.revision)
+        && op.expectedPositionRevision is int && op.expectedPositionRevision >= 0 && op.expectedPositionRevision < 1000000000000
+        && [op.isActive, op.archived] == [data.isActive, data.archived];
+    }
+    function validSparkPositionLifecycle(groupId, accountId) {
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountStates/$(accountId);
+      let state = getAfter(path).data;
+      let previous = exists(path) ? get(path).data : { 'isActive': true, 'archived': false };
+      let operationPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(state.lastOperationId);
+      let op = getAfter(operationPath).data;
+      return sparkProofRole(groupId) == 'admin' && validSparkPosition(resource.data) && validSparkPosition(request.resource.data)
+        && resource.data.kind in ['bank', 'investment'] && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+        && resource.data.active == (previous.isActive && !previous.archived) && request.resource.data.active == (state.isActive && !state.archived)
+        && state.updatedAt == request.time && !exists(operationPath) && op.kind == 'account_lifecycle_update'
+        && op.accountId == accountId && op.actorId == request.auth.uid && op.createdAt == request.time;
+    }
+    function sparkMetadataOriginRequired(groupId, domain, recordId) {
+      let fields = domain == 'category'
+        ? ['schemaVersion', 'personId', 'groupId', 'name', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle', 'historyKnown', 'deleted', 'revision', 'lastOperationId', 'createdAt', 'updatedAt']
+        : ['schemaVersion', 'personId', 'groupId', 'annualRateInBasisPoints', 'effectiveFrom', 'revision', 'lastOperationId', 'createdAt', 'updatedAt'];
+      return resource == null || resource.data.get('schemaVersion', null) == 1 && resource.data.get('groupId', null) == groupId
+          && resource.data.keys().hasAll(fields) && resource.data.keys().hasOnly(fields)
+        || existsAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkMetadataOrigins/$(domain + '_' + recordId));
+    }
+    function validSparkMetadataOrigin(groupId, originId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.operationId);
+      let op = getAfter(path).data;
+      let collection = data.domain == 'category' ? 'tags' : 'investmentCdiRates';
+      let source = get(/databases/$(database)/documents/$(collection)/$(data.recordId)).data;
+      return isSparkProofMember(groupId)
+        && data.keys().hasAll(['schemaVersion', 'domain', 'recordId', 'source', 'operationId', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'domain', 'recordId', 'source', 'operationId', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.domain in ['category', 'cdi'] && validSparkId(data.recordId)
+        && originId == data.domain + '_' + data.recordId && source.personId == request.auth.uid && data.source == source
+        && data.createdAt == request.time && validSparkOperationId(data.operationId) && !exists(path)
+        && op.actorId == request.auth.uid && op.createdAt == request.time
+        && (data.domain == 'category' ? op.kind == 'category_save' && op.categoryId == data.recordId : op.kind == 'investment_cdi_update' && op.rateId == data.recordId);
+    }
+    function validSparkCdiReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let month = get(/databases/$(database)/documents/sparkCivilMonths/$(data.cycle)).data;
+      let rate = getAfter(/databases/$(database)/documents/investmentCdiRates/$(data.rateId)).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'rateId', 'cycle', 'day', 'effectiveFrom', 'annualRateInBasisPoints', 'expectedRevision', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'rateId', 'cycle', 'day', 'effectiveFrom', 'annualRateInBasisPoints', 'expectedRevision', 'createdAt', 'expectedFingerprint', 'assistantRequestFingerprint', 'commandMaterial'])
+        && validSparkMetadataConfirmation(data)
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkCycle(data.cycle) && data.day is int && data.day >= 1 && data.day <= month.dayEnds.size()
+        && data.rateId == request.auth.uid + '_' + data.cycle.split('-')[0] + data.cycle.split('-')[1] + (data.day < 10 ? '0' : '') + string(data.day)
+        && data.effectiveFrom == (data.day == 1 ? month.startAt : month.dayEnds[data.day - 2] + duration.value(1, 'ms'))
+        && rate.lastOperationId == operationId && rate.groupId == groupId
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkCdiWrite(rateId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(data.groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(data.groupId) && data.personId == request.auth.uid && sparkMetadataOriginRequired(data.groupId, 'cdi', rateId)
+        && data.keys().hasAll(['schemaVersion', 'personId', 'groupId', 'annualRateInBasisPoints', 'effectiveFrom', 'revision', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'personId', 'groupId', 'annualRateInBasisPoints', 'effectiveFrom', 'revision', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.createdAt is timestamp && data.updatedAt == request.time
+        && data.annualRateInBasisPoints is int && data.annualRateInBasisPoints >= 0 && data.annualRateInBasisPoints <= 100000
+        && data.effectiveFrom is timestamp && data.revision is int && data.revision >= 0 && data.revision <= 1000000000000
+        && validSparkOperationId(data.lastOperationId) && !exists(path)
+        && op.kind == 'investment_cdi_update' && op.rateId == rateId && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.expectedRevision == (resource == null ? null : resource.data.get('revision', null))
+        && data.revision == (op.expectedRevision == null ? 0 : op.expectedRevision + 1)
+        && [data.annualRateInBasisPoints, data.effectiveFrom] == [op.annualRateInBasisPoints, op.effectiveFrom]
+        && (resource == null ? data.createdAt == request.time : resource.data.personId == request.auth.uid
+          && resource.data.get('groupId', null) in [null, data.groupId]
+          && resource.data.effectiveFrom == data.effectiveFrom && data.createdAt == resource.data.get('createdAt', request.time));
+    }
+
+    function validSparkCategoryReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let category = getAfter(/databases/$(database)/documents/tags/$(data.categoryId)).data;
+      return data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.categoryId)
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'categoryId', 'expectedRevision', 'createdAt'])
+        && validSparkMetadataConfirmation(data)
+        && (data.kind == 'category_delete' ? data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'categoryId', 'expectedRevision', 'createdAt', 'expectedFingerprint', 'assistantRequestFingerprint', 'commandMaterial'])
+          : data.keys().hasAll(['name', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle'])
+            && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'categoryId', 'expectedRevision', 'createdAt', 'name', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle', 'expectedFingerprint', 'assistantRequestFingerprint', 'commandMaterial']))
+        && category.groupId == groupId && category.lastOperationId == operationId && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkCategoryWrite(categoryId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(data.groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(data.groupId) && data.personId == request.auth.uid && sparkMetadataOriginRequired(data.groupId, 'category', categoryId)
+        && data.keys().hasAll(['schemaVersion', 'personId', 'groupId', 'name', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle', 'historyKnown', 'deleted', 'revision', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'personId', 'groupId', 'name', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle', 'historyKnown', 'deleted', 'revision', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.name is string && data.name.size() > 0 && data.name.size() <= 160
+        && data.usageType in ['expense', 'gain', 'both'] && data.isMandatoryExpense is bool && data.isMandatoryGain is bool && data.showInBothLists is bool
+        && (data.usageType != 'gain' || !data.isMandatoryExpense) && (data.usageType != 'expense' || !data.isMandatoryGain)
+        && (!data.showInBothLists || (data.usageType == 'gain' || data.isMandatoryExpense) && (data.usageType == 'expense' || data.isMandatoryGain))
+        && isShortText(data.iconFamily, 100) && isShortText(data.iconName, 100) && isShortText(data.iconStyle, 100)
+        && data.historyKnown is bool && data.deleted is bool && data.revision is int && data.revision >= 0 && data.revision <= 1000000000000
+        && data.createdAt is timestamp && data.updatedAt == request.time && validSparkOperationId(data.lastOperationId) && !exists(path)
+        && op.kind in ['category_save', 'category_delete'] && op.categoryId == categoryId && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.expectedRevision == (resource == null ? null : resource.data.get('revision', null))
+        && data.revision == (op.expectedRevision == null ? 0 : op.expectedRevision + 1)
+        && (resource == null ? data.createdAt == request.time && data.historyKnown
+          : resource.data.personId == request.auth.uid && resource.data.get('groupId', null) in [null, data.groupId]
+            && resource.data.get('deleted', false) == false && data.createdAt == resource.data.get('createdAt', request.time)
+            && data.historyKnown == resource.data.get('historyKnown', false))
+        && (op.kind == 'category_delete' ? resource != null && resource.data.historyKnown && data.deleted
+            && data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'revision', 'lastOperationId', 'updatedAt'])
+            && !existsAfter(/databases/$(database)/documents/sparkCategoryReferences/$(categoryId))
+          : !data.deleted && [data.name, data.usageType, data.isMandatoryExpense, data.isMandatoryGain, data.showInBothLists, data.iconFamily, data.iconName, data.iconStyle]
+            == [op.name, op.usageType, op.isMandatoryExpense, op.isMandatoryGain, op.showInBothLists, op.iconFamily, op.iconName, op.iconStyle]);
+    }
+    function validSparkCategoryReference(categoryId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(data.groupId)/sparkOperations/$(data.operationId);
+      let op = getAfter(path).data;
+      let category = get(/databases/$(database)/documents/tags/$(categoryId)).data;
+      return isSparkProofMember(data.groupId)
+        && data.keys().hasAll(['schemaVersion', 'groupId', 'categoryId', 'operationId', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'groupId', 'categoryId', 'operationId', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.categoryId == categoryId && data.createdAt == request.time
+        && category.schemaVersion == 1 && category.groupId == data.groupId && !category.deleted
+        && validSparkOperationId(data.operationId) && !exists(path) && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.kind in ['income', 'expense', 'movement_correction', 'recurring_plan_create', 'recurring_plan_update', 'recurring_replan', 'recurring_settlement']
+        && op.categoryId == categoryId;
+    }
+    function validSparkMovementCategory(groupId, categoryId, kind) {
+      return categoryId == null || validSparkId(categoryId) && sparkReferencedCategoryScope(groupId, categoryId, kind);
+    }
+    function validSparkMovementDetailsReceipt(groupId, operationId, data) {
+      return data.get('hasDetails', false) == false ? !('details' in data) && !('hasDetails' in data)
+        // O guard do documento novo valida identidade, autoria e igualdade integral do mapa.
+        // Exigir o horário deste commit obriga sua criação atômica; repetir as validações estoura o orçamento.
+        : data.hasDetails == true
+          && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkMovementDetails/$(operationId)).data.createdAt == request.time;
+    }
+    function validSparkPaymentFormat(value) { return value is string && value.size() > 0 && value.size() <= 120 && value.matches('[\\s\\S]*\\S[\\s\\S]*'); }
+    function validSparkMovementDetails(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(operationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId)
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'operationId', 'name', 'explanation', 'paymentFormats', 'moneyFormat', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'operationId', 'name', 'explanation', 'paymentFormats', 'moneyFormat', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.operationId == operationId && validSparkOperationId(operationId)
+        && data.actorId == request.auth.uid && data.name is string && data.name.size() > 0 && data.name.size() <= 160
+        && data.name.matches('\\S([\\s\\S]*\\S)?')
+        && isShortText(data.explanation, 2000) && data.moneyFormat is bool && data.paymentFormats is list && data.paymentFormats.size() <= 8
+        && (data.paymentFormats.size() < 1 || validSparkPaymentFormat(data.paymentFormats[0]))
+        && (data.paymentFormats.size() < 2 || validSparkPaymentFormat(data.paymentFormats[1]))
+        && (data.paymentFormats.size() < 3 || validSparkPaymentFormat(data.paymentFormats[2]))
+        && (data.paymentFormats.size() < 4 || validSparkPaymentFormat(data.paymentFormats[3]))
+        && (data.paymentFormats.size() < 5 || validSparkPaymentFormat(data.paymentFormats[4]))
+        && (data.paymentFormats.size() < 6 || validSparkPaymentFormat(data.paymentFormats[5]))
+        && (data.paymentFormats.size() < 7 || validSparkPaymentFormat(data.paymentFormats[6]))
+        && (data.paymentFormats.size() < 8 || validSparkPaymentFormat(data.paymentFormats[7]))
+        && data.createdAt == request.time && !exists(path) && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.kind in ['income', 'expense', 'movement_correction'] && op.hasDetails == true
+        && op.details == {'name': data.name, 'explanation': data.explanation, 'paymentFormats': data.paymentFormats, 'moneyFormat': data.moneyFormat};
+    }
+    function sparkReferencedCategoryScope(groupId, categoryId, kind) {
+      let tag = get(/databases/$(database)/documents/tags/$(categoryId)).data;
+      return sparkMovementCategoryScope(groupId, tag, kind)
+        && (tag.get('schemaVersion', null) != 1 || existsAfter(/databases/$(database)/documents/sparkCategoryReferences/$(categoryId)));
+    }
+
+    function sparkMovementCategoryScope(groupId, tag, kind) {
+      return tag.get('deleted', false) == false && (tag.get('schemaVersion', null) != 1 || tag.groupId == groupId)
+        && (tag.get('groupId', null) == groupId || tag.get('personId', null) == request.auth.uid
+          || tag.get('personId', null) is string && get(/databases/$(database)/documents/users/$(tag.personId)).data.get('financialGroupId', null) == groupId)
+        && tag.get('usageType', 'both') in ['both', kind == 'income' ? 'gain' : 'expense'];
+    }
+
+    function sparkMovementClaimPath(groupId, data) {
+      return data.originalSource == 'imported'
+        ? /databases/$(database)/documents/financialGroups/$(groupId)/sparkImportedClaims/$(data.originalOperationId)
+        : /databases/$(database)/documents/financialGroups/$(groupId)/sparkMovementClaims/$(data.originalOperationId);
+    }
+
+    function validSparkMovementResolution(groupId, operationId, data) {
+      let path = sparkMovementClaimPath(groupId, data);
+      return data.originalSource in ['live', 'imported'] && validSparkOperationId(data.originalOperationId)
+        && !exists(path) && getAfter(path).data.reversalOperationId == operationId;
+    }
+
+    function validSparkMovementClaim(groupId, originalId, source) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.reversalOperationId);
+      let operation = getAfter(path).data;
+      let originalPath = source == 'imported'
+        ? /databases/$(database)/documents/financialGroups/$(groupId)/sparkImportedIdentities/$(originalId)
+        : /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(originalId);
+      let original = get(originalPath).data;
+      let kind = original.kind == 'movement_correction' ? original.movementKind : original.kind;
+      let accountId = original.kind == 'movement_correction' ? original.toAccountId : original.accountId;
+      return isSparkProofMember(groupId) && data.keys().hasAll(['schemaVersion', 'actorId', 'reversalOperationId', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'reversalOperationId', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkOperationId(originalId) && validSparkOperationId(data.reversalOperationId) && !exists(path)
+        && (source == 'live' || original.ordinaryResolutionAllowed == true)
+        && original.kind in ['income', 'expense', 'movement_correction'] && kind in ['income', 'expense']
+        && (original.actorId == request.auth.uid || sparkProofRole(groupId) == 'admin')
+        && operation.kind in ['movement_reversal', 'movement_correction'] && operation.actorId == request.auth.uid && operation.createdAt == request.time
+        && operation.originalSource == source && operation.originalOperationId == originalId
+        && operation.movementKind == kind && operation.fromAccountId == accountId
+        && operation.originalDeltaInCents == (kind == 'income' ? 1 : -1) * original.amountInCents;
+    }
+
+    function validSparkMovement(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId);
+      let before = get(path).data;
+      let after = getAfter(path).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'differenceInCents', 'effectiveAt', 'expectedRevision', 'previousOperationId', 'currentEffectInCents', 'note', 'overdraftReason', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'amountInCents', 'categoryId', 'differenceInCents', 'effectiveAt', 'expectedRevision', 'previousOperationId', 'currentEffectInCents', 'note', 'overdraftReason', 'createdAt', 'originalSource', 'originalOperationId', 'movementKind', 'fromAccountId', 'originalDeltaInCents', 'hasDetails', 'details', 'expectedFingerprint', 'assistantRequestFingerprint', 'commandMaterial'])
+        && validSparkMetadataConfirmation(data)
+        && (data.kind == 'movement_reversal' ? !data.keys().hasAny(['hasDetails', 'details']) : validSparkMovementDetailsReceipt(groupId, operationId, data))
+        && validSparkMovementText(data) && validSparkId(data.accountId) && before.kind in ['bank', 'cash']
+        && data.expectedRevision is int && isIntegerCents(data.differenceInCents) && isIntegerCents(data.currentEffectInCents)
+        && data.currentEffectInCents == sparkMovementEffect(groupId, data.accountId, data.effectiveAt, data.differenceInCents)
+        && validSparkPair(before, after, data.expectedRevision, operationId)
+        && after.balanceInCents == before.balanceInCents + data.currentEffectInCents
+        && validSparkMovementBalance(after.balanceInCents, data.overdraftReason) && validSparkMovementQuota(groupId, operationId)
+        && (data.kind == 'movement_reversal'
+          ? !data.keys().hasAny(['amountInCents', 'categoryId']) && data.accountId == data.fromAccountId
+            && data.differenceInCents == -data.originalDeltaInCents && validSparkMovementResolution(groupId, operationId, data)
+          : !data.keys().hasAny(['originalSource', 'originalOperationId', 'movementKind', 'fromAccountId', 'originalDeltaInCents'])
+            && isIntegerCents(data.amountInCents) && data.amountInCents > 0
+            && data.differenceInCents == (data.kind == 'income' ? 1 : -1) * data.amountInCents
+            && validSparkMovementCategory(groupId, data.categoryId, data.kind));
+    }
+
+    function validSparkMovementCorrection(groupId, operationId) {
+      let data = request.resource.data;
+      let fromPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.fromAccountId);
+      let toPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.toAccountId);
+      let from = get(fromPath).data;
+      let to = get(toPath).data;
+      let fromAfter = getAfter(fromPath).data;
+      let toAfter = getAfter(toPath).data;
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'originalSource', 'originalOperationId', 'movementKind', 'originalDeltaInCents', 'fromAccountId', 'toAccountId', 'amountInCents', 'differenceInCents', 'effectiveAt', 'categoryId', 'note', 'overdraftReason', 'fromRevision', 'toRevision', 'fromPreviousOperationId', 'toPreviousOperationId', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'originalSource', 'originalOperationId', 'movementKind', 'originalDeltaInCents', 'fromAccountId', 'toAccountId', 'amountInCents', 'differenceInCents', 'effectiveAt', 'categoryId', 'note', 'overdraftReason', 'fromRevision', 'toRevision', 'fromPreviousOperationId', 'toPreviousOperationId', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'createdAt', 'hasDetails', 'details', 'expectedFingerprint', 'assistantRequestFingerprint', 'commandMaterial'])
+        && validSparkMetadataConfirmation(data)
+        && validSparkMovementDetailsReceipt(groupId, operationId, data)
+        && validSparkMovementText(data) && validSparkId(data.fromAccountId) && validSparkId(data.toAccountId)
+        && from.kind in ['bank', 'cash'] && to.kind in ['bank', 'cash']
+        && data.fromRevision is int && data.toRevision is int
+        && isIntegerCents(data.amountInCents) && data.amountInCents > 0
+        && isIntegerCents(data.originalDeltaInCents) && data.movementKind in ['income', 'expense']
+        && isIntegerCents(data.differenceInCents) && isIntegerCents(data.fromCurrentEffectInCents) && isIntegerCents(data.toCurrentEffectInCents)
+        && data.differenceInCents == (data.movementKind == 'income' ? 1 : -1) * data.amountInCents
+        // Cada posição confere seus efeitos contra o próprio checkpoint; os dois heads abaixo obrigam esses updates.
+        && validSparkPair(from, fromAfter, data.fromRevision, operationId) && validSparkPair(to, toAfter, data.toRevision, operationId)
+        // Os guards obrigatórios das duas posições conferem efeito, saldo final e justificativa; evitar repeti-los no receipt.
+        && validSparkMovementCategory(groupId, data.categoryId, data.movementKind)
+        && validSparkMovementQuota(groupId, operationId) && validSparkMovementResolution(groupId, operationId, data);
+    }
+
+    // [[Recorrências Spark]]: definição protegida, ciclos separados e efeitos financeiros atômicos.
+    function validSparkCycle(cycle) {
+      return cycle is string && cycle.matches('^(19[7-9][0-9]|20[0-9]{2}|2100)-(0[1-9]|1[0-2])$');
+    }
+    function sparkRecurringMonthIndex(cycle) {
+      let at = get(/databases/$(database)/documents/sparkCivilMonths/$(cycle)).data.startAt;
+      return at.year() * 12 + at.month();
+    }
+    function validSparkRecurringContract(data) {
+      return validSparkCycle(data.startCycle) && isIntegerCents(data.valueInCents) && data.valueInCents > 0
+        && (data.installmentTotal == null ? data.contractTotalInCents == null && data.endCycle == null
+          : data.installmentTotal is int && data.installmentTotal >= 1 && data.installmentTotal <= 360
+            && isIntegerCents(data.contractTotalInCents) && data.contractTotalInCents > 0
+            && data.valueInCents == int(data.contractTotalInCents / data.installmentTotal)
+            && validSparkCycle(data.endCycle)
+            && sparkRecurringMonthIndex(data.endCycle) - sparkRecurringMonthIndex(data.startCycle) == data.installmentTotal - 1);
+    }
+    function validSparkRecurringCreationReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.planId);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'planId', 'recurringType', 'name', 'categoryId', 'startCycle', 'endCycle', 'valueInCents', 'installmentTotal', 'contractTotalInCents', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'recurringType', 'name', 'categoryId', 'startCycle', 'endCycle', 'valueInCents', 'installmentTotal', 'contractTotalInCents', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.planId) && !exists(path) && getAfter(path).data.lastOperationId == operationId
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkRecurringPlanCreate(groupId, planId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId) && validSparkId(planId)
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'recurringType', 'name', 'categoryId', 'startCycle', 'endCycle', 'historyFromCycle', 'valueInCents', 'installmentTotal', 'contractTotalInCents', 'active', 'revision', 'installmentsCompleted', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'recurringType', 'name', 'categoryId', 'startCycle', 'endCycle', 'historyFromCycle', 'valueInCents', 'installmentTotal', 'contractTotalInCents', 'active', 'revision', 'installmentsCompleted', 'predecessorPlanId', 'replanOriginOperationId', 'lastOperationId', 'createdAt', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid
+        && data.recurringType in ['gain', 'expense'] && data.name is string && data.name.size() >= 1 && data.name.size() <= 160 && data.name.matches('\\S([\\s\\S]*\\S)?')
+        && data.active == true && data.revision is int && data.revision == 0 && data.installmentsCompleted is int && data.installmentsCompleted == 0
+        && data.historyFromCycle == data.startCycle
+        && validSparkOperationId(data.lastOperationId) && !exists(path) && data.createdAt == request.time && data.updatedAt == request.time
+        && op.actorId == request.auth.uid && op.createdAt == request.time
+        && (op.kind == 'recurring_plan_create' ? op.planId == planId && !data.keys().hasAny(['predecessorPlanId', 'replanOriginOperationId'])
+          : op.kind == 'recurring_replan' && op.replacementPlanId == planId && data.predecessorPlanId == op.planId
+            && data.replanOriginOperationId == data.lastOperationId
+            && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(op.planId)).data.successorPlanId == planId)
+        && [data.recurringType, data.name, data.categoryId, data.startCycle, data.endCycle, data.valueInCents, data.installmentTotal, data.contractTotalInCents]
+          == [op.recurringType, op.name, op.categoryId, op.startCycle, op.endCycle, op.valueInCents, op.installmentTotal, op.contractTotalInCents]
+        && validSparkRecurringContract(data)
+        && validSparkMovementCategory(groupId, data.categoryId, data.recurringType == 'gain' ? 'income' : 'expense');
+    }
+    function validSparkRecurringUpdateReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.planId);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'planId', 'expectedPlanRevision', 'name', 'categoryId', 'valueInCents', 'active', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'expectedPlanRevision', 'name', 'categoryId', 'valueInCents', 'active', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.planId) && data.expectedPlanRevision is int
+        && getAfter(path).data.revision == get(path).data.revision + 1 && getAfter(path).data.lastOperationId == operationId
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkRecurringMetadata(before, after, op, groupId) {
+      return after.diff(before).affectedKeys().hasOnly(['name', 'categoryId', 'valueInCents', 'active', 'revision', 'lastOperationId', 'updatedAt'])
+        && after.name is string && after.name.size() >= 1 && after.name.size() <= 160 && after.name.matches('\\S([\\s\\S]*\\S)?')
+        && after.active is bool && isIntegerCents(after.valueInCents) && after.valueInCents > 0
+        && (before.installmentTotal == null || after.valueInCents == before.valueInCents)
+        && [after.name, after.categoryId, after.valueInCents, after.active] == [op.name, op.categoryId, op.valueInCents, op.active]
+        && validSparkMovementCategory(groupId, after.categoryId, before.recurringType == 'gain' ? 'income' : 'expense');
+    }
+    // Replanejar apenas substitui o saldo negociado: o contrato/ciclos anteriores continuam imutáveis.
+    function validSparkRecurringReplanReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let oldPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.planId);
+      let nextPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.replacementPlanId);
+      return data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.planId) && validSparkId(data.replacementPlanId) && data.planId != data.replacementPlanId
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 2000 && data.reason.matches('\\S([\\s\\S]*\\S)?')
+        && getAfter(oldPath).data.lastOperationId == operationId && getAfter(nextPath).data.lastOperationId == operationId
+        && validSparkMovementQuota(groupId, operationId)
+        && (data.kind == 'recurring_replan'
+          ? data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'replacementPlanId', 'expectedPlanRevision', 'expectedMetadataRevision', 'name', 'reason', 'categoryId', 'recurringType', 'startCycle', 'endCycle', 'valueInCents', 'installmentTotal', 'contractTotalInCents', 'originalContractTotalInCents', 'originalInstallmentTotal', 'originalInstallmentsCompleted', 'dueDay', 'usesBusinessDays', 'description', 'reminderConfigVersion', 'reminderEnabled', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'createdAt'])
+            && !exists(nextPath) && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringMetadata/$(data.replacementPlanId)).data.lastOperationId == operationId
+          : data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'replacementPlanId', 'replanOperationId', 'expectedPlanRevision', 'expectedReplacementRevision', 'reason', 'createdAt'])
+            && exists(nextPath));
+    }
+    function validSparkRecurringReplanOld(groupId, planId, before, after, op) {
+      let nextPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(op.replacementPlanId);
+      let metaPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringMetadata/$(planId);
+      let month = get(/databases/$(database)/documents/sparkCivilMonths/$(op.startCycle)).data;
+      let cyclePath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(planId)/cycles/$(op.startCycle);
+      return before.active && before.get('successorPlanId', null) == null && before.get('replanCancelled', false) == false
+        && before.installmentTotal != null && before.installmentsCompleted < before.installmentTotal
+        && after.diff(before).affectedKeys().hasOnly(['active', 'successorPlanId', 'replanOperationId', 'revision', 'lastOperationId', 'updatedAt'])
+        && after.active == false && after.successorPlanId == op.replacementPlanId && after.replanOperationId == after.lastOperationId
+        && op.expectedMetadataRevision == (exists(metaPath) ? get(metaPath).data.revision : null)
+        && [op.originalContractTotalInCents, op.originalInstallmentTotal, op.originalInstallmentsCompleted, op.recurringType]
+          == [before.contractTotalInCents, before.installmentTotal, before.installmentsCompleted, before.recurringType]
+        && month.endAt > request.time && (!exists(cyclePath) || get(cyclePath).data.active == false)
+        && !exists(nextPath) && getAfter(nextPath).data.predecessorPlanId == planId
+        && getAfter(nextPath).data.replanOriginOperationId == after.lastOperationId;
+    }
+    function validSparkRecurringReplanUndo(groupId, planId, before, after, op) {
+      let oldPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(op.planId);
+      let nextPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(op.replacementPlanId);
+      let old = get(oldPath).data;
+      let next = get(nextPath).data;
+      let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(op.replanOperationId)).data;
+      return original.kind == 'recurring_replan' && original.actorId == request.auth.uid
+        && original.planId == op.planId && original.replacementPlanId == op.replacementPlanId
+        && old.actorId == request.auth.uid && next.actorId == request.auth.uid && !old.active
+        && old.successorPlanId == op.replacementPlanId && old.replanOperationId == op.replanOperationId
+        && next.predecessorPlanId == op.planId && next.replanOriginOperationId == op.replanOperationId
+        && next.get('replanCancelled', false) == false && next.get('successorPlanId', null) == null && next.installmentsCompleted == 0
+        && old.revision == op.expectedPlanRevision && next.revision == op.expectedReplacementRevision
+        && getAfter(oldPath).data.lastOperationId == after.lastOperationId && getAfter(nextPath).data.lastOperationId == after.lastOperationId
+        && (planId == op.planId ? after.diff(before).affectedKeys().hasOnly(['active', 'successorPlanId', 'replanOperationId', 'revision', 'lastOperationId', 'updatedAt'])
+            && after.active == true && after.successorPlanId == null && after.replanOperationId == null
+          : planId == op.replacementPlanId && after.diff(before).affectedKeys().hasOnly(['active', 'replanCancelled', 'revision', 'lastOperationId', 'updatedAt'])
+            && after.active == false && after.replanCancelled == true);
+    }
+    function validSparkRecurringSettleTerms(groupId, plan, op) {
+      let month = get(/databases/$(database)/documents/sparkCivilMonths/$(op.cycle)).data;
+      let finite = plan.installmentTotal != null;
+      let negotiated = op.get('settlementMode', null) == 'negotiated';
+      let expected = finite ? int(plan.contractTotalInCents / plan.installmentTotal) * op.installmentsCount
+          + (plan.installmentsCompleted + op.installmentsCount == plan.installmentTotal ? plan.contractTotalInCents % plan.installmentTotal : 0)
+        : op.requestedAmountInCents == null ? plan.valueInCents : op.requestedAmountInCents;
+      return plan.active && op.cycle >= plan.startCycle && op.cycle >= plan.historyFromCycle
+        && (plan.endCycle != null && op.cycle > plan.endCycle
+          ? finite && op.get('lateSettlement', false) == true && op.note is string && op.note.size() > 0
+          : !op.keys().hasAny(['lateSettlement']))
+        && op.effectiveAt >= month.startAt && op.effectiveAt < month.endAt
+        && (op.requestedAmountInCents == null || isIntegerCents(op.requestedAmountInCents) && op.requestedAmountInCents > 0)
+        && (negotiated ? finite && plan.recurringType == 'expense' && isIntegerCents(op.contractAmountInCents) && op.contractAmountInCents == expected
+            && op.amountInCents == op.requestedAmountInCents && op.note is string && op.note.size() > 0
+          : !op.keys().hasAny(['settlementMode', 'contractAmountInCents'])
+            && op.amountInCents == expected && (finite ? op.requestedAmountInCents == null || op.requestedAmountInCents == expected : true))
+        && op.installmentsBefore == plan.installmentsCompleted
+        && (finite ? op.installmentsCount <= plan.installmentTotal - plan.installmentsCompleted && op.installmentsAfter == plan.installmentsCompleted + op.installmentsCount
+          : op.installmentsCount == 1 && op.installmentsAfter == 0)
+        && op.categoryId == plan.categoryId && op.recurringType == plan.recurringType
+        && op.differenceInCents == (plan.recurringType == 'gain' ? 1 : -1) * op.amountInCents
+        && validSparkMovementCategory(groupId, plan.categoryId, plan.recurringType == 'gain' ? 'income' : 'expense');
+    }
+    function validSparkRecurringUndoTerms(groupId, plan, op) {
+      let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(op.settlementOperationId)).data;
+      let cycle = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(op.planId)/cycles/$(op.cycle)).data;
+      return validSparkOperationId(op.settlementOperationId) && original.kind in ['recurring_settlement', 'imported_recurring_settlement'] && original.actorId == request.auth.uid
+        && !op.keys().hasAny(['settlementMode', 'contractAmountInCents', 'requestedAmountInCents', 'lateSettlement'])
+        && original.planId == op.planId && original.cycle == op.cycle && cycle.active && cycle.settlementOperationId == op.settlementOperationId
+        && op.accountId == original.accountId && op.amountInCents == original.amountInCents && op.installmentsCount == original.installmentsCount
+        && op.recurringType == plan.recurringType && op.recurringType == original.recurringType && op.differenceInCents == -original.differenceInCents
+        && op.installmentsBefore == plan.installmentsCompleted && op.installmentsAfter == cycle.installmentsBefore
+        && (plan.installmentTotal == null || plan.installmentsCompleted == cycle.installmentsAfter);
+    }
+    function validSparkRecurringPlanUpdate(groupId, planId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(after.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId) && before.actorId == request.auth.uid
+        && after.revision is int && after.revision == before.revision + 1 && after.revision <= 1000000000000
+        && after.installmentsCompleted is int && after.installmentsCompleted >= 0 && (before.installmentTotal == null ? after.installmentsCompleted == 0 : after.installmentsCompleted <= before.installmentTotal)
+        && validSparkOperationId(after.lastOperationId) && after.updatedAt == request.time && !exists(path)
+        && op.actorId == request.auth.uid && op.createdAt == request.time
+        && (op.kind == 'recurring_replan_reversal' ? validSparkRecurringReplanUndo(groupId, planId, before, after, op)
+          : op.planId == planId && op.expectedPlanRevision == before.revision
+          && (op.kind == 'recurring_replan' ? validSparkRecurringReplanOld(groupId, planId, before, after, op)
+          : before.get('successorPlanId', null) == null && before.get('replanCancelled', false) == false
+          && (op.kind == 'recurring_plan_update' ? validSparkRecurringMetadata(before, after, op, groupId)
+          : after.diff(before).affectedKeys().hasOnly(['revision', 'installmentsCompleted', 'lastOperationId', 'updatedAt'])
+            && after.installmentsCompleted == op.installmentsAfter
+            && (op.kind == 'recurring_settlement' ? validSparkRecurringSettleTerms(groupId, before, op)
+              : op.kind == 'recurring_reversal' && validSparkRecurringUndoTerms(groupId, before, op)))));
+    }
+    function validSparkRecurringCycle(groupId, planId, cycle) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId) && validSparkCycle(cycle)
+        && data.keys().hasAll(['schemaVersion', 'active', 'revision', 'settlementOperationId', 'lastOperationId', 'accountId', 'amountInCents', 'installmentsCount', 'installmentsBefore', 'installmentsAfter', 'effectiveAt', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'active', 'revision', 'settlementOperationId', 'lastOperationId', 'accountId', 'amountInCents', 'installmentsCount', 'installmentsBefore', 'installmentsAfter', 'settlementMode', 'contractAmountInCents', 'lateSettlement', 'effectiveAt', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && validSparkOperationId(data.lastOperationId)
+        && data.revision is int && data.revision == (resource == null ? 0 : resource.data.revision + 1)
+        && data.updatedAt == request.time && !exists(path) && op.actorId == request.auth.uid && op.createdAt == request.time
+        && op.planId == planId && op.cycle == cycle
+        && (op.kind == 'recurring_settlement' ? data.active == true && (resource == null || resource.data.active == false)
+            && data.settlementOperationId == data.lastOperationId && data.accountId == op.accountId && data.amountInCents == op.amountInCents
+            && (op.get('lateSettlement', false) == true ? data.get('lateSettlement', false) == true : !data.keys().hasAny(['lateSettlement']))
+            && (op.get('settlementMode', null) == 'negotiated'
+              ? data.settlementMode == 'negotiated' && isIntegerCents(data.contractAmountInCents) && data.contractAmountInCents == op.contractAmountInCents
+              : !data.keys().hasAny(['settlementMode', 'contractAmountInCents']))
+            && data.installmentsCount == op.installmentsCount && data.installmentsBefore == op.installmentsBefore && data.installmentsAfter == op.installmentsAfter && data.effectiveAt == op.effectiveAt
+          : op.kind == 'recurring_reversal' && resource != null && resource.data.active && data.active == false
+            && data.settlementOperationId == op.settlementOperationId
+            && data.diff(resource.data).affectedKeys().hasOnly(['active', 'revision', 'lastOperationId', 'updatedAt']));
+    }
+    function validSparkRecurringMovement(groupId, operationId) {
+      let data = request.resource.data;
+      let positionPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId);
+      let before = get(positionPath).data;
+      let after = getAfter(positionPath).data;
+      let planPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.planId);
+      let cyclePath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(data.planId)/cycles/$(data.cycle);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'planId', 'cycle', 'expectedPlanRevision', 'effectiveAt', 'note', 'overdraftReason', 'accountId', 'amountInCents', 'installmentsCount', 'recurringType', 'differenceInCents', 'currentEffectInCents', 'expectedRevision', 'previousOperationId', 'installmentsBefore', 'installmentsAfter', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'cycle', 'expectedPlanRevision', 'effectiveAt', 'note', 'overdraftReason', 'accountId', 'amountInCents', 'installmentsCount', 'requestedAmountInCents', 'settlementMode', 'contractAmountInCents', 'lateSettlement', 'recurringType', 'categoryId', 'differenceInCents', 'currentEffectInCents', 'expectedRevision', 'previousOperationId', 'installmentsBefore', 'installmentsAfter', 'settlementOperationId', 'createdAt'])
+        && validSparkMovementText(data) && validSparkId(data.planId) && validSparkCycle(data.cycle) && validSparkId(data.accountId)
+        && isIntegerCents(data.amountInCents) && data.amountInCents > 0 && isIntegerCents(data.differenceInCents) && isIntegerCents(data.currentEffectInCents)
+        && data.installmentsCount is int && data.installmentsCount >= 1 && data.installmentsCount <= 360
+        && data.expectedRevision is int && data.expectedPlanRevision is int && before.kind in ['bank', 'cash']
+        && validSparkPair(before, after, data.expectedRevision, operationId)
+        && data.currentEffectInCents == sparkMovementEffect(groupId, data.accountId, data.effectiveAt, data.differenceInCents)
+        && after.balanceInCents == before.balanceInCents + data.currentEffectInCents && validSparkMovementBalance(after.balanceInCents, data.overdraftReason)
+        && getAfter(planPath).data.revision == get(planPath).data.revision + 1 && getAfter(planPath).data.lastOperationId == operationId
+        && getAfter(cyclePath).data.revision == (exists(cyclePath) ? get(cyclePath).data.revision + 1 : 0) && getAfter(cyclePath).data.lastOperationId == operationId
+        && validSparkMovementQuota(groupId, operationId)
+        && (data.kind == 'recurring_settlement' ? !('settlementOperationId' in data)
+          : !data.keys().hasAny(['requestedAmountInCents', 'categoryId']));
+    }
+
+    function validSparkRecurringMetadataFields(data) {
+      return (data.dueDay == null || data.dueDay is int && data.dueDay >= 1 && data.dueDay <= 31)
+        && data.usesBusinessDays is bool && (data.description == null || data.description is string && data.description.size() <= 2000)
+        && data.reminderConfigVersion is int && data.reminderConfigVersion == 1 && data.reminderEnabled is bool && data.reminderOnDueDate is bool
+        && data.reminderDaysBefore is int && data.reminderDaysBefore >= 0 && data.reminderDaysBefore <= 3
+        && data.reminderHour is int && data.reminderHour >= 0 && data.reminderHour <= 23
+        && data.reminderMinute is int && data.reminderMinute >= 0 && data.reminderMinute <= 59
+        && (!data.reminderEnabled || data.dueDay != null && (data.reminderDaysBefore > 0 || data.reminderOnDueDate));
+    }
+    function validSparkRecurringMetadataReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringMetadata/$(data.planId);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'planId', 'expectedMetadataRevision', 'dueDay', 'usesBusinessDays', 'description', 'reminderConfigVersion', 'reminderEnabled', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'planId', 'expectedMetadataRevision', 'dueDay', 'usesBusinessDays', 'description', 'reminderConfigVersion', 'reminderEnabled', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time && validSparkId(data.planId)
+        && getAfter(path).data.lastOperationId == operationId && getAfter(path).data.revision == (exists(path) ? get(path).data.revision + 1 : 0)
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkRecurringMetadataWrite(groupId, planId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      return isSparkProofMember(groupId) && getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkRecurringPlans/$(planId)).data.actorId == request.auth.uid
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'dueDay', 'usesBusinessDays', 'description', 'reminderConfigVersion', 'reminderEnabled', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'dueDay', 'usesBusinessDays', 'description', 'reminderConfigVersion', 'reminderEnabled', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.updatedAt == request.time
+        && data.revision is int && data.revision >= 0 && data.revision <= 1000000000000
+        && data.revision == (resource == null ? 0 : resource.data.revision + 1)
+        && validSparkOperationId(data.lastOperationId) && !exists(path)
+        && op.actorId == request.auth.uid && op.createdAt == request.time
+        && (op.kind == 'recurring_metadata_update' ? op.planId == planId && op.expectedMetadataRevision == (resource == null ? null : resource.data.revision)
+          : op.kind == 'recurring_replan' && resource == null && data.revision == 0 && op.replacementPlanId == planId)
+        && [data.dueDay, data.usesBusinessDays, data.description, data.reminderConfigVersion, data.reminderEnabled, data.reminderDaysBefore, data.reminderOnDueDate, data.reminderHour, data.reminderMinute]
+          == [op.dueDay, op.usesBusinessDays, op.description, op.reminderConfigVersion, op.reminderEnabled, op.reminderDaysBefore, op.reminderOnDueDate, op.reminderHour, op.reminderMinute]
+        && validSparkRecurringMetadataFields(data);
+    }
+    // [[Cadastros de Contas Spark]]: catálogo tem revisão própria e nunca muda saldo.
+    function sparkAccountCatalogValues(data) {
+      return [data.name, data.colorHex, data.iconKey, data.bankAccountId, data.assetType,
+        data.valuationMethod, data.cdiPercentageInBasisPoints, data.redemptionTerm, data.description];
+    }
+    function validSparkAccountCatalogFields(data) {
+      return data.accountKind in ['bank', 'cash', 'investment']
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 160 && data.name.matches('\\S([\\s\\S]*\\S)?')
+        && (data.colorHex == null || data.colorHex is string && data.colorHex.matches('#[0-9a-fA-F]{6}'))
+        && (data.iconKey == null || data.iconKey is string && data.iconKey.size() <= 160)
+        && (data.redemptionTerm == null || data.redemptionTerm is string && data.redemptionTerm.size() <= 300)
+        && (data.description == null || data.description is string && data.description.size() <= 2000)
+        && (data.accountKind == 'investment'
+          ? (data.bankAccountId == null || validSparkId(data.bankAccountId))
+            && data.assetType in ['fixed_income', 'treasury', 'stock', 'fund'] && data.valuationMethod in ['cdi', 'manual']
+            && (data.valuationMethod != 'cdi' || data.assetType == 'fixed_income')
+            && data.cdiPercentageInBasisPoints is int && data.cdiPercentageInBasisPoints >= 0 && data.cdiPercentageInBasisPoints <= 1000000
+          : [data.bankAccountId, data.assetType, data.valuationMethod, data.cdiPercentageInBasisPoints, data.redemptionTerm, data.description] == [null, null, null, null, null, null]);
+    }
+    function validSparkAccountCatalogReceipt(groupId, operationId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkAccountCatalog/$(data.accountId);
+      return data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'expectedCatalogRevision', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'expectedCatalogRevision', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'createdAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.createdAt == request.time
+        && validSparkId(data.accountId) && (data.expectedCatalogRevision == null || data.expectedCatalogRevision is int)
+        && getAfter(path).data.lastOperationId == operationId
+        && getAfter(path).data.revision == (exists(path) ? get(path).data.revision + 1 : 0)
+        && validSparkMovementQuota(groupId, operationId);
+    }
+    function validSparkAccountCatalogWrite(groupId, accountId) {
+      let data = request.resource.data;
+      let path = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.lastOperationId);
+      let op = getAfter(path).data;
+      let position = getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(accountId)).data;
+      return sparkProofRole(groupId) == 'admin'
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'accountKind', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'accountKind', 'name', 'colorHex', 'iconKey', 'bankAccountId', 'assetType', 'valuationMethod', 'cdiPercentageInBasisPoints', 'redemptionTerm', 'description', 'revision', 'lastOperationId', 'updatedAt'])
+        && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid && data.updatedAt == request.time
+        && data.revision is int && data.revision >= 0 && data.revision <= 1000000000000
+        && data.revision == (resource == null ? 0 : resource.data.revision + 1)
+        && position.kind == data.accountKind && position.active
+        && validSparkOperationId(data.lastOperationId) && !exists(path) && op.actorId == request.auth.uid && op.createdAt == request.time
+        && (op.kind == 'investment_opening' ? op.toAccountId : op.accountId) == accountId && op.accountKind == data.accountKind
+        && (op.kind in ['account_opening', 'bank_opening', 'investment_opening'] ? resource == null && position.lastOperationId == data.lastOperationId
+          : op.kind == 'account_catalog_update' && op.expectedCatalogRevision == (resource == null ? null : resource.data.revision))
+        && sparkAccountCatalogValues(data) == sparkAccountCatalogValues(op) && validSparkAccountCatalogFields(data)
+        && (data.bankAccountId == null || data.bankAccountId != accountId
+          && get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.bankAccountId)).data.kind == 'bank'
+          && get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.bankAccountId)).data.active);
+    }
     function validSparkBalanceChange(groupId, operationId) {
       let data = request.resource.data;
       let positionPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId);
@@ -285,12 +1241,13 @@ service cloud.firestore {
         && (operation.kind == 'monthly_activation'
           ? data.get('activationOperationId', null) is string && data.operationId == operation.baselineOperationId
             && data.includesBoundary == operation.includesBoundary
-          : operation.kind in ['account_count', 'dated_reconciliation', 'monthly_opening']
+          : operation.kind in ['account_count', 'dated_reconciliation', 'investment_sync', 'investment_edit_valuation', 'investment_valuation_reversal', 'investment_opening', 'bank_opening', 'monthly_opening']
             && !('activationOperationId' in data) && data.includesBoundary == (operation.kind == 'monthly_opening'))
         && data.effectiveAt == operation.get('effectiveAt', request.time)
         && data.effectiveAt <= request.time
         && (resource == null || data.effectiveAt >= resource.data.effectiveAt)
-        && operation.accountId == accountId && operation.targetBalanceInCents == data.countedBalanceInCents
+        && (operation.kind in ['investment_opening', 'bank_opening'] ? (operation.kind == 'investment_opening' ? operation.toAccountId : operation.accountId) == accountId && operation.openingBalanceInCents == data.countedBalanceInCents
+          : operation.accountId == accountId && operation.targetBalanceInCents == data.countedBalanceInCents)
         && operation.createdAt == request.time;
     }
 
@@ -328,6 +1285,13 @@ service cloud.firestore {
         && quota.groupId == groupId && quota.lastOperationId == operationId && quota.updatedAt == request.time;
     }
 
+    function validSparkPairDate(data) {
+      return data.dated is bool && (data.dated
+        ? data.effectiveAt is timestamp && data.effectiveAt >= timestamp.value(0) && data.effectiveAt <= request.time
+          && data.keys().hasAll(['fromCurrentEffectInCents', 'toCurrentEffectInCents'])
+          && isIntegerCents(data.fromCurrentEffectInCents) && isIntegerCents(data.toCurrentEffectInCents)
+        : !data.keys().hasAny(['effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents']));
+    }
     function validSparkPairOperation(groupId, operationId, role) {
       let data = request.resource.data;
       let fromPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.fromAccountId);
@@ -338,39 +1302,50 @@ service cloud.firestore {
       let toAfter = getAfter(toPath).data;
       let quota = getAfter(/databases/$(database)/documents/sparkTransferQuotas/$(request.auth.uid)).data;
       return validSparkOperationId(operationId)
-        && data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'amountInCents', 'fromRevision', 'toRevision', 'note', 'overdraftReason', 'createdAt'])
-        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'fromAccountId', 'toAccountId', 'amountInCents', 'fromRevision', 'toRevision', 'fromPreviousOperationId', 'toPreviousOperationId', 'note', 'overdraftReason', 'createdAt', 'reversesOperationId'])
+        && data.keys().hasAll(['schemaVersion', 'actorId', 'kind', 'dated', 'fromAccountId', 'toAccountId', 'amountInCents', 'fromRevision', 'toRevision', 'note', 'overdraftReason', 'createdAt'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'dated', 'fromAccountId', 'toAccountId', 'amountInCents', 'fromRevision', 'toRevision', 'fromPreviousOperationId', 'toPreviousOperationId', 'note', 'overdraftReason', 'createdAt', 'reversesOperationId', 'originalSource', 'effectiveAt', 'fromCurrentEffectInCents', 'toCurrentEffectInCents', 'expectedFromRevision', 'expectedToRevision'])
         && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid
         && validSparkId(data.fromAccountId) && validSparkId(data.toAccountId) && data.fromAccountId != data.toAccountId
         && isIntegerCents(data.amountInCents) && data.amountInCents > 0
         && data.fromRevision is int && data.toRevision is int
+        && (!data.keys().hasAny(['expectedFromRevision']) || data.expectedFromRevision is int && data.expectedFromRevision == from.revision)
+        && (!data.keys().hasAny(['expectedToRevision']) || data.expectedToRevision is int && data.expectedToRevision == to.revision)
+        && validSparkPairDate(data)
         && (data.note == null || (data.note is string && data.note.size() <= 2000))
         && (data.overdraftReason == null || (data.overdraftReason is string && data.overdraftReason.size() <= 500))
         && data.createdAt == request.time
         && quota.groupId == groupId && quota.lastOperationId == operationId && quota.updatedAt == request.time
         && (data.kind == 'transfer_reversal'
           ? validSparkTransferReversal(groupId, operationId, data, role)
-          : !('reversesOperationId' in data) && validSparkKinds(data.kind, from.kind, to.kind))
+          : !data.keys().hasAny(['reversesOperationId', 'originalSource']) && validSparkKinds(data.kind, from.kind, to.kind))
         && validSparkPair(from, fromAfter, data.fromRevision, operationId)
         && validSparkPair(to, toAfter, data.toRevision, operationId)
-        && fromAfter.balanceInCents == from.balanceInCents - data.amountInCents
-        && toAfter.balanceInCents == to.balanceInCents + data.amountInCents
+        && fromAfter.balanceInCents == from.balanceInCents + data.get('fromCurrentEffectInCents', -data.amountInCents)
+        && toAfter.balanceInCents == to.balanceInCents + data.get('toCurrentEffectInCents', data.amountInCents)
         && ((fromAfter.balanceInCents >= 0 && toAfter.balanceInCents >= 0)
           || (data.overdraftReason is string && data.overdraftReason.size() >= 3
             && data.overdraftReason.matches('\\S([\\s\\S]*\\S)?')));
     }
 
     // [[Protocolo Financeiro Spark]]: projeção completa em passos limitados, sem query como autoridade.
+    function validSparkValuationUndoProof(groupId, data, position) {
+      let original = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.excludedCheckpointOperationId)).data;
+      let reference = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkCheckpoints/$(data.accountId)).data;
+      return position.kind == 'investment' && validSparkOperationId(data.excludedCheckpointOperationId)
+        && original.kind in ['investment_sync', 'investment_edit_valuation'] && original.accountId == data.accountId
+        && original.effectiveAt == data.asOf && reference.operationId == data.excludedCheckpointOperationId;
+    }
     function validSparkProofCreate(groupId, proofId) {
       let data = request.resource.data;
       let position = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/$(data.accountId)).data;
       return (sparkProofRole(groupId) == 'admin' || (data.purpose == 'activation' && isSparkProofMember(groupId))) && validSparkOperationId(proofId)
         && data.keys().hasAll(['schemaVersion', 'actorId', 'accountId', 'asOf', 'purpose', 'headRevision', 'headOperationId', 'phase', 'cursorRevision', 'nextOperationId', 'baselineAt', 'baselineRevision', 'baselineOperationId', 'nextCheckpointAt', 'baselineBalanceInCents', 'includesBoundary', 'latestCheckpointAt', 'balanceInCents', 'tailDeltaInCents', 'createdAt', 'updatedAt', 'workRevision', 'leaseRevision', 'leaseWindowStartInMillis', 'leaseEndWorkRevision', 'segmentId'])
-        && data.keys().hasOnly(['schemaVersion', 'actorId', 'accountId', 'asOf', 'purpose', 'headRevision', 'headOperationId', 'phase', 'cursorRevision', 'nextOperationId', 'baselineAt', 'baselineRevision', 'baselineOperationId', 'nextCheckpointAt', 'baselineBalanceInCents', 'includesBoundary', 'latestCheckpointAt', 'balanceInCents', 'tailDeltaInCents', 'createdAt', 'updatedAt', 'workRevision', 'leaseRevision', 'leaseWindowStartInMillis', 'leaseEndWorkRevision', 'segmentId'])
+        && data.keys().hasOnly(['schemaVersion', 'actorId', 'accountId', 'asOf', 'purpose', 'excludedCheckpointOperationId', 'headRevision', 'headOperationId', 'phase', 'cursorRevision', 'nextOperationId', 'baselineAt', 'baselineRevision', 'baselineOperationId', 'nextCheckpointAt', 'baselineBalanceInCents', 'includesBoundary', 'latestCheckpointAt', 'balanceInCents', 'tailDeltaInCents', 'createdAt', 'updatedAt', 'workRevision', 'leaseRevision', 'leaseWindowStartInMillis', 'leaseEndWorkRevision', 'segmentId'])
         && data.schemaVersion is int && data.schemaVersion == 1 && data.actorId == request.auth.uid
         && validSparkId(data.accountId) && data.asOf is timestamp && data.asOf >= timestamp.value(0)
         && (data.asOf <= request.time || (data.purpose == 'monthly' && data.asOf <= timestamp.date(2100, 12, 31)))
-        && data.purpose in ['instant', 'monthly', 'activation'] && position.active == true
+        && (data.purpose == 'valuation_undo' ? validSparkValuationUndoProof(groupId, data, position)
+          : data.purpose in ['instant', 'monthly', 'activation'] && !('excludedCheckpointOperationId' in data)) && position.active == true
         && data.headRevision is int && data.headRevision >= 0 && data.headRevision <= 1000000000000
         && data.headRevision == position.revision && data.headOperationId == position.lastOperationId
         && validSparkOperationId(data.headOperationId) && data.phase == 'checkpoints'
@@ -389,14 +1364,21 @@ service cloud.firestore {
     }
 
     function sparkProofIncludesMovement(before, at) { return sparkProofStateIncludes(before, before, at); }
+    function sparkProofIncludesCommitted(context, state, operation, at) {
+      return sparkProofStateIncludes(context, state, at)
+        || !('effectiveAt' in operation) && state.baselineAt != null && at == state.baselineAt && state.cursorRevision > state.baselineRevision
+          && (at < context.asOf || at == context.asOf && context.purpose != 'monthly');
+    }
 
-    function sparkProofIsCheckpoint(operation) {
-      return operation.kind in ['account_bootstrap', 'account_count', 'dated_reconciliation', 'monthly_opening', 'imported_checkpoint'];
+    function sparkProofIsCheckpoint(operation, accountId) {
+      return operation.kind in ['bank_opening', 'account_bootstrap', 'account_count', 'dated_reconciliation', 'investment_sync', 'investment_edit_valuation', 'investment_valuation_reversal', 'monthly_opening', 'imported_checkpoint']
+        || operation.kind == 'investment_opening' && operation.toAccountId == accountId;
     }
 
     function validSparkProofCheckpoint(context, state, after, operation) {
       let at = operation.get('effectiveAt', operation.createdAt);
-      let checkpoint = sparkProofIsCheckpoint(operation);
+      let checkpoint = sparkProofIsCheckpoint(operation, context.accountId)
+        && !(context.purpose == 'valuation_undo' && state.nextOperationId == context.excludedCheckpointOperationId);
       let select = checkpoint && at <= context.asOf
         && (state.baselineAt == null || at > state.baselineAt || (at == state.baselineAt && state.cursorRevision > state.baselineRevision));
       let latest = checkpoint && at <= context.createdAt && (state.latestCheckpointAt == null || at > state.latestCheckpointAt);
@@ -424,28 +1406,29 @@ service cloud.firestore {
 
     function validSparkProofMovement(context, state, after, operation) {
       let at = operation.get('effectiveAt', operation.createdAt);
-      let delta = 'accountId' in operation ? operation.differenceInCents : (operation.fromAccountId == context.accountId ? -1 : 1) * operation.amountInCents;
+      let delta = sparkSegmentDelta(operation, context.accountId);
       return sparkProofSameBaseline(state, after)
         && (operation.kind == 'adjustment_replacement'
           ? after.balanceInCents == state.balanceInCents + (sparkProofStateIncludes(context, state, at) ? delta : 0)
               - (sparkProofStateIncludes(context, state, operation.originalEffectiveAt) ? operation.originalDifferenceInCents : 0)
             && after.tailDeltaInCents == state.tailDeltaInCents + (sparkProofTail(context, at) ? delta : 0)
               - (sparkProofTail(context, operation.originalEffectiveAt) ? operation.originalDifferenceInCents : 0)
-          : after.balanceInCents == state.balanceInCents + (sparkProofStateIncludes(context, state, at) ? delta : 0)
+          : after.balanceInCents == state.balanceInCents + (sparkProofIncludesCommitted(context, state, operation, at) ? delta : 0)
             && after.tailDeltaInCents == state.tailDeltaInCents + (sparkProofTail(context, at) ? delta : 0));
     }
 
     function validSparkProofNode(groupId, context, state, after) {
       let operation = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(state.nextOperationId)).data;
-      let root = operation.kind in ['account_opening', 'account_bootstrap'];
+      let root = operation.kind in ['account_opening', 'bank_opening', 'account_bootstrap'] || operation.kind == 'investment_opening' && operation.toAccountId == context.accountId;
       let single = 'accountId' in operation;
       let from = operation.get('fromAccountId', null) == context.accountId;
-      let previous = root ? null : single ? operation.previousOperationId : from ? operation.fromPreviousOperationId : operation.toPreviousOperationId;
-      let checkpoint = sparkProofIsCheckpoint(operation);
-      return (single ? operation.accountId == context.accountId : from || operation.toAccountId == context.accountId)
-        && state.cursorRevision == (root ? 0 : single ? operation.expectedRevision + 1 : (from ? operation.fromRevision : operation.toRevision) + 1)
-        && (state.cursorRevision == 0 ? previous == null : validSparkOperationId(previous))
-        && after.cursorRevision == state.cursorRevision - 1 && after.nextOperationId == previous
+      let refund = operation.kind == 'investment_funding_change' && operation.refundAccountId == context.accountId;
+      let previous = root ? '' : single ? operation.previousOperationId : refund ? operation.refundPreviousOperationId : from ? operation.fromPreviousOperationId : operation.toPreviousOperationId;
+      let checkpoint = sparkProofIsCheckpoint(operation, context.accountId);
+      return (single ? operation.accountId == context.accountId : refund || from || operation.toAccountId == context.accountId)
+        && state.cursorRevision == (root ? 0 : single ? operation.expectedRevision + 1 : (refund ? operation.refundRevision : from ? operation.fromRevision : operation.toRevision) + 1)
+        && (state.cursorRevision == 0 ? root : validSparkOperationId(previous))
+        && after.cursorRevision == state.cursorRevision - 1 && (root ? after.nextOperationId == null : after.nextOperationId == previous)
         && (context.phase == 'checkpoints' && checkpoint ? validSparkProofCheckpoint(context, state, after, operation)
           : context.phase == 'movements' && !checkpoint && !root ? validSparkProofMovement(context, state, after, operation)
           : sparkProofSameBaseline(state, after) && after.balanceInCents == state.balanceInCents && after.tailDeltaInCents == state.tailDeltaInCents);
@@ -494,24 +1477,24 @@ service cloud.firestore {
         + (data.phase == 'checkpoints' ? data.headRevision + 2 : 0);
     }
 
-    function validSparkPreparationCharge(after, before, reads, writes, maxReads, maxWrites) {
+    function validSparkPreparationCharge(after, before, hadPrevious, reads, writes, maxReads, maxWrites) {
       return after.schemaVersion is int && after.schemaVersion == 1
         && after.windowStartInMillis is int && after.windowStartInMillis == int(request.time.toMillis() / 86400000) * 86400000
-        && (before == null || before.windowStartInMillis <= after.windowStartInMillis)
+        && (!hadPrevious || before.windowStartInMillis <= after.windowStartInMillis)
         && after.readUnits is int && after.readUnits <= maxReads
         && after.writeUnits is int && after.writeUnits <= maxWrites
-        && after.readUnits == (before != null && before.windowStartInMillis == after.windowStartInMillis ? before.readUnits : 0) + reads
-        && after.writeUnits == (before != null && before.windowStartInMillis == after.windowStartInMillis ? before.writeUnits : 0) + writes
+        && after.readUnits == (hadPrevious && before.windowStartInMillis == after.windowStartInMillis ? before.readUnits : 0) + reads
+        && after.writeUnits == (hadPrevious && before.windowStartInMillis == after.windowStartInMillis ? before.writeUnits : 0) + writes
         && after.updatedAt == request.time;
     }
 
-    function validSparkPreparationTotals(after, before, pages, maxReads, maxWrites) {
-      return validSparkPreparationCharge(after, before, 40 + 10 * pages, 3 + pages, maxReads, maxWrites);
+    function validSparkPreparationTotals(after, before, hadPrevious, pages, maxReads, maxWrites) {
+      return validSparkPreparationCharge(after, before, hadPrevious, 40 + 10 * pages, 3 + pages, maxReads, maxWrites);
     }
 
     function validSparkPreparationLease(groupId, proofId, data) {
       let path = /databases/$(database)/documents/sparkPreparationUserQuotas/$(request.auth.uid);
-      let previous = exists(path) ? get(path).data : null;
+      let previous = exists(path) ? get(path).data : {};
       let quota = getAfter(path).data;
       let pages = data.leaseEndWorkRevision - data.workRevision;
       return data.leaseRevision is int && data.leaseRevision > 0 && data.leaseWindowStartInMillis is int
@@ -519,25 +1502,26 @@ service cloud.firestore {
         && data.leaseEndWorkRevision is int && pages >= 1 && pages <= 64 && pages <= sparkPreparationRemaining(data)
         && quota.groupId == groupId && quota.proofId == proofId && quota.leaseRevision == data.leaseRevision
         && quota.reservedPages == pages && quota.windowStartInMillis == data.leaseWindowStartInMillis
-        && validSparkPreparationTotals(quota, previous, pages, 22000, 6000);
+        && validSparkPreparationTotals(quota, previous, exists(path), pages, 22000, 6000);
     }
 
     function validSparkPreparationSource(uid, quota) {
       let path = /databases/$(database)/documents/financialGroups/$(quota.groupId)/sparkHistoryProofs/$(quota.proofId);
-      let previous = exists(path) ? get(path).data : null;
+      let hadPrevious = exists(path);
+      let previous = hadPrevious ? get(path).data : {};
       let proof = getAfter(path).data;
       return quota.reservedPages is int && quota.reservedPages >= 1 && quota.reservedPages <= 64
         && validSparkId(quota.groupId) && validSparkOperationId(quota.proofId)
         && proof.actorId == uid && proof.updatedAt == request.time
-        && proof.leaseRevision == quota.leaseRevision && proof.leaseRevision == (previous == null ? 1 : previous.leaseRevision + 1)
-        && proof.workRevision == (previous == null ? 0 : previous.workRevision)
+        && proof.leaseRevision == quota.leaseRevision && proof.leaseRevision == (!hadPrevious ? 1 : previous.leaseRevision + 1)
+        && proof.workRevision == (!hadPrevious ? 0 : previous.workRevision)
         && proof.leaseWindowStartInMillis == quota.windowStartInMillis
         && proof.leaseEndWorkRevision == proof.workRevision + quota.reservedPages;
     }
 
     function validSparkPreparationProjectCharge(quota) {
       let path = /databases/$(database)/documents/sparkPreparationQuotas/project;
-      return validSparkPreparationTotals(getAfter(path).data, exists(path) ? get(path).data : null, quota.reservedPages, 24000, 8000);
+      return validSparkPreparationTotals(getAfter(path).data, exists(path) ? get(path).data : {}, exists(path), quota.reservedPages, 24000, 8000);
     }
 
     function validSparkSegmentQuotaSource(uid, quota) {
@@ -556,12 +1540,12 @@ service cloud.firestore {
         && (segment
           ? data.keys().hasAll(['schemaVersion', 'windowStartInMillis', 'readUnits', 'writeUnits', 'updatedAt', 'workKind', 'groupId', 'accountId', 'segmentId'])
             && data.keys().hasOnly(['schemaVersion', 'windowStartInMillis', 'readUnits', 'writeUnits', 'updatedAt', 'workKind', 'groupId', 'accountId', 'segmentId'])
-            && validSparkPreparationCharge(data, resource == null ? null : resource.data, 20, 3, 22000, 6000)
+            && validSparkPreparationCharge(data, resource == null ? {} : resource.data, resource != null, 20, 3, 22000, 6000)
             && validSparkSegmentQuotaSource(uid, data)
-            && validSparkPreparationCharge(getAfter(globalPath).data, exists(globalPath) ? get(globalPath).data : null, 20, 3, 24000, 8000)
+            && validSparkPreparationCharge(getAfter(globalPath).data, exists(globalPath) ? get(globalPath).data : {}, exists(globalPath), 20, 3, 24000, 8000)
           : data.keys().hasAll(['schemaVersion', 'windowStartInMillis', 'readUnits', 'writeUnits', 'updatedAt', 'groupId', 'proofId', 'reservedPages', 'leaseRevision'])
             && data.keys().hasOnly(['schemaVersion', 'windowStartInMillis', 'readUnits', 'writeUnits', 'updatedAt', 'groupId', 'proofId', 'reservedPages', 'leaseRevision'])
-            && validSparkPreparationTotals(data, resource == null ? null : resource.data, data.reservedPages, 22000, 6000)
+            && validSparkPreparationTotals(data, resource == null ? {} : resource.data, resource != null, data.reservedPages, 22000, 6000)
             && validSparkPreparationSource(uid, data) && validSparkPreparationProjectCharge(data));
     }
 
@@ -573,9 +1557,9 @@ service cloud.firestore {
         && data.keys().hasOnly(['schemaVersion', 'windowStartInMillis', 'readUnits', 'writeUnits', 'updatedAt'])
         && quota.updatedAt == request.time
         && (quota.get('workKind', 'history') == 'segment'
-          ? validSparkPreparationCharge(data, resource == null ? null : resource.data, 20, 3, 24000, 8000)
+          ? validSparkPreparationCharge(data, resource == null ? {} : resource.data, resource != null, 20, 3, 24000, 8000)
             && validSparkSegmentQuotaSource(request.auth.uid, quota)
-          : validSparkPreparationTotals(data, resource == null ? null : resource.data, quota.reservedPages, 24000, 8000)
+          : validSparkPreparationTotals(data, resource == null ? {} : resource.data, resource != null, quota.reservedPages, 24000, 8000)
             && validSparkPreparationSource(request.auth.uid, quota));
     }
 
@@ -584,34 +1568,64 @@ service cloud.firestore {
     function sparkMax(a, b) { return a > b ? a : b; }
     function sparkSegmentId(count, end) { return string(count) + '_' + string(end); }
     function sparkSegmentDelta(op, accountId) {
-      return 'accountId' in op ? op.differenceInCents : (op.fromAccountId == accountId ? -1 : 1) * op.amountInCents;
+      return 'accountId' in op ? op.differenceInCents : op.kind == 'movement_correction'
+        ? (op.fromAccountId == accountId ? -op.originalDeltaInCents : 0) + (op.toAccountId == accountId ? op.differenceInCents : 0)
+        : op.kind == 'investment_funding_change' ? sparkFundingDelta(op, accountId) : (op.fromAccountId == accountId ? -1 : 1) * op.amountInCents;
     }
-    function sparkSegmentInverse(op) { return op.kind == 'adjustment_replacement' ? -op.originalDifferenceInCents : 0; }
-    function sparkSegmentMinAt(op) { return op.kind == 'adjustment_replacement' ? sparkMin(op.originalEffectiveAt, op.effectiveAt) : op.get('effectiveAt', op.createdAt); }
-    function sparkSegmentMaxAt(op) { return op.kind == 'adjustment_replacement' ? sparkMax(op.originalEffectiveAt, op.effectiveAt) : op.get('effectiveAt', op.createdAt); }
-    function sparkSegmentRevision(op, accountId) { return 'accountId' in op ? op.expectedRevision + 1 : (op.fromAccountId == accountId ? op.fromRevision : op.toRevision) + 1; }
-    function sparkSegmentPrevious(op, accountId) { return 'accountId' in op ? op.previousOperationId : op.fromAccountId == accountId ? op.fromPreviousOperationId : op.toPreviousOperationId; }
-    function sparkSegmentMovement(op, accountId) {
-      return !(op.kind in ['account_opening', 'account_bootstrap']) && !sparkProofIsCheckpoint(op)
-        && ('accountId' in op ? op.accountId == accountId : op.fromAccountId == accountId || op.toAccountId == accountId);
+    function sparkSegmentEvent(op, accountId) {
+      return 'accountId' in op ? sparkSingleSegmentEvent(op, accountId)
+        : op.kind == 'movement_correction' ? sparkCorrectionSegmentEvent(op, accountId) : sparkPairSegmentEvent(op, accountId);
+    }
+    // Correção comum tem uma data e delta líquido; evita calcular campos de raízes/checkpoints/inverso.
+    function sparkCorrectionSegmentEvent(op, accountId) {
+      let from = op.fromAccountId == accountId;
+      let to = op.toAccountId == accountId;
+      let delta = (from ? -op.originalDeltaInCents : 0) + (to ? op.differenceInCents : 0);
+      return { 'movement': from || to, 'revision': (from ? op.fromRevision : op.toRevision) + 1,
+        'previous': from ? op.fromPreviousOperationId : op.toPreviousOperationId,
+        'minAt': op.effectiveAt, 'maxAt': op.effectiveAt, 'delta': delta, 'absolute': sparkAbs(delta) };
+    }
+    function sparkSingleSegmentEvent(op, accountId) {
+      let root = op.kind in ['account_opening', 'bank_opening', 'account_bootstrap'];
+      let at = op.get('effectiveAt', op.createdAt);
+      let inverseAt = op.kind == 'adjustment_replacement' ? op.originalEffectiveAt : at;
+      let delta = op.get('differenceInCents', 0);
+      let inverse = op.kind == 'adjustment_replacement' ? -op.originalDifferenceInCents : 0;
+      return {
+        'movement': !(op.kind in ['account_opening', 'bank_opening', 'account_bootstrap', 'account_count', 'dated_reconciliation', 'investment_sync', 'investment_edit_valuation', 'investment_valuation_reversal', 'monthly_opening', 'imported_checkpoint'])
+          && op.accountId == accountId,
+        'revision': root ? 0 : op.expectedRevision + 1,
+        'previous': root ? null : op.previousOperationId,
+        'minAt': at < inverseAt ? at : inverseAt, 'maxAt': at > inverseAt ? at : inverseAt,
+        'delta': delta + inverse, 'absolute': sparkAbs(delta) + sparkAbs(inverse)
+      };
+    }
+    function sparkPairSegmentEvent(op, accountId) {
+      let from = op.fromAccountId == accountId;
+      let refund = op.kind == 'investment_funding_change' && op.refundAccountId == accountId;
+      let root = op.kind == 'investment_opening' && op.toAccountId == accountId;
+      let at = op.get('effectiveAt', op.createdAt);
+      let delta = op.kind == 'investment_funding_change' ? sparkFundingDelta(op, accountId) : (from ? -1 : 1) * op.amountInCents;
+      return { 'movement': !root && (from || refund || op.toAccountId == accountId),
+        'revision': root ? 0 : (refund ? op.refundRevision : from ? op.fromRevision : op.toRevision) + 1,
+        'previous': root ? null : refund ? op.refundPreviousOperationId : from ? op.fromPreviousOperationId : op.toPreviousOperationId,
+        'minAt': at, 'maxAt': at, 'delta': delta, 'absolute': sparkAbs(delta) };
     }
 
     function validSparkSegmentLeaf(groupId, data) {
       let a = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.leftId)).data;
       let b = get(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(data.rightId)).data;
-      let deltaA = sparkSegmentDelta(a, data.accountId);
-      let deltaB = sparkSegmentDelta(b, data.accountId);
-      let inverseA = sparkSegmentInverse(a);
-      let inverseB = sparkSegmentInverse(b);
+      let eventA = sparkSegmentEvent(a, data.accountId);
+      let eventB = sparkSegmentEvent(b, data.accountId);
       return validSparkOperationId(data.leftId) && validSparkOperationId(data.rightId)
-        && sparkSegmentMovement(a, data.accountId) && sparkSegmentMovement(b, data.accountId)
-        && sparkSegmentRevision(a, data.accountId) == data.firstRevision && sparkSegmentRevision(b, data.accountId) == data.lastRevision
-        && sparkSegmentPrevious(b, data.accountId) == data.leftId && data.lastOperationId == data.rightId
-        && data.previousOperationId == sparkSegmentPrevious(a, data.accountId)
-        && data.minAt == sparkMin(sparkSegmentMinAt(a), sparkSegmentMinAt(b))
-        && data.maxAt == sparkMax(sparkSegmentMaxAt(a), sparkSegmentMaxAt(b))
-        && data.deltaInCents == deltaA + inverseA + deltaB + inverseB
-        && data.absoluteDeltaInCents == sparkAbs(deltaA) + sparkAbs(inverseA) + sparkAbs(deltaB) + sparkAbs(inverseB);
+        && eventA.movement && eventB.movement
+        && eventA.revision == data.firstRevision && eventB.revision == data.lastRevision
+        && eventB.previous == data.leftId && data.lastOperationId == data.rightId
+        && data.previousOperationId == eventA.previous
+        && data.minAt == sparkMin(eventA.minAt, eventB.minAt)
+        && data.maxAt == sparkMax(eventA.maxAt, eventB.maxAt)
+        && data.deltaInCents == eventA.delta + eventB.delta
+        && data.absoluteDeltaInCents == eventA.absolute + eventB.absolute;
     }
 
     function validSparkSegmentParent(groupId, data) {
@@ -645,7 +1659,8 @@ service cloud.firestore {
         && data.deltaInCents is int && data.absoluteDeltaInCents is int && data.absoluteDeltaInCents >= 0 && data.absoluteDeltaInCents <= 9007199254740991
         && sparkAbs(data.deltaInCents) <= data.absoluteDeltaInCents
         && quota.get('workKind', null) == 'segment' && quota.groupId == groupId && quota.accountId == accountId && quota.segmentId == segmentId
-        && validSparkPreparationCharge(quota, exists(quotaPath) ? get(quotaPath).data : null, 20, 3, 22000, 6000)
+        // Obriga mutação real da cota; seu guard confere todos os totais e a cobrança do projeto.
+        && quota.updatedAt == request.time && (!exists(quotaPath) || quota != get(quotaPath).data)
         && (data.nodeCount == 2 ? validSparkSegmentLeaf(groupId, data) : validSparkSegmentParent(groupId, data));
     }
 
@@ -662,6 +1677,7 @@ service cloud.firestore {
         && after.cursorRevision == node.firstRevision - 1 && after.nextOperationId == node.previousOperationId
         && sparkProofSameBaseline(before, after)
         && (before.phase == 'checkpoints' || category == sparkSegmentClass(before, node.maxAt))
+        && (before.phase == 'checkpoints' || before.baselineAt == null || before.includesBoundary || node.minAt > before.baselineAt || node.maxAt < before.baselineAt)
         && (category == 'ignore' || (current - node.absoluteDeltaInCents >= -9007199254740991 && current + node.absoluteDeltaInCents <= 9007199254740991))
         && after.balanceInCents == before.balanceInCents + (category == 'balance' ? node.deltaInCents : 0)
         && after.tailDeltaInCents == before.tailDeltaInCents + (category == 'tail' ? node.deltaInCents : 0);
@@ -709,7 +1725,8 @@ service cloud.firestore {
           : data.kind == 'dated_adjustment' ? data.differenceInCents : data.targetBalanceInCents + proof.tailDeltaInCents - before.balanceInCents)
         && after.balanceInCents == before.balanceInCents + data.currentEffectInCents
         && validSparkPair(before, after, data.expectedRevision, operationId)
-        && before.kind in ['bank', 'cash'] && (data.kind == 'dated_reconciliation' || before.kind == 'bank')
+        && (data.kind == 'investment_sync' ? before.kind == 'investment'
+          : before.kind in ['bank', 'cash'] && (data.kind == 'dated_reconciliation' || before.kind == 'bank'))
         && (data.note == null || (data.note is string && data.note.size() <= 2000))
         && (data.overdraftReason == null || (data.overdraftReason is string && data.overdraftReason.size() <= 500))
         && ((data.targetBalanceInCents >= 0 && after.balanceInCents >= 0) || (before.kind == 'bank' && data.overdraftReason is string && data.overdraftReason.size() >= 3 && data.overdraftReason.matches('\\S([\\s\\S]*\\S)?')))
@@ -940,6 +1957,7 @@ service cloud.firestore {
     function validTagReference(tagId) {
       // Os guards de escrita já validaram a sessão antes de validar referências.
       return tagId == null || (optionalId(tagId)
+        && getAfter(/databases/$(database)/documents/tags/$(tagId)).data.get('schemaVersion', null) != 1
         && isLegacyOwnerOrRelated(getAfter(/databases/$(database)/documents/tags/$(tagId)).data.personId));
     }
 
@@ -992,8 +2010,8 @@ service cloud.firestore {
       let previous = resource == null ? {} : resource.data.get('completedCycles', {});
       let changed = history.diff(previous).affectedKeys();
       let cycleField = collectionName == 'expenses' ? 'lastPaymentCycle' : 'lastReceiptCycle';
-      let currentCycle = data.get(cycleField, null);
-      let resolvedCycle = currentCycle == null ? (resource == null ? null : resource.data.get(cycleField, null)) : currentCycle;
+      let currentCycle = data.get(cycleField, '');
+      let resolvedCycle = !(cycleField in data) || currentCycle == null ? (resource == null ? '' : resource.data.get(cycleField, '')) : currentCycle;
       let cycle = resolvedCycle is string ? resolvedCycle : '';
       return history is map && history.size() <= 1200
         && optionalBoolean(data.get('assistantCycleHistoryComplete', null))
@@ -1226,6 +2244,13 @@ service cloud.firestore {
       // Escritas somente por backend / Admin SDK.
       allow write: if false;
 
+      match /sparkMetadataOrigins/{originId} {
+        allow get: if isSparkProofMember(groupId);
+        allow list: if false;
+        allow create: if validSparkMetadataOrigin(groupId, originId);
+        allow update, delete: if false;
+      }
+
 
       // =======================================================
       // OPERATIONS
@@ -1240,9 +2265,34 @@ service cloud.firestore {
 
       match /sparkPositions/{accountId} {
         allow read: if isSparkProofMember(groupId);
-        allow update: if isSparkProofMember(groupId) && validSparkPositionUpdate(groupId, accountId);
+        allow update: if isSparkProofMember(groupId)
+          && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+            ? validSparkPositionLifecycle(groupId, accountId) : validSparkPositionUpdate(groupId, accountId));
         allow create: if isSparkProofMember(groupId) && validSparkPositionCreate(groupId, accountId);
         allow delete: if false;
+      }
+
+      match /sparkAccountCatalog/{accountId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create, update: if validSparkAccountCatalogWrite(groupId, accountId);
+        allow delete: if false;
+      }
+      match /sparkAccountStates/{accountId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create, update: if validSparkAccountState(groupId, accountId);
+        allow delete: if false;
+      }
+
+      match /sparkInvestmentCapital/{accountId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if validSparkInvestmentCapital(groupId, accountId);
+        allow update: if validSparkInvestmentCapitalUpdate(groupId, accountId);
+        allow delete: if false;
+      }
+      match /sparkInvestmentValuationReversals/{originalId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if validSparkReversalClaim(groupId, originalId, 'investment_valuation_reversal');
+        allow update, delete: if false;
       }
 
       // Leitura virtual: o prazo é conferido no servidor, inclusive se o relógio local atrasar.
@@ -1258,10 +2308,54 @@ service cloud.firestore {
         allow create: if validSparkOperation(groupId, operationId);
         allow update, delete: if false;
       }
+      match /sparkMovementDetails/{operationId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if validSparkMovementDetails(groupId, operationId);
+        allow update, delete: if false;
+      }
+      match /sparkRecurringPlans/{planId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if validSparkRecurringPlanCreate(groupId, planId);
+        allow update: if validSparkRecurringPlanUpdate(groupId, planId);
+        allow delete: if false;
+        match /cycles/{cycle} {
+          allow read: if isSparkProofMember(groupId);
+          allow create, update: if validSparkRecurringCycle(groupId, planId, cycle);
+          allow delete: if false;
+        }
+      }
+      match /sparkRecurringMetadata/{planId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create, update: if validSparkRecurringMetadataWrite(groupId, planId);
+        allow delete: if false;
+      }
+      match /sparkImportRecurringMappings/{planId} {
+        allow read: if isSparkProofMember(groupId);
+        allow write: if false;
+      }
 
       match /sparkReversals/{originalId} {
         allow read: if isSparkProofMember(groupId);
         allow create: if validSparkReversalClaim(groupId, originalId, 'transfer_reversal');
+        allow update, delete: if false;
+      }
+
+      match /sparkImportedIdentities/{originalId} {
+        allow read: if isSparkProofMember(groupId);
+        allow write: if false;
+      }
+
+      match /sparkImportedClaims/{originalId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if request.resource.data.keys().hasAll(['reversalOperationId'])
+          && (getAfter(/databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/$(request.resource.data.reversalOperationId)).data.kind == 'transfer_reversal'
+            ? validSparkImportedPairClaim(groupId, originalId) : validSparkMovementClaim(groupId, originalId, 'imported'));
+        allow update, delete: if false;
+      }
+
+      match /sparkMovementClaims/{originalId} {
+        allow read: if isSparkProofMember(groupId);
+        allow create: if validSparkMovementClaim(groupId, originalId, 'live');
         allow update, delete: if false;
       }
 
@@ -1314,6 +2408,30 @@ service cloud.firestore {
     match /sparkCivilMonths/{cycle} {
       allow read: if signedIn();
       allow write: if false;
+    }
+
+    match /sparkCategoryReferences/{categoryId} {
+      allow get: if signedIn() && (resource == null || isSparkProofMember(resource.data.groupId));
+      allow list: if isSparkProofMember(resource.data.groupId);
+      allow create: if validSparkCategoryReference(categoryId);
+      allow update, delete: if false;
+    }
+
+    match /sparkOperationRecovery/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, delete: if false;
+      allow create, update: if validSparkRecoveryIndex(uid);
+      match /intents/{operationId} {
+        allow get: if signedIn() && request.auth.uid == uid;
+        allow list, delete: if false;
+        allow create: if validSparkRecoveryCreate(uid, operationId);
+        allow update: if validSparkRecoveryUpdate(uid, operationId);
+      }
+    }
+    match /sparkOperationIntentQuotas/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, delete: if false;
+      allow create, update: if validSparkIntentQuota(uid);
     }
 
     match /sparkTransferQuotas/{uid} {
@@ -1634,6 +2752,8 @@ service cloud.firestore {
 
       allow get: if signedIn() && resource == null;
 
+      allow create, update: if validSparkCdiWrite(id);
+
       allow read: if canReadLegacy(
         resource.data.personId
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
@@ -1643,20 +2763,20 @@ service cloud.firestore {
         && validDates(request.resource.data)
         && true
         && request.resource.data.annualRateInBasisPoints is int
-        && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.annualRateInBasisPoints >= 0
         && request.resource.data.annualRateInBasisPoints <= 100000
         && request.resource.data.effectiveFrom is timestamp;
 
-      allow update: if canUpdateLegacy()
+      allow update: if canUpdateLegacy() && resource.data.get('schemaVersion', null) != 1
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'annualRateInBasisPoints', 'effectiveFrom'])
         && validDates(request.resource.data)
         && true
         && request.resource.data.annualRateInBasisPoints is int
-        && request.resource.data.annualRateInBasisPoints > 0
+        && request.resource.data.annualRateInBasisPoints >= 0
         && request.resource.data.annualRateInBasisPoints <= 100000
         && request.resource.data.effectiveFrom is timestamp;
 
-      allow delete: if canDeleteLegacy();
+      allow delete: if canDeleteLegacy() && resource.data.get('schemaVersion', null) != 1;
     }
 
 
@@ -1668,6 +2788,8 @@ service cloud.firestore {
 
       allow get: if signedIn() && resource == null;
 
+      allow create, update: if validSparkCategoryWrite(id);
+
       allow read: if canReadLegacy(
         resource.data.personId
       ) || (resource.data.get('groupId', null) is string && isMember(resource.data.groupId));
@@ -1677,12 +2799,12 @@ service cloud.firestore {
         && validDates(request.resource.data)
         && validName(request.resource.data) && request.resource.data.get('usageType', 'both') in ['expense', 'gain', 'both'] && optionalBoolean(request.resource.data.get('isMandatoryExpense', null)) && optionalBoolean(request.resource.data.get('isMandatoryGain', null)) && optionalBoolean(request.resource.data.get('showInBothLists', null)) && isShortText(request.resource.data.get('iconName', null), 100) && isShortText(request.resource.data.get('iconFamily', null), 100) && isShortText(request.resource.data.get('iconStyle', null), 100);
 
-      allow update: if canUpdateLegacy()
+      allow update: if canUpdateLegacy() && resource.data.get('schemaVersion', null) != 1
         && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'usageType', 'isMandatoryExpense', 'isMandatoryGain', 'showInBothLists', 'iconFamily', 'iconName', 'iconStyle'])
         && validDates(request.resource.data)
         && validName(request.resource.data) && request.resource.data.get('usageType', 'both') in ['expense', 'gain', 'both'] && optionalBoolean(request.resource.data.get('isMandatoryExpense', null)) && optionalBoolean(request.resource.data.get('isMandatoryGain', null)) && optionalBoolean(request.resource.data.get('showInBothLists', null)) && isShortText(request.resource.data.get('iconName', null), 100) && isShortText(request.resource.data.get('iconFamily', null), 100) && isShortText(request.resource.data.get('iconStyle', null), 100);
 
-      allow delete: if canDeleteLegacy();
+      allow delete: if canDeleteLegacy() && resource.data.get('schemaVersion', null) != 1;
     }
 
 

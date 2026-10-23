@@ -1,3 +1,5 @@
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkMovementListFirebase } from './SparkMovementListFirebase';
 // O arquivo GainFirebase.ts é responsável por gerenciar as operações relacionadas
 // aos ganhos registrados no aplicativo.
 
@@ -250,6 +252,8 @@ export async function getAllGainsFirebase() {
 	try {
 		const personId = auth.currentUser?.uid;
 		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, personId, spark.groupId, 'income') };
 		const related = await getRelatedUsersIDsFirebase(personId);
 		if (!related.success) return related;
 		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
@@ -292,6 +296,8 @@ export async function getLimitedGainsFirebase({ limit, personId }: GetLimitedGai
 	try {
 		const scopedPersonId = personId ?? auth.currentUser?.uid;
 		if (!scopedPersonId) return { success: false, error: 'Usuário não autenticado.' };
+		const spark = await getSparkContextFirebase(db, scopedPersonId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, scopedPersonId, spark.groupId, 'income', limit) };
 		const related = await getRelatedUsersIDsFirebase(scopedPersonId);
 		if (!related.success) return related;
 		const personIds = Array.from(new Set([scopedPersonId, ...(Array.isArray(related.data) ? related.data : [])]));
@@ -324,6 +330,8 @@ export async function getLimitedGainsWithPeopleFirebase({ limit, personId }: Get
 			return { success: true, data: [] };
 		}
 
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await readSparkMovementListFirebase(db, personId, spark.groupId, 'income', limit) };
 		// Primeiro, obterm os IDs dos usuários relacionados aos ganhos
 		const relatedUserResult = await getRelatedUsersIDsFirebase(personId);
 		

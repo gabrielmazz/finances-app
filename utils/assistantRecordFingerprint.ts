@@ -19,8 +19,9 @@ const canonicalize = (value: unknown): unknown => {
 };
 
 /** Compare a proposal with persisted data; this is a version check, never an authorization token. */
+export const serializeAssistantRecord = (value: Record<string, unknown>) => JSON.stringify(canonicalize(value));
 export const createAssistantRecordFingerprint = (value: Record<string, unknown>) => {
-	const serialized = JSON.stringify(canonicalize(value));
+	const serialized = serializeAssistantRecord(value);
 	let hash = 2166136261;
 	for (let index = 0; index < serialized.length; index += 1) {
 		hash ^= serialized.charCodeAt(index);

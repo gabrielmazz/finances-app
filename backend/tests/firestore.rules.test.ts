@@ -60,6 +60,8 @@ async function run(): Promise<void> {
       rules: readFileSync(resolve(process.cwd(), '..', 'firestore.rules'), 'utf8'),
     },
   });
+  // Projeto fixo e exclusivo desta suíte: grants de uma execução anterior não são parte da fixture.
+  await environment.clearFirestore();
   await seed();
 
   const member = environment.authenticatedContext('member', { auth_time: Math.floor(Date.now() / 1000) }).firestore();

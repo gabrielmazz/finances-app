@@ -3,10 +3,39 @@ tags: [bancos, saldo, reconciliacao, firebase, formularios, web, mobile]
 relacionado: [[Gerenciamento de Bancos]], [[Balanço Mensal]], [[Configurações]], [[Navegação]], [[Previsão de Fluxo de Caixa]], [[Cache e Leituras Firebase]], [[Privacidade de Valores]], [[Auditoria de Design]]
 status: ativo
 tipo: feature
-versao: 1.0.2
+versao: 1.1.0
+spark_module: F05
+spark_progress: 75
+spark_reviewed_at: 2026-10-22
 ---
 
 # Ajuste de Saldo
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F05 — Ajustes e reconciliações: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Conectar assistente, ajustes importados/especiais, restauração integral após reload e homologação; criação/edição/estorno nativos já conectados.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Abertura mensal e ajustes nas telas — 21/10/2026
+
+`SparkBalanceFormFirebase` conecta as duas telas de abertura mensal e o formulário compartilhado de ajuste Web/mobile aos serviços existentes. Contexto Spark é selecionado antes de consultas/escritores antigos; erro, ausência de contexto depois de preparar intenção ou acesso revogado não autorizam fallback. O papel é conferido no grupo protegido e as Rules/serviços continuam exigindo administrador para a conferência. As fachadas antigas recusam mutação/consulta genérica de ajustes Spark, em vez de chamar Functions ou apresentar uma lista antiga vazia.
+
+A abertura mensal usa a identidade canônica banco/ciclo, o início do mês no calendário protegido e o ponteiro da abertura existente. O primeiro envio prepara o histórico; somente outro envio explícito com o mesmo banco/mês/valor confirma. Alterar o material exige reapresentar a preparação. O estado mostra preparação parcial e oferece continuar/pausar; cada chamada trabalha no máximo vinte páginas. As cotas e os limites anteriores permanecem. Pausar não confirma saldo. Se há abertura vencida, a preparação do formulário materializa primeiro a abertura previamente autorizada usando `refreshSparkMonthlyOpeningFirebase`, e só então prepara a nova contagem. A ativação não usa o valor ainda digitado como novo saldo.
+
+`MonthlyBalanceFirebase` lê `sparkMonthlyOpenings` e preserva o ID da operação vigente. A gravação direta antiga é recusada no Spark: somente a ponte com revisão, prova completa e ponteiro esperado pode confirmar. Abertura futura registra o prazo e mantém o saldo atual; a passada/atual conserva movimentos posteriores à referência. Uma segunda confirmação com prévia concorrente fica desatualizada, sem sobrescrever o novo saldo.
+
+O ajuste de hoje sem alvo de edição usa `countSparkAccountFirebase` com revisão esperada e commit do servidor. Retroativos usam o fim do dia civil protegido e uma projeção completa. Edição prepara a base sem o efeito do ajuste anterior e chama `replaceSparkBalanceAdjustmentFirebase`, mantendo o banco, o autor, a data original do inverso e a nova data do substituto. Na edição de hoje, a projeção usa o maior instante entre o início civil e o último commit certificado da posição, preservando nanossegundos e exigindo a mesma revisão; não depende de um relógio do navegador adiantado. Saldo negativo exige motivo de 3–500 caracteres. A interface conserva o rascunho quando a revisão muda e exige atualizar a prévia.
+
+O extrato oferece editar/estornar somente para ajustes nativos vigentes do autor, sujeitos ao papel administrativo revalidado pelo serviço. O ID visual do componente não vira ID executável: o adaptador fornece `sparkAdjustmentOperationId` separado e marca originais resolvidos. Estorno usa claim único, conserva a data efetiva e não altera uma contagem posterior que já cobriu o ajuste. Mensais, referências, inversos e ajustes importados não recebem ações genéricas. Ajustes/estornos permanecem fora dos totais econômicos.
+
+Resposta incerta conserva a intenção e o mesmo ID/material; mudar os argumentos é recusado. Falha ao atualizar as consultas depois do commit não é tratada como falha financeira. Troca de UID impede feedback/navegação da sessão anterior. O progresso no servidor é conservado, mas a interface mantém o identificador da preparação/intenção somente em memória: retomada automática após reload/desmontagem continua pendente. Não declarar ativação/consentimento/corte de contas reais, nem integração do assistente, como concluídos por esta entrega.
+
+Evidências: `.expo/spark-balances-closed-check.log` (estilos/tipos, 104 testes de ferramentas e 966 comuns; 89 condicionais ignorados); `.expo/spark-balances-sdk-rules-ordered.log` (13 cenários Auth/Firestore/Rules, zero ignorados); exports finais em `.expo/spark-balances-web-final.log` e `spark-balances-android-final.log`, com resultado registrado no fechamento abaixo. Os cenários cobrem revisão concorrente, reenvio, mensal atual/futuro, preparação parcial/pausa/retomada, ativação vencida, edição/estorno retroativos e atuais, tipo de papel, revogação, motivo negativo e dia impossível. A edição de hoje com alvo negativo expôs esgotamento de 1.000 expressões; `validSparkOperation` agora seleciona `adjustment_replacement` logo depois dos contratos ordinários, com o mesmo papel, schema e validador. A justificativa é enviada somente quando o alvo ou saldo atual projetado fica negativo. Treze cenários dirigidos, 1.037 cenários Spark e cinco suítes anteriores de Rules passaram nesta continuação, em projetos de teste distintos da demonstração aberta. Logs de falha preservados em `.expo/spark-balances-sdk-closed.log`/`spark-balances-sdk-budget.log`; resultado corrigido em `.expo/spark-balances-sdk-rules-ordered.log` e regressão em `.expo/spark-balances-rules-regression.log`. A ferramenta de navegador bloqueou a aquisição da aba por política de segurança; esta continuação não possui ensaio visual novo nem aparelho instalado. Sem dados reais, cobrança, migração ou publicação.
 
 Prova Spark v0.5 em desenvolvimento: [[Protocolo Financeiro Spark]] implementa ajuste atual/retroativo, substituição atômica e estorno único. `SparkAdjustmentReplacementFirebase.ts` exige o mesmo banco e autor ainda administrador, calcula a base sem a contribuição antiga elegível e grava evento composto com inverso na data antiga e substituto na nova. Claim único compartilhado impede substituir e estornar o mesmo original. É possível substituir o componente novo de um substituto e depois estorná-lo, sem desfazer novamente inversos anteriores. Projeção pelas Rules confere ambas as datas, abertura elegível, fim do dia passado São Paulo ou commit de hoje e referências posteriores. Originais permanecem imutáveis; estado substituído/revertido é derivado do claim. Bootstrap, adaptação do extrato/formulário/chat e integração desta prova permanecem pendentes; os serviços publicados descritos abaixo continuam sendo o caminho atual. Ver [[Reconciliação de Dados Spark]].
 

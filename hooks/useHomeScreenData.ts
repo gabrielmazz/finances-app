@@ -9,6 +9,7 @@ import {
 	createEmptyInvestmentPortfolio,
 } from '@/functions/HomeFirebase';
 import { useHomeQuery } from '@/hooks/useFinanceQueries';
+import { getHomeSnapshotFreshness } from '@/utils/homeSnapshotFreshness';
 
 type HomeSectionState<T> = {
 	data: T;
@@ -26,9 +27,10 @@ const EMPTY_INVESTMENTS_DATA: HomeInvestmentsData = {
 
 export function useHomeScreenData(personId: string | null | undefined) {
 	const query = useHomeQuery(personId);
-	const snapshot = query.data;
 	const loading = query.isLoading || query.isFetching;
-	const message = !personId ? 'Nenhum usuário autenticado foi identificado.' : query.error ? 'Não foi possível carregar os dados da Home.' : null;
+	const expired = getHomeSnapshotFreshness(query.data).expired;
+	const snapshot = !personId ? undefined : query.data?.financialSource === 'spark' && (query.error || expired || loading) ? undefined : query.data;
+	const message = !personId ? 'Nenhum usuário autenticado foi identificado.' : query.error ? 'Não foi possível carregar os dados da Home.' : expired && !loading ? 'Atualize os saldos para continuar.' : null;
 	const reload = React.useCallback(async () => { await query.refetch({ cancelRefetch: false }); }, [query]);
 	const overviewResult = snapshot?.overview;
 	const movementsResult = snapshot?.movements;

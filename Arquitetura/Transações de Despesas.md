@@ -3,12 +3,33 @@ tags: [despesas, transacoes, financeiro, tags]
 relacionado: [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]], [[Dashboard Home]], [[Transferências]], [[Despesas Fixas]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.13.0
+versao: 1.15.0
+spark_module: F04
+spark_progress: 80
+spark_reviewed_at: 2026-10-23
 ---
 
 # Transações de Despesas
 
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F04 — Despesas, receitas, edição e estorno: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Conectar assistente, completar formatos legados/especiais e homologar. Sugestões recorrentes e origens de aporte/resgate já usam os serviços Spark.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
 Permite registrar saídas financeiras vinculadas a uma conta bancária, com categorização por tags, data e valor. Suporta despesas comuns, depósitos em investimentos e débitos de transferências.
+
+## Implementação Spark em preparação
+
+Continuação de 20/10/2026: as telas Web/mobile enviam despesas comuns e correções via `useSparkMovementForm`; os leitores de listas escolhem o journal vigente Spark. Edição parte da referência do extrato, conserva o instante original no mesmo dia e preserva formatos descritivos não editáveis. Reenvio incerto mantém ID/data; outro envio explícito após sucesso pode criar nova despesa com os campos mantidos. O extrato edita/estorna ordinários sem apagar histórico. Sugestões recorrentes e ramos de recorrência/investimento permanecem pendentes; esses ramos não podem criar uma despesa parcial Spark. As descrições anteriores de 19/10 abaixo são checkpoints históricos.
+
+Continuação de 19/10/2026: os seletores bancários Web/mobile já consultam contas Spark ativas. O contrato `SparkMovementCommandFirebase` preserva confirmação, alvo e replay de criação/correção/estorno, mas o envio e os leitores de `ExpenseFirebase` ainda precisam ser migrados juntos. Datas/IDs de intenção no estado da tela e os ramos especiais permanecem abertos. F04 continua em 65% por esse motivo.
+
+[[Operações Ordinárias Spark]] acrescenta serviços compartilhados de criação, edição imutável e estorno de despesa comum com data, categoria, revisão/cota e saldo protegido pelas Rules, incluindo Caixa. Edição aplica inverso e substituto na nova data e admite mudar de conta. Essa prova ainda não substitui `ExpenseFirebase`, os formulários ou o assistente publicados; recorrências/parcelas e despesas especiais exigem seus adaptadores próprios antes de integrar o produto.
 
 ## Como funciona
 
@@ -108,3 +129,11 @@ sequenceDiagram
 - Lançamentos de transferência, pagamento obrigatório e aporte são excluídos da edição/exclusão genérica e usam o comando específico de desfazer.
 - Uma ordem completa e inequívoca autoriza a criação por mensagem. Edição relevante e exclusão apresentam o efeito no chat e exigem a confirmação da versão atual; nomes ambíguos são resolvidos por texto ou ordinal. Nenhum cartão financeiro é necessário.
 - No legado, a transação revalida banco ativo e categoria/uso e grava o lançamento com recibo idempotente. No razão, `postMovement`, `correctMovement` e `reverseTransaction` mantêm eventos imutáveis, saldo materializado e auditoria. Transferências, recorrências e investimentos usam seus comandos próprios. Ver [[Comandos Financeiros Conversacionais]] para cobertura e limites.
+
+## Versão usável por fluxo — 23/10/2026
+
+Web/mobile usam useMovementFormEntry para preparar o contexto de um novo lançamento e carregar o registro canônico de uma edição. Enquanto não estiver pronto, campos e envio permanecem bloqueados. Erro é persistente e oferece **Tentar novamente**; não se transforma em formulário vazio editável. Falha Spark não consulta a coleção legada. Fonte antiga só é aceita quando o contexto confirma o transporte legado.
+
+useSparkMovementForm confere novamente o UID após inicializar/carregar; respostas de outra rota, fonte ou sessão não preenchem o formulário. Nome, centavos, data civil, categoria, banco/Caixa, observação e formatos existentes continuam sendo mapeados como antes. Carregamento/erro compartilham MovementFormStatus, sem novo estilo inline.
+
+O executor financeiro existente mantém ID/data no reenvio incerto, corrige por inverso e substituto e invalida consultas após confirmação. Esta entrega não altera Rules, histórico financeiro ou preferências de telas. F04 conserva as notas 100/75/50/75 e 80%; teste local não substitui homologação Web/aparelho e integração Emulator. Evidências e roteiro: [[Versão Usável por Telas]].

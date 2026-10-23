@@ -78,7 +78,7 @@ export function assertCents(value: number, fieldName = 'amount'): void {
 }
 
 export function assertClientActionId(value: string): void {
-  if (!/^[A-Za-z0-9_-]{8,160}$/.test(value)) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{8,160}$/.test(value)) {
     throw new Error('clientActionId must contain 8-160 URL-safe characters.');
   }
 }

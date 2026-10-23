@@ -3,10 +3,51 @@ tags: [investimentos, cdi, rentabilidade, portfolio, financeiro]
 relacionado: [[Monitoramento de Investimentos]], [[Dashboard Home]], [[Previsão de Fluxo de Caixa]], [[Transações de Despesas]], [[Transações de Receitas]], [[Gerenciamento de Bancos]], [[Comportamento Pós-Registro]], [[Privacidade de Valores]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.6.11
+versao: 1.6.21
+spark_module: F08
+spark_progress: 75
+spark_reviewed_at: 2026-10-22
 ---
 
 # Investimentos
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+**F08 — Investimentos e carteira completa: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir restauração integral após reload, capital/catálogo importados, assistente e homologação. Principal/financiamento com avaliação no mesmo commit e desfazimento da avaliação vigente já estão conectados; avaliações anteriores não têm estorno genérico.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Relógio cliente e recuperação — 22/10/2026
+
+[[Recuperação de Operações Spark]] protege a identificação e a conferência/cancelamento após reload, sem guardar rascunhos ou restaurar automaticamente todas as fases. Uma etapa descritiva cancelada renova somente seu ID e preserva o principal já confirmado na sessão.
+
+A carteira é uma fotografia de posições atuais: o horizonte de atividade inclui a referência protegida e o evento da cabeça confirmada, mesmo quando o relógio cliente está atrasado. Isso mantém as avaliações e aportes/resgates que já compõem a posição. Na sincronização de hoje, o instante material não fica antes da referência confirmada do mesmo dia e conserva seus nanossegundos; sincronização retroativa mantém a data escolhida. Revisão, prova e efeitos continuam conferidos no servidor. Casos determinísticos e SDK em [[Status da Implementação Spark]].
+
+## Edição composta e desfazimento de avaliação vigente — 22/10/2026
+
+`SparkInvestmentPrincipalFirebase` e `SparkInvestmentFundingFirebase` aceitam `valuation` com identidade própria e valor observado não negativo. Capital e banco(s) continuam corrigidos na data original da aplicação. `sparkInvestmentEditValuation` prepara o segundo nó e confirma a nova referência no instante do servidor, dentro da mesma transação, sem fase financeira intermediária. A posição do investimento avança duas revisões; capital e bancos avançam uma. O filho aponta ao pai, que aponta à cabeça anterior. Rules exigem os dois nós, efeitos, capital, checkpoint, cota e revisões exatos. Catálogo continua sendo fase não monetária com identidade estável. A ponte das quatro telas de cadastro/carteira usa o comando composto quando o valor observado muda.
+
+`SparkInvestmentValuationReversalFirebase` desfaz a **avaliação vigente** por uma preparação exclusiva `valuation_undo`. Ignora somente essa referência na seleção do checkpoint, conserva os movimentos na mesma fronteira e soma a cauda posterior. O commit escreve uma referência corretiva na data da avaliação, a posição e um claim único; banco(s), principal e observação original permanecem. Não subtrai uma diferença antiga do saldo atual nem limita silenciosamente resultado negativo a zero. Saldo/valor histórico negativos recusam o comando inteiro. Avaliações cobertas por outra referência não possuem estorno genérico; a interface só oferece a vigente, com ID/revisão apresentados, motivo e confirmação. A referência corretiva não oferece um novo desfazimento que reativaria a observação cancelada.
+
+Preparação trabalha em até vinte páginas por chamada; Pausar/Continuar conserva a prova no servidor, mas a identidade da intenção ainda depende do estado do formulário. Se a resposta de uma sincronização/desfazimento se perder, a ponte consulta primeiro o receipt e usa o replay do serviço; não tenta preparar novamente uma prova invalidada pelo próprio commit. Carteira, Home e histórico reconhecem os novos nós como referências de avaliação, excluídas de receitas/despesas. O titular CDI continua sendo o autor da abertura.
+
+Marcador vigente `financial-proof-v17`, sem habilitar grupos reais. Compatibilidade de capital/cadastro importados, recuperação geral, assistente e homologação continuam pendentes.
+
+
+## Carteira e operações Spark — 22/10/2026
+
+`SparkInvestmentFormFirebase` e `useSparkInvestmentForm` conectam AddFinance e FinancialList Web/mobile. Abertura datada financia o principal pelo banco e conserva valor observado distinto; editar principal e trocar banco usam a origem financeira imutável e as revisões de cada conta/capital. Catálogo é uma segunda fase não monetária retomável. Sincronizar prepara histórico em chamadas limitadas, conserva data/ID e só confirma depois da prova completa. Aporte/resgate usa um único par com confirmação da revisão do investimento dentro da transação. Origem de investimento nos formulários de despesa/receita encaminha esse mesmo par, sem duplicar despesa/ganho.
+
+Arquivo/restauração preserva conta, capital e histórico; atividade e arquivo são independentes. A lista mostra investimentos fora da carteira ativa mesmo quando não há ativos. Estorno de aporte/resgate está disponível no extrato do banco/Caixa para par vigente e autorizado, compensando ambas as contas com claim único. Abertura, principal e avaliação não recebem ação genérica de par. O autor vem da abertura imutável; o último editor do catálogo não vira titular de CDI. Posição, avaliação observada e principal são grandezas distintas.
+
+Os novos comandos compostos e de desfazimento vigente estão descritos acima; referências anteriores não recebem estorno genérico. Capital/cadastro importados incompletos exigem reconciliação. As demais intenções ainda dependem do formulário montado. As seções históricas abaixo descrevem também os caminhos legados, sem liberá-los para um grupo Spark.
+
+
+> **Prova Spark em 19/10/2026:** [[Cadastros de Contas Spark]] permite abertura zero com catálogo; [[Financiamento Inicial de Investimentos Spark]] cria investimento com principal e valor observado distintos no commit; [[Criação Retroativa de Investimentos Spark]] acrescenta aplicação/referência inicial datadas, com correções futuras ancoradas nessa data financeira. [[Sincronização de Investimentos Spark]] mantém referência separada do saldo atual; [[Movimentos Datados em Par Spark]] permite data própria para aporte/resgate/estorno. [[Edição do Principal Spark]] corrige capital canônico; [[Troca do Banco de Financiamento Spark]] troca a origem e pode corrigir também o principal, devolvendo ao banco anterior e debitando o novo banco atomicamente, com histórico das três contas. Integração aos leitores/formulários abaixo, edição com avaliação simultânea e montagem do fluxo com duas datas continuam pendentes.
 
 Módulo de gestão da carteira de investimentos. Hoje o fluxo operacional suporta renda fixa atrelada ao CDI, com aportes, resgates, sincronização manual e acompanhamento por rentabilidade. O modelo de dados já reserva classes para Tesouro Direto, ações e fundos sem aplicar uma precificação automática indevida a esses ativos.
 
@@ -36,6 +77,8 @@ graph TD
 5. No navegador, `/web/add-finance` resolve `AddFinanceScreen.web.tsx`: mantém a mesma validação em centavos, consulta de bancos/saldo, Firebase e pós-registro, mas aplica o shell Web com wallpaper, `Grainient`, título `StrokeText`, ilustração animada e grade responsiva dos cadastros financeiros.
 
 ### Taxa CDI configurável e histórico
+
+[[Categorias e CDI Spark]] acrescenta o transporte direto protegido para grupos Spark. Zero é uma taxa válida e interrompe a projeção da vigência anterior. O leitor nativo conserva o dia de São Paulo em outros fusos; Web/mobile mantêm a identidade ao repetir o mesmo salvamento. O histórico une membros do grupo sem exigir vínculo legado bilateral. Projeção não altera saldo confirmado. As demais operações da carteira e seus leitores ainda exigem a integração descrita em [[Integração Financeira Spark]].
 
 ```mermaid
 graph LR

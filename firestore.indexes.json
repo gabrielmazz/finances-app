@@ -1,6 +1,34 @@
 {
   "indexes": [
     {
+      "collectionGroup": "sparkHistoryProofs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "actorId", "order": "ASCENDING" },
+        { "fieldPath": "accountId", "order": "ASCENDING" },
+        { "fieldPath": "purpose", "order": "ASCENDING" },
+        { "fieldPath": "headRevision", "order": "ASCENDING" },
+        { "fieldPath": "headOperationId", "order": "ASCENDING" },
+        { "fieldPath": "asOf", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sparkOperations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "sparkOperations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "expenses",
       "queryScope": "COLLECTION",
       "fields": [

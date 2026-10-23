@@ -1,6 +1,41 @@
 # Auditoria e padronização de design — Lumus Finanças
 
+## Banco e saldo inicial — 23/10/2026
+
+- Inventário: cadastro bancário Web/mobile e novo componente compartilhado BankOpeningBalanceFields; mesmas rotas e design system.
+- **P1, abertura existente orientada como receita:** formulário agora usa a abertura declarada atômica, com indicação de que saldo inicial não entra nas receitas. Edição mostra que nome/ícone/cor preservam saldo/histórico.
+- **P1, falha no carregamento sem caminho de recuperação:** contexto/cadastro carregam com salvamento bloqueado; erro visível oferece nova tentativa. Sem fallback por falha de contexto.
+- Estados: zero/positivo/negativo com motivo, teto inválido, carregando, erro/retry, salvando/disabled e sucesso; máscara permanece inteira em centavos. Tokens/inputs/botões existentes, sem novo estilo inline ou dependência.
+- Estilos e tipos verificados; testes focados registrados em [[Versão Usável por Telas]]. Aceite visual/foco/teclado em navegador/aparelho pendente; ambiente local Auth/Firestore não estava disponível nesta execução.
+
+## Liberação por telas — 23/10/2026
+
+- Inventário: central de telas, Configurações, HomeTabs e navigators nas duas plataformas; sem remover rotas ou componentes.
+- **P1, telas ainda acessíveis fora do controle local:** Dashboard, extrato, análise, previsão, ajuste e perfil passam a integrar a visibilidade. Home oculta cai em Configurações antes de montar os dados; atalhos internos e menus vazios são filtrados.
+- **P2, liberação sem recomeçar o sistema:** central informa preservação dos dados e oferece desativação em lote com Button existente, disabled durante hidratação, classes/tokens existentes e sem nova dependência. Busca, accordions, retorno e aviso de Anotações mantidos.
+- Estados cobertos por implementação/testes: default fechado, preferência anterior, reload, dados locais inválidos e fallback; aceite visual de foco, teclado, conteúdo longo e aparelho ainda pendente. Estilos aprovados; demais evidências desta execução em [[Versão Usável por Telas]].
+
+## Integração financeira Spark — 2026-10-22
+
+- **P1, datas do contrato fora de São Paulo:** teste em Tóquio reproduziu começo/fim avançando um dia, até o próximo mês. Adaptador de apresentação agora entrega campos civis; ciclos reais conservam Timestamp, listas comparam mês financeiro e datas mutáveis são copiadas antes das esperas. Três regressões novas e 47 cenários em dois fusos passaram; a matriz visual continua sem nova aceitação.
+
+- Inventário: AddMandatoryExpenses/AddMandatoryGains e respectivas listas, AddFinance/FinancialList, AddRegisterExpenses/AddRegisterGain, Configurações, mensal, extrato e previsão nas duas plataformas; ponte de agenda e aviso compartilhado de ativação no app-root. Rotas existentes preservadas.
+- **P1, ciclo fictício/dupla gravação:** formulários recorrentes usam ciclo/contador/evento atômicos. Quitação negociada conserva nominal e caixa pago; motivo ausente gera erro antes do commit. Calendário não quita parcelas.
+- **P1, carteira intradiária:** a curva descartava aporte posterior à avaliação no mesmo dia. Timestamp/revisão agora preservam ordem; confirmado versus simulado usa proveniência da abertura, sem inferir titular pelo editor do catálogo.
+- **P2, arquivo apresentado como exclusão irreversível:** botões/confirmações Spark nomeiam Arquivar/Restaurar, mantêm histórico e exibem contas/planos retidos inclusive sem itens ativos. Componentes novos usam primitives e classes semânticas, sem novo inline style/cor arbitrária.
+- **P2, ausência de entrada para ativação vencida:** aviso de topo oferece preparar, pausa, continuar e erro/retry; conta ainda vencida não é exposta como saldo corrente. Prova privada pode retomar após reload. Troca de UID impede publicar feedback anterior.
+- **P2, D0 virava D-1:** opção Somente no vencimento mantém zero e D0 obrigatório. Fluxo de confirmação/edição conserva configuração original. Notificação em aparelho ainda não comprovada.
+- Estados modelados: carregando/erro/desabilitado/ocupado, intenção incerta, vazio com retidos, saldo negativo com motivo e nova prévia, preparação parcial/pausada. Estilos/tipos e bundles finais aprovados; nenhum teste de screenshot, foco/hover/leitor de tela, teclado, viewport estreito/conteúdo longo ou execução instalada novo, devido ao bloqueio de navegador por política e ausência de aparelho. Não marcar matriz visual como aprovada com base nos testes de serviço.
+
+
 > Documento vivo. Cada fase registra evidências, alterações, validações e limitações para que a auditoria possa ser retomada sem perder contexto.
+
+## Home Spark — 2026-10-19
+
+- **P1, valores confirmados exibidos como simulação:** ao conectar as contas Spark, o catálogo não comprova titularidade das taxas CDI. Web/mobile agora usam **Confirmado** quando `projectionStatus:confirmed_only`, com explicação no popover. Preservados privacidade, carregamento, vazio e erro por seção. Capital ausente não vira zero nem saldo inicial presumido.
+- **P1, histórico líquido omitido:** a condição de vazio Web exigia total mensal positivo. Agora considera qualquer dia não zero, preservando estornos negativos e meses cujo resultado líquido é zero. Valores e dados continuam em centavos; gráficos recebem sinais originais.
+- **P1, sinais da timeline bancária de investimentos:** aporte/resgate Spark usam a direção bancária do evento, incluindo estorno. Labels e ícones existentes foram preservados; não foi acrescentado estilo inline, cor ou token novo.
+- Inventário: `screens/web/HomeScreen.web.tsx`, `screens/mobile/HomeScreen.tsx`, contrato compartilhado `HomeFirebase`/`useHomeScreenData`, rotas Home existentes. Gate de estilos e tipos deve passar; exports validam bundles. Navegador autenticado, aparelho instalado, foco/leitor de tela e estados longos ainda não foram homologados nesta continuação.
 
 ## Auditoria de responsividade — 2026-10-15 (execução atual)
 
@@ -944,4 +979,52 @@ Viewport Web de 390 × 844: largura de conteúdo 390, compositor y=671–753, se
 
 ## Gate de release em 2026-10-09
 
+## Continuação financeira Spark em 2026-10-19
+
+Rotas de análise por categoria Web/mobile: resultado líquido negativo era descartado pela seleção da distribuição e não cabe em donut. A seleção agora conserva contas negativas e substitui a pizza por total líquido e texto explicativo quando houver estornos líquidos. A lista e o PDF conservam sinais; percentuais negativos/acima de 100% são substituídos por rótulo de valor líquido. Extratos preservam referência executável e resolução na composição local, mantendo ações protegidas. Classes semânticas, máscara de privacidade, estados de carregamento/erro/vazio e controles existentes preservados. Verificação de estilos/tipos/testes passou; exportação e homologação visual/aparelho são evidências separadas.
+
+### Registro anterior do gate
+
 A dívida existente em `ConfigurationsScreen.web.tsx` foi registrada no baseline e nas exceções de estilo com limites por arquivo (10 estilos inline, 6 cores hexadecimais, 2 valores arbitrários e 1 uso de `useScreenStyles`). `npm run lint:styles` volta a passar e bloqueia aumentos nessas métricas. Esse registro não converteu a tela para tokens; a migração visual permanece pendente. Ver [[Processo de Release]].
+
+## Contratos e avaliações Spark — 22/10/2026
+
+Listas de despesas/receitas Web/mobile acrescentam renegociação e desfazimento com motivo, revisão do acordo e confirmação. Contratos substituídos/cancelados ficam fora da restauração comum; carregamento, erro, resultado incerto e pausa têm textos explícitos. Carteira acrescenta desfazimento da avaliação vigente ligado ao ID/revisão mostrados; banco, principal e histórico são preservados. Componentes compartilhados usam tokens Gluestack/NativeWind, máscara no resumo monetário e estados desabilitados. O modal de contrato usa o hook existente para manter os campos acima do teclado. Estilos/tipos e exports locais são evidências técnicas; sem nova inspeção visual bloqueada pela política do navegador ou homologação em aparelhos.
+
+## Aviso de recuperação Spark — 22/10/2026
+
+Componente compartilhado na raiz Web/mobile, com estados de conferência, pendência, confirmação, erro/rede e cancelamento em duas etapas. Usa tokens semânticos, botões/indicadores padrão e quebra de linha; não exibe valores financeiros ou conversa. UID/assinatura antigos são descartados. `lint:styles`, tipos e exports concluídos; sem nova inspeção visual autenticada/aparelho pelo limite de ambiente registrado em [[Status da Implementação Spark]]. Restauração integral do rascunho continua pendente.
+
+## Tabela de bancos e categorias — 23/10/2026
+
+- Severidade média: conteúdo do ScrollView horizontal sem largura mínima podia comprimir a tabela em um card largo. Aplicado min-w-full ao conteúdo nas duas plataformas; layout fixo na Web impede que textos longos determinem as colunas. Mantida rolagem em viewports estreitos.
+- Severidade média: coluna tripla de 160 px não acomodava três alvos de 44 px + 16 px de gap + 16 px de padding. Alterada para w-44 (176 px); cabeçalho Banco usa o mesmo padding horizontal das células.
+- Categorias acrescentam erro persistente, recarga manual e bloqueio de salvar durante carregamento/recarga. Reutilizam Button, Text e tokens existentes.
+- Verificação de estilos e tipagem aprovada; cinco suítes focadas com 42 testes aprovados. Larguras, temas, hover/foco e estados com conteúdo longo ainda precisam de inspeção visual na aplicação autenticada/aparelho.
+
+## Entrada de ganhos e despesas — 23/10/2026
+
+- Severidade alta de fluxo: falha ao carregar uma edição podia liberar campos vazios; a composição Web de despesas também ignorava uma resposta sem documento. As quatro telas usam ready explícito para bloquear campos/envio até confirmação do contexto/registro.
+- MovementFormStatus compartilha texto de preparação, erro com anúncio acessível e botão **Tentar novamente**. O botão financeiro fica desabilitado em erro sem exibir spinner permanente. Tokens e componentes existentes preservados.
+- Validar em Web/aparelho: cadastro, edição, erro de conexão, retry, nomes longos, temas e foco. Testes de hooks/fluxo e gate de estilos/tipos são evidências técnicas; inspeção visual autenticada ainda pendente.
+
+## Extrato/dashboard utilizáveis — 23/10/2026
+
+- Escopo: `screens/mobile` e `screens/web` de Home e BankMovements. Severidade média: consulta antiga podia substituir banco/período novo; falhas podiam deixar saldo/totais anteriores ou valores zerados sem leitura válida.
+- Correção: guard de escopo/UID/foco, limpeza na recarga, retry explícito, bloqueio do PDF após falha e atualização visível na Home. Estados normais/vazios continuam após sucesso; loading/erro exibem indisponibilidade; privacidade e histórico preservados. Resumo econômico de estornos alinhado à Home, mantendo crédito/débito real na timeline.
+- Controles novos usam Button, tokens semânticos, foreground escuro no amarelo, altura mínima de toque e foco visível. Sem novos estilos inline ou cores literais.
+- Validação: 74 testes focados distintos, tipagem do aplicativo, estilos e diff-check aprovados. Sem inspeção visual autenticada, teclado/leitor de tela ou aparelho nesta revisão; serviços locais estavam indisponíveis. Risco residual de layout/interação exige o roteiro de [[Versão Usável por Telas]].
+
+## Transferência utilizável — 23/10/2026
+
+Escopo: formulários TransferScreen Web/mobile. Severidade média: falha ao obter bancos/saldo era comunicada só por alerta transitório, sem retry, e o pós-submit com campos mantidos conservava posições antigas. Campos de intenção incerta podiam ser editados embora o serviço recusasse mudar o material.
+
+Correção: hook de leitura compartilhado, estados persistentes de carregamento/erro com nova tentativa, orientação para menos de dois bancos, recarga após sucesso e bloqueio visual de todos os argumentos incertos. Confirmação anterior permanece disponível para recuperar o mesmo envio após débito. Controles reutilizam Gluestack/MovementFormStatus e tokens semânticos, sem novos estilos inline/cores literais.
+
+Validação: 49 testes focados distintos, tipagem, estilos e diff-check aprovados; seis testes renderizam as interfaces Web/mobile com serviços/apresentação simulados para verificar envio, recarga, bloqueio e retry. O navegador não conseguiu carregar localhost:8081 (ERR_CONNECTION_RESET), apesar da porta aberta; inspeção visual autenticada, teclado/leitor de tela e aparelho não realizados nesta revisão. Ver [[Transferências]] e [[Versão Usável por Telas]].
+
+## Saque para Caixa utilizável — 23/10/2026
+
+Escopo: AddRescueScreen Web/mobile. Severidade média: carga falhava apenas em alerta transitório e não permitia recarga; permanecer com campos após sucesso conservava saldo antigo. Argumentos incertos permaneciam editáveis e faltava orientação persistente para justificar saldo bancário negativo.
+
+Correção: MovementFormStatus com carregamento/erro e retry, orientação de banco indisponível, recarga após sucesso, bloqueio de banco/valor/data/observações incertos e botão **Confirmar saque anterior**. Justificativa de 3 a 500 caracteres Spark explicada junto às observações. Componentes Gluestack e tokens existentes preservados; sem novos estilos inline/cores literais. 57 testes focados distintos, tipagem/estilos/diff-check aprovados. Testes de renderização simulam apresentação/serviços; inspeção visual autenticada, temas, foco, teclado/leitor de tela e aparelho permanecem pendentes. Ver [[Resgate de Caixa]] e [[Versão Usável por Telas]] para evidências e roteiro.

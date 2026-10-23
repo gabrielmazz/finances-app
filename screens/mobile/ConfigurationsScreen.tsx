@@ -1,3 +1,4 @@
+import { useSparkAccountLifecycle } from '@/hooks/useSparkAccountLifecycle';
 import React from 'react';
 import { ScrollView, View, StatusBar, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -90,6 +91,8 @@ import {
 	type CategoryAvailabilityPreset,
 } from '@/utils/categoryAvailability';
 import { hasTagReferences } from '@/utils/categoryReferenceSummary';
+import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { getRouteVisibilityKeyForPath } from '@/utils/navigation';
 import { useFinanceData } from '@/contexts/FinanceDataContext';
 import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/navigation';
 
@@ -191,7 +194,7 @@ const accordionItems: AccordionItem[] = [
 type PendingAction =
 	| {
 		type: 'delete-bank';
-		payload: { bankId: string; bankName: string };
+		payload: { bankId: string; bankName: string; archived?: boolean; financialSource?: string };
 	}
 	| {
 		type: 'toggle-bank-status';
@@ -838,7 +841,7 @@ export async function handleUpdateBankStatus(bankId: string, isActive: boolean) 
 
 export async function fetchAllBanks(personId: string) {
 
-	const result = await getBanksWithUsersByPersonFirebase(personId);
+	const result = await getBanksWithUsersByPersonFirebase(personId, true);
 
 	if (result.success) {
 
@@ -878,6 +881,12 @@ export async function fetchAllTags(personId: string) {
 // ================================================================================================================= //
 
 export default function ConfigurationsScreen() {
+	const { isRouteVisible } = useRouteVisibility();
+	const visibleAccordionItems = accordionItems.filter(item => {
+		const key = item.action ? getRouteVisibilityKeyForPath(item.action.route) : null;
+		return !key || isRouteVisible(key);
+	});
+	const { submit: submitSparkAccountLifecycle } = useSparkAccountLifecycle();
 	const {
 		surfaceBackground,
 		cardBackground,
@@ -930,7 +939,7 @@ export default function ConfigurationsScreen() {
 	} = useScreenStyles();
 
 	const [bankData, setBankData] = React.useState<
-		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean }>
+		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean; archived?: boolean; financialSource?: string }>
 	>([]);
 	const [tagData, setTagData] = React.useState<
 		Array<{
@@ -1124,14 +1133,15 @@ export default function ConfigurationsScreen() {
 	}, [tagFilter]);
 
 	const handleBankRemoval = React.useCallback(
-		async (bankId: string, bankName: string) => {
-			const result = await handleDeleteBank(bankId);
+		async (bankId: string, bankName: string, archived = false) => {
+			const sparkResult = await submitSparkAccountLifecycle(bankId, archived ? 'restore' : 'archive');
+			const result = sparkResult ?? await handleDeleteBank(bankId);
 
 			if (result.success) {
-				setBankData(prev => prev.filter(bank => bank.id !== bankId));
+				setBankData(prev => sparkResult ? prev.map(bank => bank.id === bankId ? { ...bank, archived: !archived } : bank) : prev.filter(bank => bank.id !== bankId));
 				showConfigurationAlert({
-					title: 'Banco removido',
-					description: `Banco ${bankName || bankId} foi excluído.`,
+					title: sparkResult ? archived ? 'Banco restaurado' : 'Banco arquivado' : 'Banco removido',
+					description: sparkResult ? 'O cadastro, o saldo e o histórico foram preservados. A atividade da conta pode ser alterada separadamente.' : `Banco ${bankName || bankId} foi excluído.`,
 					type: 'success',
 				});
 			} else {
@@ -1142,12 +1152,12 @@ export default function ConfigurationsScreen() {
 				});
 			}
 		},
-		[showConfigurationAlert],
+		[showConfigurationAlert, submitSparkAccountLifecycle],
 	);
 
 	const handleBankStatusChange = React.useCallback(
 		async (bankId: string, bankName: string, isActive: boolean) => {
-			const result = await handleUpdateBankStatus(bankId, isActive);
+			const result = (await submitSparkAccountLifecycle(bankId, 'set-active', isActive)) ?? await handleUpdateBankStatus(bankId, isActive);
 
 			if (result.success) {
 				setBankData(prev =>
@@ -1155,7 +1165,7 @@ export default function ConfigurationsScreen() {
 				);
 				showConfigurationAlert({
 					title: isActive ? 'Banco reativado' : 'Banco desativado',
-					description: isActive
+					description: bankData.find(bank => bank.id === bankId)?.archived ? 'Atividade atualizada. Restaure a conta para voltar aos seletores.' : isActive
 						? `${bankName || bankId} voltou a aparecer nos seletores de banco.`
 						: `${bankName || bankId} foi mantido no cadastro, mas não aparecerá nos seletores de banco.`,
 					type: 'success',
@@ -1168,7 +1178,7 @@ export default function ConfigurationsScreen() {
 				});
 			}
 		},
-		[showConfigurationAlert],
+		[showConfigurationAlert, submitSparkAccountLifecycle, bankData],
 	);
 
 	const handleBankEdit = React.useCallback(
@@ -1206,7 +1216,7 @@ export default function ConfigurationsScreen() {
 			if (hasTagReferences(referencesResult.data)) {
 				showConfigurationAlert({
 					title: 'Categoria ainda está em uso',
-					description: `Reclassifique ${getTagReferenceMessage(referencesResult.data)} antes de excluir esta categoria.`,
+					description: referencesResult.data.permanentHistory ? 'Esta categoria pertence ao histórico financeiro e precisa ser preservada, inclusive após estornos.' : `Reclassifique ${getTagReferenceMessage(referencesResult.data)} antes de excluir esta categoria.`,
 					type: 'warn',
 				});
 				return;
@@ -1293,7 +1303,7 @@ export default function ConfigurationsScreen() {
 
 		try {
 			if (pendingAction.type === 'delete-bank') {
-				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName);
+				await handleBankRemoval(pendingAction.payload.bankId, pendingAction.payload.bankName, pendingAction.payload.archived);
 			} else if (pendingAction.type === 'toggle-bank-status') {
 				await handleBankStatusChange(
 					pendingAction.payload.bankId,
@@ -1328,10 +1338,10 @@ export default function ConfigurationsScreen() {
 		switch (pendingAction.type) {
 			case 'delete-bank':
 				return {
-					title: 'Excluir banco',
-					message: `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
+					title: pendingAction.payload.financialSource === 'spark' ? pendingAction.payload.archived ? 'Restaurar banco' : 'Arquivar banco' : 'Excluir banco',
+					message: pendingAction.payload.financialSource === 'spark' ? `Deseja ${pendingAction.payload.archived ? 'restaurar' : 'arquivar'} o banco ${pendingAction.payload.bankName}? O histórico e a atividade serão preservados.` : `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
 						}? Esta ação removerá todas as referências a ele.`,
-					confirmLabel: 'Excluir',
+					confirmLabel: pendingAction.payload.financialSource === 'spark' ? pendingAction.payload.archived ? 'Restaurar' : 'Arquivar' : 'Excluir',
 					isDestructive: true,
 				};
 			case 'toggle-bank-status':
@@ -1361,7 +1371,7 @@ export default function ConfigurationsScreen() {
 			case 'tag-in-use':
 				return {
 					title: 'Categoria em uso',
-					message: `“${pendingAction.payload.tagName}” está vinculada a ${getTagReferenceMessage(pendingAction.payload.references)}. Reclassifique esses registros antes de excluir a categoria.`,
+					message: pendingAction.payload.references.permanentHistory ? `“${pendingAction.payload.tagName}” pertence ao histórico financeiro e precisa ser preservada, inclusive após estornos.` : `“${pendingAction.payload.tagName}” está vinculada a ${getTagReferenceMessage(pendingAction.payload.references)}. Reclassifique esses registros antes de excluir a categoria.`,
 					confirmLabel: 'Entendi',
 					isDestructive: false,
 				};
@@ -1528,7 +1538,9 @@ export default function ConfigurationsScreen() {
 							name: bank.name,
 							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
 							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							isActive: bank?.isActive !== false,
+							isActive: (bank?.lifecycleActive ?? bank?.isActive) !== false,
+						archived: bank?.archived === true,
+						financialSource: bank?.financialSource,
 						}));
 
 						setBankData(formattedBanks);
@@ -1624,12 +1636,11 @@ export default function ConfigurationsScreen() {
 
 							<VStack className={`mt-4 gap-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 
-								<Heading
-									className="text-lg uppercase tracking-widest "
-									size="lg"
-								>
-									Relações dentro do Aplicativo
-								</Heading>
+								{visibleAccordionItems.some(item => item.group === 'relations') ? (
+									<Heading className="text-lg uppercase tracking-widest" size="lg">
+										Relações dentro do Aplicativo
+									</Heading>
+								) : null}
 
 								<Accordion
 									size="md"
@@ -1640,7 +1651,7 @@ export default function ConfigurationsScreen() {
 									onValueChange={value => setOpenConfigurationSection(value[0] ?? null)}
 									className="w-full"
 								>
-									{accordionItems
+									{visibleAccordionItems
 										.map((item, index, visibleItems) => {
 											const startsAdvancedGroup =
 												item.group === 'advanced' &&
@@ -1678,7 +1689,7 @@ export default function ConfigurationsScreen() {
 															})}
 															{banksTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<ScrollView horizontal nestedScrollEnabled className="w-full" accessibilityLabel="Tabela de bancos. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
+																	<ScrollView horizontal nestedScrollEnabled className="w-full" contentContainerClassName="min-w-full" accessibilityLabel="Tabela de bancos. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableBanksMinWidthClassName}`}>
 																		<TableHeader>
 															<TableRow className={tableHeaderRowClassName}>
 																<TableHead className={tableHeadTextClassName}>Banco</TableHead>
@@ -1708,7 +1719,7 @@ export default function ConfigurationsScreen() {
 																						{bank.name}
 																					</Text>
 																					<Text className={`${helperText} text-xs`}>
-																						{bank.isActive ? 'Ativo' : 'Desativado'}
+																						{bank.archived ? 'Arquivado' : bank.isActive ? 'Ativo' : 'Desativado'}
 																					</Text>
 																					<Text className={`${helperText} text-xs`} numberOfLines={1} ellipsizeMode="middle">
 																							ID: {bank.id}
@@ -1758,13 +1769,14 @@ export default function ConfigurationsScreen() {
 																							variant="link"
 																							className={tableIconButtonClassName}
 																							action="negative"
-																							accessibilityLabel={`Excluir banco ${bank.name}`}
+																							accessibilityLabel={`${bank.financialSource === 'spark' ? bank.archived ? 'Restaurar' : 'Arquivar' : 'Excluir'} banco ${bank.name}`}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'delete-bank',
 																									payload: {
 																										bankId: bank.id,
 																										bankName: bank.name,
+								archived: bank.archived, financialSource: bank.financialSource,
 																									},
 																								})
 																							}
@@ -1812,7 +1824,7 @@ export default function ConfigurationsScreen() {
 															</Box>
 															{tagsTable.totalItems > 0 ? (
 																<Box className={`${notTintedCardClassName} overflow-hidden`}>
-																	<ScrollView horizontal nestedScrollEnabled className="w-full" accessibilityLabel="Tabela de categorias. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
+																	<ScrollView horizontal nestedScrollEnabled className="w-full" contentContainerClassName="min-w-full" accessibilityLabel="Tabela de categorias. Role horizontalmente para acessar as ações."><Table className={`${tableBaseClassName} ${tableTagsMinWidthClassName}`}>
 																		<TableHeader>
 																			<TableRow className={tableHeaderRowClassName}>
 																				<TableHead className={tableHeadTextClassName}>Categoria</TableHead>

@@ -40,6 +40,18 @@ const baseInvestment: InvestmentPortfolioInvestment = {
 };
 
 describe('investmentPortfolio', () => {
+	it('aplica CDI zero como nova vigência e interrompe o rendimento da taxa anterior', () => {
+		const project = (toDate: Date, rates: InvestmentCdiRate[]) => projectInvestmentValueInCents({
+			valueInCents: 100_000, fromDate: makeDate(2026, 1, 1), toDate, personId: 'person-1',
+			cdiPercentageInBasisPoints: 10_000, assetType: 'fixed_income', valuationMethod: 'cdi', rates,
+		});
+		const zero: InvestmentCdiRate = { ...cdiRates[1]!, annualRateInBasisPoints: 0 };
+		const paused = project(makeDate(2026, 3, 1), [cdiRates[0]!, zero]);
+		expect(paused.valueInCents).toBe(project(makeDate(2026, 2, 1), [cdiRates[0]!]).valueInCents);
+		expect(paused.valueInCents).toBeLessThan(project(makeDate(2026, 3, 1), [cdiRates[0]!]).valueInCents);
+		expect(paused.configuredDays).toBe(59);
+		expect(paused.unconfiguredDays).toBe(0);
+	});
 	it('mantém a projeção no valor base até uma taxa CDI ser configurada', () => {
 		const projected = projectInvestmentValueInCents({
 			valueInCents: 100_000,

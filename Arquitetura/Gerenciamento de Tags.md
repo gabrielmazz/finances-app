@@ -3,10 +3,25 @@ tags: [tags, categorias, icones, organizacao]
 relacionado: [[Transações de Despesas]], [[Transações de Receitas]], [[Dashboard Home]], [[Análise por Categoria]], [[Despesas Fixas]], [[Receitas Fixas]], [[Hooks Customizados]], [[Comportamento Pós-Registro]]
 status: ativo
 tipo: feature
-versao: 1.5.1
+versao: 1.6.1
+spark_module: F09
+spark_progress: 85
+spark_reviewed_at: 2026-10-19
 ---
 
 # Gerenciamento de Tags
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**F09 — Categorias e configuração do CDI: 85% implementado / 15% restante.** Notas P/I/D/E: **100/75/75/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir a conversa/replay Spark e ensaiar os formatos antigos restantes; projeção do investimento pertence a F08.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+Para grupos Spark, [[Categorias e CDI Spark]] substitui gravações diretas por revisão/receipt/cota e confirmação compartilhada de formulário/chat. Seletores unem categorias do grupo, deduplicam e ocultam tombstones. Histórico nativo tem marca permanente de uso; a interface explica por que uma categoria usada é conservada mesmo após estorno. Categoria legada adotada exige inventário antes da exclusão. Essa proteção não conclui a migração dos demais recursos de [[Integração Financeira Spark]].
 
 Sistema de categorização de transações através de categorias personalizadas. Cada categoria tem nome e ícone, com um contexto de disponibilidade que a mantém simples de criar e fácil de entender.
 
@@ -129,3 +144,11 @@ Cada tag salva:
 - O ícone opcional pode ser solicitado por nome comum (`Café`, `Mercado`) e é resolvido em `utils/tagIconCatalog.ts`, compartilhado com `useTagIcons`; o modelo não escolhe nomes técnicos de bibliotecas.
 - A exclusão conversacional e `deleteTagFirebase` de Configurações usam `manageFinancialMetadata` tanto no legado quanto no razão. O servidor revalida propriedade e todas as referências em despesas, ganhos, templates e `ledgerTransactions.categoryId`, inclusive histórico de outros grupos/usuários, antes de remover. Existência de qualquer referência bloqueia e exige reclassificação; nenhum total financeiro é exposto por esse guard. No legado, a callable recusa grupo/cutover e mantém recibo privado de retry. As escritas de lançamentos/templates do assistente leem a categoria dentro da transação para evitar referência removida após o catálogo.
 - Cobertura de efeitos/limites: [[Comandos Financeiros Conversacionais]].
+
+## Continuação da versão usável — 23/10/2026
+
+- Web/mobile compartilham o carregamento de edição em useCategoryFormRecord. A leitura solicita getTagDataFirebase com fromServer, confere proprietário e sessão e descarta respostas de uma categoria anteriormente aberta. Os demais leitores conservam o comportamento anterior.
+- Carregamento e erro impedem salvar. Falha ou categoria ausente oferece mensagem persistente e **Tentar novamente**; não apresenta um formulário vazio como cadastro válido para edição.
+- Após uma edição confirmada, a tela recarrega o documento antes de permitir outra edição. A próxima confirmação usa o fingerprint atualizado, inclusive quando a preferência é permanecer na tela. Disponibilidade, ícone e nome refletem o documento recarregado; combinações antigas personalizadas seguem preservadas.
+- Cadastro, disponibilidade, retorno inline e bloqueio de exclusão referenciada usam os contratos existentes. Esta revisão não altera Rules nem libera rotas ou grupos automaticamente. Recuperação de intenção incerta após remontagem continua pendente conforme [[Status da Implementação Spark]].
+- Verificações e aceite desta etapa: [[Versão Usável por Telas]].

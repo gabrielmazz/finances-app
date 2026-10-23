@@ -226,6 +226,8 @@ const formatBreakdownShareLabel = (
 	totalInCents: number,
 	sourceCount: number,
 ) => {
+	if (itemValue < 0) return 'Estornos no período';
+	if (totalInCents <= 0 || itemValue > totalInCents) return 'Valor líquido no período';
 	if (sourceCount <= 1) {
 		return item.movementCount === 1 ? 'Fonte única no mês' : `${item.movementCount} movimentos no mês`;
 	}
@@ -418,18 +420,11 @@ export default function CategoryAnalysisScreen() {
 		}
 
 		return selectedReport.bankBreakdown.filter(item =>
-			selectedType === 'expense' ? item.expenseInCents > 0 : item.gainInCents > 0,
+			selectedType === 'expense' ? item.expenseInCents !== 0 : item.gainInCents !== 0,
 		);
 	}, [selectedReport, selectedType]);
-	const breakdownTotalInCents = React.useMemo(
-		() =>
-			activeBreakdown.reduce(
-				(accumulator, item) =>
-					accumulator + (selectedType === 'expense' ? item.expenseInCents : item.gainInCents),
-				0,
-			),
-		[activeBreakdown, selectedType],
-	);
+	const hasNetReversals = activeBreakdown.some(item => (selectedType === 'expense' ? item.expenseInCents : item.gainInCents) < 0);
+	const breakdownTotalInCents = metric?.currentInCents ?? 0;
 	const bankPieData = React.useMemo(
 		() =>
 			activeBreakdown.map((item, index) => {
@@ -1012,8 +1007,12 @@ export default function CategoryAnalysisScreen() {
 															Distribuição por conta
 														</Heading>
 
-														{activeBreakdown.length > 0 && breakdownTotalInCents > 0 ? (
+														{activeBreakdown.length > 0 ? (
 															<>
+																{hasNetReversals ? <VStack className="gap-2">
+																	<Text className={`${bodyText} text-sm font-bold`}>Total líquido: {formatCurrencyBRL(breakdownTotalInCents)}</Text>
+																	<Text className={`${helperText} text-sm`}>Os estornos reduzem os valores da categoria. Confira abaixo o resultado de cada conta.</Text>
+																</VStack> : (
 																<View className="items-center justify-center">
 																	<PieChart
 																		data={bankPieData}
@@ -1042,6 +1041,7 @@ export default function CategoryAnalysisScreen() {
 																		)}
 																	/>
 																</View>
+																)}
 
 																<VStack className="gap-3">
 																	{activeBreakdown.map((item, index) => {

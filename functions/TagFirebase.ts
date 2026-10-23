@@ -9,6 +9,7 @@ import {
 	doc,
 	getCountFromServer,
 	getDoc,
+	getDocFromServer,
 	getDocs,
 	query,
 	setDoc,
@@ -18,8 +19,12 @@ import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { createTagReferenceSummary } from '@/utils/categoryReferenceSummary';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import type { TagUsageType } from '@/utils/tagUsage';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { executeSparkMetadataCommandFirebase } from './SparkMetadataCommandFirebase';
+import { getSparkCategoryReferencesFirebase } from './SparkCategoryReferencesFirebase';
 
 interface AddTagParams {
+	clientActionId?: string;
 	tagName: string;
 	personId: string;
 	usageType: TagUsageType;
@@ -32,6 +37,8 @@ interface AddTagParams {
 }
 
 interface UpdateTagParams {
+	clientActionId?: string;
+	expectedFingerprint?: string;
 	tagId: string;
 	tagName?: string;
 	usageType?: TagUsageType;
@@ -49,6 +56,7 @@ export type { TagReferenceSummary } from '@/utils/categoryReferenceSummary';
 
 // Função para registrar uma nova tag no Firestore
 export async function addTagFirebase({
+	clientActionId,
 	tagName,
 	personId,
 	usageType,
@@ -70,6 +78,13 @@ export async function addTagFirebase({
 			usageType === 'gain' || usageType === 'both'
 				? shouldShowInBothLists || Boolean(isMandatoryGain)
 				: false;
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) {
+			const saved = await executeSparkMetadataCommandFirebase(db, { ...spark, clientActionId: clientActionId ?? `category_${tagRef.id}`, domain: 'category', action: 'create',
+				fields: { name: tagName, usageType, isMandatoryExpense: shouldMarkMandatoryExpense, isMandatoryGain: shouldMarkMandatoryGain,
+					showInBothLists: shouldShowInBothLists, iconFamily, iconName, iconStyle } });
+			return { success: true, tagId: saved.recordId };
+		}
 
 		await setDoc(tagRef, {
 			name: tagName,
@@ -93,6 +108,8 @@ export async function addTagFirebase({
 }
 
 export async function updateTagFirebase({
+	clientActionId,
+	expectedFingerprint,
 	tagId,
 	tagName,
 	usageType,
@@ -147,7 +164,14 @@ export async function updateTagFirebase({
 			updates.iconStyle = typeof iconStyle === 'string' ? iconStyle : null;
 		}
 
-		await setDoc(tagRef, updates, { merge: true });
+		const personId = auth.currentUser?.uid;
+		if (!personId) throw new Error('Usuário não autenticado.');
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) {
+			const { updatedAt: _, ...fields } = updates;
+			await executeSparkMetadataCommandFirebase(db, { ...spark, clientActionId: clientActionId ?? `category_${doc(collection(db, 'tags')).id}`,
+				domain: 'category', action: 'update', recordId: tagId, expectedFingerprint, fields });
+		} else await setDoc(tagRef, updates, { merge: true });
 
 		return { success: true };
 	} catch (error) {
@@ -163,6 +187,13 @@ export async function deleteTagFirebase(tagId: string) {
 		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
 		const category = (await getDoc(doc(db, 'tags', tagId))).data();
 		if (!category || category.personId !== personId) return { success: false, error: 'Categoria indisponível para esta conta.' };
+		if (category.deleted === true) return { success: true };
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) {
+			await executeSparkMetadataCommandFirebase(db, { ...spark, clientActionId: `category_delete_${doc(collection(db, 'tags')).id}`,
+				domain: 'category', action: 'delete', recordId: tagId, expectedFingerprint: createAssistantRecordFingerprint(category), fields: {} });
+			return { success: true };
+		}
 		const ledger = await getFinancialLedgerContextFirebase(personId);
 		await manageFinancialMetadataFirebase({ ...(ledger ? { groupId: ledger.groupId } : {}), expectedActorId: personId, domain: 'category', action: 'delete', recordId: tagId, fields: {}, assistantRequestFingerprint: createAssistantRecordFingerprint({ kind: 'delete_category', tagId, category }), expectedFingerprint: createAssistantRecordFingerprint(category), clientActionId: 'form_' + doc(collection(db, 'tags')).id });
 		return { success: true };
@@ -175,8 +206,10 @@ export async function getTagReferenceSummary(tagId: string) {
 	try {
 		const personId = auth.currentUser?.uid;
 		if (!personId) return { success: false, error: 'Usuário não autenticado.' };
+		const spark = await getSparkContextFirebase(db, personId);
+		if (spark) return { success: true, data: await getSparkCategoryReferencesFirebase(db, spark.groupId, tagId) };
 		const related = await getRelatedUsersIDsFirebase(personId);
-		if (!related.success) return related;
+		if (!related.success) return { success: false, error: related.error };
 		const personIds = Array.from(new Set([personId, ...(Array.isArray(related.data) ? related.data : [])]));
 		const collections = ['expenses', 'gains', 'mandatoryExpenses', 'mandatoryGains'] as const;
 		const counts = await Promise.all(
@@ -230,18 +263,32 @@ export async function getAllTagsFirebase() {
 }
 
 /** Scoped reference-data query. Use this in authenticated screens instead of a collection scan. */
-export async function getTagsWithUsersByPersonFirebase(personId: string) {
+export async function getTagsWithUsersByPersonFirebase(personId: string): Promise<{ success: boolean; data?: ({ id: string } & Record<string, any>)[]; error?: unknown }> {
 	try {
+		const spark = await getSparkContextFirebase(db, personId);
 		const related = await getRelatedUsersIDsFirebase(personId);
-		if (!related.success) return related;
+		if (!related.success) return { success: false, error: related.error };
 		const relatedIds = Array.isArray(related.data) ? related.data : [];
 		const personIds = Array.from(new Set([personId, ...relatedIds]));
 		const snapshots = await Promise.all(
-			Array.from({ length: Math.ceil(personIds.length / 30) }, (_, index) =>
+			[...Array.from({ length: Math.ceil(personIds.length / 30) }, (_, index) =>
 				getDocs(query(collection(db, 'tags'), where('personId', 'in', personIds.slice(index * 30, index * 30 + 30)))),
-			),
+			), ...(spark ? [getDocs(query(collection(db, 'tags'), where('groupId', '==', spark.groupId)))] : [])],
 		);
-		return { success: true, data: snapshots.flatMap(snapshot => snapshot.docs.map(tagDoc => ({ id: tagDoc.id, ...tagDoc.data() }))) };
+		const documents = new Map(snapshots.flatMap(snapshot => snapshot.docs.map(tagDoc => [tagDoc.id, tagDoc] as const)));
+		const owners = new Map<string, string | null>();
+		if (spark) {
+			const ids = [...new Set([...documents.values()].map(tagDoc => tagDoc.data()).filter(data => data.schemaVersion !== 1
+				&& data.groupId !== spark.groupId && data.personId !== personId && typeof data.personId === 'string').map(data => data.personId as string))];
+			await Promise.all(ids.map(async id => { owners.set(id, (await getDocFromServer(doc(db, 'users', id))).data()?.financialGroupId ?? null); }));
+			if ((await getSparkContextFirebase(db, personId))?.groupId !== spark.groupId) throw new Error('O acesso financeiro mudou.');
+		}
+		return { success: true, data: [...documents.values()].filter(tagDoc => {
+			const tag = tagDoc.data();
+			return tag.deleted !== true && (!spark || (tag.schemaVersion !== 1 || tag.groupId === spark.groupId)
+				&& (tag.groupId === spark.groupId || tag.personId === personId || owners.get(tag.personId) === spark.groupId)
+				&& [undefined, 'both', 'expense', 'gain'].includes(tag.usageType));
+		}).map(tagDoc => ({ id: tagDoc.id, ...tagDoc.data() })) };
 	} catch (error) {
 		console.error('Erro ao obter categorias do grupo:', error);
 		return { success: false, error };
@@ -249,11 +296,12 @@ export async function getTagsWithUsersByPersonFirebase(personId: string) {
 }
 
 // Função para obter os dados de uma tag específica do Firestore
-export async function getTagDataFirebase(tagId: string) {
+export async function getTagDataFirebase(tagId: string, options: { fromServer?: boolean } = {}) {
 	try {
-		const tagDoc = await getDoc(doc(db, 'tags', tagId));
+		const tagRef = doc(db, 'tags', tagId);
+		const tagDoc = await (options.fromServer ? getDocFromServer(tagRef) : getDoc(tagRef));
 
-		if (tagDoc.exists()) {
+		if (tagDoc.exists() && tagDoc.data().deleted !== true) {
 			return { success: true, data: tagDoc.data() };
 		}
 

@@ -13,6 +13,10 @@ import {
     type LegacyMonthlyBalanceSnapshot,
 } from '@/utils/monthlyBalance';
 import { fromFinancialCivilDate } from '@/utils/financialCivilDate';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkAccountFirebase, readSparkAccountsFirebase } from './SparkAccountReadFirebase';
+import { readSparkStatementFirebase } from './SparkStatementFirebase';
+import { readSparkBankSelectionFirebase } from './SparkBankSelectionFirebase';
 
 // Define os parâmetros necessários para adicionar um banco
 interface AddBankParams {
@@ -360,6 +364,9 @@ export async function getAllBanksFirebase(includeInactive = false) {
             return { success: false, error: 'Usuário não autenticado.' };
         }
 
+        const spark = await getSparkContextFirebase(db, personId);
+        if (spark) return { success: true, data: await readSparkBankSelectionFirebase(db, personId, spark.groupId, includeInactive) };
+
         // Firestore Rules are not filters: scope the query by the authenticated
         // user and related users before evaluating resource.data.personId.
         const scopedResult = await getBanksWithUsersByPersonFirebase(personId);
@@ -387,6 +394,16 @@ export async function getBankDataFirebase(bankId: string) {
 
     try {
 
+        const actorId = auth.currentUser?.uid;
+        if (!actorId) throw new Error('Usuário não autenticado.');
+        const spark = await getSparkContextFirebase(db, actorId);
+        if (spark) {
+            const account = await readSparkAccountFirebase(db, actorId, spark.groupId, bankId, { requireCurrent: false });
+            if (account.position.kind !== 'bank' || !account.catalog) throw new Error('Cadastro bancário indisponível.');
+            return { success: true, data: { name: account.catalog.name, colorHex: account.catalog.colorHex, iconKey: account.catalog.iconKey,
+                isActive: account.position.active, archived: account.lifecycle.archived, groupId: spark.groupId, financialSource: 'spark' } };
+        }
+
         const bankDoc = await getDoc(doc(db, 'banks', bankId));
 
         if (bankDoc.exists()) {
@@ -411,6 +428,9 @@ export async function getBankDataFirebase(bankId: string) {
 export async function getBanksByPersonFirebase(personId: string) {
 
     try {
+
+        const spark = await getSparkContextFirebase(db, personId);
+        if (spark) return { success: true, data: await readSparkBankSelectionFirebase(db, personId, spark.groupId) };
 
         const banksQuery = query(
             collection(db, 'banks'),
@@ -438,9 +458,12 @@ export async function getBanksByPersonFirebase(personId: string) {
 
 // Função para obter todos os bancos vinculados a um usuário específico com seus usuarios relacionados, passando o personId
 // verifica-se quais são as pessoas relacionadas e assim volta apenas os bancos vinculados a essas pessoas
-export async function getBanksWithUsersByPersonFirebase(personId: string) {
+export async function getBanksWithUsersByPersonFirebase(personId: string, includeInactive = false) {
 
     try {
+
+        const spark = await getSparkContextFirebase(db, personId);
+        if (spark) return { success: true, data: await readSparkBankSelectionFirebase(db, personId, spark.groupId, includeInactive) };
 
         // Primeiro, obtém os IDs dos usuários relacionados
         const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
@@ -883,6 +906,14 @@ interface GetBankMovementsByPeriodParams {
 
 // [[Ajuste de Saldo]]: o extrato também precisa alcançar contas criadas após o cutover.
 export async function getBankMovementBanksFirebase(personId: string) {
+    const spark = await getSparkContextFirebase(db, personId);
+    if (spark) {
+        const accounts = await readSparkAccountsFirebase(db, personId, spark.groupId, { requireCurrent: false });
+        return { success: true, data: accounts.filter(account => account.position.kind === 'bank').map(account => ({
+            id: account.accountId, name: `${account.catalog?.name ?? account.accountId}${account.lifecycle.archived ? ' (arquivado)' : ''}`,
+            colorHex: account.catalog?.colorHex ?? null, iconKey: account.catalog?.iconKey ?? null, isActive: account.position.active,
+        })) };
+    }
     const context = await getFinancialLedgerContextFirebase(personId);
     if (!context) return getBanksWithUsersByPersonFirebase(personId);
     const accounts = await getFinancialLedgerAccountsFirebase(context.groupId);
@@ -891,7 +922,14 @@ export async function getBankMovementBanksFirebase(personId: string) {
     })) };
 }
 
-export async function getBankCurrentBalanceInCentsFirebase(personId: string, bankId: string) {
+export async function getBankCurrentBalanceInCentsFirebase(personId: string, bankId: string): Promise<{ success: true; data: number | null } | { success: false; error: unknown }> {
+    const spark = await getSparkContextFirebase(db, personId);
+    if (spark) {
+        const account = await readSparkAccountFirebase(db, personId, spark.groupId, bankId);
+        return account.position.kind === 'bank' && account.positionStatus === 'current'
+            ? { success: true, data: account.position.balanceInCents }
+            : { success: false, error: 'Conta inativa: o valor preservado não é apresentado como saldo atual.' };
+    }
     const context = await getFinancialLedgerContextFirebase(personId);
     if (!context) return getLegacyBankBalanceInCentsFirebase({ personId, bankId });
     const accounts = await getFinancialLedgerAccountsFirebase(context.groupId);
@@ -911,6 +949,9 @@ export async function getBankMovementsByPeriodFirebase({
         if (!personId || !bankId) {
             return { success: false, error: 'Usuário ou banco não informado.' };
         }
+
+        const spark = await getSparkContextFirebase(db, personId);
+        if (spark) return { success: true, data: await readSparkStatementFirebase(db, personId, spark.groupId, bankId, startDate, endDate) };
 
         const context = await getFinancialLedgerContextFirebase(personId);
         if (context) {
@@ -1112,6 +1153,9 @@ export async function getCashMovementsByPeriodFirebase({
         if (!personId) {
             return { success: false, error: 'Usuário não informado.' };
         }
+
+        const spark = await getSparkContextFirebase(db, personId);
+        if (spark) return { success: true, data: await readSparkStatementFirebase(db, personId, spark.groupId, 'cash', startDate, endDate) };
 
         const relatedUsersResult = await getRelatedUsersIDsFirebase(personId);
 

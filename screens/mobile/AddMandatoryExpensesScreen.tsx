@@ -1,3 +1,4 @@
+import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import {
 	ScrollView,
@@ -144,6 +145,7 @@ const parseDateFromBR = (value: string) => {
 const formatValueInput = (value: string) => value.replace(/\D/g, '');
 const sanitizeDueDay = (value: string) => value.replace(/\D/g, '').slice(0, 2);
 const MANDATORY_REMINDER_DAY_OPTIONS: Array<{ value: string; label: string }> = [
+	{ value: '0', label: 'Somente no vencimento' },
 	{ value: '1', label: '1 dia antes (1 aviso)' },
 	{ value: '2', label: '2 dias antes (2 avisos)' },
 	{ value: '3', label: '3 dias antes (3 avisos)' },
@@ -197,13 +199,14 @@ export default function AddMandatoryExpensesScreen() {
 	// Segue [[Despesas Fixas]]: o lembrete só é liberado quando o template base estiver completo.
 	const [reminderEnabled, setReminderEnabled] = React.useState(false);
 	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
-	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<1 | 2 | 3>(1);
+	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<0 | 1 | 2 | 3>(1);
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 	const [isPrefilling, setIsPrefilling] = React.useState(false);
 	const [lastPaymentCycle, setLastPaymentCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef(false);
+	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, isSpark } = useSparkRecurringForm('expense');
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryExpenses');
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
@@ -323,6 +326,7 @@ export default function AddMandatoryExpensesScreen() {
 
 	const handleReminderDaysBeforeChange = React.useCallback((value: string) => {
 		setReminderDaysBefore(normalizeMandatoryReminderDaysBefore(value));
+		if (value === '0') setReminderOnDueDate(true);
 	}, []);
 
 	const isDueDayValid = React.useMemo(() => {
@@ -363,6 +367,7 @@ export default function AddMandatoryExpensesScreen() {
 			installmentsEnabled && normalizedInstallmentTotal !== null
 				? resolveMandatoryInstallmentsCompleted({
 					storedCompleted: settledInstallmentsCount,
+					explicitCompletion: isSpark !== false,
 					installmentTotal: normalizedInstallmentTotal,
 					startDate: parsedInstallmentStartDate,
 					isCurrentCycleCompleted: false,
@@ -373,6 +378,7 @@ export default function AddMandatoryExpensesScreen() {
 			normalizedInstallmentTotal,
 			parsedInstallmentStartDate,
 			settledInstallmentsCount,
+			isSpark,
 		],
 	);
 	const isInstallmentTotalBelowSettled =
@@ -541,6 +547,7 @@ export default function AddMandatoryExpensesScreen() {
 	]);
 
 	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
+		resetSparkRecurring();
 		setSelectedExpenseId(null);
 		setExpenseName('');
 		setValueDisplay('');
@@ -729,7 +736,7 @@ export default function AddMandatoryExpensesScreen() {
 			setIsPrefilling(true);
 
 			try {
-				const response = await getMandatoryExpenseFirebase(editingExpenseId);
+				const response = (await loadSparkRecurring(editingExpenseId)) ?? await getMandatoryExpenseFirebase(editingExpenseId);
 
 				if (!isMounted) {
 					return;
@@ -788,6 +795,7 @@ export default function AddMandatoryExpensesScreen() {
 						: null;
 				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
 					storedCompleted: data.installmentsCompleted,
+					explicitCompletion: data.sparkPlan === true,
 					installmentTotal: installmentTotalValue,
 					startDate: installmentStartDateValue,
 					isCurrentCycleCompleted: isCycleKeyCurrent(lastPaymentCycle),
@@ -835,7 +843,7 @@ export default function AddMandatoryExpensesScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [editingExpenseId, resetForm]);
+	}, [editingExpenseId, resetForm, loadSparkRecurring]);
 
 	const handleSubmit = React.useCallback(async () => {
 		if (submitLockRef.current || isSubmitting) {
@@ -1000,7 +1008,10 @@ export default function AddMandatoryExpensesScreen() {
 			let persistedExpenseId = selectedExpenseId;
 			const successTitle = selectedExpenseId ? 'Gasto obrigatório atualizado' : 'Gasto obrigatório registrado';
 
-			if (selectedExpenseId) {
+			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedExpenseId });
+			if (sparkResult) {
+				persistedExpenseId = sparkResult.id;
+			} else if (selectedExpenseId) {
 				const result = await updateMandatoryExpenseFirebase({
 					expenseId: selectedExpenseId,
 					...payload,
@@ -1126,6 +1137,7 @@ export default function AddMandatoryExpensesScreen() {
 		resolvedSettledInstallmentsCount,
 		applyPostSubmitBehavior,
 		resetForm,
+		submitSparkRecurring,
 		editingExpenseId,
 		selectedExpenseId,
 		selectedTagId,
@@ -1432,7 +1444,7 @@ export default function AddMandatoryExpensesScreen() {
 														<Switch
 															value={reminderOnDueDate}
 															onValueChange={setReminderOnDueDate}
-															disabled={isFormBusy}
+															disabled={isFormBusy || reminderDaysBefore === 0}
 															trackColor={switchTrackColor}
 															thumbColor={switchThumbColor}
 															ios_backgroundColor={switchIosBackgroundColor}

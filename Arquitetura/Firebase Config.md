@@ -3,10 +3,26 @@ tags: [firebase, configuracao, firestore, auth, app-check, ai-logic, remote-conf
 relacionado: [[Autenticação]], [[Assistente Lumus]], [[Gerenciamento de Usuários]], [[Segurança de Login]], [[Versão Web]], [[Notificações]]
 status: ativo
 tipo: arquitetura
-versao: 1.4.8
+versao: 1.4.9
+spark_scope: projeto
+spark_progress: 56
+spark_reviewed_at: 2026-10-22
 ---
 
 # Firebase Config
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+Migração do projeto para Spark: **56% implementado / 44% restante**. O protocolo local é `financial-proof-v16`; importação `ledger-stage-v4` continua bloqueada para ativação. A configuração remota não foi auditada nesta revisão. O perfil de publicação Spark permanece em **0%**. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
+
+## Continuação v17 — 22/10/2026
+
+Marcador protegido e destino do plano local: `financial-proof-v17`; o novo hash não habilita grupos reais. O histórico reconhece os nós de avaliação composta e a referência corretiva como checkpoints. O propósito exclusivo `valuation_undo` vincula uma única referência vigente excluída, permanece imutável e não autoriza comandos comuns. Contratos replanejados usam sucessor/predecessor e metadados no mesmo commit; listas atualizam a agenda depois da confirmação e não estendem lembretes de contrato vencido silenciosamente. Ver [[Protocolo Financeiro Spark]], [[Recorrências Spark]], [[Investimentos]] e [[Status da Implementação Spark]].
+
 
 Implementação Spark em andamento: [[Protocolo Financeiro Spark]] adiciona um serviço Firestore compartilhado e Rules para grupos sintéticos explicitamente habilitados por campo protegido. `npm run test:spark` valida esse protocolo e as Rules atuais com Auth/Firestore locais, sem Functions. Não altera os exports/configuração abaixo nem o roteamento dos usuários atuais; ainda não há perfil de publicação Spark ou corte de dados reais.
 

@@ -5,7 +5,7 @@ import { getCycleKeyFromDate } from '../utils/mandatoryExpenses';
 import { assertSparkBalance, assertSparkDocumentId, assertSparkPositionCurrent, parseSparkPosition, runSparkOperation, sparkText, SPARK_MAX_CENTS, type SparkIdentity } from './sparkFinancialProtocol';
 
 export type SparkTemporalBalanceInput = SparkIdentity & {
-  accountId: string; kind: 'dated_adjustment' | 'dated_reconciliation' | 'monthly_opening'; effectiveAt: Timestamp;
+  accountId: string; kind: 'dated_adjustment' | 'dated_reconciliation' | 'monthly_opening' | 'investment_sync'; effectiveAt: Timestamp;
   targetBalanceInCents: number; expectedRevision: number; cycle?: string | null;
   expectedOpeningOperationId?: string | null; note?: string | null; overdraftReason?: string | null;
 };
@@ -14,7 +14,7 @@ export type SparkTemporalBalanceInput = SparkIdentity & {
 export async function saveSparkTemporalBalanceFirebase(firestore: Firestore, input: SparkTemporalBalanceInput) {
   input = { ...input };
   assertSparkDocumentId(input.accountId);
-  if (!['dated_adjustment', 'dated_reconciliation', 'monthly_opening'].includes(input.kind)
+  if (!['dated_adjustment', 'dated_reconciliation', 'monthly_opening', 'investment_sync'].includes(input.kind)
     || !(input.effectiveAt instanceof Timestamp) || input.effectiveAt.seconds < 0
     || !Number.isSafeInteger(input.targetBalanceInCents) || Math.abs(input.targetBalanceInCents) > SPARK_MAX_CENTS
     || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new Error('Saldo, data ou revisão inválidos.');
@@ -47,7 +47,8 @@ export async function saveSparkTemporalBalanceFirebase(firestore: Firestore, inp
     if (position.revision !== input.expectedRevision || position.revision !== proof.headRevision || position.lastOperationId !== proof.headOperationId) {
       throw new Error('A prévia ficou desatualizada. Refaça a projeção com um novo identificador.');
     }
-    if (position.kind === 'investment' || (input.kind !== 'dated_reconciliation' && position.kind !== 'bank')) throw new Error('Tipo de conta incompatível.');
+    if (input.kind === 'investment_sync' ? position.kind !== 'investment'
+      : position.kind === 'investment' || (input.kind !== 'dated_reconciliation' && position.kind !== 'bank')) throw new Error('Tipo de conta incompatível.');
     if (input.kind === 'dated_adjustment' && (!proof.baselineAt || compareSparkTime(input.effectiveAt, proof.baselineAt) <= 0)) {
       throw new Error('Escolha um instante posterior à abertura elegível.');
     }

@@ -3,10 +3,21 @@ tags: [release, auditoria, scripts, testes, dependencias, firebase]
 relacionado: [[Processo de Release]], [[Firebase Config]], [[Versão Web]], [[Validação de Segurança de Ponta a Ponta]]
 status: ativo
 tipo: arquitetura
-versao: 1.0.0
+versao: 1.0.1
+spark_scope: R03
+spark_progress: 13
+spark_reviewed_at: 2026-10-19
 ---
 
 # Auditoria do Processo de Release
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+R03 — Dependências, cotas e custo operacional Spark: **13% implementado / 87% restante**. A auditoria de dependências não foi repetida nesta revisão; os números históricos abaixo não são inventário atual de vulnerabilidades. Falta medir custo/volume das leituras e fechar os critérios de operação. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
 
 Análise de 16/10/2026 do log fornecido e do fluxo de `script/release.js`, lockfiles independentes, configuração Firebase/EAS, testes e exports. O objetivo é distinguir falha de teste, requisito remoto e vulnerabilidade; testes locais aprovados não equivalem a publicação concluída.
 

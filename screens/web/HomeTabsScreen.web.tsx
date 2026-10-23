@@ -5,7 +5,8 @@ import AddRegisterExpensesScreen from '@/screens/web/AddRegisterExpensesScreen.w
 import ConfigurationsScreen from '@/screens/web/ConfigurationsScreen.web';
 import HomeScreen from '@/screens/web/HomeScreen.web';
 import {
-	HOME_DASHBOARD_ROUTE,
+	createHomeHref,
+	getVisibleHomeTab,
 	normalizeHomeTabIndex,
 } from '@/utils/navigation';
 
@@ -16,10 +17,10 @@ export default function HomeTabsScreenWeb() {
 	const { isRouteVisible } = useRouteVisibility();
 	const activeTabIndex = normalizeHomeTabIndex(tab);
 
-	// [[Visibilidade de Rotas]]: a aba Controle reutiliza o formulário de
-	// despesas e não pode oferecer uma rota que foi ocultada neste aparelho.
-	if (activeTabIndex === 1 && !isRouteVisible('addRegisterExpenses')) {
-		return <Redirect href={HOME_DASHBOARD_ROUTE} />;
+	// [[Visibilidade de Rotas]]: nunca montar Dashboard/Controle ocultos, nem por link direto.
+	const visibleTab = getVisibleHomeTab(activeTabIndex, isRouteVisible);
+	if (visibleTab !== activeTabIndex) {
+		return <Redirect href={createHomeHref(visibleTab)} />;
 	}
 
 	const ActiveScreen = TAB_SCREENS[activeTabIndex];

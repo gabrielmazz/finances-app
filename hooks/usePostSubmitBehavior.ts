@@ -8,8 +8,8 @@ import {
 } from '@/contexts/PostSubmitBehaviorContext';
 import {
 	APP_ROUTE_PATHS,
-	getPostSubmitDestinationPath,
-	getRouteVisibilityKeyForPath,
+	getPostSubmitDestinationVisibilityKey,
+	getVisibleHomeTab,
 	HOME_TAB_INDEX,
 	redirectToHomeTab,
 	redirectToRoute,
@@ -99,13 +99,10 @@ export const usePostSubmitBehavior = (screenKey: PostSubmitScreenKey) => {
 			const behavior = getBehaviorForScreen(screenKey, isEditing ? 'edit' : 'create');
 
 			if (behavior.shouldReturnAfterSubmit) {
-				const destinationPath = getPostSubmitDestinationPath(behavior.returnDestination);
-				const destinationVisibilityKey = destinationPath
-					? getRouteVisibilityKeyForPath(destinationPath)
-					: null;
+				const destinationVisibilityKey = getPostSubmitDestinationVisibilityKey(behavior.returnDestination);
 
 				if (destinationVisibilityKey && !isRouteVisible(destinationVisibilityKey)) {
-					redirectToHomeTab(HOME_TAB_INDEX.dashboard);
+					redirectToHomeTab(getVisibleHomeTab(HOME_TAB_INDEX.dashboard, isRouteVisible));
 					return;
 				}
 

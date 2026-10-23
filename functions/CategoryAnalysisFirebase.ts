@@ -1,7 +1,12 @@
-import { buildCategoryAnalysisMonths, calculateCategoryAnalysisMetric, formatCategoryAnalysisDate, getDefaultCategoryAnalysisRange, type CategoryAnalysisRange } from '@/utils/categoryAnalysis';
+import { addCategoryAnalysisCents, buildCategoryAnalysisMonths, calculateCategoryAnalysisMetric, formatCategoryAnalysisDate, getDefaultCategoryAnalysisRange, type CategoryAnalysisRange } from '@/utils/categoryAnalysis';
 import { db } from '@/FirebaseConfig';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase, getFinancialLedgerTransactionsFirebase } from '@/functions/FinancialLedgerFirebase';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkAccountsFirebase } from './SparkAccountReadFirebase';
+import { readSparkFinancialEventsFirebase } from './SparkFinancialReadFirebase';
+import { getTagsWithUsersByPersonFirebase } from './TagFirebase';
+import { projectSparkEconomicMovements } from '../utils/sparkEconomicMovements';
 import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 import type { TagUsageType } from '@/utils/tagUsage';
 import { normalizeTagUsageType } from '@/utils/tagUsage';
@@ -236,12 +241,14 @@ const normalizeMovement = ({
 	type,
 	bankMetadataById,
 	monthKeys,
+	signed = false,
 }: {
 	docId: string;
 	data: FirestoreDocument;
 	type: CategoryAnalysisMovementType;
 	bankMetadataById: Record<string, BankMetadata>;
 	monthKeys: Set<string>;
+	signed?: boolean;
 }): NormalizedMovement | null => {
 	if (!shouldIncludeMovementInGainExpenseTotals(data)) {
 		return null;
@@ -277,7 +284,10 @@ const normalizeMovement = ({
 				: type === 'expense'
 					? 'Despesa sem nome'
 					: 'Ganho sem nome',
-		valueInCents: normalizePositiveCurrency(data.valueInCents),
+		valueInCents: signed ? (() => {
+			if (!Number.isSafeInteger(data.valueInCents)) throw new Error('Termo econômico inválido.');
+			return data.valueInCents as number;
+		})() : normalizePositiveCurrency(data.valueInCents),
 		date,
 		monthKey,
 		bankId,
@@ -306,8 +316,9 @@ export async function getCategoryAnalysisFirebase(
 		const effectiveBaselineMonthCount = monthReferences.filter(month => month.isComparisonMonth).length;
 		const monthKeys = new Set(monthReferences.map(month => month.key));
 		const referencesByKey = new Map(monthReferences.map(month => [month.key, month]));
-		const ledgerContext = await getFinancialLedgerContextFirebase(personId);
-		const allowedPersonIds = await buildAllowedPersonIds(personId);
+		const spark = await getSparkContextFirebase(db, personId);
+		const ledgerContext = spark ? null : await getFinancialLedgerContextFirebase(personId);
+		const allowedPersonIds = spark ? [] : await buildAllowedPersonIds(personId);
 		const periodStart = monthReferences[0].startDate;
 		const currentReference = monthReferences[monthReferences.length - 1];
 		const historyEnd = monthReferences[monthReferences.length - 2].endDate;
@@ -335,14 +346,23 @@ export async function getCategoryAnalysisFirebase(
 			].map(period => loadDocuments(collectionName, period)));
 			return snapshots.flatMap(snapshot => snapshot.docs);
 		};
-		const [tagsSnapshot, banksSnapshot, ledgerTransactions] = await Promise.all([
-			ledgerContext ? Promise.all([
+		const [tagsSnapshot, banksSnapshot, ledgerTransactions, sparkEvents] = await Promise.all([
+			spark ? getTagsWithUsersByPersonFirebase(personId).then(result => {
+				if (!result.success || !Array.isArray(result.data)) throw new Error('Categorias indisponíveis para análise.');
+				return { docs: result.data.map(tag => ({ id: tag.id, data: () => tag })) };
+			}) : ledgerContext ? Promise.all([
 				loadDocuments('tags'), getDocs(query(collection(db, 'tags'), where('groupId', '==', ledgerContext.groupId))),
 			]).then(snapshots => ({ docs: [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(document => [document.id, document])).values()] })) : loadDocuments('tags'),
-			ledgerContext ? getFinancialLedgerAccountsFirebase(ledgerContext.groupId).then(accounts => ({
+			spark ? readSparkAccountsFirebase(db, personId, spark.groupId, { requireCurrent: false }).then(accounts => ({
+				docs: accounts.map(account => ({ id: account.accountId, data: () => ({
+					name: account.catalog?.name ?? (account.position.kind === 'cash' ? 'Dinheiro' : 'Conta sem cadastro'),
+					colorHex: account.catalog?.colorHex ?? null, isCash: account.position.kind === 'cash',
+				}) })),
+			})) : ledgerContext ? getFinancialLedgerAccountsFirebase(ledgerContext.groupId).then(accounts => ({
 				docs: accounts.map(account => ({ id: account.id, data: () => ({ ...account, isCash: account.kind === 'cash' }) })),
 			})) : loadDocuments('banks'),
 			ledgerContext ? getFinancialLedgerTransactionsFirebase(ledgerContext.groupId) : Promise.resolve([]),
+			spark ? readSparkFinancialEventsFirebase(db, personId, spark.groupId) : Promise.resolve([]),
 		]);
 		const reversedIds = new Set(ledgerTransactions.filter(transaction =>
 			transaction.kind === 'reversal' && transaction.effectiveAt <= asOfEnd,
@@ -354,7 +374,9 @@ export async function getCategoryAnalysisFirebase(
 			bankId: transaction.legs.find(leg => leg.accountId !== null)?.accountId,
 			name: transaction.note, valueInCents: Math.abs(transaction.legs.find(leg => leg.accountId !== null)?.deltaInCents ?? 0),
 		}) }));
-		const [expenseDocs, gainDocs] = ledgerContext
+		const sparkDocuments = projectSparkEconomicMovements(sparkEvents);
+		const [expenseDocs, gainDocs] = spark ? ['expense', 'gain'].map(type => sparkDocuments.filter(movement => movement.type === type)
+			.map(movement => ({ id: movement.id, data: () => movement }))) : ledgerContext
 			? [projectedDocuments('expense'), projectedDocuments('income')]
 			: await Promise.all([loadMovements('expenses'), loadMovements('gains')]);
 
@@ -406,6 +428,7 @@ export async function getCategoryAnalysisFirebase(
 						type: 'expense',
 						bankMetadataById,
 						monthKeys,
+						signed: Boolean(spark),
 					}),
 				),
 			...gainDocs
@@ -416,6 +439,7 @@ export async function getCategoryAnalysisFirebase(
 						type: 'gain',
 						bankMetadataById,
 						monthKeys,
+						signed: Boolean(spark),
 					}),
 				),
 		].filter((movement): movement is NormalizedMovement => {
@@ -454,10 +478,10 @@ export async function getCategoryAnalysisFirebase(
 				}
 
 				if (movement.type === 'expense') {
-					months[monthIndex].expenseInCents += movement.valueInCents;
+					months[monthIndex].expenseInCents = addCategoryAnalysisCents(months[monthIndex].expenseInCents, movement.valueInCents);
 					months[monthIndex].expenseCount += 1;
 				} else {
-					months[monthIndex].gainInCents += movement.valueInCents;
+					months[monthIndex].gainInCents = addCategoryAnalysisCents(months[monthIndex].gainInCents, movement.valueInCents);
 					months[monthIndex].gainCount += 1;
 				}
 
@@ -469,9 +493,9 @@ export async function getCategoryAnalysisFirebase(
 					};
 
 					if (movement.type === 'expense') {
-						dailyTotals.expenseInCents += movement.valueInCents;
+						dailyTotals.expenseInCents = addCategoryAnalysisCents(dailyTotals.expenseInCents, movement.valueInCents);
 					} else {
-						dailyTotals.gainInCents += movement.valueInCents;
+						dailyTotals.gainInCents = addCategoryAnalysisCents(dailyTotals.gainInCents, movement.valueInCents);
 					}
 
 					months[monthIndex].dailyMovementsByDay[dayKey] = dailyTotals;
@@ -496,9 +520,9 @@ export async function getCategoryAnalysisFirebase(
 				}
 
 				if (movement.type === 'expense') {
-					currentBreakdownById[breakdownId].expenseInCents += movement.valueInCents;
+					currentBreakdownById[breakdownId].expenseInCents = addCategoryAnalysisCents(currentBreakdownById[breakdownId].expenseInCents, movement.valueInCents);
 				} else {
-					currentBreakdownById[breakdownId].gainInCents += movement.valueInCents;
+					currentBreakdownById[breakdownId].gainInCents = addCategoryAnalysisCents(currentBreakdownById[breakdownId].gainInCents, movement.valueInCents);
 				}
 				currentBreakdownById[breakdownId].movementCount += 1;
 			});
@@ -540,10 +564,10 @@ export async function getCategoryAnalysisFirebase(
 		}, {});
 
 		const sortedTags = [...tags].sort((left, right) => {
-			const rightCurrentTotal = right.currentExpenseInCents + right.currentGainInCents;
-			const leftCurrentTotal = left.currentExpenseInCents + left.currentGainInCents;
+			const rightCurrentTotal = BigInt(right.currentExpenseInCents) + BigInt(right.currentGainInCents);
+			const leftCurrentTotal = BigInt(left.currentExpenseInCents) + BigInt(left.currentGainInCents);
 			if (rightCurrentTotal !== leftCurrentTotal) {
-				return rightCurrentTotal - leftCurrentTotal;
+				return rightCurrentTotal > leftCurrentTotal ? 1 : -1;
 			}
 
 			if (right.movementCount !== left.movementCount) {
@@ -552,6 +576,7 @@ export async function getCategoryAnalysisFirebase(
 
 			return left.name.localeCompare(right.name, 'pt-BR');
 		});
+		if (spark && (await getSparkContextFirebase(db, personId))?.groupId !== spark.groupId) throw new Error('O acesso financeiro mudou.');
 
 		return {
 			success: true,

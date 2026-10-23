@@ -3,14 +3,47 @@ tags: [notificacoes, lembretes, push-remoto, expo-notifications, android, web]
 relacionado: [[Despesas Fixas]], [[Receitas Fixas]], [[Componentes UI]], [[Autenticação]], [[Versão Web]]
 status: ativo
 tipo: feature
-versao: 3.4.0
+versao: 3.5.1
+spark_scope: avisos
+spark_progress: 69
+spark_reviewed_at: 2026-10-22
 ---
 
 # Notificações
 
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+Avisos e lembretes no escopo Spark: **69% implementado / 31% restante**. Avisos ao abrir/retornar (N01): **78%**; lembretes locais dos planos Spark (N02): **63%**. Planos e ciclos canônicos já alimentam a agenda local; permissão/canais/reagendamento em aparelhos continuam pendentes. O proprietário aceitou a ausência de push remoto com todos os apps fechados. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
+
+## Continuação v17 — 22/10/2026
+
+Marcador protegido e destino do plano local: `financial-proof-v17`; o novo hash não habilita grupos reais. O histórico reconhece os nós de avaliação composta e a referência corretiva como checkpoints. O propósito exclusivo `valuation_undo` vincula uma única referência vigente excluída, permanece imutável e não autoriza comandos comuns. Contratos replanejados usam sucessor/predecessor e metadados no mesmo commit; listas atualizam a agenda depois da confirmação e não estendem lembretes de contrato vencido silenciosamente. Ver [[Protocolo Financeiro Spark]], [[Recorrências Spark]], [[Investimentos]] e [[Status da Implementação Spark]].
+
+
+## Agenda Spark em primeiro plano — 22/10/2026
+
+Leitores nativos de planos/ciclos alimentam `mandatoryReminderAccountSync`. A rotina roda após login e novamente ao retornar ao app; considera apenas planos ativos e o contador explícito confirmado. Arquivo, mudança de metadados e desfazimento passam a ser refletidos na próxima reconciliação local. D0 preserva `reminderDaysBefore:0` em vez de normalizar silenciosamente para D-1; o formulário oferece Somente no vencimento e mantém D0 ativado nessa escolha. Falha de leitura não apaga uma agenda válida, e troca de UID cancela a atualização da sessão anterior.
+
+O Spark mantém os avisos compartilhados ao abrir/retornar e lembretes locais conforme a plataforma permite. A limitação de push com todos os apps fechados foi aceita pelo proprietário. As seções de push/Functions abaixo descrevem o transporte legado; o ramo Spark não registra dispositivo remoto nesse fluxo. Permissão, canais Android, background e reagendamento precisam de validação em build/aparelho; quatro testes da ponte e suítes do agendador passaram localmente.
+
+
 Sistema de avisos do Lumus Finanças com três frentes: lembretes locais de vencimentos/recebimentos via `expo-notifications`, push remoto para alterações de recorrências compartilhadas e alertas in-app padronizados com `components/uiverse/feedback/notifier-alert.tsx`. O navegador não recebe nem registra push.
 
 ## Push remoto para dispositivos vinculados
+
+### Decisão para o Spark — 19/10/2026
+
+O proprietário aceitou explicitamente a ausência de push com todos os aplicativos fechados, mantendo lembretes locais e avisos ao abrir. `NotificationLifecycleBridge` seleciona o transporte pelo contexto protegido: Spark não registra novo token de push; o caminho legado conserva seu registro anterior.
+
+`SparkSharedChangesFirebase` consulta no servidor apenas receipts recorrentes, com página de até 100, ordem por `createdAt`/ID e índices versionados. Na primeira abertura estabelece referência local sem reapresentar todo o histórico. Grupo sem eventos recebe referência inicial vazia, permitindo avisar sobre o primeiro evento futuro. Próximas aberturas/retornos ao foreground informam alterações de outros atores desde a referência. Empates de timestamp usam o ID imutável; a sincronização percorre até cinco páginas (500 eventos) por abertura, resume uma vez e informa continuação quando ainda há páginas. O próximo retorno continua do último evento efetivamente lido.
+
+`sparkSharedChanges.ts` conserva somente cursor, separado por UID/grupo no AsyncStorage, após apresentar o aviso. Falha de rede não avança o cursor. Sessão trocada, contexto revogado ou efeito desmontado não apresentam aviso tardio. O texto é genérico, sem nome/valor da recorrência. Não há promessa de push de sistema enquanto fechado nem de entrega entre aparelhos, pois o cursor é local. Os lembretes nativos continuam independentes; integrar os novos planos/ciclos Spark à reconciliação local ainda é obrigatório.
+
+O fluxo de Functions descrito abaixo pertence ao transporte anterior e não será implantado pelo perfil Spark.
 
 1. Após autenticar em uma build Android/iOS instalada e com permissão concedida, `app/_layout.tsx` chama `registerRemoteNotificationDevice()`. O token Expo fica em `users/{uid}/pushDevices/{installationId}`; somente o próprio UID pode gravar ou ler esse documento.
 2. `backend/src/index.ts` observa `mandatoryExpenses` e `mandatoryGains`. Criação, edição ou exclusão considera o dono e apenas relações aceitas por ambas as contas, comprovadas por concessões recíprocas no servidor.

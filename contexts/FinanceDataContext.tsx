@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { QueryClient, QueryClientProvider, dehydrate, hydrate } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, dehydrate, hydrate, focusManager } from '@tanstack/react-query';
 import React from 'react';
+import { AppState, Platform } from 'react-native';
 import SuperJSON from 'superjson';
 
 import { useAuth } from '@/contexts/AuthContext';
@@ -89,6 +90,13 @@ export function FinanceDataProvider({ children }: React.PropsWithChildren) {
 	const [client, setClient] = React.useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: FINANCE_STALE_TIME_MS, refetchOnMount: false, refetchOnWindowFocus: false, refetchOnReconnect: false, retry: 1 } } }));
 	const [preference, setPreference] = React.useState<TrustedDeviceCachePreference | null>(null);
 	const [isCacheHydrated, setIsCacheHydrated] = React.useState(false);
+	React.useEffect(() => {
+		if (Platform.OS === 'web') return;
+		// [[Dashboard Home]]: React Query nativo precisa receber o retorno ao primeiro plano.
+		if (AppState.currentState) focusManager.setFocused(AppState.currentState === 'active');
+		const subscription = AppState.addEventListener('change', state => focusManager.setFocused(state === 'active'));
+		return () => { subscription.remove(); focusManager.setFocused(undefined); };
+	}, []);
 
 	React.useEffect(() => {
 		const nextClient = new QueryClient({ defaultOptions: { queries: { staleTime: FINANCE_STALE_TIME_MS, refetchOnMount: false, refetchOnWindowFocus: false, refetchOnReconnect: false, retry: 1 } } });

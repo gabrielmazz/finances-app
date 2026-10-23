@@ -1,3 +1,6 @@
+import RetainedInvestments from '@/components/uiverse/investments/retained-investments';
+import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
+import InvestmentValuationUndo from '@/components/uiverse/investments/investment-valuation-undo';
 import React from 'react';
 import {
 	KeyboardAvoidingView,
@@ -97,6 +100,8 @@ import {
 	upsertInvestmentCdiRateFirebase,
 } from '@/functions/InvestmentCdiRateFirebase';
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
+import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
+import { serializeAssistantRecord } from '@/utils/assistantRecordFingerprint';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import {
 	buildInvestmentPortfolioAnalytics,
@@ -119,6 +124,12 @@ import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/uti
 import { isWebDesktopLayout } from '@/utils/webLayout';
 
 type FinanceInvestment = {
+	sparkNative?: boolean;
+	sparkCanUndoValuation?: boolean;
+	sparkReferenceOperationId?: string | null;
+	sparkRevision?: number;
+	archived?: boolean;
+	isActive?: boolean;
 	id: string;
 	personId: string;
 	name: string;
@@ -466,6 +477,8 @@ function FinancialListSkeleton({
 }
 
 export default function FinancialListScreen() {
+	const sparkInvestment = useSparkInvestmentForm();
+	const [retainedInvestments, setRetainedInvestments] = React.useState<FinanceInvestment[]>([]);
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const {
@@ -516,6 +529,7 @@ export default function FinancialListScreen() {
 	);
 	const [isCdiSettingsOpen, setIsCdiSettingsOpen] = React.useState(false);
 	const [cdiRateInput, setCdiRateInput] = React.useState('');
+	const cdiIntentRef = React.useRef<{ signature: string; id: string } | null>(null);
 	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingCdiRate, setIsSavingCdiRate] = React.useState(false);
 
@@ -667,7 +681,7 @@ export default function FinancialListScreen() {
 		}
 		try {
 			const [investmentsResponse, banksResponse, cdiRatesResponse, activityResponse] = await Promise.all([
-				getFinanceInvestmentsWithRelationsFirebase(currentUser.uid),
+				getFinanceInvestmentsWithRelationsFirebase(currentUser.uid, true),
 				getBanksWithUsersByPersonFirebase(currentUser.uid),
 				getInvestmentCdiRatesWithRelationsFirebase(currentUser.uid),
 				getFinanceInvestmentPortfolioActivityWithRelationsFirebase(currentUser.uid),
@@ -706,6 +720,7 @@ export default function FinancialListScreen() {
 
 				return {
 					id: String(investment.id),
+					sparkNative: investment.sparkNative === true, sparkCanUndoValuation: investment.sparkCanUndoValuation === true, sparkReferenceOperationId: investment.sparkReferenceOperationId, sparkRevision: investment.sparkRevision, archived: investment.archived === true, isActive: investment.isActive !== false,
 					personId:
 						typeof investment.personId === 'string' && investment.personId.trim().length > 0
 							? investment.personId.trim()
@@ -762,7 +777,8 @@ export default function FinancialListScreen() {
 					return acc;
 				}, {}),
 			);
-			setInvestments(normalizedInvestments);
+			setInvestments(normalizedInvestments.filter(investment => !investment.sparkNative || !investment.archived && investment.isActive));
+			setRetainedInvestments(normalizedInvestments.filter(investment => investment.sparkNative && (investment.archived || !investment.isActive)));
 			setCdiRates(
 				cdiRatesResponse.success && Array.isArray(cdiRatesResponse.data)
 					? cdiRatesResponse.data
@@ -803,6 +819,7 @@ export default function FinancialListScreen() {
 						: null;
 					return {
 						id: investment.id,
+						timelinePrecision: investment.sparkNative ? 'instant' as const : 'day' as const,
 						personId: investment.personId,
 						name: investment.name,
 						bankId: investment.bankId || null,
@@ -892,7 +909,7 @@ export default function FinancialListScreen() {
 		}
 		if (
 			typeof annualRateInBasisPoints !== 'number' ||
-			annualRateInBasisPoints <= 0 ||
+			annualRateInBasisPoints < 0 ||
 			annualRateInBasisPoints > 100_000
 		) {
 			showScreenAlert('Informe uma taxa CDI anual válida.', 'warn');
@@ -905,7 +922,10 @@ export default function FinancialListScreen() {
 
 		setIsSavingCdiRate(true);
 		try {
+			const signature = serializeAssistantRecord({ actorId: currentUser.uid, annualRateInBasisPoints, effectiveFrom });
+			if (cdiIntentRef.current?.signature !== signature) cdiIntentRef.current = { signature, id: createFinancialClientActionId('cdi') };
 			const result = await upsertInvestmentCdiRateFirebase({
+				clientActionId: cdiIntentRef.current.id,
 				personId: currentUser.uid,
 				annualRateInBasisPoints,
 				effectiveFrom,
@@ -917,6 +937,7 @@ export default function FinancialListScreen() {
 			await loadData();
 			setIsCdiSettingsOpen(false);
 			setCdiRateInput('');
+			cdiIntentRef.current = null;
 			showScreenAlert('Taxa CDI salva e aplicada às projeções.', 'success');
 		} catch (error) {
 			console.error('Erro ao salvar taxa CDI:', error);
@@ -960,6 +981,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenEditModal = React.useCallback(
 		(investment: FinanceInvestment) => {
+			sparkInvestment.reset();
 			setEditingInvestment(investment);
 			setEditName(investment.name);
 			setEditInitialInput(
@@ -1002,7 +1024,7 @@ export default function FinancialListScreen() {
 		try {
 			const resolvedBankName =
 				bankOptions.find((bank) => bank.id === editBankId)?.name ?? null;
-			const result = await updateFinanceInvestmentFirebase({
+			const investmentParams = {
 				investmentId: editingInvestment.id,
 				name: editName.trim(),
 				initialValueInCents: parsedInitialCents,
@@ -1012,7 +1034,8 @@ export default function FinancialListScreen() {
 				bankId: editBankId,
 				bankNameSnapshot: resolvedBankName,
 				description: editDescription.trim() ? editDescription.trim() : null,
-			});
+			};
+			const result = (await sparkInvestment.update(investmentParams)) ?? await updateFinanceInvestmentFirebase(investmentParams);
 
 			if (!result.success) {
 				throw new Error('Erro ao atualizar investimento.');
@@ -1059,7 +1082,7 @@ export default function FinancialListScreen() {
 		}
 		setIsDeleting(true);
 		try {
-			const result = await deleteFinanceInvestmentFirebase(
+			const result = (await sparkInvestment.archive(investmentPendingDeletion.id)) ?? await deleteFinanceInvestmentFirebase(
 				investmentPendingDeletion.id,
 			);
 			if (!result.success) {
@@ -1070,7 +1093,7 @@ export default function FinancialListScreen() {
 				);
 			}
 			await loadData();
-			showScreenAlert('Investimento removido.', 'success');
+			showScreenAlert(investmentPendingDeletion.sparkNative ? 'Investimento arquivado. O histórico foi preservado.' : 'Investimento removido.', 'success');
 		} catch (error) {
 			console.error(error);
 			showScreenAlert(
@@ -1086,6 +1109,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenDepositModal = React.useCallback(
 		(investment: FinanceInvestment) => {
+			sparkInvestment.reset();
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForDeposit(null);
 			setSyncedDepositValueInCents(null);
@@ -1150,7 +1174,8 @@ export default function FinancialListScreen() {
 
 		setIsSavingDeposit(true);
 		try {
-			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit', expectedCurrentValueInCents: syncedDepositValueInCents });
+			const investmentParams = { investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit' as const, expectedCurrentValueInCents: syncedDepositValueInCents };
+			const result = (await sparkInvestment.move(investmentParams)) ?? await moveFinanceInvestmentFirebase(investmentParams);
 			if (!result.success) throw new Error(result.error);
 
 			await loadData();
@@ -1193,7 +1218,7 @@ export default function FinancialListScreen() {
 
 		setIsSavingDepositSync(true);
 		try {
-			const result = await syncFinanceInvestmentValueFirebase({
+			const investmentParams = {
 				investmentId: investmentForDepositSync.id,
 				syncedValueInCents: parsedCents,
 				recordHistory: true,
@@ -1201,16 +1226,17 @@ export default function FinancialListScreen() {
 				bankId: investmentForDepositSync.bankId,
 				investmentNameSnapshot: investmentForDepositSync.name,
 				bankNameSnapshot: banksMap[investmentForDepositSync.bankId]?.name ?? null,
-				reason: 'deposit',
+				reason: 'deposit' as const,
 				date: depositSyncDateWithCurrentTime,
-			});
+			};
+			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
 
 			if (!result.success) {
-				throw new Error('Erro ao sincronizar investimento.');
+				throw new Error(result.error || 'Erro ao sincronizar investimento.');
 			}
 
 			await loadData();
-			setSyncedDepositValueInCents(parsedCents);
+			setSyncedDepositValueInCents(result.currentValueInCents ?? parsedCents);
 			setInvestmentForDeposit(investmentForDepositSync);
 			setInvestmentForDepositSync(null);
 			setDepositInput('');
@@ -1225,6 +1251,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenWithdrawalModal = React.useCallback(
 		(investment: FinanceInvestment) => {
+			sparkInvestment.reset();
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForWithdrawal(null);
 			setSyncedWithdrawalValueInCents(null);
@@ -1283,7 +1310,7 @@ export default function FinancialListScreen() {
 		setIsSavingWithdrawalSync(true);
 		try {
 			const syncedCents = parsedCents;
-			const result = await syncFinanceInvestmentValueFirebase({
+			const investmentParams = {
 				investmentId: investmentForWithdrawalSync.id,
 				syncedValueInCents: syncedCents,
 				recordHistory: true,
@@ -1291,9 +1318,10 @@ export default function FinancialListScreen() {
 				bankId: investmentForWithdrawalSync.bankId,
 				investmentNameSnapshot: investmentForWithdrawalSync.name,
 				bankNameSnapshot: banksMap[investmentForWithdrawalSync.bankId]?.name ?? null,
-				reason: 'withdrawal',
+				reason: 'withdrawal' as const,
 				date: withdrawSyncDateWithCurrentTime,
-			});
+			};
+			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
 
 			if (!result.success) {
 				showScreenAlert(result.error ?? 'Não foi possível sincronizar o investimento.', 'error');
@@ -1358,7 +1386,8 @@ export default function FinancialListScreen() {
 
 		setIsSavingWithdrawal(true);
 		try {
-			const result = await moveFinanceInvestmentFirebase({ investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption', expectedCurrentValueInCents: availableCents });
+			const investmentParams = { investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption' as const, expectedCurrentValueInCents: availableCents };
+			const result = (await sparkInvestment.move(investmentParams)) ?? await moveFinanceInvestmentFirebase(investmentParams);
 			if (!result.success) {
 				showScreenAlert(result.error ?? 'Não foi possível concluir o resgate.', 'error');
 				return;
@@ -1383,6 +1412,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenManualSyncModal = React.useCallback(
 		(investment: FinanceInvestment) => {
+			sparkInvestment.reset();
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForSync(investment);
 			setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
@@ -1422,7 +1452,7 @@ export default function FinancialListScreen() {
 
 		setIsSavingSync(true);
 		try {
-			const result = await syncFinanceInvestmentValueFirebase({
+			const investmentParams = {
 				investmentId: investmentForSync.id,
 				syncedValueInCents: parsedCents,
 				recordHistory: true,
@@ -1430,12 +1460,13 @@ export default function FinancialListScreen() {
 				bankId: investmentForSync.bankId,
 				investmentNameSnapshot: investmentForSync.name,
 				bankNameSnapshot: banksMap[investmentForSync.bankId]?.name ?? null,
-				reason: 'manual',
+				reason: 'manual' as const,
 				date: syncDateWithCurrentTime,
-			});
+			};
+			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
 
 			if (!result.success) {
-				throw new Error('Erro ao sincronizar investimento.');
+				throw new Error(result.error || 'Erro ao sincronizar investimento.');
 			}
 
 			await loadData();
@@ -1654,7 +1685,7 @@ export default function FinancialListScreen() {
 											</VStack>
 										</VStack>
 
-										{investments.length > 0 ? (
+							{investments.length > 0 ? (
 											<Box
 												className="w-full min-w-0 gap-3"
 												style={isDesktopWeb ? { flex: 1.2, minWidth: 0 } : undefined}
@@ -1691,6 +1722,7 @@ export default function FinancialListScreen() {
 							</Button>
 
 
+							<RetainedInvestments accounts={retainedInvestments} onChanged={loadData} />
 							{isInitialLoading ? (
 								<FinancialListSkeleton
 									skeletonBaseColor={skeletonBaseColor}
@@ -1766,7 +1798,7 @@ export default function FinancialListScreen() {
 												},
 												{
 													key: 'delete',
-													label: 'Excluir',
+													label: investment.sparkNative ? 'Arquivar' : 'Excluir',
 													icon: TrashIcon,
 													onPress: () => handleRequestDelete(investment),
 												},
@@ -2105,6 +2137,7 @@ export default function FinancialListScreen() {
 																		>
 																			{lastSyncLabel}
 																		</Text>
+																		{investment.sparkCanUndoValuation && investment.sparkReferenceOperationId && investment.sparkRevision !== undefined && <InvestmentValuationUndo accountId={investment.id} referenceOperationId={investment.sparkReferenceOperationId} revision={investment.sparkRevision} onChanged={loadData} />}
 																		<Text
 																			style={{
 																				marginTop: 4,
@@ -2880,7 +2913,7 @@ export default function FinancialListScreen() {
 					<ModalBackdrop />
 					<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
 						<ModalHeader>
-							<ModalTitle>Excluir investimento</ModalTitle>
+							<ModalTitle>{investmentPendingDeletion?.sparkNative ? 'Arquivar investimento' : 'Excluir investimento'}</ModalTitle>
 							<ModalCloseButton onPress={handleCloseDeleteModal} />
 						</ModalHeader>
 						<ModalBody>
@@ -2889,7 +2922,7 @@ export default function FinancialListScreen() {
 								<Text className="font-semibold">
 									{investmentPendingDeletion?.name ?? 'este investimento'}
 								</Text>
-								? Essa ação não pode ser desfeita.
+								? {investmentPendingDeletion?.sparkNative ? 'O cadastro, o saldo e o histórico serão preservados.' : 'Essa ação não pode ser desfeita.'}
 							</Text>
 						</ModalBody>
 						<ModalFooter className="gap-3">
@@ -2911,10 +2944,10 @@ export default function FinancialListScreen() {
 								{isDeleting ? (
 									<>
 										<ButtonSpinner color="white" />
-										<ButtonText>Excluindo</ButtonText>
+										<ButtonText>{investmentPendingDeletion?.sparkNative ? 'Arquivando' : 'Excluindo'}</ButtonText>
 									</>
 								) : (
-									<ButtonText>Excluir</ButtonText>
+									<ButtonText>{investmentPendingDeletion?.sparkNative ? 'Arquivar' : 'Excluir'}</ButtonText>
 								)}
 							</Button>
 						</ModalFooter>

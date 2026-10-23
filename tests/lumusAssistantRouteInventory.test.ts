@@ -45,5 +45,5 @@ it('inclui cada arquivo físico no inventário documentado e mantém guards deri
 	expect(guard).toContain('APP_ROUTE_GUARD_ENTRIES.map');
 	expect(guard).toContain('isAppRouteAllowed(entry, isAuthenticated, isRouteVisible)');
 	const home = readFileSync(join(process.cwd(), 'screens/mobile/HomeTabsScreen.tsx'), 'utf8');
-	expect(home).toContain("isRouteVisible('addRegisterExpenses')");
+	expect(home).toContain('getVisibleHomeTab(activeTabIndex, isRouteVisible)');
 });

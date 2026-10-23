@@ -1,3 +1,8 @@
+import { prepareSparkAdjustmentReversalFormFirebase, executeSparkAdjustmentReversalFormFirebase } from '@/functions/SparkBalanceFormFirebase';
+import type { SparkAdjustmentReversalInput } from '@/functions/SparkBalanceFirebase';
+import { prepareSparkPairReversalFirebase, executeSparkPairReversalFirebase, type SparkPairReversalCommand } from '@/functions/SparkPairFormFirebase';
+import { prepareSparkMovementReversalFirebase } from '@/functions/SparkMovementFormFirebase';
+import { executeSparkMovementCommandFirebase, type SparkMovementCommand } from '@/functions/SparkMovementCommandFirebase';
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getBankBalanceAdjustmentsFirebase, runBankBalanceAdjustmentFirebase } from '@/functions/BankBalanceAdjustmentFirebase';
@@ -66,7 +71,10 @@ import {
 
 import Navigator from '@/components/uiverse/navigation/navigator';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import { auth } from '@/FirebaseConfig';
+import { auth, db } from '@/FirebaseConfig';
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+import { readSparkMonthlyOpeningFirebase } from '@/functions/SparkAccountReadFirebase';
+import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
@@ -102,9 +110,11 @@ import {
 	buildBankCardPalette,
 } from '@/components/uiverse/banks/bank-card-surface';
 import { shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
+import { computeBankMovementTotals as computeMovementTotals } from '@/utils/bankMovementTotals';
 import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
 import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
 import { TagIcon } from '@/hooks/useTagIcons';
 import type { TagIconSelection } from '@/hooks/useTagIcons';
 import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
@@ -121,7 +131,14 @@ type FirestoreLikeTimestamp = {
 };
 
 type MovementRecord = {
+    sparkAdjustmentOperationId?: string | null;
+    sparkAdjustmentResolved?: boolean;
 	isLedgerMovement?: boolean;
+	isSparkMovement?: boolean;
+	sparkEconomicKind?: 'income' | 'expense' | null;
+	sparkDeltaInCents?: number;
+	sparkExecutionReference?: import('@/utils/sparkFinancialReadModel').SparkExecutionReference | null;
+	sparkResolvedByOperationId?: string | null;
 	isBalanceAdjustment?: boolean;
 	adjustmentStatus?: 'active' | 'reversed' | 'replaced';
 	reversesAdjustmentId?: string | null;
@@ -165,6 +182,9 @@ type MovementRecord = {
 };
 
 type PendingMovementAction =
+	| { type: 'reverse-spark-movement'; movement: MovementRecord; command: SparkMovementCommand }
+	| { type: 'reverse-spark-adjustment'; movement: MovementRecord; command: SparkAdjustmentReversalInput }
+	| { type: 'reverse-spark-pair'; movement: MovementRecord; command: SparkPairReversalCommand }
 	| { type: 'revert-balance-adjustment'; movement: MovementRecord; clientActionId: string }
 	| { type: 'edit-standard-movement'; movement: MovementRecord }
 	| { type: 'delete-standard-movement'; movement: MovementRecord }
@@ -373,24 +393,6 @@ const getMovementMonthBounds = (focusDate?: string | string[]) => {
 	};
 };
 
-const computeMovementTotals = (movementList: MovementRecord[]) => {
-	return movementList.reduce(
-		(acc, movement) => {
-			if (!shouldIncludeMovementInGainExpenseTotals(movement)) {
-				return acc;
-			}
-
-			if (movement.type === 'gain') {
-				acc.totalGains += movement.valueInCents;
-			} else {
-				acc.totalExpenses += movement.valueInCents;
-			}
-
-			return acc;
-		},
-		{ totalExpenses: 0, totalGains: 0 },
-	);
-};
 
 type PeriodSummaryPdfMetric = {
 	label: string;
@@ -1049,7 +1051,7 @@ export default function BankMovementsScreen() {
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const canUseMovementFilters = isCashView || Boolean(activeBankId);
-	const isMovementFilterDisabled = !canUseMovementFilters || isLoading;
+	const isMovementFilterDisabled = !canUseMovementFilters || isLoading || isRefreshing;
 	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
@@ -1072,6 +1074,16 @@ export default function BankMovementsScreen() {
 	const [editInvestmentBankId, setEditInvestmentBankId] = React.useState<string | null>(null);
 	const [editInvestmentDescription, setEditInvestmentDescription] = React.useState('');
 	const [isSavingFinanceMovement, setIsSavingFinanceMovement] = React.useState(false);
+
+	const { personId, beginRequest, cancelRequest } = useBankMovementsRequest(
+		JSON.stringify([activeBankId, isCashView, startDateInput, endDateInput]),
+	);
+	React.useEffect(() => {
+		setTagMetadataById({});
+		setBankOptions([]);
+		setPendingAction(null);
+		setEditingFinanceMovement(null);
+	}, [personId]);
 
 	const showScreenAlert = React.useCallback(
 		(
@@ -1096,12 +1108,13 @@ export default function BankMovementsScreen() {
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
+			if (isLoading || isRefreshing || errorMessage || !canUseMovementFilters) return '—';
 			if (shouldHideValues) {
 				return HIDDEN_VALUE_PLACEHOLDER;
 			}
 			return formatCurrencyBRLBase(valueInCents);
 		},
-		[shouldHideValues],
+		[shouldHideValues, isLoading, isRefreshing, errorMessage, canUseMovementFilters],
 	);
 
 	const formatSignedCurrencyBRL = React.useCallback(
@@ -1452,6 +1465,14 @@ export default function BankMovementsScreen() {
 	}, [activeBankId]);
 
 	const fetchMovements = React.useCallback(async (asRefresh = false) => {
+		const isCurrentRequest = beginRequest();
+		setMovements([]);
+		setBankCurrentBalanceInCents(null);
+		setMonthlyInitialBalanceInCents(null);
+		setExpandedMovementIds([]);
+		setErrorMessage(null);
+		setIsLoading(false);
+		setIsRefreshing(false);
 		if (!activeBankId && !isCashView) {
 			setErrorMessage(null);
 			setMovements([]);
@@ -1480,7 +1501,7 @@ export default function BankMovementsScreen() {
 		}
 
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
 			setErrorMessage('Nenhum usuário autenticado foi identificado.');
 			setMovements([]);
 			return;
@@ -1494,7 +1515,8 @@ export default function BankMovementsScreen() {
 		setErrorMessage(null);
 
 		try {
-			// Buscamos em paralelo as movimentações do banco e os obrigatórios
+			const spark = await getSparkContextFirebase(db, currentUser.uid);
+			if (!isCurrentRequest()) return;
 			const movementsPromise = isCashView
 				? getCashMovementsByPeriodFirebase({
 					personId: currentUser.uid,
@@ -1508,7 +1530,7 @@ export default function BankMovementsScreen() {
 					endDate: normalizedEnd,
 				});
 
-			const investmentsPromise = isCashView
+			const investmentsPromise = isCashView || spark
 				? Promise.resolve(null)
 				: getFinanceInvestmentsByPeriodFirebase({
 					personId: currentUser.uid,
@@ -1517,7 +1539,7 @@ export default function BankMovementsScreen() {
 					endDate: normalizedEnd,
 				});
 
-			const investmentSyncsPromise = isCashView
+			const investmentSyncsPromise = isCashView || spark
 				? Promise.resolve(null)
 				: getFinanceInvestmentSyncEventsByPeriodFirebase({
 					personId: currentUser.uid,
@@ -1526,9 +1548,10 @@ export default function BankMovementsScreen() {
 					endDate: normalizedEnd,
 				});
 
-			const now = new Date();
+			const now = spark ? toFinancialCivilDate(new Date()) : new Date();
 			const balancePromise = isCashView
 				? Promise.resolve(null)
+				: spark ? readSparkMonthlyOpeningFirebase(db, currentUser.uid, spark.groupId, activeBankId, `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`).then(data => ({ success: true, data }))
 				: getMonthlyBalanceFirebaseRelatedToUser({
 					personId: currentUser.uid,
 					bankId: activeBankId,
@@ -1540,12 +1563,13 @@ export default function BankMovementsScreen() {
 				movementsPromise,
 				investmentsPromise,
 				investmentSyncsPromise,
-				getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
-				getMandatoryGainsWithRelationsFirebase(currentUser.uid),
+				spark ? Promise.resolve({ success: true, data: [] }) : getMandatoryExpensesWithRelationsFirebase(currentUser.uid),
+				spark ? Promise.resolve({ success: true, data: [] }) : getMandatoryGainsWithRelationsFirebase(currentUser.uid),
 				balancePromise,
-				isCashView ? Promise.resolve([]) : getBankBalanceAdjustmentsFirebase(currentUser.uid, activeBankId, normalizedStart, normalizedEnd),
+				isCashView || spark ? Promise.resolve([]) : getBankBalanceAdjustmentsFirebase(currentUser.uid, activeBankId, normalizedStart, normalizedEnd),
 				isCashView ? Promise.resolve(null) : getBankCurrentBalanceInCentsFirebase(currentUser.uid, activeBankId),
 			]);
+			if (!isCurrentRequest()) return;
 			if (!result?.success || !result.data) {
 				setMovements([]);
 				setBankCurrentBalanceInCents(null);
@@ -1555,6 +1579,10 @@ export default function BankMovementsScreen() {
 						: 'Erro ao carregar as movimentações do período selecionado.',
 				);
 				return;
+			}
+
+			if (!isCashView && !currentBalanceRes?.success) {
+				throw new Error('Não foi possível confirmar o saldo atual.');
 			}
 
 			const expensesArray: any[] = Array.isArray(result.data.expenses) ? result.data.expenses : [];
@@ -1609,6 +1637,13 @@ export default function BankMovementsScreen() {
 				moneyFormat: typeof expense?.moneyFormat === 'boolean' ? expense.moneyFormat : null,
 				isFromMandatory: typeof expense?.id === 'string' ? lockedExpenseIds.has(expense.id) : false,
 				isLedgerMovement: Boolean(expense?.isLedgerMovement),
+				isSparkMovement: Boolean(expense?.isSparkMovement),
+				sparkEconomicKind: expense?.sparkEconomicKind ?? null,
+				sparkDeltaInCents: expense?.sparkDeltaInCents,
+				sparkExecutionReference: expense?.sparkExecutionReference ?? null,
+                    sparkAdjustmentOperationId: expense?.sparkAdjustmentOperationId ?? null,
+                    sparkAdjustmentResolved: expense?.sparkAdjustmentResolved ?? false,
+				sparkResolvedByOperationId: expense?.sparkResolvedByOperationId ?? null,
 				isBalanceAdjustment: Boolean(expense?.isBalanceAdjustment),
 				isCashRescue: Boolean(expense?.isCashRescue),
 				cashRescueSourceBankName:
@@ -1658,6 +1693,13 @@ export default function BankMovementsScreen() {
 				moneyFormat: typeof gain?.moneyFormat === 'boolean' ? gain.moneyFormat : null,
 				isFromMandatory: typeof gain?.id === 'string' ? lockedGainIds.has(gain.id) : false,
 				isLedgerMovement: Boolean(gain?.isLedgerMovement),
+				isSparkMovement: Boolean(gain?.isSparkMovement),
+				sparkEconomicKind: gain?.sparkEconomicKind ?? null,
+				sparkDeltaInCents: gain?.sparkDeltaInCents,
+				sparkExecutionReference: gain?.sparkExecutionReference ?? null,
+                    sparkAdjustmentOperationId: gain?.sparkAdjustmentOperationId ?? null,
+                    sparkAdjustmentResolved: gain?.sparkAdjustmentResolved ?? false,
+				sparkResolvedByOperationId: gain?.sparkResolvedByOperationId ?? null,
 				isBalanceAdjustment: Boolean(gain?.isBalanceAdjustment),
 				isCashRescue: Boolean(gain?.isCashRescue),
 				cashRescueSourceBankName:
@@ -1776,6 +1818,7 @@ export default function BankMovementsScreen() {
 				return dateB - dateA;
 			});
 
+			computeMovementTotals(combinedMovements);
 			setMovements(combinedMovements);
 			setBankCurrentBalanceInCents(currentBalanceRes?.success && typeof currentBalanceRes.data === 'number' ? currentBalanceRes.data : null);
 			if (!isCashView) {
@@ -1790,21 +1833,25 @@ export default function BankMovementsScreen() {
 				setMonthlyInitialBalanceInCents(null);
 			}
 		} catch (error) {
+			if (!isCurrentRequest()) return;
 			console.error('Erro ao buscar movimentações do banco:', error);
 			setBankCurrentBalanceInCents(null);
 			setErrorMessage('Erro inesperado ao carregar as movimentações.');
 			setMovements([]);
 			setMonthlyInitialBalanceInCents(null);
 		} finally {
-			setIsLoading(false);
-			setIsRefreshing(false);
+			if (isCurrentRequest()) {
+				setIsLoading(false);
+				setIsRefreshing(false);
+			}
 		}
-	}, [activeBankId, endDateInput, isCashView, startDateInput]);
+	}, [activeBankId, endDateInput, isCashView, startDateInput, personId, beginRequest]);
 
 	useFocusEffect(
 		React.useCallback(() => {
 			void fetchMovements();
-		}, [fetchMovements]),
+			return cancelRequest;
+		}, [fetchMovements, cancelRequest]),
 	);
 
 	// Busca a cor do banco selecionado para compor a paleta do resumo exportado em PDF.
@@ -1913,7 +1960,7 @@ export default function BankMovementsScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [isCashView]);
+	}, [isCashView, personId]);
 
 	React.useEffect(() => {
 		let isMounted = true;
@@ -1991,7 +2038,8 @@ export default function BankMovementsScreen() {
 		if (movementFilter === 'all') {
 			return movements;
 		}
-		return movements.filter(movement => movement.type === movementFilter && !movement.isBalanceAdjustment);
+		return movements.filter(movement => (movement.isSparkMovement && movement.sparkEconomicKind
+			? (movement.sparkEconomicKind === 'income' ? 'gain' : 'expense') : movement.type) === movementFilter && !movement.isBalanceAdjustment);
 	}, [movementFilter, movements]);
 
 	// Mantém o filtro de categorias alinhado às próprias movimentações carregadas, conforme [[Gerenciamento de Tags]].
@@ -2066,6 +2114,8 @@ export default function BankMovementsScreen() {
 		: 'text-typography-600';
 
 	const summaryPrimaryBalanceValue = React.useMemo(() => {
+		if (isLoading || isRefreshing) return 'Carregando…';
+		if (errorMessage || !canUseMovementFilters) return 'Saldo indisponível';
 		if (isCashView) {
 			return formatCurrencyBRL(allMovementsBalanceInCents);
 		}
@@ -2074,8 +2124,8 @@ export default function BankMovementsScreen() {
 			return formatCurrencyBRL(bankCurrentBalanceInCents);
 		}
 
-		return 'Saldo não registrado';
-	}, [allMovementsBalanceInCents, bankCurrentBalanceInCents, formatCurrencyBRL, isCashView]);
+		return 'Saldo indisponível';
+	}, [allMovementsBalanceInCents, bankCurrentBalanceInCents, formatCurrencyBRL, isCashView, isLoading, isRefreshing, errorMessage, canUseMovementFilters]);
 
 	const summaryPrimaryBalanceHelper = React.useMemo(() => {
 		if (isCashView) {
@@ -2129,7 +2179,7 @@ export default function BankMovementsScreen() {
 	}, [movementFilter, selectedTagFilterOption, visibleMovements.length]);
 
 	const handleExportPeriodSummaryPdf = React.useCallback(async () => {
-		if (isMovementFilterDisabled || isExportingPdf) {
+		if (isMovementFilterDisabled || isExportingPdf || errorMessage) {
 			return;
 		}
 
@@ -2316,6 +2366,7 @@ export default function BankMovementsScreen() {
 		getMovementTagLabel,
 		isCashView,
 		isExportingPdf,
+		errorMessage,
 		isMovementFilterDisabled,
 		monthlyInitialBalanceInCents,
 		movementFilter,
@@ -2467,13 +2518,52 @@ export default function BankMovementsScreen() {
 	]);
 
 	const handleRequestMovementAction = React.useCallback(
-		(action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
+		async (action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
+            if (movement.isSparkMovement && movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved) {
+                try {
+                    const actorId = auth.currentUser?.uid;
+                    if (!actorId) throw new Error('Usuário não autenticado.');
+                    const command = await prepareSparkAdjustmentReversalFormFirebase(db, actorId, movement.sparkAdjustmentOperationId, () => createFinancialClientActionId('reverse_adjustment'));
+                    if (auth.currentUser?.uid !== actorId) return;
+                    if (action === 'edit') navigateToRoute(APP_ROUTE_PATHS.bankBalanceAdjustment, { adjustmentId: movement.sparkAdjustmentOperationId, bankId: movement.bankId ?? '' });
+                    else setPendingAction({ type: 'reverse-spark-adjustment', movement, command });
+                } catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível abrir o ajuste.', 'error'); }
+                return;
+            }
+            if (movement.isSparkMovement && movement.isBalanceAdjustment) { showScreenAlert('Esta referência financeira não possui edição genérica.', 'warning'); return; }
 			if (movement.isBalanceAdjustment) {
 				if (movement.adjustmentStatus !== 'active' || movement.reversesAdjustmentId || movement.personId !== auth.currentUser?.uid) {
 					showScreenAlert('Este ajuste não pode mais ser alterado.', 'warning'); return;
 				}
 				if (action === 'edit') navigateToRoute(APP_ROUTE_PATHS.bankBalanceAdjustment, { adjustmentId: movement.id, bankId: movement.bankId ?? '' });
 				else setPendingAction({ type: 'revert-balance-adjustment', movement, clientActionId: createFinancialClientActionId('reverse_adjustment') });
+				return;
+			}
+			if (movement.isSparkMovement && movement.sparkExecutionReference?.family === 'ordinary' && !movement.sparkResolvedByOperationId) {
+				const reference = movement.sparkExecutionReference;
+				if (action === 'edit') {
+					const route = movement.type === 'gain' ? APP_ROUTE_PATHS.addRegisterGain : APP_ROUTE_PATHS.addRegisterExpenses;
+					navigateToRoute(route, { [movement.type === 'gain' ? 'gainId' : 'expenseId']: reference.operationId, sparkSource: reference.source });
+					return;
+				}
+				try {
+					const actorId = auth.currentUser?.uid;
+					if (!actorId) throw new Error('Usuário não autenticado.');
+					const command = await prepareSparkMovementReversalFirebase(db, actorId, reference, createFinancialClientActionId('reverse_movement'));
+					setPendingAction({ type: 'reverse-spark-movement', movement, command });
+				} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível preparar o estorno.', 'error'); }
+				return;
+			}
+			if (movement.isSparkMovement && movement.sparkExecutionReference?.family === 'pair'
+				&& ['live', 'imported'].includes(movement.sparkExecutionReference.source) && !movement.sparkResolvedByOperationId
+				&& (movement.isBankTransfer || movement.isCashRescue || movement.isInvestmentDeposit || movement.isInvestmentRedemption)) {
+				if (action === 'edit') { showScreenAlert('Para corrigir esta movimentação, estorne o par e registre outra operação.', 'warning'); return; }
+				try {
+					const actorId = auth.currentUser?.uid;
+					if (!actorId) throw new Error('Usuário não autenticado.');
+					const command = await prepareSparkPairReversalFirebase(db, actorId, movement.sparkExecutionReference, createFinancialClientActionId('reverse_pair'));
+					setPendingAction({ type: 'reverse-spark-pair', movement, command });
+				} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível preparar o estorno.', 'error'); }
 				return;
 			}
 			if (movement.isLedgerMovement) {
@@ -2568,6 +2658,22 @@ export default function BankMovementsScreen() {
 
 	const handleConfirmAction = React.useCallback(async () => {
 		if (!pendingAction) {
+			return;
+		}
+		if (pendingAction.type === 'reverse-spark-movement' || pendingAction.type === 'reverse-spark-pair' || pendingAction.type === 'reverse-spark-adjustment') {
+			if (adjustmentActionLockRef.current) return;
+			adjustmentActionLockRef.current = true; setIsProcessingAction(true);
+			try {
+				if (pendingAction.type === 'reverse-spark-adjustment') await executeSparkAdjustmentReversalFormFirebase(db, pendingAction.command);
+				else if (pendingAction.type === 'reverse-spark-pair') await executeSparkPairReversalFirebase(db, pendingAction.command);
+				else await executeSparkMovementCommandFirebase(db, pendingAction.command);
+				if (auth.currentUser?.uid !== pendingAction.command.actorId) return;
+				void queryClient.invalidateQueries({ queryKey: ['finance', pendingAction.command.actorId], refetchType: 'all' }).catch(() => {});
+				setPendingAction(null);
+				showScreenAlert('Lançamento estornado. O histórico foi preservado.', 'success');
+				void fetchMovements().catch(() => showScreenAlert('Estorno concluído. Atualize o extrato para conferir.', 'warning'));
+			} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível confirmar o estorno. Reenvie a mesma confirmação.', 'error'); }
+			finally { adjustmentActionLockRef.current = false; setIsProcessingAction(false); }
 			return;
 		}
 		if (pendingAction.type === 'revert-balance-adjustment') {
@@ -2724,6 +2830,9 @@ export default function BankMovementsScreen() {
 			};
 		}
 
+		if (pendingAction.type === 'reverse-spark-adjustment') return { title: 'Estornar ajuste de saldo', message: 'A diferença será compensada na data efetiva do ajuste. Uma abertura posterior continua prevalecendo. O histórico será preservado.', confirmLabel: 'Estornar', confirmAction: 'primary' as const };
+		if (pendingAction.type === 'reverse-spark-pair') return { title: 'Estornar movimentação entre contas', message: 'As duas contas serão compensadas no momento da confirmação. O histórico original será preservado.', confirmLabel: 'Estornar', confirmAction: 'primary' as const };
+		if (pendingAction.type === 'reverse-spark-movement') return { title: 'Estornar lançamento', message: 'O valor será compensado na data de hoje. O lançamento original e seu histórico serão preservados.', confirmLabel: 'Estornar', confirmAction: 'primary' as const };
 		if (pendingAction.type === 'revert-balance-adjustment') return { title: 'Reverter ajuste de saldo', message: 'A diferença deste ajuste será cancelada por um estorno. As demais movimentações e o histórico serão mantidos.', confirmLabel: 'Reverter ajuste', confirmAction: 'primary' as const };
 		const movementName = pendingAction.movement.name || 'movimentação selecionada';
 		const movementTypeLabel = pendingAction.movement.isBankTransfer
@@ -3111,6 +3220,9 @@ export default function BankMovementsScreen() {
 								{errorMessage && (
 									<View className={`${fieldContainerCardClassName} px-4 py-4 mb-4`}>
 										<Text accessibilityLiveRegion="polite" className="text-sm text-red-600 dark:text-red-400">{errorMessage}</Text>
+										<Button className="mt-3 min-h-touch rounded-control lumus-focus" action="primary" onPress={() => void fetchMovements()}>
+											<ButtonText className="text-lumus-on-accent">Tentar novamente</ButtonText>
+										</Button>
 									</View>
 								)}
 
@@ -3263,7 +3375,7 @@ export default function BankMovementsScreen() {
 										}}
 										isDisabled={
 											isMovementFilterDisabled ||
-											isExportingPdf ||
+											Boolean(errorMessage) || isExportingPdf ||
 											!parseDateFromBR(startDateInput) ||
 											!parseDateFromBR(endDateInput)
 										}
@@ -3476,8 +3588,11 @@ export default function BankMovementsScreen() {
 														...investmentMetadataItems,
 														...syncMetadataItems,
 													];
-													const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === auth.currentUser?.uid);
-													const canEditMovement = !movement.isLedgerMovement && canChangeAdjustment && !(
+													const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.isSparkMovement ? !!movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid : movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === auth.currentUser?.uid);
+													const canChangeSparkAdjustment = Boolean(movement.isSparkMovement && movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid);
+const canChangeSparkMovement = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'ordinary' && !movement.sparkResolvedByOperationId);
+													const canReverseSparkPair = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'pair' && ['live', 'imported'].includes(movement.sparkExecutionReference.source) && !movement.sparkResolvedByOperationId && (movement.isBankTransfer || movement.isCashRescue || movement.isInvestmentDeposit || movement.isInvestmentRedemption));
+														const canEditMovement = (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
 														movement.isFromMandatory ||
 														movement.isCashRescue ||
 														movement.isBankTransfer ||
@@ -3485,16 +3600,16 @@ export default function BankMovementsScreen() {
 														movement.isInvestmentDeposit ||
 														movement.isFinanceInvestmentSync
 													);
-													const usesUndoAction = movement.isBalanceAdjustment ||
+													const usesUndoAction = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair || movement.isBalanceAdjustment ||
 														movement.isInvestmentDeposit ||
 														movement.isInvestmentRedemption ||
 														movement.isFinanceInvestmentSync;
-													const canDeleteMovement = !movement.isLedgerMovement && canChangeAdjustment && !(
+													const canDeleteMovement = canReverseSparkPair || (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
 														movement.isFromMandatory ||
 														movement.isCashRescue ||
 														movement.isBankTransfer
 													);
-													const secondaryActionLabel = movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
+													const secondaryActionLabel = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair ? 'Estornar' : movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
 														? 'Desfazer aporte'
 														: movement.isInvestmentRedemption
 															? 'Desfazer resgate'
@@ -3803,7 +3918,7 @@ export default function BankMovementsScreen() {
 																					</TouchableOpacity>
 																				) : null}
 
-																				{movement.isCashRescue ? (
+																				{movement.isCashRescue && !movement.isSparkMovement ? (
 																					<TouchableOpacity
 																						activeOpacity={0.85}
 																						onPress={() =>
@@ -3826,7 +3941,8 @@ export default function BankMovementsScreen() {
 																					</TouchableOpacity>
 																				) : null}
 
-																				<TouchableOpacity
+																				{(!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair) ? (
+<TouchableOpacity
 																					activeOpacity={0.85}
 																					disabled={!canChangeAdjustment}
 																					onPress={() => handleRequestMovementAction('delete', movement)}
@@ -3844,6 +3960,7 @@ export default function BankMovementsScreen() {
 																						{secondaryActionLabel}
 																					</Text>
 																				</TouchableOpacity>
+) : null}
 																			</HStack>
 																		</VStack>
 																	</LinearGradient>

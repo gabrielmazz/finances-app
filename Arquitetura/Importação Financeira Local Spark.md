@@ -3,10 +3,30 @@ tags: [spark, financeiro, importacao, migracao, reconciliacao, seguranca]
 relacionado: [[Inventário e Restauração Local Spark]], [[Reconciliação de Dados Spark]], [[Protocolo Financeiro Spark]], [[Plano de Funcionalidade Completa sem Blaze]]
 status: em desenvolvimento
 tipo: arquitetura
-versao: 0.1.0
+versao: 0.10.1
+spark_module: D02
+spark_progress: 48
+spark_reviewed_at: 2026-10-19
 ---
 
 # Importação Financeira Local Spark
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+**D02 — Normalização e importação financeira: 48% implementado / 52% restante.** Notas P/I/D/E: **75/0/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
+
+O percentual corresponde ao módulo completo, incluindo integração e dados, e não somente ao serviço descrito nesta página. **Próxima entrega:** Concluir formatos legados/especiais, capital/cadastros e contas inativas/futuras, conservando proveniência.
+
+Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
+<!-- spark-progress:end -->
+
+## Continuação v17 — 22/10/2026
+
+Marcador protegido e destino do plano local: `financial-proof-v17`; o novo hash não habilita grupos reais. O histórico reconhece os nós de avaliação composta e a referência corretiva como checkpoints. O propósito exclusivo `valuation_undo` vincula uma única referência vigente excluída, permanece imutável e não autoriza comandos comuns. Contratos replanejados usam sucessor/predecessor e metadados no mesmo commit; listas atualizam a agenda depois da confirmação e não estendem lembretes de contrato vencido silenciosamente. Ver [[Protocolo Financeiro Spark]], [[Recorrências Spark]], [[Investimentos]] e [[Status da Implementação Spark]].
+
+
+Atualização de 19/10/2026: o plano passa a `ledger-stage-v4` sob `financial-proof-v16`. Cada identidade recebe `readModel` imutável com tipo, data, autoria, categoria, nota, fontes, pernas nas contas Spark e ID da identidade revertida. [[Integração Financeira Spark]] usa essa projeção para classificar os nós históricos sem somar identidades outra vez e sem depender de documentos anteriores mutáveis. O conteúdo financeiro das pernas é confrontado ao nó. Hashes do plano/destino mudam; planos anteriores não são ativados nem fundidos automaticamente. O bruto e a proveniência permanecem conservados. 21 ensaios de restore/importação aprovados em `.expo/spark-proof-2026-10-19/closure/restore-read-model.log`, incluindo leitura autenticada nativa/importada pelo mesmo serviço. A importação segue somente para Emulator vazio e grupo bloqueado.
 
 Continuação da compatibilidade de dados: normalização diagnóstica de documentos brutos legados e importador executável do razão para **Emulator vazio, com grupo bloqueado ao final**. Não há captura de produção, migração de usuários reais ou comando de ativação. As telas e o assistente continuam no contrato anterior.
 
@@ -49,8 +69,12 @@ O candidato acrescenta:
 - posições calculadas, último checkpoint e ponteiros mensais bancários conferidos contra o calendário IANA;
 - calendário protegido do intervalo necessário, recusando colisão com conteúdo divergente;
 - manifesto e mapeamento de contas, com os campos originais do grupo preservados em formato tipado.
+- uma identidade imutável por transação em `sparkImportedIdentities`, com autor, tipo, conta(s), valor, data, fonte/hash e lista de nós históricos; identidades não entram de novo na cadeia nem repetem saldo;
+- claims por original em `sparkImportedClaims` para estornos já registrados; recibos `correctMovement` com resultado ligam original, estorno e substituto. Fonte/resultado ausente, reutilização ou tipo/autor/data incompatíveis bloqueiam o plano.
 
-Os IDs derivam de hash do snapshot, versão `ledger-stage-v1`, grupo, corte, conta e fonte. Empates entre movimento/checkpoint usam ordenação determinística por instante/ID, sem alegar a ordem original de commits. Checkpoints empatados na mesma conta/instante permanecem bloqueados. `includesBoundary` conserva a diferença entre abertura mensal inclusiva e contagem exata exclusiva.
+Os IDs de plano/nós derivam de hash do snapshot, versão `ledger-stage-v3`, grupo, corte, conta e fonte; o destino atual é `financial-proof-v15`, com [[Criação Retroativa de Investimentos Spark]]. Trocar versão/protocolo altera o hash do plano e exige sua revisão. Identidade importada deriva de grupo e ID da transação, em namespace separado de operações novas. Empates entre movimento/checkpoint usam ordenação determinística por instante/ID, sem alegar a ordem original de commits. Checkpoints empatados na mesma conta/instante permanecem bloqueados. `includesBoundary` conserva a diferença entre abertura mensal inclusiva e contagem exata exclusiva. O registro de capital original de investimentos anteriores ainda não é convertido; o leitor não infere esse principal do saldo importado. Criação datada, correção do principal e troca de banco após importação são ensaiadas somente para investimento novo criado pelo protocolo canônico a partir de bancos importados. O ensaio v15 verifica saldos antes/no instante da aplicação e a data original nas correções, sem ativação na CLI.
+
+[[Conversão de Recorrências Spark]] acrescenta conversão dos templates/ciclos compatíveis do razão, metadados, vínculos para desfazimento e proveniência. Pagamentos não são somados outra vez; sua matemática fica nos nós já importados. Pendências são separadas por template, preservam o bruto e descartam seu candidato parcial; `recurringImport` faz parte do plano e manifesto. Histórico incompleto conserva eventos conhecidos e restringe novas efetivações ao mês posterior ao corte. A cópia continua bloqueada mesmo quando todos os templates selecionados são convertidos.
 
 Antes de escrever, BigInt confere as fronteiras históricas, inclusive as que uma contagem posterior poderia esconder, e o envelope numérico da projeção. Autor de transação precisa ser UID textual válido; autor histórico não precisa continuar membro ativo. Estornos exigem original, inversão exata de todas as pernas e resolução única; uma referência existente isoladamente não basta. Não se inventa ator para raiz ou checkpoint sem autor explícito; a fonte integral continua preservada.
 
@@ -64,7 +88,9 @@ Antes de qualquer publicação do grupo no destino, sua cópia é transformada p
 
 O writer não promete congelar outros aplicativos ou dados legados sem grupo. O Emulator precisa estar isolado, com escritores pausados. Dois percursos iguais continuam sem garantir snapshot de instante único. Também não há restauração dos metadados de servidor `createTime`/`updateTime`.
 
-O estado bloqueado é necessário porque nós genéricos demonstram a matemática, mas os serviços Spark de edição/estorno exigem identidades nativas, recibos compartilhados e claims de resolução. Não se ativa o conjunto enquanto essas pontes não estiverem implementadas. Para legado, ainda é preciso preservar o saldo **desconhecido antes da primeira abertura**, que não equivale a raiz zero; por isso o writer executável aceita somente razão já identificado. Ajustes editáveis/compostos, aberturas futuras, contas arquivadas/inativas e alguns formatos especiais continuam bloqueados, sem declarar perda silenciosa desses recursos.
+[[Operações Ordinárias Spark]] passa a editar/estornar renda/gasto importado em banco/Caixa sem referências especiais, usando `originalSource: imported` e claim compartilhado; pares importados sem referências especiais usam `reverseSparkTransferFirebase` com a mesma seleção de origem/claim. Estorno anterior importado bloqueia uma segunda resolução. Histórico matemático permanece nos nós genéricos, sem conversão que duplicaria pernas. Renda/gasto com `sourceReferences` ou em investimento recebe `ordinaryResolutionAllowed: false`; pares com referências recebem `pairResolutionAllowed: false`, até um adaptador conferir também os metadados/ciclos específicos. Recibos auxiliares de edição sem resultado precisam estar vinculados a um resultado principal válido; ciclos de originais/substitutos são recusados.
+
+O estado bloqueado continua necessário: essa ponte parcial não certifica paridade de todos os formatos nem o corte dos escritores anteriores. Para legado, ainda é preciso preservar o saldo **desconhecido antes da primeira abertura**, que não equivale a raiz zero; por isso o writer executável aceita somente razão já identificado. Ajustes editáveis/compostos, aberturas futuras, contas arquivadas/inativas e alguns formatos especiais continuam bloqueados, sem declarar perda silenciosa desses recursos. Não existe comando de ativação segura nesta entrega.
 
 ## Comandos
 

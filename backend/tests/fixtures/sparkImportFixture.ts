@@ -28,6 +28,29 @@ export function ledgerImportFixture(): LocalSnapshot {
     artifacts: { rules: 'rules_version = "2";', indexes: '{"indexes":[]}' } });
 }
 export function resealImportFixture(snapshot: LocalSnapshot) { const { sha256: _, ...body } = snapshot; return sealSnapshot(body); }
+export function recurringLedgerImportFixture() {
+  const snapshot = ledgerImportFixture();
+  snapshot.documents = snapshot.documents.filter(row => row.path !== 'mandatoryExpenses/definition');
+  const completedCycles: Record<string, any> = {};
+  for (const [index, month] of ['07', '08', '09'].entries()) {
+    const amount = index === 2 ? 334 : 333, id = `recurring-${month}`;
+    const fields = financialFields({ groupId: 'group', actorId: 'owner', kind: 'income', clientActionId: `old_payment_${month}`,
+      effectiveAt: new Date(`2026-${month}-15T12:00:00Z`), sourceReferences: [{ collection: 'mandatoryGains', id: 'contract' }],
+      legs: [{ accountId: 'bank-a', deltaInCents: amount }, { accountId: null, deltaInCents: -amount }] });
+    fields.createdAt = { timestampValue: `2026-09-20T12:00:00.00000${index + 1}Z` };
+    snapshot.documents.push({ path: `ledgerTransactions/${id}`, fields });
+    completedCycles[`2026-${month}`] = { transactionId: id, installmentsCount: 1, amountInCents: amount };
+  }
+  snapshot.documents.push({ path: 'mandatoryGains/contract', fields: financialFields({ personId: 'owner', groupId: 'group', name: 'Contrato',
+    valueInCents: 333, installmentTotal: 3, installmentTotalValueInCents: 1000, installmentsCompleted: 3,
+    installmentStartDate: new Date('2026-07-01T03:00:00Z'), installmentEndDate: new Date('2026-09-01T03:00:00Z'),
+    createdAt: new Date('2026-07-01T03:00:00Z'), assistantCycleHistoryComplete: true, completedCycles,
+    lastReceiptGainId: 'recurring-09', lastReceiptCycle: '2026-09', lastReceiptInstallmentsCount: 1,
+    dueDay: 5, usesBusinessDays: true, description: 'Metadados preservados', reminderConfigVersion: 1,
+    reminderEnabled: true, reminderDaysBefore: 2, reminderOnDueDate: true, reminderHour: 9, reminderMinute: 15 }) });
+  snapshot.documents.find(row => row.path === 'financialAccounts/bank-a')!.fields.currentBalanceInCents = { integerValue: '1134' };
+  return resealImportFixture(snapshot);
+}
 export function legacyImportFixture() {
   const documents: LocalSnapshot['documents'] = [];
   const put = (path: string, value: Record<string, unknown>) => documents.push({ path, fields: financialFields(value) });

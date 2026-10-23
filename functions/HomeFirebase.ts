@@ -1,4 +1,6 @@
 import { db } from '@/FirebaseConfig';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { createSparkHomeReader } from './SparkHomeFirebase';
 import { getInvestmentCdiRatesByPersonIdsFirebase } from '@/functions/InvestmentCdiRateFirebase';
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { calculateLegacyBankBalanceInCents, shouldIncludeMovementInGainExpenseTotals } from '@/utils/monthlyBalance';
@@ -100,6 +102,8 @@ export type HomeInvestmentPortfolio = {
 };
 
 export type HomeTimelineMovement = {
+	isSparkMovement?: boolean;
+	sparkExecutionReference?: import('../utils/sparkFinancialReadModel').SparkExecutionReference | null;
 	id: string;
 	type: 'expense' | 'gain' | 'sync';
 	name: string;
@@ -149,6 +153,7 @@ export type HomeMovementsData = {
 
 export type HomeInvestmentsData = {
 	portfolio: HomeInvestmentPortfolio;
+	projectionStatus?: 'confirmed_only' | 'projected';
 };
 
 export type HomeSectionResult<T> =
@@ -162,12 +167,15 @@ export type HomeSectionResult<T> =
 	  };
 
 export type HomeSnapshot = {
+  financialSource?: 'spark';
+  currentUntil?: number | null;
 	overview: HomeSectionResult<HomeOverviewData>;
 	movements: HomeSectionResult<HomeMovementsData>;
 	investments: HomeSectionResult<HomeInvestmentsData>;
 };
 
 type HomeQueryContext = {
+  sparkHome?: ReturnType<typeof createSparkHomeReader>;
 	personId: string;
 	allowedPersonIds: string[];
 	banks: HomeBankRecord[];
@@ -406,8 +414,7 @@ const readHomeDocumentsForPeople = async (collectionName: string, allowedPersonI
 };
 
 const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext> => {
-	const allowedPersonIds = await buildAllowedPersonIds(personId);
-	const financialLedgerContext = await getFinancialLedgerContextFirebase(personId);
+	const spark = await getSparkContextFirebase(db, personId);
 	const now = new Date();
 	const civilNow = toFinancialCivilDate(now);
 	const asOfDate = endOfFinancialCivilDay(now);
@@ -415,6 +422,11 @@ const buildHomeQueryContext = async (personId: string): Promise<HomeQueryContext
 	const endOfMonth = fromFinancialCivilDate(new Date(civilNow.getFullYear(), civilNow.getMonth() + 1, 0, 23, 59, 59, 999));
 	const startOfExpenseHistory = fromFinancialCivilDate(new Date(civilNow.getFullYear(), civilNow.getMonth() - 2, 1));
 	const startOfActivityYear = fromFinancialCivilDate(new Date(civilNow.getFullYear(), 0, 1));
+	if (spark) return { personId, allowedPersonIds: [], banks: [], bankIds: [], bankNamesById: {}, bankColorsById: {},
+		startOfMonth, endOfMonth, startOfExpenseHistory, startOfActivityYear, asOfDate,
+		financialLedgerAccounts: null, financialLedgerGroupId: null, sparkHome: createSparkHomeReader(db, personId, spark.groupId, now) };
+	const allowedPersonIds = await buildAllowedPersonIds(personId);
+	const financialLedgerContext = await getFinancialLedgerContextFirebase(personId);
 
 	if (financialLedgerContext) {
 		const accounts = await getFinancialLedgerAccountsFirebase(financialLedgerContext.groupId);
@@ -506,6 +518,7 @@ const calculateLegacyCashBalance = (context: HomeQueryContext, expenses: HomeMov
 };
 
 const loadBalancesSection = async (context: HomeQueryContext): Promise<HomeBalancesData> => {
+	if (context.sparkHome) return context.sparkHome.balances();
 	if (context.financialLedgerAccounts) {
 		const cash = context.financialLedgerAccounts.find(account => account.kind === 'cash');
 		return {
@@ -588,6 +601,7 @@ const loadUpcomingMandatoryItems = async (context: HomeQueryContext) => {
 };
 
 const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverviewData> => {
+	if (context.sparkHome) return context.sparkHome.overview();
 	const upcomingMandatoryItems = await loadUpcomingMandatoryItems(context);
 
 	if (context.financialLedgerAccounts) {
@@ -812,6 +826,7 @@ const loadOverviewSection = async (context: HomeQueryContext): Promise<HomeOverv
 };
 
 const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMovementsData> => {
+	if (context.sparkHome) return context.sparkHome.movements();
 	const ledgerMovements = context.financialLedgerAccounts ? projectLedgerMovements(await loadLedgerTransactions(context), context) : null;
 	const readRecent = (name: string) => readHomeDocumentsForPeople(name, context.allowedPersonIds, [
 		where('date', '>=', Timestamp.fromDate(context.startOfMonth)),
@@ -1003,6 +1018,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 };
 
 const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeInvestmentsData> => {
+	if (context.sparkHome) return context.sparkHome.investments();
 	if (context.financialLedgerAccounts) {
 		const [transactions, rateSnapshot] = await Promise.all([
 			loadLedgerTransactions(context), loadHomeMetadata(context, 'investmentCdiRates').catch(() => ({ docs: [] })),
@@ -1010,7 +1026,7 @@ const loadInvestmentsSection = async (context: HomeQueryContext): Promise<HomeIn
 		const rates: InvestmentCdiRate[] = rateSnapshot.docs.flatMap(document => {
 			const rate = document.data();
 			const effectiveFrom = parseToDate(rate.effectiveFrom);
-			return typeof rate.personId === 'string' && Number.isSafeInteger(rate.annualRateInBasisPoints) && rate.annualRateInBasisPoints > 0 && effectiveFrom
+			return typeof rate.personId === 'string' && Number.isSafeInteger(rate.annualRateInBasisPoints) && rate.annualRateInBasisPoints >= 0 && rate.annualRateInBasisPoints <= 100_000 && effectiveFrom
 				? [{ id: document.id, personId: rate.personId, annualRateInBasisPoints: rate.annualRateInBasisPoints, effectiveFrom }] : [];
 		});
 		return { portfolio: buildLedgerInvestmentPortfolio(context.financialLedgerAccounts, transactions, rates, context.asOfDate) };
@@ -1165,6 +1181,7 @@ export async function getHomeSnapshotFirebase(
 		return {
 			success: true,
 			data: {
+				...(context.sparkHome?.metadata() ?? {}),
 				overview:
 					overviewResult.status === 'fulfilled'
 						? { success: true, data: overviewResult.value }

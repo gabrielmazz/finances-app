@@ -4,6 +4,8 @@ import { addDoc, collection, doc, getDoc, getDocs, query, setDoc, where } from '
 // Importação das funções auxiliares
 import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import { isSafeIntegerCents } from '@/utils/monthlyBalance';
+import { getSparkContextFirebase } from './SparkContextFirebase';
+import { readSparkMonthlyOpeningFirebase } from './SparkAccountReadFirebase';
 
 
 const COLLECTION_NAME = 'monthlyBalances';
@@ -38,6 +40,7 @@ export async function upsertMonthlyBalanceFirebase({
 }: UpsertMonthlyBalanceParams): Promise<UpsertMonthlyBalanceResponse> {
 
 	try {
+		if (await getSparkContextFirebase(db, personId)) throw new Error('Prepare e confirme a abertura mensal pelo formulário Spark.');
 		if (!isSafeIntegerCents(valueInCents)) {
 			return { success: false, error: 'O saldo deve ser um número inteiro de centavos.' };
 		}
@@ -122,6 +125,8 @@ type GetMonthlyBalanceResponse =
 export async function getMonthlyBalanceFirebase({ personId, bankId, year, month }: GetMonthlyBalanceParams): Promise<GetMonthlyBalanceResponse> {
 
 	try {
+		const spark = await readSparkMonthlyRecord({ personId, bankId, year, month });
+		if (spark) return spark;
 		const balancesCol = collection(db, COLLECTION_NAME);
 		const q = query(
 			balancesCol,
@@ -150,6 +155,8 @@ export async function getMonthlyBalanceFirebase({ personId, bankId, year, month 
 export async function getMonthlyBalanceFirebaseRelatedToUser({ personId, bankId, year, month }: GetMonthlyBalanceParams): Promise<GetMonthlyBalanceResponse> {
 
 	try {
+		const spark = await readSparkMonthlyRecord({ personId, bankId, year, month });
+		if (spark) return spark;
 
 		// Resgata os usuarios relacionados ao personId
 		const usersRelatedResponse = await getRelatedUsersIDsFirebase(personId);
@@ -193,4 +200,11 @@ export async function getMonthlyBalanceFirebaseRelatedToUser({ personId, bankId,
 
 	}
 
+}
+
+async function readSparkMonthlyRecord({ personId, bankId, year, month }: GetMonthlyBalanceParams): Promise<GetMonthlyBalanceResponse | null> {
+	const context = await getSparkContextFirebase(db, personId);
+	if (!context) return null;
+	const opening = await readSparkMonthlyOpeningFirebase(db, personId, context.groupId, bankId, `${year}-${String(month).padStart(2, '0')}`);
+	return { success: true, data: opening ? { id: opening.operationId, personId, bankId, year, month, valueInCents: opening.valueInCents } : null };
 }

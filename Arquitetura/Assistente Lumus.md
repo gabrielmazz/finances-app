@@ -3,10 +3,21 @@ tags: [ia, firebase-ai-logic, gemini, assistente, voz, privacidade, financas]
 relacionado: [[Firebase Config]], [[Navegação]], [[Configurações]], [[Privacidade de Valores]], [[Componentes UI]], [[Razão Financeiro]], [[Transações de Despesas]], [[Transações de Receitas]], [[Transferências]], [[Despesas Fixas]], [[Receitas Fixas]], [[Investimentos]], [[Gerenciamento de Bancos]], [[Gerenciamento de Tags]], [[Cobertura Conversacional Lumus]], [[Perfil do Usuário]], [[Gerenciamento de Usuários]], [[Anotações Locais]]
 status: ativo
 tipo: feature
-versao: 1.2.0
+versao: 1.2.1
+spark_scope: assistente
+spark_progress: 38
+spark_reviewed_at: 2026-10-19
 ---
 
 # Assistente Lumus
+
+<!-- spark-progress:start -->
+## Progresso Spark — 19/10/2026
+
+Assistente no escopo Spark: **38% implementado / 62% restante**. A01, conversa/IA/voz: **78%**; A02, catálogo/consultas/execução financeira Spark: **25%**. Parser, voz e confirmação existentes não substituem o transporte Spark das operações. Ver [[Status da Implementação Spark]].
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
 
 Interface conversacional compartilhada por Web e mobile para consultar e operar os serviços reais do Lumus. A pessoa informa dados, escolhe referências por nome ou ordinal, corrige, confirma e cancela no chat. Cartões, seletores e paginação financeira deixaram de ser etapas necessárias para concluir operações. O modelo interpreta e propõe; o aplicativo valida, governa a autorização e informa o resultado persistido.
 

@@ -7,6 +7,14 @@ import type {
 
 export type CategoryAnalysisRange = { startDate: Date; endDate: Date };
 
+export const addCategoryAnalysisCents = (left: number, right: number): number => {
+	const result = left + right;
+	if (!Number.isSafeInteger(left) || !Number.isSafeInteger(right) || !Number.isSafeInteger(result)) {
+		throw new Error('O total da análise excede o limite de centavos inteiros.');
+	}
+	return result;
+};
+
 export const formatCategoryAnalysisDate = (date: Date) =>
 	new Intl.DateTimeFormat('pt-BR').format(date);
 
@@ -69,10 +77,10 @@ export const calculateCategoryAnalysisMetric = (
 		return date && movement.type === type && date.getDate() <= comparisonDay &&
 			historyKeys.has(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
 	});
-	const historicalTotal = historicalMovements.reduce((sum, movement) => sum + movement.valueInCents, 0);
+	const historicalTotal = historicalMovements.reduce((sum, movement) => addCategoryAnalysisCents(sum, movement.valueInCents), 0);
 	const historicalAverageInCents = history.length ? Math.round(historicalTotal / history.length) : 0;
 	const currentInCents = (type === 'expense' ? current?.expenseInCents : current?.gainInCents) ?? 0;
-	const deltaInCents = currentInCents - historicalAverageInCents;
+	const deltaInCents = addCategoryAnalysisCents(currentInCents, -historicalAverageInCents);
 	const deltaPercent = historicalAverageInCents > 0
 		? Number(((deltaInCents / historicalAverageInCents) * 100).toFixed(1)) : null;
 	return {

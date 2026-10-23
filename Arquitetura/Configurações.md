@@ -8,6 +8,8 @@ versao: 1.13.0
 
 # Configurações
 
+Etapa de 23/10/2026: [[Versão Usável por Telas]]. Configurações permanece acessível mesmo com Dashboard/Controle desativados. Accordions de bancos, categorias e ajuste só aparecem quando suas chaves de visibilidade estiverem habilitadas. A central de telas oferece **Desativar todas as telas** e liberação individual, com persistência local independente das preferências anteriores.
+
 Tela de configurações do app, acessível pela aba "Settings" na navegação principal. Centraliza as preferências do usuário e os cadastros compartilhados de bancos e categorias.
 
 ## Como funciona
@@ -70,7 +72,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 - Cada accordion avançado deve exibir um card inicial com imagem contextual de `assets/UnDraw`, mantendo o mesmo padrão visual de **Configurações por tela** e o mesmo tamanho de moldura para todas as ilustrações
 - Ações dentro das tabelas devem priorizar ícones em uma coluna dedicada à direita para economizar espaço horizontal no mobile
 - A tabela de bancos deve reservar uma coluna de ações suficiente para editar, desativar/reativar e excluir; bancos desativados permanecem visíveis na administração para permitir reativação
-- As tabelas administrativas devem permanecer contidas no card e evitar `ScrollView` horizontal; o conteúdo textual deve truncar quando necessário para preservar a coluna de ações visível
+- As tabelas administrativas permanecem contidas no card. Bancos e categorias usam rolagem horizontal em larguras menores que o mínimo da tabela; o conteúdo da rolagem ocupa pelo menos toda a largura disponível (`contentContainerClassName="min-w-full"`). Na Web, o layout fixo impede que IDs ou nomes longos redimensionem as colunas. Cabeçalho e células alinham o padding horizontal; a coluna tripla reserva `w-44` para três alvos de 44 px, dois intervalos de 8 px e padding.
 - Estrutura de linhas, cabeçalhos, captions, larguras mínimas e largura da coluna de ações das tabelas deve ser consumida via `useScreenStyle()`
 - A paginação das tabelas deve aparecer apenas quando houver mais de 5 itens na coleção visível, incluindo listas filtradas como a de tags
 - O filtro da tabela de categorias deve usar o ActionSheet compartilhado de categorias, não o `Select` genérico, e consumir `fieldContainerCardClassName` para acomodar ícone, nome e helper sem ultrapassar o card
@@ -84,7 +86,7 @@ Tela de configurações do app, acessível pela aba "Settings" na navegação pr
 - Na tela de configurações por formulário, as categorias devem ser separadas com `notTintedCardClassName`; os accordions precisam manter a ilustração contextual, nome e resumo pesquisáveis de cada tela, com o resumo alinhado diretamente abaixo do nome — nunca abaixo da ilustração
 - O campo **Tela de retorno** deve abrir um `Actionsheet` próprio, no padrão da escolha de ícone de [[Gerenciamento de Tags]], com busca, ilustração contextual, descrição de cada destino e destaque da opção selecionada; não usar o seletor nativo do Android nem numeração como identificador visual nesse fluxo
 - Configurações de edição não devem expor controle de limpeza: podem escolher o mesmo destino alternativo dos cadastros e, ao permanecer, conservam os valores editados
-- O switch **Mostrar no app** é uma preferência deste aparelho, começa habilitado salvo as exceções deliberadas **Anotações**; deve ocultar o destino do navigator e bloquear a rota, sem ser persistido no perfil Firebase do usuário.
+- O switch **Mostrar no app** é uma preferência deste aparelho, começa desabilitado para todas as telas de produto na etapa [[Versão Usável por Telas]]; deve ocultar o destino do navigator e bloquear a rota, sem ser persistido no perfil Firebase do usuário.
 - Os accordions de bancos e categorias ficam sob **Relações dentro do Aplicativo**; preferências de valores, configurações das telas e tema ficam sob **Configurações avançadas**.
 - O vínculo de outro usuário é iniciado no [[Perfil do Usuário]] e continua respeitando a preferência `addUserRelation` de [[Visibilidade de Rotas]].
 - Os toggles "Modo escuro" e "Ocultar valores" devem manter o switch preso ao extremo direito da linha mesmo quando houver texto auxiliar

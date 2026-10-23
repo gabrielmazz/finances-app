@@ -80,6 +80,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 		options: [
 			{
 				id: 'home-start',
+				visibilityKey: 'homeDashboard',
 				label: 'Início',
 				value: 0,
 				icon: 'home-outline',
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 			},
 			{
 				id: 'bank-movements',
+				visibilityKey: 'bankMovements',
 				label: 'Movimentos do banco',
 				value: 0,
 				icon: 'list-outline',
@@ -105,6 +107,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 			},
 			{
 				id: 'category-analysis',
+				visibilityKey: 'categoryAnalysis',
 				label: 'Análise por Categoria',
 				value: 0,
 				icon: 'analytics-outline',
@@ -113,6 +116,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 			},
 			{
 				id: 'financial-forecast',
+				visibilityKey: 'financialForecast',
 				label: 'Previsão Financeira',
 				value: 0,
 				icon: 'trending-up-outline',
@@ -226,6 +230,7 @@ const NAV_GROUPS: NavigatorGroup[] = [
 			},
 			{
 				id: 'profile',
+				visibilityKey: 'profile',
 				label: 'Meu perfil',
 				value: 2,
 				icon: 'person-outline',
@@ -371,7 +376,7 @@ export const Navigator: React.FC<NavigatorProps> = ({ defaultValue = 0, onHardwa
 						(option) => !option.visibilityKey || isRouteVisible(option.visibilityKey),
 					),
 				};
-			}),
+			}).filter(group => group.options.length > 0),
 		[financialListState, isRouteVisible, mandatoryExpensesState, mandatoryGainsState],
 	);
 	const activeRoute = React.useMemo(

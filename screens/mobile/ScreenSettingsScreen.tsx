@@ -53,8 +53,7 @@ import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVis
 import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
-	getPostSubmitDestinationPath,
-	getRouteVisibilityKeyForPath,
+	getPostSubmitDestinationVisibilityKey,
 	navigateToHomeConfigurations,
 } from '@/utils/navigation';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -78,6 +77,9 @@ import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryEx
 import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
 import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
 import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
+import BankMovementsIllustration from '@/assets/UnDraw/bankMovementsScreen.svg';
+import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
+import ProfileIllustration from '@/assets/UnDraw/perfilPersonScreen.svg';
 
 type ScreenSettingsItem = {
 	key: PostSubmitScreenKey;
@@ -100,7 +102,7 @@ type ReturnDestinationSelection = {
 };
 
 type StandaloneVisibilitySetting = {
-	key: 'lumusAssistant' | 'annotations';
+	key: RouteVisibilityKey;
 	label: string;
 	description: string;
 	searchableText: string;
@@ -274,6 +276,36 @@ const screenSettingsCategories: ScreenSettingsCategory[] = [
 
 const standaloneVisibilitySettings: readonly StandaloneVisibilitySetting[] = [
 	{
+		key: 'homeDashboard', label: 'Dashboard',
+		description: 'Ative o resumo inicial depois de validar os cadastros e lançamentos.',
+		searchableText: 'Home início dashboard resumo saldos', Illustration: HomeScreenIllustration,
+	},
+	{
+		key: 'bankMovements', label: 'Movimentos do banco',
+		description: 'Libere a consulta do extrato de bancos e dinheiro.',
+		searchableText: 'extrato movimentos banco caixa histórico', Illustration: BankMovementsIllustration,
+	},
+	{
+		key: 'categoryAnalysis', label: 'Análise por categoria',
+		description: 'Libere o relatório de despesas e receitas por categoria.',
+		searchableText: 'análise categoria relatório gastos ganhos', Illustration: CategoryAnalysisScreenIllustration,
+	},
+	{
+		key: 'financialForecast', label: 'Previsão financeira',
+		description: 'Libere a projeção de fluxo de caixa.',
+		searchableText: 'previsão planejamento fluxo caixa futuro', Illustration: FinancialListScreenIllustration,
+	},
+	{
+		key: 'bankBalanceAdjustment', label: 'Ajuste de saldo',
+		description: 'Libere a conferência e correção do saldo em Configurações.',
+		searchableText: 'ajuste saldo banco diferença conferência', Illustration: BankBalanceAdjustmentIllustration,
+	},
+	{
+		key: 'profile', label: 'Meu perfil',
+		description: 'Libere o perfil e os dados da conta. O vínculo de usuários tem controle próprio.',
+		searchableText: 'perfil conta usuário dados', Illustration: ProfileIllustration,
+	},
+	{
 		key: 'lumusAssistant',
 		label: 'Assistente Lumus',
 		description: 'Defina se o assistente inteligente fica disponível neste aparelho.',
@@ -331,7 +363,7 @@ export default function ScreenSettingsScreen() {
 	} = useScreenStyles();
 	const { getBehaviorForScreen, updateBehaviorForScreen, isLoadingPostSubmitBehavior } =
 		usePostSubmitBehaviorPreferences();
-	const { isRouteVisible, setRouteVisibility, isLoadingRouteVisibility } = useRouteVisibility();
+	const { isRouteVisible, setRouteVisibility, hideAllRoutes, isLoadingRouteVisibility } = useRouteVisibility();
 	const [screenSearch, setScreenSearch] = React.useState('');
 	const [returnDestinationSelection, setReturnDestinationSelection] = React.useState<ReturnDestinationSelection | null>(
 		null,
@@ -456,8 +488,7 @@ export default function ScreenSettingsScreen() {
 
 		return POST_SUBMIT_DESTINATION_OPTIONS.filter((option) => {
 			const searchableText = normalizeSearchText(`${option.label} ${option.description}`);
-			const destinationPath = getPostSubmitDestinationPath(option.key);
-			const routeVisibilityKey = destinationPath ? getRouteVisibilityKeyForPath(destinationPath) : null;
+			const routeVisibilityKey = getPostSubmitDestinationVisibilityKey(option.key);
 
 			return (
 				(!routeVisibilityKey || isRouteVisible(routeVisibilityKey)) &&
@@ -539,6 +570,19 @@ export default function ScreenSettingsScreen() {
 								/>
 							</Input>
 						</VStack>
+
+						<Box className={notTintedCardClassName}>
+							<VStack className="gap-3 p-4">
+								<Heading size="md" className={bodyText}>Liberação das telas</Heading>
+								<Text className={helperText}>
+									Ative uma tela por vez para testar. Desativar preserva os dados e os cadastros.
+									 Login, Configurações e esta central continuam acessíveis neste aparelho.
+								</Text>
+								<Button action="secondary" variant="outline" onPress={hideAllRoutes} isDisabled={isLoadingRouteVisibility}>
+									<ButtonText>Desativar todas as telas</ButtonText>
+								</Button>
+							</VStack>
+						</Box>
 
 						{filteredCategories.map((category) => (
 							<Box key={category.id} className={`${notTintedCardClassName} px-4 py-4`}>

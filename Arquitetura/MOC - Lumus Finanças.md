@@ -3,15 +3,30 @@ tags: [moc, arquitetura, expo, firebase, web, financas]
 relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]], [[Prompt Auditoria Completa de Segurança]]
 status: ativo
 tipo: arquitetura
-versao: 2.3.1
+versao: 2.3.2
+spark_scope: projeto
+spark_progress: 56
+spark_reviewed_at: 2026-10-22
 ---
 
 # MOC - Lumus Finanças
+
+Prioridade de produto em 23/10/2026: [[Versão Usável por Telas]], com liberação local gradual e marco inicial de bancos/saldo/categorias/ganhos/despesas/extrato/dashboard, preservando o Spark existente.
+
+<!-- spark-progress:start -->
+## Progresso Spark — 22/10/2026
+
+Acompanhamento Spark em [[Status da Implementação Spark]]: **56% do projeto geral**, **78% do financeiro completo**, **65% da integração completa**. O quadro contém os 24 módulos, os critérios/pesos e a ordem revisada. Os cartões nos módulos representam adaptação para Spark, não a completude das funcionalidades anteriores ao redesenho.
+
+As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
+<!-- spark-progress:end -->
 
 > Map of Content principal do projeto **Lumus Finanças** (v2.3.1)
 > Aplicação universal de controle financeiro pessoal/familiar, construída com Expo + Firebase para Android/iOS e navegador.
 
 ---
+
+Recuperação financeira entre sessões: [[Recuperação de Operações Spark]], com identificação privada e cancelamento atômico, sem persistir rascunhos ou autorizações do assistente.
 
 ## Arquitetura Geral
 

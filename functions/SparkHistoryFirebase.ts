@@ -8,7 +8,8 @@ import { SparkPreparationError, estimateSparkPreparation, SPARK_HISTORY_PAGE_SIZ
   SPARK_PREPARATION_UID_WRITES, SPARK_PREPARATION_PROJECT_WRITES, type SparkPreparationMetrics } from '../utils/sparkPreparationBudget';
 
 export type SparkHistoryProof = {
-  schemaVersion: 1; actorId: string; accountId: string; asOf: Timestamp; purpose: 'instant' | 'monthly' | 'activation';
+  schemaVersion: 1; actorId: string; accountId: string; asOf: Timestamp; purpose: 'instant' | 'monthly' | 'activation' | 'valuation_undo';
+  excludedCheckpointOperationId?: string;
   headRevision: number; headOperationId: string;
   phase: 'checkpoints' | 'movements' | 'done'; cursorRevision: number; nextOperationId: string | null;
   baselineAt: Timestamp | null; baselineRevision: number; baselineBalanceInCents: number; includesBoundary: boolean;
@@ -18,7 +19,7 @@ export type SparkHistoryProof = {
   segmentId: string | null;
   workRevision: number; leaseRevision: number; leaseWindowStartInMillis: number; leaseEndWorkRevision: number;
 };
-export type SparkHistoryInput = SparkIdentity & { accountId: string; asOf: Timestamp; purpose: SparkHistoryProof['purpose'] };
+export type SparkHistoryInput = SparkIdentity & { accountId: string; asOf: Timestamp; purpose: SparkHistoryProof['purpose']; excludedCheckpointOperationId?: string };
 export { compareSparkTime, sparkHistoryEvent } from './sparkHistoryEvent';
 import { compareSparkTime, sparkHistoryEvent } from './sparkHistoryEvent';
 import { findSparkHistorySegment, applySparkHistorySegment } from './sparkHistorySegments';
@@ -43,9 +44,9 @@ function remainingPages(proof: SparkHistoryProof) {
 }
 
 /** [[Protocolo Financeiro Spark]]: links por conta provam completude, sem confiar em queries do cliente. */
-export function isSparkProofMovementIncluded(proof: SparkHistoryProof, at: Timestamp) {
+export function isSparkProofMovementIncluded(proof: SparkHistoryProof, at: Timestamp, commitRevision?: number) {
   return (!proof.baselineAt || compareSparkTime(at, proof.baselineAt) > 0
-    || (proof.includesBoundary && compareSparkTime(at, proof.baselineAt) === 0))
+    || (compareSparkTime(at, proof.baselineAt) === 0 && (proof.includesBoundary || commitRevision !== undefined && commitRevision > proof.baselineRevision)))
     && (compareSparkTime(at, proof.asOf) < 0 || (compareSparkTime(at, proof.asOf) === 0 && proof.purpose !== 'monthly'));
 }
 
@@ -67,13 +68,14 @@ export function advanceSparkHistory(proof: SparkHistoryProof, operation?: Record
   const next = { ...proof, cursorRevision: proof.cursorRevision - 1, nextOperationId: event.previous };
   if (proof.phase === 'checkpoints') {
     if (!proof.createdAt) throw new Error('Projeção sem instante de criação certificado.');
-    if (event.checkpoint && compareSparkTime(event.at, proof.createdAt) <= 0
+    const checkpoint = event.checkpoint && !(proof.purpose === 'valuation_undo' && proof.nextOperationId === proof.excludedCheckpointOperationId);
+    if (checkpoint && compareSparkTime(event.at, proof.createdAt) <= 0
       && (!next.latestCheckpointAt || compareSparkTime(event.at, next.latestCheckpointAt) > 0)) {
       next.latestCheckpointAt = event.at;
     }
-    if (event.checkpoint && compareSparkTime(event.at, proof.asOf) > 0
+    if (checkpoint && compareSparkTime(event.at, proof.asOf) > 0
       && (!next.nextCheckpointAt || compareSparkTime(event.at, next.nextCheckpointAt) < 0)) next.nextCheckpointAt = event.at;
-    if (event.checkpoint && compareSparkTime(event.at, proof.asOf) <= 0
+    if (checkpoint && compareSparkTime(event.at, proof.asOf) <= 0
       && (!proof.baselineAt || compareSparkTime(event.at, proof.baselineAt) > 0
         || (compareSparkTime(event.at, proof.baselineAt) === 0 && event.revision > proof.baselineRevision))) {
       Object.assign(next, { baselineAt: event.at, baselineRevision: event.revision,
@@ -83,7 +85,7 @@ export function advanceSparkHistory(proof: SparkHistoryProof, operation?: Record
     // Substituição conserva dois instantes; somar só o líquido apagaria a diferença entre as datas.
     let balanceDelta = 0; let tailDelta = 0;
     for (const [at, delta] of [[event.at, event.delta], [event.inverseAt, event.inverseDelta]] as const) {
-      if (isSparkProofMovementIncluded(proof, at)) balanceDelta += delta;
+      if (isSparkProofMovementIncluded(proof, at, event.commitTime ? event.revision : undefined)) balanceDelta += delta;
       const asOfComparison = compareSparkTime(at, proof.asOf);
       if (asOfComparison > 0 || (asOfComparison === 0 && proof.purpose === 'monthly')) tailDelta += delta;
     }
@@ -158,9 +160,11 @@ export async function startSparkHistoryProofFirebase(firestore: Firestore, input
   input = { ...input };
   [input.groupId, input.actorId, input.accountId].forEach(assertSparkDocumentId);
   assertClientActionId(input.clientActionId);
-  if (!(input.asOf instanceof Timestamp) || input.asOf.seconds < 0 || !['instant', 'monthly', 'activation'].includes(input.purpose)) {
+  if (!(input.asOf instanceof Timestamp) || input.asOf.seconds < 0 || !['instant', 'monthly', 'activation', 'valuation_undo'].includes(input.purpose)) {
     throw new Error('Data ou finalidade da projeção inválida.');
   }
+  if (input.purpose === 'valuation_undo') assertClientActionId(input.excludedCheckpointOperationId!);
+  else if (input.excludedCheckpointOperationId !== undefined) throw new Error('A exclusão de referência exige a preparação de desfazimento.');
   if (!Number.isInteger(requestedPages) || requestedPages < 1 || requestedPages > SPARK_PREPARATION_LEASE_PAGES) throw new Error('Reserva de preparação inválida.');
   const result = await runTransaction(firestore, async transaction => {
     beginAttempt(options);
@@ -169,13 +173,23 @@ export async function startSparkHistoryProofFirebase(firestore: Firestore, input
     const existing = (await readHistory(transaction, ref, options)).data() as SparkHistoryProof | undefined;
     if (existing) {
       if (existing.actorId !== input.actorId || existing.accountId !== input.accountId
-        || !existing.asOf.isEqual(input.asOf) || existing.purpose !== input.purpose) throw new Error('Identificador de projeção já utilizado com outros argumentos.');
+        || !existing.asOf.isEqual(input.asOf) || existing.purpose !== input.purpose
+        || existing.excludedCheckpointOperationId !== input.excludedCheckpointOperationId) throw new Error('Identificador de projeção já utilizado com outros argumentos.');
       await assertHistoryHead(firestore, transaction, input, existing, options);
       return { proof: existing, wrote: false };
     }
     const position = parseSparkPosition((await readHistory(transaction, doc(firestore, 'financialGroups', input.groupId, 'sparkPositions', input.accountId), options)).data() ?? {});
     if (!position.lastOperationId) throw new Error('Esta conta exige reconciliação de bootstrap antes da projeção.');
+    if (input.purpose === 'valuation_undo') {
+      const original = (await readHistory(transaction, doc(firestore, 'financialGroups', input.groupId, 'sparkOperations', input.excludedCheckpointOperationId!), options)).data();
+      const reference = (await readHistory(transaction, doc(firestore, 'financialGroups', input.groupId, 'sparkCheckpoints', input.accountId), options)).data();
+      if (position.kind !== 'investment' || !original || !['investment_sync', 'investment_edit_valuation'].includes(original.kind)
+        || original.accountId !== input.accountId || !original.effectiveAt?.isEqual(input.asOf) || reference?.operationId !== input.excludedCheckpointOperationId) {
+        throw new Error('Somente a avaliação vigente pode ser desfeita. Atualize a carteira.');
+      }
+    }
     const proof = { schemaVersion: 1 as const, actorId: input.actorId, accountId: input.accountId, asOf: input.asOf, purpose: input.purpose,
+      ...(input.excludedCheckpointOperationId ? { excludedCheckpointOperationId: input.excludedCheckpointOperationId } : {}),
       headRevision: position.revision, headOperationId: position.lastOperationId, phase: 'checkpoints' as const,
       cursorRevision: position.revision, nextOperationId: position.lastOperationId,
       baselineAt: null, baselineRevision: -1, baselineBalanceInCents: 0, includesBoundary: false,
@@ -187,7 +201,8 @@ export async function startSparkHistoryProofFirebase(firestore: Firestore, input
     return { proof: reserved, wrote: true };
   }).catch(async error => {
     const recovered = await recoverHistoryProgress(firestore, input, error,
-      proof => proof.accountId === input.accountId && proof.asOf.isEqual(input.asOf) && proof.purpose === input.purpose, options);
+      proof => proof.accountId === input.accountId && proof.asOf.isEqual(input.asOf) && proof.purpose === input.purpose
+        && proof.excludedCheckpointOperationId === input.excludedCheckpointOperationId, options);
     if (recovered) return { proof: recovered, wrote: false };
     throw error;
   });

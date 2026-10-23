@@ -30,6 +30,9 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 	if (form.loading) return <Text className={LUMUS_CLASS_NAMES.helper} aria-live="polite">Carregando bancos e ajuste…</Text>;
 	if (form.error) return <VStack space="md"><Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.error}</Text><Button onPress={form.retry}><ButtonText>Tentar novamente</ButtonText></Button></VStack>;
 	return <VStack space="lg">
+        {form.preparationProgress && <Text className={LUMUS_CLASS_NAMES.helper} accessibilityLiveRegion="polite">{form.preparationProgress}</Text>}
+        {form.previewLoading && <Button onPress={form.pausePreparation}><ButtonText>Pausar preparação</ButtonText></Button>}
+
 		<VStack>
 			<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 			<BankActionsheetSelector options={form.banks} selectedId={form.bankId} selectedOption={bank} selectedLabel={bank?.name} onSelect={item => form.setBankId(item.id)}
