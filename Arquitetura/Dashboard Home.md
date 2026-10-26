@@ -30,6 +30,18 @@ Tela principal do app após login. Exibe uma visão consolidada de todas as cont
 
 Nas composições Web e mobile, os títulos de seção — **Meus Bancos e Dinheiro**, **Investimentos**, **Gastos por dia**, **Atividade no ano**, **Próximos compromissos** e **Últimas Movimentações** — usam o contrato `WEB_DASHBOARD_CLASS_NAMES.sectionHeadingText`, alinhado ao cabeçalho **Calendário de Vencimentos**. Os rótulos internos dos detalhes da timeline também usam `WEB_DASHBOARD_CLASS_NAMES.detailLabel` nas duas plataformas.
 
+## Últimas movimentações completas — 26/10/2026
+
+A Home Web/mobile reutiliza a seção de timeline e os diálogos de `BankMovementsScreen` por `recentMovements`. O modo embutido recebe o snapshot de `useHomeScreenData`, sem montar outro hero, navigator, seletor de banco, filtros ou exportação. Mantém o recorte de seis movimentos mais recentes do mês civil corrente, após combinar as fontes; o extrato por conta continua oferecendo o período completo.
+
+- Detalhes, ícones, cores, descrição separada, categoria, conta, contraparte, CDI/prazo, valores de sincronização e ações seguem a implementação do extrato de cada plataforma. A despesa obrigatória usa a mesma paleta vermelha do extrato. Loading, vazio, falha com nova tentativa e privacidade permanecem explícitos.
+- A fonte anterior inclui aplicação inicial e ajustes de saldo, além de ganhos/despesas, saques e sincronizações. Preserva IDs executáveis, investimento associado, dono e estado do ajuste e vínculos obrigatórios. O razão intermediário conserva estornos e referências bancárias como registros imutáveis, sem duplicar ajustes com trilha dedicada.
+- Spark conserva `isLedgerMovement`, referências executáveis, estado de resolução, ator, tipos econômicos e operações de ajuste. Aberturas/referências e ajustes entram na lista sem virar receita/despesa dos indicadores. Transferências/aportes/resgates conservam uma representação por ação. Registros resolvidos ou referências sem executor não recebem edição/exclusão genérica.
+- Ações reutilizam as confirmações e escritores existentes: edição comum, exclusão elegível no caminho anterior, reivindicação de saque, desfazer aporte/resgate/sincronização e estornos Spark. Restrições de recorrências e pares permanecem. Atualização após ação recarrega a Home inteira, incluindo saldos e carteira; revalidação/falha descarta diálogos do snapshot anterior.
+- Valores continuam em centavos até os formatadores. O valor anterior de sincronização Web passa pelo mesmo formatador com máscara dos demais metadados.
+
+Validação automatizada registrada em [[Auditoria de Design]]. Sem publicação ou homologação visual autenticada/aparelho nesta entrega. Percentuais Spark mantidos; ações especiais ainda pendentes no extrato continuam pendentes na Home. Ver [[Gerenciamento de Bancos]] e [[Privacidade de Valores]].
+
 ## Como funciona
 
 ### Transporte Spark — 19/10/2026
@@ -68,7 +80,7 @@ graph TD
 
 1. `HomeScreen.tsx` chama o hook `useHomeScreenData(personId)` que retorna três seções com estados independentes:
    - **overview** — lista de bancos com saldos, total em caixa, total geral
-   - **movements** — até seis movimentos do mês corrente (despesas, receitas e transferências/ajustes elegíveis)
+   - **movements** — até seis movimentos do mês corrente (ganhos/despesas, saques, transferências, aplicações/aportes/resgates, sincronizações e ajustes/referências elegíveis)
    - **investments** — portfólio com valores atuais calculados pela taxa CDI por vigência
 2. Cada seção tem seu próprio `loading` e `error`, permitindo carregamento parcial
 3. O hook usa cache compartilhado TanStack Query por UID. Caminhos anteriores mantêm TTL de dez minutos e recarga manual; Spark revalida na montagem/foco/retorno e no vencimento conhecido da próxima abertura, ocultando resultados anteriores durante essa conferência. `reload()` continua sendo a recarga manual por pull-to-refresh.
@@ -143,7 +155,7 @@ Enquanto `/home` está focada, o botão físico de voltar do Android encerra o a
 ## Observações importantes
 
 - A seção de investimentos da Home só aparece durante carregamento, em erro ou quando a carteira carregada possui investimentos. Quando a consulta termina com uma carteira vazia, a seção é omitida e os cartões bancários ficam centralizados; na Web, o carrossel respeita a largura útil da coluna de bancos para não invadir a seção de investimentos.
-- Em grupos migrados, saldos de bancos, Caixa e investimentos vêm de `financialAccounts.currentBalanceInCents`; não se reaplicam os eventos que já compõem esses saldos. Overview, timeline e carteira reutilizam uma leitura paginada de `ledgerTransactions` por grupo, em páginas de 200, durante o mesmo snapshot. Originais estornados até o fim do dia civil atual são excluídos dos ganhos/gastos e da timeline, mesmo com estorno fora do período; novos eventos corretivos permanecem. Transferências, aportes, resgates, migração e reconciliações não viram ganhos/gastos comuns.
+- Em grupos migrados, saldos de bancos, Caixa e investimentos vêm de `financialAccounts.currentBalanceInCents`; não se reaplicam os eventos que já compõem esses saldos. Overview, timeline e carteira reutilizam uma leitura paginada de `ledgerTransactions` por grupo, em páginas de 200, durante o mesmo snapshot. Originais estornados até o fim do dia civil atual são excluídos dos ganhos/gastos dos indicadores, mesmo com estorno fora do período. A timeline conserva o original e o estorno dentro do recorte, como o extrato, e os novos eventos corretivos permanecem. Transferências, aportes, resgates, migração e reconciliações não viram ganhos/gastos comuns.
 - A carteira migrada mantém o saldo confirmado separado da estimativa CDI. Só estima contas com proprietário, data-base, percentual contratado e vigência CDI legíveis; o cálculo parte do saldo materializado e do último evento que o alterou. Sem metadados, taxa ou para ativos manuais, a estimativa mantém a base confirmada. Consulte [[Investimentos]].
 - Mês, consultas e cortes de hoje usam `America/Sao_Paulo`: um lançamento de hoje salvo ao meio-dia civil já aparece no saldo e nos indicadores antes desse horário. O dia seguinte permanece fora do recorte; os saldos materializados do razão não são reconstruídos por esse filtro.
 - Leituras legadas repartem os usuários autorizados em grupos de dez por consulta. A carteira consolidada lê todos os investimentos acessíveis, incluindo registros além do antigo limite de 50. A timeline lê apenas o mês civil corrente para despesas, ganhos e saques, usando os índices ascendentes `personId + date` já publicados; sincronizações de investimento usam a leitura de metadados compartilhada. Após combinar as fontes, ordena em memória e mostra os seis mais recentes. O razão aplica o mesmo recorte mensal antes da ordenação. Gráficos e calendário de compromissos usam o mesmo calendário civil nas duas fontes.

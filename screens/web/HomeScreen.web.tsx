@@ -1,17 +1,6 @@
+import BankMovementsScreen from './BankMovementsScreen.web';
 import React from "react";
-import {
-	ArrowDownCircle,
-	ArrowLeftRight,
-	ArrowUpCircle,
-	CalendarDays,
-	ChevronDown,
-	ChevronUp,
-	Eye,
-	EyeOff,
-	Info,
-	RefreshCw,
-	WalletCards,
-} from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Info } from "lucide-react";
 import {
 	Image as RNImage,
 	Pressable,
@@ -57,18 +46,11 @@ import {
 import { Button, ButtonText } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-	HIDDEN_VALUE_PLACEHOLDER,
-	useValueVisibility,
-} from "@/contexts/ValueVisibilityContext";
-import {
-	type HomeBankBalanceCard,
-	type HomeCashSummary,
-	type HomeTimelineMovement,
-} from "@/functions/HomeFirebase";
+import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from "@/contexts/ValueVisibilityContext";
+import { type HomeBankBalanceCard, type HomeCashSummary } from "@/functions/HomeFirebase";
 import { type HomeMandatoryItem } from "@/utils/homeMandatorySchedule";
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
-import { TagIcon, type TagIconSelection } from "@/hooks/useTagIcons";
+
 import { LUMUS_CHART_COLORS } from "@/design-system/tokens";
 import { WEB_DASHBOARD_CLASS_NAMES, WEB_DASHBOARD_DOM_STYLES } from "@/design-system/web-dashboard";
 import { useScreenStyles } from "@/hooks/useScreenStyle";
@@ -226,128 +208,6 @@ const MandatoryScheduleColumn = ({
 			)}
 		</View>
 	);
-};
-
-const movementTone = (movement: HomeTimelineMovement) => {
-	if (movement.isFinanceInvestmentSync)
-		return {
-			accent: "#14B8A6",
-			gradient: ["#0F766E", "#2DD4BF"] as [string, string],
-			prefix: "",
-		};
-	if (movement.isBankTransfer)
-		return {
-			accent: "#F59E0B",
-			gradient: ["#92400E", "#F59E0B"] as [string, string],
-			prefix: "",
-		};
-	if (movement.isInvestmentRedemption)
-		return {
-			accent: "#38BDF8",
-			gradient: ["#0C4A6E", "#38BDF8"] as [string, string],
-			prefix: movement.isSparkMovement ? (movement.type === "gain" ? "+" : "-") : "-",
-		};
-	if (movement.isInvestmentDeposit)
-		return {
-			accent: "#7C3AED",
-			gradient: ["#312E81", "#7C3AED"] as [string, string],
-			prefix: movement.isSparkMovement ? (movement.type === "gain" ? "+" : "-") : "+",
-		};
-	if (movement.isFromMandatory)
-		return {
-			accent: "#10B981",
-			gradient: ["#047857", "#34D399"] as [string, string],
-			prefix: movement.type === "gain" ? "+" : "-",
-		};
-	return movement.type === "gain"
-		? {
-			accent: "#10B981",
-			gradient: ["#047857", "#34D399"] as [string, string],
-			prefix: "+",
-		}
-		: {
-			accent: "#EF4444",
-			gradient: ["#B91C1C", "#EF4444"] as [string, string],
-			prefix: "-",
-		};
-};
-
-const movementIcon = (movement: HomeTimelineMovement): TagIconSelection => {
-	if (movement.tagIconFamily && movement.tagIconName)
-		return {
-			iconFamily: movement.tagIconFamily,
-			iconName: movement.tagIconName,
-			iconStyle: movement.tagIconStyle,
-		};
-	if (movement.isFinanceInvestmentSync)
-		return { iconFamily: "ionicons", iconName: "sync-outline" };
-	if (movement.isBankTransfer)
-		return { iconFamily: "ionicons", iconName: "swap-horizontal-outline" };
-	if (movement.isInvestmentRedemption)
-		return { iconFamily: "ionicons", iconName: "arrow-down-circle-outline" };
-	if (movement.isInvestmentDeposit)
-		return { iconFamily: "ionicons", iconName: "arrow-up-circle-outline" };
-	if (movement.isFromMandatory)
-		return { iconFamily: "ionicons", iconName: "shield-checkmark-outline" };
-	if (movement.moneyFormat)
-		return { iconFamily: "ionicons", iconName: "cash-outline" };
-	return movement.type === "gain"
-		? { iconFamily: "ionicons", iconName: "trending-up-outline" }
-		: { iconFamily: "ionicons", iconName: "trending-down-outline" };
-};
-
-const movementLabel = (movement: HomeTimelineMovement) => {
-	if (movement.isBankTransfer)
-		return movement.bankTransferDirection === "outgoing"
-			? "Transferência enviada"
-			: "Transferência recebida";
-	if (movement.isFinanceInvestmentSync) return "Sincronização de investimento";
-	if (movement.isInvestmentDeposit) return "Aporte de investimento";
-	if (movement.isInvestmentRedemption) return "Resgate de investimento";
-	return movement.type === "gain" ? "Ganho" : "Despesa";
-};
-
-const movementSubtitle = (movement: HomeTimelineMovement) => {
-	if (movement.isFinanceInvestmentSync)
-		return movement.investmentNameSnapshot
-			? `Sincronização em ${movement.investmentNameSnapshot}`
-			: "Sincronização manual";
-	if (movement.isBankTransfer)
-		return movement.bankTransferDirection === "outgoing"
-			? `Transferência para ${movement.bankTransferTargetBankNameSnapshot ?? "banco de destino"}`
-			: `Transferência de ${movement.bankTransferSourceBankNameSnapshot ?? "banco de origem"}`;
-	if (movement.isInvestmentRedemption)
-		return movement.investmentNameSnapshot
-			? `Resgate de ${movement.investmentNameSnapshot}`
-			: "Resgate de investimento";
-	if (movement.isInvestmentDeposit)
-		return movement.investmentNameSnapshot
-			? `Aporte em ${movement.investmentNameSnapshot}`
-			: "Aporte de investimento";
-	if (movement.isFromMandatory)
-		return movement.type === "gain"
-			? "Recebimento obrigatório concluído"
-			: "Pagamento obrigatório concluído";
-	return movement.tagName?.trim() || movementLabel(movement);
-};
-
-const movementDetail = (movement: HomeTimelineMovement) => {
-	if (movement.isFinanceInvestmentSync)
-		return `Sincronização registrada para "${movement.investmentNameSnapshot ?? "este investimento"}".`;
-	if (movement.isBankTransfer)
-		return movement.bankTransferDirection === "outgoing"
-			? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ?? "o banco de destino"}.`
-			: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? "o banco de origem"}.`;
-	if (movement.isFromMandatory)
-		return movement.type === "gain"
-			? "Este lançamento marcou como recebido o ganho obrigatório do ciclo atual."
-			: "Este lançamento marcou como pago o gasto obrigatório do ciclo atual.";
-	if (movement.explanation?.trim()) return movement.explanation.trim();
-	if (movement.tagName?.trim())
-		return `Lançamento classificado na tag "${movement.tagName.trim()}".`;
-	return movement.moneyFormat
-		? "Lançamento recente registrado em dinheiro."
-		: "Lançamento recente registrado na timeline da Home.";
 };
 
 const InfoTip = ({
@@ -513,13 +373,7 @@ export default function HomeScreen() {
 	const homeReadError = overview.error || movements.error || investments.error;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
-	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
-	const [expandedMovements, setExpandedMovements] = React.useState<string[]>(
-		[],
-	);
-	const [renderedMovements, setRenderedMovements] = React.useState<string[]>(
-		[],
-	);
+
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] =
 		React.useState(false);
 	const [dismissedPrompt, setDismissedPrompt] = React.useState<string | null>(
@@ -642,16 +496,6 @@ export default function HomeScreen() {
 		setDismissedPrompt(promptKey);
 		setIsMonthlyBalanceModalOpen(false);
 	}, [promptKey]);
-	const toggleMovement = (id: string) => {
-		if (expandedMovements.includes(id)) {
-			setExpandedMovements((current) => current.filter((item) => item !== id));
-			return;
-		}
-		setRenderedMovements((rendered) =>
-			rendered.includes(id) ? rendered : [...rendered, id],
-		);
-		setExpandedMovements((current) => [...current, id]);
-	};
 	return (
 		<SafeAreaView
 			className={webDashboardClassNames.screen}
@@ -959,8 +803,6 @@ export default function HomeScreen() {
 									</View>
 								</View>
 
-
-
 								<View
 									className={webStyles.expenseChartSection}
 								>
@@ -1087,230 +929,15 @@ export default function HomeScreen() {
 									)}
 								</View>
 
-								<View className={webStyles.section}>
-									<View className={webStyles.sectionHeading}>
-										<View className={webStyles.headingWithTip}>
-											<Pressable
-												onPress={() => setIsMovementsExpanded((current) => !current)}
-												accessibilityRole="button"
-												accessibilityLabel="Expandir ou recolher últimas movimentações"
-												accessibilityState={{ expanded: isMovementsExpanded }}
-												className="py-1.5"
-											>
-												<Text
-													className={webStyles.sectionHeadingText}
-													style={{ color: webDashboardPalette.primaryText }}
-												>
-													Últimas Movimentações
-												</Text>
-											</Pressable>
-											<InfoTip label="Informações sobre últimas movimentações">
-												Resumo de despesas, ganhos, transferências e
-												sincronizações de investimento. Clique em uma
-												movimentação para ver detalhes.
-											</InfoTip>
-										</View>
-										{isMovementsExpanded ? (
-											<ChevronUp size={19} color="#94A3B8" />
-										) : (
-											<ChevronDown size={19} color="#94A3B8" />
-										)}
-									</View>
-									{isMovementsExpanded ? (
-										movements.loading &&
-											movements.data.timelineMovements.length === 0 ? (
-											<TimelineSkeleton base={skeletonBaseColor} />
-										) : movements.data.timelineMovements.length === 0 ? (
-											<View
-												className={webStyles.emptyMovement} style={{ borderColor: webDashboardPalette.border }}
-											>
-												<Text style={{ color: webDashboardPalette.primaryText }}>
-													Nenhuma transação recente encontrada.
-												</Text>
-											</View>
-										) : (
-											<View className={webStyles.timeline}>
-												{movements.data.timelineMovements.map(
-													(movement, index) => {
-														const tone = movementTone(movement);
-														const key = `${movement.type}:${movement.id}`;
-														const expanded = expandedMovements.includes(key);
-														const icon = movementIcon(movement);
-														return (
-															<View key={key} className={webStyles.timelineRow}>
-																<View className={webStyles.timelineRail}>
-																	<View
-																		className={webStyles.timelineDot} style={{ backgroundColor: tone.accent }}
-																	/>
-																	{index <
-																		movements.data.timelineMovements.length - 1 ? (
-																		<View
-																			className={webStyles.timelineLine} style={{ backgroundColor: `${tone.accent}55` }}
-																		/>
-																	) : null}
-																</View>
-																<View className={webStyles.timelineBody}>
-																	<Pressable
-																		onPress={() => toggleMovement(key)}
-																		accessibilityRole="button"
-																		accessibilityLabel={`Detalhes de ${movement.name}`}
-																		accessibilityState={{ expanded }}
-																	>
-																		<View className={webStyles.movementHeader}>
-																			<View className={webStyles.movementIdentity}>
-																				<View
-																					className={webStyles.movementIcon} style={{ backgroundColor: tone.gradient[0] }}
-																				>
-																					<TagIcon
-																						{...icon}
-																						size={18}
-																						color="#FFFFFF"
-																					/>
-																				</View>
-																				<View className={webStyles.movementCopy}>
-																					<Text
-																						numberOfLines={1}
-																						className={webStyles.movementName} style={{ color: webDashboardPalette.primaryText }}
-																					>
-																						{movement.name}
-																					</Text>
-																					<Text
-																						numberOfLines={1}
-																						className={webStyles.movementSubtitle} style={{ color: webDashboardPalette.primaryText }}
-																					>
-																						{movementSubtitle(movement)}
-																					</Text>
-																				</View>
-																			</View>
-																			<View className={webStyles.movementAmount}>
-																				<Text
-																					className={webStyles.amount} style={{ color: tone.accent }}
-																				>
-																					{tone.prefix}
-																					{formatCurrency(
-																						movement.valueInCents,
-																						shouldHideValues,
-																					)}
-																				</Text>
-																				<View className={webStyles.movementDate}>
-																					<CalendarDays
-																						size={12}
-																						color="#94A3B8"
-																					/>
-																					<Text className={webStyles.dateText}>
-																						{formatDate(movement.date)}
-																					</Text>
-																					{expanded ? (
-																						<ChevronUp
-																							size={14}
-																							color="#94A3B8"
-																						/>
-																					) : (
-																						<ChevronDown
-																							size={14}
-																							color="#94A3B8"
-																						/>
-																					)}
-																				</View>
-																			</View>
-																		</View>
-																	</Pressable>
-																	{renderedMovements.includes(key) ? (
-																		<AnimatedContent
-																			key={`${key}:detail`}
-																			trigger="mount"
-																			visible={expanded}
-																			distance={18}
-																			duration={0.36}
-																			disappearDuration={0.28}
-																			disappearScale={1}
-																			ease="power3.out"
-																			initialOpacity={0}
-																			animateOpacity
-																			scale={1}
-																			className={webStyles.movementDetailAnimation}
-																			onDisappearanceComplete={() =>
-																				setRenderedMovements((rendered) =>
-																					rendered.filter((item) => item !== key),
-																				)
-																			}
-																		>
-																			<View className={webStyles.movementDetail}>
-																				<View
-																					className={`${webStyles.movementDetailGrainient} pointer-events-none`}
-																				>
-																					<Grainient
-																						className="movement-detail-grainient"
-																						timeSpeed={0.1}
-																						warpStrength={0.8}
-																						warpFrequency={3.5}
-																						warpSpeed={1.6}
-																						warpAmplitude={90}
-																						blendSoftness={0.2}
-																						grainAmount={0.06}
-																						grainScale={3}
-																						grainAnimated
-																						contrast={1.12}
-																						zoom={1.05}
-																						color1={tone.gradient[0]}
-																						color2={tone.accent}
-																						color3={tone.gradient[1]}
-																					/>
-																				</View>
-																				<View className={webStyles.movementDetailContent}>
-																					<Text className={webStyles.detailLabel}>
-																						RESUMO
-																					</Text>
-																					<Text className={webStyles.detailText}>
-																						{movementDetail(movement)}
-																					</Text>
-																					<View className={webStyles.detailGrid}>
-																						<DetailItem
-																							label="Tipo"
-																							value={movementLabel(movement)}
-																						/>
-																						<DetailItem
-																							label={
-																								movement.isBankTransfer
-																									? "Origem"
-																									: "Conta"
-																							}
-																							value={
-																								movement.bankName ||
-																								(movement.moneyFormat
-																									? "Dinheiro em espécie"
-																									: "Sem banco vinculado")
-																							}
-																						/>
-																						<DetailItem
-																							label="Data"
-																							value={formatDate(movement.date)}
-																						/>
-																						{movement.tagName ? (
-																							<DetailItem
-																								label="Tag"
-																								value={movement.tagName}
-																							/>
-																						) : null}
-																					</View>
-																				</View>
-																			</View>
-																		</AnimatedContent>
-																	) : null}
-																</View>
-															</View>
-														);
-													},
-												)}
-											</View>
-										)
-									) : null}
-									{movements.error ? (
-										<Text className={`${webStyles.inlineError} ${webStyles.errorText}`}>
-											{movements.error}
-										</Text>
-									) : null}
-								</View>
+								<BankMovementsScreen
+									recentMovements={{
+										items: movements.data.timelineMovements,
+										banks: overview.data.bankBalances,
+										loading: movements.loading,
+										error: movements.error,
+										reload,
+									}}
+								/>
 							</View>
 						</View>
 					</View>
@@ -1349,13 +976,6 @@ export default function HomeScreen() {
 		</SafeAreaView>
 	);
 }
-
-const DetailItem = ({ label, value }: { label: string; value: string }) => (
-	<View className={webStyles.detailItem}>
-		<Text className={webStyles.detailLabel}>{label.toUpperCase()}</Text>
-		<Text className={webStyles.detailText}>{value}</Text>
-	</View>
-);
 
 const BankSkeleton = ({
 	palette,
@@ -1396,19 +1016,5 @@ const InvestmentSkeleton = ({ base }: { base: string }) => (
 			baseColor={base}
 		/>
 		<Skeleton className={webStyles.skeletonShort} baseColor={base} />
-	</View>
-);
-const TimelineSkeleton = ({ base }: { base: string }) => (
-	<View className={webStyles.timelineSkeleton}>
-		{[0, 1, 2].map((index) => (
-			<View key={index} className={webStyles.skeletonRow}>
-				<Skeleton
-					variant="circular"
-					className={webStyles.skeletonDot}
-					baseColor={base}
-				/>
-				<Skeleton className={webStyles.skeletonText} baseColor={base} />
-			</View>
-		))}
 	</View>
 );

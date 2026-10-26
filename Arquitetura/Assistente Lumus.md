@@ -6,7 +6,7 @@ tipo: feature
 versao: 1.2.1
 spark_scope: assistente
 spark_progress: 38
-spark_reviewed_at: 2026-10-19
+spark_reviewed_at: 2026-10-26
 ---
 
 # Assistente Lumus
@@ -195,3 +195,45 @@ Os registros externos nesta seção são históricos; esta tarefa não publicou 
 6. Remote Config publicado como versão 1 em 2026-09-21; preservar `remote_config.json` como fonte versionada do template.
 7. App Check aparece como **Registrado (aplicado)** para Web e Android no AI Logic; Firestore permanece sem enforcement nesta etapa.
 8. Auditar e implantar regras Firestore que limitem escrita ao proprietário.
+
+
+## Assistente por tela - 25/10/2026
+
+A revisão `lumus-assistant-2026-10-25` libera somente o Assistente uma vez nas preferências locais, preservando desligamentos posteriores. Web/mobile compartilham painel de erro de inicialização com retry. Falha de leitura de consentimento/leitura automática não é tratada como preferência ausente; envio fica indisponível até recuperar essa leitura. Falha isolada do modelo preserva os comandos locais existentes.
+
+Consentimento só é concedido após persistência confirmada, com trava síncrona, erro persistente e retry. Atualização de disponibilidade limita chamada concorrente por UID e descarta respostas anteriores à troca de conta, revogação, limpeza ou desmontagem. A conversa continua em memória durante navegação.
+
+Esta entrega trata a entrada A01. A02 continua parcial: catálogo, relatórios e executor financeiro Spark ainda precisam de adaptadores por família. A liberação local não comprova essas operações nem habilita fallback financeiro. A01 78%, A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos. Sem deploy, Rules, migração ou escrita em dados reais; sem nova homologação visual, modelo real ou áudio/aparelho.
+
+
+Validação desta entrega: **81 testes focados distintos** aprovados: 40 de interfaces Web/mobile, 18 de integração do provider, 21 de visibilidade e dois de montagem das rotas. Suites com seams de apresentação, modelo/Firebase e preferências; não são ensaio real de IA/voz/financeiro. Repetições não somadas. A execução inicial exigiu mock de CSS interop no ambiente Windows/UNC; o teste de consentimento revelou mensagem dentro do botão, corrigida para preservar o nome acessível. Tipagem, arquitetura de estilos (métricas existentes preservadas) e diff-check aprovados. Sem export/build, novo Emulator/Rules, modelo real, inspeção visual/aparelho ou deploy. A02 permanece parcial.
+
+
+## Catálogo nativo do Assistente - 26/10/2026
+
+O carregamento detecta contexto Spark confirmado antes de acessar as coleções anteriores. Contas usam `readSparkAccountsFirebase`: posição em centavos, revisão, cadastro, banco vinculado e estado nativos; contas inativas/arquivadas ficam fora da seleção. Dinheiro só existe se o Caixa canônico estiver presente. Categorias próprias/do grupo são paginadas no servidor, deduplicadas e filtradas por uso/exclusão; categorias de outros membros conservam leitura autorizada.
+
+Planos ativos usam o leitor canônico de recorrências (com sua janela declarada); movimentos ordinários usam os eventos e o índice de resolução nativos, conservando origem live/imported e referência de execução. Estornado/substituído não é oferecido como alvo ativo. Identidades de operações nativas não são IDs do razão antigo. O catálogo do modelo continua restrito a handles/rótulos/descrições/escopo; dados e IDs ficam locais. O salt nativo é ligado ao UID da sessão, inclusive para registros de outros membros.
+
+Erro nativo ou mudança de grupo/papel ao final interrompe a consulta, sem fallback legado ou catálogo vazio de sucesso. O caminho legado anterior permanece quando o contexto Spark retorna ausência confirmada. Não adiciona escritor nem callable.
+
+**Escopo parcial de A02:** pares, avaliações, ajustes e catálogo completo de dados convertidos ainda não têm alvos conversacionais nativos nesta fatia. Executor financeiro e relatórios precisam de adaptadores próprios; este catálogo não prova registro/consulta financeira ponta a ponta pelo chat. Comandos locais e UI anteriores são preservados. A01/A02/financeiro/geral permanecem 78%/25%/78%/59%. Sem nova tela, liberação de rota, migração, Rules, deploy, dado real ou modelo real.
+
+
+Validação do catálogo em 26/10/2026: **18 testes distintos** aprovados em três suítes (Spark catalog 6, catalog completeness 4, export 8), além de tipagem do aplicativo e diff-check. Ensaios usam leitores/Firebase simulados, sem comprovar Rules, modelo real ou integração financeira ponta a ponta. Incluem Caixa real/ausente, contas inativas, posições em centavos, referência/escopo de movimento, falha sem fallback, acesso alterado, paginação de categorias e renovação de handles. Nenhum estilo/tela foi alterado nesta etapa; sem novo Emulator, build/export, inspeção visual/aparelho ou deploy. Próximo trabalho: adaptar comandos ordinários e relatórios do chat ao protocolo Spark, com recibos e confirmação ligados à intenção.
+
+
+## Registro ordinário Spark pelo chat - 26/10/2026
+
+O executor identifica contexto Spark antes de ler recibos ou chamar serviços financeiros anteriores. `create_expense` e `create_gain` resolvem conta `sparkPositions` do mesmo grupo e categoria real, enviando centavos/direção/detalhes ao comando `executeSparkMovementCommandFirebase` já usado nas telas. Caixa conserva seu ID canônico e `moneyFormat`; não se usa um banco nulo fictício.
+
+ID da intenção, data civil, hora explícita (se informada), dados e fingerprint são estáveis no retry. Sem hora declarada, o horário do preparo em São Paulo compõe a data civil escolhida. O comando nativo recusa futuro e revalida conta/categoria/saldo/Rules, com recibo idempotente no protocolo existente. `assistantRequestFingerprint` inclui dados, contas/categorias resolvidas, dependências e preparo. A assinatura da autorização também passa a incluir `preparedAt`; alterá-lo após a concessão exige nova autorização.
+
+A sessão/capacidade são reconferidas antes de iniciar o comando. Uma chamada já iniciada não promete rollback por cancelamento posterior. Sem contexto Spark, o caminho anterior permanece; falha de contexto não autoriza fallback. Outras famílias com contexto nativo recebem indisponibilidade explícita do adaptador do chat, sem tentar callables antigas. Correção/estorno, pares, recorrências, investimentos, ajustes e relatórios nativos continuam pendentes nesta fatia. Não anunciar Assistente financeiro completo.
+
+Não houve mudança em UI, Rules, índices ou serviços de saldo. Percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos até integrar/homologar as demais famílias. Ver [[Operações Ordinárias Spark]], [[Assistente Lumus]] e [[Status da Implementação Spark]].
+
+
+Validação desta etapa: **145 testes focados distintos** aprovados: comandos 108, conversa 31 e catálogo Spark 6. O primeiro conjunto passou com 143; dois casos de falha de contexto/família não suportada foram acrescentados e a suíte de comandos repetida (108), sem somar as repetições. Os ensaios novos verificam o adaptador com executor/Firebase simulados: direção, centavos, Caixa real, data/ID/material iguais no retry, autorização ausente/preparo alterado e ausência de fallback. Não equivalem a novo commit SDK/Rules nem ensaio real de modelo, voz ou aparelho. O comando nativo e suas Rules não foram modificados. Sem novo build/export, deploy ou dado real.
+
+Tipagem do aplicativo e diff-check aprovados após os testes finais. Sem alteração de apresentação; lint de estilos não foi repetido nesta etapa de serviços.

@@ -11,7 +11,7 @@ import { buildHomeExpenseHistory } from '../utils/homeExpenseHistory';
 import { buildHomeActivityHeatmap } from '../utils/homeActivityHeatmap';
 import { addHomeCents } from '../utils/homeCents';
 import { endOfFinancialCivilDay, fromFinancialCivilDate, toFinancialCivilDate } from '../utils/financialCivilDate';
-import type { SparkFinancialReadEvent } from '../utils/sparkFinancialReadModel';
+import { getSparkMovementResolutionIndex, type SparkFinancialReadEvent } from '../utils/sparkFinancialReadModel';
 import { projectSparkInvestmentPortfolio } from './SparkInvestmentReadFirebase';
 import { buildInvestmentPortfolioAnalytics, type InvestmentAssetType, type InvestmentValuationMethod } from '../utils/investmentPortfolio';
 import { getInvestmentCdiRatesWithRelationsFirebase } from './InvestmentCdiRateFirebase';
@@ -107,24 +107,35 @@ export function createSparkHomeReader(firestore: Firestore, actorId: string, gro
       const byId = new Map(snapshot.accounts.map(account => [account.accountId, account]));
       const categories = new Map((tags.data ?? []).map(tag => [tag.id, tag]));
       const names = new Map(recurring.map(plan => [plan.id, plan.name]));
+      const resolutions = getSparkMovementResolutionIndex(snapshot.events);
       const timeline = snapshot.events.filter(event => event.effectiveAt >= startOfMonth && event.effectiveAt <= asOfDate).flatMap<HomeTimelineMovement>(event => {
         const account = byId.get(event.accountId); if (!account) throw new Error('Conta do movimento ausente.');
         const economic = event.economicKind !== null, transfer = event.kind === 'transfer';
         const deposit = event.kind === 'investment_deposit', redemption = event.kind === 'investment_redemption';
         const valuation = ['investment_sync', 'investment_edit_valuation', 'investment_valuation_reversal'].includes(event.operationKind ?? '') && event.kind === 'valuation' && event.term === 'reference' && account.position.kind === 'investment';
-        if (!economic && !(transfer && event.deltaInCents < 0) && !((deposit || redemption) && account.position.kind === 'bank') && !valuation) return [];
+        const bankReference = ['bank', 'cash'].includes(account.position.kind) && !economic && !transfer && !deposit && !redemption;
+        const amount = event.term === 'reference' ? event.referenceBalanceInCents ?? event.deltaInCents : event.deltaInCents;
+        if (!amount || (!economic && !(transfer && event.deltaInCents < 0) && !((deposit || redemption) && account.position.kind === 'bank') && !valuation && !bankReference)) return [];
+        const adjustmentId = event.originalSource === 'live' && ['balance_adjustment', 'dated_adjustment', 'adjustment_replacement'].includes(event.operationKind ?? '') && !event.resolvesOperationId && event.term === 'delta' ? event.operationId : null;
         const inverse = event.resolvesOperationId !== null || economic && (event.economicKind === 'expense' ? event.deltaInCents > 0 : event.deltaInCents < 0);
         const category = event.categoryId ? categories.get(event.categoryId) : null;
         const other = event.counterpartyAccountId ? byId.get(event.counterpartyAccountId) : null;
         const rawName = event.details?.name || event.note || (event.recurringPlanId ? names.get(event.recurringPlanId) : null)
-          || (transfer ? 'Transferência' : deposit ? 'Aporte de investimento' : redemption ? 'Resgate de investimento' : valuation ? 'Avaliação de investimento' : event.kind === 'expense' ? 'Despesa' : 'Ganho');
+          || (transfer ? 'Transferência' : deposit ? 'Aporte de investimento' : redemption ? 'Resgate de investimento' : valuation ? 'Avaliação de investimento' : event.kind === 'opening' ? 'Saldo inicial' : event.kind === 'adjustment' ? 'Ajuste de saldo' : event.kind === 'expense' ? 'Despesa' : 'Ganho');
         const text = (value: unknown) => typeof value === 'string' ? value : null;
-        return [{ id: event.id, isSparkMovement: true, sparkExecutionReference: event.executionReference, type: valuation ? 'sync' : event.deltaInCents < 0 ? 'expense' : 'gain',
-          name: inverse ? `Estorno: ${rawName}` : rawName, valueInCents: valuation ? event.referenceBalanceInCents! : Math.abs(event.deltaInCents),
+        return [{ id: event.id, isLedgerMovement: true, isSparkMovement: true, sparkExecutionReference: event.executionReference,
+          personId: event.actorId, paymentFormats: event.details?.paymentFormats ?? [],
+          sparkEconomicKind: event.economicKind, sparkDeltaInCents: event.deltaInCents,
+          sparkResolvedByOperationId: event.executionReference ? resolutions.resolvedBy(event.executionReference) : null,
+          sparkAdjustmentOperationId: adjustmentId, sparkAdjustmentResolved: adjustmentId ? !!resolutions.resolvedBy({ source: 'live', operationId: adjustmentId, family: 'ordinary' }) : false,
+          isBalanceAdjustment: event.term === 'reference' || event.kind === 'adjustment' || event.kind === 'valuation',
+          type: valuation ? 'sync' : amount < 0 ? 'expense' : 'gain',
+          name: inverse ? `Estorno: ${rawName}` : rawName, valueInCents: valuation ? event.referenceBalanceInCents! : Math.abs(amount),
           date: event.effectiveAt, tagId: event.categoryId, tagName: text(category?.name), tagIconFamily: text(category?.iconFamily),
           tagIconName: text(category?.iconName), tagIconStyle: text(category?.iconStyle), bankId: account.position.kind === 'bank' ? account.accountId : null,
           bankName: account.position.kind === 'bank' ? accountName(account) : null, explanation: event.details?.explanation ?? event.note,
-          moneyFormat: account.position.kind === 'cash', isBankTransfer: transfer, bankTransferDirection: transfer ? 'outgoing' : null,
+          moneyFormat: account.position.kind === 'cash', isBankTransfer: transfer,
+          isCashRescue: transfer && (account.position.kind === 'cash' || other?.position.kind === 'cash'), cashRescueSourceBankName: transfer ? accountName(account) : null, bankTransferDirection: transfer ? 'outgoing' : null,
           bankTransferSourceBankNameSnapshot: transfer ? accountName(account) : null, bankTransferTargetBankNameSnapshot: transfer && other ? accountName(other) : null,
           isInvestmentDeposit: deposit, isInvestmentRedemption: redemption, isFinanceInvestmentSync: valuation,
           investmentSyncPreviousValueInCents: valuation ? addHomeCents(event.referenceBalanceInCents!, -event.deltaInCents) : null,

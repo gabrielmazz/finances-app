@@ -1,3 +1,5 @@
+jest.mock('react-native-css-interop', () => ({ createInteropElement: require('react').createElement }));
+jest.mock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
 import React from 'react';
 import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
 
@@ -47,6 +49,7 @@ let mockAssistant: Record<string, any>;
 const createAssistant = (overrides: Record<string, any> = {}) => ({
 	isBootstrapping: false,
 	consentGranted: true,
+	initializationError: null, consentError: null, retryInitialization: jest.fn(),
 	revocationEpoch: 0,
 	isSending: false,
 	isRefreshingAvailability: false,
@@ -339,6 +342,22 @@ describe.each(variants)('$name Lumus Assistant screen', ({ Screen, quickPromptsB
 
 		expect(screen.getByText('Preparando o Lumus IA')).toBeOnTheScreen();
 		expect(screen.queryByLabelText('Mensagem para o Lumus IA')).toBeNull();
+	});
+
+	it('shows preference failure and retry without opening the composer', async () => {
+		mockAssistant.initializationError = 'Não foi possível carregar as preferências.';
+		await render(React.createElement(Screen));
+		expect(screen.getByText('Não foi possível carregar as preferências.')).toBeOnTheScreen();
+		expect(screen.queryByLabelText('Mensagem para o Lumus IA')).toBeNull();
+		await fireEvent.press(screen.getByText('Tentar carregar novamente'));
+		expect(mockAssistant.retryInitialization).toHaveBeenCalledTimes(1);
+	});
+
+	it('shows consent persistence failure and keeps the accept action available', async () => {
+		mockAssistant.consentGranted = false; mockAssistant.consentError = 'Não foi possível salvar seu consentimento.';
+		await render(React.createElement(Screen));
+		expect(screen.getByText('Não foi possível salvar seu consentimento.')).toBeOnTheScreen();
+		expect(screen.getByRole('button', { name: 'Aceitar e começar' })).toBeEnabled();
 	});
 
 	it('requires consent and disables the accept action while saving it', async () => {

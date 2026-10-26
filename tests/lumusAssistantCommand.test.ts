@@ -1,3 +1,5 @@
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
+jest.mock('@/functions/SparkMovementCommandFirebase', () => ({ executeSparkMovementCommandFirebase: jest.fn(async () => ({ transactionId: 'spark', idempotent: false })) }));
 const mockDocuments = new Map<string, Record<string, unknown>>();
 const mockWrites: string[] = [];
 let mockDenyMissingAssistantRead = false;
@@ -22,6 +24,7 @@ jest.mock('@/functions/BankFirebase', () => ({ getLegacyBankBalanceInCentsFireba
 jest.mock('@/utils/mandatoryExpenseNotifications', () => ({}));
 jest.mock('@/utils/mandatoryGainNotifications', () => ({}));
 jest.mock('firebase/firestore', () => ({
+	Timestamp: jest.requireActual('firebase/firestore').Timestamp,
 	collection: (_db: unknown, name: string) => ({ name }),
 	where: (field: string, operator: string, value: unknown) => ({ field, operator, value }),
 	query: (source: { name: string }, ...filters: Array<{ field: string; value: unknown }>) => ({ source, filters }),
@@ -65,6 +68,8 @@ import { createAssistantAuthorizationSession } from '@/services/lumusAssistant/a
 import { completeFinancialRecurringFirebase, correctFinancialLedgerMovementFirebase, getFinancialLedgerContextFirebase, manageFinancialMetadataFirebase, manageFinancialLedgerAccountFirebase, parseFinancialAccount, postLedgerMovementFirebase, reconcileFinancialLedgerAccountFirebase, reverseFinancialLedgerTransactionFirebase, transferFundsFinancialLedgerFirebase } from '@/functions/FinancialLedgerFirebase';
 import { runBankBalanceAdjustmentFirebase } from '@/functions/BankBalanceAdjustmentFirebase';
 import { auth } from '@/FirebaseConfig';
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+import { executeSparkMovementCommandFirebase } from '@/functions/SparkMovementCommandFirebase';
 import { getTagReferenceSummary } from '@/functions/TagFirebase';
 import type { AssistantActionKind, AssistantDraftAction } from '@/types/lumusAssistant';
 import type { AssistantResolvedCatalog } from '@/types/lumusAssistant';
@@ -518,4 +523,55 @@ describe('Callable quota recovery in the financial executor', () => {
   release({previousBalanceInCents:1000});await rejected;
   expect(jest.mocked(runBankBalanceAdjustmentFirebase)).toHaveBeenCalledTimes(1);
  });
+});
+
+
+describe('comandos ordinários Spark do chat', () => {
+  const catalog: AssistantResolvedCatalog = { banks: [{ handle: 'native-bank', realId: 'bank', label: 'Banco', collection: 'sparkPositions', data: { groupId: 'spark-group', kind: 'bank' } }], expenseCategories: [{ handle: 'tag', realId: 'category', label: 'Categoria', collection: 'tags' }], gainCategories: [{ handle: 'tag', realId: 'category', label: 'Categoria', collection: 'tags' }] };
+  const prepare = async (kind: 'create_expense' | 'create_gain' = 'create_expense') => (await prepareAssistantActions('test-user', [{ kind, payload: { name: 'Mercado', valueInCents: 123, date: '2026-10-01', bankRef: 'native-bank', categoryRef: 'tag' } }], catalog)).actions[0]!;
+  beforeEach(() => { jest.mocked(getSparkContextFirebase).mockResolvedValue({ groupId: 'spark-group', actorId: 'test-user', role: 'member' }); jest.mocked(executeSparkMovementCommandFirebase).mockClear(); jest.mocked(postLedgerMovementFirebase).mockClear(); });
+  afterEach(() => { jest.mocked(getSparkContextFirebase).mockResolvedValue(null); });
+  it.each(['create_expense', 'create_gain'] as const)('registra %s no protocolo nativo com centavos e direção corretos', async kind => {
+    const draft = await prepare(kind); expect(await confirmDraft(draft, catalog)).toMatchObject({ success: true });
+    expect(executeSparkMovementCommandFirebase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: 'create', movementKind: kind === 'create_expense' ? 'expense' : 'income', amountInCents: 123, accountId: 'bank', categoryId: 'category', clientActionId: draft.clientActionId, assistantRequestFingerprint: expect.any(String) }));
+    expect(postLedgerMovementFirebase).not.toHaveBeenCalled();
+    expect(jest.mocked(executeSparkMovementCommandFirebase).mock.calls[0]?.[1]).not.toHaveProperty('role');
+  });
+  it('retry conserva material, data e ID após resposta incerta', async () => {
+    const draft = await prepare(); jest.mocked(executeSparkMovementCommandFirebase).mockRejectedValueOnce(new Error('offline'));
+    expect(await confirmDraft(draft, catalog)).toMatchObject({ success: false }); expect(await confirmDraft(draft, catalog)).toMatchObject({ success: true });
+    expect(jest.mocked(executeSparkMovementCommandFirebase).mock.calls[0]?.[1]).toEqual(jest.mocked(executeSparkMovementCommandFirebase).mock.calls[1]?.[1]);
+  });
+  it('dinheiro usa o ID do Caixa canônico', async () => {
+    const cashCatalog = { ...catalog, banks: [{ ...catalog.banks![0]!, realId: 'cash', data: { groupId: 'spark-group', kind: 'cash' } }] };
+    const draft = await prepare(); expect(await confirmDraft(draft, cashCatalog)).toMatchObject({ success: true });
+    expect(executeSparkMovementCommandFirebase).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ accountId: 'cash', details: expect.objectContaining({ moneyFormat: true }) }));
+  });
+  it('contexto nativo não permite conta de outro grupo nem banco legado', async () => {
+    const draft = await prepare(); const wrong = { ...catalog, banks: [{ ...catalog.banks![0]!, collection: 'financialAccounts' }] };
+    expect(await confirmDraft(draft, wrong)).toMatchObject({ success: false, errorCode: 'invalid-reference' }); expect(executeSparkMovementCommandFirebase).not.toHaveBeenCalled();
+  });
+  it('falha de contexto não permite fallback financeiro antigo', async () => {
+    jest.mocked(getFinancialLedgerContextFirebase).mockClear();
+    jest.mocked(getSparkContextFirebase).mockRejectedValueOnce(new Error('context offline'));
+    expect(await confirmDraft(await prepare(), catalog)).toMatchObject({ success: false });
+    expect(getFinancialLedgerContextFirebase).not.toHaveBeenCalled(); expect(executeSparkMovementCommandFirebase).not.toHaveBeenCalled();
+  });
+  it('família sem adaptador não tenta escritor antigo em contexto nativo', async () => {
+    jest.mocked(getFinancialLedgerContextFirebase).mockClear();
+    const draft: AssistantDraftAction = { ...await prepare(), kind: 'delete_expense', payload: { recordRef: 'not-supported' }, missingFields: [] };
+    expect(await confirmDraft(draft, catalog)).toMatchObject({ success: false, errorCode: 'capability-unavailable' });
+    expect(getFinancialLedgerContextFirebase).not.toHaveBeenCalled(); expect(executeSparkMovementCommandFirebase).not.toHaveBeenCalled();
+  });
+  it('ausência de autorização não inicia comando', async () => {
+    expect(await financeCommandService.execute('test-user', await prepare(), catalog, undefined as any)).toMatchObject({ success: false, errorCode: 'authorization-required' }); expect(executeSparkMovementCommandFirebase).not.toHaveBeenCalled();
+  });
+});
+
+
+it('alterar a data de preparo invalida a autorização já emitida', async () => {
+ const session = createAssistantAuthorizationSession('test-user');
+ const draft = (await prepareAssistantActions('test-user', [{ kind: 'create_expense', payload: { name: 'Teste', valueInCents: 100, date: '2026-10-01', bankRef: 'bank', categoryRef: 'tag' } }], {})).actions[0]!;
+ session.recordUserMessage('confirm-date', 'Sim'); const authorization = session.authorize(draft, 'confirm-date', 'confirmation')!;
+ expect(await financeCommandService.execute('test-user', { ...draft, preparedAt: '2026-10-01T00:00:00Z' }, {}, authorization)).toMatchObject({ success: false, errorCode: 'authorization-required' });
 });

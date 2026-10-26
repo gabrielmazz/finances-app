@@ -1,3 +1,4 @@
+import type { MovementRecord } from '@/types/bankMovements';
 import { db } from '@/FirebaseConfig';
 import { getSparkContextFirebase } from './SparkContextFirebase';
 import { createSparkHomeReader } from './SparkHomeFirebase';
@@ -101,7 +102,7 @@ export type HomeInvestmentPortfolio = {
 	investmentCount: number;
 };
 
-export type HomeTimelineMovement = {
+export type HomeTimelineMovement = MovementRecord & {
 	isSparkMovement?: boolean;
 	sparkExecutionReference?: import('../utils/sparkFinancialReadModel').SparkExecutionReference | null;
 	id: string;
@@ -541,23 +542,27 @@ const loadBalancesSection = async (context: HomeQueryContext): Promise<HomeBalan
 };
 
 const projectLedgerMovements = (transactions: LedgerTransaction[], context: HomeQueryContext) => {
-	const reversedIds = new Set(transactions.filter(transaction => transaction.kind === 'reversal' && transaction.effectiveAt <= context.asOfDate).map(transaction => transaction.reversesTransactionId));
-	const supportedKinds = new Set(['expense', 'income', 'transfer', 'investment_deposit', 'investment_redemption']);
-	return transactions.filter(transaction => supportedKinds.has(transaction.kind) && !reversedIds.has(transaction.id) && transaction.effectiveAt >= context.startOfMonth && transaction.effectiveAt <= context.asOfDate).map(transaction => {
-		const isGain = transaction.kind === 'income' || transaction.kind === 'investment_redemption';
-		const accountLeg = transaction.legs.find(leg => leg.accountId !== null && (isGain ? leg.deltaInCents > 0 : leg.deltaInCents < 0))!;
-		const account = context.financialLedgerAccounts?.find(account => account.id === accountLeg.accountId);
-		const source = context.financialLedgerAccounts?.find(account => account.id === transaction.legs.find(leg => leg.deltaInCents < 0)?.accountId);
-		const target = context.financialLedgerAccounts?.find(account => account.id === transaction.legs.find(leg => leg.deltaInCents > 0)?.accountId);
-		return { id: transaction.id, type: isGain ? 'gain' : 'expense',
-			name: transaction.note || (transaction.kind === 'transfer' ? 'Transferência' : transaction.kind === 'investment_deposit' ? 'Aporte' : transaction.kind === 'investment_redemption' ? 'Resgate' : isGain ? 'Receita' : 'Despesa'),
-			date: transaction.effectiveAt, valueInCents: Math.abs(accountLeg.deltaInCents), tagId: transaction.categoryId,
-			bankId: account?.kind === 'cash' ? null : accountLeg.accountId, moneyFormat: account?.kind === 'cash',
-			isBankTransfer: transaction.kind === 'transfer', bankTransferDirection: transaction.kind === 'transfer' ? 'outgoing' : null,
+	const accounts = new Map(context.financialLedgerAccounts?.map(account => [account.id, account]));
+	const byId = new Map(transactions.map(transaction => [transaction.id, transaction]));
+	return transactions.filter(transaction => transaction.effectiveAt >= context.startOfMonth && transaction.effectiveAt <= context.asOfDate
+		&& !transaction.sourceReferences?.some(source => source.collection === 'bankBalanceAdjustments')).flatMap(transaction => {
+		const kind = (transaction.reversesTransactionId ? byId.get(transaction.reversesTransactionId)?.kind : null) ?? transaction.kind;
+		const bankLegs = transaction.legs.filter(leg => leg.accountId && ['bank', 'cash'].includes(accounts.get(leg.accountId)?.kind ?? ''));
+		const leg = bankLegs.find(leg => leg.deltaInCents < 0) ?? bankLegs[0];
+		if (!leg?.accountId) return [];
+		const account = accounts.get(leg.accountId)!;
+		const source = accounts.get(transaction.legs.find(leg => leg.deltaInCents < 0)?.accountId ?? '');
+		const target = accounts.get(transaction.legs.find(leg => leg.deltaInCents > 0)?.accountId ?? '');
+		return [{ id: transaction.id, isLedgerMovement: true, personId: transaction.actorId, type: leg.deltaInCents < 0 ? 'expense' : 'gain',
+			name: transaction.note || (kind === 'transfer' ? 'Transferência' : kind === 'investment_deposit' ? 'Aporte' : kind === 'investment_redemption' ? 'Resgate' : kind === 'reconciliation_adjustment' || kind === 'migration' ? 'Ajuste de saldo' : leg.deltaInCents > 0 ? 'Receita' : 'Despesa'),
+			date: transaction.effectiveAt, valueInCents: Math.abs(leg.deltaInCents), tagId: transaction.categoryId,
+			explanation: transaction.note, bankId: account.kind === 'cash' ? null : leg.accountId, moneyFormat: account.kind === 'cash',
+			isBalanceAdjustment: kind === 'reconciliation_adjustment' || kind === 'migration',
+			isBankTransfer: kind === 'transfer', bankTransferDirection: kind === 'transfer' ? 'outgoing' : null,
 			bankTransferSourceBankNameSnapshot: source?.name, bankTransferTargetBankNameSnapshot: target?.name,
-			isInvestmentDeposit: transaction.kind === 'investment_deposit', isInvestmentRedemption: transaction.kind === 'investment_redemption',
-			investmentNameSnapshot: transaction.kind === 'investment_deposit' ? target?.name : transaction.kind === 'investment_redemption' ? source?.name : null,
-		};
+			isInvestmentDeposit: kind === 'investment_deposit', isInvestmentRedemption: kind === 'investment_redemption',
+			investmentNameSnapshot: kind === 'investment_deposit' ? target?.name : kind === 'investment_redemption' ? source?.name : null,
+		}];
 	});
 };
 
@@ -840,6 +845,8 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		mandatoryExpensesSnapshot,
 		mandatoryGainsSnapshot,
 		tagsSnapshot,
+		recentInvestmentsSnapshot,
+		recentAdjustmentsSnapshot,
 	] = await Promise.all([
 		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'expense').map(item => ({ id: item.id, data: () => item })) }) : readRecent('expenses'),
 		ledgerMovements ? Promise.resolve({ docs: ledgerMovements.filter(item => item.type === 'gain').map(item => ({ id: item.id, data: () => item })) }) : readRecent('gains'),
@@ -853,6 +860,8 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		loadHomeMetadata(context, 'mandatoryExpenses'),
 		loadHomeMetadata(context, 'mandatoryGains'),
 		loadHomeMetadata(context, 'tags'),
+		ledgerMovements ? Promise.resolve({ docs: [] }) : loadHomeMetadata(context, 'financeInvestments'),
+		loadHomeMetadata(context, 'bankBalanceAdjustments'),
 	]);
 
 	const tagMetadataById = tagsSnapshot.docs.reduce<Record<string, HomeTagMetadata>>((acc, docSnap) => {
@@ -941,6 +950,22 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		const tagMetadata = tagId ? tagMetadataById[tagId] ?? null : null;
 
 		return {
+			// [[Dashboard Home]]: conservar IDs e restrições do extrato nas ações da Home.
+			isLedgerMovement: Boolean(item.isLedgerMovement),
+			personId: typeof item.personId === 'string' ? item.personId : null,
+			paymentFormats: Array.isArray(item.paymentFormats) ? item.paymentFormats.filter((value: unknown): value is string => typeof value === 'string') : [],
+			isCashRescue: Boolean(item.isCashRescue),
+			cashRescueSourceBankName: typeof item.bankNameSnapshot === 'string' ? item.bankNameSnapshot : null,
+			investmentId: typeof item.investmentId === 'string' ? item.investmentId : null,
+			isFinanceInvestment: Boolean(item.isFinanceInvestment),
+			investmentBankNameSnapshot: typeof item.bankNameSnapshot === 'string' ? item.bankNameSnapshot : null,
+			investmentCdiPercentage: typeof item.cdiPercentage === 'number' ? item.cdiPercentage : null,
+			investmentRedemptionTerm: item.redemptionTerm ?? null,
+			isBalanceAdjustment: Boolean(item.isBalanceAdjustment),
+			adjustmentStatus: item.status,
+			reversesAdjustmentId: item.reversesAdjustmentId,
+			adjustmentPreviousBalanceInCents: item.previousBalanceInCents,
+			adjustmentTargetBalanceInCents: item.targetBalanceInCents,
 			id: movementId,
 			type,
 			name:
@@ -995,7 +1020,7 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		...recentCashRescuesSnapshot.docs.map(docSnap => {
 			const item = docSnap.data() as HomeMovementDocument;
 			return normalizeMovement({ ...item, id: docSnap.id, name: 'Saque em dinheiro', explanation: item.description,
-				isBankTransfer: true, bankTransferDirection: 'outgoing',
+				isCashRescue: true, isBankTransfer: false, bankTransferDirection: 'outgoing',
 				bankTransferSourceBankNameSnapshot: item.bankNameSnapshot ?? context.bankNamesById[item.bankId] ?? null,
 				bankTransferTargetBankNameSnapshot: 'Caixa',
 			}, 'expense');
@@ -1003,7 +1028,19 @@ const loadMovementsSection = async (context: HomeQueryContext): Promise<HomeMove
 		...recentInvestmentSyncsSnapshot.docs.map(docSnap =>
 			normalizeMovement({ id: docSnap.id, ...(docSnap.data() as HomeMovementDocument) }, 'sync'),
 		),
+		...recentInvestmentsSnapshot.docs.map(docSnap => {
+			const item = docSnap.data() as HomeMovementDocument;
+			return normalizeMovement({ ...item, id: docSnap.id, investmentId: docSnap.id, isFinanceInvestment: true,
+				valueInCents: item.initialValueInCents, explanation: item.description }, 'expense');
+		}),
+		...recentAdjustmentsSnapshot.docs.map(docSnap => {
+			const item = docSnap.data() as HomeMovementDocument;
+			return normalizeMovement({ ...item, id: docSnap.id, isBalanceAdjustment: true,
+				name: item.reversesAdjustmentId ? 'Estorno de ajuste de saldo' : `Ajuste de saldo${item.status === 'reversed' ? ' (revertido)' : item.status === 'replaced' ? ' (substituído)' : ''}`,
+				valueInCents: Math.abs(item.differenceInCents), explanation: item.description }, item.differenceInCents < 0 ? 'expense' : 'gain');
+		}),
 	]
+		.filter(item => item.date && item.date >= context.startOfMonth && item.date <= context.asOfDate)
 		.sort((left, right) => {
 			const leftTime = left.date?.getTime() ?? 0;
 			const rightTime = right.date?.getTime() ?? 0;

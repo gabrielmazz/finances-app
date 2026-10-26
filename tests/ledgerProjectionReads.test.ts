@@ -1,5 +1,13 @@
 jest.mock('@/FirebaseConfig', () => ({ db: {}, auth: { currentUser: { uid: 'owner' } }, firebaseFunctions: {} }));
 jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: async () => null }));
+// These projection fixtures model pre-Spark relationships; relationship transport has its own suite.
+jest.mock('@/functions/UserRelationshipFirebase', () => ({
+	loadUserRelationshipsFirebase: async (uid: string) => {
+		const { getDoc, doc } = require('firebase/firestore');
+		const user = await getDoc(doc({}, 'users', uid));
+		return { linked: (user.data()?.relatedIdUsers ?? []).map((id: string) => ({ id })), incoming: [], outgoing: [] };
+	},
+}));
 jest.mock('firebase/functions', () => ({ httpsCallable: jest.fn() }));
 jest.mock('firebase/firestore', () => ({
 	collection: (_db: unknown, name: string) => ({ name }),
@@ -224,7 +232,7 @@ it('refreshes migrated Home movements and totals from active persisted events wh
 	expect(result.data.overview.data.cashSummary?.balanceInCents).toBe(2_000);
 	expect(result.data.overview.data.currentMonthExpensesByBankId.bank).toBe(800);
 	expect(result.data.overview.data.currentMonthGainsByBankId.bank).toBe(300);
-	expect(result.data.movements.data.timelineMovements.map(movement => movement.id)).toEqual(['income', 'replacement']);
+	expect(result.data.movements.data.timelineMovements.map(movement => movement.id)).toEqual(['income', 'replacement', 'undo', 'cancelled']);
 });
 
 it('shows the latest six legacy movements from this month without a descending Firestore index', async () => {
@@ -426,5 +434,5 @@ it.each(['legacy', 'ledger'])('keeps a withdrawal neutral in Home income/expense
 	expect(overview.data.activityHeatmap.totalActions).toBe(1);
 	const snapshot = await getHomeSnapshotFirebase('owner');
 	if (!snapshot.success || !snapshot.data.movements.success) throw new Error('Timeline indisponível.');
-	expect(snapshot.data.movements.data.timelineMovements).toEqual([expect.objectContaining({ isBankTransfer: true, valueInCents: 2_000 })]);
+	expect(snapshot.data.movements.data.timelineMovements).toEqual([expect.objectContaining({ ...(source === 'legacy' ? { isCashRescue: true } : { isBankTransfer: true }), valueInCents: 2_000 })]);
 });

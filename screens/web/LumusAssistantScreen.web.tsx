@@ -1,3 +1,4 @@
+import { AssistantInitializationError } from '@/components/uiverse/assistant/assistant-initialization-error';
 import React from 'react';
 import {
 	ActivityIndicator,
@@ -155,9 +156,11 @@ const AssistantBootstrappingView = () => (
 const ConsentView = ({
 	onAccept,
 	isLoading,
+	error,
 }: {
 	onAccept(): Promise<void>;
 	isLoading: boolean;
+	error?: string | null;
 }) => (
 	<ScrollView className="flex-1" contentContainerClassName="min-h-full items-center justify-center px-5 py-8">
 		<VStack className={ASSISTANT_CLASS_NAMES.consentCard} space="lg">
@@ -193,7 +196,8 @@ const ConsentView = ({
 			>
 				Ver preços e política de uso de dados
 			</a>
-			<Button
+			{error ? <Text accessibilityRole="alert" className="text-lumus-error">{error}</Text> : null}
+<Button
 				size="md"
 				className={`${LUMUS_CLASS_NAMES.primaryButton} w-full`}
 				isDisabled={isLoading}
@@ -332,7 +336,7 @@ export default function LumusAssistantScreenWeb() {
 		}
 	}, [assistant.consentGranted, assistant.availability?.available, cleanupRecording, isTranscribing, recorder, recorderState.isRecording, stopRecording]);
 
-	const isComposerDisabled = assistant.isBootstrapping || !assistant.consentGranted;
+	const isComposerDisabled = assistant.isBootstrapping || !!assistant.initializationError || !assistant.consentGranted;
 	const isVoiceControlDisabled = isComposerDisabled || isTranscribing || (!recorderState.isRecording && !assistant.availability?.available);
 	const isSubmitDisabled = !composerText.trim() || isComposerDisabled;
 	const send = React.useCallback(async (text = composerText) => {
@@ -470,8 +474,10 @@ export default function LumusAssistantScreenWeb() {
 					<Box className={ASSISTANT_CLASS_NAMES.webWorkspace}>
 						{assistant.isBootstrapping ? (
 							<AssistantBootstrappingView />
+						) : assistant.initializationError ? (
+							<AssistantInitializationError message={assistant.initializationError} onRetry={assistant.retryInitialization} />
 						) : !assistant.consentGranted ? (
-							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} />
+							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} error={assistant.consentError} />
 						) : (
 							<Conversation className="flex-1">
 								<Box className={ASSISTANT_CLASS_NAMES.webHeader}>
@@ -698,7 +704,7 @@ export default function LumusAssistantScreenWeb() {
 								<Pressable
 									key={prompt}
 									accessibilityRole="button"
-									disabled={assistant.isBootstrapping || !assistant.consentGranted}
+									disabled={assistant.isBootstrapping || !!assistant.initializationError || !assistant.consentGranted}
 									onPress={() => selectQuickPrompt(prompt)}
 									className={ASSISTANT_CLASS_NAMES.quickPrompt}
 								>

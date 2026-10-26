@@ -1,3 +1,5 @@
+jest.mock('react-native-css-interop', () => ({ createInteropElement: require('react').createElement }));
+jest.mock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
 import React from 'react';
 import { act, renderHook } from '@testing-library/react-native';
 
@@ -252,4 +254,49 @@ it('aceita texto durante uma transcrição e interpreta após liberar a chamada 
 	expect(mockConverse).toHaveBeenCalledTimes(1);
 	expect(messageText(result.current.messages)).toContain('Resposta de consulta');
 	await unmount();
+});
+
+
+it('falha de preferências oferece retry sem consentimento novo ou execução', async () => {
+  mockGetConsent.mockRejectedValueOnce(new Error('storage offline'));
+  const { result, unmount } = await renderHook(() => useLumusAssistant(), { wrapper });
+  expect(result.current.initializationError).toContain('preferências');
+  await act(async () => { await result.current.grantConsent(); await result.current.sendMessage('Qual é meu perfil?'); });
+  expect(mockSetConsent).not.toHaveBeenCalled(); expect(mockReadProfile).not.toHaveBeenCalled();
+  await act(async () => result.current.retryInitialization());
+  expect(result.current.initializationError).toBeNull(); expect(result.current.consentGranted).toBe(true);
+  await act(async () => { await result.current.sendMessage('Qual é meu perfil?'); });
+  expect(mockReadProfile).toHaveBeenCalledWith('owner'); await unmount();
+});
+
+it('falha ao persistir consentimento mantém acesso fechado e permite retry', async () => {
+  mockGetConsent.mockResolvedValue(false); mockSetConsent.mockRejectedValueOnce(new Error('storage full'));
+  const { result, unmount } = await renderHook(() => useLumusAssistant(), { wrapper });
+  await act(async () => { await result.current.grantConsent(); });
+  expect(result.current.consentGranted).toBe(false); expect(result.current.consentError).toContain('salvar');
+  await act(async () => { await result.current.grantConsent(); });
+  expect(result.current.consentError).toBeNull(); expect(result.current.consentGranted).toBe(true); await unmount();
+});
+
+it('atualização simultânea faz uma chamada e não reaplica configuração após revogar', async () => {
+  const { result, unmount } = await renderHook(() => useLumusAssistant(), { wrapper });
+  let finish!: (config: any) => void;
+  mockGetConfig.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.refreshAvailability(); await result.current.refreshAvailability(); });
+  expect(mockGetConfig).toHaveBeenCalledTimes(2);
+  await act(async () => { await result.current.revokeConsent(); });
+  await act(async () => { finish({ model: 'obsolete', enabled: true }); await pending; });
+  expect(result.current.config?.model).not.toBe('obsolete'); expect(result.current.consentGranted).toBe(false); await unmount();
+});
+
+it('troca UID enquanto atualiza não publica configuração de outra conta', async () => {
+  const { result, rerender, unmount } = await renderHook(() => useLumusAssistant(), { wrapper });
+  let finish!: (config: any) => void;
+  mockGetConfig.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.refreshAvailability(); });
+  mockAuth.currentUser = { uid: 'second' }; await rerender({});
+  await act(async () => { finish({ model: 'obsolete', enabled: true }); await pending; });
+  expect(result.current.config?.model).not.toBe('obsolete'); expect(result.current.isRefreshingAvailability).toBe(false); await unmount();
 });
