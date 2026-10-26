@@ -1,3 +1,8 @@
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+import { readSparkAccountsFirebase } from '@/functions/SparkAccountReadFirebase';
+import { readSparkFinancialEventsFirebase } from '@/functions/SparkFinancialReadFirebase';
+import { readSparkRecurringPlansFirebase } from '@/functions/SparkRecurringReadFirebase';
+import { getSparkCurrentOrdinaryMovements } from '@/utils/sparkFinancialReadModel';
 import { db } from '@/FirebaseConfig';
 import type {
 	AssistantActionKind,
@@ -26,6 +31,7 @@ import { getFinancialLedgerAccountsFirebase, getFinancialLedgerContextFirebase }
 import {
 	collection,
 	getDocs,
+	getDocsFromServer,
 	limit,
 	query,
 	startAfter,
@@ -104,12 +110,13 @@ const loadScopedCollection = async (
 	collectionName: string,
 	field: 'personId' | 'groupId',
 	scopeId: string,
+	fromServer = false,
 ): Promise<OwnedDocument[]> => {
 	const documents: OwnedDocument[] = [];
 	let cursor: QueryDocumentSnapshot | undefined;
 	// [[Assistente Lumus]]: the local catalog is complete; model context is a separate bounded projection.
 	while (true) {
-		const snapshot = await getDocs(query(collection(db, collectionName), where(field, '==', scopeId), limit(200), ...(cursor ? [startAfter(cursor)] : [])));
+		const snapshot = await (fromServer ? getDocsFromServer : getDocs)(query(collection(db, collectionName), where(field, '==', scopeId), limit(200), ...(cursor ? [startAfter(cursor)] : [])));
 		documents.push(...snapshot.docs.map(document => ({ id: document.id, collection: collectionName, data: document.data() as DocumentData as Record<string, unknown> })));
 		if (snapshot.docs.length < 200) return documents;
 		cursor = snapshot.docs[snapshot.docs.length - 1];
@@ -128,6 +135,7 @@ const createItems = (
 	prefix: string,
 	label: (document: OwnedDocument) => string,
 	description?: (document: OwnedDocument) => string | undefined,
+	sessionOwner?: string,
 ): AssistantResolvedCatalogItem[] =>
 	documents.map(document => ({
 		handle: createAssistantOpaqueHandle(
@@ -135,7 +143,7 @@ const createItems = (
 			document.collection,
 			document.id,
 			getCatalogSessionSalt(
-				typeof document.data.personId === 'string' ? document.data.personId : 'anonymous-session',
+				sessionOwner ?? (typeof document.data.personId === 'string' ? document.data.personId : 'anonymous-session'),
 			),
 		),
 		label: label(document),
@@ -149,10 +157,63 @@ const createItems = (
 const tagSupports = (data: Record<string, unknown>, usage: 'expense' | 'gain') =>
 	data.usageType === usage || data.usageType === 'both' || data.usageType === undefined;
 
+/** [[Assistente Lumus]]: fonte nativa completa, sem misturar identidades/saldos legados. */
+async function loadSparkAssistantCatalog(personId: string, context: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantResolvedCatalog> {
+	const { groupId, role } = context;
+	const nativeItems: typeof createItems = (rows, prefix, label, description) => createItems(rows, prefix, label, description, personId);
+	const [accounts, events, plans, ownTags, groupTags] = await Promise.all([
+		readSparkAccountsFirebase(db, personId, groupId), readSparkFinancialEventsFirebase(db, personId, groupId),
+		readSparkRecurringPlansFirebase(db, personId, groupId, new Date()),
+		loadScopedCollection('tags', 'personId', personId, true), loadScopedCollection('tags', 'groupId', groupId, true),
+	]);
+	const nextContext = await getSparkContextFirebase(db, personId);
+	if (!nextContext || nextContext.groupId !== groupId || nextContext.role !== role) throw new Error('O acesso financeiro mudou. Atualize o catálogo.');
+	const documents: OwnedDocument[] = accounts.filter(account => account.position.active && account.lifecycle.isActive && !account.lifecycle.archived).map(account => ({
+		id: account.accountId, collection: 'sparkPositions', data: { ...account.catalog, groupId, personId,
+			kind: account.position.kind, name: account.catalog?.name ?? (account.position.kind === 'cash' ? 'Dinheiro' : null),
+			currentBalanceInCents: account.position.balanceInCents, revision: account.position.revision,
+			bankAccountId: account.catalog?.bankAccountId ?? account.principal?.fundingAccountId ?? null, sparkAccount: true },
+	}));
+	if (documents.some(item => typeof item.data.name !== 'string' || !item.data.name.trim())) throw new Error('Existe uma conta sem cadastro confirmado. Atualize o catálogo.');
+	const tags = [...new Map([...ownTags, ...groupTags].map(item => [item.id, item])).values()]
+		.filter(item => item.data.deleted !== true && (item.data.groupId == null || item.data.groupId === groupId)
+			&& [undefined, 'expense', 'gain', 'both'].includes(item.data.usageType as any));
+	const categories = (usage: 'expense' | 'gain', mandatory = false) => {
+		const eligible = tags.filter(item => tagSupports(item.data, usage));
+		const marked = eligible.filter(item => item.data.showInBothLists || item.data[usage === 'expense' ? 'isMandatoryExpense' : 'isMandatoryGain']);
+		return nativeItems(mandatory && marked.length ? marked : eligible, `${mandatory ? 'mandatory_' : ''}${usage}_category`, item => normalizeLabel(item.data.name, 'Categoria'));
+	};
+	const movements = getSparkCurrentOrdinaryMovements(events);
+	const movementItems = (kind: 'expense' | 'income') => nativeItems(movements.filter(event => event.economicKind === kind).map(event => ({
+		id: event.originalOperationId, collection: event.originalSource === 'live' ? 'sparkOperations' : 'sparkImportedIdentities',
+		data: { personId: event.actorId, groupId, name: event.details?.name ?? event.note, date: event.effectiveAt,
+			valueInCents: Math.abs(event.deltaInCents), sparkExecutionReference: event.executionReference, source: event.originalSource },
+	})), kind, item => normalizeLabel(item.data.name, kind === 'expense' ? 'Despesa' : 'Ganho'), item => formatDateLabel(item.data.date));
+	const recurring = (type: 'expense' | 'gain') => nativeItems(plans.filter(plan => plan.active && plan.recurringType === type).map(plan => ({
+		id: plan.id, collection: 'sparkRecurringPlans', data: { ...plan, personId: plan.actorId, groupId },
+	})), `mandatory_${type}`, item => normalizeLabel(item.data.name, 'Recorrência'));
+	const catalog: AssistantResolvedCatalog = {
+		banks: nativeItems(documents.filter(item => item.data.kind !== 'investment'), 'spark_account', item => item.data.name as string),
+		investments: nativeItems(documents.filter(item => item.data.kind === 'investment'), 'spark_investment', item => item.data.name as string),
+		expenseCategories: categories('expense'), gainCategories: categories('gain'),
+		mandatoryExpenseCategories: categories('expense', true), mandatoryGainCategories: categories('gain', true),
+		categories: nativeItems(tags, 'category', item => normalizeLabel(item.data.name, 'Categoria')),
+		expenses: movementItems('expense'), gains: movementItems('income'), mandatoryExpenses: recurring('expense'), mandatoryGains: recurring('gain'),
+		cashWithdrawals: [], investmentDeposits: [], investmentRedemptions: [], investmentSyncs: [], bankBalanceAdjustments: [],
+	};
+	for (const items of Object.values(catalog)) for (const item of items ?? []) {
+		if (typeof item.data?.personId === 'string' && item.data.personId !== personId && item.collection === 'tags') item.ownerScope = 'related_read_only';
+		if (role !== 'admin' && ['sparkOperations', 'sparkImportedIdentities', 'sparkRecurringPlans'].includes(item.collection ?? '') && item.data?.personId !== personId) item.ownerScope = 'related_read_only';
+	}
+	return catalog;
+}
+
 export const loadAssistantResolvedCatalog = async (personId: string): Promise<AssistantResolvedCatalog> => {
 	if (!personId.trim()) {
 		throw new Error('Usuário não autenticado.');
 	}
+	const spark = await getSparkContextFirebase(db, personId);
+	if (spark) return loadSparkAssistantCatalog(personId, spark);
 	const ledgerContext = await getFinancialLedgerContextFirebase(personId);
 	const [banks, tags, expenses, gains, cashRescues, mandatoryExpenses, mandatoryGains, investments, syncs, adjustments] =
 		await Promise.all(COLLECTIONS.map(name => ledgerContext && ['banks', 'expenses', 'gains', 'cashRescues', 'financeInvestmentSyncs'].includes(name)

@@ -182,3 +182,39 @@ test('primeiro percurso da Home mantém ganho de 200 reais e despesa corrigida d
   expect(data.currentMonthGainsByBankId.bank).toBe(20000);
   expect(data.currentMonthExpensesByBankId.bank).toBe(7000);
 });
+
+test('timeline conserva a resolução de operações Spark para impedir novo estorno pela Home', async () => {
+  mockEvents.mockResolvedValue(buildSparkFinancialReadEvents('group', [expense('original', 1000), row('undo', 'movement_reversal', {
+    originalSource: 'live', originalOperationId: 'original', accountId: 'bank', movementKind: 'expense', differenceInCents: 1000 })]));
+  const result = await getHomeSnapshotFirebase('owner');
+  if (!result.success || !result.data.movements.success) throw new Error('Timeline indisponível.');
+  expect(result.data.movements.data.timelineMovements.find(item => item.id === 'original:movement')).toMatchObject({
+    isLedgerMovement: true, isSparkMovement: true, sparkResolvedByOperationId: 'undo', personId: 'owner',
+    sparkExecutionReference: { source: 'live', operationId: 'original', family: 'ordinary' },
+  });
+});
+
+test('ajuste ativo e referência de abertura aparecem com suas permissões financeiras', async () => {
+  mockEvents.mockResolvedValue(buildSparkFinancialReadEvents('group', [
+    row('opening', 'bank_opening', { accountId: 'bank', openingBalanceInCents: 10000 }),
+    row('adjustment', 'balance_adjustment', { accountId: 'bank', differenceInCents: -500 }),
+  ]));
+  const result = await getHomeSnapshotFirebase('owner');
+  if (!result.success || !result.data.movements.success) throw new Error('Timeline indisponível.');
+  expect(result.data.movements.data.timelineMovements).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'opening:reference', isLedgerMovement: true, isBalanceAdjustment: true, sparkAdjustmentOperationId: null, valueInCents: 10000 }),
+    expect.objectContaining({ id: 'adjustment:adjustment', isBalanceAdjustment: true, sparkAdjustmentOperationId: 'adjustment', sparkAdjustmentResolved: false, personId: 'owner', type: 'expense', valueInCents: 500 }),
+  ]));
+  if (!result.data.overview.success) throw new Error('Resumo indisponível.');
+  expect(result.data.overview.data.currentMonthExpensesByBankId).toEqual({});
+  expect(result.data.overview.data.currentMonthGainsByBankId).toEqual({});
+});
+
+test('saque Spark conserva a referência do par e aparece uma única vez na Home', async () => {
+  mockEvents.mockResolvedValue(buildSparkFinancialReadEvents('group', [row('pair', 'transfer', { fromAccountId: 'bank', toAccountId: 'cash', amountInCents: 500 })]));
+  const result = await getHomeSnapshotFirebase('owner');
+  if (!result.success || !result.data.movements.success) throw new Error('Timeline indisponível.');
+  expect(result.data.movements.data.timelineMovements).toHaveLength(1);
+  expect(result.data.movements.data.timelineMovements[0]).toMatchObject({ isCashRescue: true, isLedgerMovement: true,
+    sparkExecutionReference: { source: 'live', operationId: 'pair', family: 'pair' } });
+});

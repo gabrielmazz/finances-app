@@ -1,5 +1,15 @@
 # Auditoria e padronização de design — Lumus Finanças
 
+## Últimas movimentações da Home — 26/10/2026
+
+- Inventário: `/home?tab=0` e `/bank-movements`, `HomeScreen` e `BankMovementsScreen` nas composições Web/mobile, `HomeFirebase`/`SparkHomeFirebase` e contrato compartilhado de movimentos.
+- Alta: resumo da Home perdia referências/IDs e restrições necessárias às ações. Correção: propagar metadados de execução/resolução/dono, recorrências e investimentos; reutilizar diálogos/escritores do extrato e recarregar o snapshot após ação. Referências financeiras permanecem imutáveis quando não há executor elegível.
+- Média: detalhes Web da Home omitiam contraparte, sincronização e ações. Correção: mesma timeline do extrato, com resumo, categoria, data, conta, descrição e metadados próprios de cada família nas duas plataformas; preservadas animações Web existentes e paleta por tipo.
+- Média: valor anterior da sincronização Web era um número bruto sem máscara. Correção: usar o formatador monetário existente, inclusive com valores ocultos.
+- Estados: loading, vazio, erro/retry e descarte de confirmação durante revalidação; expansão por tipo/ID evita colisão entre ganho e despesa. Ações preservam confirmação, bloqueio durante execução e validação de ator nos preparos Spark. Contratos de foco/pressed/disabled do extrato reaproveitados; nenhum novo estilo inline, cor ou dependência.
+- Validação: `npm run check` aprovado (estilos, três tipagens, duas suítes de ferramentas Spark; Jest com 139 suítes/1.303 testes aprovados e 89 ignorados). Exports Web e Android aprovados (artefatos temporários em `/tmp/lumus-recent-web` e `/tmp/lumus-recent-android`). A suíte `ledgerProjectionReads` recebeu isolamento dos relacionamentos anteriores a Spark e expectativas de histórico completo; as 29 falhas iniciais também foram reproduzidas usando a Home anterior. Risco residual: sem inspeção visual autenticada, leitor de tela, conteúdo longo, navegador ou aparelho instalado; sem deploy. O modo da Home conserva seis movimentos do mês e não expõe filtros/PDF do extrato.
+
+
 ## Banco e saldo inicial — 23/10/2026
 
 - Inventário: cadastro bancário Web/mobile e novo componente compartilhado BankOpeningBalanceFields; mesmas rotas e design system.
@@ -1096,3 +1106,12 @@ Correção no hook compartilhado bloqueia esse fallback somente no projeto de de
 - Média, feedback: erro transitório dependia apenas de notificação. Lista/editor agora mantêm causa no conteúdo, com retry da lista e rascunho preservado no salvamento; vazio somente após leitura bem-sucedida.
 - Média, concorrência: edição durante salvamento/recarga podia divergir do material enviado. Campo e editor DOM (toolbar/checklist incluídos) recebem bloqueio; trava síncrona impede envio duplicado.
 - Apresentação mantém classes semânticas existentes, sem novos estilos inline/cores/valores arbitrários. Tela compartilhada por Web/mobile; sem homologação visual de WebView, teclado ou aparelho. Evidências finais em [[Versão Usável por Telas]].
+
+
+## Assistente por tela - 25/10/2026
+
+A revisão `lumus-assistant-2026-10-25` libera somente o Assistente uma vez nas preferências locais, preservando desligamentos posteriores. Web/mobile compartilham painel de erro de inicialização com retry. Falha de leitura de consentimento/leitura automática não é tratada como preferência ausente; envio fica indisponível até recuperar essa leitura. Falha isolada do modelo preserva os comandos locais existentes.
+
+Consentimento só é concedido após persistência confirmada, com trava síncrona, erro persistente e retry. Atualização de disponibilidade limita chamada concorrente por UID e descarta respostas anteriores à troca de conta, revogação, limpeza ou desmontagem. A conversa continua em memória durante navegação.
+
+Esta entrega trata a entrada A01. A02 continua parcial: catálogo, relatórios e executor financeiro Spark ainda precisam de adaptadores por família. A liberação local não comprova essas operações nem habilita fallback financeiro. A01 78%, A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos. Sem deploy, Rules, migração ou escrita em dados reais; sem nova homologação visual, modelo real ou áudio/aparelho.

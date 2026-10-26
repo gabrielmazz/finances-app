@@ -27,7 +27,7 @@ export const canAssistantExecuteDirectly = (text: string, draft: AssistantDraftA
 
 // A assinatura cobre também o alvo revalidado e as dependências, não o texto do modelo.
 export const assistantActionSignature = (draft: AssistantDraftAction) => JSON.stringify({
-	 id: draft.clientActionId, kind: draft.kind, payload: draft.payload,
+	 id: draft.clientActionId, kind: draft.kind, payload: draft.payload, preparedAt: draft.preparedAt,
 	 snapshot: draft.originalSnapshot, dependencies: draft.dependsOnActionIds,
 });
 

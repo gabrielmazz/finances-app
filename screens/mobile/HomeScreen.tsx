@@ -1,3 +1,4 @@
+import BankMovementsScreen from './BankMovementsScreen';
 import React from 'react';
 import {
 	Platform,
@@ -11,24 +12,20 @@ import {
 	useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+
 import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
 
 import { auth } from '@/FirebaseConfig';
-import {
-	type HomeBankBalanceCard,
-	type HomeCashSummary,
-	type HomeTimelineMovement,
-} from '@/functions/HomeFirebase';
+import { type HomeBankBalanceCard, type HomeCashSummary } from '@/functions/HomeFirebase';
 import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import { useAuth } from '@/contexts/AuthContext';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import { Box } from '@/components/ui/box';
+
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { CalendarDaysIcon, ChevronDownIcon, ChevronUpIcon, Icon } from '@/components/ui/icon';
+
 import { Image } from '@/components/ui/image';
 import {
 	Modal,
@@ -40,7 +37,12 @@ import {
 	ModalHeader,
 	ModalTitle,
 } from '@/components/ui/modal';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import {
+	Popover,
+	PopoverBackdrop,
+	PopoverBody,
+	PopoverContent,
+} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
@@ -58,29 +60,11 @@ import { PieChart } from 'react-native-gifted-charts';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import HomeScreenIllustration from '../../assets/UnDraw/homeScreen.svg';
-import { CalendarDays, Info, Tags as TagsIcon } from 'lucide-react-native';
-import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
+import { CalendarDays, Info } from 'lucide-react-native';
+
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
 import { isWebDesktopLayout } from '@/utils/webLayout';
-
-type HomeTimelineToneKey =
-	| 'gain'
-	| 'expense'
-	| 'mandatoryGain'
-	| 'mandatoryExpense'
-	| 'bankTransfer'
-	| 'investmentRedemption'
-	| 'investmentDeposit'
-	| 'investmentSync';
-
-type HomeTimelineTone = {
-	accentColor: string;
-	amountColor: string;
-	lineColor: string;
-	iconGradient: [string, string];
-	cardGradient: [string, string];
-};
 
 type HomeBankCarouselItem =
 	| ({
@@ -122,87 +106,7 @@ const hexToRgba = (hexColor: string, alpha: number) => {
 	return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
 
-const MANDATORY_SETTLED_TONE: HomeTimelineTone = {
-	accentColor: '#10B981',
-	amountColor: '#10B981',
-	lineColor: 'rgba(16, 185, 129, 0.28)',
-	iconGradient: ['#047857', '#34D399'],
-	cardGradient: ['#065F46', '#10B981'],
-};
-
 // Mantém a timeline da Home alinhada ao padrão visual documentado em [[Dashboard Home]].
-const HOME_TIMELINE_TONES: Record<HomeTimelineToneKey, HomeTimelineTone> = {
-	gain: {
-		accentColor: '#10B981',
-		amountColor: '#10B981',
-		lineColor: 'rgba(16, 185, 129, 0.28)',
-		iconGradient: ['#047857', '#34D399'],
-		cardGradient: ['#065F46', '#10B981'],
-	},
-	expense: {
-		accentColor: '#EF4444',
-		amountColor: '#EF4444',
-		lineColor: 'rgba(239, 68, 68, 0.28)',
-		iconGradient: ['#B91C1C', '#EF4444'],
-		cardGradient: ['#7F1D1D', '#EF4444'],
-	},
-	mandatoryExpense: MANDATORY_SETTLED_TONE,
-	mandatoryGain: MANDATORY_SETTLED_TONE,
-	bankTransfer: {
-		accentColor: '#F59E0B',
-		amountColor: '#F59E0B',
-		lineColor: 'rgba(245, 158, 11, 0.3)',
-		iconGradient: ['#92400E', '#F59E0B'],
-		cardGradient: ['#78350F', '#F59E0B'],
-	},
-	investmentRedemption: {
-		accentColor: '#38BDF8',
-		amountColor: '#38BDF8',
-		lineColor: 'rgba(56, 189, 248, 0.3)',
-		iconGradient: ['#0C4A6E', '#38BDF8'],
-		cardGradient: ['#075985', '#67E8F9'],
-	},
-	investmentDeposit: {
-		accentColor: '#7C3AED',
-		amountColor: '#7C3AED',
-		lineColor: 'rgba(124, 58, 237, 0.3)',
-		iconGradient: ['#312E81', '#7C3AED'],
-		cardGradient: ['#312E81', '#7C3AED'],
-	},
-	investmentSync: {
-		accentColor: '#14B8A6',
-		amountColor: '#14B8A6',
-		lineColor: 'rgba(20, 184, 166, 0.28)',
-		iconGradient: ['#0F766E', '#2DD4BF'],
-		cardGradient: ['#115E59', '#14B8A6'],
-	},
-};
-
-const resolveHomeTimelineToneKey = (movement: HomeTimelineMovement): HomeTimelineToneKey => {
-	if (movement.isFinanceInvestmentSync) {
-		return 'investmentSync';
-	}
-
-	if (movement.isBankTransfer) {
-		return 'bankTransfer';
-	}
-
-	if (movement.isInvestmentRedemption) {
-		return 'investmentRedemption';
-	}
-
-	if (movement.isInvestmentDeposit) {
-		return 'investmentDeposit';
-	}
-
-	if (movement.isFromMandatory) {
-		return movement.type === 'gain' ? 'mandatoryGain' : 'mandatoryExpense';
-	}
-
-	return movement.type === 'gain' ? 'gain' : 'expense';
-};
-
-const getHomeTimelineItemKey = (movement: HomeTimelineMovement) => `${movement.type}:${movement.id}`;
 
 const HomeBankOverviewSkeleton = ({
 	bankCarouselWidth,
@@ -368,63 +272,6 @@ const HomeInvestmentSkeleton = ({
 	);
 };
 
-const HomeMovementsSkeleton = ({
-	timelinePalette,
-}: {
-	timelinePalette: {
-		timelineBase: string;
-	};
-}) => (
-	<View style={{ marginTop: 14 }}>
-		{Array.from({ length: 3 }).map((_, index, items) => (
-			<View key={`timeline-skeleton-item-${index}`} style={{ flexDirection: 'row' }}>
-				<View
-					style={{
-						alignItems: 'center',
-						width: '7%',
-						paddingTop: 3,
-					}}
-				>
-					<Skeleton variant="circular" style={{ width: 18, height: 18 }} />
-					{index < items.length - 1 ? (
-						<Skeleton
-							className="w-full"
-							style={{
-								width: 3,
-								height: 92,
-								marginVertical: 2,
-								backgroundColor: timelinePalette.timelineBase,
-							}}
-						/>
-					) : (
-						<View style={{ height: 12 }} />
-					)}
-				</View>
-
-				<View style={{ width: '93%', paddingBottom: 14 }}>
-					<HStack className="items-center justify-between gap-3">
-						<HStack className="items-center gap-3" style={{ flex: 1 }}>
-							<Skeleton className="h-11 w-11 rounded-2xl" />
-							<VStack className="flex-1 gap-2">
-								<Skeleton className="h-5 w-36" />
-								<Skeleton className="h-3 w-28" />
-							</VStack>
-						</HStack>
-
-						<HStack className="items-center gap-2">
-							<VStack className="items-end gap-2">
-								<Skeleton className="h-5 w-20" />
-								<Skeleton className="h-3 w-14" />
-							</VStack>
-							<Skeleton className="h-4 w-4 rounded-full" />
-						</HStack>
-					</HStack>
-				</View>
-			</View>
-		))}
-	</View>
-);
-
 export default function HomeScreen() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
@@ -462,8 +309,6 @@ export default function HomeScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 
-	const [isMovementsExpanded, setIsMovementsExpanded] = React.useState(true);
-	const [expandedTimelineStatuses, setExpandedTimelineStatuses] = React.useState<string[]>([]);
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
 	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
 	const [currentUserFirstName, setCurrentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
@@ -526,37 +371,6 @@ export default function HomeScreen() {
 		[shouldHideValues],
 	);
 
-	const formatMovementDate = React.useCallback((value: Date | null) => {
-		if (!value) {
-			return 'Data indisponível';
-		}
-
-		return new Intl.DateTimeFormat('pt-BR', {
-			day: '2-digit',
-			month: '2-digit',
-			year: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit',
-		}).format(value);
-	}, []);
-
-	const handleToggleMovements = React.useCallback(() => {
-		setIsMovementsExpanded(prev => {
-			const nextValue = !prev;
-			if (!nextValue) {
-				setExpandedTimelineStatuses([]);
-			}
-
-			return nextValue;
-		});
-	}, []);
-
-	const handleToggleTimelineStatus = React.useCallback((statusId: string) => {
-		setExpandedTimelineStatuses(prev =>
-			prev.includes(statusId) ? prev.filter(id => id !== statusId) : [...prev, statusId],
-		);
-	}, []);
-
 	const handleDismissInvestmentPopover = React.useCallback(() => {
 		setSelectedInvestmentPopoverTarget(null);
 	}, []);
@@ -574,7 +388,7 @@ export default function HomeScreen() {
 	const cashSummary = overview.data.cashSummary;
 	const currentMonthExpensesByBankId = overview.data.currentMonthExpensesByBankId;
 	const currentMonthGainsByBankId = overview.data.currentMonthGainsByBankId;
-	const timelineMovements = movements.data.timelineMovements;
+
 	const investmentPortfolio = investments.data.portfolio;
 	// Segue [[Balanço Mensal]]: banco sem snapshot do mês corrente não tem saldo confiável.
 	const missingMonthlyBalanceBanks = React.useMemo(
@@ -875,282 +689,6 @@ export default function HomeScreen() {
 			investmentDistributionItems,
 			investmentDistributionTotalInCents,
 		],
-	);
-
-	const timelinePalette = React.useMemo(
-		() => ({
-			title: isDarkMode ? '#F8FAFC' : '#0F172A',
-			subtitle: isDarkMode ? '#94A3B8' : '#64748B',
-			cardBorder: isDarkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(226, 232, 240, 1)',
-			emptySurface: isDarkMode ? '#020617' : '#F8FAFC',
-			timelineBase: isDarkMode ? '#243041' : '#CBD5E1',
-		}),
-		[isDarkMode],
-	);
-
-	React.useEffect(() => {
-		const visibleIds = new Set(timelineMovements.map(movement => getHomeTimelineItemKey(movement)));
-		setExpandedTimelineStatuses(previousState => previousState.filter(id => visibleIds.has(id)));
-	}, [timelineMovements]);
-
-	const formatSignedCurrencyBRL = React.useCallback(
-		(movement: HomeTimelineMovement) => {
-			const formattedValue = formatCurrencyBRL(movement.valueInCents);
-			if (formattedValue === HIDDEN_VALUE_PLACEHOLDER) {
-				return formattedValue;
-			}
-
-			if (movement.type === 'sync') {
-				return formattedValue;
-			}
-
-			return `${movement.type === 'gain' ? '+' : '-'}${formattedValue}`;
-		},
-		[formatCurrencyBRL],
-	);
-
-	const formatDeltaCurrencyBRL = React.useCallback(
-		(valueInCents: number | null | undefined) => {
-			const formattedValue = formatCurrencyBRL(Math.abs(valueInCents ?? 0));
-			if (formattedValue === HIDDEN_VALUE_PLACEHOLDER) {
-				return formattedValue;
-			}
-
-			if (typeof valueInCents !== 'number') {
-				return 'Sem variação';
-			}
-
-			const prefix = valueInCents >= 0 ? '+' : '-';
-			return `${prefix}${formattedValue}`;
-		},
-		[formatCurrencyBRL],
-	);
-
-	const getInvestmentSyncReasonLabel = React.useCallback(
-		(reason: HomeTimelineMovement['investmentSyncReason']) => {
-			if (reason === 'deposit') {
-				return 'Sincronização antes do aporte';
-			}
-
-			if (reason === 'withdrawal') {
-				return 'Sincronização antes do resgate';
-			}
-
-			return 'Sincronização manual';
-		},
-		[],
-	);
-
-	const formatMovementCompactDate = React.useCallback((value: Date | null) => {
-		if (!value) {
-			return 'Sem data';
-		}
-
-		return new Intl.DateTimeFormat('pt-BR', {
-			day: '2-digit',
-			month: '2-digit',
-		}).format(value);
-	}, []);
-
-	const getTimelineTone = React.useCallback(
-		(movement: HomeTimelineMovement) => HOME_TIMELINE_TONES[resolveHomeTimelineToneKey(movement)],
-		[],
-	);
-
-	const resolveTimelineTypeLabel = React.useCallback((movement?: HomeTimelineMovement | null) => {
-		if (!movement) {
-			return '';
-		}
-
-		if (movement.isBankTransfer) {
-			if (movement.bankTransferDirection === 'outgoing') {
-				return 'Transferência enviada';
-			}
-			if (movement.bankTransferDirection === 'incoming') {
-				return 'Transferência recebida';
-			}
-			return 'Transferência entre bancos';
-		}
-
-		if (movement.isFinanceInvestmentSync) {
-			return 'Sincronização de investimento';
-		}
-
-		if (movement.isInvestmentDeposit) {
-			return 'Aporte de investimento';
-		}
-
-		if (movement.isInvestmentRedemption) {
-			return 'Resgate de investimento';
-		}
-
-		return movement.type === 'gain' ? 'Ganho' : 'Despesa';
-	}, []);
-
-	const getFallbackTimelineIcon = React.useCallback((movement: HomeTimelineMovement): TagIconSelection => {
-		if (movement.isFinanceInvestmentSync) {
-			return { iconFamily: 'ionicons', iconName: 'sync-outline' };
-		}
-
-		if (movement.isBankTransfer) {
-			return { iconFamily: 'ionicons', iconName: 'swap-horizontal-outline' };
-		}
-
-		if (movement.isInvestmentRedemption) {
-			return { iconFamily: 'ionicons', iconName: 'arrow-down-circle-outline' };
-		}
-
-		if (movement.isInvestmentDeposit) {
-			return { iconFamily: 'ionicons', iconName: 'arrow-up-circle-outline' };
-		}
-
-		if (movement.isFromMandatory) {
-			return { iconFamily: 'ionicons', iconName: 'shield-checkmark-outline' };
-		}
-
-		if (movement.moneyFormat) {
-			return { iconFamily: 'ionicons', iconName: 'cash-outline' };
-		}
-
-		return movement.type === 'gain'
-			? { iconFamily: 'ionicons', iconName: 'trending-up-outline' }
-			: { iconFamily: 'ionicons', iconName: 'trending-down-outline' };
-	}, []);
-
-	const getTimelineIcon = React.useCallback(
-		(movement: HomeTimelineMovement): TagIconSelection => {
-			if (movement.tagIconFamily && movement.tagIconName) {
-				return {
-					iconFamily: movement.tagIconFamily,
-					iconName: movement.tagIconName,
-					iconStyle: movement.tagIconStyle,
-				};
-			}
-
-			return getFallbackTimelineIcon(movement);
-		},
-		[getFallbackTimelineIcon],
-	);
-
-	const getTimelineSummarySubtitle = React.useCallback(
-		(movement: HomeTimelineMovement) => {
-			if (movement.isFinanceInvestmentSync) {
-				return movement.investmentNameSnapshot
-					? `${getInvestmentSyncReasonLabel(movement.investmentSyncReason)} em ${movement.investmentNameSnapshot}`
-					: getInvestmentSyncReasonLabel(movement.investmentSyncReason);
-			}
-
-			if (movement.isBankTransfer) {
-				return movement.bankTransferDirection === 'outgoing'
-					? `Transferência para ${movement.bankTransferTargetBankNameSnapshot ?? 'banco de destino'}`
-					: `Transferência de ${movement.bankTransferSourceBankNameSnapshot ?? 'banco de origem'}`;
-			}
-
-			if (movement.isInvestmentRedemption) {
-				return movement.investmentNameSnapshot
-					? `Resgate de ${movement.investmentNameSnapshot}`
-					: 'Resgate de investimento';
-			}
-
-			if (movement.isInvestmentDeposit) {
-				return movement.investmentNameSnapshot
-					? `Aporte em ${movement.investmentNameSnapshot}`
-					: 'Aporte de investimento';
-			}
-
-			if (movement.isFromMandatory) {
-				return movement.type === 'gain'
-					? 'Recebimento obrigatório concluído'
-					: 'Pagamento obrigatório concluído';
-			}
-
-			if (movement.tagName?.trim()) {
-				return movement.tagName.trim();
-			}
-
-			return resolveTimelineTypeLabel(movement);
-		},
-		[getInvestmentSyncReasonLabel, resolveTimelineTypeLabel],
-	);
-
-	const getTimelinePrimarySourceLabel = React.useCallback((movement: HomeTimelineMovement) => {
-		if (movement.isFinanceInvestmentSync) {
-			return movement.bankName?.trim() || 'Banco do investimento';
-		}
-
-		if (movement.isBankTransfer) {
-			return movement.bankTransferSourceBankNameSnapshot?.trim() || movement.bankName || 'Banco de origem';
-		}
-
-		if (movement.moneyFormat) {
-			return 'Dinheiro em espécie';
-		}
-
-		if (movement.bankName?.trim()) {
-			return movement.bankName.trim();
-		}
-
-		return 'Sem banco vinculado';
-	}, []);
-
-	const getTimelineDetailMessage = React.useCallback(
-		(movement: HomeTimelineMovement) => {
-			if (movement.isFinanceInvestmentSync) {
-				const investmentName = movement.investmentNameSnapshot ?? 'este investimento';
-				if (movement.investmentSyncReason === 'deposit') {
-					return `Valor real conferido antes do aporte em "${investmentName}".`;
-				}
-
-				if (movement.investmentSyncReason === 'withdrawal') {
-					return `Valor real conferido antes do resgate em "${investmentName}".`;
-				}
-
-				return `Sincronização manual registrada para "${investmentName}".`;
-			}
-
-			if (movement.isFromMandatory) {
-				return movement.type === 'gain'
-					? 'Este lançamento marcou como recebido o ganho obrigatório do ciclo atual.'
-					: 'Este lançamento marcou como pago o gasto obrigatório do ciclo atual.';
-			}
-
-			if (movement.isBankTransfer) {
-				return movement.bankTransferDirection === 'outgoing'
-					? `Transferência enviada para ${movement.bankTransferTargetBankNameSnapshot ?? 'o banco de destino'}.`
-					: `Transferência recebida de ${movement.bankTransferSourceBankNameSnapshot ?? 'o banco de origem'}.`;
-			}
-
-			if (movement.isInvestmentRedemption) {
-				return movement.investmentNameSnapshot
-					? `Resgate automático do investimento "${movement.investmentNameSnapshot}".`
-					: 'Resgate automático registrado para este investimento.';
-			}
-
-			if (movement.isInvestmentDeposit) {
-				return movement.investmentNameSnapshot
-					? `Aporte automático no investimento "${movement.investmentNameSnapshot}".`
-					: 'Aporte automático registrado para este investimento.';
-			}
-
-			if (movement.explanation?.trim()) {
-				return movement.explanation.trim();
-			}
-
-			if (movement.tagName?.trim()) {
-				return `Lançamento classificado na tag "${movement.tagName.trim()}".`;
-			}
-
-			if (movement.moneyFormat) {
-				return 'Lançamento recente registrado em dinheiro.';
-			}
-
-			if (movement.bankName?.trim()) {
-				return `Lançamento recente vinculado ao banco ${movement.bankName.trim()}.`;
-			}
-
-			return 'Lançamento recente registrado na timeline da Home.';
-		},
-		[],
 	);
 
 	return (
@@ -1723,426 +1261,15 @@ export default function HomeScreen() {
 								) : null}
 							</View>
 
-							<View className="mb-6">
-								<HStack className="items-start justify-between gap-3">
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={handleToggleMovements}
-										accessibilityRole="button"
-										accessibilityLabel="Expandir ou recolher últimas movimentações"
-										accessibilityState={{ expanded: isMovementsExpanded }}
-										style={{ flex: 1 }}
-									>
-										<VStack className="">
-											<HStack className="gap-1 items-center">
-												<Heading
-													className={webDashboardClassNames.sectionHeadingText}
-												>
-													Últimas Movimentações
-												</Heading>
-
-												<Popover
-													placement="bottom"
-													size="md"
-													offset={0}
-													shouldFlip
-													focusScope={false}
-													trapFocus={false}
-													trigger={triggerProps => (
-														<Pressable
-															{...triggerProps}
-															hitSlop={8}
-															accessibilityRole="button"
-															accessibilityLabel="Informações sobre últimas movimentações"
-														>
-															<Info
-																size={14}
-																color={isDarkMode ? '#94A3B8' : '#64748B'}
-																style={{ marginLeft: 4 }}
-															/>
-														</Pressable>
-													)}
-												>
-													<PopoverBackdrop className="bg-transparent" />
-													<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-														<PopoverBody className="px-3 py-3">
-															<Text className={`${bodyText} text-xs leading-5`}>
-																Exibimos aqui um resumo das suas últimas movimentações financeiras, incluindo despesas, ganhos, transferências e sincronizações de investimento. Toque em cada movimentação para ver detalhes específicos como valor, data e descrição.
-																Se você não vê uma movimentação que espera, verifique se ela está registrada corretamente na seção de movimentações. Os dados aqui refletem o que foi registrado lá.
-															</Text>
-														</PopoverBody>
-													</PopoverContent>
-												</Popover>
-											</HStack>
-										</VStack>
-									</TouchableOpacity>
-
-									<TouchableOpacity
-										activeOpacity={0.85}
-										onPress={handleToggleMovements}
-										accessibilityRole="button"
-										accessibilityLabel="Expandir ou recolher últimas movimentações"
-										accessibilityState={{ expanded: isMovementsExpanded }}
-										style={{
-											minWidth: 28,
-											paddingLeft: 8,
-											paddingVertical: 4,
-											alignItems: 'center',
-											justifyContent: 'center',
-											flexShrink: 0,
-										}}
-									>
-										<Icon
-											as={isMovementsExpanded ? ChevronUpIcon : ChevronDownIcon}
-											size="sm"
-											className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-										/>
-									</TouchableOpacity>
-								</HStack>
-
-								{isMovementsExpanded ? (
-									movements.loading && timelineMovements.length === 0 ? (
-										<HomeMovementsSkeleton timelinePalette={timelinePalette} />
-									) : timelineMovements.length > 0 ? (
-										<View style={{ marginTop: 14 }}>
-											{timelineMovements.map((movement, index) => {
-												const tone = getTimelineTone(movement);
-												const movementIcon = getTimelineIcon(movement);
-												const timelineItemKey = getHomeTimelineItemKey(movement);
-												const isTimelineItemExpanded = expandedTimelineStatuses.includes(timelineItemKey);
-												const metadataItems = [
-													{
-														label: 'Tipo',
-														value: resolveTimelineTypeLabel(movement),
-														},
-													{
-														label: movement.isBankTransfer ? 'Origem' : 'Conta',
-														value: getTimelinePrimarySourceLabel(movement),
-													},
-													{
-														label: 'Data',
-														value: formatMovementDate(movement.date),
-													},
-												];
-
-												if (movement.isFinanceInvestmentSync) {
-													metadataItems.push({
-														label: 'Variação',
-														value: formatDeltaCurrencyBRL(
-															typeof movement.investmentSyncPreviousValueInCents === 'number'
-																? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																: null,
-														),
-													});
-													metadataItems.push({
-														label: 'Motivo',
-														value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
-													});
-												}
-
-												if (movement.isBankTransfer) {
-													metadataItems.push({
-														label: 'Destino',
-														value:
-															movement.bankTransferTargetBankNameSnapshot?.trim() ||
-															movement.bankName ||
-															'Banco de destino',
-													});
-												} else if (movement.investmentNameSnapshot?.trim()) {
-													metadataItems.push({
-														label: 'Investimento',
-														value: movement.investmentNameSnapshot.trim(),
-													});
-												} else if (movement.tagName?.trim()) {
-													metadataItems.push({
-														label: 'Tag',
-														value: movement.tagName.trim(),
-													});
-												}
-
-												return (
-													<View key={timelineItemKey} style={{ flexDirection: 'row' }}>
-														<View
-															style={{
-																alignItems: 'center',
-																width: '7%',
-																paddingTop: 6,
-															}}
-														>
-															<View
-																style={{
-																	width: 14,
-																	height: 14,
-																	borderRadius: 999,
-																	backgroundColor: tone.accentColor,
-																	borderWidth: 2,
-																	borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																	shadowColor: tone.accentColor,
-																	shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																	shadowRadius: 8,
-																	shadowOffset: { width: 0, height: 4 },
-																	elevation: 2,
-																}}
-															/>
-															{index < timelineMovements.length - 1 ? (
-																<View
-																	style={{
-																		flex: 1,
-																		width: 3,
-																		borderRadius: 999,
-																		marginVertical: 2,
-																		backgroundColor: tone.lineColor,
-																	}}
-																/>
-															) : (
-																<View />
-															)}
-														</View>
-
-														<View style={{ width: '93%', paddingBottom: 14 }}>
-														<TouchableOpacity
-															activeOpacity={0.85}
-															onPress={() => handleToggleTimelineStatus(timelineItemKey)}
-															accessibilityRole="button"
-															accessibilityLabel={`Detalhes de ${movement.name}`}
-															accessibilityState={{ expanded: isTimelineItemExpanded }}
-															style={{ width: '100%' }}
-														>
-																<HStack className="items-center justify-between gap-3">
-																	<HStack className="items-center gap-3" style={{ flex: 1 }}>
-																		<LinearGradient
-																			colors={tone.iconGradient}
-																			start={{ x: 0, y: 0 }}
-																			end={{ x: 1, y: 1 }}
-																			style={{
-																				width: 44,
-																				height: 44,
-																				borderRadius: 16,
-																				alignItems: 'center',
-																				justifyContent: 'center',
-																				flexShrink: 0,
-																			}}
-																		>
-																			<TagIcon
-																				iconFamily={movementIcon.iconFamily}
-																				iconName={movementIcon.iconName}
-																				iconStyle={movementIcon.iconStyle}
-																				size={18}
-																				color="#FFFFFF"
-																			/>
-																		</LinearGradient>
-
-																		<View style={{ flex: 1 }}>
-																			<Text
-																				numberOfLines={1}
-																				style={{
-																					color: timelinePalette.title,
-																					fontSize: 15,
-																					fontWeight: '700',
-																				}}
-																			>
-																				{movement.name}
-																			</Text>
-																			<Text
-																				numberOfLines={1}
-																				style={{
-																					marginTop: 2,
-																					color: timelinePalette.subtitle,
-																					fontSize: 12,
-																					lineHeight: 18,
-																				}}
-																			>
-																				{getTimelineSummarySubtitle(movement)}
-																			</Text>
-																		</View>
-																	</HStack>
-
-																	<HStack className="items-center gap-2">
-																		<VStack className="items-end">
-																			<Text
-																				style={{
-																					color: tone.amountColor,
-																					fontSize: 15,
-																					fontWeight: '700',
-																				}}
-																			>
-																				{formatSignedCurrencyBRL(movement)}
-																			</Text>
-																			{movement.isFinanceInvestmentSync ? (
-																				<Text
-																					style={{
-																						marginTop: 2,
-																						color: timelinePalette.subtitle,
-																						fontSize: 11,
-																					}}
-																				>
-																					{formatDeltaCurrencyBRL(
-																						typeof movement.investmentSyncPreviousValueInCents === 'number'
-																							? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																							: null,
-																					)}
-																				</Text>
-																			) : null}
-																			<HStack className="mt-1 items-center gap-1">
-																				<Icon
-																					as={CalendarDaysIcon}
-																					size="xs"
-																					className={
-																						isDarkMode ? 'text-slate-500' : 'text-slate-400'
-																					}
-																				/>
-																				<Text
-																					style={{
-																						color: timelinePalette.subtitle,
-																						fontSize: 11,
-																					}}
-																				>
-																					{formatMovementCompactDate(movement.date)}
-																				</Text>
-																			</HStack>
-																		</VStack>
-
-																		<Icon
-																			as={isTimelineItemExpanded ? ChevronUpIcon : ChevronDownIcon}
-																			size="sm"
-																			className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-																		/>
-																	</HStack>
-																</HStack>
-															</TouchableOpacity>
-
-															{isTimelineItemExpanded ? (
-																<LinearGradient
-																	colors={tone.cardGradient}
-																	start={{ x: 0, y: 0 }}
-																	end={{ x: 1, y: 1 }}
-																	style={{
-																		marginTop: 10,
-																		marginRight: 16,
-																		borderRadius: 20,
-																		paddingHorizontal: 16,
-																		paddingVertical: 14,
-																	}}
-																>
-																	<VStack className="gap-3">
-																		<HStack className="items-start justify-between gap-4">
-																			<VStack className="flex-1">
-																				<Text
-																					className={webDashboardClassNames.detailLabel}
-																				>
-																					Resumo
-																				</Text>
-																				<Text
-																					style={{
-																						fontSize: 13,
-																						lineHeight: 19,
-																						color: '#FFFFFF',
-																					}}
-																				>
-																					{getTimelineDetailMessage(movement)}
-																				</Text>
-																			</VStack>
-
-																			<VStack className="items-end">
-																				<Text
-																					className={webDashboardClassNames.detailLabel}
-																				>
-																					Valor
-																				</Text>
-																				<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																					{formatSignedCurrencyBRL(movement)}
-																				</Heading>
-																			</VStack>
-																		</HStack>
-
-																		<View
-																			style={{
-																				flexDirection: 'row',
-																				flexWrap: 'wrap',
-																				columnGap: 14,
-																				rowGap: 10,
-																			}}
-																		>
-																			{metadataItems.map(item => (
-																				<View
-																					key={`${movement.id}-${item.label}`}
-																					style={{
-																						width: '46%',
-																						minWidth: 128,
-																					}}
-																				>
-																					<Text
-																						className={webDashboardClassNames.detailLabel}
-																					>
-																						{item.label}
-																					</Text>
-																					<Text
-																						style={{
-																							marginTop: 3,
-																							fontSize: 13,
-																							lineHeight: 18,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{item.value}
-																					</Text>
-																				</View>
-																			))}
-																		</View>
-
-																		{movement.explanation?.trim() &&
-																		getTimelineDetailMessage(movement) !== movement.explanation.trim() ? (
-																			<View style={{ paddingTop: 2 }}>
-																				<Text
-																					className={webDashboardClassNames.detailLabel}
-																				>
-																					Descrição
-																				</Text>
-																				<Text
-																					style={{
-																						marginTop: 6,
-																						fontSize: 13,
-																						lineHeight: 18,
-																						color: '#FFFFFF',
-																					}}
-																				>
-																					{movement.explanation.trim()}
-																				</Text>
-																			</View>
-																		) : null}
-																	</VStack>
-																</LinearGradient>
-															) : null}
-														</View>
-													</View>
-												);
-											})}
-										</View>
-									) : (
-										<View
-											style={{
-												marginTop: 10,
-												borderRadius: 18,
-												borderWidth: 1,
-												borderColor: timelinePalette.cardBorder,
-												backgroundColor: timelinePalette.emptySurface,
-												paddingHorizontal: 16,
-												paddingVertical: 18,
-											}}
-										>
-											<Text style={{ color: timelinePalette.subtitle }}>
-												Nenhuma transação recente encontrada.
-											</Text>
-										</View>
-									)
-								) : null}
-
-								{movements.error ? (
-									<Text className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-										{movements.error}
-									</Text>
-								) : null}
-							</View>
+							<BankMovementsScreen
+								recentMovements={{
+									items: movements.data.timelineMovements,
+									banks: overview.data.bankBalances,
+									loading: movements.loading,
+									error: movements.error,
+									reload,
+								}}
+							/>
 						</ScrollView>
 
 						<View

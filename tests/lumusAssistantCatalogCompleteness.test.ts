@@ -1,3 +1,4 @@
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
 const mockOwnedRecords = Array.from({ length: 251 }, (_, index) => ({
 	id: `expense-${String(index).padStart(4, '0')}`,
 	data: () => ({ personId: 'test-user', name: `Despesa ${index + 1}`, valueInCents: 100, date: new Date('2026-09-25T15:00:00Z') }),

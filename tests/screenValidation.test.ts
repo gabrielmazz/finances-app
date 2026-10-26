@@ -228,7 +228,7 @@ it('releases profile once and keeps relationship and other screens disabled', as
 
 it('releases relationships once without reopening profile, annotations or assistant', async () => {
   await AsyncStorage.setItem(storageKey, JSON.stringify({ addUserRelation: false, profile: false, annotations: false, lumusAssistant: false }));
-  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'category-analysis-2026-10-23', 'financial-forecast-2026-10-24', 'profile-2026-10-24', 'annotations-2026-10-25']));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'category-analysis-2026-10-23', 'financial-forecast-2026-10-24', 'profile-2026-10-24', 'annotations-2026-10-25', 'lumus-assistant-2026-10-25']));
   const first = await renderHook(useRouteVisibility, { wrapper });
   expect(first.result.current.isRouteVisible('addUserRelation')).toBe(true); expect(first.result.current.isRouteVisible('profile')).toBe(false); expect(first.result.current.isRouteVisible('annotations')).toBe(false); expect(first.result.current.isRouteVisible('lumusAssistant')).toBe(false);
   await act(async () => first.result.current.setRouteVisibility('addUserRelation', false)); await first.unmount();
@@ -248,4 +248,19 @@ it('releases annotations once and preserves other choices and subsequent disable
   await act(async () => first.result.current.setRouteVisibility('annotations', false)); await first.unmount();
   const second = await renderHook(useRouteVisibility, { wrapper });
   expect(second.result.current.isRouteVisible('annotations')).toBe(false); await second.unmount();
+});
+
+
+it('releases assistant once and honors later disable without reopening other screens', async () => {
+  const { applyScreenValidationReleases } = require('@/contexts/RouteVisibilityContext');
+  const prior = applyScreenValidationReleases({}, []).appliedIds.filter((id: string) => id !== 'lumus-assistant-2026-10-25');
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ lumusAssistant: false, annotations: false, addUserRelation: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(prior));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('lumusAssistant')).toBe(true);
+  expect(first.result.current.isRouteVisible('annotations')).toBe(false);
+  expect(first.result.current.isRouteVisible('addUserRelation')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('lumusAssistant', false)); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper });
+  expect(second.result.current.isRouteVisible('lumusAssistant')).toBe(false); await second.unmount();
 });

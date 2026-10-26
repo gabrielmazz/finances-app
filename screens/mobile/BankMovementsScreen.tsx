@@ -1,9 +1,11 @@
+import type { MovementRecord } from '@/types/bankMovements';
 import { prepareSparkAdjustmentReversalFormFirebase, executeSparkAdjustmentReversalFormFirebase } from '@/functions/SparkBalanceFormFirebase';
 import type { SparkAdjustmentReversalInput } from '@/functions/SparkBalanceFirebase';
 import { prepareSparkPairReversalFirebase, executeSparkPairReversalFirebase, type SparkPairReversalCommand } from '@/functions/SparkPairFormFirebase';
 import { prepareSparkMovementReversalFirebase } from '@/functions/SparkMovementFormFirebase';
 import { executeSparkMovementCommandFirebase, type SparkMovementCommand } from '@/functions/SparkMovementCommandFirebase';
 import React from 'react';
+import type { RecentMovementsProps } from '@/components/uiverse/banks/recent-movements-types';
 import { useQueryClient } from '@tanstack/react-query';
 import { getBankBalanceAdjustmentsFirebase, runBankBalanceAdjustmentFirebase } from '@/functions/BankBalanceAdjustmentFirebase';
 import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
@@ -128,57 +130,6 @@ import BankMovementsIllustration from '../../assets/UnDraw/bankMovementsScreen.s
 
 type FirestoreLikeTimestamp = {
 	toDate?: () => Date;
-};
-
-type MovementRecord = {
-    sparkAdjustmentOperationId?: string | null;
-    sparkAdjustmentResolved?: boolean;
-	isLedgerMovement?: boolean;
-	isSparkMovement?: boolean;
-	sparkEconomicKind?: 'income' | 'expense' | null;
-	sparkDeltaInCents?: number;
-	sparkExecutionReference?: import('@/utils/sparkFinancialReadModel').SparkExecutionReference | null;
-	sparkResolvedByOperationId?: string | null;
-	isBalanceAdjustment?: boolean;
-	adjustmentStatus?: 'active' | 'reversed' | 'replaced';
-	reversesAdjustmentId?: string | null;
-	adjustmentPreviousBalanceInCents?: number;
-	adjustmentTargetBalanceInCents?: number;
-	id: string;
-	name: string;
-	valueInCents: number;
-	type: 'expense' | 'gain' | 'sync';
-	date: Date | null;
-	tagId?: string | null;
-	bankId?: string | null;
-	personId?: string | null;
-	explanation?: string | null;
-	paymentFormats?: string[] | null;
-	moneyFormat?: boolean | null;
-	// true se esta movimentação for a ligada a um Gasto/Ganho Obrigatório do ciclo atual
-	isFromMandatory?: boolean;
-	isCashRescue?: boolean;
-	cashRescueSourceBankName?: string | null;
-	isBankTransfer?: boolean;
-	bankTransferPairId?: string | null;
-	bankTransferDirection?: 'incoming' | 'outgoing' | null;
-	bankTransferSourceBankId?: string | null;
-	bankTransferTargetBankId?: string | null;
-	bankTransferSourceBankNameSnapshot?: string | null;
-	bankTransferTargetBankNameSnapshot?: string | null;
-	bankTransferExpenseId?: string | null;
-	bankTransferGainId?: string | null;
-	isFinanceInvestment?: boolean;
-	investmentId?: string | null;
-	investmentBankNameSnapshot?: string | null;
-	isInvestmentRedemption?: boolean;
-	isInvestmentDeposit?: boolean;
-	investmentNameSnapshot?: string | null;
-	isFinanceInvestmentSync?: boolean;
-	investmentSyncPreviousValueInCents?: number | null;
-	investmentSyncReason?: 'manual' | 'deposit' | 'withdrawal' | null;
-	investmentCdiPercentage?: number | null;
-	investmentRedemptionTerm?: RedemptionTerm | null;
 };
 
 type PendingMovementAction =
@@ -956,7 +907,7 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 	return movement.type === 'gain' ? 'gain' : 'expense';
 };
 
-export default function BankMovementsScreen() {
+export default function BankMovementsScreen({ recentMovements }: { recentMovements?: RecentMovementsProps } = {}) {
 	const queryClient = useQueryClient();
 	const adjustmentActionLockRef = React.useRef(false);
 	const {
@@ -1046,13 +997,17 @@ export default function BankMovementsScreen() {
 		setStartDateInput(formatDateToBR(start)); setEndDateInput(formatDateToBR(end));
 	}, [start, end]);
 
-	const [movements, setMovements] = React.useState<MovementRecord[]>([]);
-	const [isLoading, setIsLoading] = React.useState(false);
+	const [storedMovements, setMovements] = React.useState<MovementRecord[]>([]);
+	const [storedIsLoading, setIsLoading] = React.useState(false);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const canUseMovementFilters = isCashView || Boolean(activeBankId);
+
+	const [storedErrorMessage, setErrorMessage] = React.useState<string | null>(null);
+	const movements: MovementRecord[] = recentMovements?.items ?? storedMovements;
+	const isLoading = recentMovements?.loading ?? storedIsLoading;
 	const isMovementFilterDisabled = !canUseMovementFilters || isLoading || isRefreshing;
-	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+	const errorMessage = recentMovements?.error ?? storedErrorMessage;
 	const [pendingAction, setPendingAction] = React.useState<PendingMovementAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
 	const { shouldHideValues } = useValueVisibility();
@@ -1084,6 +1039,13 @@ export default function BankMovementsScreen() {
 		setPendingAction(null);
 		setEditingFinanceMovement(null);
 	}, [personId]);
+
+	React.useEffect(() => {
+		if (recentMovements?.loading || recentMovements?.error) {
+			setPendingAction(null);
+			setEditingFinanceMovement(null);
+		}
+	}, [recentMovements?.loading, recentMovements?.error]);
 
 	const showScreenAlert = React.useCallback(
 		(
@@ -1394,7 +1356,7 @@ export default function BankMovementsScreen() {
 	const getMovementPrimarySourceLabel = React.useCallback(
 		(movement: MovementRecord) => {
 			if (movement.isFinanceInvestmentSync) {
-				return movement.investmentBankNameSnapshot?.trim() || bankName;
+				return movement.investmentBankNameSnapshot?.trim() || movement.bankName || bankName;
 			}
 
 			if (movement.isCashRescue) {
@@ -1409,7 +1371,7 @@ export default function BankMovementsScreen() {
 				return movement.investmentBankNameSnapshot.trim();
 			}
 
-			return bankName;
+			return movement.bankName?.trim() || bankName;
 		},
 		[bankName, isCashView],
 	);
@@ -1465,6 +1427,7 @@ export default function BankMovementsScreen() {
 	}, [activeBankId]);
 
 	const fetchMovements = React.useCallback(async (asRefresh = false) => {
+		if (recentMovements) { await recentMovements.reload(); return; }
 		const isCurrentRequest = beginRequest();
 		setMovements([]);
 		setBankCurrentBalanceInCents(null);
@@ -1845,13 +1808,13 @@ export default function BankMovementsScreen() {
 				setIsRefreshing(false);
 			}
 		}
-	}, [activeBankId, endDateInput, isCashView, startDateInput, personId, beginRequest]);
+	}, [activeBankId, endDateInput, isCashView, startDateInput, personId, beginRequest, recentMovements]);
 
 	useFocusEffect(
 		React.useCallback(() => {
-			void fetchMovements();
+			if (!recentMovements) void fetchMovements();
 			return cancelRequest;
-		}, [fetchMovements, cancelRequest]),
+		}, [fetchMovements, cancelRequest, recentMovements]),
 	);
 
 	// Busca a cor do banco selecionado para compor a paleta do resumo exportado em PDF.
@@ -1907,8 +1870,8 @@ export default function BankMovementsScreen() {
 		let isMounted = true;
 		const currentUser = auth.currentUser;
 
-		if (isCashView || !currentUser) {
-			setBankOptions([]);
+		if (recentMovements || isCashView || !currentUser) {
+			setBankOptions(recentMovements?.banks.map(bank => ({ ...bank, iconKey: null })) ?? []);
 			setIsLoadingBankOptions(false);
 			return () => {
 				isMounted = false;
@@ -1960,10 +1923,11 @@ export default function BankMovementsScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [isCashView, personId]);
+	}, [isCashView, personId, recentMovements?.banks]);
 
 	React.useEffect(() => {
 		let isMounted = true;
+		if (recentMovements) return;
 		const uniqueTagIds = Array.from(
 			new Set(
 				movements
@@ -2032,7 +1996,7 @@ export default function BankMovementsScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [movements, tagMetadataById]);
+	}, [movements, tagMetadataById, recentMovements]);
 
 	const movementsMatchingMovementFilter = React.useMemo(() => {
 		if (movementFilter === 'all') {
@@ -2089,7 +2053,7 @@ export default function BankMovementsScreen() {
 	}, [movementsMatchingMovementFilter, selectedTagFilterId]);
 
 	React.useEffect(() => {
-		const visibleIds = new Set(visibleMovements.map(movement => movement.id));
+		const visibleIds = new Set(visibleMovements.map(movement => `${movement.type}:${movement.id}`));
 		setExpandedMovementIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [visibleMovements]);
 
@@ -2494,6 +2458,8 @@ export default function BankMovementsScreen() {
 			}
 
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
+			setEditingFinanceMovement(null);
+			await fetchMovements();
 		} catch (error) {
 			console.error('Erro ao editar investimento pela tela de movimentações:', error);
 			showScreenAlert(
@@ -2514,11 +2480,13 @@ export default function BankMovementsScreen() {
 		editInvestmentName,
 		editInvestmentTerm,
 		editingFinanceMovement,
+		fetchMovements,
 		showScreenAlert,
 	]);
 
 	const handleRequestMovementAction = React.useCallback(
 		async (action: 'edit' | 'delete' | 'revert-cash-rescue', movement: MovementRecord) => {
+			if (recentMovements?.loading || recentMovements?.error) return;
             if (movement.isSparkMovement && movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved) {
                 try {
                     const actorId = auth.currentUser?.uid;
@@ -2550,6 +2518,7 @@ export default function BankMovementsScreen() {
 					const actorId = auth.currentUser?.uid;
 					if (!actorId) throw new Error('Usuário não autenticado.');
 					const command = await prepareSparkMovementReversalFirebase(db, actorId, reference, createFinancialClientActionId('reverse_movement'));
+					if (auth.currentUser?.uid !== actorId) return;
 					setPendingAction({ type: 'reverse-spark-movement', movement, command });
 				} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível preparar o estorno.', 'error'); }
 				return;
@@ -2562,6 +2531,7 @@ export default function BankMovementsScreen() {
 					const actorId = auth.currentUser?.uid;
 					if (!actorId) throw new Error('Usuário não autenticado.');
 					const command = await prepareSparkPairReversalFirebase(db, actorId, movement.sparkExecutionReference, createFinancialClientActionId('reverse_pair'));
+					if (auth.currentUser?.uid !== actorId) return;
 					setPendingAction({ type: 'reverse-spark-pair', movement, command });
 				} catch (error) { showScreenAlert(error instanceof Error ? error.message : 'Não foi possível preparar o estorno.', 'error'); }
 				return;
@@ -2653,7 +2623,7 @@ export default function BankMovementsScreen() {
 				movement,
 			});
 		},
-		[handleOpenFinanceEditModal, showScreenAlert],
+		[handleOpenFinanceEditModal, showScreenAlert, recentMovements?.loading, recentMovements?.error],
 	);
 
 	const handleConfirmAction = React.useCallback(async () => {
@@ -2913,6 +2883,857 @@ export default function BankMovementsScreen() {
 		: activeBankId
 			? `Movimentações do banco ${bankName}`
 			: 'Movimentações bancárias';
+
+	const timelineContent = (
+		<VStack className="mb-4 mt-6">
+			<HStack className="items-start justify-between gap-3">
+				<TouchableOpacity
+					activeOpacity={0.85}
+					onPress={handleTogglePeriodTimeline}
+					style={{ flex: 1 }}
+				>
+
+					<VStack className="px-2 pb-3">
+						<HStack className="gap-1 items-center">
+							<Heading
+								className={webDashboardClassNames.sectionHeadingText}
+								size="lg"
+							>
+								{recentMovements ? 'Últimas Movimentações' : 'Movimentações do período'}
+							</Heading>
+
+							<Popover
+								placement="bottom"
+								size="md"
+								offset={0}
+								shouldFlip
+								focusScope={false}
+								trapFocus={false}
+								trigger={triggerProps => (
+									<Pressable
+										{...triggerProps}
+										hitSlop={8}
+										accessibilityRole="button"
+										accessibilityLabel="Informações sobre movimentações"
+									>
+										<Info
+											size={14}
+											color={isDarkMode ? '#94A3B8' : '#64748B'}
+											style={{ marginLeft: 4 }}
+										/>
+									</Pressable>
+								)}
+							>
+								<PopoverBackdrop className="bg-transparent" />
+								<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
+									<PopoverBody className="px-3 py-3">
+										<Text className={`${bodyText} text-xs leading-5`}>
+											Consulte os lançamentos de bancos e dinheiro, incluindo ganhos, despesas, transferências, investimentos e ajustes. Toque em cada movimento para ver seus detalhes e as ações disponíveis.
+											{recentMovements ? 'A Home mostra os seis movimentos mais recentes do mês. Abra uma conta para consultar o extrato completo por período.' : 'Os movimentos seguem o período e os filtros selecionados.'}
+										</Text>
+									</PopoverBody>
+								</PopoverContent>
+							</Popover>
+						</HStack>
+					</VStack>
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					activeOpacity={0.85}
+					onPress={handleTogglePeriodTimeline}
+					style={{
+						minWidth: 28,
+						paddingLeft: 8,
+						paddingVertical: 4,
+						alignItems: 'center',
+						justifyContent: 'center',
+						flexShrink: 0,
+					}}
+				>
+					<Icon
+						as={isPeriodTimelineExpanded ? ChevronUpIcon : ChevronDownIcon}
+						size="sm"
+						className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+					/>
+				</TouchableOpacity>
+			</HStack>
+
+			{isPeriodTimelineExpanded ? (
+				isLoading ? (
+					<View
+						style={{
+							marginTop: 10,
+							borderRadius: 18,
+							borderWidth: 1,
+							borderColor: timelinePalette.cardBorder,
+							paddingHorizontal: 16,
+							paddingVertical: 18,
+						}}
+					>
+						<Text style={{ color: timelinePalette.subtitle }}>
+							Carregando movimentações...
+						</Text>
+					</View>
+				) : recentMovements && errorMessage ? (
+					<View className="gap-3 py-4">
+						<Text className="text-lumus-error">{errorMessage}</Text>
+						<Button variant="outline" onPress={() => void fetchMovements()}>
+							<ButtonText>Tentar novamente</ButtonText>
+						</Button>
+					</View>
+				) : visibleMovements.length === 0 ? (
+					<View
+						style={{
+							marginTop: 10,
+							paddingHorizontal: 8,
+							paddingVertical: 18,
+						}}
+					>
+						<Text style={{ color: timelinePalette.subtitle }}>
+							Nenhuma movimentação foi registrada para o período informado.
+						</Text>
+					</View>
+				) : (
+					<View style={{ marginTop: 14 }}>
+						{visibleMovements.map((movement, index) => {
+							const movementTone = getMovementTone(movement);
+							const tagMetadata = recentMovements
+								? { name: movement.tagName, icon: { iconFamily: movement.tagIconFamily, iconName: movement.tagIconName, iconStyle: movement.tagIconStyle } }
+								: movement.tagId ? tagMetadataById[movement.tagId] : null;
+							const movementIcon =
+								tagMetadata?.icon && tagMetadata.icon.iconName
+									? tagMetadata.icon
+									: getFallbackMovementIcon(movement);
+							const movementKey = `${movement.type}:${movement.id}`;
+							const isExpanded = expandedMovementIds.includes(movementKey);
+							const counterpartyLabel = movement.isBankTransfer
+								? movement.bankTransferDirection === 'outgoing'
+									? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
+									: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
+								: null;
+							const detailItems = [
+								{
+									label: 'Tipo',
+									value: resolveMovementTypeLabel(movement),
+								},
+								{
+									label: 'Data',
+									value: formatMovementDate(movement.date),
+								},
+								{
+									label: 'Categoria',
+									value:
+										tagMetadata?.name ??
+										(movement.tagId ? movement.tagId : 'Sem categoria associada'),
+								},
+								{
+									label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
+									value: getMovementPrimarySourceLabel(movement),
+								},
+							];
+							const syncMetadataItems = movement.isFinanceInvestmentSync
+								? [
+									{
+										label: 'Valor anterior',
+										value:
+											typeof movement.investmentSyncPreviousValueInCents === 'number'
+												? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
+												: 'Não disponível',
+									},
+									{
+										label: 'Valor sincronizado',
+										value: formatCurrencyBRL(movement.valueInCents),
+									},
+									{
+										label: 'Variação',
+										value: formatDeltaCurrencyBRL(
+											typeof movement.investmentSyncPreviousValueInCents === 'number'
+												? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+												: null,
+										),
+									},
+									{
+										label: 'Motivo',
+										value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
+									},
+								]
+								: [];
+							const investmentMetadataItems = movement.isFinanceInvestment
+								? [
+									{
+										label: 'Prazo',
+										value: movement.investmentRedemptionTerm
+											? redemptionTermLabels[movement.investmentRedemptionTerm]
+											: 'Não informado',
+									},
+									{
+										label: 'CDI',
+										value:
+											typeof movement.investmentCdiPercentage === 'number'
+												? `${movement.investmentCdiPercentage}%`
+												: 'Não informado',
+									},
+								]
+								: [];
+							const metadataItems = [
+								...detailItems,
+								...(movement.isBalanceAdjustment && typeof movement.adjustmentPreviousBalanceInCents === 'number' ? [{ label: 'Saldo anterior', value: formatCurrencyBRL(movement.adjustmentPreviousBalanceInCents ?? 0) }, { label: 'Saldo informado', value: formatCurrencyBRL(movement.adjustmentTargetBalanceInCents ?? 0) }] : []),
+								...(counterpartyLabel
+									? [{ label: 'Contraparte', value: counterpartyLabel }]
+									: []),
+								...investmentMetadataItems,
+								...syncMetadataItems,
+							];
+							const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.isSparkMovement ? !!movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid : movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === auth.currentUser?.uid);
+							const canChangeSparkAdjustment = Boolean(movement.isSparkMovement && movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid);
+							const canChangeSparkMovement = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'ordinary' && !movement.sparkResolvedByOperationId);
+							const canReverseSparkPair = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'pair' && ['live', 'imported'].includes(movement.sparkExecutionReference.source) && !movement.sparkResolvedByOperationId && (movement.isBankTransfer || movement.isCashRescue || movement.isInvestmentDeposit || movement.isInvestmentRedemption));
+							const canEditMovement = (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
+								movement.isFromMandatory ||
+								movement.isCashRescue ||
+								movement.isBankTransfer ||
+								movement.isInvestmentRedemption ||
+								movement.isInvestmentDeposit ||
+								movement.isFinanceInvestmentSync
+							);
+							const usesUndoAction = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair || movement.isBalanceAdjustment ||
+								movement.isInvestmentDeposit ||
+								movement.isInvestmentRedemption ||
+								movement.isFinanceInvestmentSync;
+							const canDeleteMovement = canReverseSparkPair || (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
+								movement.isFromMandatory ||
+								movement.isCashRescue ||
+								movement.isBankTransfer
+							);
+							const secondaryActionLabel = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair ? 'Estornar' : movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
+								? 'Desfazer aporte'
+								: movement.isInvestmentRedemption
+									? 'Desfazer resgate'
+									: movement.isFinanceInvestmentSync
+										? 'Desfazer sync'
+										: 'Excluir';
+							const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
+
+							return (
+								<View key={movementKey} style={{ flexDirection: 'row' }}>
+									<View
+										style={{
+											alignItems: 'center',
+											width: '7%',
+											paddingTop: 6,
+										}}
+									>
+										<View
+											style={{
+												width: 14,
+												height: 14,
+												borderRadius: 999,
+												backgroundColor: movementTone.accentColor,
+												borderWidth: 2,
+												borderColor: isDarkMode ? '#020617' : '#FFFFFF',
+												shadowColor: movementTone.accentColor,
+												shadowOpacity: isDarkMode ? 0.26 : 0.14,
+												shadowRadius: 8,
+												shadowOffset: { width: 0, height: 4 },
+												elevation: 2,
+											}}
+										/>
+										{index < visibleMovements.length - 1 ? (
+											<View
+												style={{
+													flex: 1,
+													width: 3,
+													borderRadius: 999,
+													marginVertical: 2,
+													backgroundColor: movementTone.lineColor,
+												}}
+											/>
+										) : (
+											<View />
+										)}
+									</View>
+
+									<View style={{ width: '93%', paddingBottom: 14 }}>
+										<TouchableOpacity
+											activeOpacity={0.85}
+											onPress={() => handleToggleMovementCard(movementKey)}
+											style={{ width: '100%' }}
+										>
+											<HStack className="items-center justify-between gap-3">
+												<HStack className="items-center gap-3" style={{ flex: 1 }}>
+													<LinearGradient
+														colors={movementTone.iconGradient}
+														start={{ x: 0, y: 0 }}
+														end={{ x: 1, y: 1 }}
+														style={{
+															width: 44,
+															height: 44,
+															borderRadius: 16,
+															alignItems: 'center',
+															justifyContent: 'center',
+															flexShrink: 0,
+														}}
+													>
+														<TagIcon
+															iconFamily={movementIcon.iconFamily}
+															iconName={movementIcon.iconName}
+															iconStyle={movementIcon.iconStyle}
+															size={18}
+															color="#FFFFFF"
+														/>
+													</LinearGradient>
+
+													<View style={{ flex: 1 }}>
+														<Text
+															numberOfLines={1}
+															style={{
+																color: timelinePalette.title,
+																fontSize: 15,
+																fontWeight: '700',
+															}}
+														>
+															{movement.name}
+														</Text>
+														<Text
+															numberOfLines={1}
+															style={{
+																marginTop: 2,
+																color: timelinePalette.subtitle,
+																fontSize: 12,
+																lineHeight: 18,
+															}}
+														>
+															{getMovementSummarySubtitle(movement)}
+														</Text>
+													</View>
+												</HStack>
+
+												<HStack className="items-center gap-2">
+													<VStack className="items-end">
+														<Text
+															style={{
+																color: movementTone.amountColor,
+																fontSize: 15,
+																fontWeight: '700',
+															}}
+														>
+															{formatSignedCurrencyBRL(movement)}
+														</Text>
+														{movement.isFinanceInvestmentSync ? (
+															<Text
+																style={{
+																	marginTop: 2,
+																	color: timelinePalette.subtitle,
+																	fontSize: 11,
+																}}
+															>
+																{formatDeltaCurrencyBRL(
+																	typeof movement.investmentSyncPreviousValueInCents === 'number'
+																		? movement.valueInCents - movement.investmentSyncPreviousValueInCents
+																		: null,
+																)}
+															</Text>
+														) : null}
+														<HStack className="mt-1 items-center gap-1">
+															<Icon
+																as={CalendarDaysIcon}
+																size="xs"
+																className={
+																	isDarkMode
+																		? 'text-slate-500'
+																		: 'text-slate-400'
+																}
+															/>
+															<Text
+																style={{
+																	color: timelinePalette.subtitle,
+																	fontSize: 11,
+																}}
+															>
+																{formatMovementCompactDate(movement.date)}
+															</Text>
+														</HStack>
+													</VStack>
+
+													<Icon
+														as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
+														size="sm"
+														className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
+													/>
+												</HStack>
+											</HStack>
+										</TouchableOpacity>
+
+										{isExpanded ? (
+											<LinearGradient
+												colors={movementTone.cardGradient}
+												start={{ x: 0, y: 0 }}
+												end={{ x: 1, y: 1 }}
+												style={{
+													marginTop: 10,
+													marginRight: 16,
+													borderRadius: 20,
+													paddingHorizontal: 16,
+													paddingVertical: 14,
+												}}
+											>
+												<VStack className="gap-3">
+													<HStack className="items-start justify-between gap-4">
+														<VStack className="flex-1">
+															<Text
+																style={{
+																	fontSize: 10,
+																	fontWeight: '700',
+																	letterSpacing: 0.4,
+																	color: 'rgba(255,255,255,0.74)',
+																	textTransform: 'uppercase',
+																}}
+															>
+																Resumo
+															</Text>
+															<Text
+																style={{
+																	fontSize: 13,
+																	lineHeight: 19,
+																	color: '#FFFFFF',
+																}}
+															>
+																{getMovementDetailMessage(movement)}
+															</Text>
+														</VStack>
+
+														<VStack className="items-end">
+															<Text
+																style={{
+																	fontSize: 10,
+																	fontWeight: '700',
+																	letterSpacing: 0.4,
+																	color: 'rgba(255,255,255,0.74)',
+																	textTransform: 'uppercase',
+																}}
+															>
+																Valor
+															</Text>
+															<Heading size="sm" style={{ color: '#FFFFFF' }}>
+																{formatSignedCurrencyBRL(movement)}
+															</Heading>
+														</VStack>
+													</HStack>
+
+													<View
+														style={{
+															flexDirection: 'row',
+															flexWrap: 'wrap',
+															columnGap: 14,
+															rowGap: 10,
+														}}
+													>
+														{metadataItems.map(item => (
+															<View
+																key={`${movement.id}-${item.label}`}
+																style={{
+																	width: '46%',
+																	minWidth: 128,
+																}}
+															>
+																<Text
+																	style={{
+																		fontSize: 10,
+																		fontWeight: '700',
+																		letterSpacing: 0.4,
+																		color: 'rgba(255,255,255,0.72)',
+																		textTransform: 'uppercase',
+																	}}
+																>
+																	{item.label}
+																</Text>
+																<Text
+																	style={{
+																		marginTop: 3,
+																		fontSize: 13,
+																		lineHeight: 18,
+																		color: '#FFFFFF',
+																	}}
+																>
+																	{item.value}
+																</Text>
+															</View>
+														))}
+													</View>
+
+													{movement.explanation?.trim() &&
+														getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
+														<View
+															style={{
+																paddingTop: 2,
+															}}
+														>
+															<Text
+																style={{
+																	fontSize: 10,
+																	fontWeight: '700',
+																	letterSpacing: 0.4,
+																	color: 'rgba(255,255,255,0.72)',
+																	textTransform: 'uppercase',
+																}}
+															>
+																Descrição
+															</Text>
+															<Text
+																style={{
+																	marginTop: 6,
+																	fontSize: 13,
+																	lineHeight: 18,
+																	color: '#FFFFFF',
+																}}
+															>
+																{movement.explanation.trim()}
+															</Text>
+														</View>
+													) : null}
+
+													<HStack
+														className="flex-wrap gap-4"
+														style={{
+															paddingTop: 2,
+														}}
+													>
+														{canEditMovement ? (
+															<TouchableOpacity
+																activeOpacity={0.85}
+																onPress={() => handleRequestMovementAction('edit', movement)}
+																style={{
+																	flexDirection: 'row',
+																	alignItems: 'center',
+																	gap: 8,
+																	paddingVertical: 8,
+																}}
+															>
+																<Icon as={EditIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">Editar</Text>
+															</TouchableOpacity>
+														) : null}
+
+														{movement.isCashRescue && !movement.isSparkMovement ? (
+															<TouchableOpacity
+																activeOpacity={0.85}
+																onPress={() =>
+																	handleRequestMovementAction(
+																		'revert-cash-rescue',
+																		movement,
+																	)
+																}
+																style={{
+																	flexDirection: 'row',
+																	alignItems: 'center',
+																	gap: 8,
+																	paddingVertical: 8,
+																}}
+															>
+																<Icon as={RepeatIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">
+																	Reivindicar
+																</Text>
+															</TouchableOpacity>
+														) : null}
+
+														{(!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair) ? (
+															<TouchableOpacity
+																activeOpacity={0.85}
+																disabled={!canChangeAdjustment}
+																onPress={() => handleRequestMovementAction('delete', movement)}
+																style={{
+																	flexDirection: 'row',
+																	alignItems: 'center',
+																	gap: 8,
+																	paddingVertical: 8,
+																	opacity:
+																		usesUndoAction || canDeleteMovement ? 1 : 0.72,
+																}}
+															>
+																<Icon as={secondaryActionIcon} size="sm" className="text-white" />
+																<Text className="text-xs font-semibold text-white">
+																	{secondaryActionLabel}
+																</Text>
+															</TouchableOpacity>
+														) : null}
+													</HStack>
+												</VStack>
+											</LinearGradient>
+										) : null}
+									</View>
+								</View>
+							);
+						})}
+					</View>
+				)
+			) : null}
+		</VStack>
+	);
+	const movementDialogs = (
+		<>
+			<Modal
+				isOpen={Boolean(editingFinanceMovement)}
+				onClose={handleCloseFinanceEditModal}
+			>
+				<ModalBackdrop />
+				<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
+					behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+					keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+				>
+					<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
+						<ModalHeader>
+							<ModalTitle>Editar investimento</ModalTitle>
+							<ModalCloseButton onPress={handleCloseFinanceEditModal} />
+						</ModalHeader>
+						<ModalBody>
+							<ScrollView
+								keyboardShouldPersistTaps="handled"
+								keyboardDismissMode="on-drag"
+								contentContainerStyle={{ paddingBottom: 24 }}
+							>
+								<Text className={`${bodyText} mb-4 text-sm`}>
+									Ajuste os dados do investimento sem sair da tela de movimentações.
+								</Text>
+								<VStack>
+									<VStack className="mb-4">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											Nome do investimento
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentName}
+												onChangeText={setEditInvestmentName}
+												placeholder="Digite o nome do investimento"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											Valor inicial
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentInitialInput}
+												onChangeText={handleInvestmentInitialInputChange}
+												placeholder="Digite o valor inicial"
+												keyboardType="numeric"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											CDI (%)
+										</Text>
+										<Input
+											className={fieldContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<InputField
+												value={editInvestmentCdiInput}
+												onChangeText={(text) =>
+													setEditInvestmentCdiInput(sanitizeNumberInput(text))
+												}
+												placeholder="Digite o percentual do CDI"
+												keyboardType="decimal-pad"
+												className={inputField}
+											/>
+										</Input>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											Prazo de resgate
+										</Text>
+										<Select
+											selectedValue={editInvestmentTerm}
+											onValueChange={(value) =>
+												setEditInvestmentTerm(value as RedemptionTerm)
+											}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={fieldContainerClassName}
+											>
+												<SelectInput
+													value={redemptionTermLabels[editInvestmentTerm]}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{redemptionOptions.map((option) => (
+														<SelectItem
+															key={option.value}
+															label={option.label}
+															value={option.value}
+														/>
+													))}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="mb-4">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											Banco
+										</Text>
+										<Select
+											selectedValue={editInvestmentBankId ?? undefined}
+											onValueChange={(value) => setEditInvestmentBankId(value)}
+											isDisabled={
+												isSavingFinanceMovement || bankOptions.length === 0
+											}
+										>
+											<SelectTrigger
+												variant="outline"
+												size="md"
+												className={fieldContainerClassName}
+											>
+												<SelectInput
+													placeholder="Selecione o banco"
+													value={
+														editInvestmentBankId
+															? (bankOptions.find(
+																(bankItem) => bankItem.id === editInvestmentBankId,
+															)?.name ?? '')
+															: ''
+													}
+													className={inputField}
+												/>
+												<SelectIcon />
+											</SelectTrigger>
+											<SelectPortal>
+												<SelectBackdrop />
+												<SelectContent>
+													<SelectDragIndicatorWrapper>
+														<SelectDragIndicator />
+													</SelectDragIndicatorWrapper>
+													{bankOptions.length > 0 ? (
+														bankOptions.map((bankItem) => (
+															<SelectItem
+																key={bankItem.id}
+																label={bankItem.name}
+																value={bankItem.id}
+															/>
+														))
+													) : (
+														<SelectItem
+															label="Nenhum banco disponível"
+															value="no-bank"
+															isDisabled
+														/>
+													)}
+												</SelectContent>
+											</SelectPortal>
+										</Select>
+									</VStack>
+
+									<VStack className="mb-1">
+										<Text className={LUMUS_FORM_CLASS_NAMES.label}>
+											Descrição
+										</Text>
+										<Textarea
+											className={textareaContainerClassName}
+											isDisabled={isSavingFinanceMovement}
+										>
+											<TextareaInput
+												value={editInvestmentDescription}
+												onChangeText={setEditInvestmentDescription}
+												placeholder="Adicione um contexto para este investimento"
+												className={inputField}
+											/>
+										</Textarea>
+									</VStack>
+								</VStack>
+							</ScrollView>
+						</ModalBody>
+						<ModalFooter className="gap-3">
+							<Button
+								variant="outline"
+								onPress={handleCloseFinanceEditModal}
+								isDisabled={isSavingFinanceMovement}
+								className={submitButtonCancelClassName}
+							>
+								<ButtonText>Cancelar</ButtonText>
+							</Button>
+							<Button
+								onPress={handleSubmitFinanceEdit}
+								isDisabled={isSavingFinanceMovement}
+								className={submitButtonClassName}
+							>
+								{isSavingFinanceMovement ? (
+									<>
+										<ButtonSpinner />
+										<ButtonText>Salvando</ButtonText>
+									</>
+								) : (
+									<ButtonText>Salvar alterações</ButtonText>
+								)}
+							</Button>
+						</ModalFooter>
+					</ModalContent>
+				</KeyboardAvoidingView>
+			</Modal>
+
+			<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
+				<ModalBackdrop />
+				<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
+					<ModalHeader>
+						<ModalTitle>{actionModalCopy.title}</ModalTitle>
+						<ModalCloseButton onPress={handleCloseActionModal} />
+					</ModalHeader>
+					<ModalBody>
+						<Text className={bodyText}>{actionModalCopy.message}</Text>
+					</ModalBody>
+					<ModalFooter className="gap-3">
+						<Button
+							variant="outline"
+							onPress={handleCloseActionModal}
+							isDisabled={isProcessingAction}
+							className={submitButtonCancelClassName}
+						>
+							<ButtonText>Cancelar</ButtonText>
+						</Button>
+						<Button
+							variant="solid"
+							action={confirmButtonAction}
+							onPress={handleConfirmAction}
+							isDisabled={isProcessingAction}
+							className={submitButtonClassName}
+						>
+							{isProcessingAction ? (
+								<>
+									<ButtonSpinner />
+									<ButtonText>Processando</ButtonText>
+								</>
+							) : (
+								<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
+							)}
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
+		</>
+	);
+	if(recentMovements) return <>{timelineContent}{movementDialogs}</>;
 
 	return (
 		<SafeAreaView
@@ -3399,580 +4220,7 @@ export default function BankMovementsScreen() {
 								</VStack>
 
 
-								<VStack className="mb-4 mt-6">
-									<HStack className="items-start justify-between gap-3">
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleTogglePeriodTimeline}
-											style={{ flex: 1 }}
-										>
-
-											<VStack className="px-2 pb-3">
-												<HStack className="gap-1 items-center">
-													<Heading
-														className="text-lg uppercase tracking-widest "
-														size="lg"
-													>
-														Movimentações do período
-													</Heading>
-
-													<Popover
-														placement="bottom"
-														size="md"
-														offset={0}
-														shouldFlip
-														focusScope={false}
-														trapFocus={false}
-														trigger={triggerProps => (
-															<Pressable
-																{...triggerProps}
-																hitSlop={8}
-																accessibilityRole="button"
-																accessibilityLabel="Informações sobre o formato de pagamento"
-															>
-																<Info
-																	size={14}
-																	color={isDarkMode ? '#94A3B8' : '#64748B'}
-																	style={{ marginLeft: 4 }}
-																/>
-															</Pressable>
-														)}
-													>
-														<PopoverBackdrop className="bg-transparent" />
-														<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-															<PopoverBody className="px-3 py-3">
-																<Text className={`${bodyText} text-xs leading-5`}>
-																	Exibimos aqui um resumo dos seus bancos e do dinheiro em espécie que você registrou. Toque em cada cartão para ver detalhes e movimentações específicas de cada um.
-																	Se você não vê um banco ou valor que espera, verifique se eles estão registrados corretamente na seção de movimentações bancárias. Os dados aqui refletem o que foi registrado lá.
-																</Text>
-															</PopoverBody>
-														</PopoverContent>
-													</Popover>
-												</HStack>
-											</VStack>
-										</TouchableOpacity>
-
-										<TouchableOpacity
-											activeOpacity={0.85}
-											onPress={handleTogglePeriodTimeline}
-											style={{
-												minWidth: 28,
-												paddingLeft: 8,
-												paddingVertical: 4,
-												alignItems: 'center',
-												justifyContent: 'center',
-												flexShrink: 0,
-											}}
-										>
-											<Icon
-												as={isPeriodTimelineExpanded ? ChevronUpIcon : ChevronDownIcon}
-												size="sm"
-												className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-											/>
-										</TouchableOpacity>
-									</HStack>
-
-									{isPeriodTimelineExpanded ? (
-										isLoading ? (
-											<View
-												style={{
-													marginTop: 10,
-													borderRadius: 18,
-													borderWidth: 1,
-													borderColor: timelinePalette.cardBorder,
-													paddingHorizontal: 16,
-													paddingVertical: 18,
-												}}
-											>
-												<Text style={{ color: timelinePalette.subtitle }}>
-													Carregando movimentações...
-												</Text>
-											</View>
-										) : visibleMovements.length === 0 ? (
-											<View
-												style={{
-													marginTop: 10,
-													paddingHorizontal: 8,
-													paddingVertical: 18,
-												}}
-											>
-												<Text style={{ color: timelinePalette.subtitle }}>
-													Nenhuma movimentação foi registrada para o período informado.
-												</Text>
-											</View>
-										) : (
-											<View style={{ marginTop: 14 }}>
-												{visibleMovements.map((movement, index) => {
-													const movementTone = getMovementTone(movement);
-													const tagMetadata = movement.tagId ? tagMetadataById[movement.tagId] : null;
-													const movementIcon =
-														tagMetadata?.icon && tagMetadata.icon.iconName
-															? tagMetadata.icon
-															: getFallbackMovementIcon(movement);
-													const isExpanded = expandedMovementIds.includes(movement.id);
-													const counterpartyLabel = movement.isBankTransfer
-														? movement.bankTransferDirection === 'outgoing'
-															? movement.bankTransferTargetBankNameSnapshot ?? 'Banco de destino'
-															: movement.bankTransferSourceBankNameSnapshot ?? 'Banco de origem'
-														: null;
-													const detailItems = [
-														{
-															label: 'Tipo',
-															value: resolveMovementTypeLabel(movement),
-														},
-														{
-															label: 'Data',
-															value: formatMovementDate(movement.date),
-														},
-														{
-															label: 'Categoria',
-															value:
-																tagMetadata?.name ??
-																(movement.tagId ? movement.tagId : 'Sem categoria associada'),
-														},
-														{
-															label: movement.moneyFormat || isCashView ? 'Origem' : 'Banco',
-															value: getMovementPrimarySourceLabel(movement),
-														},
-													];
-													const syncMetadataItems = movement.isFinanceInvestmentSync
-														? [
-															{
-																label: 'Valor anterior',
-																value:
-																	typeof movement.investmentSyncPreviousValueInCents === 'number'
-																		? formatCurrencyBRL(movement.investmentSyncPreviousValueInCents)
-																		: 'Não disponível',
-															},
-															{
-																label: 'Valor sincronizado',
-																value: formatCurrencyBRL(movement.valueInCents),
-															},
-															{
-																label: 'Variação',
-																value: formatDeltaCurrencyBRL(
-																	typeof movement.investmentSyncPreviousValueInCents === 'number'
-																		? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																		: null,
-																),
-															},
-															{
-																label: 'Motivo',
-																value: getInvestmentSyncReasonLabel(movement.investmentSyncReason),
-															},
-														]
-														: [];
-													const investmentMetadataItems = movement.isFinanceInvestment
-														? [
-															{
-																label: 'Prazo',
-																value: movement.investmentRedemptionTerm
-																	? redemptionTermLabels[movement.investmentRedemptionTerm]
-																	: 'Não informado',
-															},
-															{
-																label: 'CDI',
-																value:
-																	typeof movement.investmentCdiPercentage === 'number'
-																		? `${movement.investmentCdiPercentage}%`
-																		: 'Não informado',
-															},
-														]
-														: [];
-													const metadataItems = [
-														...detailItems,
-														...(movement.isBalanceAdjustment && typeof movement.adjustmentPreviousBalanceInCents === 'number' ? [{ label: 'Saldo anterior', value: formatCurrencyBRL(movement.adjustmentPreviousBalanceInCents ?? 0) }, { label: 'Saldo informado', value: formatCurrencyBRL(movement.adjustmentTargetBalanceInCents ?? 0) }] : []),
-														...(counterpartyLabel
-															? [{ label: 'Contraparte', value: counterpartyLabel }]
-															: []),
-														...investmentMetadataItems,
-														...syncMetadataItems,
-													];
-													const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.isSparkMovement ? !!movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid : movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === auth.currentUser?.uid);
-													const canChangeSparkAdjustment = Boolean(movement.isSparkMovement && movement.sparkAdjustmentOperationId && !movement.sparkAdjustmentResolved && movement.personId === auth.currentUser?.uid);
-const canChangeSparkMovement = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'ordinary' && !movement.sparkResolvedByOperationId);
-													const canReverseSparkPair = Boolean(movement.isSparkMovement && movement.sparkExecutionReference?.family === 'pair' && ['live', 'imported'].includes(movement.sparkExecutionReference.source) && !movement.sparkResolvedByOperationId && (movement.isBankTransfer || movement.isCashRescue || movement.isInvestmentDeposit || movement.isInvestmentRedemption));
-														const canEditMovement = (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
-														movement.isFromMandatory ||
-														movement.isCashRescue ||
-														movement.isBankTransfer ||
-														movement.isInvestmentRedemption ||
-														movement.isInvestmentDeposit ||
-														movement.isFinanceInvestmentSync
-													);
-													const usesUndoAction = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair || movement.isBalanceAdjustment ||
-														movement.isInvestmentDeposit ||
-														movement.isInvestmentRedemption ||
-														movement.isFinanceInvestmentSync;
-													const canDeleteMovement = canReverseSparkPair || (!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment) && canChangeAdjustment && !(
-														movement.isFromMandatory ||
-														movement.isCashRescue ||
-														movement.isBankTransfer
-													);
-													const secondaryActionLabel = canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair ? 'Estornar' : movement.isBalanceAdjustment ? 'Reverter ajuste' : movement.isInvestmentDeposit
-														? 'Desfazer aporte'
-														: movement.isInvestmentRedemption
-															? 'Desfazer resgate'
-															: movement.isFinanceInvestmentSync
-																? 'Desfazer sync'
-																: 'Excluir';
-													const secondaryActionIcon = usesUndoAction ? RepeatIcon : TrashIcon;
-
-													return (
-														<View key={movement.id} style={{ flexDirection: 'row' }}>
-															<View
-																style={{
-																	alignItems: 'center',
-																	width: '7%',
-																	paddingTop: 6,
-																}}
-															>
-																<View
-																	style={{
-																		width: 14,
-																		height: 14,
-																		borderRadius: 999,
-																		backgroundColor: movementTone.accentColor,
-																		borderWidth: 2,
-																		borderColor: isDarkMode ? '#020617' : '#FFFFFF',
-																		shadowColor: movementTone.accentColor,
-																		shadowOpacity: isDarkMode ? 0.26 : 0.14,
-																		shadowRadius: 8,
-																		shadowOffset: { width: 0, height: 4 },
-																		elevation: 2,
-																	}}
-																/>
-																{index < visibleMovements.length - 1 ? (
-																	<View
-																		style={{
-																			flex: 1,
-																			width: 3,
-																			borderRadius: 999,
-																			marginVertical: 2,
-																			backgroundColor: movementTone.lineColor,
-																		}}
-																	/>
-																) : (
-																	<View />
-																)}
-															</View>
-
-															<View style={{ width: '93%', paddingBottom: 14 }}>
-																<TouchableOpacity
-																	activeOpacity={0.85}
-																	onPress={() => handleToggleMovementCard(movement.id)}
-																	style={{ width: '100%' }}
-																>
-																	<HStack className="items-center justify-between gap-3">
-																		<HStack className="items-center gap-3" style={{ flex: 1 }}>
-																			<LinearGradient
-																				colors={movementTone.iconGradient}
-																				start={{ x: 0, y: 0 }}
-																				end={{ x: 1, y: 1 }}
-																				style={{
-																					width: 44,
-																					height: 44,
-																					borderRadius: 16,
-																					alignItems: 'center',
-																					justifyContent: 'center',
-																					flexShrink: 0,
-																				}}
-																			>
-																				<TagIcon
-																					iconFamily={movementIcon.iconFamily}
-																					iconName={movementIcon.iconName}
-																					iconStyle={movementIcon.iconStyle}
-																					size={18}
-																					color="#FFFFFF"
-																				/>
-																			</LinearGradient>
-
-																			<View style={{ flex: 1 }}>
-																				<Text
-																					numberOfLines={1}
-																					style={{
-																						color: timelinePalette.title,
-																						fontSize: 15,
-																						fontWeight: '700',
-																					}}
-																				>
-																					{movement.name}
-																				</Text>
-																				<Text
-																					numberOfLines={1}
-																					style={{
-																						marginTop: 2,
-																						color: timelinePalette.subtitle,
-																						fontSize: 12,
-																						lineHeight: 18,
-																					}}
-																				>
-																					{getMovementSummarySubtitle(movement)}
-																				</Text>
-																			</View>
-																		</HStack>
-
-																		<HStack className="items-center gap-2">
-																			<VStack className="items-end">
-																				<Text
-																					style={{
-																						color: movementTone.amountColor,
-																						fontSize: 15,
-																						fontWeight: '700',
-																					}}
-																				>
-																					{formatSignedCurrencyBRL(movement)}
-																				</Text>
-																				{movement.isFinanceInvestmentSync ? (
-																					<Text
-																						style={{
-																							marginTop: 2,
-																							color: timelinePalette.subtitle,
-																							fontSize: 11,
-																						}}
-																					>
-																						{formatDeltaCurrencyBRL(
-																							typeof movement.investmentSyncPreviousValueInCents === 'number'
-																								? movement.valueInCents - movement.investmentSyncPreviousValueInCents
-																								: null,
-																						)}
-																					</Text>
-																				) : null}
-																				<HStack className="mt-1 items-center gap-1">
-																					<Icon
-																						as={CalendarDaysIcon}
-																						size="xs"
-																						className={
-																							isDarkMode
-																								? 'text-slate-500'
-																								: 'text-slate-400'
-																						}
-																					/>
-																					<Text
-																						style={{
-																							color: timelinePalette.subtitle,
-																							fontSize: 11,
-																						}}
-																					>
-																						{formatMovementCompactDate(movement.date)}
-																					</Text>
-																				</HStack>
-																			</VStack>
-
-																			<Icon
-																				as={isExpanded ? ChevronUpIcon : ChevronDownIcon}
-																				size="sm"
-																				className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}
-																			/>
-																		</HStack>
-																	</HStack>
-																</TouchableOpacity>
-
-																{isExpanded ? (
-																	<LinearGradient
-																		colors={movementTone.cardGradient}
-																		start={{ x: 0, y: 0 }}
-																		end={{ x: 1, y: 1 }}
-																		style={{
-																			marginTop: 10,
-																			marginRight: 16,
-																			borderRadius: 20,
-																			paddingHorizontal: 16,
-																			paddingVertical: 14,
-																		}}
-																	>
-																		<VStack className="gap-3">
-																			<HStack className="items-start justify-between gap-4">
-																				<VStack className="flex-1">
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Resumo
-																					</Text>
-																					<Text
-																						style={{
-																							fontSize: 13,
-																							lineHeight: 19,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{getMovementDetailMessage(movement)}
-																					</Text>
-																				</VStack>
-
-																				<VStack className="items-end">
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.74)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Valor
-																					</Text>
-																					<Heading size="sm" style={{ color: '#FFFFFF' }}>
-																						{formatSignedCurrencyBRL(movement)}
-																					</Heading>
-																				</VStack>
-																			</HStack>
-
-																			<View
-																				style={{
-																					flexDirection: 'row',
-																					flexWrap: 'wrap',
-																					columnGap: 14,
-																					rowGap: 10,
-																				}}
-																			>
-																				{metadataItems.map(item => (
-																					<View
-																						key={`${movement.id}-${item.label}`}
-																						style={{
-																							width: '46%',
-																							minWidth: 128,
-																						}}
-																					>
-																						<Text
-																							style={{
-																								fontSize: 10,
-																								fontWeight: '700',
-																								letterSpacing: 0.4,
-																								color: 'rgba(255,255,255,0.72)',
-																								textTransform: 'uppercase',
-																							}}
-																						>
-																							{item.label}
-																						</Text>
-																						<Text
-																							style={{
-																								marginTop: 3,
-																								fontSize: 13,
-																								lineHeight: 18,
-																								color: '#FFFFFF',
-																							}}
-																						>
-																							{item.value}
-																						</Text>
-																					</View>
-																				))}
-																			</View>
-
-																			{movement.explanation?.trim() &&
-																				getMovementDetailMessage(movement) !== movement.explanation.trim() ? (
-																				<View
-																					style={{
-																						paddingTop: 2,
-																					}}
-																				>
-																					<Text
-																						style={{
-																							fontSize: 10,
-																							fontWeight: '700',
-																							letterSpacing: 0.4,
-																							color: 'rgba(255,255,255,0.72)',
-																							textTransform: 'uppercase',
-																						}}
-																					>
-																						Descrição
-																					</Text>
-																					<Text
-																						style={{
-																							marginTop: 6,
-																							fontSize: 13,
-																							lineHeight: 18,
-																							color: '#FFFFFF',
-																						}}
-																					>
-																						{movement.explanation.trim()}
-																					</Text>
-																				</View>
-																			) : null}
-
-																			<HStack
-																				className="flex-wrap gap-4"
-																				style={{
-																					paddingTop: 2,
-																				}}
-																			>
-																				{canEditMovement ? (
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() => handleRequestMovementAction('edit', movement)}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																						}}
-																					>
-																						<Icon as={EditIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">Editar</Text>
-																					</TouchableOpacity>
-																				) : null}
-
-																				{movement.isCashRescue && !movement.isSparkMovement ? (
-																					<TouchableOpacity
-																						activeOpacity={0.85}
-																						onPress={() =>
-																							handleRequestMovementAction(
-																								'revert-cash-rescue',
-																								movement,
-																							)
-																						}
-																						style={{
-																							flexDirection: 'row',
-																							alignItems: 'center',
-																							gap: 8,
-																							paddingVertical: 8,
-																						}}
-																					>
-																						<Icon as={RepeatIcon} size="sm" className="text-white" />
-																						<Text className="text-xs font-semibold text-white">
-																							Reivindicar
-																						</Text>
-																					</TouchableOpacity>
-																				) : null}
-
-																				{(!movement.isLedgerMovement || canChangeSparkMovement || canChangeSparkAdjustment || canReverseSparkPair) ? (
-<TouchableOpacity
-																					activeOpacity={0.85}
-																					disabled={!canChangeAdjustment}
-																					onPress={() => handleRequestMovementAction('delete', movement)}
-																					style={{
-																						flexDirection: 'row',
-																						alignItems: 'center',
-																						gap: 8,
-																						paddingVertical: 8,
-																						opacity:
-																							usesUndoAction || canDeleteMovement ? 1 : 0.72,
-																					}}
-																				>
-																					<Icon as={secondaryActionIcon} size="sm" className="text-white" />
-																					<Text className="text-xs font-semibold text-white">
-																						{secondaryActionLabel}
-																					</Text>
-																				</TouchableOpacity>
-) : null}
-																			</HStack>
-																		</VStack>
-																	</LinearGradient>
-																) : null}
-															</View>
-														</View>
-													);
-												})}
-											</View>
-										)
-									) : null}
-								</VStack>
+								{timelineContent}
 							</VStack>
 						</ScrollView>
 					</View>
@@ -3987,265 +4235,7 @@ const canChangeSparkMovement = Boolean(movement.isSparkMovement && movement.spar
 						<Navigator defaultValue={0} onHardwareBack={handleBackToHome} />
 					</View>
 
-					<Modal
-						isOpen={Boolean(editingFinanceMovement)}
-						onClose={handleCloseFinanceEditModal}
-					>
-						<ModalBackdrop />
-						<KeyboardAvoidingView className="min-h-0 max-h-full w-full shrink items-center"
-							behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-							keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
-						>
-							<ModalContent className={`max-w-[380px] ${modalContentClassName}`}>
-								<ModalHeader>
-									<ModalTitle>Editar investimento</ModalTitle>
-									<ModalCloseButton onPress={handleCloseFinanceEditModal} />
-								</ModalHeader>
-								<ModalBody>
-									<ScrollView
-										keyboardShouldPersistTaps="handled"
-										keyboardDismissMode="on-drag"
-										contentContainerStyle={{ paddingBottom: 24 }}
-									>
-										<Text className={`${bodyText} mb-4 text-sm`}>
-											Ajuste os dados do investimento sem sair da tela de movimentações.
-										</Text>
-										<VStack>
-											<VStack className="mb-4">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													Nome do investimento
-												</Text>
-												<Input
-													className={fieldContainerClassName}
-													isDisabled={isSavingFinanceMovement}
-												>
-													<InputField
-														value={editInvestmentName}
-														onChangeText={setEditInvestmentName}
-														placeholder="Digite o nome do investimento"
-														className={inputField}
-													/>
-												</Input>
-											</VStack>
-
-											<VStack className="mb-4">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													Valor inicial
-												</Text>
-												<Input
-													className={fieldContainerClassName}
-													isDisabled={isSavingFinanceMovement}
-												>
-													<InputField
-														value={editInvestmentInitialInput}
-														onChangeText={handleInvestmentInitialInputChange}
-														placeholder="Digite o valor inicial"
-														keyboardType="numeric"
-														className={inputField}
-													/>
-												</Input>
-											</VStack>
-
-											<VStack className="mb-4">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													CDI (%)
-												</Text>
-												<Input
-													className={fieldContainerClassName}
-													isDisabled={isSavingFinanceMovement}
-												>
-													<InputField
-														value={editInvestmentCdiInput}
-														onChangeText={(text) =>
-															setEditInvestmentCdiInput(sanitizeNumberInput(text))
-														}
-														placeholder="Digite o percentual do CDI"
-														keyboardType="decimal-pad"
-														className={inputField}
-													/>
-												</Input>
-											</VStack>
-
-											<VStack className="mb-4">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													Prazo de resgate
-												</Text>
-												<Select
-													selectedValue={editInvestmentTerm}
-													onValueChange={(value) =>
-														setEditInvestmentTerm(value as RedemptionTerm)
-													}
-													isDisabled={isSavingFinanceMovement}
-												>
-													<SelectTrigger
-														variant="outline"
-														size="md"
-														className={fieldContainerClassName}
-													>
-														<SelectInput
-															value={redemptionTermLabels[editInvestmentTerm]}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-													<SelectPortal>
-														<SelectBackdrop />
-														<SelectContent>
-															<SelectDragIndicatorWrapper>
-																<SelectDragIndicator />
-															</SelectDragIndicatorWrapper>
-															{redemptionOptions.map((option) => (
-																<SelectItem
-																	key={option.value}
-																	label={option.label}
-																	value={option.value}
-																/>
-															))}
-														</SelectContent>
-													</SelectPortal>
-												</Select>
-											</VStack>
-
-											<VStack className="mb-4">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													Banco
-												</Text>
-												<Select
-													selectedValue={editInvestmentBankId ?? undefined}
-													onValueChange={(value) => setEditInvestmentBankId(value)}
-													isDisabled={
-														isSavingFinanceMovement || bankOptions.length === 0
-													}
-												>
-													<SelectTrigger
-														variant="outline"
-														size="md"
-														className={fieldContainerClassName}
-													>
-														<SelectInput
-															placeholder="Selecione o banco"
-															value={
-																editInvestmentBankId
-																	? (bankOptions.find(
-																		(bankItem) => bankItem.id === editInvestmentBankId,
-																	)?.name ?? '')
-																	: ''
-															}
-															className={inputField}
-														/>
-														<SelectIcon />
-													</SelectTrigger>
-													<SelectPortal>
-														<SelectBackdrop />
-														<SelectContent>
-															<SelectDragIndicatorWrapper>
-																<SelectDragIndicator />
-															</SelectDragIndicatorWrapper>
-															{bankOptions.length > 0 ? (
-																bankOptions.map((bankItem) => (
-																	<SelectItem
-																		key={bankItem.id}
-																		label={bankItem.name}
-																		value={bankItem.id}
-																	/>
-																))
-															) : (
-																<SelectItem
-																	label="Nenhum banco disponível"
-																	value="no-bank"
-																	isDisabled
-																/>
-															)}
-														</SelectContent>
-													</SelectPortal>
-												</Select>
-											</VStack>
-
-											<VStack className="mb-1">
-												<Text className={LUMUS_FORM_CLASS_NAMES.label}>
-													Descrição
-												</Text>
-												<Textarea
-													className={textareaContainerClassName}
-													isDisabled={isSavingFinanceMovement}
-												>
-													<TextareaInput
-														value={editInvestmentDescription}
-														onChangeText={setEditInvestmentDescription}
-														placeholder="Adicione um contexto para este investimento"
-														className={inputField}
-													/>
-												</Textarea>
-											</VStack>
-										</VStack>
-									</ScrollView>
-								</ModalBody>
-								<ModalFooter className="gap-3">
-									<Button
-										variant="outline"
-										onPress={handleCloseFinanceEditModal}
-										isDisabled={isSavingFinanceMovement}
-										className={submitButtonCancelClassName}
-									>
-										<ButtonText>Cancelar</ButtonText>
-									</Button>
-									<Button
-										onPress={handleSubmitFinanceEdit}
-										isDisabled={isSavingFinanceMovement}
-										className={submitButtonClassName}
-									>
-										{isSavingFinanceMovement ? (
-											<>
-												<ButtonSpinner />
-												<ButtonText>Salvando</ButtonText>
-											</>
-										) : (
-											<ButtonText>Salvar alterações</ButtonText>
-										)}
-									</Button>
-								</ModalFooter>
-							</ModalContent>
-						</KeyboardAvoidingView>
-					</Modal>
-
-					<Modal isOpen={isModalOpen} onClose={handleCloseActionModal}>
-						<ModalBackdrop />
-						<ModalContent className={`max-w-[360px] ${modalContentClassName}`}>
-							<ModalHeader>
-								<ModalTitle>{actionModalCopy.title}</ModalTitle>
-								<ModalCloseButton onPress={handleCloseActionModal} />
-							</ModalHeader>
-							<ModalBody>
-								<Text className={bodyText}>{actionModalCopy.message}</Text>
-							</ModalBody>
-							<ModalFooter className="gap-3">
-								<Button
-									variant="outline"
-									onPress={handleCloseActionModal}
-									isDisabled={isProcessingAction}
-									className={submitButtonCancelClassName}
-								>
-									<ButtonText>Cancelar</ButtonText>
-								</Button>
-								<Button
-									variant="solid"
-									action={confirmButtonAction}
-									onPress={handleConfirmAction}
-									isDisabled={isProcessingAction}
-									className={submitButtonClassName}
-								>
-									{isProcessingAction ? (
-										<>
-											<ButtonSpinner />
-											<ButtonText>Processando</ButtonText>
-										</>
-									) : (
-										<ButtonText>{actionModalCopy.confirmLabel}</ButtonText>
-									)}
-								</Button>
-							</ModalFooter>
-						</ModalContent>
-					</Modal>
+					{movementDialogs}
 				</View>
 			</GestureHandlerRootView>
 		</SafeAreaView>

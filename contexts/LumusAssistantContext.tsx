@@ -54,6 +54,9 @@ type LumusAssistantContextValue = {
 	availability: AssistantAiAvailability | null;
 	config: AssistantAiConfig | null;
 	isBootstrapping: boolean;
+	initializationError: string | null;
+	consentError: string | null;
+	retryInitialization(): void;
 	isRefreshingAvailability: boolean;
 	isSending: boolean;
 	sendingProgress: AssistantSendProgress | null;
@@ -147,6 +150,13 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	const [availability, setAvailability] = React.useState<AssistantAiAvailability | null>(null);
 	const [config, setConfig] = React.useState<AssistantAiConfig | null>(null);
 	const [isBootstrapping, setIsBootstrapping] = React.useState(true);
+	const [initializationError, setInitializationError] = React.useState<string | null>(null);
+	const [consentError, setConsentError] = React.useState<string | null>(null);
+	const [initializationRevision, setInitializationRevision] = React.useState(0);
+	const refreshVersionRef = React.useRef(0);
+	const refreshOwnerRef = React.useRef<string | null>(null);
+	const consentWriteRef = React.useRef<string | null>(null);
+	const retryInitialization = React.useCallback(() => setInitializationRevision(value => value + 1), []);
 	const [isRefreshingAvailability, setIsRefreshingAvailability] = React.useState(false);
 	const [isSending, setIsSending] = React.useState(false);
 	const [sendingProgress, setSendingProgress] = React.useState<AssistantSendProgress | null>(null);
@@ -190,6 +200,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	const runtimeRef = React.useRef({ config, availability, shouldHideValues, adapters, autoReadEnabled, consentGranted });
 	runtimeRef.current = { config, availability, shouldHideValues, adapters, autoReadEnabled, consentGranted };
 	React.useEffect(() => () => {
+		refreshVersionRef.current++; refreshOwnerRef.current = null; setIsRefreshingAvailability(false);
 		sessionVersionRef.current++;
 		conversationRef.current?.dispose();
 		conversationRef.current = null;
@@ -205,6 +216,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	}, []);
 
 	const clearSession = React.useCallback(() => {
+		refreshVersionRef.current++; refreshOwnerRef.current = null; setIsRefreshingAvailability(false);
 		sessionVersionRef.current++;
 		conversationRef.current?.dispose();
 		conversationRef.current = null;
@@ -231,27 +243,26 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 
 	const refreshAvailability = React.useCallback(async () => {
 		const uid = user?.uid;
-		if (!uid || accountRef.current !== uid) return;
+		if (!uid || accountRef.current !== uid || auth.currentUser?.uid !== uid || refreshOwnerRef.current === uid) return;
+		const version = ++refreshVersionRef.current;
+		refreshOwnerRef.current = uid;
+		const isCurrent = () => version === refreshVersionRef.current && accountRef.current === uid && auth.currentUser?.uid === uid;
 		setIsRefreshingAvailability(true);
 		try {
-			const nextConfig = await assistantAiGateway.getConfig(true);
-			const nextAvailability = await assistantAiGateway.getAvailability();
-			if (accountRef.current !== uid) return;
+			const [nextConfig, nextAvailability] = await Promise.all([assistantAiGateway.getConfig(true), assistantAiGateway.getAvailability()]);
+			if (!isCurrent()) return;
 			setConfig(nextConfig);
 			setAvailability(nextAvailability);
 		} catch (error) {
-			if (accountRef.current !== uid) return;
+			if (!isCurrent()) return;
 			const friendly = mapAssistantError(error);
-			setAvailability({
-				available: false,
-				platform: 'unsupported',
-				appCheckConfigured: false,
-				remoteConfigLoaded: false,
-				model: DEFAULT_ASSISTANT_AI_CONFIG.model,
-				reason: friendly.message,
-			});
+			setAvailability({ available: false, platform: 'unsupported', appCheckConfigured: false,
+				remoteConfigLoaded: false, model: DEFAULT_ASSISTANT_AI_CONFIG.model, reason: friendly.message });
 		} finally {
-			if (accountRef.current === uid) setIsRefreshingAvailability(false);
+			if (version === refreshVersionRef.current) {
+				refreshOwnerRef.current = null;
+				setIsRefreshingAvailability(false);
+			}
 		}
 	}, [user?.uid]);
 
@@ -261,7 +272,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		if (accountRef.current !== uid) {
 			consentVersionRef.current++;
 			runtimeRef.current.consentGranted = false;
-			setConsentGranted(false);
+			setConsentGranted(false); setConsentError(null); setInitializationError(null);
 			clearSession();
 			accountRef.current = uid;
 			setIsRefreshingAvailability(false);
@@ -280,7 +291,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		let cancelled = false;
 		const consentVersion = consentVersionRef.current;
 		const isCurrent = () => !cancelled && accountRef.current === uid && auth.currentUser?.uid === uid;
-		setIsBootstrapping(true);
+		setIsBootstrapping(true); setInitializationError(null);
 		void Promise.allSettled([
 			assistantPreferencesStorage.getConsent(uid).then(consent => {
 				if (isCurrent() && consentVersion === consentVersionRef.current) {
@@ -296,6 +307,8 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		])
 			.then(results => {
 				if (!isCurrent()) return;
+				// [[Assistente Lumus]]: preferências indisponíveis exigem retry; falha do modelo preserva comandos locais.
+				if (results[0].status === 'rejected' || results[1].status === 'rejected') setInitializationError('Não foi possível carregar as preferências do assistente. Tente novamente.');
 				const failure = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
 				if (!failure) return;
 				const friendly = mapAssistantError(failure.reason);
@@ -312,7 +325,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 				if (isCurrent()) setIsBootstrapping(false);
 			});
 		return () => { cancelled = true; };
-	}, [clearSession, hasActivated, isAuthReady, user?.uid]);
+	}, [clearSession, hasActivated, initializationRevision, isAuthReady, user?.uid]);
 
 	const speak = React.useCallback(async (messageId: string, text: string) => {
 		const uid = accountRef.current;
@@ -338,7 +351,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	const sendMessage = React.useCallback(async (rawText: string) => {
 		const uid = user?.uid;
 		const text = rawText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
-		if (!uid || auth.currentUser?.uid !== uid || accountRef.current !== uid || !runtimeRef.current.consentGranted || !text) return;
+		if (!uid || isBootstrapping || initializationError || auth.currentUser?.uid !== uid || accountRef.current !== uid || !runtimeRef.current.consentGranted || !text) return;
 		if (isAssistantClearConversationCommand(text)) { clearSession(); return; }
 		if (isAssistantCancellation(text)) pendingApplicationRef.current = null;
 		if (!conversationRef.current || conversationAccountRef.current !== uid) {
@@ -498,7 +511,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 			});
 		}
 		await conversationRef.current.send(text);
-	}, [clearSession, consentGranted, enqueueAiOperation, queryClient, speak, user?.uid]);
+	}, [clearSession, consentGranted, initializationError, isBootstrapping, enqueueAiOperation, queryClient, speak, user?.uid]);
 
 	const retryNotification = React.useCallback(async (actionId: string) => {
 		const uid = user?.uid;
@@ -510,13 +523,19 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 
 	const grantConsent = React.useCallback(async () => {
 		const uid = user?.uid;
-		if (!uid || accountRef.current !== uid || auth.currentUser?.uid !== uid) return;
+		if (!uid || accountRef.current !== uid || auth.currentUser?.uid !== uid || initializationError || isBootstrapping || consentWriteRef.current === uid) return;
 		const version = ++consentVersionRef.current;
-		await assistantPreferencesStorage.setConsent(uid);
-		if (version !== consentVersionRef.current || accountRef.current !== uid || auth.currentUser?.uid !== uid) return;
-		runtimeRef.current.consentGranted = true;
-		setConsentGranted(true);
-	}, [user?.uid]);
+		consentWriteRef.current = uid; setConsentError(null);
+		const isCurrent = () => version === consentVersionRef.current && accountRef.current === uid && auth.currentUser?.uid === uid;
+		try {
+			await assistantPreferencesStorage.setConsent(uid);
+			if (!isCurrent()) return;
+			runtimeRef.current.consentGranted = true;
+			setConsentGranted(true);
+		} catch {
+			if (isCurrent()) setConsentError('Não foi possível salvar seu consentimento. Tente novamente.');
+		} finally { if (consentWriteRef.current === uid) consentWriteRef.current = null; }
+	}, [initializationError, isBootstrapping, user?.uid]);
 
 	const revokeConsent = React.useCallback(async () => {
 		const uid = user?.uid;
@@ -571,6 +590,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 		availability,
 		config,
 		isBootstrapping,
+		initializationError, consentError, retryInitialization,
 		isRefreshingAvailability,
 		isSending,
 		sendingProgress,
@@ -591,7 +611,7 @@ export const LumusAssistantProvider: React.FC<React.PropsWithChildren> = ({ chil
 	}), [
 		autoReadEnabled, availability,
 		catalog, clearSession, config, consentGranted, drafts,
-		grantConsent, isBootstrapping, isRefreshingAvailability, isSending, messages, refreshAvailability, revokeConsent, revocationEpoch, sendingProgress,
+		grantConsent, isBootstrapping, initializationError, consentError, retryInitialization, isRefreshingAvailability, isSending, messages, refreshAvailability, revokeConsent, revocationEpoch, sendingProgress,
 		retryNotification, sendMessage, setAutoReadEnabled, speak, speakingMessageId, stopSpeaking, transcribeAudio,
 	]);
 

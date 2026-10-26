@@ -33,6 +33,7 @@ const SCREEN_VALIDATION_RELEASES: { id: string; routes: RouteVisibilityKey[] }[]
   { id: 'profile-2026-10-24', routes: ['profile'] },
 	{ id: 'user-relationships-2026-10-24', routes: ['addUserRelation'] },
 	{ id: 'annotations-2026-10-25', routes: ['annotations'] },
+	{ id: 'lumus-assistant-2026-10-25', routes: ['lumusAssistant'] },
 ];
 const routeVisibilityKeys: RouteVisibilityKey[] = [
 	...POST_SUBMIT_SCREEN_OPTIONS.map((item) => item.key),

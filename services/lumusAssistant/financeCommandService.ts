@@ -1,3 +1,6 @@
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+import { executeSparkMovementCommandFirebase } from '@/functions/SparkMovementCommandFirebase';
+import { sparkFormEffectiveAt } from '@/functions/SparkMovementFormFirebase';
 import { executeLegacyFinancialMovementFirebase } from '@/functions/LegacyFinancialMovementFirebase';
 import { auth, db } from '@/FirebaseConfig';
 import { validateAssistantExecutionAuthorization } from '@/services/lumusAssistant/assistantAuthorization';
@@ -45,6 +48,7 @@ import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 import { getMandatoryInstallmentValueInCents, normalizeMandatoryInstallmentTotal, resolveMandatoryInstallmentsCompleted } from '@/utils/mandatoryInstallments';
 import { MANDATORY_REMINDER_CONFIG_VERSION } from '@/utils/mandatoryReminderConfig';
 import {
+	Timestamp,
 	collection,
 	doc,
 	getDoc,
@@ -1449,6 +1453,31 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 	return fail('Esta operação ainda não possui um comando seguro para o razão financeiro do grupo. Nenhum registro foi alterado.', 'capability-unavailable');
 };
 
+/** [[Assistente Lumus]]: cada pedido conserva ID, data e argumentos no receipt Spark. */
+async function executeSparkCreateMovement(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { payload, draft, personId } = context;
+	if (!['create_expense', 'create_gain'].includes(draft.kind)) return fail('Esta operação ainda precisa do adaptador Spark no chat. Use a tela correspondente para concluir.', 'capability-unavailable');
+	const bank = resolveItem(context, 'bankRef');
+	if (bank.collection !== 'sparkPositions' || bank.data?.groupId !== spark.groupId || !bank.realId || !['bank', 'cash'].includes(String(bank.data?.kind))) return fail('Atualize as contas do grupo antes de registrar este lançamento.', 'invalid-reference');
+	const category = resolveItem(context, 'categoryRef');
+	if (category.collection !== 'tags' || !category.realId) return fail('Atualize as categorias antes de registrar este lançamento.', 'invalid-reference');
+	const preparedAt = new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente este pedido para confirmar sua data.', 'invalid-date');
+	const selectedDate = parseActionDate(payload);
+	const effectiveAt = payload.time ? Timestamp.fromDate(selectedDate) : sparkFormEffectiveAt(toFinancialCivilDate(selectedDate), preparedAt);
+	if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	await executeSparkMovementCommandFirebase(db, {
+		groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, action: 'create',
+		movementKind: draft.kind === 'create_expense' ? 'expense' : 'income', accountId: bank.realId,
+		amountInCents: getInteger(payload, 'valueInCents'), categoryId: category.realId, effectiveAt,
+		note: getOptionalString(payload, 'explanation'), overdraftReason: getOptionalString(payload, 'overdraftReason'),
+		details: { name: getString(payload, 'name'), explanation: getOptionalString(payload, 'explanation'), paymentFormats: [], moneyFormat: bank.data?.kind === 'cash' },
+		assistantRequestFingerprint: createAssistantRecordFingerprint({ kind: draft.kind, payload, preparedAt: draft.preparedAt,
+			accountId: bank.realId, categoryId: category.realId, dependencies: draft.dependsOnActionIds }),
+	});
+	return { success: true, message: draft.kind === 'create_expense' ? 'Despesa registrada no grupo.' : 'Receita registrada no grupo.', recordHandle: `action:${draft.clientActionId}` };
+}
+
 const ACTION_EXECUTORS: Record<AssistantActionKind, (context: ExecuteContext) => Promise<AssistantExecuteResult>> = {
 	create_expense: context => createMovement(context, 'expense'),
 	update_expense: context => updateMovement(context, 'expense'),
@@ -1528,6 +1557,8 @@ export const financeCommandService: FinanceCommandService = {
 			if (!validation.valid) {
 				return fail('Os dados deste pedido não passaram pela validação do Lumus.', 'invalid-payload');
 			}
+			const spark = await getSparkContextFirebase(db, personId);
+			if (spark) return await executeSparkCreateMovement({ personId, draft, payload: validation.payload, catalog, callOptions }, spark);
 			const ledger = await getFinancialLedgerContextFirebase(personId);
 			if (auth.currentUser?.uid !== personId) return fail('A sessão mudou. Envie o pedido novamente.', 'authentication');
 			if (ledger && draft.kind !== 'upsert_balance_adjustment' && draft.kind !== 'revert_balance_adjustment') {

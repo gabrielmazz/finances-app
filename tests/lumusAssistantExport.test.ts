@@ -1,3 +1,4 @@
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
 const mockAuth = { currentUser: { uid: 'owner' } as { uid: string } | null };
 const mockCatalog = jest.fn();
 const mockMovements = jest.fn();

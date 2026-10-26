@@ -132,3 +132,25 @@ As 82 rotas permanecem comparadas com registro, guards e adaptadores. A matriz d
 Privacidade de exportação é revalidada antes de cada abertura e depois da geração nativa. Mudar UID, revogar consentimento ou mudar a preferência de ocultação aborta a abertura/compartilhamento; arquivos temporários de uma sessão invalidada são removidos. Relatório de recorrência migrada não trata ausência de evento como histórico completo. O marcador de template novo não cria obrigações em períodos anteriores à sua criação/início. Desfazer aporte já resgatado é recusado sem perder centavos ou remover a saída original.
 
 A evidência final de tipos, testes gerais, backend e exportações fica em [[Validação Conversacional Lumus]] e no Active Context. Não há certificado de todas as frases naturais, gesto/teclado/áudio de aparelho, quotas de produção, entrega bancária/Pix ou backend publicado; as fronteiras externas continuam nesta matriz com causa e desbloqueio.
+
+
+## Catálogo nativo do Assistente - 26/10/2026
+
+O carregamento detecta contexto Spark confirmado antes de acessar as coleções anteriores. Contas usam `readSparkAccountsFirebase`: posição em centavos, revisão, cadastro, banco vinculado e estado nativos; contas inativas/arquivadas ficam fora da seleção. Dinheiro só existe se o Caixa canônico estiver presente. Categorias próprias/do grupo são paginadas no servidor, deduplicadas e filtradas por uso/exclusão; categorias de outros membros conservam leitura autorizada.
+
+Planos ativos usam o leitor canônico de recorrências (com sua janela declarada); movimentos ordinários usam os eventos e o índice de resolução nativos, conservando origem live/imported e referência de execução. Estornado/substituído não é oferecido como alvo ativo. Identidades de operações nativas não são IDs do razão antigo. O catálogo do modelo continua restrito a handles/rótulos/descrições/escopo; dados e IDs ficam locais. O salt nativo é ligado ao UID da sessão, inclusive para registros de outros membros.
+
+Erro nativo ou mudança de grupo/papel ao final interrompe a consulta, sem fallback legado ou catálogo vazio de sucesso. O caminho legado anterior permanece quando o contexto Spark retorna ausência confirmada. Não adiciona escritor nem callable.
+
+**Escopo parcial de A02:** pares, avaliações, ajustes e catálogo completo de dados convertidos ainda não têm alvos conversacionais nativos nesta fatia. Executor financeiro e relatórios precisam de adaptadores próprios; este catálogo não prova registro/consulta financeira ponta a ponta pelo chat. Comandos locais e UI anteriores são preservados. A01/A02/financeiro/geral permanecem 78%/25%/78%/59%. Sem nova tela, liberação de rota, migração, Rules, deploy, dado real ou modelo real.
+
+
+## Registro ordinário Spark pelo chat - 26/10/2026
+
+O executor identifica contexto Spark antes de ler recibos ou chamar serviços financeiros anteriores. `create_expense` e `create_gain` resolvem conta `sparkPositions` do mesmo grupo e categoria real, enviando centavos/direção/detalhes ao comando `executeSparkMovementCommandFirebase` já usado nas telas. Caixa conserva seu ID canônico e `moneyFormat`; não se usa um banco nulo fictício.
+
+ID da intenção, data civil, hora explícita (se informada), dados e fingerprint são estáveis no retry. Sem hora declarada, o horário do preparo em São Paulo compõe a data civil escolhida. O comando nativo recusa futuro e revalida conta/categoria/saldo/Rules, com recibo idempotente no protocolo existente. `assistantRequestFingerprint` inclui dados, contas/categorias resolvidas, dependências e preparo. A assinatura da autorização também passa a incluir `preparedAt`; alterá-lo após a concessão exige nova autorização.
+
+A sessão/capacidade são reconferidas antes de iniciar o comando. Uma chamada já iniciada não promete rollback por cancelamento posterior. Sem contexto Spark, o caminho anterior permanece; falha de contexto não autoriza fallback. Outras famílias com contexto nativo recebem indisponibilidade explícita do adaptador do chat, sem tentar callables antigas. Correção/estorno, pares, recorrências, investimentos, ajustes e relatórios nativos continuam pendentes nesta fatia. Não anunciar Assistente financeiro completo.
+
+Não houve mudança em UI, Rules, índices ou serviços de saldo. Percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos até integrar/homologar as demais famílias. Ver [[Operações Ordinárias Spark]], [[Assistente Lumus]] e [[Status da Implementação Spark]].

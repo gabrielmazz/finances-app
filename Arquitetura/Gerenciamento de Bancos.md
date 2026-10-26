@@ -11,6 +11,11 @@ spark_reviewed_at: 2026-10-22
 
 # Gerenciamento de Bancos
 
+## Timeline compartilhada com a Home — 26/10/2026
+
+`BankMovementsScreen` Web/mobile oferece o modo `recentMovements` para [[Dashboard Home]], reutilizando timeline, metadados, restrições, ações e diálogos. O modo recebe itens/contas/loading/erro/reload da Home; não consulta novamente o extrato, o catálogo de bancos ou as categorias. `MovementRecord` fica em `types/bankMovements.ts`. Chaves de expansão incluem tipo e ID, preservando o ID original enviado ao executor. O extrato completo mantém filtros, período, resumo, gráfico Web e PDF. Edição de investimento recarrega a composição após salvar; o valor anterior da sincronização Web usa formatação monetária com privacidade.
+
+
 ## Primeiro fluxo: banco e saldo inicial — 23/10/2026
 
 As telas Web/mobile de cadastro Spark agora coletam o saldo disponível no momento da criação. Abertura zero continua válida; saldo negativo exige justificativa. Banco, catálogo, posição, checkpoint, receipt e cota usam a transação existente de abertura declarada. Não registrar esse patrimônio como receita nem criar um segundo saldo mensal automaticamente. A referência é o instante do commit: saldo de início de mês continua no fluxo específico de [[Balanço Mensal]], que preserva lançamentos posteriores.
