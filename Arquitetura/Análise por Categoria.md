@@ -6,13 +6,13 @@ tipo: feature
 versao: 1.0.17
 spark_module: F10
 spark_progress: 78
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-23
 ---
 
 # Análise por Categoria
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 23/10/2026
 
 **F10 — Home, extrato e análise por categoria: 78% implementado / 22% restante.** Notas P/I/D/E: **100/75/50/50**; cálculo e evidências em [[Status da Implementação Spark]].
 
@@ -21,13 +21,23 @@ O percentual corresponde ao módulo completo, incluindo integração e dados, e 
 Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
 <!-- spark-progress:end -->
 
+## Análise utilizável por tela - 23/10/2026
+
+Web/mobile observam UID pelo AuthContext. `useCategoryAnalysisData` reutiliza `useBankMovementsRequest` com escopo por sessão/período/geração/foco e mantém o snapshot associado à chave consultada. Trocar UID ou datas não expõe o relatório anterior durante a troca de efeitos. Falhas retornadas ou lançadas limpam dados, encerram carregamento/atualização e mantêm erro persistente com retry; não selecionam legado por erro. O primeiro estado é carregamento, não ausência falsa de categorias.
+
+**Atualizar análise** fica disponível nas duas plataformas, inclusive após consulta vazia. Carregamento, exportação e intervalo inválido bloqueiam a atualização; os campos históricos continuam disponíveis para corrigir um intervalo inválido. Atualizar conserva a categoria/tipo se ainda forem válidos e reinicia a paginação. As regras de corte diário, histórico de até doze meses, zero confirmado, categorias autorizadas do grupo, estornos líquidos negativos e exclusão de pares/referências permanecem.
+
+Exportação exige relatório pronto e sessão atual, usa trava síncrona e confere escopo antes de abrir o arquivo. UID, período, categoria, tipo, privacidade e snapshot invalidam callbacks anteriores; feedback tardio é descartado. A data apresentada no PDF vem da consulta usada, não de uma nova suposição de atualização. PDF preserva todos os movimentos do tipo ativo, sinais e privacidade. Nenhum escritor financeiro foi adicionado.
+
+A revisão `category-analysis-2026-10-23` habilita somente `categoryAnalysis` uma vez, preservando outras escolhas e desligamentos posteriores. Evidências e roteiro em [[Versão Usável por Telas]]. F10 mantém 78% (100/75/50/50), financeiro 78% e geral 56%; homologação visual/Emulator/aparelhos e volume continuam pendentes.
+
 Tela de relatório dinâmico que compara gastos e ganhos de uma tag contra a média histórica recente. Existe para detectar variações incomuns, como uma categoria ficar acima, abaixo ou próxima da média dos últimos meses.
 
 ## Como funciona
 
 ### Fonte Spark
 
-Grupos com `financial-proof-v16` usam [[Integração Financeira Spark]] antes de selecionar o razão anterior. `CategoryAnalysisFirebase` lê as contas canônicas e `sparkOperations`/identidades pelo leitor consistente; não consulta os movimentos antigos nem executa Functions nesse ramo. Arquivados continuam no histórico. Categorias seguem o mesmo escopo do writer, com tombstones ocultos e rejeição de categoria nativa de outro grupo.
+Grupos no protocolo vigente `financial-proof-v17` usam [[Integração Financeira Spark]] antes de selecionar o razão anterior. `CategoryAnalysisFirebase` lê as contas canônicas e `sparkOperations`/identidades pelo leitor consistente; não consulta os movimentos antigos nem executa Functions nesse ramo. Arquivados continuam no histórico. Categorias seguem o mesmo escopo do writer, com tombstones ocultos e rejeição de categoria nativa de outro grupo.
 
 Os totais econômicos são líquidos: despesa de 100 corrigida para 120 produz termos `100 − 100 + 120`; receita invertida continua reduzindo receitas. Correção entre categorias reduz a antiga e atribui o substituto à nova. Correção entre contas preserva ambas. Estorno neste mês de uma despesa do mês anterior pode deixar o resultado deste mês negativo; não é uma nova receita. Transferências, capital, financiamento, avaliação, abertura e conferência não integram receitas/despesas.
 

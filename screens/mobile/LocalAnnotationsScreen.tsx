@@ -93,16 +93,22 @@ export default function LocalAnnotationsScreen() {
 	const [annotations, setAnnotations] = React.useState<LocalAnnotation[]>([]);
 	const [isLoading, setIsLoading] = React.useState(true);
 	const [isSaving, setIsSaving] = React.useState(false);
+	const [loadError, setLoadError] = React.useState('');
+	const [saveError, setSaveError] = React.useState('');
 	const [hasStorageConflict, setHasStorageConflict] = React.useState(false);
 	const [selectedAnnotationId, setSelectedAnnotationId] = React.useState<string | null>(null);
 	const [draftTitle, setDraftTitle] = React.useState('');
 	const [draftMarkdown, setDraftMarkdown] = React.useState('');
 	const loadRequestIdRef = React.useRef(0);
+	const selectedIdRef = React.useRef(selectedAnnotationId);
+	selectedIdRef.current = selectedAnnotationId;
 	const draftMarkdownRef = React.useRef('');
 	const originalAnnotationRef = React.useRef<LocalAnnotation | null>(null);
 	const saveLockRef = React.useRef(false);
 	const saveEpochRef = React.useRef(0);
 	const mountedRef = React.useRef(true);
+	const focusedRef = React.useRef(false);
+	const reloadLockRef = React.useRef(false);
 	const currentUidRef = React.useRef(user?.uid);
 	currentUidRef.current = user?.uid;
 	React.useEffect(() => {
@@ -110,6 +116,7 @@ export default function LocalAnnotationsScreen() {
 		return () => { mountedRef.current = false; loadRequestIdRef.current++; saveEpochRef.current++; };
 	}, []);
 	React.useEffect(() => {
+		loadRequestIdRef.current++; setLoadError(''); setSaveError(''); reloadLockRef.current = false;
 		saveEpochRef.current++; saveLockRef.current = false; setIsSaving(false); setHasStorageConflict(false);
 		originalAnnotationRef.current = null;
 		setSelectedAnnotationId(null); setAnnotations([]); setDraftTitle(''); setDraftMarkdown(''); draftMarkdownRef.current = '';
@@ -133,16 +140,17 @@ export default function LocalAnnotationsScreen() {
 			return;
 		}
 
-		setIsLoading(true);
+		setIsLoading(true); setLoadError(''); setAnnotations([]);
 		try {
 			const storedAnnotations = await loadLocalAnnotations(user.uid);
-			if (requestId === loadRequestIdRef.current && currentUidRef.current === user.uid && auth.currentUser?.uid === user.uid) {
+			if (mountedRef.current && focusedRef.current && requestId === loadRequestIdRef.current && currentUidRef.current === user.uid && auth.currentUser?.uid === user.uid) {
 				setAnnotations(storedAnnotations);
 			}
 		} catch (error) {
-			if (requestId !== loadRequestIdRef.current) {
+			if (!mountedRef.current || !focusedRef.current || currentUidRef.current !== user.uid || auth.currentUser?.uid !== user.uid || requestId !== loadRequestIdRef.current) {
 				return;
 			}
+			setLoadError(error instanceof Error ? error.message : 'Não foi possível abrir as anotações.');
 			console.error('Não foi possível abrir as anotações locais:', error);
 			showNotifierAlert({
 				title: 'Não foi possível abrir as anotações',
@@ -151,7 +159,7 @@ export default function LocalAnnotationsScreen() {
 				isDarkMode,
 			});
 		} finally {
-			if (requestId === loadRequestIdRef.current) {
+			if (mountedRef.current && focusedRef.current && requestId === loadRequestIdRef.current) {
 				setIsLoading(false);
 			}
 		}
@@ -159,7 +167,9 @@ export default function LocalAnnotationsScreen() {
 
 	useFocusEffect(
 		React.useCallback(() => {
-			void loadAnnotations();
+			focusedRef.current = true;
+			if (!selectedIdRef.current) void loadAnnotations();
+			return () => { focusedRef.current = false; loadRequestIdRef.current++; };
 		}, [loadAnnotations]),
 	);
 
@@ -167,12 +177,13 @@ export default function LocalAnnotationsScreen() {
 		async (annotation: LocalAnnotation, expectedFingerprint: string | null) => {
 			const uid = user?.uid;
 			if (!uid) return null;
-			const isCurrent = () => mountedRef.current && currentUidRef.current === uid && auth.currentUser?.uid === uid;
+			const isCurrent = () => mountedRef.current && focusedRef.current && currentUidRef.current === uid && auth.currentUser?.uid === uid;
 			try {
 				const result = await saveLocalAnnotation(uid, annotation, expectedFingerprint, isCurrent);
 				return isCurrent() ? result : null;
 			} catch (error) {
 				if (!isCurrent()) return null;
+				setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente.');
 				setHasStorageConflict(error instanceof Error && error.message.startsWith('A anotação mudou'));
 				console.error('Não foi possível salvar as anotações locais:', error);
 				showNotifierAlert({
@@ -188,6 +199,8 @@ export default function LocalAnnotationsScreen() {
 	);
 
 	const handleOpenAnnotation = React.useCallback((annotation: LocalAnnotation) => {
+		if (saveLockRef.current || reloadLockRef.current || !focusedRef.current) return;
+		setSaveError('');
 		originalAnnotationRef.current = annotation;
 		setHasStorageConflict(false);
 		setSelectedAnnotationId(annotation.id);
@@ -198,26 +211,31 @@ export default function LocalAnnotationsScreen() {
 
 	const handleReloadAnnotation = React.useCallback(async () => {
 		const uid = user?.uid;
-		if (!uid || !selectedAnnotationId) return;
+		if (!uid || !selectedAnnotationId || saveLockRef.current || reloadLockRef.current) return;
+		const reloadEpoch = ++saveEpochRef.current;
+		reloadLockRef.current = true; setIsSaving(true);
 		try {
 			const latest = await loadLocalAnnotations(uid);
-			if (!mountedRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid) return;
+			if (!mountedRef.current || !focusedRef.current || reloadEpoch !== saveEpochRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid) return;
 			const target = latest.find(note => note.id === selectedAnnotationId);
-			if (!target) return;
+			if (!target) throw new Error('A anotação não está mais disponível. Seu rascunho foi preservado.');
 			setAnnotations(latest);
+			reloadLockRef.current = false;
 			handleOpenAnnotation(target);
-		} catch {
-			if (currentUidRef.current === uid && auth.currentUser?.uid === uid) showNotifierAlert({ title: 'Não foi possível recarregar', description: 'Seu rascunho continua aberto.', type: 'error', isDarkMode });
-		}
+		} catch (error) {
+			if (mountedRef.current && focusedRef.current && reloadEpoch === saveEpochRef.current && currentUidRef.current === uid) setSaveError(error instanceof Error ? error.message : 'Não foi possível recarregar.');
+			if (mountedRef.current && focusedRef.current && reloadEpoch === saveEpochRef.current && currentUidRef.current === uid && auth.currentUser?.uid === uid) showNotifierAlert({ title: 'Não foi possível recarregar', description: 'Seu rascunho continua aberto.', type: 'error', isDarkMode });
+		} finally { if (reloadEpoch === saveEpochRef.current) { reloadLockRef.current = false; if (mountedRef.current && currentUidRef.current === uid) setIsSaving(false); } }
 	}, [handleOpenAnnotation, isDarkMode, selectedAnnotationId, user?.uid]);
 
 	const handleMarkdownChange = React.useCallback(async (markdown: string) => {
+		if (saveLockRef.current || reloadLockRef.current || !focusedRef.current || currentUidRef.current !== user?.uid || selectedIdRef.current !== selectedAnnotationId) return;
 		draftMarkdownRef.current = markdown;
 		setDraftMarkdown(markdown);
-	}, []);
+	}, [selectedAnnotationId, user?.uid]);
 
 	const handleCreateAnnotation = React.useCallback(() => {
-		if (!user?.uid || isLoading) {
+		if (!user?.uid || auth.currentUser?.uid !== user.uid || !focusedRef.current || isLoading || loadError) {
 			return;
 		}
 
@@ -231,17 +249,17 @@ export default function LocalAnnotationsScreen() {
 		setDraftTitle('');
 		setDraftMarkdown('');
 		draftMarkdownRef.current = '';
-	}, [annotations, isLoading, user?.uid]);
+	}, [annotations, isLoading, loadError, user?.uid]);
 
 	const handleSaveAnnotation = React.useCallback(
 		async (returnToList = false) => {
 			const uid = user?.uid;
-			if (!selectedAnnotation || !uid || saveLockRef.current || auth.currentUser?.uid !== uid) {
+			if (!selectedAnnotation || !uid || !focusedRef.current || reloadLockRef.current || saveLockRef.current || auth.currentUser?.uid !== uid) {
 				return;
 			}
 			saveLockRef.current = true;
 			const saveEpoch = ++saveEpochRef.current;
-			setIsSaving(true);
+			setIsSaving(true); setSaveError('');
 			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 			if (!mountedRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid || saveEpoch !== saveEpochRef.current) { if (saveEpoch === saveEpochRef.current) saveLockRef.current = false; return; }
 			const markdownToSave = draftMarkdownRef.current;
@@ -256,6 +274,7 @@ export default function LocalAnnotationsScreen() {
 			if (saveEpoch === saveEpochRef.current) saveLockRef.current = false;
 			if (!mountedRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid || saveEpoch !== saveEpochRef.current) return;
 			setIsSaving(false);
+			if (!focusedRef.current) return;
 			if (!saved) {
 				return;
 			}
@@ -319,6 +338,7 @@ export default function LocalAnnotationsScreen() {
 					</HStack>
 
 					<VStack space="sm" className="flex-1 pt-4">
+						{saveError ? <Text accessibilityRole="alert" className="text-lumus-error">{saveError}</Text> : null}
 						{hasStorageConflict ? <VStack space="sm">
 							<Text className={bodyText}>A anotação mudou. Seu rascunho continua aberto.</Text>
 							<Button action="default" variant="outline" size="md" onPress={() => void handleReloadAnnotation()} isDisabled={isSaving}>
@@ -328,7 +348,8 @@ export default function LocalAnnotationsScreen() {
 						<Input size="lg" className={LUMUS_FORM_CLASS_NAMES.input}>
 							<InputField
 								value={draftTitle}
-								onChangeText={setDraftTitle}
+								onChangeText={value => { if (focusedRef.current && !saveLockRef.current && !reloadLockRef.current) setDraftTitle(value); }}
+								editable={!isSaving}
 								placeholder="Título da anotação"
 								accessibilityLabel="Título da anotação"
 								className={inputField}
@@ -337,7 +358,9 @@ export default function LocalAnnotationsScreen() {
 
 						<Box className="flex-1" style={{ height: annotationEditorHeight }}>
 							<AnnotationMarkdownEditor
+								key={`${user?.uid}:${selectedAnnotationId}`}
 								markdown={draftMarkdown}
+								readOnly={isSaving}
 								isDarkMode={isDarkMode}
 								onChangeMarkdown={handleMarkdownChange}
 								dom={{
@@ -381,13 +404,17 @@ export default function LocalAnnotationsScreen() {
 						<Text size="sm" className={bodyText}>
 							Ideias, listas e lembretes — só neste dispositivo.
 						</Text>
+						{loadError ? <Text accessibilityRole="alert" className="text-lumus-error">{loadError}</Text> : null}
+						<Button action="default" variant="outline" onPress={() => void loadAnnotations()} isDisabled={isLoading}>
+							<ButtonText>{loadError ? 'Tentar novamente' : 'Atualizar anotações'}</ButtonText>
+						</Button>
 						<Button
 							action="primary"
 							variant="solid"
 							size="md"
 							className={`mt-4 w-full ${submitButtonClassName}`}
 							onPress={() => void handleCreateAnnotation()}
-							isDisabled={isLoading}
+							isDisabled={isLoading || !!loadError}
 						>
 							<ButtonIcon as={AddIcon} />
 							<ButtonText className={submitButtonTextClassName}>
@@ -411,7 +438,7 @@ export default function LocalAnnotationsScreen() {
 										Carregando suas anotações...
 									</Text>
 								</Box>
-							) : (
+							) : loadError ? null : (
 								<Box className="items-center rounded-3xl border border-outline-200 bg-background-0 px-6 py-8">
 									<Heading size="lg" className={`text-center ${headingText}`}>
 										Sua primeira página começa aqui

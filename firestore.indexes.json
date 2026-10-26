@@ -175,5 +175,11 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "sparkRelationshipPairs",
+      "fieldPath": "participants",
+      "indexes": [{ "arrayConfig": "CONTAINS", "queryScope": "COLLECTION_GROUP" }]
+    }
+  ]
 }

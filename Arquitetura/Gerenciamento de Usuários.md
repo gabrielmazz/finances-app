@@ -5,16 +5,16 @@ status: ativo
 tipo: feature
 versao: 1.5.1
 spark_scope: usuarios
-spark_progress: 22
-spark_reviewed_at: 2026-10-19
+spark_progress: 50
+spark_reviewed_at: 2026-10-24
 ---
 
 # Gerenciamento de Usuários
 
 <!-- spark-progress:start -->
-## Progresso Spark — 19/10/2026
+## Progresso Spark — 24/10/2026
 
-Usuários e privacidade no escopo Spark: **22% implementado / 78% restante**. Auth/perfil/privacidade visual (U01): **85%**; convites/aceite/revogação (U02): **10%**; solicitação/processamento de exclusão Spark (U03): **0%**. As callables descritas abaixo ainda precisam de substituição protegida. Ver [[Status da Implementação Spark]].
+Usuários e privacidade no escopo Spark: **50% implementado / 50% restante** (49,5% antes do arredondamento). Auth/perfil/privacidade visual U01: **85%**; convites/aceite/revogação U02: **65%**, notas **75/75/25/75**; exclusão U03: **0%**. [[Vínculos de Usuários Spark]] substitui a callable do vínculo nas telas, leitores e adaptador conversacional. Membros, migração completa e rollout permanecem pendentes. Ver [[Status da Implementação Spark]].
 
 As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
 <!-- spark-progress:end -->
@@ -30,12 +30,14 @@ A tela inicial de [[Autenticação]] oferece **Criar conta** no próprio painel,
 O formulário administrativo de cadastro foi removido. A tabela administrativa de contas existentes também foi retirada de [[Configurações]]; a tela não oferece mais consulta ou exclusão de contas.
 
 ### Relacionamento entre Usuários
-1. As telas Web/mobile de vínculo recebem o ID informado pela pessoa. Não oferecem busca de outra conta por email.
-2. `UserRelationshipFirebase.ts` chama `userRelationship` no backend. Antes do aceite, o preview não revela o nome do alvo. `link` envia convite; somente a própria conta convidada pode aceitar ao chamar `link` com o ID do remetente. O aceite grava concessões recíprocas no servidor e as listas de relacionamento na mesma transação. `unlink` revoga ambos os lados. Convites expiram em sete dias; a tela lista convites recebidos. `RegisterUserFirebase.ts` adapta os consumidores existentes a esse contrato.
-3. Usuários relacionados compartilham visibilidade das transações no [[Dashboard Home]]
-4. O `HomeFirebase.ts` busca os `personIds` de usuários relacionados para agregar os dados
-5. Após salvar um vínculo, `AddUserRelationScreen.tsx` aplica [[Comportamento Pós-Registro]] após o feedback de sucesso. No [[Assistente Lumus]], o resumo e a confirmação acontecem no chat; o resultado confirmado invalida leituras financeiras.
-6. O backend revalida sessão, alvo e fingerprint do par. Vínculos com alvos diferentes podem compartilhar um lote preparado sem invalidar o snapshot dos outros pares. A mesma operação reenviada recupera o receipt; `financialGroupId`, `financialGroupRole` e `adminUser` não são alterados. As Rules e as Functions financeiras exigem concessões recíprocas e perfis recíprocos; listas antigas sozinhas não autorizam leitura.
+
+As telas Web/mobile recebem o ID fornecido pela outra pessoa e exigem revisão do efeito antes de confirmar. [[Vínculos de Usuários Spark]] define o par protegido por Rules, convite com validade de sete dias, aceite exclusivo do destinatário, revogação por qualquer participante, recibos idempotentes e cota de envios/aceites. O fluxo usa somente Firestore; não escreve perfil/lista/papel alheio nem chama Functions.
+
+Listas de convites recebidos/enviados e contas vinculadas oferecem atualização/retry. Falha não vira lista vazia confirmada. Respostas de outra sessão/foco são descartadas, envio repetido tem trava e resultado incerto conserva a mesma operação. Pós-submit do link segue [[Comportamento Pós-Registro]]; revogação mantém a lista aberta.
+
+`getRelatedUsersFirebase` e `getRelatedUsersIDsFirebase` passam pelo leitor nativo. Relações legadas com grants/perfis recíprocos continuam legíveis enquanto não houver estado Spark para o par; registro revogado nativo bloqueia a autoridade antiga. Novos convites não expõem o nome do alvo antes do aceite. Vínculo não equivale a filiação: dados de grupos Spark continuam restritos aos respectivos membros.
+
+O [[Assistente Lumus]] conserva sua preparação/confirmação e usa o mesmo adaptador Spark. Sucesso invalida as leituras financeiras. Guardas do backend antigo impedem que endpoints admin ignorem um par já nativo; rollout exige esses endpoints desativados ou atualizados, conforme [[Processo de Release]].
 
 ## Por que dois apps Firebase?
 
@@ -47,7 +49,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 - `hooks/useAccountAccess.ts` — Validação e envio do cadastro público
 - `screens/mobile/AddUserRelationScreen.tsx` / `screens/web/AddUserRelationScreen.web.tsx` — Vinculação de usuários por plataforma, com label, popover e campo alinhados ao padrão Web de despesas
 - `functions/RegisterUserFirebase.ts` — Cadastro público e adaptadores das consultas/vínculos existentes
-- `functions/UserRelationshipFirebase.ts` / `backend/src/userRelationships.ts` — Preview mínimo e execução confiável de link/unlink
+- `functions/UserRelationshipFirebase.ts` / `backend/src/userRelationships.ts` — Contrato do vínculo e compatibilidade do backend anterior
 - `services/lumusAssistant/assistantApplicationService.ts` — Referências por nome/ordinal, preparação, confirmação e lotes locais
 - `FirebaseConfig.ts` — Instância secundária do Firebase (`secondaryApp`, `secondaryAuth`)
 - `app/mobile/add-user-relation.tsx` — Rota de relacionamento
@@ -81,7 +83,7 @@ Criar um usuário com Firebase Auth desloga o usuário atual. O app usa um **seg
 
 [[Perfil do Usuário]] oferece Meu perfil em `/web/profile` e `/mobile/profile`, com telas independentes, nome editável no Firestore, e-mail de acesso/data de cadastro e ID copiável. O menu Config abre o perfil no lugar de Relacionar usuário; a ação de vínculo fica dentro dele e respeita `addUserRelation`. As telas de vínculo oferecem Voltar ao perfil, enquanto o pós-submit configurado permanece preservado.
 
-As regras continuam bloqueando alterações client-side de `relatedIdUsers` e leituras de usuários sem concessões recíprocas. O protocolo de convite é operado somente pela callable. Não existe edição de papéis/grupos ou CRUD administrativo de contas neste fluxo.
+As regras continuam bloqueando alterações client-side de `relatedIdUsers` e leituras de usuários sem concessões recíprocas. O protocolo vigente está em [[Vínculos de Usuários Spark]], operado pelo SDK/Rules; a callable fica apenas como histórico/compatibilidade bloqueada para pares nativos. Não existe edição de papéis/grupos ou CRUD administrativo de contas neste fluxo.
 
 ## Integração conversacional — 2026-10-02
 
@@ -90,3 +92,7 @@ As regras continuam bloqueando alterações client-side de `relatedIdUsers` e le
 O executor de lotes prepara todos os pares antes de gravar, aplica uma confirmação agregada quando necessária, executa em sequência e preserva estado por item em memória da sessão. Cancelar para de iniciar itens; retry mantém os sucessos e recupera receipts das operações já persistidas. Logout, revogação e troca de UID limpam checkpoints e referências locais. O lote não altera a atomicidade de cada transação bidirecional.
 
 `tests/userRelationships.test.ts` verifica os adaptadores e a troca de UID; `tests/lumusAssistantApplication.test.ts` verifica referências, privacidade e lote; `backend/tests/userRelationships.emulator.test.ts` usa Auth/Firestore/Functions locais para bidirecionalidade, idempotência, fingerprint stale, pares independentes e Rules. A callable precisa existir no ambiente de execução; nenhum deploy foi feito nesta tarefa. A evidência de Emulator não comprova disponibilidade em produção nem interação em aparelho.
+
+## Continuação nativa - 24/10/2026
+
+O transporte das integrações conversacionais e telas descritas no registro de 02/10 passa para SDK/Rules, com revisão/recibo por par. A antiga referência à disponibilidade da callable é histórica. Convites legados pendentes, migração financeira, membros e homologação permanecem separados. Evidências atuais em [[Versão Usável por Telas]]; o código do servidor compatível não foi implantado.

@@ -290,7 +290,7 @@ Centraliza a rotina de foco dos inputs editáveis para manter campos de texto e 
 
 ## `useUserProfile()`
 
-Carrega o documento próprio, controla nome/rascunho, validação, salvar/descartar e cópia do UID para as duas composições de [[Perfil do Usuário]]. Falhas preservam a edição; trava síncrona impede submits concorrentes; epoch de montagem e UID autenticado impedem publicar respostas de outra sessão. Arquivo: `hooks/useUserProfile.ts`.
+Carrega o documento próprio confirmado no servidor e controla nome/rascunho, validação, salvar/descartar e cópia do UID em [[Perfil do Usuário]]. Recarga manual, foco e retry preservam o rascunho e bloqueiam envio até nova leitura. Salvar compara o nome esperado em transação; conflito mantém a edição e pede atualização. Travas síncronas impedem submit/cópia concorrentes e recarga durante envio. Estado vinculado ao UID, sessão Auth real e geração impedem respostas de outra sessão. Resumo/vínculos falham independentemente. Revisão 24/10/2026; arquivo: `hooks/useUserProfile.ts`.
 
 ## `useCategoryAnalysisData(personId)`
 
@@ -318,3 +318,35 @@ Reutiliza o seletor canônico de bancos, observa UID pelo AuthContext e comparti
 ## `useRescueFormData(selectedBankId)` — 23/10/2026
 
 Compartilhado por [[Resgate de Caixa]] Web/mobile. Resolve Spark antes do razão anterior e legado, exige o Caixa canônico ativo no Spark e confirma o saldo da origem. Erro não escolhe outra fonte nem produz saldo zero. Chaves por UID, conta e revisão de recarga invalidam respostas antigas; banco que deixa o catálogo ativo é recusado. `reload()` limpa a posição anterior e reconfirma bancos/Caixa/saldo sem escrever dinheiro ou repetir envio. Expõe estados de carregamento, erro, ausência de banco e recarga para MovementFormStatus; o formulário preserva seus campos e sua intenção incerta.
+
+## `useBankBalanceAdjustmentForm()` — revisão de 23/10/2026
+
+Prepara [[Ajuste de Saldo]] nas composições Web/mobile. Chaves por UID/rota e por banco/data/recarga impedem reutilizar base ou preparação de outra seleção. Renovar prévia completa lê outra revisão; preparação parcial conserva o estado para continuar. Retém rascunho em rejeição, captura a fonte e o material de cada tentativa e bloqueia mutadores em envio/resultado incerto. `retryPending`, `fieldsLocked`, `submitError` e `completed` dirigem os estados persistentes do formulário compartilhado. Confirmação anterior independe de nova prévia disponível; falha de cache não reabre a gravação. Não navega nem anuncia resultados de sessão/rota substituída, e respeita foco no retorno ao extrato. IDs/preparação ainda vivem somente em memória.
+
+## Recorrências: entrada e confirmação — 23/10/2026
+
+`useSparkRecurringForm(tipo, formScope?)` acrescenta `initialize` e `isUncertain`. O escopo gerenciado de [[Despesas Fixas]] e [[Receitas Fixas]] aguarda a entrada por `useMovementFormEntry`; demais chamadores preservam a consulta inicial automática. UID/rota invalidam cargas e tentativas anteriores. Reset conserva o identificador do contexto Spark e não descarta definição confirmada com metadados pendentes. Invalidação de cache é separada da confirmação, incluindo falha síncrona.
+
+`useSparkRecurringAction` expõe `isUncertain` e `hasPending()` para conservar a mesma confirmação no modal das listas. Troca de UID limpa a tentativa anterior; sucesso invalida consultas sem transformar erro de cache em reenvio financeiro. Cadastro/lista de despesas e receitas recorrentes reutilizam o guard de `useBankMovementsRequest` para categorias e consultas: é o mesmo mecanismo por UID/geração/foco, sem novo escritor ou alteração de protocolo. Intenções dos formulários continuam somente em memória.
+
+## Investimentos: leitura e intenção por UID - 23/10/2026
+
+AddFinance Web/mobile reutiliza `useTransferFormData` com a origem e destino nulo para bancos/saldo canônicos, erro/retry e recarga após sucesso. Não aplica `needsBanks`, pois um banco é suficiente. `useBankMovementsRequest` protege leitura da carteira e ações em escopos independentes.
+
+`useSparkInvestmentForm` conserva trabalho por UID e descarta retornos antigos. `fieldsLocked` cobre envio, preparação parcial e resultado incerto; `isPending`/`hasPending()` mantêm confirmação e impedem reset de material pendente. `retryPending()` reenvia o rascunho capturado com o mesmo estado. A trava síncrona impede dois comandos simultâneos; invalidação de cache não converte sucesso em falha financeira. A identidade/prova geral continua em memória e não restaura todos os campos após reload. Ver [[Investimentos]].
+
+## Análise por categoria: snapshot por consulta - 23/10/2026
+
+`useCategoryAnalysisData(personId)` observa a sessão real via guard de `useBankMovementsRequest`. Estado por UID/período impede expor snapshots anteriores; geração/foco invalidam consultas antigas, inclusive de um mesmo intervalo. O hook captura falhas retornadas e exceções, encerra carregamento/refresh, limpa o relatório e permite retry. `isReady` autoriza exportação e `requestKey` identifica a consulta. Datas recebidas são copiadas. Não grava dados nem faz fallback por erro. As telas recebem o UID reativo do AuthContext e usam um escopo independente para exportar. Ver [[Análise por Categoria]].
+
+## `useFinancialForecastData(personId, periodInMonths)` - 24/10/2026
+
+Compartilhado por [[Previsão de Fluxo de Caixa]] Web/mobile. `useBankMovementsRequest` protege a consulta por UID, horizonte, foco e geração. Estado vinculado à chave impede exibir previsão anterior entre renderização e efeitos. Recarga limpa dados, falha retornada ou lançada encerra loading/refresh e expõe retry; sessão ausente permanece com erro, sem cenário zero. `loadForecast(asRefresh?)` lê somente o horizonte selecionado e não escreve dados nem muda a fonte após falha. As telas mantêm expansão/lista de compromissos como estado de apresentação, reiniciado quando a fotografia muda.
+
+## `useUserRelationships()` - 24/10/2026
+
+Compartilhado pelo formulário Web/mobile de [[Vínculos de Usuários Spark]]. Carrega listas com erro/retry, mantém ID/rascunho e prepara ação/snapshot/ID antes de confirmar. Trava síncrona bloqueia concorrência e mutação dos argumentos durante envio; resultado incerto permite somente a mesma confirmação. Erro definitivo pede nova revisão. UID real/reativo, foco, montagem e geração descartam respostas obsoletas. Blur cancela a continuidade/publicação; refoco destrava a confirmação incerta sem trocar a identidade. Sucesso recarrega a lista; formulário confirma feedback/pós-submit somente na tela focada e sessão atual. Nenhum papel/grupo é alterado.
+
+## Investimentos na demonstração sem bootstrap - 25/10/2026
+
+`useSparkInvestmentForm` reconhece o projeto Firestore `demo-lumus-financas`. Se `submitSparkInvestmentFormFirebase` retornar `null` por ausência de contexto Spark, retorna `{ success: false, error }` com orientação para a conta do seed, evitando que o operador `??` nas telas chame o legado. Essa recusa não cria intenção pendente, não invalida consultas como sucesso e permite fechar o formulário. Contexto nativo válido e retry incerto conservam seu contrato; fora da demonstração, `null` continua distinguindo o legado. Ver [[Investimentos]] e [[Guia de Testes Locais]].

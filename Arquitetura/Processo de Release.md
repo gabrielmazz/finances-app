@@ -77,3 +77,7 @@ Revalidação após essa correção: `npm run test:integration` terminou com có
 `firebase:deploy:*` publica Functions, regras e índices de Firestore. O `firebase.json` recompila o backend antes do deploy. O template `remote_config.json` exige conferência e publicação própria conforme [[Assistente Lumus]]; ele não é sobrescrito automaticamente por esse comando. O Hosting é publicado separadamente para que a UI só entre depois do backend compatível.
 
 Nenhuma configuração remota ou build instalado é inferido a partir de export local: EAS, Firebase Console, URL Web e aparelho precisam de validação real antes de declarar a versão publicada funcional.
+
+## Gate de vínculos nativos - 24/10/2026
+
+Antes de publicar [[Vínculos de Usuários Spark]], implantar/conferir as Rules e o índice `sparkRelationshipPairs.participants` escopado por coleção de grupo. Endpoints antigos de vínculo, movimentos legados, ajustes e notificações que usem Admin SDK precisam estar desligados ou atualizados com as guardas de prevalência do par nativo; Rules não restringem Admin SDK. O perfil Spark não deve publicar Functions para obter essa garantia. Não liberar clientes nativos sobre um backend antigo ainda capaz de usar grants revogados. Liberação local de rota e SDK/Rules de Emulator não satisfazem esse gate. Nenhum deploy, desligamento remoto ou alteração real foi executado nesta revisão.

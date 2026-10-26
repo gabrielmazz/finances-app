@@ -4,11 +4,31 @@ relacionado: [[Plano de Funcionalidade Completa sem Blaze]], [[Integração Fina
 status: em desenvolvimento
 tipo: acompanhamento
 versao: 1.8.0
-revisado_em: 2026-10-23
-spark_progress: 56
+revisado_em: 2026-10-25
+spark_progress: 59
 ---
 
 # Status da Implementação Spark
+
+**Anotações por tela - 25/10/2026:** lista/editor compartilhados Web/mobile com atualização/retry e erro persistente. Armazenamento inválido não vira vazio nem pode ser sobrescrito por read-modify-write. Salvamento/recarga bloqueiam edição e conservam rascunho em falha/conflito; foco/UID/montagem protegem leituras. Revisão local annotations-2026-10-25 libera somente annotations uma vez. Dados continuam locais, removidos no logout explícito, sem Firebase/sincronização. Percentuais Spark mantidos (financeiro 78%, geral 59%); não é bootstrap/corte de contas. 40 testes focados distintos, tipagem, estilos e diff-check aprovados; sem homologação visual/aparelho ou deploy. Ver [[Anotações Locais]] e [[Versão Usável por Telas]].
+
+**Diagnóstico de aporte local - 25/10/2026:** conta criada pelo cadastro tem Auth/perfil, mas ainda não possui bootstrap Spark (D03). `null` da ponte fazia a carteira tentar Functions desligadas na demonstração. O hook de investimento bloqueia esse fallback em demo-lumus-financas e orienta usar a conta preparada; Web/mobile mostram a causa na notificação. Cadastro/grupo não são migrados ou ativados automaticamente. 29 testes focados distintos, tipagem/estilos/diff-check aprovados. Ver [[Investimentos]], [[Guia de Testes Locais]] e [[Versão Usável por Telas]]. F08 75%, financeiro 78% e geral 59% mantidos; sem Rules/deploy/dados reais.
+
+**Vínculos por tela - 24/10/2026:** convite/aceite/revogação usam Firestore e Rules com par canônico, revisão, recibo atômico e cota de dez envios/aceites por minuto. Somente destinatário aceita; revogação prevalece sobre grants antigos sem alterar grupo/papel. Formulário compartilhado Web/mobile tem listas/retry, revisão explícita, confirmação incerta e guardas por foco/UID. Liberação local somente addUserRelation uma vez. U02 sobe a 65% (75/75/25/75), bloco usuários 50% e geral 59% (58,8375% exatos); financeiro 78% preservado. 101 testes focados distintos e cinco regressões de Rules aprovados; tipos app/backend, estilos e diff-check conferidos. Evidências em [[Versão Usável por Telas]] e [[Vínculos de Usuários Spark]]. Membros, conversão integral, rollout legado e aparelhos continuam pendentes; sem deploy ou dados reais.
+
+**Perfil por tela - 24/10/2026:** leitura própria confirmada no servidor, atualização/retry Web/mobile preservando rascunho e salvamento por comparação transacional do nome. Conflito não sobrescreve outra sessão; envio bloqueia edição/recarga e respostas antigas não publicam dados/feedback. Resumo inválido não vira zero; cópia e foco conferem montagem/sessão. Revisão local libera somente profile uma vez, com addUserRelation independente. 50 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro em [[Versão Usável por Telas]]. U01 mantém 100/75/75/75 (85%), financeiro 78% e geral 56%; U02 nativo, homologação e demais pendências permanecem. Sem deploy, escrita real ou novo aceite visual/Emulator/aparelho.
+
+**Previsão financeira por tela - 24/10/2026:** Web/mobile compartilha leitura com snapshot por sessão/horizonte e guard de foco/geração. Falhas retornadas/lançadas limpam cenário e encerram loading/refresh, com retry. Atualização explícita e seletor 3/6/12 permanecem disponíveis em erro; detalhes reiniciados. Cálculos Spark, separação de posição/projeção e privacidade preservados; nenhum escritor adicionado. Revisão local libera somente financialForecast uma vez. 45 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro em [[Versão Usável por Telas]]. F11 mantém 100/75/25/75 (75%), financeiro 78% e geral 56%; importados, assistente e homologação permanecem. Sem deploy, escrita real ou novo aceite visual/Emulator/aparelho.
+
+**Análise por categoria por tela - 23/10/2026:** Web/mobile observa UID reativo, associa snapshot à consulta e descarta respostas antigas por sessão/período/foco/geração. Exceções e falhas retornadas limpam dados e encerram carregamento/refresh, com retry e atualização explícita. PDF exige relatório pronto, trava simultânea e escopo atual; privacidade e estornos líquidos preservados. Revisão local libera somente categoryAnalysis uma vez. 49 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro em [[Versão Usável por Telas]]. F10 mantém 100/75/50/50 (78%), financeiro 78% e geral 56%; volume, compatibilidade e homologação permanecem. Sem deploy, escrita real ou novo aceite visual/Emulator/aparelho.
+
+**Investimentos por tela - 23/10/2026:** cadastro Web/mobile usa saldo canônico confirmado e retry, atualiza a origem após sucesso e permite confirmar a mesma tentativa após débito. Carteira descarta respostas antigas, limpa fotografias anteriores e não calcula resultado com histórico/taxas indisponíveis. Estado por UID, trava síncrona, bloqueio de material pendente e confirmação/continuação preservam as fases financeiras. Cache falha separadamente. Revisão local habilita somente addFinance uma vez. 66 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro em [[Versão Usável por Telas]]. F08 mantém 100/75/25/75 (75%), financeiro 78% e geral 56%; importados, recuperação integral, assistente e homologação permanecem. Sem deploy, escrita real ou nova validação visual/Emulator/aparelho.
+
+**Receitas recorrentes por tela - 23/10/2026:** entrada Web/mobile confirma contexto/registro com retry, preserva categorias autorizadas do grupo e bloqueia material incerto/contrato existente. Listas descartam respostas antigas por UID/foco/geração, oferecem atualização/retry e ocultam resumo/PDF indisponíveis. Agenda falha separadamente; modal mantém a confirmação incerta. Receita parcelada exige nominal exato com resto final, sem quitação negociada. Revisão local habilita somente addMandatoryGains uma vez. 72 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro desta revisão em [[Versão Usável por Telas]]. F07 mantém 100/75/50/75 (80%), financeiro 78% e geral 56%; recuperação integral após reload, compatibilidade, assistente e homologação continuam pendentes. Sem deploy, escrita real ou nova validação visual/Emulator/aparelho.
+
+**Despesas recorrentes por tela — 23/10/2026:** entrada Web/mobile aguarda contexto/registro, conserva categorias autorizadas do grupo e bloqueia material incerto. Lista ganha recarga/retry, descarte por UID/foco/geração e resumo/PDF indisponíveis em falha. Agenda e cache falham separadamente; ações incertas conservam confirmação. Liberação local somente da chave compartilhada addMandatoryExpenses. 65 testes focados distintos, tipagem/estilos/diff-check aprovados; sem nova validação visual/Emulator/aparelho ou deploy. F07 mantém 100/75/50/75 (80%), financeiro 78% e geral 56%; recuperação integral após reload, compatibilidade restante, assistente e homologação permanecem. Evidências desta revisão e roteiro em [[Versão Usável por Telas]].
+
+**Ajuste por tela — 23/10/2026:** formulário compartilhado Web/mobile usa abertura/prévia por UID/rota/seleção, atualiza a prévia pronta sem perder rascunho e isola preparações atrasadas. Resultado incerto bloqueia argumentos e conserva a tentativa; sucesso persiste sem confundir falha de cache com falha financeira. Liberação local apenas de bankBalanceAdjustment. 71 testes focados distintos, tipagem/estilos/diff-check aprovados. F05 mantém 100/75/25/75 (75%), financeiro 78% e geral 56%. Recuperação material após reload, assistente, compatibilidade importada/especial e homologação continuam pendentes. Validação desta revisão e roteiro em [[Versão Usável por Telas]].
 
 **Saque para Caixa por tela — 23/10/2026:** Web/mobile usam contexto/catálogo/saldo com retry e Caixa canônico ativo, descartam respostas antigas e atualizam a origem após sucesso. Justificativa de banco negativo fica explícita; confirmação incerta bloqueia campos e conserva argumentos mesmo com saldo já debitado ou erro de leitura. Liberação local uma vez apenas de addRescue. 57 testes focados distintos, tipagem/estilos/diff-check aprovados. F06 mantém 100/75/50/75 (80%); financeiro 78% e geral 56% preservados. Sem novo aceite visual autenticado, Emulator/aparelho ou deploy; compatibilidade, assistente e recuperação material após reload continuam pendentes. Validação desta revisão e roteiro em [[Versão Usável por Telas]].
 
@@ -24,7 +44,7 @@ spark_progress: 56
 
 Revisão de **22/10/2026**, após completar os fluxos nativos de renegociação, parcelas vencidas e edição/desfazimento de avaliação de investimentos, além das entradas Web/mobile já conectadas. Este é o quadro canônico de acompanhamento. Escopo confirmado: Firebase Spark, Web/mobile e assistente, preservação das funcionalidades e dados, sem Blaze nem executor externo. A limitação de push com todos os aplicativos fechados foi aceita; lembretes locais e avisos ao abrir/retornar continuam obrigatórios.
 
-**Financeiro completo: 78% implementado / 22% restante. Projeto Spark geral: 56% implementado / 44% restante. Publicação: ainda não aprovada.** Os números substituem as estimativas informais anteriores. Nenhum percentual significa tempo restante, linhas prontas, cobertura de testes ou garantia de ausência de defeitos.
+**Financeiro completo: 78% implementado / 22% restante. Projeto Spark geral: 59% implementado / 41% restante. Publicação: ainda não aprovada.** Os números substituem as estimativas informais anteriores. Nenhum percentual significa tempo restante, linhas prontas, cobertura de testes ou garantia de ausência de defeitos.
 
 ## Como os percentuais são calculados
 
@@ -47,11 +67,11 @@ Notas usam **0 / 25 / 50 / 75 / 100**: ausente; base isolada/reutilizável; parc
 |---|---:|---:|---:|
 | Módulo financeiro completo | 50% | 78% | 22% |
 | Dados, migração e ativação | 20% | 36% | 64% |
-| Autenticação, usuários e privacidade | 10% | 22% | 78% |
+| Autenticação, usuários e privacidade | 10% | 50% | 50% |
 | Assistente, IA e voz | 10% | 38% | 62% |
 | Avisos e lembretes | 5% | 69% | 31% |
 | Release, homologação e operação | 5% | 9% | 91% |
-| **Projeto Spark geral** | **100%** | **56%** | **44%** |
+| **Projeto Spark geral** | **100%** | **59%** | **41%** |
 
 Documentos de detalhe herdam a nota do módulo indicado no cartão de progresso. Eles não são unidades adicionais de trabalho: não somar o principal, o financiamento e a criação retroativa de investimentos novamente sobre F08. As fases do plano também se sobrepõem e não são somadas para calcular o geral.
 
@@ -63,7 +83,7 @@ Documentos de detalhe herdam a nota do módulo indicado no cartão de progresso.
 | 1 — Prova crítica do protocolo | 100% | Critérios da prova inicial cumpridos em Auth/Firestore locais para as famílias ensaiadas. Não significa paridade integral nem publicação; novas famílias reabrem os critérios pertinentes. |
 | 2 — Compatibilidade de dados | 36% | Resultado ponderado de D01–D03: ferramentas locais presentes, formatos/ativação real pendentes. |
 | 3 — Serviços do núcleo financeiro | 100% | Média ponderada de P em F01–F11: contratos nativos definidos e ensaiados. Recuperação persistente, dados e integração/aceitação permanecem nos respectivos eixos e impedem concluir o módulo completo. |
-| 4 — Usuários e privacidade | 22% | Resultado de U01–U03; autenticação é reutilizável, mas convite/revogação/exclusão não possuem fluxo Spark completo. |
+| 4 — Usuários e privacidade | 50% | U01–U03: convites/aceite/revogação têm SDK/Rules e entradas Web/mobile; membros, conversão de dados, exclusão e homologação permanecem. |
 | 5 — Integração completa | 65% | 70% do eixo I financeiro + 20% de A02 + 10% de N01/N02. Fluxos nativos principais Web/mobile conectados; assistente, recuperação integral e compatibilidade continuam parciais. |
 | 6 — Perfil de release Spark | 0% | R01: script ainda publica functions,firestore; não existe perfil Spark implementado. |
 | 7 — Homologação e transição | 23% | R02: cenário local reproduzível e ensaio autenticado dos fluxos principais; faltam matriz integral, aparelhos, piloto e reversão. |
@@ -114,16 +134,16 @@ A fase 1 mede somente a prova inicial: identidade/replay/sessão, atomicidade/co
 - **D02 — Falta:** Concluir formatos legados/especiais, capital/cadastros e contas inativas/futuras, conservando proveniência. **Evidência inspecionada:** `backend/scripts/lib/sparkLegacyNormalization.ts; sparkLedgerImport.ts; sparkRecurringImport.ts; utils/sparkFinancialReconciliation.ts`.
 - **D03 — Falta:** Implementar primeira inicialização e ativação controlada, consentimentos, corte dos escritores e recuperação. **Evidência inspecionada:** `backend/scripts/lib/sparkBootstrapPreflight.ts; backend/scripts/lib/sparkLedgerImport.ts; firestore.rules`.
 
-### Autenticação, usuários e privacidade — 22%
+### Autenticação, usuários e privacidade — 50%
 
 | ID | Módulo | Peso no bloco | P | I | D | E | Progresso |
 |---|---|---:|---:|---:|---:|---:|---:|
 | U01 | Auth, sessão, perfil e privacidade visual | 20% | 100 | 75 | 75 | 75 | **85%** |
-| U02 | Convites, aceite e revogação | 50% | 25 | 0 | 0 | 0 | **10%** |
+| U02 | Convites, aceite e revogação | 50% | 75 | 75 | 25 | 75 | **65%** |
 | U03 | Solicitação e processamento de exclusão | 30% | 0 | 0 | 0 | 0 | **0%** |
 
 - **U01 — Falta:** Homologar login/perfil/sessão, App Check e limpeza de cache no ambiente Spark instalado. **Evidência inspecionada:** `contexts/AuthContext.tsx; contexts/FinanceDataContext.tsx; functions/SparkContextFirebase.ts; functions/RegisterUserFirebase.ts`.
-- **U02 — Falta:** Criar o protocolo Spark completo de convites/grants/membros sem autoatribuição; migrar relações existentes. **Evidência inspecionada:** `functions/UserRelationshipFirebase.ts; backend/src/userRelationships.ts; firestore.rules`.
+- **U02 — Falta:** Concluir filiação de grupos sem autoatribuição, conversão integral dos vínculos/convites existentes, rollout com bloqueio dos endpoints antigos, volume/abuso e homologação. Par nativo, convite/aceite/revogação, recibo/cota, leitores e entradas Web/mobile já conectados. **Evidência inspecionada:** `functions/SparkUserRelationshipFirebase.ts; UserRelationshipFirebase.ts; RegisterUserFirebase.ts; hooks/useUserRelationships.ts; components/uiverse/users/user-relationships-form.tsx; firestore.rules; backend/tests/sparkUserRelationships.emulator.test.ts`.
 - **U03 — Falta:** Substituir a callable por solicitação própria protegida e definir atendimento/retenção/processamento. **Evidência inspecionada:** `functions/RegisterUserFirebase.ts; backend/src/accountDeletionRequests.ts`.
 
 ### Assistente, IA e voz — 38%

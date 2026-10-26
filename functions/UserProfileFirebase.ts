@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDocFromServer, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/FirebaseConfig';
 import { getAllUsersFirebase, getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
 import { getBanksWithUsersByPersonFirebase } from '@/functions/BankFirebase';
@@ -28,7 +28,7 @@ function requireProfileOwner(uid: string) {
 
 export async function getUserProfileFirebase(uid: string): Promise<UserProfile> {
 	const user = requireProfileOwner(uid);
-	const snapshot = await getDoc(doc(db, 'users', uid));
+	const snapshot = await getDocFromServer(doc(db, 'users', uid));
 	requireProfileOwner(uid);
 	if (!snapshot.exists()) throw new Error('profile/not-found');
 	const data = snapshot.data();
@@ -50,7 +50,7 @@ export async function getUserProfileAccessSummaryFirebase(uid: string, profile: 
 		getAllUsersFirebase(), getBanksWithUsersByPersonFirebase(uid), getTagsWithUsersByPersonFirebase(uid),
 	]) : [await getRelatedUsersFirebase(uid)];
 	requireProfileOwner(uid);
-	if (results.some(result => !result.success)) throw new Error('profile/access-summary');
+	if (results.some(result => !result.success || !Array.isArray(result.data))) throw new Error('profile/access-summary');
 	return { isAdmin: profile.adminUser, monitoredRecordsCount: results.reduce((total, result) => total + (Array.isArray(result.data) ? result.data.length : 0), 0) };
 }
 

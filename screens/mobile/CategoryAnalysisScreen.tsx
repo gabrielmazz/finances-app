@@ -1,3 +1,6 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { useFocusEffect } from 'expo-router';
 import React from 'react';
 import {
 	Platform,
@@ -281,13 +284,19 @@ export default function CategoryAnalysisScreen() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
-	const currentUserId = auth.currentUser?.uid ?? null;
-	const { analysis, isLoading, isRefreshing, errorMessage, loadAnalysis, range, rangeError, setStartDate, setEndDate } = useCategoryAnalysisData(currentUserId);
+	const { user } = useAuth();
+	const currentUserId = user?.uid ?? null;
+	const { analysis, isLoading, isRefreshing, errorMessage, loadAnalysis, range, rangeError, setStartDate, setEndDate, isReady, requestKey } = useCategoryAnalysisData(currentUserId);
 	const [showAllMovements, setShowAllMovements] = React.useState(false);
 	const [movementPage, setMovementPage] = React.useState(0);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedType, setSelectedType] = React.useState<CategoryAnalysisMovementType>('expense');
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
+	const exportLock = React.useRef<object | null>(null);
+	const { beginRequest: beginExport, cancelRequest: cancelExport } = useBankMovementsRequest(`category-analysis-export:${requestKey}:${selectedTagId}:${selectedType}:${shouldHideValues}:${analysis?.generatedAt.getTime() ?? 'unavailable'}:${isReady}`);
+	React.useEffect(() => { exportLock.current = null; setIsExportingPdf(false); setSelectedTagId(null); setSelectedType('expense'); }, [currentUserId]);
+	React.useEffect(() => () => { exportLock.current = null; }, []);
+	useFocusEffect(React.useCallback(() => cancelExport, [cancelExport]));
 
 	const {
 		isDarkMode,
@@ -493,7 +502,7 @@ export default function CategoryAnalysisScreen() {
 			: 'Selecione uma categoria para gerar o relatório.';
 
 	const handleExportCategoryAnalysisPdf = React.useCallback(async () => {
-		if (isExportingPdf) {
+		if (exportLock.current || isExportingPdf || !isReady || isLoading || isRefreshing || errorMessage || rangeError || auth.currentUser?.uid !== currentUserId) {
 			return;
 		}
 
@@ -517,7 +526,7 @@ export default function CategoryAnalysisScreen() {
 					: metric.deltaInCents > 0
 						? 'gain'
 						: 'expense';
-		const generatedAtLabel = formatGeneratedAtLabel(new Date());
+		const generatedAtLabel = formatGeneratedAtLabel(analysis!.generatedAt);
 		const metrics: CategoryAnalysisPdfMetric[] = [
 			{
 				label: `${getMovementTypeLabel(selectedType)} no mês`,
@@ -593,6 +602,8 @@ export default function CategoryAnalysisScreen() {
 				: null,
 		});
 
+		const lock = {}; exportLock.current = lock; const isCurrentExport = beginExport();
+		if (!isCurrentExport()) { exportLock.current = null; return; }
 		setIsExportingPdf(true);
 		try {
 			// Exporta a análise seguindo [[Análise por Categoria]] e [[Privacidade de Valores]].
@@ -607,6 +618,7 @@ export default function CategoryAnalysisScreen() {
 				dialogTitle: `Baixar análise de ${selectedReport.tagName}`,
 			});
 
+			if (!isCurrentExport()) return;
 			if (exportResult.status === 'popup-blocked') {
 				showNotifierAlert({
 					title: 'Permita pop-ups',
@@ -634,6 +646,7 @@ export default function CategoryAnalysisScreen() {
 				isDarkMode,
 			});
 		} catch (error) {
+			if (!isCurrentExport()) return;
 			console.error('Erro ao gerar PDF da análise por categoria:', error);
 			showNotifierAlert({
 				description: 'Não foi possível gerar o PDF da análise agora.',
@@ -641,9 +654,10 @@ export default function CategoryAnalysisScreen() {
 				isDarkMode,
 			});
 		} finally {
-			setIsExportingPdf(false);
+			if (exportLock.current === lock) { exportLock.current = null; setIsExportingPdf(false); }
 		}
 	}, [
+		currentUserId, isReady, isLoading, isRefreshing, errorMessage, rangeError, analysis, beginExport,
 		activeBreakdown,
 		breakdownTotalInCents,
 		formatCurrencyBRL,
@@ -760,6 +774,9 @@ export default function CategoryAnalysisScreen() {
 								</HStack>
 
 								{/* Os filtros continuam acessíveis para corrigir períodos inválidos ou repetir uma consulta. */}
+								<Button variant="outline" onPress={() => void loadAnalysis(true)} isDisabled={isLoading || isRefreshing || isExportingPdf || Boolean(rangeError)}>
+									<ButtonText>Atualizar análise</ButtonText>
+								</Button>
 								<CategoryAnalysisPeriodFields
 									range={range} error={rangeError} disabled={isLoading || isRefreshing || isExportingPdf}
 									onStartChange={setStartDate} onEndChange={setEndDate}
@@ -769,7 +786,7 @@ export default function CategoryAnalysisScreen() {
 								) : errorMessage ? (
 									<View className={`${categoryCardClassName} px-5 py-5`}>
 										<VStack className="gap-4">
-											<Text className={`${bodyText} text-sm leading-5`}>{errorMessage}</Text>
+											<Text className={`${bodyText} text-sm leading-5`} accessibilityRole="alert">{errorMessage}</Text>
 											<Button className={submitButtonClassName} onPress={() => void loadAnalysis(false)}>
 												<ButtonText className={submitButtonTextClassName}>Tentar novamente</ButtonText>
 											</Button>
@@ -1183,7 +1200,7 @@ export default function CategoryAnalysisScreen() {
 													onPress={() => {
 														void handleExportCategoryAnalysisPdf();
 													}}
-													isDisabled={isExportingPdf || isLoading || !selectedReport || !metric}
+													isDisabled={isExportingPdf || !isReady || !selectedReport || !metric}
 												>
 													{isExportingPdf ? (
 														<>

@@ -23,23 +23,32 @@ export function useUserProfile() {
 	const [saving, setSaving] = React.useState(false);
 	const [feedback, setFeedback] = React.useState<{ text: string; error: boolean } | null>(null);
 	const [retry, setRetry] = React.useState(0);
+	const [stateUid, setStateUid] = React.useState(uid);
+	const uidRef = React.useRef(uid); uidRef.current = uid;
+	const readReady = React.useRef(false);
 	const lifetime = React.useRef(0);
-	const saveLock = React.useRef(false);
-	const copyLock = React.useRef(false);
+	const saveLock = React.useRef<object | null>(null);
+	const copyLock = React.useRef<object | null>(null);
 	const lastFocusedUid = React.useRef<string | undefined>(undefined);
 	const preserveDraftOnReload = React.useRef(false);
 	const draftRef = React.useRef({ name, profile });
 	draftRef.current = { name, profile };
 
-	useFocusEffect(React.useCallback(() => {
-		if (lastFocusedUid.current !== uid) { lastFocusedUid.current = uid; return; }
+	const reload = React.useCallback(() => {
+		if (saveLock.current || auth.currentUser?.uid !== uid || uidRef.current !== uid) return;
 		const draft = draftRef.current;
 		preserveDraftOnReload.current = Boolean(draft.profile && draft.profile.uid === uid && draft.name.trim() !== draft.profile.name);
+		readReady.current = false;
 		setRetry(value => value + 1);
-	}, [uid]));
+	}, [uid]);
+	useFocusEffect(React.useCallback(() => {
+		if (lastFocusedUid.current !== uid) { lastFocusedUid.current = uid; return; }
+		reload();
+	}, [uid, reload]));
 
 	React.useEffect(() => {
 		const version = ++lifetime.current;
+		setStateUid(uid); readReady.current = false;
 		const preserveDraft = preserveDraftOnReload.current && draftRef.current.profile?.uid === uid;
 		const preservedName = draftRef.current.name;
 		preserveDraftOnReload.current = false;
@@ -56,9 +65,10 @@ export function useUserProfile() {
 		setLoadError('');
 		setLoading(true);
 		setSaving(false);
-		saveLock.current = false;
-		const isCurrent = () => lifetime.current === version && auth.currentUser?.uid === uid;
+		saveLock.current = null; copyLock.current = null;
+		const isCurrent = () => lifetime.current === version && uidRef.current === uid && auth.currentUser?.uid === uid;
 		if (!uid) {
+			setLoadError('Entre novamente para carregar seu perfil.');
 			setLoading(false);
 			setAccessSummaryLoading(false);
 			setRelatedUsersLoading(false);
@@ -72,6 +82,7 @@ export function useUserProfile() {
 				if (!isCurrent()) return;
 				setProfile(result);
 				setName(preserveDraft ? preservedName : result.name);
+				readReady.current = true;
 				setLoading(false);
 				profileLoaded = true;
 
@@ -103,83 +114,86 @@ export function useUserProfile() {
 		return () => { lifetime.current += 1; };
 	}, [uid, retry]);
 
-	const currentProfile = profile?.uid === uid ? profile : null;
+	const sameSession = stateUid === uid && auth.currentUser?.uid === uid;
+	const currentProfile = sameSession && profile?.uid === uid ? profile : null;
 	const dirty = Boolean(currentProfile && name.trim() !== currentProfile.name);
 	const changeName = (value: string) => {
+		if (saveLock.current || !readReady.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return;
 		setName(value);
 		setFeedback(null);
 		if (nameError) setNameError(getProfileNameError(value));
 	};
 	const reset = () => {
-		if (saveLock.current) return;
+		if (saveLock.current || !readReady.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return;
 		setName(currentProfile?.name ?? '');
 		setNameError(null);
 		setFeedback(null);
 	};
 	const save = async () => {
-		if (!uid || !currentProfile || saveLock.current) return false;
+		if (!uid || !currentProfile || saveLock.current || !readReady.current || loading || loadError || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
 		const validation = getProfileNameError(name);
 		setNameError(validation);
 		if (validation) return false;
 		if (!dirty) return true;
 		const version = lifetime.current;
-		const isCurrent = () => version === lifetime.current && auth.currentUser?.uid === uid;
-		saveLock.current = true;
+		const isCurrent = () => version === lifetime.current && uidRef.current === uid && auth.currentUser?.uid === uid;
+		const lock = {}; saveLock.current = lock;
+		const submittedName = name;
 		setSaving(true);
 		setFeedback(null);
 		try {
-			const savedName = await updateUserProfileFirebase(uid, name);
+			const savedName = await updateUserProfileFirebase(uid, submittedName, { expectedName: currentProfile.name, isCurrent });
 			if (!isCurrent()) return false;
 			setProfile({ ...currentProfile, name: savedName });
 			setName(savedName);
 			setFeedback({ text: 'Perfil atualizado.', error: false });
 			return true;
-		} catch {
-			if (isCurrent()) setFeedback({ text: 'Não foi possível salvar. Suas alterações foram mantidas; tente novamente.', error: true });
+		} catch (error) {
+			if (isCurrent()) setFeedback({ text: error instanceof Error && error.message.includes('Seu nome mudou') ? `${error.message} Atualize o perfil; seu rascunho será preservado.` : 'Não foi possível salvar. Suas alterações foram mantidas; tente novamente.', error: true });
 			return false;
 		} finally {
-			if (version === lifetime.current) {
-				saveLock.current = false;
+			if (saveLock.current === lock && version === lifetime.current) {
+				saveLock.current = null;
 				setSaving(false);
 			}
 		}
 	};
 	const copyId = async () => {
-		if (!uid || copyLock.current) return false;
+		if (!uid || !currentProfile || loading || loadError || !readReady.current || copyLock.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
 		const version = lifetime.current;
-		copyLock.current = true;
+		const lock = {}; copyLock.current = lock;
 		try {
 			const copied = await Clipboard.setStringAsync(uid);
 			if (!copied) throw new Error('clipboard/unavailable');
-			if (version !== lifetime.current || auth.currentUser?.uid !== uid) return false;
+			if (version !== lifetime.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
 			setFeedback({ text: 'ID copiado.', error: false });
 			return true;
 		} catch {
-			if (version === lifetime.current && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar o ID. Tente novamente.', error: true });
+			if (version === lifetime.current && uidRef.current === uid && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar o ID. Tente novamente.', error: true });
 			return false;
 		} finally {
-			copyLock.current = false;
+			if (copyLock.current === lock) copyLock.current = null;
 		}
 	};
 	return {
 		profile: currentProfile,
-		accessSummary,
-		accessSummaryLoading,
-		accessSummaryError,
-		relatedUsers,
-		relatedUsersLoading,
-		relatedUsersError,
-		name,
+		accessSummary: sameSession ? accessSummary : null,
+		accessSummaryLoading: !sameSession || accessSummaryLoading,
+		accessSummaryError: sameSession && accessSummaryError,
+		relatedUsers: sameSession ? relatedUsers : [],
+		relatedUsersLoading: !sameSession || relatedUsersLoading,
+		relatedUsersError: sameSession && relatedUsersError,
+		name: sameSession ? name : '',
 		changeName,
-		nameError,
-		loading,
-		loadError,
-		saving,
+		nameError: sameSession ? nameError : null,
+		loading: !sameSession || loading,
+		loadError: sameSession ? loadError : '',
+		saving: sameSession && saving,
 		dirty,
-		feedback,
+		feedback: sameSession ? feedback : null,
 		save,
 		reset,
 		copyId,
-		reload: () => setRetry(value => value + 1),
+		reload,
 	};
 }

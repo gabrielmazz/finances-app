@@ -5,16 +5,16 @@ status: historico
 tipo: arquitetura
 versao: 1.1.0
 spark_scope: projeto
-spark_progress: 56
-spark_reviewed_at: 2026-10-22
+spark_progress: 59
+spark_reviewed_at: 2026-10-24
 ---
 
 # Viabilidade do Plano Spark
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 24/10/2026
 
-**Estudo histórico de 16/10/2026.** O plano vigente é [[Plano de Funcionalidade Completa sem Blaze]]: projeto geral **56%**, financeiro completo **78%**. A matriz e as alternativas abaixo preservam o diagnóstico daquela data; não são o status atual de cada operação. Ver [[Status da Implementação Spark]].
+**Estudo histórico de 16/10/2026.** O plano vigente é [[Plano de Funcionalidade Completa sem Blaze]]: projeto geral **59%**, financeiro completo **78%**. A matriz e as alternativas abaixo preservam o diagnóstico daquela data; não são o status atual de cada operação. Ver [[Status da Implementação Spark]].
 
 As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
 <!-- spark-progress:end -->

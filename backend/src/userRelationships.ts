@@ -53,6 +53,9 @@ export const userRelationship = secureOnCall( async request => {
 	const operationRef = db.doc(`userRelationshipOperations/${operationId}`);
 	const requestFingerprint = fingerprint([uid, action, relatedUserId]);
 	return db.runTransaction(async transaction => {
+        const [first, second] = [uid, relatedUserId].sort();
+        const nativePair = await transaction.get(db.doc(`sparkUserRelationships/${first}/sparkRelationshipPairs/${second}`));
+        if (nativePair.exists) throw new HttpsError('failed-precondition', 'Este vínculo usa o aplicativo atualizado. Confira o pedido nele.');
 		const [owner, target, receipt, incomingInvite, outgoingInvite, ownerGrant, targetGrant] = await Promise.all([
 			transaction.get(ownerRef), transaction.get(targetRef),
 			action !== 'preview' ? transaction.get(operationRef) : Promise.resolve(null),

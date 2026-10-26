@@ -1028,3 +1028,71 @@ Validação: 49 testes focados distintos, tipagem, estilos e diff-check aprovado
 Escopo: AddRescueScreen Web/mobile. Severidade média: carga falhava apenas em alerta transitório e não permitia recarga; permanecer com campos após sucesso conservava saldo antigo. Argumentos incertos permaneciam editáveis e faltava orientação persistente para justificar saldo bancário negativo.
 
 Correção: MovementFormStatus com carregamento/erro e retry, orientação de banco indisponível, recarga após sucesso, bloqueio de banco/valor/data/observações incertos e botão **Confirmar saque anterior**. Justificativa de 3 a 500 caracteres Spark explicada junto às observações. Componentes Gluestack e tokens existentes preservados; sem novos estilos inline/cores literais. 57 testes focados distintos, tipagem/estilos/diff-check aprovados. Testes de renderização simulam apresentação/serviços; inspeção visual autenticada, temas, foco, teclado/leitor de tela e aparelho permanecem pendentes. Ver [[Resgate de Caixa]] e [[Versão Usável por Telas]] para evidências e roteiro.
+
+## Ajuste de saldo utilizável — 23/10/2026
+
+Escopo: formulário compartilhado por BankBalanceAdjustmentScreen Web/mobile. Severidade média: prévia pronta sem atualização manual podia conservar base antiga; argumentos incertos permaneciam editáveis; erro de envio era transitório e falha síncrona de cache após commit podia sugerir outro envio.
+
+Correção: atualização explícita da prévia sem perder rascunho, estado próprio por seleção, erro de envio persistente, bloqueio de banco/valor/sinal/data/descrição incertos e **Confirmar ajuste anterior**. Catálogo vazio tem orientação/recarga; texto temporal explica o saldo ao final do dia. Sucesso conserva confirmação e acesso ao extrato. Reutilizados controles Gluestack, classes semânticas e máscaras existentes, sem novos estilos inline/cores literais.
+
+71 testes focados distintos, tipagem/estilos/diff-check aprovados. Detalhes e roteiro em [[Versão Usável por Telas]]. Testes de renderização usam apresentação/serviços simulados. Inspeção visual autenticada de temas, foco, teclado/leitor de tela, telas estreitas e aparelho continua pendente nesta revisão.
+
+## Despesas recorrentes utilizáveis — 23/10/2026
+
+Escopo: AddMandatoryExpensesScreen e MandatoryExpensesListScreen Web/mobile. Severidade alta de fluxo: falha de edição liberava campos vazios; filtro local descartava categoria autorizada do grupo. Severidade média: lista conservava dados anteriores após erro, não tinha atualização explícita Web e fechava a confirmação de uma ação incerta.
+
+Correção: estados persistentes de preparação/erro com retry; bloqueio de material incerto e de contrato imutável; leitura de categorias pelo adaptador autorizado; lista com atualização, limpeza/carregamento e ocultação do resumo/PDF indisponíveis. Agenda falha separadamente. Modal mantém a mesma confirmação até recuperar o resultado. Componentes Gluestack/MovementFormStatus, tokens, máscaras e controles existentes preservados, sem novos estilos inline/cores literais.
+
+65 testes focados distintos, tipagem/estilos/diff-check aprovados. Evidências e roteiro em [[Versão Usável por Telas]]. Inspeção visual autenticada de temas, foco, teclado/leitor de tela, conteúdo longo e aparelho continua pendente. Testes de interfaces usam apresentação e serviços simulados; não homologam notificações nativas.
+
+## Receitas recorrentes utilizáveis - 23/10/2026
+
+Escopo: AddMandatoryGainsScreen e MandatoryGainsListScreen Web/mobile. Severidade alta de fluxo: erro de edição podia liberar formulário vazio e filtro local descartava categoria autorizada do grupo. Severidade média: lista conservava valores anteriores em falha e confirmação de ação incerta era fechada.
+
+Correção: MovementFormStatus com carregamento/erro persistente e retry; categorias pelo adaptador autorizado; bloqueio de material incerto e contrato existente. Lista oferece atualização, limpa leituras antigas e oculta resumo/calendário/PDF indisponíveis. Agenda tem aviso separado, e modal conserva **Confirmar ação anterior**. Componentes Gluestack, tokens, máscaras e controles existentes preservados; sem novos estilos inline/cores literais. Receitas mantêm lastReceipt e textos próprios, sem introduzir negociação de quitação.
+
+Tipagem do aplicativo, arquitetura de estilos e diff-check aprovados; evidências de testes e roteiro em [[Versão Usável por Telas]]. Testes de interface simulam apresentação/serviços e não homologam componentes visuais, PDF ou notificações nativas. Inspeção visual autenticada de temas, foco, teclado/leitor de tela, conteúdo longo e aparelho continua pendente nesta revisão.
+
+## Investimentos utilizáveis - 23/10/2026
+
+Escopo: AddFinance e FinancialList Web/mobile e reabertura do desfazimento de avaliação vigente. Severidade alta de fluxo: cadastro consultava saldo legado e liberava validação com saldo ausente; carteira mantinha fotografia antiga após falha e podia usar histórico vazio como resultado real. Severidade média: campos e fechamento de modal não refletiam preparação/resultado incerto.
+
+Correção: saldo canônico com leitura/retry, bloqueio sem confirmação e atualização após sucesso; carteira limpa dados antigos e mostra erro persistente com atualização/retry. Inputs de operações pendentes ficam bloqueados e a mesma confirmação permanece acessível, conservando o modal e a fase. Falha de cache/recarga não repete efeitos financeiros. Reutilizados componentes Gluestack, MovementFormStatus, tokens e controles existentes, sem novos estilos inline/cores literais. Evidências em [[Versão Usável por Telas]]. Inspeção visual autenticada de temas, foco, teclado/leitor de tela, conteúdo longo e aparelho continua pendente; renderização simulada não homologa os componentes visuais.
+
+## Análise por categoria utilizável - 23/10/2026
+
+Escopo: CategoryAnalysisScreen Web/mobile e hook compartilhado. Severidade média: exceção inesperada na consulta podia deixar carregamento preso; UID lido diretamente do singleton não observava a troca de conta; faltava atualização explícita acessível no Web e no estado vazio. Exportação não tinha trava síncrona nem conferência de sessão/escopo antes do arquivo e do feedback.
+
+Correção: UID reativo, snapshot por consulta com descarte de respostas antigas, erro persistente com acessibilidade e retry; botão **Atualizar análise** em ambas as plataformas. PDF exige relatório pronto, conserva privacidade/sinais e descarta callbacks anteriores. Controles e tokens existentes preservados, sem novos estilos inline/cores literais. Evidências e roteiro em [[Versão Usável por Telas]]. Renderizações com gráficos/apresentação simulados não aprovam layout real, impressão, teclado/leitor de tela, temas e aparelho; esse aceite permanece pendente.
+
+## Previsão financeira utilizável - 24/10/2026
+
+Escopo: FinancialForecastScreen Web/mobile e leitura compartilhada. Severidade média: refresh/horizonte mantinham cenário antigo; exceção podia deixar carregamento preso; faltava atualização explícita e o seletor de horizonte sumia em falha. Estado anterior não estava associado à sessão/período na própria renderização.
+
+Correção: hook por consulta com descarte de respostas obsoletas, limpeza durante recarga e erro persistente acessível com retry. **Atualizar previsão** aparece nas duas plataformas; seletor 3/6/12 continua disponível em loading/erro. Confirmação da leitura reinicia o detalhamento mensal. Componentes Gluestack/Mantine e estilos existentes preservados, sem novos estilos inline/cores literais ou consumidor de useScreenStyles. Privacidade permanece no texto e contrato do gráfico. Evidências em [[Versão Usável por Telas]]. Gráfico DOM/Accordion simulados não homologam WebView, layout, teclado/leitor de tela, temas, foco ou aparelho; esse aceite permanece pendente.
+
+## Perfil utilizável - 24/10/2026
+
+Escopo: PerfilPersonScreen Web/mobile, hook e leitura/salvamento. Severidade média: atualização manual apagava rascunho, tela não usava comparação transacional já existente e callback de cópia/foco podia notificar após saída. Resposta de resumo sem dados podia parecer zero confirmado.
+
+Correção: **Atualizar perfil** acessível com rascunho preservado, nova leitura de servidor antes de salvar, conflito explícito mantendo edição, travas durante envio e proteção por sessão/montagem. Resumo e vínculos falham separadamente. Botão amarelo mobile usa `text-lumus-on-accent`. Tokens/componentes preservados, sem novos estilos inline/cores literais. Testes e roteiro em [[Versão Usável por Telas]]. Renderização nativa simulada e HTML estático não homologam layout, foco, beforeunload, temas, teclado/leitor de tela ou clipboard; aceite visual/aparelho permanece pendente.
+
+## Vínculos utilizáveis - 24/10/2026
+
+Escopo: AddUserRelation Web/mobile e formulário/hook compartilhados. Severidade alta: tela chamava Functions no caminho Spark; erro ao consultar convites era silenciado e respostas não acompanhavam UID/foco. Campos e identidade podiam mudar durante confirmação ou retry. Autorização de migração misturava um fluxo D03 ainda dependente de callable.
+
+Correção: SDK/Rules com revisão explícita de efeito, listas recebidas/enviadas/vinculadas e atualização/retry, estados indisponíveis sem vazio falso, travas síncronas e mesma identidade quando incerto. Blur/refoco não trava a confirmação nem publica feedback/navegação em outra tela/conta. Migração fica fora deste consentimento; grupo/papéis permanecem separados. Componentes/tokens existentes e rótulos acessíveis, texto primário `lumus-on-accent`. Métricas passam a 968 inline, 1110 cores literais, 344 arbitrários e 52 consumidores de useScreenStyles, sem nova exceção. Oito interfaces simuladas e SDK/Rules reais locais aprovados; layout, temas, teclado/leitor de tela e aparelho aguardam homologação. Evidências em [[Versão Usável por Telas]].
+
+## Diagnóstico de aporte na demonstração - 25/10/2026
+
+Severidade alta de integração: conta nova pelo cadastro não recebe bootstrap Spark, mas a ausência de contexto fazia o formulário tentar Functions no cenário que não as inicia. Severidade média de feedback: notificação do aporte/sincronização substituía a causa por outra mensagem genérica, embora o modal mantivesse `actionError`.
+
+Correção no hook compartilhado bloqueia esse fallback somente no projeto de demonstração e orienta usar a conta preparada; Web/mobile mostram a causa recebida também no notifier. Modais, rascunhos, travas, centavos e tokens preservados; nenhuma classe/estilo acrescentado. Testes em [[Versão Usável por Telas]]. Preparação automática de novos usuários e aceite visual/aparelho permanecem pendentes; esta recusa não os implementa.
+
+
+## Anotações por tela - 25/10/2026
+
+- Alta, integridade: coleção local inválida parecia vazia e podia ser sobrescrita. Leitura agora falha preservando dados brutos, e criação fica bloqueada até leitura válida. Não adiciona limpeza automática.
+- Média, feedback: erro transitório dependia apenas de notificação. Lista/editor agora mantêm causa no conteúdo, com retry da lista e rascunho preservado no salvamento; vazio somente após leitura bem-sucedida.
+- Média, concorrência: edição durante salvamento/recarga podia divergir do material enviado. Campo e editor DOM (toolbar/checklist incluídos) recebem bloqueio; trava síncrona impede envio duplicado.
+- Apresentação mantém classes semânticas existentes, sem novos estilos inline/cores/valores arbitrários. Tela compartilhada por Web/mobile; sem homologação visual de WebView, teclado ou aparelho. Evidências finais em [[Versão Usável por Telas]].

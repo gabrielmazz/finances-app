@@ -40,7 +40,7 @@ export default function InvestmentValuationUndo({ accountId, referenceOperationI
     } finally { if (lock.current === current) lock.current = null; if (generation.current === current) setBusy(false); }
   };
   return <>
-    <Button variant="outline" action="secondary" onPress={() => { spark.reset(); target.current = { referenceOperationId, revision }; setFeedback(null); setPreparing(false); setReason(''); setOpen(true); }}><ButtonText>Desfazer avaliação vigente</ButtonText></Button>
+    <Button variant="outline" action="secondary" onPress={() => { if (!spark.reset()) { setOpen(true); return; } target.current = { referenceOperationId, revision }; setFeedback(null); setPreparing(false); setReason(''); setOpen(true); }}><ButtonText>Desfazer avaliação vigente</ButtonText></Button>
     {!open && feedback && <Text className={LUMUS_CLASS_NAMES.helper}>{feedback}</Text>}
     <Modal isOpen={open} onClose={close} avoidKeyboard><ModalBackdrop /><ModalContent className={LUMUS_CLASS_NAMES.modal}>
       <ModalHeader><Text className={LUMUS_FORM_CLASS_NAMES.label}>Desfazer avaliação vigente</Text></ModalHeader>

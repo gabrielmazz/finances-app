@@ -6,13 +6,13 @@ tipo: feature
 versao: 1.1.0
 spark_module: F05
 spark_progress: 75
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-23
 ---
 
 # Ajuste de Saldo
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 23/10/2026
 
 **F05 — Ajustes e reconciliações: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
 
@@ -20,6 +20,18 @@ O percentual corresponde ao módulo completo, incluindo integração e dados, e 
 
 Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
 <!-- spark-progress:end -->
+
+## Ajuste utilizável Web/mobile — 23/10/2026
+
+O hook compartilhado observa o UID pelo AuthContext e identifica abertura/prévia por sessão, rota, banco, data e revisão de recarga. Troca de sessão/rota limpa rascunho e tentativa anterior; carregamento impede usar dados da abertura anterior. Respostas substituídas não publicam base, erro, sucesso ou navegação. Cada seleção recebe um estado Spark próprio, evitando que uma preparação atrasada modifique a operação atual. Edição ausente, resolvida, de outra pessoa ou cujo banco saiu do catálogo bloqueia a entrada; não se converte em criação. Catálogos Spark/razão anterior descartam bancos inativos e arquivados.
+
+**Atualizar prévia** aparece também quando a leitura terminou sem erro: uma prévia completa é descartada e preparada com a posição/revisão atual, conservando saldo informado e descrição. Preparação parcial/pausada mantém seu estado para continuar o histórico; preparar/pausar não confirma dinheiro. Falha de contexto ou preparação Spark nunca libera preview/escritor antigo. Bases inválidas permanecem indisponíveis, sem zero inventado. Catálogo vazio tem orientação e atualização explícita.
+
+Resposta incerta trava banco, valor, sinal, data e descrição, inclusive nos callbacks do hook. **Confirmar ajuste anterior** reutiliza fonte, estado/comando, ID e argumentos capturados; uma falha posterior da prévia não exige alterar o material para recuperar o resultado. Rejeição definitiva conserva o rascunho e renova a preparação. Erros de envio permanecem visíveis junto ao formulário. Saldo negativo Spark valida justificativa de 3 a 500 caracteres e o limite monetário antes do envio; o serviço mantém a validação do saldo atual projetado em ajustes retroativos.
+
+Sucesso confirmado desabilita novos envios e conserva a mensagem **Ajuste confirmado**, com acesso ao extrato enquanto a navegação ocorre. Invalidar o cache fica separado da confirmação financeira, incluindo falhas síncronas: erro de recarga não oferece outro ajuste nem vira falha do commit. Conclusão desfocada não redireciona; UID/rota substituídos não recebem feedback. Recuperação integral após reload continua pendente; o formulário conserva a intenção apenas em memória.
+
+Liberação local `balance-adjustment-2026-10-23` habilita somente `bankBalanceAdjustment` uma vez ao recarregar; outras preferências e desligamentos posteriores permanecem. F05 mantém 75% (100/75/25/75), financeiro 78% e geral 56%. 71 testes focados distintos, tipagem do aplicativo, estilos e diff-check aprovados. Detalhes e roteiro manual em [[Versão Usável por Telas]]. Sem novo aceite visual autenticado, Emulator, export/build, aparelho, deploy ou escrita em dados reais nesta revisão.
 
 ## Abertura mensal e ajustes nas telas — 21/10/2026
 
@@ -108,7 +120,7 @@ O dry-run/backfill de migração incorpora os ajustes legados e seus inversos co
 - Rotas `/mobile/bank-balance-adjustment` e `/web/bank-balance-adjustment` registradas em `APP_ROUTE_PATHS` e protegidas pelo guard autenticado derivado do registro central.
 - Entrada pela seção de relações e edição pelo extrato; não há novo item no navigator.
 - O formulário não exibe botão **Voltar**; o retorno continua disponível pela navegação do aplicativo e pelo botão físico no Android.
-- O CTA usa texto branco pelo contrato `LUMUS_CLASS_NAMES.primaryButtonText`, em paridade com o cadastro de despesas.
+- O CTA usa o foreground escuro `lumus-on-accent` pelo contrato `LUMUS_CLASS_NAMES.primaryButtonText`, sobre o amarelo do tema.
 - Este fluxo de conferência tem retorno fixo ao extrato com `bankId`, `bankName` e `focusDate`, sem preferência de limpeza/permanência em [[Comportamento Pós-Registro]]. O histórico precisa ser revisável imediatamente após a confirmação; não usa `router.back` como pós-submit.
 - A prévia, detalhes e PDF do extrato respeitam [[Privacidade de Valores]]. Com valores ocultos, a edição exige digitar o saldo real novamente, sem expor o valor anterior no campo.
 - Antes de liberar o cliente em produção, publicar a callable, as regras e os índices financeiros versionados. Não há nova dependência, Remote Config nem serviço externo. A implementação foi validada localmente, sem deploy remoto.

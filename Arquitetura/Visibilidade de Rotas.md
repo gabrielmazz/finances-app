@@ -50,3 +50,21 @@ A revisão seguinte, `statement-dashboard-2026-10-23`, libera `bankMovements` e 
 A revisão `transfer-2026-10-23` habilita apenas `transferScreen`. Revisões já aplicadas não reabrem dashboard/ganhos/extrato desligados pelo usuário; `addRescue` e `bankBalanceAdjustment` conservam a preferência atual.
 
 A revisão `withdrawal-2026-10-23` habilita apenas `addRescue` uma vez. Revisões anteriores já aplicadas não reabrem transferências, dashboard, extrato, ganhos ou despesas desligados pelo usuário. `bankBalanceAdjustment` mantém sua preferência; desativar saque após a liberação e recarregar conserva o desligamento.
+
+A revisão `balance-adjustment-2026-10-23` habilita apenas `bankBalanceAdjustment` uma vez. Saque, transferência e demais telas já liberadas conservam desligamentos posteriores; a revisão não altera as preferências de pós-submit. Desativar ajuste após a liberação e recarregar mantém a escolha.
+
+A revisão `recurring-expenses-2026-10-23` habilita apenas `addMandatoryExpenses`, chave existente que protege a lista e o formulário Web/mobile. `mandatoryExpenses` é o nome da rota, não uma nova chave de visibilidade. Receitas recorrentes e demais preferências permanecem. Desativar novamente após a liberação mantém o desligamento no reload.
+
+A revisão `recurring-gains-2026-10-23` habilita apenas `addMandatoryGains`, chave existente que protege cadastro e lista de receitas recorrentes Web/mobile. `mandatoryGains` é nome de rota, não uma nova chave. Despesas recorrentes e demais escolhas já aplicadas permanecem; desligar receitas depois da liberação e recarregar conserva a preferência. Isso não migra grupos nem comprova homologação.
+
+A revisão `investments-2026-10-23` habilita apenas `addFinance`, chave existente que protege o cadastro e a carteira Web/mobile. `financialList` é destino de navegação, não uma chave nova. Outras escolhas e desligamentos posteriores permanecem. A liberação é local para teste, sem migrar grupos ou aprovar publicação.
+
+A revisão `category-analysis-2026-10-23` habilita somente `categoryAnalysis` uma vez. Cadastro/carteira de investimentos, previsão e demais escolhas já aplicadas permanecem. Desativar a análise após a liberação e recarregar conserva o desligamento. Habilitação local não altera grupos financeiros ou comprova homologação.
+
+A revisão `financial-forecast-2026-10-24` habilita somente `financialForecast` uma vez. Análise, investimentos e demais escolhas já aplicadas permanecem. Desligar a previsão após a liberação e recarregar conserva a preferência. Não ativa grupos, muda o protocolo ou comprova homologação.
+
+A revisão `profile-2026-10-24` habilita somente `profile` uma vez. `addUserRelation`, anotações, assistente e demais preferências conservam suas escolhas; desligar o perfil após a liberação e recarregar mantém o desligamento. Teste de persistência cobre essa independência. Liberação local para teste, sem ativar grupos ou concluir U02.
+
+## Vínculos para validação - 24/10/2026
+
+Revisão `user-relationships-2026-10-24` habilita uma vez somente `addUserRelation`. Perfil, anotações, assistente e demais escolhas permanecem, inclusive desligamentos já feitos. Desativar vínculos após a liberação e recarregar conserva a escolha. A liberação local não implanta Rules/índice nem autoriza tráfego real; pré-requisitos em [[Vínculos de Usuários Spark]] e [[Processo de Release]].

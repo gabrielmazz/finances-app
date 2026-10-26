@@ -1,3 +1,6 @@
+import { useTransferFormData } from '@/hooks/useTransferFormData';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
 import React from 'react';
 import {
@@ -42,7 +45,7 @@ import {
 
 import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankActionsheetSelector from '@/components/uiverse/banks/bank-actionsheet-selector';
 
 import AddFinancialIllustration from '../../assets/UnDraw/addFinancialScreen.svg';
 
@@ -50,10 +53,6 @@ import { redemptionTermLabels, RedemptionTerm } from '@/utils/finance';
 import { parsePercentageToBasisPoints } from '@/utils/investmentPortfolio';
 import { auth } from '@/FirebaseConfig';
 import { addFinanceInvestmentFirebase } from '@/functions/FinancesFirebase';
-import {
-	getBanksWithUsersByPersonFirebase,
-	getLegacyBankBalanceInCentsFirebase,
-} from '@/functions/BankFirebase';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
 import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
@@ -168,12 +167,14 @@ export default function AddFinanceScreen() {
 	const [isSaving, setIsSaving] = React.useState(false);
 	// Flag que exibimos depois de um salvamento bem sucedido para mostrar o texto de confirmação.
 	const [hasSavedOnce, setHasSavedOnce] = React.useState(false);
-	const submitLockRef = React.useRef(false);
-	const [bankOptions, setBankOptions] = React.useState<BankActionsheetOption[]>([]);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
+	const submitLockRef = React.useRef<object | null>(null);
+	React.useEffect(() => () => { submitLockRef.current = null; }, []);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
-	const [currentBankBalanceInCents, setCurrentBankBalanceInCents] = React.useState<number | null>(null);
-	const [isLoadingBankBalance, setIsLoadingBankBalance] = React.useState(false);
+	const bankData = useTransferFormData(selectedBankId, null);
+	const { banks: bankOptions, isLoadingBanks, originBalanceInCents: currentBankBalanceInCents, isLoadingBalance: isLoadingBankBalance, reload: loadBanks } = bankData;
+	const { personId, beginRequest: beginSubmit, cancelRequest: cancelSubmit } = useBankMovementsRequest('investment-create');
+	const [submitError, setSubmitError] = React.useState<string | null>(null);
+
 	const investmentNameInputRef = React.useRef<TextInput | null>(null);
 	const initialValueInputRef = React.useRef<TextInput | null>(null);
 	const cdiInputRef = React.useRef<TextInput | null>(null);
@@ -249,11 +250,11 @@ export default function AddFinanceScreen() {
 		[parsedCdiInBasisPoints],
 	);
 	const hasInvestmentName = investmentName.trim().length > 0;
-	const hasInitialValue = typeof initialValueInCents === 'number' && initialValueInCents > 0;
+	const hasInitialValue = typeof initialValueInCents === 'number' && Number.isSafeInteger(initialValueInCents) && initialValueInCents > 0;
 	const hasValidInvestmentDate = Boolean(parsedInvestmentDate);
 	const hasValidCdi =
 		typeof parsedCdiInBasisPoints === 'number' && parsedCdiInBasisPoints > 0;
-	const isFormBusy = isSaving;
+	const isFormBusy = isSaving || sparkInvestment.fieldsLocked || isLoadingBanks || !!bankData.banksError;
 	const isInitialValueDisabled = !hasInvestmentName || isFormBusy;
 	const isInvestmentDateDisabled = !hasInvestmentName || !hasInitialValue || isFormBusy;
 	const isCdiDisabled = !hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || isFormBusy;
@@ -286,7 +287,7 @@ export default function AddFinanceScreen() {
 			return currentBankBalanceInCents >= 0 && initialCents <= currentBankBalanceInCents;
 		}
 
-		return true;
+		return false;
 	}, [currentBankBalanceInCents, initialValueInCents, isLoadingBankBalance, selectedBankId]);
 
 	// Segue [[Investimentos]]: a tela libera cada etapa do cadastro apenas quando a anterior estiver válida.
@@ -384,7 +385,7 @@ export default function AddFinanceScreen() {
 			return 'Saldo carregado. O investimento sera validado com base nesse valor.';
 		}
 
-		return 'Saldo indisponivel no momento. Confira o extrato do banco antes de concluir, se necessario.';
+		return 'Saldo indisponível. Use Tentar novamente para confirmar antes de salvar.';
 	}, [
 		currentBankBalanceInCents,
 		isBankBalanceNegative,
@@ -416,52 +417,11 @@ export default function AddFinanceScreen() {
 		setInvestmentDate(formatDateToBR(new Date()));
 		setSelectedRedemptionTerm('anytime');
 		setSelectedBankId(null);
-		setCurrentBankBalanceInCents(null);
-		setIsLoadingBankBalance(false);
+		setSubmitError(null);
 	}, []);
 
-	const loadBanks = React.useCallback(async () => {
-		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
-			return;
-		}
-
-		setIsLoadingBanks(true);
-		try {
-			const banksResponse = await getBanksWithUsersByPersonFirebase(currentUser.uid);
-			if (!banksResponse.success || !Array.isArray(banksResponse.data)) {
-				throw new Error('Erro ao carregar bancos.');
-			}
-
-			const formatted = (banksResponse.data as Array<Record<string, any>>).map(bank => ({
-				id: String(bank.id),
-				name:
-					typeof bank.name === 'string' && bank.name.trim().length > 0
-						? bank.name.trim()
-						: 'Banco sem nome',
-				iconKey: typeof bank.iconKey === 'string' ? bank.iconKey : null,
-				colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
-			}));
-			setBankOptions(formatted);
-			setSelectedBankId(current => (current && formatted.some(bank => bank.id === current) ? current : null));
-
-			if (formatted.length === 0) {
-				showScreenAlert('Cadastre um banco antes de registrar investimentos.', 'warn');
-			}
-		} catch (error) {
-			console.error('Erro ao carregar bancos:', error);
-			showScreenAlert('Não foi possível carregar os bancos.', 'error');
-		} finally {
-			setIsLoadingBanks(false);
-		}
-	}, [showScreenAlert]);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			void loadBanks();
-		}, [loadBanks]),
-	);
+	useFocusEffect(React.useCallback(() => { loadBanks(); return cancelSubmit; }, [loadBanks, cancelSubmit]));
+	React.useEffect(() => { submitLockRef.current = null; setIsSaving(false); resetForm(); setHasSavedOnce(false); setSubmitError(null); }, [personId, resetForm]);
 
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
@@ -473,165 +433,34 @@ export default function AddFinanceScreen() {
 		setHasSavedOnce(false);
 	}, []);
 
-	React.useEffect(() => {
-		if (!selectedBankId) {
-			setCurrentBankBalanceInCents(null);
-			setIsLoadingBankBalance(false);
-			return;
-		}
-
-		let isMounted = true;
-		setIsLoadingBankBalance(true);
-		setCurrentBankBalanceInCents(null);
-
-		const loadBankBalance = async () => {
-			try {
-				const currentUser = auth.currentUser;
-				if (!currentUser) {
-					showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
-					return;
-				}
-
-				const balanceResult = await getLegacyBankBalanceInCentsFirebase({
-					personId: currentUser.uid,
-					bankId: selectedBankId,
-				});
-				if (!isMounted) {
-					return;
-				}
-				if (!balanceResult.success) {
-					throw balanceResult.error;
-				}
-				setCurrentBankBalanceInCents(balanceResult.data);
-			} catch (error) {
-				console.error('Erro ao carregar saldo do banco:', error);
-				if (isMounted) {
-					showScreenAlert('Não foi possível carregar o saldo atual do banco.', 'error');
-					setCurrentBankBalanceInCents(null);
-				}
-			} finally {
-				if (isMounted) {
-					setIsLoadingBankBalance(false);
-				}
-			}
-		};
-
-		void loadBankBalance();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [selectedBankId, showScreenAlert]);
-
-	// Função responsável por salvar o investimento simples no Firebase.
 	const handleSaveInvestment = React.useCallback(async () => {
-		if (submitLockRef.current || isSaving) {
-			return;
-		}
-
-		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
-			return;
-		}
-
-		if (!isFormValid || isSaving || !selectedBankId) {
-			return;
-		}
-
-		if (isLoadingBankBalance) {
-			showScreenAlert('Aguarde o saldo do banco terminar de carregar.', 'warn');
-			return;
-		}
-
-		const parsedInitial = typeof initialValueInCents === 'number' ? initialValueInCents / 100 : NaN;
-		const initialInCents = typeof initialValueInCents === 'number' ? initialValueInCents : Math.round(parsedInitial * 100);
-
-		if (!Number.isFinite(parsedInitial) || parsedInitial <= 0 || !Number.isFinite(initialInCents) || initialInCents <= 0) {
-			showScreenAlert('Informe um valor inicial válido.', 'warn');
-			return;
-		}
-
-		if (typeof currentBankBalanceInCents === 'number') {
-			if (currentBankBalanceInCents < 0) {
-				showScreenAlert('O saldo do banco está negativo. Regularize antes de investir.', 'warn');
-				return;
-			}
-
-			if (initialInCents > currentBankBalanceInCents) {
-				showScreenAlert('Saldo insuficiente para registrar este investimento.', 'warn');
-				return;
-			}
-		}
-
-		if (
-			typeof parsedCdiInBasisPoints !== 'number' ||
-			parsedCdiInBasisPoints <= 0 ||
-			!Number.isFinite(parsedCdi)
-		) {
-			showScreenAlert('Informe um CDI válido.', 'warn');
-			return;
-		}
-
-		const parsedDate = parsedInvestmentDate;
-		if (!parsedDate) {
-			showScreenAlert('Informe uma data válida (DD/MM/AAAA).', 'warn');
-			return;
-		}
-
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedDate);
-		const bankSnapshotName = selectedBankId
-			? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null
-			: null;
-
-		submitLockRef.current = true;
-		setIsSaving(true);
+		const pending = sparkInvestment.hasPending();
+		if (submitLockRef.current || isSaving || !personId || auth.currentUser?.uid !== personId) return;
+		if (!pending && (!isFormValid || bankData.error || isLoadingBanks || !bankOptions.some(bank => bank.id === selectedBankId))) return;
+		if (!pending && (!Number.isSafeInteger(initialValueInCents) || !initialValueInCents || !parsedInvestmentDate || !parsedCdiInBasisPoints || !selectedBankId)) return;
+		const lock = {}; submitLockRef.current = lock; const isCurrent = beginSubmit();
+		setIsSaving(true); setSubmitError(null);
 		try {
 			const investmentParams = {
-				name: investmentName.trim(),
-				initialValueInCents: initialInCents,
-				currentValueInCents: initialInCents,
-				cdiPercentage: parsedCdi,
-				cdiPercentageInBasisPoints: parsedCdiInBasisPoints,
-				redemptionTerm: selectedRedemptionTerm,
-				bankId: selectedBankId,
-				personId: currentUser.uid,
-				date: dateWithCurrentTime,
-				bankNameSnapshot: bankSnapshotName,
+				name: investmentName.trim(), initialValueInCents: initialValueInCents!, currentValueInCents: initialValueInCents!,
+				cdiPercentage: parsedCdi, cdiPercentageInBasisPoints: parsedCdiInBasisPoints!, redemptionTerm: selectedRedemptionTerm,
+				bankId: selectedBankId!, personId, date: mergeDateWithCurrentTime(parsedInvestmentDate!),
+				bankNameSnapshot: bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null,
 			};
-			const result = (await sparkInvestment.create(investmentParams)) ?? await addFinanceInvestmentFirebase(investmentParams);
-
-			if (!result.success) {
-				throw new Error('Erro ao registrar investimento no Firebase.');
-			}
-
-			setHasSavedOnce(true);
+			const result = pending ? await sparkInvestment.retryPending()
+				: (await sparkInvestment.create(investmentParams)) ?? await addFinanceInvestmentFirebase(investmentParams);
+			if (!isCurrent()) return;
+			if (!result?.success) throw new Error(result && 'error' in result ? result.error : 'Não foi possível confirmar o investimento.');
+			loadBanks(); setHasSavedOnce(true);
 			showScreenAlert('Investimento salvo com sucesso!', 'success');
 			applyPostSubmitBehavior({ resetForm });
 		} catch (error) {
-			console.error(error);
-			showScreenAlert('Não foi possível salvar o investimento agora. Tente novamente.', 'error');
+			if (isCurrent()) setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar o investimento.');
 		} finally {
-			submitLockRef.current = false;
-			setIsSaving(false);
+			if (submitLockRef.current === lock) { submitLockRef.current = null; setIsSaving(false); }
 		}
-	}, [
-		isFormValid,
-		isSaving,
-		investmentName,
-		selectedRedemptionTerm,
-		resetForm,
-		bankOptions,
-		selectedBankId,
-		initialValueInCents,
-		currentBankBalanceInCents,
-		isLoadingBankBalance,
-		parsedCdi,
-		parsedCdiInBasisPoints,
-		parsedInvestmentDate,
-		applyPostSubmitBehavior,
-		showScreenAlert,
-	]);
+	}, [personId, beginSubmit, isSaving, isFormValid, bankData.error, isLoadingBanks, bankOptions, selectedBankId, initialValueInCents, parsedInvestmentDate, parsedCdiInBasisPoints, parsedCdi, selectedRedemptionTerm, investmentName, sparkInvestment, loadBanks, applyPostSubmitBehavior, resetForm, showScreenAlert]);
+
 	const selectedBankLabel = selectedBankId ? bankOptions.find(bank => bank.id === selectedBankId)?.name ?? '' : '';
 	const selectedBankOption = selectedBankId
 		? bankOptions.find(bank => bank.id === selectedBankId) ?? null
@@ -723,6 +552,10 @@ export default function AddFinanceScreen() {
 							<VStack className={`justify-between ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<VStack className="mt-4 gap-4">
 									<VStack className="gap-2">
+										<MovementFormStatus loading={isLoadingBanks || isLoadingBankBalance} error={bankData.error} onRetry={loadBanks} />
+										{!isLoadingBanks && !bankData.banksError && bankOptions.length === 0 ? <Text className={helperText}>Cadastre um banco para registrar investimentos.</Text> : null}
+										{submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
+										{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Continue a mesma confirmação. Os dados ficam bloqueados até recuperar o resultado.</Text> : null}
 										{renderFieldLabelWithPopover(
 											'Nome do investimento',
 											'Informações sobre o nome do investimento',
@@ -883,14 +716,14 @@ export default function AddFinanceScreen() {
 										</VStack>
 									</Box>
 
-									<Button className={submitButtonClassName} onPress={handleSaveInvestment} isDisabled={!isFormValid || isSaving}>
+									<Button className={submitButtonClassName} onPress={handleSaveInvestment} isDisabled={isSaving || (!sparkInvestment.isPending && (!isFormValid || Boolean(bankData.error) || isLoadingBanks))}>
 										{isSaving ? (
 											<>
 												<ButtonSpinner />
 												<ButtonText>Salvando</ButtonText>
 											</>
 										) : (
-											<ButtonText>Salvar investimento</ButtonText>
+											<ButtonText>{sparkInvestment.isPending ? 'Confirmar investimento anterior' : 'Salvar investimento'}</ButtonText>
 										)}
 									</Button>
 

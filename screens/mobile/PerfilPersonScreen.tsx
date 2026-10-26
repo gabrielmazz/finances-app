@@ -1,3 +1,4 @@
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
 import React from 'react';
 import { Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +33,7 @@ export default function PerfilPersonScreen() {
 		) + insets.top;
 	const { isRouteVisible } = useRouteVisibility();
 	const state = useUserProfile();
+	const { beginRequest: beginFeedback } = useBankMovementsRequest('profile-feedback');
 	const nameRef = React.useRef<TextInput>(null);
 	const getInputRef = React.useCallback(() => nameRef, []);
 	const keyboard = useKeyboardAwareScroll<'name'>({ getInputRef });
@@ -47,13 +49,17 @@ export default function PerfilPersonScreen() {
 			? 'Indisponível'
 			: state.accessSummary.monitoredRecordsCount;
 	const handleCopyId = async () => {
-		if (await state.copyId()) {
+		const copied = await state.copyId();
+		const isCurrent = beginFeedback();
+		if (copied && isCurrent()) {
 			showNotifierAlert({ description: 'ID copiado para a área de transferência.', type: 'success', isDarkMode });
 		}
 	};
 	const save = async () => {
 		Keyboard.dismiss();
-		if (!(await state.save())) nameRef.current?.focus();
+		const saved = await state.save();
+		const isCurrent = beginFeedback();
+		if (!saved && isCurrent()) nameRef.current?.focus();
 	};
 
 	return (
@@ -71,10 +77,13 @@ export default function PerfilPersonScreen() {
 							keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" onScroll={keyboard.handleScroll} scrollEventThrottle={keyboard.scrollEventThrottle}
 							contentContainerStyle={{ paddingBottom: keyboard.contentBottomPadding }}>
 							<View className="gap-6 pt-6">
+								<Button variant="outline" onPress={state.reload} isDisabled={state.loading || state.saving}>
+									<ButtonText>Atualizar perfil</ButtonText>
+								</Button>
 								{state.loading ? <Text accessibilityRole="progressbar" accessibilityLabel="Carregando seu perfil" className={ui.helper}>Carregando seu perfil…</Text> : state.loadError ? (
 									<View className="gap-4">
 										<Text accessibilityRole="alert" className={ui.errorText}>{state.loadError}</Text>
-										<Button onPress={state.reload} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
+										<Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
 									</View>
 								) : profile ? <>
 									<HStack className="w-full flex-col items-start gap-4 sm:flex-row">
@@ -105,7 +114,7 @@ export default function PerfilPersonScreen() {
 									</View>
 									<View className="gap-3">
 										<Button onPress={() => void save()} isDisabled={state.saving || !state.dirty} accessibilityState={{ busy: state.saving }} className={cn(ui.primaryButton, 'min-h-12')}>
-											<ButtonText className="font-bold text-white">{state.saving ? 'Salvando…' : 'Salvar alterações'}</ButtonText>
+											<ButtonText className="font-bold text-lumus-on-accent">{state.saving ? 'Salvando…' : 'Salvar alterações'}</ButtonText>
 										</Button>
 										{state.dirty && <Button onPress={state.reset} isDisabled={state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Descartar alterações</ButtonText></Button>}
 									</View>
@@ -130,12 +139,12 @@ export default function PerfilPersonScreen() {
 										</View>
 										{state.accessSummaryError && <View className="gap-3">
 											<Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as informações da conta.</Text>
-											<Button onPress={state.reload} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
+											<Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
 										</View>}
 									</View>
 									<View className={cn(ui.card, 'gap-3 p-4')}>
 										<Heading size="lg" className={ui.heading}>Contas vinculadas</Heading>
-										{state.relatedUsersLoading ? <Text className={ui.helper}>Carregando contas vinculadas…</Text> : state.relatedUsersError ? <View className="gap-2"><Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as contas vinculadas.</Text><Button onPress={state.reload} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button></View> : state.relatedUsers.length ? <View className="gap-2">{state.relatedUsers.map(user => <Text key={user.id} className={ui.body}>{user.name}</Text>)}</View> : <Text className={ui.helper}>Nenhuma pessoa vinculada.</Text>}
+										{state.relatedUsersLoading ? <Text className={ui.helper}>Carregando contas vinculadas…</Text> : state.relatedUsersError ? <View className="gap-2"><Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as contas vinculadas.</Text><Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button></View> : state.relatedUsers.length ? <View className="gap-2">{state.relatedUsers.map(user => <Text key={user.id} className={ui.body}>{user.name}</Text>)}</View> : <Text className={ui.helper}>Nenhuma pessoa vinculada.</Text>}
 										<Text nativeID="profile-id-label" className={form.inlineLabel}>Seu ID</Text>
 										<HStack className="w-full items-center gap-3">
 											<Input isReadOnly className={cn(form.input, 'min-h-12 min-w-0 flex-1 opacity-40')}>

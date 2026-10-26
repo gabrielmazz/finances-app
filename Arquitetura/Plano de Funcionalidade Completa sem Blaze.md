@@ -5,8 +5,8 @@ status: em desenvolvimento
 tipo: arquitetura
 versao: 2.31.0
 spark_scope: projeto
-spark_progress: 56
-spark_reviewed_at: 2026-10-22
+spark_progress: 59
+spark_reviewed_at: 2026-10-24
 ---
 
 # Plano de Funcionalidade Completa sem Blaze
@@ -14,9 +14,9 @@ spark_reviewed_at: 2026-10-22
 **Revisão de direção — 23/10/2026:** o proprietário autorizou [[Versão Usável por Telas]]: desativar inicialmente os destinos de produto e validar/liberar um fluxo por vez até o marco utilizável. Essa entrega gradual preserva todo o escopo, os dados e o progresso Spark; não depende de terminar simultaneamente assistente, recorrências e investimentos.
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 24/10/2026
 
-Plano geral: **56% implementado / 44% restante**; financeiro completo: **78%**. Critérios, pesos, 24 módulos, evidências e bloqueios em [[Status da Implementação Spark]]. A média não autoriza publicação; bootstrap/consentimento/corte, operações nas telas, privacidade e release continuam impeditivos.
+Plano geral: **59% implementado / 41% restante**; financeiro completo: **78%**. Critérios, pesos, 24 módulos, evidências e bloqueios em [[Status da Implementação Spark]]. A média não autoriza publicação; bootstrap/consentimento/corte, operações nas telas, privacidade e release continuam impeditivos.
 
 As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
 <!-- spark-progress:end -->
@@ -101,7 +101,7 @@ Em `9d3984e`, foram identificados os métodos diretos de bancos/saques/transfer�
 | `migrateFinancialGroup` | Não havia corte legado→razão nessa base. | Analisador local de snapshots legado/razão implementado em [[Reconciliação de Dados Spark]]. Inventário remoto, consentimento, bootstrap, restauração e corte único pendentes. Não restaurar escrita legada de migrados. |
 | `executeLegacyFinancialMovement` | Centralizou transferências, saques e investimentos antes diretos. | Preservar saldo civil, relações e desfazimentos; depende da prova de posições históricas, pendente. |
 | `bankBalanceAdjustment` | Módulo introduzido depois da base, sem equivalente integral identificado. | Ajuste atual/retroativo, substituição atômica com duas datas, substituição sucessiva e estorno com referência posterior provados. Claim compartilhado impede resolver duas vezes; mesmo banco/autor e admin obrigatórios. Integração do fluxo/extrato e bootstrap dos ajustes existentes pendentes. |
-| `userRelationship` | Havia alteração direta de relações nos perfis. | Convite, aceite, grants e revogação sem autoatribuição; pendente. Remoção de membro na prova não conclui esse fluxo. |
+| `userRelationship` | Havia alteração direta de relações nos perfis. | SDK/Rules de convite/aceite/revogação e entradas Web/mobile entregues em [[Vínculos de Usuários Spark]]. Filiação de membros, conversão integral e homologação continuam pendentes. |
 | `financialMigrationConsent` | Controle posterior ligado à migração. | Aprovação/revogação pelo próprio membro e corte específico; pendente. |
 | `requestAccountDeletion` | Existia `deleteUserFirebase`; não equivale ao pedido atual com retenção. | Solicitação restrita ao UID e processamento controlado; pendente, sem declarar exclusão integral. |
 | `notifyMandatoryExpenseChange` | Gatilho remoto posterior; lembrete local é recurso distinto. | Proprietário aceitou ausência de push fechado, com lembretes locais e avisos ao abrir. Consulta paginada de receipts e ponte de sessão implementadas; integração dos planos/ciclos aos lembretes ainda pendente. |
@@ -125,7 +125,7 @@ Auth/cadastro/perfil, AI Logic, Remote Config, voz e lembretes locais continuam 
 | 1 — Prova do protocolo | **100%** | Transação e Rules para operações críticas em dados sintéticos | Concorrência, replay, permissão e correção retroativa demonstrados com Auth/Firestore e Functions desligadas, dentro dos limites de Rules. |
 | 2 — Compatibilidade de dados | **36%** | Inventário autorizado, snapshot e plano de inicialização/migração | Reconciliação exata de legado/razão, restauração ensaiada e nenhuma mudança de dados reais sem procedimento revisado. |
 | 3 — Núcleo financeiro | **100%** | Serviços Firestore compartilhados por formulário e chat | Todas as operações, inclusive ajustes e investimentos, com efeitos, saldos e recibos equivalentes aos contratos aprovados. |
-| 4 — Usuários e privacidade | **22%** | Convite, aceite, revogação, consentimento e exclusão solicitável | Nenhum cliente altera papel unilateralmente; compartilhamento exige consentimento e revogação funciona. |
+| 4 — Usuários e privacidade | **50%** | Convite, aceite, revogação, consentimento e exclusão solicitável | Nenhum cliente altera papel unilateralmente; compartilhamento exige consentimento e revogação funciona. |
 | 5 — Integração completa | **65%** | Web/mobile, IA, voz, consultas, notificações e recuperação | Mesmas regras em todas as entradas; classificar explicitamente os casos que exigem execução com apps fechados. |
 | 6 — Release Spark | **0%** | Scripts, testes, Rules/índices, Hosting e builds | Publicação não tenta Functions/Cloud Build/Artifact Registry; auditorias e validações pertinentes continuam obrigatórias. |
 | 7 — Homologação e transição | **23%** | Matriz de recursos, dados reconciliados e plano de reversão | Aprovação por recurso em ambiente isolado e aparelho; nenhuma pendência apresentada como funcionalidade concluída. |
@@ -286,3 +286,7 @@ Validação v0.16: 801 cenários Spark aprovados (53 novos), zero ignorados, mai
 Continuação v0.17 em [[Criação Retroativa de Investimentos Spark]] (19/10/2026): abertura financiada aceita data explícita por API própria, conservando modo commit. Aplicação/referência inicial ficam no instante escolhido, com principal e valor observado distintos; banco considera sua referência protegida para o efeito atual. Correção de principal e troca de banco usam a data financeira imutável da raiz, preservando conferências e avaliações posteriores. `dated` é obrigatório nos receipts de abertura; modo/data diferentes com mesmo ID conflitam. Precisão submicrossegundo é recusada antes da escrita, após a primeira execução dirigida revelar truncamento do armazenamento. Marcador/destino local passam a `financial-proof-v15`, sem ativar grupos anteriores.
 
 Validação v0.17: 854 cenários Spark aprovados (53 novos), zero falhas/ignorados, mais cinco scripts existentes de Rules; 52 casos dirigidos repetidos após a correção de precisão; 20 ensaios de restore/importação aprovados. `check` passou com estilos/tipos, 103 testes locais e 815 comuns/88 condicionais ignorados. A observação inicial datada não substitui observação em outro instante; essa montagem e a integração dos formulários permanecem pendentes. Restam avaliação simultânea na edição, categorias/CDI, arquivamento, capital/formatos legados restantes, leitores, consentimentos/corte, Web/mobile/assistente e homologação/release. Evidências `.expo/spark-proof-2026-10-19/retro-opening/`. Sem dados reais, publicação ou cobrança.
+
+## Continuação de 24/10: vínculos nativos
+
+[[Vínculos de Usuários Spark]] substitui a callable no adaptador das telas/assistente, com par canônico, aceite pelo destinatário, revogação que prevalece sobre grants antigos, recibo e cota atômicos. Novos vínculos não escrevem perfis alheios nem atribuem membro/papel. As consultas usam índice escopado e não trocam a fonte em falha. U02 65%, usuários 49,5% (50% exibidos) e geral 58,8375% (59%); financeiro 77,875% (78%) preservado. Filiação, conversão completa, rollout e aparelhos permanecem. Evidências em [[Versão Usável por Telas]]; publicação não autorizada.

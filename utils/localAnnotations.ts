@@ -44,21 +44,16 @@ export const loadLocalAnnotations = async (userId: string): Promise<LocalAnnotat
 		return [];
 	}
 
-	try {
-		const parsedValue = JSON.parse(rawValue);
-		if (!Array.isArray(parsedValue)) {
-			return [];
-		}
-
-		return sortByMostRecentlyUpdated(
-			parsedValue.flatMap((item) => {
-				const annotation = normalizeStoredAnnotation(item);
-				return annotation ? [annotation] : [];
-			}),
-		);
-	} catch {
-		return [];
+	// [[Anotações Locais]]: corrupção não pode parecer uma lista vazia e ser sobrescrita.
+	let parsedValue: unknown;
+	try { parsedValue = JSON.parse(rawValue); }
+	catch { throw new Error('Não foi possível ler as anotações salvas. Os dados locais foram preservados.'); }
+	if (!Array.isArray(parsedValue)) throw new Error('O formato das anotações salvas é inválido. Os dados locais foram preservados.');
+	const annotations = parsedValue.map(normalizeStoredAnnotation);
+	if (annotations.some(item => item === null) || new Set(annotations.map(item => item!.id)).size !== annotations.length) {
+		throw new Error('Existem anotações inválidas. Os dados locais foram preservados.');
 	}
+	return sortByMostRecentlyUpdated(annotations as LocalAnnotation[]);
 };
 
 const annotationMutations = new Map<string, Promise<void>>();

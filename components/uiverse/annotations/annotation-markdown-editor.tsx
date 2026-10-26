@@ -7,6 +7,7 @@ import { markdownToAnnotationEditorHtml } from '@/utils/annotationRichText';
 
 type AnnotationMarkdownEditorProps = {
 	markdown: string;
+	readOnly?: boolean;
 	isDarkMode: boolean;
 	onChangeMarkdown: (markdown: string) => Promise<void>;
 	dom?: DOMProps;
@@ -163,6 +164,7 @@ const getSelectedList = () => {
 
 export default function AnnotationMarkdownEditor({
 	markdown,
+	readOnly = false,
 	isDarkMode,
 	onChangeMarkdown,
 }: AnnotationMarkdownEditorProps) {
@@ -170,12 +172,12 @@ export default function AnnotationMarkdownEditor({
 
 	const emitMarkdown = useCallback(() => {
 		const editor = editorRef.current;
-		if (!editor) {
+		if (!editor || readOnly) {
 			return;
 		}
 
 		void onChangeMarkdown(editorToMarkdown(editor));
-	}, [onChangeMarkdown]);
+	}, [onChangeMarkdown, readOnly]);
 
 	useEffect(() => {
 		const editor = editorRef.current;
@@ -188,7 +190,7 @@ export default function AnnotationMarkdownEditor({
 
 	const focusEditor = useCallback(() => {
 		const editor = editorRef.current;
-		if (!editor) {
+		if (!editor || readOnly) {
 			return null;
 		}
 
@@ -204,12 +206,12 @@ export default function AnnotationMarkdownEditor({
 		}
 
 		return editor;
-	}, []);
+	}, [readOnly]);
 
 	const applyFormat = useCallback(
 		(action: ToolbarAction) => {
 			const editor = focusEditor();
-			if (!editor) {
+			if (!editor || readOnly) {
 				return;
 			}
 
@@ -252,6 +254,7 @@ export default function AnnotationMarkdownEditor({
 
 	const handleChecklistClick = useCallback(
 		(event: MouseEvent<HTMLDivElement>) => {
+			if (readOnly) return;
 			const target = event.target;
 			if (!(target instanceof HTMLElement)) {
 				return;
@@ -266,7 +269,7 @@ export default function AnnotationMarkdownEditor({
 			setChecklistButtonState(button, button.dataset.checked !== 'true');
 			emitMarkdown();
 		},
-		[emitMarkdown],
+		[emitMarkdown, readOnly],
 	);
 
 	const palette = isDarkMode
@@ -378,6 +381,7 @@ export default function AnnotationMarkdownEditor({
 						title={item.label}
 						aria-label={item.label}
 						onMouseDown={(event) => event.preventDefault()}
+						disabled={readOnly}
 						onClick={() => applyFormat(item.action)}
 					>
 						{item.symbol}
@@ -388,7 +392,7 @@ export default function AnnotationMarkdownEditor({
 			<div
 				ref={editorRef}
 				className="annotation-editor"
-				contentEditable
+				contentEditable={!readOnly}
 				suppressContentEditableWarning
 				role="textbox"
 				aria-multiline="true"
