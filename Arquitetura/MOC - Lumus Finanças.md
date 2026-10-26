@@ -5,8 +5,8 @@ status: ativo
 tipo: arquitetura
 versao: 2.3.2
 spark_scope: projeto
-spark_progress: 56
-spark_reviewed_at: 2026-10-22
+spark_progress: 59
+spark_reviewed_at: 2026-10-24
 ---
 
 # MOC - Lumus Finanças
@@ -14,9 +14,9 @@ spark_reviewed_at: 2026-10-22
 Prioridade de produto em 23/10/2026: [[Versão Usável por Telas]], com liberação local gradual e marco inicial de bancos/saldo/categorias/ganhos/despesas/extrato/dashboard, preservando o Spark existente.
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 24/10/2026
 
-Acompanhamento Spark em [[Status da Implementação Spark]]: **56% do projeto geral**, **78% do financeiro completo**, **65% da integração completa**. O quadro contém os 24 módulos, os critérios/pesos e a ordem revisada. Os cartões nos módulos representam adaptação para Spark, não a completude das funcionalidades anteriores ao redesenho.
+Acompanhamento Spark em [[Status da Implementação Spark]]: **59% do projeto geral**, **78% do financeiro completo**, **65% da integração completa**. O quadro contém os 24 módulos, os critérios/pesos e a ordem revisada. Os cartões nos módulos representam adaptação para Spark, não a completude das funcionalidades anteriores ao redesenho.
 
 As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
 <!-- spark-progress:end -->
@@ -52,6 +52,7 @@ graph TD
 - [[Prompt Auditoria Completa de Segurança]] — Auditoria ponta a ponta de autenticação, autorização, Firebase, sessões, dados, IA e release
 - [[Gerenciamento de Usuários]] — Cadastro e relacionamento entre usuários
 - [[Perfil do Usuário]] — Dados pessoais, edição do nome e acesso aos vínculos
+- [[Vínculos de Usuários Spark]] — Convite/aceite/revogação protegidos por Rules, sem alterar membros/papéis
 
 ### Financeiro
 - [[Assistente Lumus]] — Conversa por texto/voz, formulários financeiros dinâmicos e relatórios com Firebase AI Logic

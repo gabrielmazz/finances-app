@@ -149,3 +149,25 @@ it('refreshes committed profile data on return from the assistant while preservi
 	expect(result.current.dirty).toBe(true);
 	await unmount();
 });
+
+it('manual reload preserves a draft and confirms the latest name before saving', async () => {
+  const view = await renderHook(useUserProfile); await act(async () => view.result.current.changeName('Meu rascunho'));
+  mockLoad.mockResolvedValueOnce({ ...profile, name: 'Alterado em outra sessão' }); await act(async () => view.result.current.reload());
+  expect(view.result.current.name).toBe('Meu rascunho'); expect(view.result.current.profile?.name).toBe('Alterado em outra sessão');
+  await act(async () => view.result.current.save()); expect(mockSave).toHaveBeenCalledWith('owner', 'Meu rascunho', expect.objectContaining({ expectedName: 'Alterado em outra sessão', isCurrent: expect.any(Function) })); await view.unmount();
+});
+it('reload and field callbacks cannot interrupt a save or unlock duplicate submits', async () => {
+  const pending = deferred<string>(); mockSave.mockReturnValueOnce(pending.promise); const view = await renderHook(useUserProfile); await act(async () => view.result.current.changeName('Novo nome'));
+  let save!: Promise<boolean>; await act(async () => { save = view.result.current.save(); view.result.current.reload(); view.result.current.changeName('Outro nome'); });
+  expect(mockLoad).toHaveBeenCalledTimes(1); expect(view.result.current.name).toBe('Novo nome'); await act(async () => { void view.result.current.save(); }); expect(mockSave).toHaveBeenCalledTimes(1);
+  await act(async () => { pending.resolve('Novo nome'); await save; }); expect(view.result.current.saving).toBe(false); await view.unmount();
+});
+it('failed refresh preserves a draft but prevents saving until a successful read', async () => {
+  const view = await renderHook(useUserProfile); await act(async () => view.result.current.changeName('Rascunho'));
+  mockLoad.mockRejectedValueOnce(new Error('offline')); await act(async () => view.result.current.reload()); expect(view.result.current.name).toBe('Rascunho'); expect(view.result.current.loadError).toBeTruthy();
+  await act(async () => view.result.current.save()); expect(mockSave).not.toHaveBeenCalled(); await act(async () => view.result.current.reload()); expect(view.result.current.name).toBe('Rascunho'); await view.unmount();
+});
+it('live auth prevents writing or copying with a stale provider session', async () => {
+  const view = await renderHook(useUserProfile); await act(async () => view.result.current.changeName('Rascunho'));
+  mockAuth.currentUser = { uid: 'other' }; await act(async () => { await view.result.current.save(); await view.result.current.copyId(); }); expect(mockSave).not.toHaveBeenCalled(); expect(mockCopy).not.toHaveBeenCalled(); await view.unmount();
+});

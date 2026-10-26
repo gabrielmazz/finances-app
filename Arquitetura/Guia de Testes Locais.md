@@ -163,3 +163,21 @@ Falhas anteriores permanecem nos logs `spark-financial-v17-rules`, `spark-financ
 
 Conferidos **50 cartões e 24 módulos**: financeiro sem arredondar **77,875%**, geral **56,0875%**, exibidos **78% / 56%**; serviços nativos P=100 e integração=65. E permanece no máximo 75. O financeiro completo **não está em 100%**: faltam recuperação persistente, compatibilidade de dados/capital antigos, consumidores do assistente e matriz de aceitação Web/aparelhos. Referências anteriores à avaliação vigente não possuem estorno genérico. Publicação, corte real, privacidade e release seguem seus bloqueios próprios. Sem alteração de dados reais, ativação, cobrança ou deploy; sem nova inspeção visual por bloqueio de política do navegador e sem aparelho.
 
+
+## Vínculos Spark isolados - 24/10/2026
+
+Execute a partir de `backend/`, em WSL com dependências instaladas para Linux:
+
+```sh
+npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-relationships --config ../firebase.json --only firestore "npm run test:relationships:spark"
+```
+
+A suíte usa somente Firestore local e tokens fictícios; não precisa de Functions, Auth remoto ou credencial real. Aceita loopback nas portas 8080/8185/8186 e fixa o projeto demo. A fixture REST usa autorização administrativa exclusiva do emulador. Onze cenários verificam convite, aceite, revogação, compatibilidade, receipts, autorização, concorrência e cota. O comando também passa a compor `test:spark:emulator`. Não usar esse teste contra projeto real.
+
+Na execução Windows/UNC desta revisão, a transpilação TypeScript temporária substituiu esbuild de Linux somente no processo e JRE local iniciou o emulador 1.19.8. Emulador e SDK precisaram do mesmo processo pai para conectar; logs finais em `.expo/lumus-continue/relationships-*-final.log`. Onze casos passaram com Functions desligadas, seguidos dos cinco scripts existentes de Rules. Esses logs não são homologação de Auth instalado, layout, aparelho ou publicação.
+
+## Aporte recusado em conta criada no cadastro - 25/10/2026
+
+O roteiro financeiro usa a conta preparada `spark@demo.lumus.local`, senha fictícia `Spark-teste-123!`. O cadastro público cria acesso/perfil, mas ainda não configura grupo, protocolo e papéis Spark de uma conta nova. Por isso não substitui a conta do seed para testar investimentos. Saia da conta criada e entre com a conta preparada na mesma sessão; não é necessário reiniciar/limpar emuladores.
+
+Na carteira, conta sem contexto nativo da demonstração recebe uma orientação explícita antes de tentar um escritor legado. A falha conserva o formulário e não envia aporte para Functions. Usuários/grupos existentes não são ativados nem migrados automaticamente. Ver [[Investimentos]] e D03 em [[Status da Implementação Spark]].

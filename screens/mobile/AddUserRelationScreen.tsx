@@ -1,366 +1,50 @@
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import {
-	Keyboard,
-	View,
-	StatusBar,
-	ScrollView,
-	KeyboardAvoidingView,
-	Platform,
-	TextInput,
-	Pressable,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { Text } from '@/components/ui/text';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
-import { HStack } from '@/components/ui/hstack';
-import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
-} from '@/components/ui/popover';
-
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import { Button, ButtonText } from '@/components/ui/button';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-
-import { updateUserRelationsFirebase } from '@/functions/RegisterUserFirebase';
-import { listIncomingRelationshipInvitesFirebase, runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
-import { setFinancialMigrationConsentFirebase } from '@/functions/FinancialMigrationConsentFirebase';
-import { auth } from '@/FirebaseConfig';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { Info } from 'lucide-react-native';
-import { APP_ROUTE_PATHS, navigateBackOrRoute, replaceToRoute } from '@/utils/navigation';
-import { LUMUS_CLASS_NAMES, LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
+import UserRelationshipsForm from '@/components/uiverse/users/user-relationships-form';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
-
-import AddUserRelationScreenIllustration from '../../assets/UnDraw/addUserRelationScreen.svg';
-
-type FocusableInputKey = 'related-user-id';
+import { LUMUS_CLASS_NAMES as ui } from '@/design-system/tokens';
+import { cn } from '@/lib/utils';
+import { APP_ROUTE_PATHS, navigateBackOrRoute, replaceToRoute } from '@/utils/navigation';
+import Wallpaper from '@/assets/Background/wallpaper01.png';
+import Illustration from '@/assets/UnDraw/addUserRelationScreen.svg';
 
 export default function AddUserRelationScreen() {
-	const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
-
-	const {
-			isDarkMode,
-			surfaceBackground,
-			cardBackground,
-			bodyText,
-			helperText,
-			inputField,
-			focusFieldClassName,
-			fieldContainerClassName,
-			fieldContainerClassNameNotSpace,
-			fieldContainerCardClassName,
-			textareaContainerClassName,
-			submitButtonClassName,
-			heroHeight,
-			infoCardStyle,
-			insets,
-			webDashboardClassNames,
-			switchRadioClassName,
-			switchRadioIndicatorClassName,
-			switchRadioIconClassName,
-			switchRadioLabelClassName,
-			addTagButtonClassName,
-		} = useScreenStyles();
-
-	const [relatedUserId, setRelatedUserId] = React.useState('');
-	const [incomingInvites, setIncomingInvites] = React.useState<Array<{ id: string; name: string }>>([]);
-	const [migrationActionId, setMigrationActionId] = React.useState('');
-	const [isMigrationSubmitting, setIsMigrationSubmitting] = React.useState(false);
-	React.useEffect(() => {
-		const uid = auth.currentUser?.uid;
-		if (!uid) return;
-		let active = true;
-		void listIncomingRelationshipInvitesFirebase(uid).then(invites => {
-			if (active) setIncomingInvites(invites);
-		}).catch(() => undefined);
-		return () => { active = false; };
-	}, []);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const submitLockRef = React.useRef(false);
-	const relatedUserInputRef = React.useRef<TextInput | null>(null);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addUserRelation');
-	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
-
-	const showScreenAlert = React.useCallback(
-		(description: string, type: NotifierAlertType = 'error') => {
-			showNotifierAlert({
-				description,
-				type,
-				isDarkMode,
-			});
-		},
-		[isDarkMode],
-	);
-
-	const handleBackToProfile = React.useCallback(() => {
-		if (fromProfile === '1') navigateBackOrRoute(APP_ROUTE_PATHS.profile);
-		else replaceToRoute(APP_ROUTE_PATHS.profile);
-		return true;
-	}, [fromProfile]);
-
-	const resetRelationForm = React.useCallback(() => {
-		setRelatedUserId('');
-	}, []);
-
-	const handleLinkUsers = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
-			return;
-		}
-
-		Keyboard.dismiss();
-
-		const trimmedId = relatedUserId.trim();
-
-		if (!trimmedId) {
-			showScreenAlert('Informe o ID do usuário que deseja relacionar.', 'error');
-			return;
-		}
-
-		// Verifica se o ID informado não é o mesmo do usuário logado
-		const currentUser = auth.currentUser;
-
-		if (!currentUser) {
-			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-			return;
-		}
-
-		const currentUserId = currentUser.uid;
-
-		if (trimmedId === currentUserId) {
-			showScreenAlert('Você não pode vincular sua própria conta.', 'error');
-			return;
-		}
-
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-
-		try {
-			const preview = await runUserRelationshipFirebase(currentUserId, { action: 'preview', relatedUserId: trimmedId });
-			if (preview.isLinked) {
-				showScreenAlert('Esse usuário já está vinculado à sua conta.', 'info');
-				return;
-			}
-
-			if (!preview.fingerprint) throw new Error('Confira o vínculo novamente.');
-			const result = await updateUserRelationsFirebase(trimmedId, {
-				expectedFingerprint: preview.fingerprint,
-				clientActionId: `relationship-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`,
-			});
-
-
-			if (result.success) {
-				const accepted = result.data?.status === 'linked';
-
-				showNotifierAlert({
-					title: accepted ? 'Vínculo aceito' : 'Convite enviado',
-					description: accepted ? 'As duas contas autorizaram o compartilhamento.' : 'A outra pessoa precisa aceitar o convite na própria conta antes de compartilhar dados.',
-					type: 'success',
-					isDarkMode,
-					duration: 4000,
-				});
-				if (accepted) setIncomingInvites(invites => invites.filter(invite => invite.id !== trimmedId));
-
-				applyPostSubmitBehavior({ resetForm: resetRelationForm });
-
-			} else {
-
-				showScreenAlert('Erro ao atualizar relação. Tente novamente mais tarde.', 'error');
-
-			}
-
-		} catch (error) {
-
-			console.error('Erro ao atualizar relação de usuário:', error);
-
-			showScreenAlert('Erro inesperado ao atualizar relação.', 'error');
-
-		} finally {
-
-			submitLockRef.current = false;
-			setIsSubmitting(false);
-		}
-	}, [relatedUserId, isDarkMode, isSubmitting, showScreenAlert, applyPostSubmitBehavior, resetRelationForm]);
-
-	const handleMigrationConsent = async (action: 'approve' | 'revoke') => {
-		const uid = auth.currentUser?.uid;
-		const actorId = relatedUserId.trim();
-		const clientActionId = migrationActionId.trim();
-		if (!uid || !actorId || !clientActionId || actorId === uid || isMigrationSubmitting) return;
-		setIsMigrationSubmitting(true);
-		try {
-			await setFinancialMigrationConsentFirebase(uid, actorId, clientActionId, action);
-			showScreenAlert(action === 'approve' ? 'Migração autorizada por 24 horas para este administrador e código.' : 'Autorização de migração revogada.', 'success');
-		} catch {
-			showScreenAlert('Não foi possível alterar a autorização da migração. Confira o ID e o código.', 'error');
-		} finally {
-			setIsMigrationSubmitting(false);
-		}
-	};
-
-	const getInputRef = React.useCallback((key: FocusableInputKey) => {
-		switch (key) {
-			case 'related-user-id':
-				return relatedUserInputRef;
-			default:
-				return null;
-		}
-	}, []);
-
-	const {
-		scrollViewRef,
-		contentBottomPadding,
-		handleInputFocus,
-		handleScroll,
-		scrollEventThrottle,
-	} = useKeyboardAwareScroll<FocusableInputKey>({
-		getInputRef,
-		keyboardScrollOffset,
-	});
-	const screenTitle = 'Vincular usuário';
-
-	return (
-		<ScreenDismissKeyboard>
-		<SafeAreaView
-			className="flex-1 web:w-screen"
-			edges={['left', 'right', 'bottom']}
-			style={{ backgroundColor: surfaceBackground }}
-		>
-		<StatusBar
-				translucent
-				backgroundColor="transparent"
-				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-			/>
-		<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-			<KeyboardAvoidingView
-				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-				keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 0}
-				className="flex-1"
-			>
-				<View className="flex-1 web:w-screen" style={{ backgroundColor: surfaceBackground }}>
-					<View
-						className={`absolute top-0 left-0 right-0 web:w-screen ${cardBackground}`}
-						style={{ height: heroHeight }}
-					>
-						<Image
-							source={LoginWallpaper}
-							alt="Background da tela de vínculo de usuário"
-							className="w-full h-full rounded-b-3xl absolute"
-							resizeMode="cover"
-						/>
-
-						<WebScreenHero
-					title={screenTitle}
-					Illustration={AddUserRelationScreenIllustration}
-					isDarkMode={isDarkMode}
-					topPadding={insets.top + 24}
-				/>
-					</View>
-
-					<ScrollView
-						ref={scrollViewRef}
-						keyboardShouldPersistTaps="handled"
-						keyboardDismissMode="on-drag"
-						className={`flex-1 rounded-t-3xl ${cardBackground} px-6 pb-1 ${webDashboardClassNames.webSheet}`}
-						style={{ marginTop: heroHeight - 64 }}
-						contentContainerStyle={{ paddingBottom: Math.max(32, contentBottomPadding - 108) }}
-						onScroll={handleScroll}
-						scrollEventThrottle={scrollEventThrottle}
-					>
-						<VStack className={`justify-between mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
-
-							<Button variant="outline" className={`${LUMUS_CLASS_NAMES.secondaryButton} mb-4`} onPress={handleBackToProfile}>
-								<ButtonText className={LUMUS_CLASS_NAMES.body}>Voltar ao perfil</ButtonText>
-							</Button>
-
-							<VStack className="mb-4">
-								<HStack className="mb-2 ml-1 items-center gap-2">
-											<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>ID do usuário</Text>
-											<Popover
-												placement="bottom"
-												size="md"
-												offset={0}
-												shouldFlip
-												focusScope={false}
-												trapFocus={false}
-												trigger={triggerProps => (
-													<Pressable
-														{...triggerProps}
-														hitSlop={8}
-														accessibilityRole="button"
-														accessibilityLabel="Sobre o vínculo entre usuários"
-													>
-														<Info
-															size={14}
-															color={isDarkMode ? '#94A3B8' : '#64748B'}
-															style={{ marginLeft: 4 }}
-														/>
-													</Pressable>
-												)}
-											>
-												<PopoverBackdrop className="bg-transparent" />
-												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
-													<PopoverBody className="px-3 py-3">
-														<Text className={`${bodyText} text-xs leading-5`}>
-															Informe o ID da outra conta. Ela precisa aceitar o convite para compartilhar dados financeiros. O ID pode ser copiado em Meu perfil.
-														</Text>
-													</PopoverBody>
-												</PopoverContent>
-											</Popover>
-										</HStack>
-								<Input className={fieldContainerClassName}>
-									<InputField
-										ref={relatedUserInputRef as any}
-										placeholder="ID da conta que receberá o convite"
-										value={relatedUserId}
-										onChangeText={setRelatedUserId}
-										autoCapitalize="none"
-										className={inputField}
-										onFocus={() => handleInputFocus('related-user-id')}
-									/>
-								</Input>
-							</VStack>
-
-							<Button
-								className={`${submitButtonClassName} web:mt-2 web:h-12`}
-								onPress={handleLinkUsers}
-								isDisabled={isSubmitting || !relatedUserId.trim()}
-							>
-								{isSubmitting ? <ButtonSpinner /> : <ButtonText>{incomingInvites.some(invite => invite.id === relatedUserId.trim()) ? 'Aceitar convite' : 'Enviar convite'}</ButtonText>}
-							</Button>
-							{incomingInvites.map(invite => <Button key={invite.id} onPress={() => setRelatedUserId(invite.id)} className="min-h-12"><ButtonText>Aceitar convite de {invite.name}</ButtonText></Button>)}
-							<VStack className="gap-3">
-								<Text className={bodyText}>Migração financeira: informe acima o ID do administrador e abaixo o código combinado. Autorizar permite que ele leia e migre seus dados financeiros por 24 horas.</Text>
-								<Input className={fieldContainerClassName}><InputField value={migrationActionId} onChangeText={setMigrationActionId} placeholder="Código da migração" autoCapitalize="none" className={inputField} /></Input>
-								<Button onPress={() => void handleMigrationConsent('approve')} isDisabled={isMigrationSubmitting || !relatedUserId.trim() || !migrationActionId.trim()} className="min-h-12"><ButtonText>Autorizar migração</ButtonText></Button>
-								<Button onPress={() => void handleMigrationConsent('revoke')} isDisabled={isMigrationSubmitting || !relatedUserId.trim() || !migrationActionId.trim()} className="min-h-12"><ButtonText>Revogar autorização</ButtonText></Button>
-							</VStack>
-						</VStack>
-					</ScrollView>
-				</View>
-			</KeyboardAvoidingView>
-
-			<View
-				style={{
-					marginHorizontal: -18,
-					paddingBottom: 0,
-					flexShrink: 0,
-				}}
-			>
-				<Navigator defaultValue={2} onHardwareBack={handleBackToProfile} />
-			</View>
-		</View>
-		</SafeAreaView>
-		</ScreenDismissKeyboard>
-	);
+  const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();
+  const { isDarkMode, heroHeight, insets, webDashboardClassNames: layout } = useScreenStyles();
+  const inputRef = React.useRef<TextInput>(null);
+  const getInputRef = React.useCallback(() => inputRef, []);
+  const keyboard = useKeyboardAwareScroll<'related-user-id'>({ getInputRef });
+  const back = React.useCallback(() => {
+    if (fromProfile === '1') navigateBackOrRoute(APP_ROUTE_PATHS.profile);
+    else replaceToRoute(APP_ROUTE_PATHS.profile);
+    return true;
+  }, [fromProfile]);
+  return <ScreenDismissKeyboard>
+    <SafeAreaView className={cn(ui.screen, 'web:w-screen')} edges={['left', 'right', 'bottom']}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="relative flex-1">
+        <View className="absolute left-0 right-0 top-0 overflow-hidden rounded-b-3xl" style={{ height: heroHeight }}>
+          <Image source={Wallpaper} alt="Fundo da tela de vínculos" className="absolute h-full w-full rounded-b-3xl" resizeMode="cover" />
+          <WebScreenHero title="Vincular usuário" Illustration={Illustration} isDarkMode={isDarkMode} topPadding={insets.top + 24} />
+        </View>
+        <ScrollView ref={keyboard.scrollViewRef} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+          className={cn(ui.screen, 'flex-1 rounded-t-sheet px-6')} style={{ marginTop: heroHeight - 64 }}
+          contentContainerStyle={{ paddingBottom: keyboard.contentBottomPadding }}
+          onScroll={keyboard.handleScroll} scrollEventThrottle={keyboard.scrollEventThrottle}>
+          <View className={"pt-5"}>
+            <Button variant="outline" onPress={back} className={cn(ui.secondaryButton, ui.focusRing, 'mb-5 min-h-12')}><ButtonText className={ui.body}>Voltar ao perfil</ButtonText></Button>
+            <UserRelationshipsForm inputRef={inputRef} onInputFocus={() => keyboard.handleInputFocus('related-user-id')} dismissKeyboard={Keyboard.dismiss} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      <Navigator defaultValue={2} onHardwareBack={back} />
+    </SafeAreaView>
+  </ScreenDismissKeyboard>;
 }

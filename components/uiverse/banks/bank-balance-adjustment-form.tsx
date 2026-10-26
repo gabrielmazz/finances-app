@@ -29,14 +29,18 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 	const showDifferenceExtension = Boolean(form.bankId && (form.previewLoading || form.previewError || form.difference !== null || form.noDifference));
 	if (form.loading) return <Text className={LUMUS_CLASS_NAMES.helper} aria-live="polite">Carregando bancos e ajuste…</Text>;
 	if (form.error) return <VStack space="md"><Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.error}</Text><Button onPress={form.retry}><ButtonText>Tentar novamente</ButtonText></Button></VStack>;
+	if (form.completed) return <VStack space="md"><Text className={LUMUS_CLASS_NAMES.helper} accessibilityRole="alert">Ajuste confirmado. Confira o resultado no extrato.</Text><Button onPress={form.back}><ButtonText>Ver extrato</ButtonText></Button></VStack>;
 	return <VStack space="lg">
+		{form.submitError && <Text className={LUMUS_FORM_CLASS_NAMES.error} accessibilityRole="alert" accessibilityLiveRegion="polite">{form.submitError}</Text>}
+		{form.retryPending && <Text className={LUMUS_CLASS_NAMES.helper} accessibilityRole="alert">O ajuste anterior ainda precisa ser confirmado. Os campos ficam bloqueados para reenviar os mesmos dados.</Text>}
+		{!form.banks.length && <VStack space="sm"><Text className={LUMUS_CLASS_NAMES.helper}>Cadastre um banco ativo para ajustar o saldo.</Text><Button variant="outline" onPress={form.retry}><ButtonText>Atualizar bancos</ButtonText></Button></VStack>}
         {form.preparationProgress && <Text className={LUMUS_CLASS_NAMES.helper} accessibilityLiveRegion="polite">{form.preparationProgress}</Text>}
         {form.previewLoading && <Button onPress={form.pausePreparation}><ButtonText>Pausar preparação</ButtonText></Button>}
 
 		<VStack>
 			<Text className={LUMUS_FORM_CLASS_NAMES.label}>Banco</Text>
 			<BankActionsheetSelector options={form.banks} selectedId={form.bankId} selectedOption={bank} selectedLabel={bank?.name} onSelect={item => form.setBankId(item.id)}
-				isDisabled={form.submitting || !!form.adjustmentId || !form.banks.length} isDarkMode={isDarkMode} bodyTextClassName={LUMUS_CLASS_NAMES.body} helperTextClassName={LUMUS_CLASS_NAMES.helper}
+				isDisabled={form.fieldsLocked || !!form.adjustmentId || !form.banks.length} isDarkMode={isDarkMode} bodyTextClassName={LUMUS_CLASS_NAMES.body} helperTextClassName={LUMUS_CLASS_NAMES.helper}
 				triggerClassName={cn(LUMUS_CLASS_NAMES.control, LUMUS_CLASS_NAMES.focusRing, 'relative z-10')} placeholder="Selecione o banco" sheetTitle="Qual banco precisa de ajuste?" accessibilityLabel="Selecionar banco do ajuste de saldo" disabledHint={form.adjustmentId ? 'O banco do ajuste é mantido durante a edição.' : 'Cadastre um banco para ajustar o saldo.'} />
 			{form.bankId && form.base !== null && !form.previewLoading && !form.previewError && (
 				<BankBalanceAttachedPanel>
@@ -55,7 +59,7 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 				onValueChange={form.onValueChange}
 				onToggleSign={() => form.onValueChange(form.value.includes('-') ? form.value.replace('-', '') : `-${form.value}`)}
 				isNegative={form.value.includes('-')}
-				isDisabled={form.submitting || !form.bankId}
+				isDisabled={form.fieldsLocked || !form.bankId}
 				isInvalid={!!form.valueError}
 				inputRef={valueRef}
 				onFocus={() => onFocus?.('value')}
@@ -67,9 +71,9 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 					) : form.previewError ? (
 						<VStack space="sm">
 							<Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.previewError}</Text>
-							<Button variant="outline" onPress={form.retry}>
+							{!form.retryPending && <Button variant="outline" onPress={form.retry}>
 								<ButtonText>Atualizar prévia</ButtonText>
-							</Button>
+							</Button>}
 						</VStack>
 					) : form.noDifference ? (
 						<Text className={LUMUS_CLASS_NAMES.helper}>Os saldos já correspondem. Nenhum ajuste é necessário.</Text>
@@ -80,24 +84,26 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 					) : null}
 				</BankBalanceAttachedPanel>
 			)}
+			{form.bankId && form.base !== null && !form.previewLoading && !form.previewError && !form.retryPending && <Button variant="outline" onPress={form.retry} isDisabled={form.fieldsLocked}><ButtonText>Atualizar prévia</ButtonText></Button>}
 			{form.valueError && <Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.valueError}</Text>}
 			{form.adjustmentId && shouldHideValues && <Text className={LUMUS_FORM_CLASS_NAMES.helper}>Informe o saldo real novamente para editar com os valores ocultos.</Text>}
 		</VStack>
 		<VStack>
 			<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do ajuste</Text>
-			<DatePickerField value={form.date} onChange={form.setDate} accessibilityLabel="Selecionar data do ajuste" triggerClassName={LUMUS_FORM_CLASS_NAMES.input} inputClassName={LUMUS_CLASS_NAMES.inputText} placeholder="Selecione a data" isDisabled={form.submitting || !form.bankId} />
+			<DatePickerField value={form.date} onChange={form.setDate} accessibilityLabel="Selecionar data do ajuste" triggerClassName={LUMUS_FORM_CLASS_NAMES.input} inputClassName={LUMUS_CLASS_NAMES.inputText} placeholder="Selecione a data" isDisabled={form.fieldsLocked || !form.bankId} />
+			<Text className={LUMUS_CLASS_NAMES.helper}>Para datas passadas, informe o saldo ao final do dia. Movimentações posteriores são preservadas.</Text>
 			{form.dateError && <Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.dateError}</Text>}
 		</VStack>
 		<VStack>
 			<Text className={LUMUS_FORM_CLASS_NAMES.label}>Descrição {form.target !== null && form.target < 0 ? '(obrigatória)' : '(opcional)'}</Text>
-			<Textarea className={LUMUS_FORM_CLASS_NAMES.textarea} isDisabled={form.submitting}>
-				<TextareaInput ref={descriptionRef} value={form.description} onChangeText={form.setDescription} maxLength={2000} placeholder="Explique o motivo da diferença" aria-label="Descrição do ajuste de saldo" className={LUMUS_CLASS_NAMES.inputText} onFocus={() => onFocus?.('description')} />
+			<Textarea className={LUMUS_FORM_CLASS_NAMES.textarea} isDisabled={form.fieldsLocked}>
+				<TextareaInput ref={descriptionRef} editable={!form.fieldsLocked} value={form.description} onChangeText={form.setDescription} maxLength={2000} placeholder="Explique o motivo da diferença" aria-label="Descrição do ajuste de saldo" className={LUMUS_CLASS_NAMES.inputText} onFocus={() => onFocus?.('description')} />
 			</Textarea>
 			{form.descriptionError && <Text className={LUMUS_FORM_CLASS_NAMES.error} role="alert">{form.descriptionError}</Text>}
 		</VStack>
-		<Button className={`${LUMUS_FORM_CLASS_NAMES.submit} bg-lumus-accent`} onPress={() => void form.submit()} isDisabled={form.submitDisabled} accessibilityLabel={form.adjustmentId ? 'Salvar edição do ajuste de saldo' : 'Salvar ajuste de saldo'}>
+		<Button className={`${LUMUS_FORM_CLASS_NAMES.submit} bg-lumus-accent`} onPress={() => void form.submit()} isDisabled={form.submitDisabled} accessibilityLabel={form.retryPending ? 'Confirmar ajuste anterior' : form.adjustmentId ? 'Salvar edição do ajuste de saldo' : 'Salvar ajuste de saldo'}>
 			{form.submitting && <ButtonSpinner className="text-lumus-on-accent" />}
-			<ButtonText className={LUMUS_CLASS_NAMES.primaryButtonText}>{form.submitting ? 'Salvando ajuste…' : form.adjustmentId ? 'Salvar alterações' : 'Ajustar saldo'}</ButtonText>
+			<ButtonText className={LUMUS_CLASS_NAMES.primaryButtonText}>{form.submitting ? 'Salvando ajuste…' : form.retryPending ? 'Confirmar ajuste anterior' : form.adjustmentId ? 'Salvar alterações' : 'Ajustar saldo'}</ButtonText>
 		</Button>
 	</VStack>;
 }

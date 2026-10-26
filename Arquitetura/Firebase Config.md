@@ -5,16 +5,16 @@ status: ativo
 tipo: arquitetura
 versao: 1.4.9
 spark_scope: projeto
-spark_progress: 56
-spark_reviewed_at: 2026-10-22
+spark_progress: 59
+spark_reviewed_at: 2026-10-24
 ---
 
 # Firebase Config
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 24/10/2026
 
-Migração do projeto para Spark: **56% implementado / 44% restante**. O protocolo local é `financial-proof-v16`; importação `ledger-stage-v4` continua bloqueada para ativação. A configuração remota não foi auditada nesta revisão. O perfil de publicação Spark permanece em **0%**. Ver [[Status da Implementação Spark]].
+Migração do projeto para Spark: **59% implementado / 41% restante**. O protocolo local é `financial-proof-v17`; importação `ledger-stage-v4` continua bloqueada para ativação. A configuração remota não foi auditada nesta revisão. O perfil de publicação Spark permanece em **0%**. Ver [[Status da Implementação Spark]].
 
 As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
 <!-- spark-progress:end -->
@@ -138,7 +138,7 @@ export const firebaseFunctions: Functions; // Functions já conectado ao alvo re
 - [[Gerenciamento de Usuários]] — Consome `secondaryApp`/`secondaryAuth` para criar usuários
 - Todos os `functions/*.ts` — Consomem `db` (Firestore) para operações CRUD
 - [[Segurança de Login]] — `firebaseAuthStorage` configura persistência do `secondaryAuth`
-- [[Assistente Lumus]] — A inferência usa Firebase AI Logic, App Check e Remote Config; no código atual, execução financeira e comandos de vínculos/exclusão dependem das callables conforme a operação e o estado de migração. [[Viabilidade do Plano Spark]] registra essas dependências, e [[Plano de Funcionalidade Completa sem Blaze]] define o redesenho confirmado para Firestore/Rules sem servidor externo. [[Protocolo Financeiro Spark]] contém a prova isolada e [[Reconciliação de Dados Spark]] a análise local; ainda não substituem o transporte das telas/chat.
+- [[Assistente Lumus]] — Inferência usa Firebase AI Logic, App Check e Remote Config. Vínculos usam o SDK/Rules de [[Vínculos de Usuários Spark]]; comandos financeiros restantes e exclusão ainda dependem da operação/estado de migração. [[Viabilidade do Plano Spark]] conserva o diagnóstico histórico, e [[Plano de Funcionalidade Completa sem Blaze]] e [[Status da Implementação Spark]] apresentam os caminhos já convertidos e as pendências atuais.
 
 ## Firebase AI Logic
 

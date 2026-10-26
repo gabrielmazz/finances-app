@@ -30,7 +30,20 @@ service cloud.firestore {
       return currentUser().data.get('relatedIdUsers', []);
     }
 
+    function sparkRelationshipPath(otherUserId) {
+      return request.auth.uid < otherUserId
+        ? /databases/$(database)/documents/sparkUserRelationships/$(request.auth.uid)/sparkRelationshipPairs/$(otherUserId)
+        : /databases/$(database)/documents/sparkUserRelationships/$(otherUserId)/sparkRelationshipPairs/$(request.auth.uid);
+    }
+
     function hasAcceptedRelationship(otherUserId) {
+      // Um estado Spark (inclusive revogado) prevalece sobre concessões antigas.
+      return signedIn() && (exists(sparkRelationshipPath(otherUserId))
+        ? get(sparkRelationshipPath(otherUserId)).data.status == 'linked'
+        : hasLegacyAcceptedRelationship(otherUserId));
+    }
+
+    function hasLegacyAcceptedRelationship(otherUserId) {
       return signedIn()
         && otherUserId in relatedUsers()
         && exists(/databases/$(database)/documents/users/$(otherUserId))
@@ -2114,7 +2127,102 @@ service cloud.firestore {
       );
     }
 
-    // [[Gerenciamento de Usuários]]: convites e aceites são escritos somente pelo backend.
+    // [[Gerenciamento de Usuários]]: consentimento por par, sem escrita de perfil/papel alheio.
+    function relationshipParticipant(first, second) {
+      return signedIn() && first < second && first.size() <= 128 && second.size() <= 128
+        && request.auth.uid in [first, second];
+    }
+    function relationshipName() {
+      let name = currentUser().data.get('name', null);
+      return name is string && name.size() > 0 ? name : 'Conta sem nome';
+    }
+    function validRelationshipPair(data, first, second) {
+      return data.keys().hasOnly(['schemaVersion', 'participants', 'senderId', 'senderName', 'status', 'revision', 'inviteId', 'createdAt', 'updatedAt', 'acceptedAt', 'lastActorId', 'lastOperationId'])
+        && data.schemaVersion == 1 && data.participants == [first, second]
+        && data.senderId in [first, second] && data.senderName is string && data.senderName.size() <= 100
+        && data.status in ['invited', 'linked', 'revoked']
+        && data.revision is int && data.revision >= 1 && data.revision <= 1000000000
+        && validSparkOperationId(data.inviteId) && validSparkOperationId(data.lastOperationId)
+        && data.createdAt is timestamp && data.updatedAt == request.time
+        && (data.acceptedAt == null || data.acceptedAt is timestamp)
+        && data.lastActorId == request.auth.uid;
+    }
+    function relationshipReceipt(first, second, data) {
+      let receiptPath = /databases/$(database)/documents/sparkUserRelationshipOperations/$(request.auth.uid)/receipts/$(data.lastOperationId);
+      let receipt = getAfter(receiptPath).data;
+      return !exists(receiptPath) && receipt.relatedUserId == (request.auth.uid == first ? second : first)
+        && receipt.revision == data.revision && receipt.createdAt == request.time
+        && receipt.action == (data.status == 'revoked' ? 'unlink' : 'link')
+        && receipt.status == (data.status == 'revoked' ? 'unlinked' : data.status)
+        && (data.status == 'revoked' || (getAfter(/databases/$(database)/documents/sparkUserRelationshipQuotas/$(request.auth.uid)).data.lastOperationId == data.lastOperationId
+          && getAfter(/databases/$(database)/documents/sparkUserRelationshipQuotas/$(request.auth.uid)).data.updatedAt == request.time));
+    }
+    function validRelationshipInvitation(data) {
+      return data.status == 'invited' && data.senderId == request.auth.uid
+        && data.senderName == relationshipName() && data.createdAt == request.time && data.acceptedAt == null
+        && data.inviteId == data.lastOperationId;
+    }
+    match /sparkUserRelationships/{first}/sparkRelationshipPairs/{second} {
+      allow get: if relationshipParticipant(first, second);
+      allow create: if relationshipParticipant(first, second)
+        && exists(/databases/$(database)/documents/users/$(first)) && exists(/databases/$(database)/documents/users/$(second))
+        && validRelationshipPair(request.resource.data, first, second) && request.resource.data.revision == 1
+        && relationshipReceipt(first, second, request.resource.data)
+        && (validRelationshipInvitation(request.resource.data)
+          || (request.resource.data.status == 'revoked' && hasLegacyAcceptedRelationship(request.auth.uid == first ? second : first) && request.resource.data.senderId == request.auth.uid
+            && request.resource.data.senderName == relationshipName() && request.resource.data.createdAt == request.time
+            && request.resource.data.acceptedAt == null && request.resource.data.inviteId == request.resource.data.lastOperationId));
+      allow update: if relationshipParticipant(first, second)
+        && validRelationshipPair(request.resource.data, first, second)
+        && request.resource.data.revision == resource.data.revision + 1
+        && relationshipReceipt(first, second, request.resource.data)
+        && ((request.resource.data.status == 'revoked' && resource.data.status != 'revoked'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revision', 'updatedAt', 'lastActorId', 'lastOperationId']))
+          || (resource.data.status == 'invited' && request.resource.data.status == 'linked'
+            && request.auth.uid != resource.data.senderId
+            && request.time >= resource.data.createdAt && request.time < resource.data.createdAt + duration.value(7, 'd')
+            && request.resource.data.acceptedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'revision', 'updatedAt', 'acceptedAt', 'lastActorId', 'lastOperationId']))
+          || ((resource.data.status == 'revoked' || (resource.data.status == 'invited' && request.time >= resource.data.createdAt + duration.value(7, 'd')))
+            && validRelationshipInvitation(request.resource.data) && request.resource.data.inviteId != resource.data.inviteId));
+      allow delete: if false;
+    }
+    match /{path=**}/sparkRelationshipPairs/{second} {
+      allow list: if signedIn() && request.auth.uid in resource.data.participants;
+    }
+    match /sparkUserRelationshipQuotas/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['windowStartInMillis', 'count', 'lastOperationId', 'updatedAt'])
+        && request.resource.data.windowStartInMillis is int
+        && request.resource.data.windowStartInMillis == int(request.time.toMillis() / 60000) * 60000
+        && request.resource.data.count is int && request.resource.data.count > 0 && request.resource.data.count <= 10
+        && request.resource.data.updatedAt == request.time && validSparkOperationId(request.resource.data.lastOperationId)
+        && ((resource == null && request.resource.data.count == 1)
+          || (resource != null && ((resource.data.windowStartInMillis == request.resource.data.windowStartInMillis && request.resource.data.count == resource.data.count + 1)
+            || (resource.data.windowStartInMillis < request.resource.data.windowStartInMillis && request.resource.data.count == 1))))
+        && !exists(/databases/$(database)/documents/sparkUserRelationshipOperations/$(uid)/receipts/$(request.resource.data.lastOperationId))
+        && getAfter(/databases/$(database)/documents/sparkUserRelationshipOperations/$(uid)/receipts/$(request.resource.data.lastOperationId)).data.action == 'link'
+        && getAfter(/databases/$(database)/documents/sparkUserRelationshipOperations/$(uid)/receipts/$(request.resource.data.lastOperationId)).data.createdAt == request.time;
+      allow list, delete: if false;
+    }
+    match /sparkUserRelationshipOperations/{uid}/receipts/{operationId} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid && validSparkOperationId(operationId)
+        && validSparkId(request.resource.data.relatedUserId) && request.resource.data.relatedUserId != uid
+        && request.resource.data.keys().hasOnly(['relatedUserId', 'action', 'expectedFingerprint', 'revision', 'status', 'createdAt'])
+        && request.resource.data.expectedFingerprint is string && request.resource.data.expectedFingerprint.size() <= 512
+        && request.resource.data.createdAt == request.time
+        && getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.lastOperationId == operationId
+        && getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.lastActorId == uid
+        && getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.revision == request.resource.data.revision
+        && request.resource.data.action == (getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.status == 'revoked' ? 'unlink' : 'link')
+        && request.resource.data.status == (getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.status == 'revoked' ? 'unlinked' : getAfter(sparkRelationshipPath(request.resource.data.relatedUserId)).data.status);
+      allow list, update, delete: if false;
+    }
+
+    // Compatibilidade somente leitura: documentos antigos continuam exclusivos do backend.
+
     match /userRelationshipInvites/{userId}/incoming/{senderId} {
       allow read, write: if false;
     }

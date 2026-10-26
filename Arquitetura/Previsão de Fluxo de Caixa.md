@@ -6,13 +6,13 @@ tipo: feature
 versao: 1.2.9
 spark_module: F11
 spark_progress: 75
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-24
 ---
 
 # Previsão de Fluxo de Caixa
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 24/10/2026
 
 **F11 — Previsão de fluxo de caixa: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
 
@@ -20,6 +20,16 @@ O percentual corresponde ao módulo completo, incluindo integração e dados, e 
 
 Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
 <!-- spark-progress:end -->
+
+## Previsão utilizável por tela - 24/10/2026
+
+FinancialForecast Web/mobile reutiliza `useFinancialForecastData(personId, periodInMonths)` para leitura por foco, UID e horizonte. O hook usa `useBankMovementsRequest` e associa o cenário à chave consultada; uma resposta anterior não substitui a seleção atual, inclusive durante a troca dos efeitos. UID real é conferido antes/depois da consulta. Retorno de falha ou exceção limpa dados, encerra carregamento/refresh e mantém erro persistente com retry. A primeira renderização inicia em carregamento, sem cenário vazio inventado.
+
+**Atualizar previsão** fica disponível nas duas plataformas. Recarga limpa resumo, gráfico e detalhes anteriores; o horizonte 3/6/12 permanece acessível durante carregamento e erro, permitindo corrigir a escolha sem aguardar uma consulta obsoleta. Cada leitura confirmada reinicia a expansão no primeiro mês e recolhe a lista de compromissos. Horizonte e sessão diferentes nunca compartilham o cenário visível. Pull-to-refresh continua disponível.
+
+Os calculadores e o transporte Spark não foram alterados: abertura é banco+Caixa correntes, journal já materializado não é reaplicado, ciclos recebidos/pagos não são projetados de novo, parcelas preservam contador/resto e liquidez de investimento é informativa. Privacidade continua mascarando textos e ativando o modo oculto do gráfico DOM. Nenhuma consulta cria transação ou modifica saldos.
+
+A revisão `financial-forecast-2026-10-24` libera somente `financialForecast` uma vez, preservando outras escolhas e desligamentos posteriores. Evidências e roteiro em [[Versão Usável por Telas]]. F11 mantém 75% (100/75/25/75), financeiro 78% e geral 56%; formatos importados, integração conversacional e homologação de horizontes/aparelhos continuam pendentes.
 
 ## Parcelas vencidas e referências nativas — 22/10/2026
 

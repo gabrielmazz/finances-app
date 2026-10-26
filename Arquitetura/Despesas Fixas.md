@@ -6,13 +6,13 @@ tipo: feature
 versao: 3.10.1
 spark_module: F07
 spark_progress: 80
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-23
 ---
 
 # Despesas Fixas
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 23/10/2026
 
 **F07 — Recorrências e parcelas: 80% implementado / 20% restante.** Notas P/I/D/E: **100/75/50/75**; cálculo e evidências em [[Status da Implementação Spark]].
 
@@ -20,6 +20,20 @@ O percentual corresponde ao módulo completo, incluindo integração e dados, e 
 
 Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
 <!-- spark-progress:end -->
+
+## Despesas recorrentes utilizáveis — 23/10/2026
+
+Cadastro/edição Web/mobile aguardam `useMovementFormEntry` confirmar contexto ou registro. Erro mantém a entrada bloqueada com **Tentar novamente**; leitura Spark que falha não consulta o cadastro legado e uma edição sem dados não vira criação. UID/rota substituídos descartam leituras e feedback tardios. `useSparkRecurringForm` oferece inicialização explícita, identifica contexto pelo UID/escopo e conserva a guarda Spark ao limpar o formulário.
+
+Categorias usam `getTagsWithUsersByPersonFirebase`, que já delimita o acesso autorizado, e depois o filtro de uso obrigatório de despesa. Não se aplica outro filtro local de proprietário que descartava categorias de membros do mesmo grupo. Carga/erro têm estados persistentes e recarga; falha não libera envio com categoria antiga. Retorno do cadastro inline continua selecionando a nova categoria elegível.
+
+Resultado incerto ou definição já confirmada com metadados pendentes bloqueia nome, valor, vencimento, categoria, observações, parcelamento e lembrete. **Confirmar cadastro anterior** repete o mesmo material/receipts; reset não descarta uma fase pendente. Contrato Spark existente mantém total/quantidade/prazo pela edição comum; a interface orienta usar Renegociar na lista. Parcelas concluídas continuam explícitas, sem avanço por calendário. Cadastro e configuração não debitam banco; somente efetivar o pagamento produz o evento financeiro existente.
+
+A lista compartilha o guard de consultas de `useBankMovementsRequest`: UID, geração de recarga, foco e desmontagem invalidam respostas antigas. Recarga limpa dados/expansões e exibe carregamento; falha oculta resumo/calendário e bloqueia PDF, com nova tentativa. **Atualizar despesas recorrentes** está disponível nas duas plataformas. Falha ao reconciliar a agenda é exibida separadamente, conservando os dados financeiros carregados; não exige outro cadastro/pagamento.
+
+Arquivamento/desfazimento têm trava síncrona e confirmação vinculada ao UID. Ação incerta conserva o modal e **Confirmar ação anterior**, sem fechar para perder o material pendente. Sucesso seguido de falha de recarga não repete a ação. Retorno de outra sessão não publica feedback. Lembretes nativos e guardas financeiros permanecem nos serviços existentes; não se promete agenda no navegador ou push com todos os aplicativos fechados.
+
+A revisão `recurring-expenses-2026-10-23` habilita apenas a chave compartilhada `addMandatoryExpenses`, que já protege cadastro/lista Web/mobile. Não cria chave independente para a lista nem libera receitas recorrentes. Outras preferências e desligamentos posteriores permanecem. F07 mantém 80% (100/75/50/75), financeiro 78% e geral 56%; recuperação material após reload, compatibilidade restante, assistente e homologação seguem pendentes. 65 testes focados distintos, tipagem do aplicativo, estilos e diff-check aprovados. Evidências, limites e roteiro manual em [[Versão Usável por Telas]]. Sem novo Emulator, inspeção visual autenticada, export/build, aparelho ou deploy nesta revisão.
 
 ## Renegociação e parcelas após o prazo — 22/10/2026
 
@@ -76,7 +90,7 @@ graph TD
 8. Enquanto a despesa fixa estiver pendente no ciclo atual, o calendário e a timeline exibem o valor previsto do template; após o registro do mês, passam a mostrar o valor efetivamente salvo na despesa real vinculada via `lastPaymentExpenseId`
 9. Quando o parcelamento está ativo, o template mantém `installmentTotal`, `installmentsCompleted`, `installmentStartDate` e `installmentEndDate`; cada pagamento mensal registrado avança uma parcela e a listagem exibe `Parcela X de Y`
 10. `MandatoryExpensesListScreen.tsx` exibe um resumo do mês corrente com total do ciclo, valores pagos, valores pendentes, parcelamentos concluídos fora do ciclo e botão para baixar o resumo em PDF via `expo-print`/`expo-sharing`; as ações de baixar PDF e adicionar gasto ficam lado a lado em um `HStack`
-11. A lista pode ser recarregada manualmente por pull-to-refresh; na Web, não há botão dedicado de atualizar. Esse recarregamento também reconcilia os lembretes locais com os templates do UID autenticado
+11. A lista pode ser recarregada manualmente por pull-to-refresh ou pelo botão Atualizar despesas recorrentes nas duas plataformas. Esse recarregamento também reconcilia os lembretes locais com os templates do UID autenticado
 12. Quando um usuário tenta registrar uma despesa comum do ciclo atual que parece corresponder a um template obrigatório pendente, `AddRegisterExpensesScreen.tsx` mostra um modal conservador. Ao aceitar, a navegação abre `MandatoryExpensesListScreen.tsx` já na confirmação de registro do template identificado
 13. Depois de cada criação, edição ou exclusão confirmada no Firestore, a Function confiável de [[Notificações]] envia um push aos aparelhos registrados do dono e de seus usuários relacionados. A lista continua responsável apenas pela reconciliação de seus lembretes locais.
 14. O navegador possui composições independentes em `AddMandatoryExpensesScreen.web.tsx` e `MandatoryExpensesListScreen.web.tsx`: o cadastro usa o calendário modal customizado para início/fim das parcelas, um seletor visual rolável de hora/minuto no padrão dos selects e não expõe controle de pagamento durante a edição; a lista usa calendário mensal, resumo, timeline expansível, confirmação em modal com quantidade de parcelas a quitar, recarregamento por pull-to-refresh e impressão do resumo em PDF. Os modais de confirmação e resumo diário da lista Web usam superfície responsiva `lg`, com margem de viewport e rolagem contida; no resumo diário, o corpo e o card expandido mantêm crescimento flexível desabilitado, ajustam-se ao conteúdo e só rolam quando necessário, evitando espaços verticais artificiais entre itens. Cada movimento Web reutiliza a mesma linha compacta de Android/iOS — ícone, nome/categoria à esquerda, valor/data e seta à direita — sem trilho ou marcador próprio. O hero da lista preserva a mesma altura visual das telas Web com sheet sobreposto, ocultando os 64 px finais do `heroHeight` e mantendo 16 px até o calendário. A lógica Firebase e as regras em centavos permanecem as mesmas das telas nativas.

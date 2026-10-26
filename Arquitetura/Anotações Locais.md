@@ -3,7 +3,7 @@ tags: [anotacoes, local, async-storage, markdown, organizacao]
 relacionado: [[Navegação]], [[Autenticação]], [[Sistema de Temas]], [[Componentes UI]]
 status: ativo
 tipo: feature
-versao: 1.4.0
+versao: 1.5.0
 ---
 
 # Anotações Locais
@@ -12,7 +12,7 @@ Espaço pessoal para textos livres, listas e checklists. As páginas pertencem �
 
 ## Como funciona
 
-1. O item **Anotações** do grupo Home no `navigator.tsx` abre a rota `/annotations`. Em **Configurações das telas**, o switch **Em desenvolvimento** começa ativado e mantém a página oculta do menu e bloqueada para acesso direto. Ao desligá-lo, a tela é liberada para testes neste aparelho e um modal informa que ela ainda não está pronta.
+1. O item **Anotações** do grupo Home no `navigator.tsx` abre a rota `/annotations`. Em **Configurações das telas**, a revisão `annotations-2026-10-25` libera a página uma vez neste aparelho. Desligamentos posteriores são preservados; não equivale a homologação ou publicação.
 2. A tela mostra as páginas locais ordenadas pela última edição; tocar em uma página abre o editor em tela cheia, sem uma nova rota para cada anotação ou a navegação inferior.
 3. **Nova anotação** cria uma página local vazia. O título e o conteúdo são salvos explicitamente pelo botão **Salvar**, e voltar à lista também salva antes de fechar o editor.
 4. Os dados ficam em `AsyncStorage` na chave versionada `@lumus/local-annotations/v1/{uid}`. Cada UID possui seu próprio conjunto de páginas, sem sincronização entre aparelhos e sem leitura/escrita no Firebase.
@@ -38,7 +38,7 @@ Espaço pessoal para textos livres, listas e checklists. As páginas pertencem �
 
 ## Configuração
 
-- O editor usa a fronteira Expo DOM e o `react-native-webview` já presentes para os gráficos do app; não adiciona pacote nem plugin. A rota continua no baseline Expo SDK 54 e deve ser verificada em Expo Go e nos builds já compatíveis com o WebView atual.
+- O editor usa a fronteira Expo DOM e o `react-native-webview` já presentes para os gráficos do app; não adiciona pacote nem plugin. A rota continua no baseline Expo SDK 57 e deve ser verificada em Expo Go e nos builds já compatíveis com o WebView atual.
 - Não reintroduzir `react-native-enriched-markdown`, Tiptap ou outra dependência de editor rico: a conversão visual atual mantém o conteúdo portátil em Markdown sem ampliar a superfície nativa do app.
 
 ## Observações importantes
@@ -70,3 +70,12 @@ A remontagem de efeitos restaura a marca de montagem do editor. No provider do a
 ## Revisão de responsividade — 2026-10-15
 
 O estado vazio do FlatList tem `View` nativa como raiz. A lista injeta um array de styles nesse elemento; o `View` normaliza o array na Web antes de montar os Boxes DOM. Passar o Box diretamente causava tela em branco ao liberar a rota, com erro de índice em CSSStyleDeclaration. Persistência, visibilidade e guard são preservados. Ver [[Auditoria de Design]].
+
+
+## Entrega por tela - 25/10/2026
+
+Web e mobile continuam compartilhando `LocalAnnotationsScreen`. A lista oferece atualização explícita, erro persistente e retry; erro não aparece como estado vazio nem permite criar outra nota sobre dados indisponíveis. JSON inválido, coleção fora do formato, registro inválido ou IDs duplicados interrompem leitura e read-modify-write, preservando o valor bruto. Nenhuma recuperação destrutiva automática foi adicionada.
+
+Salvar e voltar conserva o editor em falha; conflito mantém o rascunho até escolher **Descartar rascunho e recarregar**. Campos, formatação e checklist são bloqueados durante salvamento/recarga. Leituras antigas são descartadas por UID, montagem, foco e geração. Retomar o foco não recarrega a lista por baixo de um editor aberto. O editor DOM recebe uma chave por UID/nota, impedindo reutilizar sua árvore entre contas/notas.
+
+Continuam locais, em texto simples, sem sincronização ou Firebase. Logout explícito remove as notas da conta conforme o contrato existente. O rascunho não salvo depende da tela montada. As filas serializam operações desta instância; não prometem exclusão mútua entre abas do navegador. Ver [[Versão Usável por Telas]], [[Auditoria de Design]] e [[Status da Implementação Spark]].

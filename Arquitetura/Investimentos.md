@@ -6,13 +6,13 @@ tipo: feature
 versao: 1.6.21
 spark_module: F08
 spark_progress: 75
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-25
 ---
 
 # Investimentos
 
 <!-- spark-progress:start -->
-## Progresso Spark — 22/10/2026
+## Progresso Spark — 23/10/2026
 
 **F08 — Investimentos e carteira completa: 75% implementado / 25% restante.** Notas P/I/D/E: **100/75/25/75**; cálculo e evidências em [[Status da Implementação Spark]].
 
@@ -20,6 +20,16 @@ O percentual corresponde ao módulo completo, incluindo integração e dados, e 
 
 Esta revisão prevalece sobre listas de pendências datadas das entregas anteriores abaixo. Implementação local e logs não aprovam publicação nem migração real.
 <!-- spark-progress:end -->
+
+## Investimentos utilizáveis por tela - 23/10/2026
+
+AddFinance Web/mobile reutiliza `useTransferFormData(selectedBankId, null)` para o catálogo e o saldo canônico da origem, sem exigir dois bancos. Falha não consulta saldo legado nem libera envio com valor indisponível. A seleção, a sessão e a recarga descartam respostas antigas. Carregamento/erro têm estado persistente e retry; atualizar após salvar conserva ou limpa campos conforme a preferência existente. Principal continua positivo em centavos inteiros e não pode exceder o saldo bancário confirmado.
+
+`useSparkInvestmentForm` conserva estado por UID, bloqueia chamadas simultâneas, separa falha de cache da confirmação financeira e expõe `fieldsLocked`, `isPending`, `hasPending()` e `retryPending()`. Preparação parcial e resultado incerto conservam material, data, IDs e fases; reset recusa descartá-los. O cadastro permite **Confirmar investimento anterior** mesmo depois do débito ou de falha de leitura. Retornos tardios não publicam sucesso em outra sessão. A restauração integral após reload continua pendente.
+
+FinancialList Web/mobile oferece **Atualizar carteira**, erro/retry e descarte por UID/foco/geração. Recarregar limpa a fotografia anterior; falha de posição, banco, histórico ou taxas oculta resumo e lista, sem inventar resultado zero. Edição, arquivo, sincronização, aporte e resgate têm trava comum e verificam sessão antes/depois das esperas. Material incerto ou em preparação fica bloqueado, a mesma confirmação permanece disponível e outro modal não substitui a tentativa. Sucesso fecha a confirmação concluída; sincronização prévia segue para a etapa de aporte/resgate. Erro de recarga não repete o commit. Reabrir o desfazimento de avaliação vigente conserva motivo/alvo quando há intenção pendente.
+
+A revisão `investments-2026-10-23` habilita uma vez `addFinance`, chave compartilhada pelo cadastro/carteira. Não altera grupos, Rules, protocolos ou preferências de outras telas. Posição, principal e estimativa CDI continuam separados; abertura/aporte/resgate não entram em ganhos/despesas. Cadastro operacional continua renda fixa CDI; esta revisão não habilita precificação automática de Tesouro, ações ou fundos. Evidências e roteiro em [[Versão Usável por Telas]]. F08 mantém 75% (100/75/25/75), financeiro 78% e geral 56%.
 
 ## Relógio cliente e recuperação — 22/10/2026
 
@@ -203,3 +213,13 @@ O título "Evolução da carteira" usa nas versões mobile e Web o mesmo tratame
 ### Integridade da sincronização legada — 2026-10-12
 
 As Rules de `financeInvestmentSyncs` conferem o investimento antes e depois da escrita atômica: proprietário, saldo anterior real, saldo final, delta em centavos e banco original. Não se aceita saldo anterior inventado nem vínculo com outro banco. Movimentos compostos de aporte/resgate são exclusivos da callable. Históricos anteriores permanecem legíveis, mas não devem ser recriados pelo cliente como se fossem novas sincronizações. A compatibilidade dos documentos reais ainda requer cópia isolada, conforme [[Remediação da Auditoria de Segurança]].
+
+## Conta sem grupo na demonstração - 25/10/2026
+
+A demonstração prepara `spark@demo.lumus.local` com grupo/protocolo/papéis e saldos fictícios. **Criar conta** registra Auth/perfil, mas não executa o bootstrap financeiro de D03. Uma conta criada por esse cadastro pode ter cadastro/sincronização legados da sessão e ainda não possuir contexto Spark; antes desta correção, `null` do seletor autorizava tentar o escritor antigo, que depende de Functions desligadas nesse ambiente e devolvia a mensagem genérica de movimento recusado.
+
+`useSparkInvestmentForm` agora recusa o fallback quando o serviço não encontra contexto nativo e o Firestore pertence a `demo-lumus-financas`. Retorna erro explícito orientando sair e entrar na conta preparada. Conta com contexto nativo continua pelo mesmo serviço; o contrato `null` do legado fora da demonstração permanece. Carteira Web/mobile exibe a mensagem recebida também na notificação do aporte, sincronização e resgate, mantendo o modal/rascunho.
+
+A correção não inicializa/migra a conta criada, não muda grupos/papéis, Rules ou dados financeiros e não restaura Functions. Bootstrap automático de novos cadastros permanece pendente em [[Status da Implementação Spark]]. Para testar agora, sair e entrar em `spark@demo.lumus.local`, senha fictícia `Spark-teste-123!`, na mesma demonstração em execução. O diagnóstico não exige apagar a sessão ou os dados cadastrados.
+
+Verificação e limites em [[Versão Usável por Telas]].

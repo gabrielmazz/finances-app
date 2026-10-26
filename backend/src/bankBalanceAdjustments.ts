@@ -77,12 +77,13 @@ export const bankBalanceAdjustment = secureOnCall( async request => {
 			? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0 && !id.includes('/'))
 			: [];
 		const acceptedIds = await Promise.all(relatedIds.map(async relatedId => {
-			const [ownerGrant, relatedGrant, relatedProfile] = await Promise.all([
+			const [nativePair, ownerGrant, relatedGrant, relatedProfile] = await Promise.all([
+				transaction.get(db.doc(`sparkUserRelationships/${[personId, relatedId].sort()[0]}/sparkRelationshipPairs/${[personId, relatedId].sort()[1]}`)),
 				transaction.get(db.doc(`userRelationshipGrants/${personId}/related/${relatedId}`)),
 				transaction.get(db.doc(`userRelationshipGrants/${relatedId}/related/${personId}`)),
 				transaction.get(db.doc(`users/${relatedId}`)),
 			]);
-			return ownerGrant.exists && relatedGrant.exists
+			return !nativePair.exists && ownerGrant.exists && relatedGrant.exists
 				&& Array.isArray(relatedProfile.data()?.relatedIdUsers)
 				&& relatedProfile.data()!.relatedIdUsers.includes(personId) ? relatedId : null;
 		}));

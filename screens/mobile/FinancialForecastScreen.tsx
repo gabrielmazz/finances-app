@@ -1,7 +1,7 @@
+import { useFinancialForecastData } from '@/hooks/useFinancialForecastData';
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
 
@@ -20,14 +20,12 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { getFinancialForecastFirebase } from '@/functions/FinancialForecastFirebase';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { LUMUS_CLASS_NAMES, LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import {
 	FINANCIAL_FORECAST_PERIOD_OPTIONS,
 	type FinancialForecastCommitment,
 	type FinancialForecastCommitmentKind,
-	type FinancialForecastData,
 	type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
 import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
@@ -129,13 +127,9 @@ export default function FinancialForecastScreen() {
 	const { user } = useAuth();
 	const currentUserId = user?.uid ?? null;
 	const [periodInMonths, setPeriodInMonths] = React.useState<FinancialForecastPeriod>(3);
-	const [forecast, setForecast] = React.useState<FinancialForecastData | null>(null);
-	const [isLoading, setIsLoading] = React.useState(false);
-	const [isRefreshing, setIsRefreshing] = React.useState(false);
-	const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+	const { forecast, isLoading, isRefreshing, errorMessage, loadForecast } = useFinancialForecastData(currentUserId, periodInMonths);
 	const [expandedMonthKeys, setExpandedMonthKeys] = React.useState<string[]>([]);
 	const [showAllCommitmentsFor, setShowAllCommitmentsFor] = React.useState<string[]>([]);
-	const requestSequenceRef = React.useRef(0);
 
 	const {
 		isDarkMode,
@@ -170,60 +164,10 @@ export default function FinancialForecastScreen() {
 		[shouldHideValues],
 	);
 
-	const loadForecast = React.useCallback(
-		async (nextPeriod: FinancialForecastPeriod, asRefresh = false) => {
-			const requestId = requestSequenceRef.current + 1;
-			requestSequenceRef.current = requestId;
-
-			if (!currentUserId) {
-				setForecast(null);
-				setErrorMessage('Nenhum usuário autenticado foi identificado.');
-				setIsLoading(false);
-				setIsRefreshing(false);
-				return;
-			}
-
-			if (asRefresh) {
-				setIsRefreshing(true);
-			} else {
-				setIsLoading(true);
-			}
-			setErrorMessage(null);
-
-			const result = await getFinancialForecastFirebase(currentUserId, nextPeriod);
-			if (requestId !== requestSequenceRef.current) {
-				return;
-			}
-
-			if (!result.success) {
-				setForecast(null);
-				setErrorMessage(result.error);
-				setIsLoading(false);
-				setIsRefreshing(false);
-				return;
-			}
-
-			setForecast(result.data);
-			setExpandedMonthKeys(current => {
-				const allowedKeys = new Set(result.data.months.map(month => month.key));
-				const retainedKeys = current.filter(key => allowedKeys.has(key));
-				return retainedKeys.length > 0 ? retainedKeys : result.data.months.slice(0, 1).map(month => month.key);
-			});
-			setIsLoading(false);
-			setIsRefreshing(false);
-		},
-		[currentUserId],
-	);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			void loadForecast(periodInMonths);
-
-			return () => {
-				requestSequenceRef.current += 1;
-			};
-		}, [loadForecast, periodInMonths]),
-	);
+	React.useEffect(() => {
+		setExpandedMonthKeys(forecast?.months.slice(0, 1).map(month => month.key) ?? []);
+		setShowAllCommitmentsFor([]);
+	}, [forecast]);
 
 	const handleSelectPeriod = React.useCallback(
 		(nextPeriod: FinancialForecastPeriod) => {
@@ -288,7 +232,7 @@ export default function FinancialForecastScreen() {
 							refreshControl={
 								<RefreshControl
 									refreshing={isRefreshing}
-									onRefresh={() => void loadForecast(periodInMonths, true)}
+									onRefresh={() => void loadForecast(true)}
 									tintColor={runtimeColors.accentStrong}
 								/>
 							}
@@ -330,49 +274,50 @@ export default function FinancialForecastScreen() {
 									</Popover>
 								</HStack>
 
-								{isLoading && !forecast ? (
+								<View>
+									<Box className={`${notTintedCardClassName} p-1.5`}>
+										<Tabs
+											value={String(periodInMonths)}
+											onValueChange={nextValue => {
+												const nextPeriod = Number(nextValue) as FinancialForecastPeriod;
+												if (FINANCIAL_FORECAST_PERIOD_OPTIONS.includes(nextPeriod)) {
+													handleSelectPeriod(nextPeriod);
+												}
+											}}
+										>
+											<TabsList>
+												{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => {
+													const isSelected = periodInMonths === option;
+
+													return (
+														<TabsTrigger key={option} value={String(option)} className="flex-1">
+															<TabsTriggerText className={isSelected ? 'text-white' : undefined}>
+																{option} meses
+															</TabsTriggerText>
+														</TabsTrigger>
+													);
+												})}
+												<TabsIndicator />
+											</TabsList>
+										</Tabs>
+									</Box>
+								</View>
+								<Button variant="outline" onPress={() => void loadForecast(true)} isDisabled={isLoading || isRefreshing}>
+									<ButtonText>Atualizar previsão</ButtonText>
+								</Button>
+								{(isLoading || isRefreshing) && !forecast ? (
 									<FinancialForecastSkeleton />
 								) : errorMessage ? (
 									<View className={`${sectionCardClassName} px-5 py-5`}>
 										<VStack className="gap-4">
-											<Text className={`${bodyText} text-sm leading-5`}>{errorMessage}</Text>
-											<Button className={submitButtonClassName} onPress={() => void loadForecast(periodInMonths)}>
+											<Text className={`${bodyText} text-sm leading-5`} accessibilityRole="alert">{errorMessage}</Text>
+											<Button className={submitButtonClassName} onPress={() => void loadForecast()}>
 												<ButtonText className={submitButtonTextClassName}>Tentar novamente</ButtonText>
 											</Button>
 										</VStack>
 									</View>
 								) : forecast ? (
 									<VStack className="gap-5">
-										<View>
-											<Box className={`${notTintedCardClassName} p-1.5`}>
-												<Tabs
-													value={String(periodInMonths)}
-													disabled={isLoading}
-													onValueChange={nextValue => {
-														const nextPeriod = Number(nextValue) as FinancialForecastPeriod;
-														if (FINANCIAL_FORECAST_PERIOD_OPTIONS.includes(nextPeriod)) {
-															handleSelectPeriod(nextPeriod);
-														}
-													}}
-												>
-													<TabsList>
-														{FINANCIAL_FORECAST_PERIOD_OPTIONS.map(option => {
-															const isSelected = periodInMonths === option;
-
-															return (
-																<TabsTrigger key={option} value={String(option)} className="flex-1">
-																	<TabsTriggerText className={isSelected ? 'text-white' : undefined}>
-																		{option} meses
-																	</TabsTriggerText>
-																</TabsTrigger>
-															);
-														})}
-														<TabsIndicator />
-													</TabsList>
-												</Tabs>
-											</Box>
-										</View>
-
 										<LinearGradient
 											colors={
 												forecast.finalBalanceInCents >= 0

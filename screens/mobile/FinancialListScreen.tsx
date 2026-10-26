@@ -1,3 +1,5 @@
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import RetainedInvestments from '@/components/uiverse/investments/retained-investments';
 import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
 import InvestmentValuationUndo from '@/components/uiverse/investments/investment-valuation-undo';
@@ -234,7 +236,8 @@ const parseCurrencyInputToCents = (value: string) => {
 	if (!digits) {
 		return null;
 	}
-	return Number(digits);
+	const cents = Number(digits);
+	return Number.isSafeInteger(cents) ? cents : null;
 };
 
 const normalizeDate = (value: unknown) => {
@@ -478,6 +481,13 @@ function FinancialListSkeleton({
 
 export default function FinancialListScreen() {
 	const sparkInvestment = useSparkInvestmentForm();
+	const { personId: readerId, beginRequest, cancelRequest } = useBankMovementsRequest('investment-portfolio');
+	const { beginRequest: beginActionRequest, cancelRequest: cancelActionRequest } = useBankMovementsRequest('investment-operation');
+	const actionLock = React.useRef<object | null>(null);
+	const [loadError, setLoadError] = React.useState<string | null>(null);
+	const [actionError, setActionError] = React.useState<string | null>(null);
+	const [hasLoadedData, setHasLoadedData] = React.useState(false);
+
 	const [retainedInvestments, setRetainedInvestments] = React.useState<FinanceInvestment[]>([]);
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
@@ -533,7 +543,7 @@ export default function FinancialListScreen() {
 	const [cdiEffectiveDate, setCdiEffectiveDate] = React.useState(formatDateInput(new Date()));
 	const [isSavingCdiRate, setIsSavingCdiRate] = React.useState(false);
 
-	const [isLoading, setIsLoading] = React.useState(false);
+	const [isLoading, setIsLoading] = React.useState(true);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [editingInvestment, setEditingInvestment] =
 		React.useState<FinanceInvestment | null>(null);
@@ -583,6 +593,9 @@ export default function FinancialListScreen() {
 	const { shouldHideValues } = useValueVisibility();
 
 	// Feedback in-app unificado conforme [[Notificações]].
+	React.useEffect(() => { actionLock.current = null; setEditingInvestment(null); setInvestmentPendingDeletion(null); setInvestmentForWithdrawal(null); setInvestmentForWithdrawalSync(null); setInvestmentForDeposit(null); setInvestmentForDepositSync(null); setInvestmentForSync(null); setIsCdiSettingsOpen(false); setActionError(null); cdiIntentRef.current = null; setIsSavingCdiRate(false); setIsSavingEdit(false); setIsDeleting(false); setIsSavingDeposit(false); setIsSavingDepositSync(false); setIsSavingWithdrawal(false); setIsSavingWithdrawalSync(false); setIsSavingSync(false); }, [readerId]);
+	React.useEffect(() => () => { actionLock.current = null; }, []);
+
 	const showScreenAlert = React.useCallback(
 		(description: string, type: NotifierAlertType = 'error') => {
 			showNotifierAlert({
@@ -653,7 +666,7 @@ export default function FinancialListScreen() {
 		}: StandardizedFinancialInputProps) => (
 			<VStack className="mb-4">
 				<Text className={LUMUS_FORM_CLASS_NAMES.label}>{label}</Text>
-				<Input className={fieldContainerClassName} isDisabled={isDisabled}>
+				<Input className={fieldContainerClassName} isDisabled={isDisabled || sparkInvestment.fieldsLocked}>
 					<InputField
 						{...inputProps}
 						autoCapitalize={autoCapitalize}
@@ -664,12 +677,16 @@ export default function FinancialListScreen() {
 				</Input>
 			</VStack>
 		),
-		[bodyText, fieldContainerClassName, inputField],
+		[sparkInvestment.fieldsLocked, bodyText, fieldContainerClassName, inputField],
 	);
 
 	const loadData = React.useCallback(async (asRefresh = false) => {
+		const isCurrent = beginRequest();
+		setInvestments([]); setRetainedInvestments([]); setBanksMap({}); setCdiRates([]); setPortfolioActivity(emptyPortfolioActivity); setExpandedInvestmentIds([]);
+		setLoadError(null); setHasLoadedData(false); setIsLoading(true);
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== readerId) {
+			setLoadError('Entre novamente para carregar a carteira.'); setIsLoading(false); setIsRefreshing(false);
 			showScreenAlert('Usuário não autenticado. Faça login novamente.', 'error');
 			return;
 		}
@@ -687,6 +704,8 @@ export default function FinancialListScreen() {
 				getFinanceInvestmentPortfolioActivityWithRelationsFirebase(currentUser.uid),
 			]);
 
+			if (!isCurrent()) return;
+			if (!cdiRatesResponse.success || !Array.isArray(cdiRatesResponse.data) || !activityResponse.success || !activityResponse.data) throw new Error('Não foi possível confirmar taxas e histórico da carteira. Tente novamente.');
 			if (
 				!investmentsResponse.success ||
 				!Array.isArray(investmentsResponse.data)
@@ -771,6 +790,8 @@ export default function FinancialListScreen() {
 				} satisfies FinanceInvestment;
 			});
 
+			if (!isCurrent()) return;
+			setHasLoadedData(true);
 			setBanksMap(
 				normalizedBanks.reduce<Record<string, BankMetadata>>((acc, bank) => {
 					acc[bank.id] = bank;
@@ -790,13 +811,15 @@ export default function FinancialListScreen() {
 					: emptyPortfolioActivity,
 			);
 		} catch (error) {
-			console.error('Erro ao carregar dados de investimentos:', error);
-			showScreenAlert('Não foi possível carregar os investimentos.', 'error');
-		} finally {
-			setIsLoading(false);
-			setIsRefreshing(false);
-		}
-	}, [showScreenAlert]);
+			if (isCurrent()) setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar a carteira.');
+		} finally { if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); } }
+	}, [readerId, beginRequest]);
+
+	const beginMutation = React.useCallback(() => {
+		if (actionLock.current || !readerId || auth.currentUser?.uid !== readerId || (!sparkInvestment.hasPending() && (isLoading || loadError || !hasLoadedData))) return null;
+		const lock = {}; actionLock.current = lock; setActionError(null);
+		return { lock, isCurrent: beginActionRequest() };
+	}, [readerId, isLoading, loadError, hasLoadedData, beginActionRequest, sparkInvestment.hasPending]);
 
 	const handleRefresh = React.useCallback(async () => {
 		await loadData(true);
@@ -805,7 +828,8 @@ export default function FinancialListScreen() {
 	useFocusEffect(
 		React.useCallback(() => {
 			void loadData();
-		}, [loadData]),
+			return () => { cancelRequest(); cancelActionRequest(); };
+		}, [loadData, cancelRequest, cancelActionRequest]),
 	);
 
 	const portfolioAnalytics = React.useMemo(
@@ -845,7 +869,7 @@ export default function FinancialListScreen() {
 		[cdiRates, investments, performancePeriod, portfolioActivity],
 	);
 
-	const currentUserId = auth.currentUser?.uid ?? '';
+	const currentUserId = readerId ?? '';
 	const activeCdiRate = React.useMemo(
 		() =>
 			currentUserId
@@ -880,6 +904,7 @@ export default function FinancialListScreen() {
 	}, [formatCurrencyBRL, syncedDepositValueInCents]);
 
 	const handleOpenCdiSettings = React.useCallback(() => {
+			if (actionLock.current || !sparkInvestment.reset()) return;
 		setCdiRateInput(
 			activeCdiRate
 				? formatBasisPointsAsPercentage(activeCdiRate.annualRateInBasisPoints)
@@ -890,7 +915,7 @@ export default function FinancialListScreen() {
 	}, [activeCdiRate]);
 
 	const handleCloseCdiSettings = React.useCallback(() => {
-		if (isSavingCdiRate) {
+		if (isSavingCdiRate || sparkInvestment.hasPending()) {
 			return;
 		}
 		setIsCdiSettingsOpen(false);
@@ -920,6 +945,7 @@ export default function FinancialListScreen() {
 			return;
 		}
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingCdiRate(true);
 		try {
 			const signature = serializeAssistantRecord({ actorId: currentUser.uid, annualRateInBasisPoints, effectiveFrom });
@@ -930,22 +956,27 @@ export default function FinancialListScreen() {
 				annualRateInBasisPoints,
 				effectiveFrom,
 			});
+			if (!mutation.isCurrent()) return;
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				throw new Error('Não foi possível salvar a taxa CDI.');
 			}
 
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			setIsCdiSettingsOpen(false);
 			setCdiRateInput('');
 			cdiIntentRef.current = null;
 			showScreenAlert('Taxa CDI salva e aplicada às projeções.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error('Erro ao salvar taxa CDI:', error);
 			showScreenAlert('Não foi possível salvar a taxa CDI agora.', 'error');
 		} finally {
-			setIsSavingCdiRate(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingCdiRate(false); }
 		}
-	}, [cdiEffectiveDate, cdiRateInput, loadData, showScreenAlert]);
+	}, [beginMutation, cdiEffectiveDate, cdiRateInput, loadData, showScreenAlert]);
 
 	const handleNavigateToAdd = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addFinance);
@@ -967,7 +998,7 @@ export default function FinancialListScreen() {
 	);
 
 	const closeEditModal = React.useCallback(() => {
-		if (isSavingEdit) {
+		if (isSavingEdit || sparkInvestment.hasPending()) {
 			return;
 		}
 		setEditingInvestment(null);
@@ -981,7 +1012,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenEditModal = React.useCallback(
 		(investment: FinanceInvestment) => {
-			sparkInvestment.reset();
+			if (!sparkInvestment.reset()) return;
 			setEditingInvestment(investment);
 			setEditName(investment.name);
 			setEditInitialInput(
@@ -1020,6 +1051,7 @@ export default function FinancialListScreen() {
 			return;
 		}
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingEdit(true);
 		try {
 			const resolvedBankName =
@@ -1036,20 +1068,26 @@ export default function FinancialListScreen() {
 				description: editDescription.trim() ? editDescription.trim() : null,
 			};
 			const result = (await sparkInvestment.update(investmentParams)) ?? await updateFinanceInvestmentFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 
 			if (!result.success) {
-				throw new Error('Erro ao atualizar investimento.');
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
+				throw new Error(result.error || 'Erro ao atualizar investimento.');
 			}
 
+			setEditingInvestment(null);
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			showScreenAlert('Investimento atualizado com sucesso!', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
 			showScreenAlert('Não foi possível salvar a edição agora.', 'error');
 		} finally {
-			setIsSavingEdit(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingEdit(false); }
 		}
-	}, [
+	}, [beginMutation,
 		bankOptions,
 		editBankId,
 		editCdiInput,
@@ -1064,13 +1102,14 @@ export default function FinancialListScreen() {
 
 	const handleRequestDelete = React.useCallback(
 		(investment: FinanceInvestment) => {
+			if (actionLock.current || !sparkInvestment.reset()) return;
 			setInvestmentPendingDeletion(investment);
 		},
 		[],
 	);
 
 	const handleCloseDeleteModal = React.useCallback(() => {
-		if (isDeleting) {
+		if (isDeleting || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentPendingDeletion(null);
@@ -1080,21 +1119,28 @@ export default function FinancialListScreen() {
 		if (!investmentPendingDeletion) {
 			return;
 		}
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsDeleting(true);
 		try {
 			const result = (await sparkInvestment.archive(investmentPendingDeletion.id)) ?? await deleteFinanceInvestmentFirebase(
 				investmentPendingDeletion.id,
 			);
+			if (!mutation.isCurrent()) return;
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				throw new Error(
 					'error' in result && typeof result.error === 'string'
 						? result.error
 						: 'Erro ao excluir investimento.',
 				);
 			}
+			setInvestmentPendingDeletion(null);
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			showScreenAlert(investmentPendingDeletion.sparkNative ? 'Investimento arquivado. O histórico foi preservado.' : 'Investimento removido.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
 			showScreenAlert(
 				error instanceof Error && error.message
@@ -1103,13 +1149,13 @@ export default function FinancialListScreen() {
 				'error',
 			);
 		} finally {
-			setIsDeleting(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsDeleting(false); }
 		}
-	}, [investmentPendingDeletion, loadData, showScreenAlert]);
+	}, [beginMutation, investmentPendingDeletion, loadData, showScreenAlert]);
 
 	const handleOpenDepositModal = React.useCallback(
 		(investment: FinanceInvestment) => {
-			sparkInvestment.reset();
+			if (!sparkInvestment.reset()) return;
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForDeposit(null);
 			setSyncedDepositValueInCents(null);
@@ -1123,7 +1169,7 @@ export default function FinancialListScreen() {
 	);
 
 	const handleCloseDepositModal = React.useCallback(() => {
-		if (isSavingDeposit) {
+		if (isSavingDeposit || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentForDeposit(null);
@@ -1132,7 +1178,7 @@ export default function FinancialListScreen() {
 	}, [isSavingDeposit]);
 
 	const handleCloseDepositSyncModal = React.useCallback(() => {
-		if (isSavingDepositSync) {
+		if (isSavingDepositSync || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentForDepositSync(null);
@@ -1172,21 +1218,27 @@ export default function FinancialListScreen() {
 			return;
 		}
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingDeposit(true);
 		try {
 			const investmentParams = { investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: parsedCents, date: depositDateWithCurrentTime, type: 'deposit' as const, expectedCurrentValueInCents: syncedDepositValueInCents };
 			const result = (await sparkInvestment.move(investmentParams)) ?? await moveFinanceInvestmentFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 			if (!result.success) throw new Error(result.error);
 
+			setInvestmentForDeposit(null);
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			showScreenAlert('Aporte registrado e investimento atualizado.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
-			showScreenAlert('Não foi possível registrar o aporte agora.', 'error');
+			showScreenAlert(error instanceof Error && error.message ? error.message : 'Não foi possível registrar o aporte agora.', 'error');
 		} finally {
-			setIsSavingDeposit(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingDeposit(false); }
 		}
-	}, [
+	}, [beginMutation,
 		depositInput,
 		investmentForDeposit,
 		loadData,
@@ -1216,6 +1268,7 @@ export default function FinancialListScreen() {
 		}
 		const depositSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedDepositSyncDate);
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingDepositSync(true);
 		try {
 			const investmentParams = {
@@ -1230,28 +1283,33 @@ export default function FinancialListScreen() {
 				date: depositSyncDateWithCurrentTime,
 			};
 			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				throw new Error(result.error || 'Erro ao sincronizar investimento.');
 			}
 
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			setSyncedDepositValueInCents(result.currentValueInCents ?? parsedCents);
 			setInvestmentForDeposit(investmentForDepositSync);
 			setInvestmentForDepositSync(null);
 			setDepositInput('');
 			showScreenAlert('Valor sincronizado! Agora informe o aporte.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
-			showScreenAlert('Não foi possível sincronizar agora.', 'error');
+			showScreenAlert(error instanceof Error && error.message ? error.message : 'Não foi possível sincronizar agora.', 'error');
 		} finally {
-			setIsSavingDepositSync(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingDepositSync(false); }
 		}
-	}, [banksMap, depositSyncDate, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
+	}, [beginMutation, banksMap, depositSyncDate, depositSyncInput, investmentForDepositSync, loadData, showScreenAlert]);
 
 	const handleOpenWithdrawalModal = React.useCallback(
 		(investment: FinanceInvestment) => {
-			sparkInvestment.reset();
+			if (!sparkInvestment.reset()) return;
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForWithdrawal(null);
 			setSyncedWithdrawalValueInCents(null);
@@ -1267,7 +1325,7 @@ export default function FinancialListScreen() {
 	);
 
 	const handleCloseWithdrawalModal = React.useCallback(() => {
-		if (isSavingWithdrawal) {
+		if (isSavingWithdrawal || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentForWithdrawal(null);
@@ -1278,7 +1336,7 @@ export default function FinancialListScreen() {
 	}, [isSavingWithdrawal]);
 
 	const handleCloseWithdrawalSyncModal = React.useCallback(() => {
-		if (isSavingWithdrawalSync) {
+		if (isSavingWithdrawalSync || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentForWithdrawalSync(null);
@@ -1307,6 +1365,7 @@ export default function FinancialListScreen() {
 		}
 		const withdrawSyncDateWithCurrentTime = mergeDateWithCurrentTime(parsedWithdrawSyncDate);
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingWithdrawalSync(true);
 		try {
 			const syncedCents = parsedCents;
@@ -1322,25 +1381,30 @@ export default function FinancialListScreen() {
 				date: withdrawSyncDateWithCurrentTime,
 			};
 			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				showScreenAlert(result.error ?? 'Não foi possível sincronizar o investimento.', 'error');
 				return;
 			}
 
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			setSyncedWithdrawalValueInCents(result.currentValueInCents ?? syncedCents);
 			setInvestmentForWithdrawal(investmentForWithdrawalSync);
 			setInvestmentForWithdrawalSync(null);
 			setWithdrawInput('');
 			showScreenAlert('Valor sincronizado! Agora informe quanto deseja resgatar.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
-			showScreenAlert('Não foi possível sincronizar agora.', 'error');
+			showScreenAlert(error instanceof Error && error.message ? error.message : 'Não foi possível sincronizar agora.', 'error');
 		} finally {
-			setIsSavingWithdrawalSync(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingWithdrawalSync(false); }
 		}
-	}, [banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncDate, withdrawSyncInput]);
+	}, [beginMutation, banksMap, investmentForWithdrawalSync, loadData, showScreenAlert, withdrawSyncDate, withdrawSyncInput]);
 
 	const handleConfirmWithdrawal = React.useCallback(async () => {
 		if (!investmentForWithdrawal) {
@@ -1384,24 +1448,31 @@ export default function FinancialListScreen() {
 			return;
 		}
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingWithdrawal(true);
 		try {
 			const investmentParams = { investmentId: targetInvestment.id, bankId: targetInvestment.bankId, valueInCents: withdrawCents, date: withdrawalDateWithCurrentTime, type: 'redemption' as const, expectedCurrentValueInCents: availableCents };
 			const result = (await sparkInvestment.move(investmentParams)) ?? await moveFinanceInvestmentFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				showScreenAlert(result.error ?? 'Não foi possível concluir o resgate.', 'error');
 				return;
 			}
 
+			setInvestmentForWithdrawal(null);
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			showScreenAlert('Resgate registrado e investimento atualizado.', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
 			showScreenAlert('Não foi possível preparar o resgate agora.', 'error');
 		} finally {
-			setIsSavingWithdrawal(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingWithdrawal(false); }
 		}
-	}, [
+	}, [beginMutation,
 		investmentForWithdrawal,
 		loadData,
 		showScreenAlert,
@@ -1412,7 +1483,7 @@ export default function FinancialListScreen() {
 
 	const handleOpenManualSyncModal = React.useCallback(
 		(investment: FinanceInvestment) => {
-			sparkInvestment.reset();
+			if (!sparkInvestment.reset()) return;
 			const baseValue = convertCentsToBRL(resolveBaseValueInCents(investment));
 			setInvestmentForSync(investment);
 			setSyncInput(baseValue > 0 ? formatCurrencyBRLRaw(baseValue) : '');
@@ -1422,7 +1493,7 @@ export default function FinancialListScreen() {
 	);
 
 	const handleCloseManualSyncModal = React.useCallback(() => {
-		if (isSavingSync) {
+		if (isSavingSync || sparkInvestment.hasPending()) {
 			return;
 		}
 		setInvestmentForSync(null);
@@ -1450,6 +1521,7 @@ export default function FinancialListScreen() {
 		}
 		const syncDateWithCurrentTime = mergeDateWithCurrentTime(parsedSyncDate);
 
+		const mutation = beginMutation(); if (!mutation) return;
 		setIsSavingSync(true);
 		try {
 			const investmentParams = {
@@ -1464,20 +1536,26 @@ export default function FinancialListScreen() {
 				date: syncDateWithCurrentTime,
 			};
 			const result = (await sparkInvestment.sync(investmentParams)) ?? await syncFinanceInvestmentValueFirebase(investmentParams);
+			if (!mutation.isCurrent()) return;
 
 			if (!result.success) {
+				setActionError('error' in result && typeof result.error === 'string' ? result.error : 'Não foi possível confirmar a operação.');
 				throw new Error(result.error || 'Erro ao sincronizar investimento.');
 			}
 
+			setInvestmentForSync(null);
 			await loadData();
+			if (!mutation.isCurrent()) return;
 			showScreenAlert('Valor sincronizado com sucesso!', 'success');
 		} catch (error) {
+			if (!mutation.isCurrent()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível confirmar a operação.');
 			console.error(error);
-			showScreenAlert('Não foi possível sincronizar agora.', 'error');
+			showScreenAlert(error instanceof Error && error.message ? error.message : 'Não foi possível sincronizar agora.', 'error');
 		} finally {
-			setIsSavingSync(false);
+			if (actionLock.current === mutation.lock) { actionLock.current = null; setIsSavingSync(false); }
 		}
-	}, [banksMap, investmentForSync, loadData, showScreenAlert, syncDate, syncInput]);
+	}, [beginMutation, banksMap, investmentForSync, loadData, showScreenAlert, syncDate, syncInput]);
 
 	const isInitialLoading = isLoading && investments.length === 0;
 
@@ -1544,7 +1622,9 @@ export default function FinancialListScreen() {
 							>
 								Visão da carteira
 							</Heading>
-								{isInitialLoading ? (
+								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
+								<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || sparkInvestment.fieldsLocked || !!actionLock.current}><ButtonText>Atualizar carteira</ButtonText></Button>
+								{loadError ? null : isInitialLoading ? (
 									<VStack className="gap-4">
 										<View className="flex-row flex-wrap gap-3">
 											{Array.from({ length: 3 }).map((_, index) => (
@@ -1722,8 +1802,8 @@ export default function FinancialListScreen() {
 							</Button>
 
 
-							<RetainedInvestments accounts={retainedInvestments} onChanged={loadData} />
-							{isInitialLoading ? (
+							{!loadError && !isLoading && <RetainedInvestments accounts={retainedInvestments} onChanged={loadData} />}
+							{loadError ? null : isInitialLoading ? (
 								<FinancialListSkeleton
 									skeletonBaseColor={skeletonBaseColor}
 									skeletonHighlightColor={skeletonHighlightColor}
@@ -2277,6 +2357,8 @@ export default function FinancialListScreen() {
 								<ModalCloseButton onPress={handleCloseCdiSettings} />
 							</ModalHeader>
 							<ModalBody>
+								{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+								{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 								<ScrollView
 									keyboardShouldPersistTaps="handled"
 									keyboardDismissMode="on-drag"
@@ -2292,7 +2374,7 @@ export default function FinancialListScreen() {
 											onChangeText: text => setCdiRateInput(sanitizeNumberInput(text)),
 											placeholder: 'Ex: 13,75',
 											keyboardType: 'decimal-pad',
-											isDisabled: isSavingCdiRate,
+											isDisabled: sparkInvestment.fieldsLocked || isSavingCdiRate,
 										})}
 										<VStack className="mb-2 gap-2">
 											<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Vigência da taxa</Text>
@@ -2302,7 +2384,7 @@ export default function FinancialListScreen() {
 												onChange={setCdiEffectiveDate}
 												triggerClassName={fieldContainerClassName}
 												inputClassName={inputField}
-												isDisabled={isSavingCdiRate}
+												isDisabled={sparkInvestment.fieldsLocked || isSavingCdiRate}
 											/>
 										</VStack>
 
@@ -2377,6 +2459,8 @@ export default function FinancialListScreen() {
 								<ModalCloseButton onPress={closeEditModal} />
 							</ModalHeader>
 							<ModalBody>
+								{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+								{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 								<ScrollView
 									keyboardShouldPersistTaps="handled"
 									keyboardDismissMode="on-drag"
@@ -2394,7 +2478,7 @@ export default function FinancialListScreen() {
 									keyboardType: 'default',
 									autoCapitalize: 'sentences',
 									returnKeyType: 'next',
-									isDisabled: isSavingEdit,
+									isDisabled: sparkInvestment.fieldsLocked || isSavingEdit,
 								})}
 								{renderStandardizedInput({
 									label: 'Valor inicial',
@@ -2403,7 +2487,7 @@ export default function FinancialListScreen() {
 									placeholder: 'Digite o valor inicial',
 									keyboardType: 'numeric',
 									returnKeyType: 'next',
-									isDisabled: isSavingEdit,
+									isDisabled: sparkInvestment.fieldsLocked || isSavingEdit,
 								})}
 								{renderStandardizedInput({
 									label: 'CDI (%)',
@@ -2412,7 +2496,7 @@ export default function FinancialListScreen() {
 										setEditCdiInput(sanitizeNumberInput(text)),
 									placeholder: 'Digite o percentual do CDI',
 									keyboardType: 'decimal-pad',
-									isDisabled: isSavingEdit,
+									isDisabled: sparkInvestment.fieldsLocked || isSavingEdit,
 								})}
 								<VStack className="mb-4">
 									<Text className={LUMUS_FORM_CLASS_NAMES.label}>
@@ -2423,7 +2507,7 @@ export default function FinancialListScreen() {
 										onValueChange={(value) =>
 											setEditTerm(value as RedemptionTerm)
 										}
-										isDisabled={isSavingEdit}
+										isDisabled={sparkInvestment.fieldsLocked || isSavingEdit}
 									>
 										<SelectTrigger
 											variant="outline"
@@ -2460,7 +2544,7 @@ export default function FinancialListScreen() {
 									<Select
 										selectedValue={editBankId ?? undefined}
 										onValueChange={(value) => setEditBankId(value)}
-										isDisabled={isSavingEdit || bankOptions.length === 0}
+										isDisabled={sparkInvestment.fieldsLocked || isSavingEdit || bankOptions.length === 0}
 									>
 										<SelectTrigger
 											variant="outline"
@@ -2511,7 +2595,7 @@ export default function FinancialListScreen() {
 									</Text>
 									<Textarea
 										className={textareaContainerClassName}
-										isDisabled={isSavingEdit}
+										isDisabled={sparkInvestment.fieldsLocked || isSavingEdit}
 									>
 										<TextareaInput
 											value={editDescription}
@@ -2563,6 +2647,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseDepositSyncModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Text className={`${bodyText} mb-4 text-sm`}>
 								Confirme o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
@@ -2576,7 +2662,7 @@ export default function FinancialListScreen() {
 								onChangeText: handleDepositSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.000,00',
-								isDisabled: isSavingDepositSync,
+								isDisabled: sparkInvestment.fieldsLocked || isSavingDepositSync,
 							})}
 							<VStack className="mb-4">
 								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
@@ -2587,7 +2673,7 @@ export default function FinancialListScreen() {
 									triggerClassName={fieldContainerClassName}
 									inputClassName={inputField}
 									placeholder="Selecione a data da sincronização"
-									isDisabled={isSavingDepositSync}
+									isDisabled={sparkInvestment.fieldsLocked || isSavingDepositSync}
 								/>
 							</VStack>
 						</ModalBody>
@@ -2629,6 +2715,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseDepositModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Box className={`${notTintedCardClassName} mb-4 px-4 py-4`}>
 								<VStack className="gap-1">
 									<Text
@@ -2654,7 +2742,7 @@ export default function FinancialListScreen() {
 								onChangeText: handleDepositInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 500,00',
-								isDisabled: isSavingDeposit,
+								isDisabled: sparkInvestment.fieldsLocked || isSavingDeposit,
 							})}
 							<VStack className="mb-4">
 								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do aporte</Text>
@@ -2665,7 +2753,7 @@ export default function FinancialListScreen() {
 									triggerClassName={fieldContainerClassName}
 									inputClassName={inputField}
 									placeholder="Selecione a data do aporte"
-									isDisabled={isSavingDeposit}
+									isDisabled={sparkInvestment.fieldsLocked || isSavingDeposit}
 								/>
 							</VStack>
 						</ModalBody>
@@ -2707,6 +2795,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseWithdrawalSyncModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Text className={`${bodyText} mb-4 text-sm`}>
 								Confirme o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
@@ -2720,7 +2810,7 @@ export default function FinancialListScreen() {
 								onChangeText: handleWithdrawSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.000,00',
-								isDisabled: isSavingWithdrawalSync,
+								isDisabled: sparkInvestment.fieldsLocked || isSavingWithdrawalSync,
 							})}
 							<VStack className="mb-4">
 								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
@@ -2731,7 +2821,7 @@ export default function FinancialListScreen() {
 									triggerClassName={fieldContainerClassName}
 									inputClassName={inputField}
 									placeholder="Selecione a data da sincronização"
-									isDisabled={isSavingWithdrawalSync}
+									isDisabled={sparkInvestment.fieldsLocked || isSavingWithdrawalSync}
 								/>
 							</VStack>
 						</ModalBody>
@@ -2773,6 +2863,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseWithdrawalModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Box className={`${tintedCardClassName} mb-4 px-4 py-4`}>
 								<VStack className="gap-1">
 									<Text
@@ -2798,7 +2890,7 @@ export default function FinancialListScreen() {
 								onChangeText: handleWithdrawInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 250,00',
-								isDisabled: isSavingWithdrawal,
+								isDisabled: sparkInvestment.fieldsLocked || isSavingWithdrawal,
 							})}
 							<VStack className="mb-4">
 								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data do resgate</Text>
@@ -2809,7 +2901,7 @@ export default function FinancialListScreen() {
 									triggerClassName={fieldContainerClassName}
 									inputClassName={inputField}
 									placeholder="Selecione a data do resgate"
-									isDisabled={isSavingWithdrawal}
+									isDisabled={sparkInvestment.fieldsLocked || isSavingWithdrawal}
 								/>
 							</VStack>
 						</ModalBody>
@@ -2851,6 +2943,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseManualSyncModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Text className={`${bodyText} mb-4 text-sm`}>
 								Informe o valor disponível na data informada em{' '}
 								<Text className="font-semibold">
@@ -2864,7 +2958,7 @@ export default function FinancialListScreen() {
 								onChangeText: handleManualSyncInputChange,
 								keyboardType: 'numeric',
 								placeholder: 'Ex: 1.250,45',
-								isDisabled: isSavingSync,
+								isDisabled: sparkInvestment.fieldsLocked || isSavingSync,
 							})}
 							<VStack className="mb-4">
 								<Text className={LUMUS_FORM_CLASS_NAMES.label}>Data da sincronização</Text>
@@ -2875,7 +2969,7 @@ export default function FinancialListScreen() {
 									triggerClassName={fieldContainerClassName}
 									inputClassName={inputField}
 									placeholder="Selecione a data da sincronização"
-									isDisabled={isSavingSync}
+									isDisabled={sparkInvestment.fieldsLocked || isSavingSync}
 								/>
 							</VStack>
 						</ModalBody>
@@ -2917,6 +3011,8 @@ export default function FinancialListScreen() {
 							<ModalCloseButton onPress={handleCloseDeleteModal} />
 						</ModalHeader>
 						<ModalBody>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Use a mesma confirmação para continuar a conferência ou recuperar o resultado anterior. Os campos ficam bloqueados.</Text> : null}
 							<Text className={`${bodyText} text-sm`}>
 								Tem certeza de que deseja remover{' '}
 								<Text className="font-semibold">

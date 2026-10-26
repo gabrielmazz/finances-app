@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createLocalAnnotation, getLocalAnnotationPreview, getLocalAnnotationTitle, loadLocalAnnotations, saveLocalAnnotations, saveLocalAnnotation } from '@/utils/localAnnotations';
 import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
 
@@ -46,4 +47,22 @@ describe('anotações locais', () => {
 		await expect(saveLocalAnnotation('owner', { ...createLocalAnnotation(), id: 'another' }, null, () => false)).rejects.toThrow('A conta mudou');
 		expect(await loadLocalAnnotations('owner')).toHaveLength(1);
 	});
+});
+
+
+describe('preservação de armazenamento inválido', () => {
+  it.each(['{invalid', '{}', '[{"id":"broken"}]'])('recusa leitura e escrita sobre dados inválidos: %s', async raw => {
+    const key = '@lumus/local-annotations/v1/corrupt';
+    await AsyncStorage.setItem(key, raw);
+    await expect(loadLocalAnnotations('corrupt')).rejects.toThrow('preservados');
+    await expect(saveLocalAnnotation('corrupt', createLocalAnnotation(), null)).rejects.toThrow('preservados');
+    expect(await AsyncStorage.getItem(key)).toBe(raw);
+  });
+  it('recusa IDs duplicados sem perder o conteúdo', async () => {
+    const note = createLocalAnnotation();
+    const raw = JSON.stringify([note, { ...note, markdown: 'outro conteúdo' }]);
+    await AsyncStorage.setItem('@lumus/local-annotations/v1/duplicates', raw);
+    await expect(loadLocalAnnotations('duplicates')).rejects.toThrow('preservados');
+    expect(await AsyncStorage.getItem('@lumus/local-annotations/v1/duplicates')).toBe(raw);
+  });
 });

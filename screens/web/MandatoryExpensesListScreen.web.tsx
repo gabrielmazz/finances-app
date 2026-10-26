@@ -1,3 +1,5 @@
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
@@ -40,8 +42,7 @@ import {
 	deleteMandatoryExpenseFirebase,
 	getMandatoryExpensesWithRelationsFirebase,
 } from '@/functions/MandatoryExpenseFirebase';
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
-import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
 import {
 	cancelMandatoryExpenseNotification,
 	syncMandatoryExpenseNotifications,
@@ -340,7 +341,14 @@ function MandatoryExpensesTimelineSkeleton({
 }
 
 export default function MandatoryExpensesListScreen() {
-	const { submit: submitSparkRecurringAction } = useSparkRecurringAction('expense');
+	const { submit: submitSparkRecurringAction, isUncertain: isActionUncertain, hasPending: hasPendingAction } = useSparkRecurringAction('expense');
+	const { personId, beginRequest, cancelRequest } = useBankMovementsRequest('mandatory-expense-list');
+	const { beginRequest: beginActionRequest, cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-expense-action');
+	const actionLock = React.useRef<object | null>(null);
+	React.useEffect(() => () => { actionLock.current = null; }, []);
+	const [loadError, setLoadError] = React.useState<string | null>(null);
+	const [actionError, setActionError] = React.useState<string | null>(null);
+	const [reminderWarning, setReminderWarning] = React.useState<string | null>(null);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -372,7 +380,7 @@ export default function MandatoryExpensesListScreen() {
 			: params.focusMandatoryExpenseId;
 		return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 	}, [params.focusMandatoryExpenseId]);
-	const [isLoading, setIsLoading] = React.useState(false);
+	const [isLoading, setIsLoading] = React.useState(true);
 	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
@@ -387,6 +395,8 @@ export default function MandatoryExpensesListScreen() {
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const [hasLoadedData, setHasLoadedData] = React.useState(false);
 	const handledFocusedExpenseIdRef = React.useRef<string | null>(null);
+
+	React.useEffect(() => { actionLock.current = null; setPendingAction(null); setIsActionProcessing(false); setActionError(null); handledFocusedExpenseIdRef.current = null; }, [personId]);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -557,17 +567,13 @@ export default function MandatoryExpensesListScreen() {
 	}, [expenses, focusMandatoryExpenseId, hasLoadedData, isDarkMode]);
 
 	const loadData = React.useCallback(async (asRefresh = false) => {
+		const isCurrent = beginRequest();
+		setExpenses([]); setRetainedPlans([]); setTagsMap({}); setTagMetadataMap({}); setExpandedExpenseIds([]);
+		setLoadError(null); setReminderWarning(null); setHasLoadedData(false);
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showNotifierAlert({
-				description: 'Usuário não autenticado. Faça login novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-			return;
-		}
+		if (!currentUser || currentUser.uid !== personId) { setLoadError('Entre novamente para carregar as despesas recorrentes.'); setIsLoading(false); setIsRefreshing(false); return; }
 
-		setHasLoadedData(false);
+		setHasLoadedData(false); setIsLoading(true);
 
 		if (asRefresh) {
 			setIsRefreshing(true);
@@ -576,29 +582,22 @@ export default function MandatoryExpensesListScreen() {
 		}
 
 		try {
-			const [expensesResult, tagsResult, relatedUsersResult] = await Promise.all([
+			const [expensesResult, tagsResult] = await Promise.all([
 				getMandatoryExpensesWithRelationsFirebase(currentUser.uid, true),
-				getAllTagsFirebase(),
-				getRelatedUsersIDsFirebase(currentUser.uid),
+				getTagsWithUsersByPersonFirebase(currentUser.uid),
 			]);
 
+			if (!isCurrent()) return;
+			if (!tagsResult.success || !Array.isArray(tagsResult.data)) throw new Error('Não foi possível carregar as categorias.');
 			if (!expensesResult.success || !Array.isArray(expensesResult.data)) {
 				throw new Error('Erro ao obter os gastos obrigatórios.');
 			}
-
-			const relatedIds =
-				relatedUsersResult.success && Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data : [];
-			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
 
 			const tagsRecord: Record<string, string> = {};
 			const tagMetadataRecord: Record<string, TagMetadata> = {};
 			if (tagsResult.success && Array.isArray(tagsResult.data)) {
 				(tagsResult.data as Array<Record<string, unknown>>)
-					.filter(tag => {
-						const personIdValue = tag['personId'];
-						const personId = typeof personIdValue === 'string' ? personIdValue : '';
-						return allowedIds.has(personId);
-					})
+
 					.forEach(tag => {
 						const tagIdValue = tag['id'];
 						if (typeof tagIdValue === 'string') {
@@ -727,49 +726,35 @@ export default function MandatoryExpensesListScreen() {
 				};
 			});
 
-			if (auth.currentUser?.uid !== currentUser.uid) {
+			if (!isCurrent()) {
 				return;
 			}
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
 			setExpenses(expensesWithStatus);
-			await syncMandatoryExpenseNotifications(
+			setHasLoadedData(true);
+			try {
+			const reminderResult = await syncMandatoryExpenseNotifications(
 				currentUser.uid,
 				buildMandatoryExpenseReminderSyncItems(expensesResult.data, referenceDate),
 			);
+			if (isCurrent() && reminderResult?.failed > 0) setReminderWarning('Dados carregados. Alguns lembretes não puderam ser reconciliados neste dispositivo.');
+			} catch { if (isCurrent()) setReminderWarning('Dados carregados. Não foi possível reconciliar os lembretes neste dispositivo.'); }
 		} catch (error) {
-			console.error('Erro ao carregar gastos obrigatórios:', error);
-			showNotifierAlert({
-				description: 'Não foi possível carregar os gastos obrigatórios.',
-				type: 'error',
-				isDarkMode,
-			});
+			if (isCurrent()) { setExpenses([]); setRetainedPlans([]); setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as despesas recorrentes.'); }
 		} finally {
-			setHasLoadedData(true);
-			setIsLoading(false);
-			setIsRefreshing(false);
+			if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); }
 		}
-	}, []);
+	}, [personId, beginRequest]);
 
 	const handleRefresh = React.useCallback(async () => {
 		await loadData(true);
 	}, [loadData]);
 
-	useFocusEffect(
-		React.useCallback(() => {
-			let isMounted = true;
-
-			const fetch = async () => {
-				await loadData();
-			};
-
-			void fetch();
-
-			return () => {
-				isMounted = false;
-			};
-		}, [loadData]),
-	);
+	useFocusEffect(React.useCallback(() => {
+		void loadData();
+		return () => { cancelRequest(); cancelActionRequest(); };
+	}, [loadData, cancelRequest, cancelActionRequest]));
 
 	const handleOpenCreate = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses);
@@ -891,11 +876,11 @@ export default function MandatoryExpensesListScreen() {
 	}, [isDarkMode, tagMetadataMap]);
 
 	const handleCloseActionModal = React.useCallback(() => {
-		if (isActionProcessing) {
+		if (isActionProcessing || isActionUncertain) {
 			return;
 		}
 		setPendingAction(null);
-	}, [isActionProcessing]);
+	}, [isActionProcessing, isActionUncertain]);
 
 	const selectedSettlementInstallments = React.useMemo(() => {
 		if (pendingAction?.type !== 'settle') {
@@ -924,7 +909,7 @@ export default function MandatoryExpensesListScreen() {
 	}, [pendingAction, selectedSettlementInstallments]);
 
 	const handleConfirmAction = React.useCallback(async () => {
-		if (!pendingAction) {
+		if (!pendingAction || actionLock.current || isActionProcessing || !personId || auth.currentUser?.uid !== personId || (!isActionUncertain && (isLoading || loadError || !hasLoadedData))) {
 			return;
 		}
 
@@ -949,10 +934,12 @@ export default function MandatoryExpensesListScreen() {
 			return;
 		}
 
-		setIsActionProcessing(true);
+		const lock = {}; actionLock.current = lock; const isCurrentAction = beginActionRequest();
+		setIsActionProcessing(true); setActionError(null);
 		try {
 			if (pendingAction.expense.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
 				const result = await submitSparkRecurringAction({ planId: pendingAction.expense.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
+				if (!isCurrentAction()) return;
 				if (!result) throw new Error('O contexto financeiro mudou.');
 				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
 				await loadData();
@@ -961,8 +948,9 @@ export default function MandatoryExpensesListScreen() {
 
 			if (pendingAction.type === 'delete') {
 				const result = await deleteMandatoryExpenseFirebase(pendingAction.expense.id);
+				if (!isCurrentAction()) return;
 				if (result.success) {
-					const accountId = auth.currentUser?.uid;
+					const accountId = personId;
 					let reminderCleanupFailed = false;
 					if (accountId) {
 						try {
@@ -995,6 +983,7 @@ export default function MandatoryExpensesListScreen() {
 
 				if (linkedExpenseId) {
 					const deleteResult = await deleteExpenseFirebase(linkedExpenseId);
+					if (!isCurrentAction()) return;
 					if (!deleteResult.success) {
 						showNotifierAlert({
 							description: 'Não foi possível remover a despesa vinculada.',
@@ -1006,6 +995,7 @@ export default function MandatoryExpensesListScreen() {
 				}
 
 				const clearResult = await clearMandatoryExpensePaymentFirebase(pendingAction.expense.id);
+				if (!isCurrentAction()) return;
 				if (!clearResult.success) {
 					showNotifierAlert({
 						description: 'Não foi possível reivindicar o pagamento.',
@@ -1024,6 +1014,8 @@ export default function MandatoryExpensesListScreen() {
 				return;
 			}
 		} catch (error) {
+			if (!isCurrentAction()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
 			console.error('Erro ao processar a ação do gasto obrigatório:', error);
 			showNotifierAlert({
 				description: 'Erro inesperado ao processar a ação selecionada.',
@@ -1031,13 +1023,12 @@ export default function MandatoryExpensesListScreen() {
 				isDarkMode,
 			});
 		} finally {
-			setIsActionProcessing(false);
-			setPendingAction(null);
+			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); if (!hasPendingAction()) setPendingAction(null); }
 		}
-	}, [handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents, submitSparkRecurringAction]);
+	}, [personId, isActionProcessing, isActionUncertain, isLoading, loadError, hasLoadedData, beginActionRequest, hasPendingAction, handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents, submitSparkRecurringAction]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
-		if (isExportingPdf || isLoading) {
+		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
 			return;
 		}
 
@@ -1180,6 +1171,7 @@ export default function MandatoryExpensesListScreen() {
 		isDarkMode,
 		isExportingPdf,
 		isLoading,
+		loadError, hasLoadedData,
 		monthlySummary,
 		monthlySummaryPalette.cardBaseColor,
 		monthlySummaryPalette.cardGlowColor,
@@ -1339,9 +1331,12 @@ export default function MandatoryExpensesListScreen() {
 						>
 							<VStack className={`${webStyles.contentFrame} ${webStyles.contentPadding} justify-between pb-8`}>
 
-								{!isLoading && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
-								{!isLoading && <SparkRecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
-                            {isLoading ? (
+								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
+{reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
+<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || isActionUncertain}><ButtonText>Atualizar despesas recorrentes</ButtonText></Button>
+{!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
+								{!isLoading && !loadError && <SparkRecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
+                            {loadError ? null : isLoading ? (
 									<MandatoryExpensesTimelineSkeleton
 										compactCardClassName={compactCardClassName}
 										tintedCardClassName={tintedCardClassName}
@@ -1524,7 +1519,7 @@ export default function MandatoryExpensesListScreen() {
 												onPress={() => {
 													void handleExportMonthlySummaryPdf();
 												}}
-												isDisabled={isLoading || isExportingPdf}
+												isDisabled={isLoading || isExportingPdf || Boolean(loadError) || !hasLoadedData}
 											>
 												{isExportingPdf ? (
 													<>
@@ -1835,6 +1830,8 @@ export default function MandatoryExpensesListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
+{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+{isActionUncertain ? <Text className={helperText} accessibilityRole="alert">Confirme a mesma ação para recuperar o resultado anterior.</Text> : null}
 							{pendingAction?.type === 'settle' ? (
 								<VStack className="mt-4 gap-2">
 									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
@@ -1874,7 +1871,7 @@ export default function MandatoryExpensesListScreen() {
 									</>
 								) : (
 									<ButtonText className={actionConfirmButtonTextClassName}>
-										{actionModalCopy.confirmLabel}
+										{isActionUncertain ? 'Confirmar ação anterior' : actionModalCopy.confirmLabel}
 									</ButtonText>
 								)}
 							</Button>

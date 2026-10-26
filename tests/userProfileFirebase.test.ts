@@ -10,7 +10,7 @@ const mockAuth = { currentUser: null as { uid: string; email: string; displayNam
 jest.mock('@/FirebaseConfig', () => ({ get auth() { return mockAuth; }, db: {} }));
 jest.mock('firebase/firestore', () => ({
 	doc: (_db: unknown, collection: string, uid: string) => `${collection}/${uid}`,
-	getDoc: (...args: unknown[]) => mockGetDoc(...args),
+	getDocFromServer: (...args: unknown[]) => mockGetDoc(...args),
 	updateDoc: (...args: unknown[]) => mockUpdateDoc(...args),
 	serverTimestamp: () => 'server-time',
 	runTransaction: async (_db: unknown, operation: (transaction: unknown) => Promise<unknown>) => operation({ get: (...args: unknown[]) => mockTransactionGet(...args), update: (...args: unknown[]) => mockTransactionUpdate(...args) }),
@@ -108,4 +108,9 @@ it('uses the same scoped access count for profile and conversation, and does not
 	expect(mockBanks).toHaveBeenCalledWith('owner');
 	mockTags.mockResolvedValueOnce({ success: false });
 	await expect(getUserProfileAccessSummaryFirebase('owner', { ...profile, adminUser: true })).rejects.toThrow('access-summary');
+});
+
+it('rejects an incomplete access response instead of confirming zero records', async () => {
+  mockRelated.mockResolvedValueOnce({ success: true });
+  await expect(getUserProfileAccessSummaryFirebase('owner', { uid: 'owner', name: 'Ana', email: '', createdAt: null, adminUser: false })).rejects.toThrow('access-summary');
 });

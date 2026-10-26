@@ -154,12 +154,13 @@ async function linkedRecipientIds(ownerId: string): Promise<string[]> {
     ? owner.data()!.relatedIdUsers.filter((value: unknown): value is string => typeof value === 'string' && value.length > 0)
     : [];
   const accepted = await Promise.all(related.map(async relatedId => {
-    const [ownerGrant, recipientGrant, recipientProfile] = await db.getAll(
+    const [nativePair, ownerGrant, recipientGrant, recipientProfile] = await db.getAll(
+      db.doc(`sparkUserRelationships/${[ownerId, relatedId].sort()[0]}/sparkRelationshipPairs/${[ownerId, relatedId].sort()[1]}`),
       db.doc(`userRelationshipGrants/${ownerId}/related/${relatedId}`),
       db.doc(`userRelationshipGrants/${relatedId}/related/${ownerId}`),
       db.doc(`users/${relatedId}`),
     );
-    return ownerGrant.exists && recipientGrant.exists
+    return !nativePair.exists && ownerGrant.exists && recipientGrant.exists
       && Array.isArray(recipientProfile.data()?.relatedIdUsers)
       && recipientProfile.data()!.relatedIdUsers.includes(ownerId) ? relatedId : null;
   }));

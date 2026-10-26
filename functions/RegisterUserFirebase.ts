@@ -6,7 +6,7 @@ import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, sig
 import { auth, db, firebaseFunctions, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
+import { loadUserRelationshipsFirebase, runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
@@ -115,7 +115,7 @@ async function changeUserRelationship(relatedUserId: string, action: 'link' | 'u
     }
 }
 
-// O backend revalida ambos perfis e persiste o vínculo bidirecional numa transação.
+// [[Gerenciamento de Usuários]]: o serviço Spark e as Rules conferem o aceite, sem escrever perfis.
 export async function updateUserRelationsFirebase(relatedUserId: string, snapshot?: RelationshipSnapshot) {
     return changeUserRelationship(relatedUserId, 'link', snapshot);
 }
@@ -205,79 +205,15 @@ export async function getAllUsersFirebase() {
 
 // Função para resgatar os dados de usuário relacionados ao usuário logado
 export async function getRelatedUsersFirebase(userId: string) {
-
-    try {
-
-        const userDocRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            return { success: false, error: 'Usuário não encontrado.' };
-        }
-
-        const userData = userDoc.data();
-        const relatedIdUsers = Array.isArray(userData.relatedIdUsers)
-            ? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
-            : [];
-
-        if (relatedIdUsers.length === 0) {
-            return { success: true, data: [] };
-        }
-
-        const relatedUsersPromises = relatedIdUsers.map(async (relatedIdUser) => {
-            const grant = await getDoc(doc(db, 'userRelationshipGrants', userId, 'related', relatedIdUser));
-            if (!grant.exists()) return null;
-            const relatedUserDocRef = doc(db, 'users', relatedIdUser);
-            const relatedUserDoc = await getDoc(relatedUserDocRef).catch(() => null);
-
-            if (relatedUserDoc?.exists()) {
-                return { id: relatedUserDoc.id, ...relatedUserDoc.data() };
-            } else {
-                return null;
-            }
-        });
-
-        const relatedUsers = await Promise.all(relatedUsersPromises);
-        return { success: true, data: relatedUsers.filter((user) => user !== null) };
-    } catch (error) {
-        console.error('Erro ao buscar usuários relacionados:', error);
-        return { success: false, error };
-    }
+    try { return { success: true, data: (await loadUserRelationshipsFirebase(userId)).linked }; }
+    catch (error) { return { success: false, error }; }
 }
 
 // Função para resgatar os IDs dos usuários relacionados ao usuário passado por parâmetro, voltando o objeto
 // inteiro da consulta, necessário separa-los posteriormente para tratamentos mais específicos
 export async function getRelatedUsersIDsFirebase(userId: string) {
-
-    try {
-
-        const userDocRef = doc(db, 'users', userId);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            return { success: false, error: 'Usuário não encontrado.' };
-        }
-
-        const userData = userDoc.data();
-        const relatedIdUsers = Array.isArray(userData.relatedIdUsers)
-            ? userData.relatedIdUsers.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
-            : [];
-
-        if (relatedIdUsers.length === 0) {
-            return { success: true, data: [] };
-        }
-
-        const authorized = await Promise.all(relatedIdUsers.map(async relatedId => {
-            const grant = await getDoc(doc(db, 'userRelationshipGrants', userId, 'related', relatedId));
-            if (!grant.exists()) return null;
-            const profile = await getDoc(doc(db, 'users', relatedId)).catch(() => null);
-            return profile?.exists() ? relatedId : null;
-        }));
-        return { success: true, data: authorized.filter((id): id is string => id !== null) };
-    } catch (error) {
-        console.error('Erro ao buscar usuários relacionados:', error);
-        return { success: false, error };
-    }
+    try { return { success: true, data: (await loadUserRelationshipsFirebase(userId)).linked.map(user => user.id) }; }
+    catch (error) { return { success: false, error }; }
 }
 
 // ================================================================================================================= //

@@ -124,7 +124,7 @@ it('failed preference persistence does not mark the release applied or reset oth
 
 it('upgrades an existing release by opening only the statement and dashboard and honors subsequent disables', async () => {
   await AsyncStorage.setItem(storageKey, JSON.stringify({ addRegisterGain: false, addRegisterBank: true, homeDashboard: false, bankMovements: false }));
-  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23']));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'financial-forecast-2026-10-24']));
   const first = await renderHook(useRouteVisibility, { wrapper });
   expect(first.result.current.isRouteVisible('homeDashboard')).toBe(true);
   expect(first.result.current.isRouteVisible('bankMovements')).toBe(true);
@@ -159,7 +159,7 @@ it('enables transfer only once and preserves previously disabled screens', async
 
 it('enables withdrawal once while preserving transfer and adjustment preferences', async () => {
   await AsyncStorage.setItem(storageKey, JSON.stringify({ transferScreen: false, addRescue: false, bankBalanceAdjustment: false }));
-  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23']));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'balance-adjustment-2026-10-23']));
   const first = await renderHook(useRouteVisibility, { wrapper });
   expect(first.result.current.isRouteVisible('addRescue')).toBe(true);
   expect(first.result.current.isRouteVisible('transferScreen')).toBe(false);
@@ -167,4 +167,85 @@ it('enables withdrawal once while preserving transfer and adjustment preferences
   await act(async () => first.result.current.setRouteVisibility('addRescue', false)); await first.unmount();
   const second = await renderHook(useRouteVisibility, { wrapper });
   expect(second.result.current.isRouteVisible('addRescue')).toBe(false); await second.unmount();
+});
+
+it('enables balance adjustment once and preserves the previously disabled routes', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ bankBalanceAdjustment: false, transferScreen: false, addRescue: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23']));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('bankBalanceAdjustment')).toBe(true);
+  expect(first.result.current.isRouteVisible('transferScreen')).toBe(false); expect(first.result.current.isRouteVisible('addRescue')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('bankBalanceAdjustment', false)); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('bankBalanceAdjustment')).toBe(false); await second.unmount();
+});
+
+it('releases recurring expense form and list once while preserving gains and previous disables', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ addMandatoryExpenses: false, mandatoryExpenses: false, addMandatoryGains: false, mandatoryGains: false, addRescue: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-gains-2026-10-23']));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('addMandatoryExpenses')).toBe(true);
+  expect(first.result.current.isRouteVisible('addMandatoryGains')).toBe(false); expect(first.result.current.isRouteVisible('addRescue')).toBe(false);
+  await act(async () => { first.result.current.setRouteVisibility('addMandatoryExpenses', false); }); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('addMandatoryExpenses')).toBe(false); await second.unmount();
+});
+
+it('releases recurring gains once without reopening expenses or unrelated routes', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ addMandatoryGains: false, addMandatoryExpenses: false, homeDashboard: false, addInvestment: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23']));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('addMandatoryGains')).toBe(true); expect(first.result.current.isRouteVisible('addMandatoryExpenses')).toBe(false); expect(first.result.current.isRouteVisible('homeDashboard')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('addMandatoryGains', false)); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('addMandatoryGains')).toBe(false); await second.unmount();
+});
+
+it('releases investment form and portfolio once and preserves other choices', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ addFinance: false, addMandatoryGains: false, homeDashboard: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23']));
+  const first = await renderHook(useRouteVisibility, { wrapper }); expect(first.result.current.isRouteVisible('addFinance')).toBe(true); expect(first.result.current.isRouteVisible('addMandatoryGains')).toBe(false); expect(first.result.current.isRouteVisible('homeDashboard')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('addFinance', false)); await first.unmount(); const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('addFinance')).toBe(false); await second.unmount();
+});
+
+it('releases category analysis once and preserves investment and forecast choices', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ categoryAnalysis: false, addFinance: false, financialForecast: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'financial-forecast-2026-10-24']));
+  const first = await renderHook(useRouteVisibility, { wrapper }); expect(first.result.current.isRouteVisible('categoryAnalysis')).toBe(true); expect(first.result.current.isRouteVisible('addFinance')).toBe(false); expect(first.result.current.isRouteVisible('financialForecast')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('categoryAnalysis', false)); await first.unmount(); const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('categoryAnalysis')).toBe(false); await second.unmount();
+});
+
+it('releases financial forecast once without reopening analysis or other routes', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ financialForecast: false, categoryAnalysis: false, addFinance: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'category-analysis-2026-10-23']));
+  const first = await renderHook(useRouteVisibility, { wrapper }); expect(first.result.current.isRouteVisible('financialForecast')).toBe(true); expect(first.result.current.isRouteVisible('categoryAnalysis')).toBe(false); expect(first.result.current.isRouteVisible('addFinance')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('financialForecast', false)); await first.unmount(); const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('financialForecast')).toBe(false); await second.unmount();
+});
+
+it('releases profile once and keeps relationship and other screens disabled', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ profile: false, addUserRelation: false, financialForecast: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'category-analysis-2026-10-23', 'financial-forecast-2026-10-24', 'user-relationships-2026-10-24']));
+  const first = await renderHook(useRouteVisibility, { wrapper }); expect(first.result.current.isRouteVisible('profile')).toBe(true); expect(first.result.current.isRouteVisible('addUserRelation')).toBe(false); expect(first.result.current.isRouteVisible('financialForecast')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('profile', false)); await first.unmount(); const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('profile')).toBe(false); await second.unmount();
+});
+
+it('releases relationships once without reopening profile, annotations or assistant', async () => {
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ addUserRelation: false, profile: false, annotations: false, lumusAssistant: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(['gains-expenses-2026-10-23', 'statement-dashboard-2026-10-23', 'transfer-2026-10-23', 'withdrawal-2026-10-23', 'balance-adjustment-2026-10-23', 'recurring-expenses-2026-10-23', 'recurring-gains-2026-10-23', 'investments-2026-10-23', 'category-analysis-2026-10-23', 'financial-forecast-2026-10-24', 'profile-2026-10-24', 'annotations-2026-10-25']));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('addUserRelation')).toBe(true); expect(first.result.current.isRouteVisible('profile')).toBe(false); expect(first.result.current.isRouteVisible('annotations')).toBe(false); expect(first.result.current.isRouteVisible('lumusAssistant')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('addUserRelation', false)); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper }); expect(second.result.current.isRouteVisible('addUserRelation')).toBe(false); await second.unmount();
+});
+
+
+it('releases annotations once and preserves other choices and subsequent disable', async () => {
+  const { applyScreenValidationReleases } = require('@/contexts/RouteVisibilityContext');
+  const prior = applyScreenValidationReleases({}, []).appliedIds.filter((id: string) => id !== 'annotations-2026-10-25');
+  await AsyncStorage.setItem(storageKey, JSON.stringify({ annotations: false, addUserRelation: false, lumusAssistant: false }));
+  await AsyncStorage.setItem('@finances/route-visibility:screen-validation-applied-v1', JSON.stringify(prior));
+  const first = await renderHook(useRouteVisibility, { wrapper });
+  expect(first.result.current.isRouteVisible('annotations')).toBe(true);
+  expect(first.result.current.isRouteVisible('addUserRelation')).toBe(false);
+  expect(first.result.current.isRouteVisible('lumusAssistant')).toBe(false);
+  await act(async () => first.result.current.setRouteVisibility('annotations', false)); await first.unmount();
+  const second = await renderHook(useRouteVisibility, { wrapper });
+  expect(second.result.current.isRouteVisible('annotations')).toBe(false); await second.unmount();
 });

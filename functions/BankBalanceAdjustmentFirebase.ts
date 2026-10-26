@@ -84,13 +84,13 @@ export async function getBalanceAdjustmentBanksFirebase(): Promise<BankActionshe
 	if (spark) {
 		if (spark.role !== 'admin') throw new Error('O ajuste de saldo deste grupo exige acesso de administrador.');
 		return (await readSparkAccountsFirebase(db, uid, spark.groupId, { requireCurrent: false }))
-			.filter(account => account.position.kind === 'bank' && account.position.active && account.catalog)
+			.filter(account => account.position.kind === 'bank' && account.position.active && !account.lifecycle.archived && account.catalog)
 			.map(account => ({ id: account.accountId, name: account.catalog!.name, iconKey: account.catalog!.iconKey, colorHex: account.catalog!.colorHex }));
 	}
 	const context = await getFinancialLedgerContextFirebase(uid);
 	if (context) {
 		if (context.role !== 'admin') throw new Error('O ajuste de saldo deste grupo exige acesso de administrador.');
-		return (await getFinancialLedgerAccountsFirebase(context.groupId)).filter(item => item.kind === 'bank' && !item.archivedAt).map(item => ({
+		return (await getFinancialLedgerAccountsFirebase(context.groupId)).filter(item => item.kind === 'bank' && item.isActive !== false && !item.archivedAt).map(item => ({
 			id: item.legacyBankId || item.id, name: item.name, iconKey: item.iconKey, colorHex: item.colorHex,
 		}));
 	}

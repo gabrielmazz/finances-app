@@ -24,6 +24,15 @@ const SCREEN_VALIDATION_RELEASES: { id: string; routes: RouteVisibilityKey[] }[]
   { id: 'statement-dashboard-2026-10-23', routes: ['bankMovements', 'homeDashboard'] },
   { id: 'transfer-2026-10-23', routes: ['transferScreen'] },
   { id: 'withdrawal-2026-10-23', routes: ['addRescue'] },
+  { id: 'balance-adjustment-2026-10-23', routes: ['bankBalanceAdjustment'] },
+  { id: 'recurring-expenses-2026-10-23', routes: ['addMandatoryExpenses'] },
+  { id: 'recurring-gains-2026-10-23', routes: ['addMandatoryGains'] },
+  { id: 'investments-2026-10-23', routes: ['addFinance'] },
+  { id: 'category-analysis-2026-10-23', routes: ['categoryAnalysis'] },
+  { id: 'financial-forecast-2026-10-24', routes: ['financialForecast'] },
+  { id: 'profile-2026-10-24', routes: ['profile'] },
+	{ id: 'user-relationships-2026-10-24', routes: ['addUserRelation'] },
+	{ id: 'annotations-2026-10-25', routes: ['annotations'] },
 ];
 const routeVisibilityKeys: RouteVisibilityKey[] = [
 	...POST_SUBMIT_SCREEN_OPTIONS.map((item) => item.key),

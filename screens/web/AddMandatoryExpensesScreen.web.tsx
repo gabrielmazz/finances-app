@@ -1,3 +1,6 @@
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import {
@@ -44,13 +47,12 @@ import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/
 import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
 
 import { auth } from '@/FirebaseConfig';
-import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
+import { getTagsWithUsersByPersonFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import {
 	addMandatoryExpenseFirebase,
 	getMandatoryExpenseFirebase,
 	updateMandatoryExpenseFirebase,
 } from '@/functions/MandatoryExpenseFirebase';
-import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import {
 	cancelMandatoryExpenseNotification,
 	scheduleMandatoryExpenseNotification,
@@ -209,10 +211,19 @@ export default function AddMandatoryExpensesScreen() {
 	const [openOptionalSection, setOpenOptionalSection] = React.useState<string | null>(null);
 	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [isPrefilling, setIsPrefilling] = React.useState(false);
+
 	const [lastPaymentCycle, setLastPaymentCycle] = React.useState<string | null>(null);
-	const submitLockRef = React.useRef(false);
-	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, isSpark } = useSparkRecurringForm('expense');
+	const submitLockRef = React.useRef<object | null>(null);
+	const { personId, beginRequest: beginTagsRequest, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-expense-form');
+	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, initialize, isSpark, isUncertain } = useSparkRecurringForm('expense', editingExpenseId ?? 'create');
+	const entry = useMovementFormEntry({ movementId: editingExpenseId, source: personId ?? '', initialize, loadSpark: loadSparkRecurring, loadLegacy: getMandatoryExpenseFirebase });
+	const isPrefilling = entry.loading;
+	const currentFormScope = JSON.stringify([personId, editingExpenseId]);
+	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
+	const [tagsError, setTagsError] = React.useState<string | null>(null);
+	const [submitError, setSubmitError] = React.useState<string | null>(null);
+	const mounted = React.useRef(true);
+	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryExpenses');
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
@@ -422,7 +433,7 @@ export default function AddMandatoryExpensesScreen() {
 			isDarkMode,
 			duration: 5500,
 		});
-	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
+	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents, personId]);
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
 	const reminderSummary = React.useMemo(() => {
 		const parsedTime = parseMandatoryReminderTime(reminderTime);
@@ -467,8 +478,8 @@ export default function AddMandatoryExpensesScreen() {
 	});
 
 	const hasExpenseName = expenseName.trim().length > 0;
-	const hasExpenseValue = valueInCents !== null && valueInCents > 0;
-	const isFormBusy = isSubmitting || isPrefilling;
+	const hasExpenseValue = valueInCents !== null && Number.isSafeInteger(valueInCents) && valueInCents > 0;
+	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || isUncertain;
 	const isCoreTemplateReady = hasExpenseName && hasExpenseValue && isDueDayValid;
 	const isInstallmentConfigReady =
 		!installmentsEnabled ||
@@ -480,7 +491,8 @@ export default function AddMandatoryExpensesScreen() {
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasExpenseName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
-	const isInstallmentFieldDisabled = !hasExpenseName || !isDueDayValid || isFormBusy;
+	const isContractLocked = isSpark === true && !!editingExpenseId;
+	const isInstallmentFieldDisabled = !hasExpenseName || !isDueDayValid || isFormBusy || isContractLocked;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isCoreTemplateReady || isFormBusy;
@@ -546,8 +558,8 @@ export default function AddMandatoryExpensesScreen() {
 		valueInCents,
 	]);
 
-	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
-		resetSparkRecurring();
+	const resetForm = React.useCallback((options?: { keepTag?: boolean; preserveSpark?: boolean }) => {
+		if (!options?.preserveSpark) resetSparkRecurring();
 		setSelectedExpenseId(null);
 		setExpenseName('');
 		setValueDisplay('');
@@ -577,6 +589,8 @@ export default function AddMandatoryExpensesScreen() {
 		setLastPaymentCycle(null);
 	}, []);
 
+	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ preserveSpark: true }); setSubmitError(null); }, [personId, editingExpenseId, resetForm]);
+
 	// Segue [[Despesas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
 	const handleOpenAddTagScreen = React.useCallback(() => {
 		if (isAddTagButtonDisabled) {
@@ -596,8 +610,10 @@ export default function AddMandatoryExpensesScreen() {
 	}, []);
 
 	const loadTags = React.useCallback(async () => {
+		const isCurrent = beginTagsRequest();
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
+			setTagOptions([]); setTagsError('Entre novamente para carregar as categorias.');
 			showNotifierAlert({
 				description: 'Usuário não autenticado. Faça login novamente.',
 				type: 'error',
@@ -606,27 +622,15 @@ export default function AddMandatoryExpensesScreen() {
 			return;
 		}
 
-		setIsLoadingTags(true);
+		setIsLoadingTags(true); setTagsError(null); setTagOptions([]);
 
 		try {
-			const [tagsResponse, relatedUsersResult] = await Promise.all([
-				getAllTagsFirebase(),
-				getRelatedUsersIDsFirebase(currentUser.uid),
-			]);
-
-			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) {
-				throw new Error('Não foi possível carregar as tags.');
-			}
-
-			const relatedIds =
-				relatedUsersResult.success && Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data : [];
-			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
+			const tagsResponse = await getTagsWithUsersByPersonFirebase(currentUser.uid);
+			if (!isCurrent()) return;
+			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) throw new Error('Não foi possível carregar as categorias obrigatórias.');
 
 			const formattedTags: TagOption[] = tagsResponse.data
-				.filter((tag: any) => {
-					const belongsToAllowedUser = allowedIds.has(String(tag?.personId));
-					return isTagVisibleInMandatoryUsageList(tag, 'expense') && belongsToAllowedUser;
-				})
+				.filter((tag: any) => isTagVisibleInMandatoryUsageList(tag, 'expense'))
 				.map((tag: any) => ({
 					id: tag.id,
 					name: typeof tag?.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : 'Tag sem nome',
@@ -642,11 +646,11 @@ export default function AddMandatoryExpensesScreen() {
 					: null;
 
 			setTagOptions(formattedTags);
-			if (matchingPendingTag) {
+			if (matchingPendingTag && !isUncertain) {
 				setSelectedTagId(matchingPendingTag.id);
 				setSelectedTagName(matchingPendingTag.name);
 				clearPendingCreatedTag(matchingPendingTag.id);
-			} else {
+			} else if (!isUncertain) {
 				setSelectedTagId(current =>
 					current && formattedTags.some(tag => tag.id === current) ? current : null,
 				);
@@ -660,22 +664,15 @@ export default function AddMandatoryExpensesScreen() {
 				});
 			}
 		} catch (error) {
-			console.error('Erro ao carregar tags obrigatórias:', error);
-			showNotifierAlert({
-				description: 'Erro ao carregar tags obrigatórias.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			setIsLoadingTags(false);
-		}
-	}, [isDarkMode]);
+			if (isCurrent()) { setTagOptions([]); setTagsError(error instanceof Error ? error.message : 'Não foi possível carregar as categorias.'); }
+		} finally { if (isCurrent()) setIsLoadingTags(false); }
+	}, [personId, beginTagsRequest, isUncertain, isDarkMode]);
 
 	useFocusEffect(
 		React.useCallback(() => {
 			void loadTags();
-			return () => { };
-		}, [loadTags]),
+			return cancelTagsRequest;
+		}, [loadTags, cancelTagsRequest]),
 	);
 
 	React.useEffect(() => {
@@ -696,7 +693,7 @@ export default function AddMandatoryExpensesScreen() {
 			try {
 				const tagResult = await getTagDataFirebase(selectedTagId);
 
-				if (!isMounted) {
+				if (!isMounted || auth.currentUser?.uid !== personId) {
 					return;
 				}
 
@@ -719,7 +716,7 @@ export default function AddMandatoryExpensesScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [selectedTagId, tagOptions]);
+	}, [selectedTagId, tagOptions, personId]);
 
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
@@ -727,34 +724,10 @@ export default function AddMandatoryExpensesScreen() {
 	}, []);
 
 	React.useEffect(() => {
-		let isMounted = true;
-
-		const prefillExpense = async () => {
-			if (!editingExpenseId) {
-				resetForm({ keepTag: true });
-				return;
-			}
-
-			setIsPrefilling(true);
-
-			try {
-				const response = (await loadSparkRecurring(editingExpenseId)) ?? await getMandatoryExpenseFirebase(editingExpenseId);
-
-				if (!isMounted) {
-					return;
-				}
-
-				if (!response.success || !response.data) {
-					showNotifierAlert({
-						description: 'Não foi possível carregar os dados do gasto obrigatório.',
-						type: 'error',
-						isDarkMode,
-					});
-					resetForm({ keepTag: true });
-					return;
-				}
-
-				const data = response.data as Record<string, unknown>;
+		if (!entry.ready) return;
+		if (!editingExpenseId) { resetForm({ keepTag: true, preserveSpark: true }); return; }
+				const data = entry.record;
+				if (!data) return;
 
 				const name = typeof data.name === 'string' ? data.name : '';
 				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
@@ -824,32 +797,10 @@ export default function AddMandatoryExpensesScreen() {
 				setReminderOnDueDate(reminderOnDueDateValue);
 				setOpenOptionalSection(installmentTotalValue !== null || reminderFlag ? 'optional' : null);
 				setLastPaymentCycle(lastPaymentCycle);
-			} catch (error) {
-				console.error('Erro ao carregar gasto obrigatório para edição:', error);
-				if (isMounted) {
-					showNotifierAlert({
-						description: 'Erro ao carregar o gasto obrigatório selecionado.',
-						type: 'error',
-						isDarkMode,
-					});
-					resetForm({ keepTag: true });
-				}
-			} finally {
-				if (isMounted) {
-					setIsPrefilling(false);
-				}
-			}
-		};
-
-		void prefillExpense();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [editingExpenseId, resetForm, loadSparkRecurring]);
+	}, [entry.ready, entry.record, editingExpenseId, resetForm]);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitting || formScopeRef.current !== currentFormScope || !entry.ready || (!isUncertain && (isLoadingTags || tagsError || !tagOptions.some(tag => tag.id === selectedTagId)))) {
 			return;
 		}
 
@@ -969,7 +920,7 @@ export default function AddMandatoryExpensesScreen() {
 		}
 
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
 			showNotifierAlert({
 				title: 'Erro ao salvar gasto obrigatório',
 				description: 'Usuário não autenticado.',
@@ -980,8 +931,8 @@ export default function AddMandatoryExpensesScreen() {
 			return;
 		}
 
-		submitLockRef.current = true;
-		setIsSubmitting(true);
+		const lock = {}; submitLockRef.current = lock; const submittedScope = formScopeRef.current;
+		setIsSubmitting(true); setSubmitError(null);
 
 		try {
 			const payloadInstallmentsCompleted =
@@ -1012,6 +963,7 @@ export default function AddMandatoryExpensesScreen() {
 			const successTitle = selectedExpenseId ? 'Gasto obrigatório atualizado' : 'Gasto obrigatório registrado';
 
 			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedExpenseId });
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			if (sparkResult) {
 				persistedExpenseId = sparkResult.id;
 			} else if (selectedExpenseId) {
@@ -1035,6 +987,7 @@ export default function AddMandatoryExpensesScreen() {
 				persistedExpenseId = result.id;
 			}
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
 			let reminderOperationError: string | null = null;
 
@@ -1066,6 +1019,7 @@ export default function AddMandatoryExpensesScreen() {
 				}
 			}
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			const reminderFailureMessage =
 				reminderOperationError ??
 				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
@@ -1105,6 +1059,8 @@ export default function AddMandatoryExpensesScreen() {
 				isEditing: Boolean(editingExpenseId),
 			});
 		} catch (error) {
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
+			setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar a recorrência.');
 			console.error('Erro ao salvar gasto obrigatório:', error);
 			showNotifierAlert({
 				title: 'Erro ao salvar gasto obrigatório',
@@ -1114,10 +1070,10 @@ export default function AddMandatoryExpensesScreen() {
 				duration: 4500,
 			});
 		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
+			if (submitLockRef.current === lock) { submitLockRef.current = null; if (mounted.current) setIsSubmitting(false); }
 		}
 	}, [
+		entry.ready, isUncertain, isLoadingTags, tagsError, tagOptions, personId, currentFormScope,
 		description,
 		dueDay,
 		expenseName,
@@ -1148,7 +1104,7 @@ export default function AddMandatoryExpensesScreen() {
 	]);
 
 	const isSaveDisabled =
-		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
+		!isTemplateReady || isSubmitting || !entry.ready || (!isUncertain && (isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
 	const screenTitle = isEditingMode ? 'Atualize seu gasto obrigatório' : 'Registro de gasto obrigatório';
@@ -1238,7 +1194,12 @@ export default function AddMandatoryExpensesScreen() {
 											<View className="w-full">
 												<VStack className="gap-5">
 													<View className={webExpenseClassNames.fieldGrid}>
-														<VStack className={webExpenseClassNames.fieldHalf}>
+														<MovementFormStatus loading={entry.loading} error={entry.error} onRetry={entry.retry} />
+<MovementFormStatus loading={isLoadingTags} error={tagsError} onRetry={loadTags} />
+{submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
+{isUncertain ? <Text className="text-warning-600 dark:text-warning-400" accessibilityRole="alert">O cadastro anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados.</Text> : null}
+{isContractLocked && installmentsEnabled ? <Text className={helperText}>Para mudar o valor total ou o prazo do parcelamento, use Renegociar na lista.</Text> : null}
+<VStack className={webExpenseClassNames.fieldHalf}>
 															<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome da despesa</Text>
 															<Input className={inputClassName} isDisabled={isFormBusy}>
 																<InputField
@@ -1456,7 +1417,7 @@ export default function AddMandatoryExpensesScreen() {
 																			<Switch
 																				value={installmentsEnabled}
 																				onValueChange={handleInstallmentsToggle}
-																				disabled={!isCoreTemplateReady || isFormBusy}
+																				disabled={!isCoreTemplateReady || isFormBusy || isContractLocked}
 																				trackColor={switchTrackColor}
 																				thumbColor={switchThumbColor}
 																				activeThumbColor={switchActiveThumbColor}
@@ -1643,7 +1604,7 @@ export default function AddMandatoryExpensesScreen() {
 																<ButtonText>{isEditingMode ? 'Atualizando…' : 'Registrando…'}</ButtonText>
 															</>
 														) : (
-															<ButtonText>{isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
+															<ButtonText>{isUncertain ? 'Confirmar cadastro anterior' : isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
 														)}
 													</Button>
 												</VStack>

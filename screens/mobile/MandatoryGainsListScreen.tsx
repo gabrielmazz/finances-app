@@ -1,3 +1,5 @@
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
@@ -38,8 +40,7 @@ import {
 	deleteMandatoryGainFirebase,
 	getMandatoryGainsWithRelationsFirebase,
 } from '@/functions/MandatoryGainFirebase';
-import { getAllTagsFirebase } from '@/functions/TagFirebase';
-import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
+import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
 import {
 	cancelMandatoryGainNotification,
 	syncMandatoryGainNotifications,
@@ -296,7 +297,15 @@ function MandatoryGainsTimelineSkeleton({
 }
 
 export default function MandatoryGainsListScreen() {
-	const { submit: submitSparkRecurringAction } = useSparkRecurringAction('gain');
+	const { submit: submitSparkRecurringAction, isUncertain: isActionUncertain, hasPending: hasPendingAction } = useSparkRecurringAction('gain');
+	const { personId, beginRequest, cancelRequest } = useBankMovementsRequest('mandatory-gain-list');
+	const { beginRequest: beginActionRequest, cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-gain-action');
+	const actionLock = React.useRef<object | null>(null);
+	React.useEffect(() => () => { actionLock.current = null; }, []);
+	const [loadError, setLoadError] = React.useState<string | null>(null);
+	const [actionError, setActionError] = React.useState<string | null>(null);
+	const [reminderWarning, setReminderWarning] = React.useState<string | null>(null);
+	const [hasLoadedData, setHasLoadedData] = React.useState(false);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -317,7 +326,8 @@ export default function MandatoryGainsListScreen() {
 		submitButtonClassName,
 		submitButtonCancelClassName,
 	} = useScreenStyles();
-	const [isLoading, setIsLoading] = React.useState(false);
+	const [isLoading, setIsLoading] = React.useState(true);
+	const [isRefreshing, setIsRefreshing] = React.useState(false);
 	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
 	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
 	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
@@ -328,6 +338,8 @@ export default function MandatoryGainsListScreen() {
 	const { shouldHideValues } = useValueVisibility();
 	const [expandedGainIds, setExpandedGainIds] = React.useState<string[]>([]);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
+
+	React.useEffect(() => { actionLock.current = null; setPendingAction(null); setIsActionProcessing(false); setActionError(null); }, [personId]);
 
 	const formatCurrencyBRL = React.useCallback(
 		(valueInCents: number) => {
@@ -441,43 +453,22 @@ export default function MandatoryGainsListScreen() {
 		[],
 	);
 
-	const loadData = React.useCallback(async () => {
+	const loadData = React.useCallback(async (asRefresh = false) => {
+		const isCurrent = beginRequest();
+		setGains([]); setRetainedPlans([]); setTagsMap({}); setTagMetadataMap({}); setExpandedGainIds([]);
+		setLoadError(null); setReminderWarning(null); setHasLoadedData(false);
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showNotifierAlert({
-				description: 'Usuário não autenticado. Faça login novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-			return;
-		}
-
-		setIsLoading(true);
-
+		if (!currentUser || currentUser.uid !== personId) { setLoadError('Entre novamente para carregar as receitas recorrentes.'); setIsLoading(false); setIsRefreshing(false); return; }
+		setIsLoading(true); if (asRefresh) setIsRefreshing(true);
 		try {
-			const [gainsResult, tagsResult, relatedUsersResult] = await Promise.all([
-				getMandatoryGainsWithRelationsFirebase(currentUser.uid, true),
-				getAllTagsFirebase(),
-				getRelatedUsersIDsFirebase(currentUser.uid),
-			]);
-
-			if (!gainsResult.success || !Array.isArray(gainsResult.data)) {
-				throw new Error('Erro ao obter os ganhos obrigatórios.');
-			}
-
-			const relatedIds =
-				relatedUsersResult.success && Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data : [];
-			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
-
+			const [gainsResult, tagsResult] = await Promise.all([getMandatoryGainsWithRelationsFirebase(currentUser.uid, true), getTagsWithUsersByPersonFirebase(currentUser.uid)]);
+			if (!isCurrent()) return;
+			if (!tagsResult.success || !Array.isArray(tagsResult.data)) throw new Error('Não foi possível carregar as categorias.');
+			if (!gainsResult.success || !Array.isArray(gainsResult.data)) throw new Error('Erro ao obter os ganhos obrigatórios.');
 			const tagsRecord: Record<string, string> = {};
 			const tagMetadataRecord: Record<string, TagMetadata> = {};
 			if (tagsResult.success && Array.isArray(tagsResult.data)) {
 				(tagsResult.data as Array<Record<string, unknown>>)
-					.filter(tag => {
-						const personIdValue = tag['personId'];
-						const personId = typeof personIdValue === 'string' ? personIdValue : '';
-						return allowedIds.has(personId);
-					})
 					.forEach(tag => {
 						const tagIdValue = tag['id'];
 						if (typeof tagIdValue === 'string') {
@@ -583,38 +574,26 @@ export default function MandatoryGainsListScreen() {
 				};
 			});
 
-			if (auth.currentUser?.uid !== currentUser.uid) {
+			if (!isCurrent()) {
 				return;
 			}
 			setTagsMap(tagsRecord);
 			setTagMetadataMap(tagMetadataRecord);
 			setGains(gainsWithStatus);
-			await syncMandatoryGainNotifications(
-				currentUser.uid,
-				buildMandatoryGainReminderSyncItems(gainsResult.data, referenceDate),
-			);
+			setHasLoadedData(true);
+			try {
+				const reminderResult = await syncMandatoryGainNotifications(currentUser.uid, buildMandatoryGainReminderSyncItems(gainsResult.data, referenceDate));
+				if (isCurrent() && reminderResult?.failed > 0) setReminderWarning('Dados carregados. Alguns lembretes não puderam ser reconciliados neste dispositivo.');
+			} catch { if (isCurrent()) setReminderWarning('Dados carregados. Não foi possível reconciliar os lembretes neste dispositivo.'); }
 		} catch (error) {
-			console.error('Erro ao carregar ganhos obrigatórios:', error);
-			showNotifierAlert({
-				description: 'Não foi possível carregar os ganhos obrigatórios.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			const fetch = async () => {
-				await loadData();
-			};
-
-			void fetch();
-			return () => { };
-		}, [loadData]),
-	);
+			if (isCurrent()) { setGains([]); setRetainedPlans([]); setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as receitas recorrentes.'); }
+		} finally { if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); } }
+	}, [personId, beginRequest]);
+	const handleRefresh = React.useCallback(async () => { await loadData(true); }, [loadData]);
+	useFocusEffect(React.useCallback(() => {
+		void loadData();
+		return () => { cancelRequest(); cancelActionRequest(); };
+	}, [loadData, cancelRequest, cancelActionRequest]));
 
 	const handleOpenCreate = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains);
@@ -688,11 +667,11 @@ export default function MandatoryGainsListScreen() {
 	}, [tagMetadataMap]);
 
 	const handleCloseActionModal = React.useCallback(() => {
-		if (isActionProcessing) {
+		if (isActionProcessing || isActionUncertain) {
 			return;
 		}
 		setPendingAction(null);
-	}, [isActionProcessing]);
+	}, [isActionProcessing, isActionUncertain]);
 
 	const selectedReceiptInstallments = React.useMemo(() => {
 		if (pendingAction?.type !== 'register' || typeof pendingAction.gain.installmentTotal !== 'number') {
@@ -725,7 +704,7 @@ export default function MandatoryGainsListScreen() {
 	}, [pendingAction, selectedReceiptInstallments]);
 
 	const handleConfirmAction = React.useCallback(async () => {
-		if (!pendingAction) {
+		if (!pendingAction || actionLock.current || isActionProcessing || !personId || auth.currentUser?.uid !== personId || (!isActionUncertain && (isLoading || loadError || !hasLoadedData))) {
 			return;
 		}
 
@@ -744,10 +723,12 @@ export default function MandatoryGainsListScreen() {
 			return;
 		}
 
-		setIsActionProcessing(true);
+		const lock = {}; actionLock.current = lock; const isCurrentAction = beginActionRequest();
+		setIsActionProcessing(true); setActionError(null);
 		try {
 			if (pendingAction.gain.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
 				const result = await submitSparkRecurringAction({ planId: pendingAction.gain.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
+				if (!isCurrentAction()) return;
 				if (!result) throw new Error('O contexto financeiro mudou.');
 				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
 				await loadData();
@@ -755,7 +736,7 @@ export default function MandatoryGainsListScreen() {
 			}
 
 			if (pendingAction.type === 'delete') {
-				const accountId = auth.currentUser?.uid;
+				const accountId = personId;
 				if (!accountId) {
 					showNotifierAlert({
 						description: 'Usuário não autenticado. Faça login novamente.',
@@ -766,6 +747,7 @@ export default function MandatoryGainsListScreen() {
 				}
 
 				const result = await deleteMandatoryGainFirebase(pendingAction.gain.id);
+				if (!isCurrentAction()) return;
 				if (result.success) {
 					let reminderCleanupFailed = false;
 					try {
@@ -797,6 +779,7 @@ export default function MandatoryGainsListScreen() {
 
 				if (linkedGainId) {
 					const deleteResult = await deleteGainFirebase(linkedGainId);
+					if (!isCurrentAction()) return;
 					if (!deleteResult.success) {
 						showNotifierAlert({
 							description: 'Não foi possível remover o ganho registrado.',
@@ -808,6 +791,7 @@ export default function MandatoryGainsListScreen() {
 				}
 
 				const clearResult = await clearMandatoryGainReceiptFirebase(pendingAction.gain.id);
+				if (!isCurrentAction()) return;
 				if (!clearResult.success) {
 					showNotifierAlert({
 						description: 'Não foi possível reivindicar o recebimento.',
@@ -826,6 +810,8 @@ export default function MandatoryGainsListScreen() {
 				return;
 			}
 		} catch (error) {
+			if (!isCurrentAction()) return;
+			setActionError(error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
 			console.error('Erro ao processar ação do ganho obrigatório:', error);
 			showNotifierAlert({
 				description: 'Erro inesperado ao processar a ação selecionada.',
@@ -833,13 +819,12 @@ export default function MandatoryGainsListScreen() {
 				isDarkMode,
 			});
 		} finally {
-			setIsActionProcessing(false);
-			setPendingAction(null);
+			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); if (!hasPendingAction()) setPendingAction(null); }
 		}
-	}, [handleEdit, handleRegisterGain, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents, submitSparkRecurringAction]);
+	}, [personId, isActionProcessing, isActionUncertain, isLoading, loadError, hasLoadedData, beginActionRequest, hasPendingAction, handleEdit, handleRegisterGain, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents, submitSparkRecurringAction]);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
-		if (isExportingPdf || isLoading) {
+		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
 			return;
 		}
 
@@ -982,6 +967,7 @@ export default function MandatoryGainsListScreen() {
 		isDarkMode,
 		isExportingPdf,
 		isLoading,
+		loadError, hasLoadedData,
 		monthlySummary,
 		monthlySummaryPalette.cardBaseColor,
 		monthlySummaryPalette.cardGlowColor,
@@ -1121,9 +1107,12 @@ export default function MandatoryGainsListScreen() {
 					>
 						<VStack className="justify-between mt-4">
 
-							{!isLoading && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
-							{!isLoading && <SparkRecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
-                            {isLoading ? (
+							<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
+							{reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
+							<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || isActionUncertain}><ButtonText>Atualizar receitas recorrentes</ButtonText></Button>
+							{!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
+							{!isLoading && !loadError && <SparkRecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
+                            {loadError ? null : isLoading ? (
 								<MandatoryGainsTimelineSkeleton
 									compactCardClassName={compactCardClassName}
 									tintedCardClassName={tintedCardClassName}
@@ -1243,7 +1232,7 @@ export default function MandatoryGainsListScreen() {
 											onPress={() => {
 												void handleExportMonthlySummaryPdf();
 											}}
-											isDisabled={isLoading || isExportingPdf}
+											isDisabled={isLoading || isExportingPdf || Boolean(loadError) || !hasLoadedData}
 										>
 											{isExportingPdf ? (
 												<>
@@ -1656,6 +1645,8 @@ export default function MandatoryGainsListScreen() {
 						</ModalHeader>
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
+							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
+							{isActionUncertain ? <Text className={helperText} accessibilityRole="alert">Confirme a mesma ação para recuperar o resultado anterior.</Text> : null}
 							{pendingAction?.type === 'register' && typeof pendingAction.gain.installmentTotal === 'number' ? (
 								<VStack className="mt-4 gap-2">
 									<Text className={LUMUS_FORM_CLASS_NAMES.inlineLabel}>Quantidade de parcelas</Text>
@@ -1696,7 +1687,7 @@ export default function MandatoryGainsListScreen() {
 									</>
 								) : (
 									<ButtonText className={actionConfirmButtonTextClassName}>
-										{actionModalCopy.confirmLabel}
+										{isActionUncertain ? 'Confirmar ação anterior' : actionModalCopy.confirmLabel}
 									</ButtonText>
 								)}
 							</Button>

@@ -1,3 +1,6 @@
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
 import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
 import React from 'react';
 import {
@@ -43,13 +46,12 @@ import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/
 import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
 
 import { auth } from '@/FirebaseConfig';
-import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
+import { getTagsWithUsersByPersonFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
 import {
 	addMandatoryGainFirebase,
 	getMandatoryGainFirebase,
 	updateMandatoryGainFirebase,
 } from '@/functions/MandatoryGainFirebase';
-import { getRelatedUsersIDsFirebase } from '@/functions/RegisterUserFirebase';
 import {
 	cancelMandatoryGainNotification,
 	ensureNotificationPermissionForMandatoryGains,
@@ -203,10 +205,19 @@ export default function AddMandatoryGainsScreen() {
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
 	const [selectedGainTemplateId, setSelectedGainTemplateId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const [isPrefilling, setIsPrefilling] = React.useState(false);
+
 	const [lastReceiptCycle, setLastReceiptCycle] = React.useState<string | null>(null);
-	const submitLockRef = React.useRef(false);
-	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, isSpark } = useSparkRecurringForm('gain');
+	const submitLockRef = React.useRef<object | null>(null);
+	const { personId, beginRequest: beginTagsRequest, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-gain-form');
+	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, initialize, isSpark, isUncertain } = useSparkRecurringForm('gain', editingGainTemplateId ?? 'create');
+	const entry = useMovementFormEntry({ movementId: editingGainTemplateId, source: personId ?? '', initialize, loadSpark: loadSparkRecurring, loadLegacy: getMandatoryGainFirebase });
+	const isPrefilling = entry.loading;
+	const currentFormScope = JSON.stringify([personId, editingGainTemplateId]);
+	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
+	const [tagsError, setTagsError] = React.useState<string | null>(null);
+	const [submitError, setSubmitError] = React.useState<string | null>(null);
+	const mounted = React.useRef(true);
+	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryGains');
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
@@ -386,7 +397,9 @@ export default function AddMandatoryGainsScreen() {
 		normalizedInstallmentTotal !== null &&
 		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 
+	const fieldsLockedRef = React.useRef(true);
 	const handleReminderToggle = React.useCallback(async (value: boolean) => {
+		if (fieldsLockedRef.current) return;
 		if (!value) {
 			setReminderEnabled(false);
 			return;
@@ -404,6 +417,7 @@ export default function AddMandatoryGainsScreen() {
 		}
 
 		const permissionResult = await ensureNotificationPermissionForMandatoryGains();
+		if (fieldsLockedRef.current || auth.currentUser?.uid !== personId) return;
 		if (!permissionResult.granted) {
 			showNotifierAlert({
 				title: 'Lembrete indisponível',
@@ -422,7 +436,7 @@ export default function AddMandatoryGainsScreen() {
 			parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
 		);
 		setReminderEnabled(value);
-	}, [gainName, isDarkMode, isDueDayValid, selectedTagId, valueInCents]);
+	}, [gainName, isDarkMode, isDueDayValid, selectedTagId, valueInCents, personId]);
 
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
 	const reminderSummary = React.useMemo(() => {
@@ -437,8 +451,9 @@ export default function AddMandatoryGainsScreen() {
 	}, [reminderDaysBefore, reminderEnabled, reminderOnDueDate, reminderTime]);
 
 	const hasGainName = gainName.trim().length > 0;
-	const hasGainValue = valueInCents !== null && valueInCents > 0;
-	const isFormBusy = isSubmitting || isPrefilling;
+	const hasGainValue = valueInCents !== null && Number.isSafeInteger(valueInCents) && valueInCents > 0;
+	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || isUncertain;
+	fieldsLockedRef.current = isFormBusy;
 	const isCoreTemplateReady = hasGainName && hasGainValue && isDueDayValid;
 	const isInstallmentConfigReady =
 		!installmentsEnabled ||
@@ -450,7 +465,8 @@ export default function AddMandatoryGainsScreen() {
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasGainName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
-	const isInstallmentFieldDisabled = !hasGainName || !isDueDayValid || isFormBusy;
+	const isContractLocked = isSpark === true && !!editingGainTemplateId;
+	const isInstallmentFieldDisabled = !hasGainName || !isDueDayValid || isFormBusy || isContractLocked;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
@@ -555,8 +571,8 @@ export default function AddMandatoryGainsScreen() {
 		keyboardScrollOffset,
 	});
 
-	const resetForm = React.useCallback((options?: { keepTag?: boolean }) => {
-		resetSparkRecurring();
+	const resetForm = React.useCallback((options?: { keepTag?: boolean; preserveSpark?: boolean }) => {
+		if (!options?.preserveSpark) resetSparkRecurring();
 		setSelectedGainTemplateId(null);
 		setGainName('');
 		setValueDisplay('');
@@ -603,8 +619,10 @@ export default function AddMandatoryGainsScreen() {
 	}, []);
 
 	const loadTags = React.useCallback(async () => {
+		const isCurrent = beginTagsRequest();
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
+			setTagOptions([]); setTagsError('Entre novamente para carregar as categorias.');
 			showNotifierAlert({
 				description: 'Usuário não autenticado. Faça login novamente.',
 				type: 'error',
@@ -613,27 +631,15 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
-		setIsLoadingTags(true);
+		setIsLoadingTags(true); setTagsError(null); setTagOptions([]);
 
 		try {
-			const [tagsResponse, relatedUsersResult] = await Promise.all([
-				getAllTagsFirebase(),
-				getRelatedUsersIDsFirebase(currentUser.uid),
-			]);
-
-			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) {
-				throw new Error('Não foi possível carregar as tags.');
-			}
-
-			const relatedIds =
-				relatedUsersResult.success && Array.isArray(relatedUsersResult.data) ? relatedUsersResult.data : [];
-			const allowedIds = new Set<string>([currentUser.uid, ...relatedIds.filter(id => typeof id === 'string')]);
+			const tagsResponse = await getTagsWithUsersByPersonFirebase(currentUser.uid);
+			if (!isCurrent()) return;
+			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) throw new Error('Não foi possível carregar as categorias obrigatórias.');
 
 			const formattedTags: TagOption[] = tagsResponse.data
-				.filter((tag: any) => {
-					const belongsToAllowedUser = allowedIds.has(String(tag?.personId));
-					return isTagVisibleInMandatoryUsageList(tag, 'gain') && belongsToAllowedUser;
-				})
+				.filter((tag: any) => isTagVisibleInMandatoryUsageList(tag, 'gain'))
 				.map((tag: any) => ({
 					id: tag.id,
 					name: typeof tag?.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : 'Tag sem nome',
@@ -649,11 +655,11 @@ export default function AddMandatoryGainsScreen() {
 					: null;
 
 			setTagOptions(formattedTags);
-			if (matchingPendingTag) {
+			if (matchingPendingTag && !isUncertain) {
 				setSelectedTagId(matchingPendingTag.id);
 				setSelectedTagName(matchingPendingTag.name);
 				clearPendingCreatedTag(matchingPendingTag.id);
-			} else {
+			} else if (!isUncertain) {
 				setSelectedTagId(current =>
 					current && formattedTags.some(tag => tag.id === current) ? current : null,
 				);
@@ -667,22 +673,15 @@ export default function AddMandatoryGainsScreen() {
 				});
 			}
 		} catch (error) {
-			console.error('Erro ao carregar tags obrigatórias de ganhos:', error);
-			showNotifierAlert({
-				description: 'Erro ao carregar tags obrigatórias.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			setIsLoadingTags(false);
-		}
-	}, [isDarkMode]);
+			if (isCurrent()) { setTagOptions([]); setTagsError(error instanceof Error ? error.message : 'Não foi possível carregar as categorias.'); }
+		} finally { if (isCurrent()) setIsLoadingTags(false); }
+	}, [personId, beginTagsRequest, isUncertain, isDarkMode]);
 
 	useFocusEffect(
 		React.useCallback(() => {
 			void loadTags();
-			return () => { };
-		}, [loadTags]),
+			return cancelTagsRequest;
+		}, [loadTags, cancelTagsRequest]),
 	);
 
 	React.useEffect(() => {
@@ -726,135 +725,90 @@ export default function AddMandatoryGainsScreen() {
 		return () => {
 			isMounted = false;
 		};
-	}, [selectedTagId, tagOptions]);
+	}, [selectedTagId, tagOptions, personId]);
 
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
 		return true;
 	}, []);
 
+	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ preserveSpark: true }); setSubmitError(null); }, [personId, editingGainTemplateId, resetForm]);
 	React.useEffect(() => {
-		let isMounted = true;
+		if (!entry.ready) return;
+		if (!editingGainTemplateId) { resetForm({ keepTag: true, preserveSpark: true }); return; }
+		const data = entry.record;
+		if (!data) return;
 
-		const prefillGainTemplate = async () => {
-			if (!editingGainTemplateId) {
-				resetForm({ keepTag: true });
-				return;
-			}
+		const name = typeof data.name === 'string' ? data.name : '';
+		const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
+		const dueDayValue = typeof data.dueDay === 'number' ? data.dueDay : 1;
+		const usesBusinessDaysValue = data.usesBusinessDays === true;
+		const tagId = typeof data.tagId === 'string' ? data.tagId : null;
+		const descriptionValue = typeof data.description === 'string' ? data.description : '';
+		const installmentTotalValue = normalizeMandatoryInstallmentTotal(data.installmentTotal);
+		const installmentStartDateValue =
+			installmentTotalValue !== null
+				? normalizeMandatoryInstallmentDate(data.installmentStartDate) ?? new Date()
+				: null;
+		const installmentEndDateValue =
+			installmentTotalValue !== null
+				? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
+					getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
+				: null;
+		const reminderFlag = isMandatoryReminderConfigured(data);
+		const hasCurrentReminderConfig = data.reminderConfigVersion === MANDATORY_REMINDER_CONFIG_VERSION;
+		const reminderDaysBeforeValue = hasCurrentReminderConfig
+			? normalizeMandatoryReminderDaysBefore(data.reminderDaysBefore)
+			: 1;
+		const reminderOnDueDateValue = hasCurrentReminderConfig && data.reminderOnDueDate === true;
+		const reminderHour =
+			typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
+		const reminderMinute =
+			typeof data.reminderMinute === 'number' ? data.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
+		const lastReceiptCycle =
+			typeof data.lastReceiptCycle === 'string' && data.lastReceiptCycle.length > 0
+				? data.lastReceiptCycle
+				: null;
+		const installmentTotalValueInCents =
+			installmentTotalValue !== null
+				? typeof data.installmentTotalValueInCents === 'number' &&
+					Number.isSafeInteger(data.installmentTotalValueInCents) &&
+					data.installmentTotalValueInCents > 0
+					? data.installmentTotalValueInCents
+					: value * installmentTotalValue
+				: null;
+		const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
+			storedCompleted: data.installmentsCompleted,
+			explicitCompletion: data.sparkPlan === true,
+			installmentTotal: installmentTotalValue,
+			startDate: installmentStartDateValue,
+			isCurrentCycleCompleted: isCycleKeyCurrent(lastReceiptCycle),
+		});
 
-			setIsPrefilling(true);
-
-			try {
-				const response = (await loadSparkRecurring(editingGainTemplateId)) ?? await getMandatoryGainFirebase(editingGainTemplateId);
-
-				if (!isMounted) {
-					return;
-				}
-
-				if (!response.success || !response.data) {
-					showNotifierAlert({
-						description: 'Não foi possível carregar os dados do ganho obrigatório.',
-						type: 'error',
-						isDarkMode,
-					});
-					resetForm({ keepTag: true });
-					return;
-				}
-
-				const data = response.data as Record<string, unknown>;
-
-				const name = typeof data.name === 'string' ? data.name : '';
-				const value = typeof data.valueInCents === 'number' ? data.valueInCents : 0;
-				const dueDayValue = typeof data.dueDay === 'number' ? data.dueDay : 1;
-				const usesBusinessDaysValue = data.usesBusinessDays === true;
-				const tagId = typeof data.tagId === 'string' ? data.tagId : null;
-				const descriptionValue = typeof data.description === 'string' ? data.description : '';
-				const installmentTotalValue = normalizeMandatoryInstallmentTotal(data.installmentTotal);
-				const installmentStartDateValue =
-					installmentTotalValue !== null
-						? normalizeMandatoryInstallmentDate(data.installmentStartDate) ?? new Date()
-						: null;
-				const installmentEndDateValue =
-					installmentTotalValue !== null
-						? normalizeMandatoryInstallmentDate(data.installmentEndDate) ??
-							getMandatoryInstallmentEndDateFromTotal(installmentStartDateValue, installmentTotalValue)
-						: null;
-				const reminderFlag = isMandatoryReminderConfigured(data);
-				const hasCurrentReminderConfig = data.reminderConfigVersion === MANDATORY_REMINDER_CONFIG_VERSION;
-				const reminderDaysBeforeValue = hasCurrentReminderConfig
-					? normalizeMandatoryReminderDaysBefore(data.reminderDaysBefore)
-					: 1;
-				const reminderOnDueDateValue = hasCurrentReminderConfig && data.reminderOnDueDate === true;
-				const reminderHour =
-					typeof data.reminderHour === 'number' ? data.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
-				const reminderMinute =
-					typeof data.reminderMinute === 'number' ? data.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
-				const lastReceiptCycle =
-					typeof data.lastReceiptCycle === 'string' && data.lastReceiptCycle.length > 0
-						? data.lastReceiptCycle
-						: null;
-				const installmentTotalValueInCents =
-					installmentTotalValue !== null
-						? typeof data.installmentTotalValueInCents === 'number' &&
-							Number.isSafeInteger(data.installmentTotalValueInCents) &&
-							data.installmentTotalValueInCents > 0
-							? data.installmentTotalValueInCents
-							: value * installmentTotalValue
-						: null;
-				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
-					storedCompleted: data.installmentsCompleted,
-					explicitCompletion: data.sparkPlan === true,
-					installmentTotal: installmentTotalValue,
-					startDate: installmentStartDateValue,
-					isCurrentCycleCompleted: isCycleKeyCurrent(lastReceiptCycle),
-				});
-
-				setSelectedGainTemplateId(editingGainTemplateId);
-				setGainName(name);
-				setValueInCents(value);
-				setValueDisplay(value ? formatCurrencyBRL(value) : '');
-				setDueDay(String(dueDayValue).padStart(2, '0'));
-				setUsesBusinessDays(usesBusinessDaysValue);
-				setInstallmentsEnabled(installmentTotalValue !== null);
-				setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
-				setInstallmentTotalValueInCents(installmentTotalValueInCents);
-				setInstallmentTotalValueDisplay(installmentTotalValueInCents ? formatCurrencyBRL(installmentTotalValueInCents) : '');
-				setInstallmentStartDate(installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : formatDateToBR(new Date()));
-				setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
-				setSettledInstallmentsCount(installmentsCompletedValue);
-				setSelectedTagId(tagId);
-				setDescription(descriptionValue);
-				setReminderEnabled(reminderFlag);
-				setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
-				setReminderDaysBefore(reminderDaysBeforeValue);
-				setReminderOnDueDate(reminderOnDueDateValue);
-				setLastReceiptCycle(lastReceiptCycle);
-			} catch (error) {
-				console.error('Erro ao carregar ganho obrigatório para edição:', error);
-				if (isMounted) {
-					showNotifierAlert({
-						description: 'Erro ao carregar o ganho obrigatório selecionado.',
-						type: 'error',
-						isDarkMode,
-					});
-					resetForm({ keepTag: true });
-				}
-			} finally {
-				if (isMounted) {
-					setIsPrefilling(false);
-				}
-			}
-		};
-
-		void prefillGainTemplate();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [editingGainTemplateId, resetForm, loadSparkRecurring]);
+		setSelectedGainTemplateId(editingGainTemplateId);
+		setGainName(name);
+		setValueInCents(value);
+		setValueDisplay(value ? formatCurrencyBRL(value) : '');
+		setDueDay(String(dueDayValue).padStart(2, '0'));
+		setUsesBusinessDays(usesBusinessDaysValue);
+		setInstallmentsEnabled(installmentTotalValue !== null);
+		setInstallmentTotal(installmentTotalValue !== null ? String(installmentTotalValue) : '');
+		setInstallmentTotalValueInCents(installmentTotalValueInCents);
+		setInstallmentTotalValueDisplay(installmentTotalValueInCents ? formatCurrencyBRL(installmentTotalValueInCents) : '');
+		setInstallmentStartDate(installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : formatDateToBR(new Date()));
+		setInstallmentEndDate(installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '');
+		setSettledInstallmentsCount(installmentsCompletedValue);
+		setSelectedTagId(tagId);
+		setDescription(descriptionValue);
+		setReminderEnabled(reminderFlag);
+		setReminderTime(formatMandatoryReminderTime(reminderHour, reminderMinute));
+		setReminderDaysBefore(reminderDaysBeforeValue);
+		setReminderOnDueDate(reminderOnDueDateValue);
+		setLastReceiptCycle(lastReceiptCycle);
+	}, [entry.ready, entry.record, editingGainTemplateId, resetForm]);
 
 	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting) {
+		if (submitLockRef.current || isSubmitting || formScopeRef.current !== currentFormScope || !entry.ready || (!isUncertain && (isLoadingTags || tagsError || !tagOptions.some(tag => tag.id === selectedTagId)))) {
 			return;
 		}
 
@@ -974,7 +928,7 @@ export default function AddMandatoryGainsScreen() {
 		}
 
 		const currentUser = auth.currentUser;
-		if (!currentUser) {
+		if (!currentUser || currentUser.uid !== personId) {
 			showNotifierAlert({
 				title: 'Erro ao salvar ganho obrigatório',
 				description: 'Usuário não autenticado.',
@@ -985,8 +939,8 @@ export default function AddMandatoryGainsScreen() {
 			return;
 		}
 
-		submitLockRef.current = true;
-		setIsSubmitting(true);
+		const lock = {}; submitLockRef.current = lock; const submittedScope = formScopeRef.current;
+		setIsSubmitting(true); setSubmitError(null);
 
 		try {
 			const payloadInstallmentsCompleted =
@@ -1017,6 +971,7 @@ export default function AddMandatoryGainsScreen() {
 			const successTitle = selectedGainTemplateId ? 'Ganho obrigatório atualizado' : 'Ganho obrigatório registrado';
 
 			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedGainTemplateId });
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			if (sparkResult) {
 				persistedId = sparkResult.id;
 			} else if (selectedGainTemplateId) {
@@ -1040,6 +995,7 @@ export default function AddMandatoryGainsScreen() {
 				persistedId = result.id;
 			}
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
 			let reminderOperationError: string | null = null;
 
@@ -1071,6 +1027,7 @@ export default function AddMandatoryGainsScreen() {
 				}
 			}
 
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
 			const reminderFailureMessage =
 				reminderOperationError ??
 				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
@@ -1110,6 +1067,8 @@ export default function AddMandatoryGainsScreen() {
 				isEditing: Boolean(editingGainTemplateId),
 			});
 		} catch (error) {
+			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
+			setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar a recorrência.');
 			console.error('Erro ao salvar ganho obrigatório:', error);
 			showNotifierAlert({
 				title: 'Erro ao salvar ganho obrigatório',
@@ -1119,10 +1078,10 @@ export default function AddMandatoryGainsScreen() {
 				duration: 4500,
 			});
 		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
+			if (submitLockRef.current === lock) { submitLockRef.current = null; if (mounted.current) setIsSubmitting(false); }
 		}
 	}, [
+		entry.ready, isUncertain, isLoadingTags, tagsError, tagOptions, personId, currentFormScope,
 		description,
 		dueDay,
 		gainName,
@@ -1153,7 +1112,7 @@ export default function AddMandatoryGainsScreen() {
 	]);
 
 	const isSaveDisabled =
-		!isTemplateReady || isFormBusy || (reminderEnabled && !isReminderTimeValid);
+		!isTemplateReady || isSubmitting || !entry.ready || (!isUncertain && (isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Receitas Fixas]].
 	const isEditingMode = Boolean(editingGainTemplateId);
 	const screenTitle = isEditingMode ? 'Editar ganho obrigatório' : 'Registrar ganho obrigatório';
@@ -1198,6 +1157,11 @@ export default function AddMandatoryGainsScreen() {
 						>
 							<VStack className="justify-between">
 								<VStack className="mt-4 gap-4">
+									<MovementFormStatus loading={entry.loading} error={entry.error} onRetry={entry.retry} />
+									<MovementFormStatus loading={isLoadingTags} error={tagsError} onRetry={loadTags} />
+									{submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
+									{isUncertain ? <Text className="text-warning-600 dark:text-warning-400" accessibilityRole="alert">O cadastro anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados.</Text> : null}
+									{isContractLocked && installmentsEnabled ? <Text className={helperText}>Para mudar o valor total ou o prazo do parcelamento, use Renegociar na lista.</Text> : null}
 									<VStack className="gap-2">
 										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Nome do ganho</Text>
 										<Input className={fieldContainerClassName} isDisabled={isFormBusy}>
@@ -1280,7 +1244,7 @@ export default function AddMandatoryGainsScreen() {
 												<Switch
 													value={installmentsEnabled}
 													onValueChange={handleInstallmentsToggle}
-													disabled={!isCoreTemplateReady || isFormBusy}
+													disabled={!isCoreTemplateReady || isFormBusy || isContractLocked}
 													trackColor={switchTrackColor}
 													thumbColor={switchThumbColor}
 													ios_backgroundColor={switchIosBackgroundColor}
@@ -1523,7 +1487,7 @@ export default function AddMandatoryGainsScreen() {
 												<ButtonText>{isEditingMode ? 'Atualizando' : 'Registrando'}</ButtonText>
 											</>
 										) : (
-											<ButtonText>{isEditingMode ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
+											<ButtonText>{isUncertain ? 'Confirmar cadastro anterior' : isEditingMode ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
 										)}
 									</Button>
 								</VStack>
