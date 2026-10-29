@@ -4,11 +4,35 @@ relacionado: [[Plano de Funcionalidade Completa sem Blaze]], [[Integração Fina
 status: em desenvolvimento
 tipo: acompanhamento
 versao: 1.8.0
-revisado_em: 2026-10-25
+revisado_em: 2026-10-26
 spark_progress: 59
 ---
 
 # Status da Implementação Spark
+
+Retomada do importador de razão - 29/10/2026: execução local retoma lotes, recusa divergências e confere recibo idempotente; validada com falha simulada após commit no Firestore Emulator, usando Hub simulado. Reversão, importador legado completo e ativação continuam pendentes; percentuais mantidos. Ver [[Importação Financeira Local Spark]].
+
+Categorias legadas - 29/10/2026: prévia local propõe tags, origem integral e marcador de referências históricas para dados suportados, com recusa de conflitos; não grava nem ativa. Recorrências, validação integrada de exclusão e migração aplicável continuam pendentes; percentuais mantidos. Ver [[Importação Financeira Local Spark]].
+
+Ensaio de conversão - 29/10/2026: índices em memória reduzem buscas repetidas e o teste sintético com 1.500 receitas passou com saldos e autores conferidos. Passaram 83 testes locais e a tipagem das ferramentas; percentuais mantidos. O fluxo permanece restrito à demonstração e não conclui formatos legados, emissor confiável, corte ou ativação. Ver [[Importação Financeira Local Spark]].
+
+Restauração de recorrências no Assistente - 26/10/2026: planos arquivados elegíveis usam comando Spark preparado e confirmado, com contrato/ciclos preservados e retry pelo mesmo ID. Agenda é posterior e falha separadamente; sem fallback legado, novo writer monetário, Rules ou deploy. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Arquivamento de recorrências no Assistente - 26/10/2026: comando Spark active:false preparado/assinado antes da confirmação, com contrato/ciclos/contador/metadados preservados e sem movimento de saldo ou quitação. Reenvio conserva ID/comando; falha da agenda tem retry exclusivo e respeita restauração posterior. Pedidos explícitos de arquivar não viram exclusão legada; lotes filtram planos ativos e preservam quantidade. 381 testes focados distintos, tipagem e diff-check aprovados, com serviços simulados e um benchmark opt-in ignorado. Sem novo writer/Rules/estilo/deploy; percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Cadastro/edição de recorrências no Assistente - 26/10/2026: definição e metadados Spark preparados/assinados antes da confirmação, com contrato/contador/campos omitidos preservados. Duas etapas com receipts estáveis, resultado parcial explícito e leituras atualizadas sem repetir cadastro; material bloqueado após início. Cancelamento comprovado e falha de agenda têm recuperação própria. 267 testes focados distintos, tipagem e diff-check aprovados, com serviços simulados. Sem movimento monetário, Rule, estilo ou deploy; percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Desfazer ciclos recorrentes no Assistente - 26/10/2026: adaptador Spark do ciclo atual confere plano/receipt e captura comando, valor real e quantidade antes da confirmação. Estorno integral conserva histórico/data e restaura contador; retry financeiro não depende do alvo ainda ativo. Plano arquivado e último intervalo de parcelas respeitados; agenda atualizada separadamente com retry próprio. 310 testes focados distintos, tipagem e diff-check aprovados, com executores simulados e um benchmark opt-in ignorado. Sem novo escritor/Rules/estilo/deploy; percentuais mantidos. Evidências em [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Pagamentos/recebimentos recorrentes no Assistente - 26/10/2026: preparo canônico por titular/grupo/ciclo, parcelas contratuais exatas e confirmação de valor/direção/quantidade antes de usar o protocolo Spark existente. Retry conserva comando/ID sem reler plano já alterado; falha de agenda permite atualizar somente o lembrete. Ciclos Spark concluídos são excluídos das escolhas/lotes. 290 testes focados distintos e tipagem/diff-check aprovados, com executores simulados; um benchmark opt-in ignorado. Sem novo escritor/Rules/estilo/deploy; demais famílias e percentuais mantidos. Evidências e limites em [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Desfazer saque no Assistente - 26/10/2026: catálogo de saques Spark ativos, origem/ator preservados e conferência do original banco→Caixa. Par de estorno, valor e banco são preparados antes da confirmação e vinculados à autorização; retry usa o mesmo comando sem depender do catálogo atual. 180 testes focados, tipagem e diff-check aprovados, com executores simulados. Sem novo writer/Rules/estilo/deploy; demais famílias e percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Transferências/saques do Assistente - 26/10/2026: par Spark preparado antes da confirmação, comando/dia assinados, banco↔banco e banco→Caixa canônico, centavos/ID/data estáveis no retry. Hoje usa commit do servidor e retroativo protocolo datado, com recibo/virada do dia conferidos. 163 testes focados, tipagem e diff-check aprovados, com executores simulados. Sem novo escritor monetário/Rules/deploy, sem novos estilos. Demais famílias continuam parciais, percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Relatórios especializados do Assistente - 26/10/2026: pendências usam planos/ciclos Spark e conjunto completo, parcelas exatas e desconhecidos explícitos; carteira respeita confirmed_only; CDI nativo usa curva do titular, aceita zero e distingue vigência futura. 45 testes focados e tipagem aprovados, com leitores simulados; diff-check conferido. Sem novo escritor/Rules/deploy. A02 e percentuais mantidos; ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
+
+Correções/estornos e leitura do Assistente - 26/10/2026: alvo/comando ordinário canônicos preparados antes da confirmação e vinculados à autorização, com retry independente do catálogo ativo. Leitor do período Spark conserva inversos assinados e totais econômicos, com ranking de alvos vigentes e erro sem fallback. 166 testes focados, tipagem e diff-check aprovados. Sem novo SDK/Rules/modelo/aparelho/deploy. Famílias/relatórios especializados permanecem parciais, percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
 
 Registro ordinário do Assistente - 26/10/2026: receitas/despesas do chat usam comando Spark nativo com conta/categoria canônicas, direção/centavos, fingerprint e ID/data estáveis. Autorização inclui preparedAt e é revalidada antes de iniciar. 145 testes focados, tipagem e diff-check aprovados. Demais famílias/relatórios continuam pendentes, sem fallback financeiro antigo na execução em contexto Spark. Percentuais mantidos. Ver [[Assistente Lumus]] e [[Versão Usável por Telas]].
 
@@ -381,3 +405,53 @@ Continuam pendentes: restauração integral de argumentos/provas/fases após rel
 ## Complemento de apresentação F10 — 26/10/2026
 
 [[Dashboard Home]] compartilha a timeline e as ações elegíveis de [[Gerenciamento de Bancos]] nas duas plataformas. Metadados Spark conservam referências, dono, resolução e bloqueios; ajustes/referências não entram nos indicadores econômicos. Cobertura local adicionada para a projeção dos últimos movimentos. Esta entrega não libera executores especiais pendentes, não mede custo de leituras nem homologa aparelhos; percentuais e notas F10 permanecem inalterados. Evidências finais em [[Auditoria de Design]].
+
+
+### Replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara replanejamento individual de contrato finito Spark ativo, de titular autorizado, pedindo o total negociado em centavos, quantidade de parcelas, primeiro ciclo e motivo. Após resumo e confirmação, usa `replanSparkRecurringFirebase` com revisões e IDs capturados: o contrato anterior é preservado e substituído atomicamente, sem movimentação de saldo nem quitação implícita. Uma tentativa já enviada conserva o mesmo comando para recuperação; alteração do material exige nova intenção após resolução. Atualização dos lembretes do predecessor e sucessor é posterior e pode ser repetida sem reenviar o replanejamento. Contas legadas não recebem substituição alternativa.
+
+O desfazimento conversacional do replanejamento, a recuperação da intenção após reload e a homologação em aparelho permanecem pendentes. Os serviços simulados não comprovam Rules ou operação em produção. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
+
+
+### Desfazimento de replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara o desfazimento individual de replanejamento Spark usando a referência ao contrato anterior ou ao sucessor. Pede o motivo, confere titular, grupo, vínculos e receipt original, e apresenta os dois contratos e o efeito para confirmação. O sucessor não pode ter parcelas efetivadas nem replanejamento posterior; o serviço `undoSparkRecurringReplanFirebase` volta a validar as revisões e dependências na transação. A operação reativa o anterior, cancela o sucessor e preserva o histórico sem movimentar saldo.
+
+A tentativa conserva o comando e ID após envio; os lembretes dos dois planos são reconciliados depois do commit e podem ser repetidos separadamente. Não há fallback para alteração legada. Intenção após reload, validação em aparelho, Rules implantadas e operação em dados reais não foram verificadas nesta entrega. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
+
+
+### Entrada única da demonstração Spark — 27/10/2026
+
+`npm start`, `npm run web`, `npm run dev:local`, `npm run start:expo-go` e `npm run dev:local:web` usam o mesmo supervisor da demonstração Spark (`dev:spark` / `dev:spark:web`). Os modos `start`, `--web`, `--android` e `--dev-client` de `script/build_and_run.sh` também seguem esse supervisor. A conta `spark@demo.lumus.local` é preparada somente em Auth/Firestore locais novos; não há reinicialização automática de sessões existentes. Os emuladores e seus dados são efêmeros. O comando antigo que recriava a conta legada e limpava o emulador deixa de ser usado nesses atalhos. Outros comandos explícitos de seed legado permanecem distintos.
+
+Esta alteração de entrada não implementa bootstrap de contas reais ou migração legada, nem comprova por si só login no navegador, funcionamento completo ou deploy. Ver [[Guia de Testes Locais]] e [[Status da Implementação Spark]].
+
+
+### Diagnóstico de conta antes da migração — 27/10/2026
+
+`inspect-account` analisa um snapshot local validado e um UID, identificando perfil desconhecido, grupo do razão/Spark ou fontes legadas observadas por coleção. Documentos financeiros sem `personId` inequívoco, com identidade malformada ou divergente, são listados como ambíguos; a contagem não infere saldos ou titularidade de dados duvidosos. O relatório fica vinculado ao hash do snapshot e não altera a origem.
+
+Um snapshot sem documentos financeiros não comprova que uma conta seja nova: ele não inclui Auth e usa duas varreduras que não garantem instante único. Por isso `canInitialize`, `canMigrate` e `readyForCutover` permanecem falsos em todos os resultados. O diagnóstico não cria grupos, importa dados, concede permissões ou altera o banco oficial. Ainda faltam bootstrap seguro, preservação dos formatos legados, consentimentos, corte e recuperação. Ver [[Importação Financeira Local Spark]] e [[Status da Implementação Spark]].
+
+```sh
+npm run spark:snapshot -- inspect-account --input spark-backups/demo.json --uid UID_FICTICIO --output spark-backups/account-report.json
+```
+
+O comando usa exclusivamente os snapshots `demo-*` validados pelo formato local; a saída é criada de forma exclusiva e privada. Não é captura ou migração de produção.
+
+
+### Recuperação do perfil no cadastro — 27/10/2026
+
+A criação pública de acesso usa a sessão Firebase secundária. O perfil é criado por transação que verifica primeiro sua ausência, sem sobrescrever um perfil existente. Se a gravação falhar ou a resposta for incerta, a conta Auth é preservada; uma nova tentativa com o mesmo nome, e-mail e senha reautentica na sessão secundária, confere o UID e retoma a transação. Se a primeira gravação já tiver sido confirmada, o perfil não é reescrito. Nenhuma senha é armazenada nessa recuperação, e a sessão principal não é substituída.
+
+Depois que o UID é recebido, a intenção de perfil é preservada localmente, sem senha ou token, e pode ser retomada após reinício com as mesmas credenciais. Se a resposta de criação Auth for perdida ou o processo encerrar antes da gravação local do UID, a recuperação ainda não é automática. O cadastro continua sem preparar o grupo financeiro Spark; a mensagem informa essa limitação. Não houve migração legada, alteração de Rules, escrita real nem deploy. Ver [[Autenticação]] e [[Status da Implementação Spark]].
+
+
+### Primeiro uso Spark com autorização protegida — 27/10/2026
+
+O cadastro de perfil novo marca `sparkFirstUseRequested`. Na primeira leitura de contexto, `initializeSparkFirstUseFirebase` consulta a autorização protegida do mesmo UID. Quando disponível, perfil, grupo `first_{uid}`, Caixa zero e operação `first_use_cash` são criados na mesma transação. O grupo recebe somente o titular como administrador e o protocolo vigente. A transação recusa perfil já vinculado e preserva o histórico existente; um reenvio após commit reconhece o grupo e o Caixa sem repetir gravações.
+
+As Rules exigem autorização prévia em `sparkFirstUseAuthorizations/{uid}` emitida por autoridade confiável, vinculada ao UID, grupo determinístico, `createdAt` do perfil, ciclo do calendário protegido e expiração, e negam criação/alteração da autorização pelo cliente. O calendário protegido precisa existir e cobrir o instante do servidor. As quatro escritas são verificadas conjuntamente; saldo inicial deve ser zero e a sessão atual precisa pertencer ao titular. A autorização não é uma prova gerada pelo cliente nem deve ser emitida somente por ausência de documentos.
+
+**Ainda não há emissor confiável automático dessa autorização.** Verificação de criação real do Auth, inventário completo, ausência de legado e corte de escritores precisam ser implementados antes de conceder a autorização a contas reais. Sem autorização, o cadastro financeiro continua pendente. Esta etapa não migra contas legadas e não publica Rules ou cliente. Os testes em Emulator não constituem ativação de produção. Ver [[Status da Implementação Spark]] e [[Importação Financeira Local Spark]].

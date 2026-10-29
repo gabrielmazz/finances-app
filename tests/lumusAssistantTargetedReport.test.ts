@@ -1,3 +1,7 @@
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+jest.mock('@/functions/SparkRecurringReadFirebase', () => ({ readSparkRecurringPlansFirebase: jest.fn(async () => []) }));
+jest.mock('@/functions/SparkFinancialReadFirebase', () => ({ readSparkFinancialEventsFirebase: jest.fn(async () => []) }));
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
 const mockGetDocs = jest.fn();
 const mockGetLedgerContext = jest.fn();
 const mockGetRelatedUsers = jest.fn();
@@ -19,6 +23,7 @@ jest.mock('firebase/firestore', () => ({
  startAfter: (document: unknown) => ({ cursor:document }),
 	Timestamp: { fromDate: (date: Date) => date },
 	getDocs: (...args: unknown[]) => mockGetDocs(...args),
+	getDocsFromServer: (...args: unknown[]) => mockGetDocs(...args),
 }));
 
 import { assistantReportService } from '@/services/lumusAssistant/assistantReportService';
@@ -202,4 +207,45 @@ test('saldo de Caixa migrado reconhece kind cash com handle opaco',async()=>{
  mockGetHome.mockResolvedValue({success:true,data:{overview:{success:true,data:{bankBalances:[],cashSummary:{balanceInCents:2345}}}}});
  const report=await assistantReportService.createReport('current-user',{kind:'account_balance',bankRef:'account_opaque'},{banks:[{handle:'account_opaque',realId:'real-cash',label:'Caixa',data:{kind:'cash'}}]});
  expect(report.metrics).toEqual([{label:'Caixa',valueInCents:2345}]);
+});
+
+
+import { readSparkRecurringPlansFirebase } from '@/functions/SparkRecurringReadFirebase';
+describe('relatórios especializados Spark', () => {
+ const plan = (id: string, patch: Record<string,unknown> = {}) => ({ id, actorId:'current-user', recurringType:'expense', name:id, categoryId:null, startCycle:'2026-01', endCycle:null, historyFromCycle:'2026-01', valueInCents:100, installmentTotal:null, contractTotalInCents:null, installmentsCompleted:0, active:true, revision:1, metadata:{ dueDay:5,usesBusinessDays:false }, completedCycles:[], cycleWindow:{ fromCycle:'2026-10',throughCycle:'2028-10' }, ...patch }) as any;
+ beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date('2026-10-26T15:00:00Z')); jest.mocked(getSparkContextFirebase).mockReset().mockResolvedValue({ groupId:'native',actorId:'current-user',role:'member' }); jest.mocked(readSparkRecurringPlansFirebase).mockReset().mockResolvedValue([]); mockGetDocs.mockReset().mockResolvedValue({docs:[]}); mockGetLedgerContext.mockClear(); });
+ afterEach(() => { jest.useRealTimers(); jest.mocked(getSparkContextFirebase).mockResolvedValue(null); });
+ it('pendências incluem todos os itens, sem o limite visual de três da Home', async () => {
+  jest.mocked(readSparkRecurringPlansFirebase).mockResolvedValue(Array.from({length:9},(_,i)=>plan('Plano '+i)));
+  const report = await assistantReportService.createReport('current-user',{kind:'pending_obligations'},{});
+  expect(report.metrics[0].valueInCents).toBe(900); expect(report.metrics[2].value).toBe(9); expect(report.deterministicSummary).toContain('Plano 8'); expect(mockGetLedgerContext).not.toHaveBeenCalled();
+ });
+ it('parcela final usa resto contratual e exclui ciclo concluído, encerrado e futuro', async () => {
+  jest.mocked(readSparkRecurringPlansFirebase).mockResolvedValue([plan('Última',{valueInCents:333,installmentTotal:3,contractTotalInCents:1000,installmentsCompleted:2,endCycle:'2026-10'}),plan('Paga',{completedCycles:['2026-10']}),plan('Futura',{startCycle:'2026-11'}),plan('Encerrada',{active:false}),plan('Receber',{recurringType:'gain',valueInCents:500})]);
+  const report = await assistantReportService.createReport('current-user',{kind:'pending_obligations'},{});
+  expect(report.metrics.map(metric=>metric.valueInCents ?? metric.value)).toEqual([334,500,2]);
+ });
+ it('histórico ou vencimento desconhecido não se transforma em pendência confirmada', async () => {
+  jest.mocked(readSparkRecurringPlansFirebase).mockResolvedValue([plan('Sem configuração',{metadata:null})]);
+  const current = await assistantReportService.createReport('current-user',{kind:'pending_obligations'},{}); expect(current.metrics[2].value).toBe(0); expect(current.deterministicSummary).toContain('totais acima são parciais');
+  jest.mocked(readSparkRecurringPlansFirebase).mockResolvedValue([plan('Antiga',{cycleWindow:{fromCycle:'2026-09',throughCycle:'2028-09'}})]);
+  const historical = await assistantReportService.createReport('current-user',{kind:'pending_obligations',period:'2026-09'},{}); expect(historical.metrics[2].value).toBe(0); expect(historical.deterministicSummary).toContain('sem histórico');
+ });
+ it('falha do leitor de recorrências não consulta fontes antigas nem retorna vazio', async () => {
+  jest.mocked(readSparkRecurringPlansFirebase).mockRejectedValueOnce(new Error('recurring offline'));
+  await expect(assistantReportService.createReport('current-user',{kind:'pending_obligations'},{})).rejects.toThrow('recurring offline'); expect(mockGetLedgerContext).not.toHaveBeenCalled();
+ });
+ it('carteira sem projeção mostra somente a posição confirmada', async () => {
+  mockGetHome.mockResolvedValue({data:{investments:{success:true,data:{projectionStatus:'confirmed_only',portfolio:{items:[{id:'one',name:'CDB',currentBaseValueInCents:5000,simulatedValueInCents:9999,estimatedGainInCents:4999}],investmentCount:1}}}}});
+  const report = await assistantReportService.createReport('current-user',{kind:'investment_portfolio'},{});
+  expect(report.metrics).toEqual([expect.objectContaining({label:'Valor base confirmado',valueInCents:5000}),expect.objectContaining({label:'Investimentos',value:1})]); expect(report.chart?.points[0].value).toBe(5000); expect(report.deterministicSummary).toContain('Projeção indisponível'); expect(report.deterministicSummary).not.toContain('99,99');
+ });
+ it('CDI zero é taxa válida e vigência futura não substitui a vigente', async () => {
+  mockGetDocs.mockResolvedValue({docs:[document({personId:'current-user',groupId:'native',annualRateInBasisPoints:0,effectiveFrom:new Date('2026-10-01T03:00:00Z')}),document({personId:'current-user',groupId:'native',annualRateInBasisPoints:1234,effectiveFrom:new Date('2026-11-01T03:00:00Z')}),document({personId:'other',groupId:'native',annualRateInBasisPoints:9999,effectiveFrom:new Date('2026-10-20T03:00:00Z')})]});
+  const report = await assistantReportService.createReport('current-user',{kind:'cdi_rates'},{}); expect(report.deterministicSummary).toContain('vigente: 0,00%'); expect(report.deterministicSummary).toContain('vigência futura'); expect(report.deterministicSummary).not.toContain('99,99%'); expect(report.scopeLabel).toBe('Minha curva CDI no grupo'); expect(mockGetLedgerContext).not.toHaveBeenCalled();
+ });
+ it('CDI inválido não produz lista parcial de sucesso', async () => {
+  mockGetDocs.mockResolvedValue({docs:[document({personId:'current-user',groupId:'native',annualRateInBasisPoints:-1,effectiveFrom:new Date('2026-10-01T03:00:00Z')})]});
+  await expect(assistantReportService.createReport('current-user',{kind:'cdi_rates'},{})).rejects.toThrow('CDI inválida');
+ });
 });

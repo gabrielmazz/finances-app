@@ -61,7 +61,7 @@ test('importa financeiro de forma verificada, preserva bruto e permanece bloquea
   for (const original of source.documents.filter(row => row.path !== 'financialGroups/group')) assert.deepEqual(restored.find(row => row.path === original.path)?.fields, original.fields);
   assert.equal(restored.find(row => row.path === 'financialGroups/group')?.fields.status.stringValue, 'spark_importing');
   await assert.rejects(getDocFromServer(doc(firestore, 'financialGroups/group/sparkPositions/bank-a')), (error: any) => error.code === 'permission-denied');
-  await assert.rejects(importSparkLedgerLocal(local, source, 'group', importAsOf, plan.planSha256), /vazio/);
+  assert.equal((await importSparkLedgerLocal(local, source, 'group', importAsOf, plan.planSha256)).idempotent, true);
   assert.equal(dataDigest(await local.scan()), dataDigest(restored));
 });
 

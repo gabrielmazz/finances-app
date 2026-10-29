@@ -1,3 +1,8 @@
+import { readSparkRecurringPlansFirebase } from '@/functions/SparkRecurringReadFirebase';
+import { buildSparkUpcomingMandatoryItems } from '@/utils/sparkRecurringReadModel';
+import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
+import { readSparkFinancialEventsFirebase } from '@/functions/SparkFinancialReadFirebase';
+import { getSparkMovementResolutionIndex } from '@/utils/sparkFinancialReadModel';
 import type {
 	AssistantReport,
 	AssistantReportRequest,
@@ -16,7 +21,7 @@ import { createAssistantId, formatCycleKey, formatCents, formatIsoDate, parseIso
 import { db } from '@/FirebaseConfig';
 import { AssistantFriendlyError } from '@/utils/lumusAssistantErrors';
 import { endOfFinancialCivilDay } from '@/utils/financialCivilDate';
-import { collection, getDocs, limit, orderBy, query, startAfter, Timestamp, where, type QueryConstraint, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { collection, getDocs, getDocsFromServer, limit, orderBy, query, startAfter, Timestamp, where, type QueryConstraint, type QueryDocumentSnapshot } from 'firebase/firestore';
 
 const getMonthLabel = (date: Date) =>
 	new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
@@ -42,7 +47,7 @@ const sum = (values: number[]) => values.reduce((total, value) => total + value,
 
 export type HistoricalMovement = {
  id: string; name: string; valueInCents: number; date: Date; type: 'expense'|'gain';
- bankId: string|null; categoryId?: string; explanation?: string; economic: boolean; reversed?: boolean; templateId?: string;
+ bankId: string|null; categoryId?: string; explanation?: string; economic: boolean; reversed?: boolean; rankingExcluded?: boolean; templateId?: string;
 };
 const readDate = (value: unknown): Date | null => {
  const date = value instanceof Date ? value : value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function' ? value.toDate() : null;
@@ -62,11 +67,11 @@ const periodWindow = (request: AssistantReportRequest) => {
  label: getMonthLabel(new Date(Date.UTC(year, month - 1, 15, 12))) };
 };
 // O cursor é independente do catálogo de referências e não trunca os dados da consulta.
-const readAllPages = async (name: string, filters: QueryConstraint[]) => {
+const readAllPages = async (name: string, filters: QueryConstraint[], fromServer = false) => {
  const documents: QueryDocumentSnapshot[] = [];
  let cursor: QueryDocumentSnapshot | undefined;
  while (true) {
-  const snapshot = await getDocs(query(collection(db, name), ...filters, ...(cursor ? [startAfter(cursor)] : []), limit(200)));
+  const snapshot = await (fromServer ? getDocsFromServer : getDocs)(query(collection(db, name), ...filters, ...(cursor ? [startAfter(cursor)] : []), limit(200)));
   documents.push(...snapshot.docs);
   if (snapshot.docs.length < 200) break;
   const next = snapshot.docs[snapshot.docs.length - 1]!;
@@ -80,6 +85,25 @@ export const readAssistantPeriodMovements = async (personId: string, request: As
  if (range) {
   if (!Number.isFinite(range.start.getTime()) || !Number.isFinite(range.end.getTime()) || range.start >= range.end || range.end.getTime() > endOfFinancialCivilDay(new Date()).getTime() + 1) throw new AssistantFriendlyError('invalid-request', 'Informe um intervalo válido até hoje, em São Paulo.');
   window.start = range.start; window.end = range.end; window.label = range.label;
+ }
+ const spark = await getSparkContextFirebase(db, personId);
+ if (spark) {
+  const events = await readSparkFinancialEventsFirebase(db, personId, spark.groupId);
+  const latest = await getSparkContextFirebase(db, personId);
+  if (!latest || latest.groupId !== spark.groupId || latest.role !== spark.role) throw new AssistantFriendlyError('invalid-request', 'O acesso financeiro mudou. Atualize a consulta.');
+  const resolutions = getSparkMovementResolutionIndex(events, new Date(window.end.getTime() - 1));
+  // [[Assistente Lumus]]: inverso conserva natureza econômica e sinal, sem virar ganho/despesa oposta.
+  const movements: HistoricalMovement[] = events.filter(event => event.term === 'delta' && event.deltaInCents !== 0 && event.effectiveAt >= window.start && event.effectiveAt < window.end).map(event => ({
+   id: event.id, name: event.details?.name ?? event.note ?? 'Movimento financeiro', date: event.effectiveAt,
+   valueInCents: event.economicKind === 'expense' ? -event.deltaInCents : event.economicKind === 'income' ? event.deltaInCents : Math.abs(event.deltaInCents),
+   type: event.economicKind === 'expense' ? 'expense' : event.economicKind === 'income' ? 'gain' : event.deltaInCents < 0 ? 'expense' : 'gain',
+   bankId: event.accountId === 'cash' ? null : event.accountId, categoryId: event.categoryId ?? undefined,
+   explanation: event.details?.explanation ?? event.note ?? undefined, economic: event.economicKind !== null,
+   rankingExcluded: event.deltaInCents === 0 || !!event.executionReference && resolutions.resolvedBy(event.executionReference) !== null,
+   templateId: event.recurringPlanId ?? undefined,
+  }));
+  movements.sort((a,b) => b.date.getTime() - a.date.getTime() || a.id.localeCompare(b.id));
+  return { movements, window };
  }
  const context = await getFinancialLedgerContextFirebase(personId);
  const movements: HistoricalMovement[] = [];
@@ -128,7 +152,7 @@ const readPeriodMovements = readAssistantPeriodMovements;
 const createExtremumMovementReport = async (personId:string,request:AssistantReportRequest):Promise<AssistantReport> => {
  const kind=request.kind.endsWith('_gain')?'gain':'expense'; const smallest=request.kind.startsWith('smallest_');
  const {movements,window}=await readPeriodMovements(personId,request);
- const candidates=movements.filter(item=>item.type===kind && item.economic && !item.reversed)
+ const candidates=movements.filter(item=>item.type===kind && item.economic && !item.reversed && !item.rankingExcluded && item.valueInCents > 0)
  .sort((a,b)=>(smallest?a.valueInCents-b.valueInCents:b.valueInCents-a.valueInCents)||b.date.getTime()-a.date.getTime());
  const report=createBaseReport(request,`${smallest?'Menor':'Maior'} ${kind==='expense'?'despesa':'ganho'}`,window.label);
  const selected=candidates[0];
@@ -282,10 +306,48 @@ const createForecastReport = async (
 	return report;
 };
 
+type PendingReportItem = { label: string; type: 'expense' | 'gain'; value: number; due: Date; readOnly: boolean };
+const buildPendingReport = (request: AssistantReportRequest, label: string, items: PendingReportItem[], unknown: number, native = false): AssistantReport => {
+ const expenses = items.filter(item=>item.type === 'expense');
+ const gains = items.filter(item=>item.type === 'gain');
+ const expenseTotal = sum(expenses.map(item=>item.value));
+ const gainTotal = sum(gains.map(item=>item.value));
+ const report = createBaseReport(request,'Obrigações pendentes',label);
+ report.metrics = [{label:'Gastos pendentes',valueInCents:expenseTotal,tone:'negative'},{label:'Ganhos pendentes',valueInCents:gainTotal,tone:'positive'},{label:'Itens conferidos pendentes',value:items.length,displayValue:String(items.length)}];
+ report.deterministicSummary = `${label}: ${expenses.length} despesa(s) pendentes, ${formatCents(expenseTotal)}; ${gains.length} receita(s) pendentes, ${formatCents(gainTotal)}.`;
+ const offset = request.offset ?? 0;
+ const shown = items.slice(offset,offset+20);
+ report.deterministicSummary += shown.length ? `\n${shown.map((item,index)=>`${offset+index+1}. ${item.label} · ${formatCents(item.value)} · vencimento ${formatIsoDate(item.due).split('-').reverse().join('/')}${item.readOnly?' · somente leitura':''}`).join('\n')}` : '';
+ if(offset + shown.length < items.length) report.deterministicSummary += `\nHá ${items.length} itens no conjunto. Diga “mostre os demais” para continuar.`;
+ if(unknown && native) report.deterministicSummary += `\n${unknown} obrigação(ões) sem histórico ou configuração suficientes; não foram classificadas como pendentes nem pagas. Os totais acima são parciais.`;
+ else if(unknown) report.deterministicSummary += `\nNão consegui reconstruir ${unknown} obrigação(ões) antigas nesse mês: o armazenamento legado preservou apenas o último ciclo. Elas não foram classificadas como pendentes nem pagas; os totais acima são parciais.`;
+ return report;
+};
+
 const createPendingReport = async (
  personId: string, request: AssistantReportRequest, suppliedCatalog: AssistantResolvedCatalog,
 ): Promise<AssistantReport> => {
  const window = periodWindow(request);
+ const spark = await getSparkContextFirebase(db, personId);
+ if (spark) {
+  const plans = await readSparkRecurringPlansFirebase(db, personId, spark.groupId, window.start);
+  const current = await getSparkContextFirebase(db, personId);
+  if (!current || current.groupId !== spark.groupId || current.role !== spark.role) throw new AssistantFriendlyError('invalid-request', 'O acesso financeiro mudou. Atualize a consulta.');
+  const historical = window.period !== formatCycleKey(new Date());
+  let unknown = 0;
+  const eligible = plans.filter(plan => {
+   if (window.period < plan.startCycle || plan.completedCycles.includes(window.period)) return false;
+   if (historical) { unknown++; return false; }
+   if (!plan.active || plan.installmentTotal !== null && plan.installmentsCompleted >= plan.installmentTotal) return false;
+   if (window.period < plan.historyFromCycle || !plan.metadata || plan.metadata.dueDay === null) { unknown++; return false; }
+   return true;
+  });
+  const pending = buildSparkUpcomingMandatoryItems(eligible, window.start, Number.MAX_SAFE_INTEGER)
+   .filter(item => formatCycleKey(item.dueDate) <= window.period);
+  const plansById = new Map(plans.map(plan => [plan.id, plan]));
+  return buildPendingReport(request, window.label, pending.map(item => ({ label: item.name, type: item.type,
+   value: item.valueInCents, due: item.dueDate, readOnly: spark.role !== 'admin' && plansById.get(item.id)?.actorId !== personId })), unknown, true);
+ }
  const catalog = suppliedCatalog.mandatoryExpenses && suppliedCatalog.mandatoryGains ? suppliedCatalog : await loadAssistantResolvedCatalog(personId);
  const historical = window.period !== formatCycleKey(new Date());
  const ledger = historical ? await getFinancialLedgerContextFirebase(personId) : null;
@@ -293,7 +355,7 @@ const createPendingReport = async (
  let unknown = 0;
  const items = (['mandatoryExpenses','mandatoryGains'] as const).flatMap(source => (catalog[source] ?? []).flatMap(item => {
   const data = item.data ?? {};
-  const type = source === 'mandatoryExpenses' ? 'expense' : 'gain';
+  const type: 'expense' | 'gain' = source === 'mandatoryExpenses' ? 'expense' : 'gain';
   const lastCycle = type === 'expense' ? data.lastPaymentCycle : data.lastReceiptCycle;
   const completedCycles = Array.isArray(data.completedCycles) ? data.completedCycles : data.completedCycles && typeof data.completedCycles === 'object' ? Object.keys(data.completedCycles) : [];
   if (lastCycle === window.period || completedCycles.includes(window.period) || history.some(movement => movement.templateId === item.realId && movement.type === type && !movement.reversed && movement.economic)) return [];
@@ -309,19 +371,7 @@ const createPendingReport = async (
   const due = resolveMonthlyOccurrence({referenceDate:parseIsoDateAtLocalNoon(`${window.period}-15`)!,dueDay:Number(data.dueDay ?? 1),usesBusinessDays:data.usesBusinessDays === true}).date;
   return [{label:item.label,type,value,due,readOnly:item.ownerScope === 'related_read_only'}];
  }));
- const expenses = items.filter(item=>item.type === 'expense');
- const gains = items.filter(item=>item.type === 'gain');
- const expenseTotal = sum(expenses.map(item=>item.value));
- const gainTotal = sum(gains.map(item=>item.value));
- const report = createBaseReport(request,'Obrigações pendentes',window.label);
- report.metrics = [{label:'Gastos pendentes',valueInCents:expenseTotal,tone:'negative'},{label:'Ganhos pendentes',valueInCents:gainTotal,tone:'positive'},{label:'Itens conferidos pendentes',value:items.length,displayValue:String(items.length)}];
- report.deterministicSummary = `${window.label}: ${expenses.length} despesa(s) pendentes, ${formatCents(expenseTotal)}; ${gains.length} receita(s) pendentes, ${formatCents(gainTotal)}.`;
- const offset = request.offset ?? 0;
- const shown = items.slice(offset,offset+20);
- report.deterministicSummary += shown.length ? `\n${shown.map((item,index)=>`${offset+index+1}. ${item.label} · ${formatCents(item.value)} · vencimento ${formatIsoDate(item.due).split('-').reverse().join('/')}${item.readOnly?' · somente leitura':''}`).join('\n')}` : '';
- if(offset + shown.length < items.length) report.deterministicSummary += `\nHá ${items.length} itens no conjunto. Diga “mostre os demais” para continuar.`;
- if(unknown) report.deterministicSummary += `\nNão consegui reconstruir ${unknown} obrigação(ões) antigas nesse mês: o armazenamento legado preservou apenas o último ciclo. Elas não foram classificadas como pendentes nem pagas; os totais acima são parciais.`;
- return report;
+ return buildPendingReport(request, window.label, items, unknown);
 };
 
 const createInvestmentReport = async (
@@ -334,6 +384,7 @@ const createInvestmentReport = async (
 		throw new AssistantFriendlyError('invalid-request', 'Não foi possível carregar a carteira.');
 	}
 	const complete = result.data.portfolio;
+	const confirmedOnly = result.data.projectionStatus === 'confirmed_only';
 	const queryText = request.query?.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR');
 	const items = queryText ? complete.items.filter(item=>item.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').includes(queryText)) : complete.items;
 	const portfolio = {...complete,items,investmentCount:items.length,totalCurrentBaseInCents:sum(items.map(item=>item.currentBaseValueInCents)),totalSimulatedInCents:sum(items.map(item=>item.simulatedValueInCents)),totalEstimatedGainInCents:sum(items.map(item=>item.estimatedGainInCents))};
@@ -358,12 +409,40 @@ const createInvestmentReport = async (
 	const offset=request.offset??0;
 	report.deterministicSummary += items.length ? `\n${items.slice(offset,offset+20).map(item=>`${item.name}: base ${formatCents(item.currentBaseValueInCents)}; simulação ${formatCents(item.simulatedValueInCents)}`).join('\n')}\nA simulação depende das taxas e datas cadastradas; não é uma cotação nem garantia de rentabilidade.` : '';
 	if(offset+20<items.length) report.deterministicSummary+='\nDiga “mostre os demais” para continuar.';
-	report.notes.push('Valores simulados não são recomendação nem garantia de rentabilidade.');
+	if (confirmedOnly) {
+		report.metrics = [{ label: 'Valor base confirmado', valueInCents: portfolio.totalCurrentBaseInCents },
+			{ label: 'Investimentos', value: portfolio.investmentCount, displayValue: String(portfolio.investmentCount) }];
+		report.chart = { kind: 'donut', points: items.slice(0,8).map(item => ({ label: item.name, value: item.currentBaseValueInCents })) };
+		report.deterministicSummary = `${portfolio.investmentCount} investimento(s); posição confirmada de ${formatCents(portfolio.totalCurrentBaseInCents)}. Projeção indisponível com os dados atuais.`;
+		report.deterministicSummary += items.slice(offset,offset+20).map(item => `\n${item.name}: base confirmada ${formatCents(item.currentBaseValueInCents)}`).join('');
+		if (offset + 20 < items.length) report.deterministicSummary += '\nDiga "mostre os demais" para continuar.';
+		report.notes.push('A posição confirmada foi preservada. Não foi inferida rentabilidade nem ganho estimado.');
+	} else report.notes.push('Valores simulados não são recomendação nem garantia de rentabilidade.');
 	return report;
 };
 
 const createCdiReport = async (personId:string,request:AssistantReportRequest):Promise<AssistantReport> => {
  if(request.period) throw new AssistantFriendlyError('invalid-request','A consulta de CDI lista vigências cadastradas. Informe a data na pergunta; não é uma cotação pública em tempo real.');
+ const spark = await getSparkContextFirebase(db, personId);
+ if (spark) {
+  const docs = await readAllPages('investmentCdiRates', [where('personId','==',personId)], true);
+  const current = await getSparkContextFirebase(db, personId);
+  if (!current || current.groupId !== spark.groupId || current.role !== spark.role) throw new AssistantFriendlyError('invalid-request', 'O acesso financeiro mudou. Atualize a consulta.');
+  const rates = docs.flatMap(document => {
+   const data = document.data(), date = readDate(data.effectiveFrom);
+   if (data.personId !== personId || data.groupId && data.groupId !== spark.groupId) return [];
+   if (!date || !Number.isSafeInteger(data.annualRateInBasisPoints) || data.annualRateInBasisPoints < 0 || data.annualRateInBasisPoints > 100_000) throw new AssistantFriendlyError('invalid-request', 'Existe uma taxa CDI inválida. Atualize os dados antes de consultar.');
+   return [{ date, value: data.annualRateInBasisPoints as number }];
+  }).sort((a,b) => b.date.getTime() - a.date.getTime());
+  const today = formatIsoDate(new Date()), active = rates.filter(rate => formatIsoDate(rate.date) <= today);
+  const report = createBaseReport(request,'CDI cadastrado','Vigências disponíveis','Minha curva CDI no grupo');
+  const formatRate = (rate: typeof rates[number]) => `${(rate.value / 100).toLocaleString('pt-BR',{ minimumFractionDigits:2,maximumFractionDigits:2 })}% ao ano, desde ${formatIsoDate(rate.date).split('-').reverse().join('/')}`;
+  report.deterministicSummary = active.length ? `CDI cadastrado vigente: ${formatRate(active[0]!)}.` : 'Nenhuma taxa CDI vigente foi cadastrada para sua curva.';
+  report.deterministicSummary += rates.slice(request.offset ?? 0,(request.offset ?? 0) + 20).map(rate => `\n${formatRate(rate)}${formatIsoDate(rate.date) > today ? ' — vigência futura' : ''}`).join('');
+  if ((request.offset ?? 0) + 20 < rates.length) report.deterministicSummary += '\nDiga "mostre os demais" para continuar.';
+  report.notes.push('Taxa cadastrada por titular; não é cotação pública em tempo real. A carteira usa a curva do titular de cada investimento.');
+  return report;
+ }
  const context=await getFinancialLedgerContextFirebase(personId);
  const pages=await Promise.all([readAllPages('investmentCdiRates',[where('personId','==',personId)]),...(context?[readAllPages('investmentCdiRates',[where('groupId','==',context.groupId)])]:[])]);
  const docs=[...new Map(pages.flat().map(document=>[document.id,document])).values()];

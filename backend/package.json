@@ -20,7 +20,9 @@
     "test:auth-session:rules": "node --import tsx tests/authSession.rules.test.ts",
     "test:rules": "tsx tests/firestore.rules.test.ts",
     "test:spark:rules": "node --import tsx --test --test-concurrency=1 tests/sparkTransfer.rules.test.ts",
-    "test:spark:emulator": "npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-spark --config ../firebase.json --only auth,firestore \"npm run test:spark:rules && npm run test:relationships:spark && npm run test:auth-session:rules && npm run test:assistant:rules && npm run test:rules && npm run test:legacy:rules && npm run test:profile:rules\"",
+    "test:spark:first-use:rules": "node --import tsx tests/sparkFirstUse.rules.test.ts",
+    "test:spark:first-use:lock": "node --import tsx --test tests/sparkFirstUseLock.test.ts",
+    "test:spark:emulator": "npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-spark --config ../firebase.json --only auth,firestore \"npm run test:spark:rules && npm run test:spark:first-use:rules && npm run test:relationships:spark && npm run test:auth-session:rules && npm run test:assistant:rules && npm run test:rules && npm run test:legacy:rules && npm run test:profile:rules\"",
     "test:profile:rules": "tsx tests/userProfile.rules.test.ts",
     "test:assistant:rules": "tsx tests/lumusAssistant.rules.test.ts",
     "test:functions": "tsx tests/functions.emulator.test.ts",
@@ -30,7 +32,7 @@
     "seed": "tsx scripts/seed.ts",
     "test:emulator": "npm run build && npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-financas --config ../firebase.json --only auth,functions,firestore \"export FIREBASE_PROJECT_ID=demo-lumus-financas FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_FUNCTIONS_EMULATOR_HOST=127.0.0.1:5001; npm run test:rate-limit && npm run test:auth-session && npm run test:auth-session:rules && npm run test:auth-session:integration && npm run test:assistant:rules && npm run test:rules && npm run test:legacy:rules && npm run test:profile:rules && npm run test:relationships && npm run test:functions && npm run test:migration:security && npm run test:balance-adjustments && npm --prefix .. run test:assistant:executor:emulator\"",
     "spark:snapshot": "tsx scripts/sparkSnapshot.ts",
-    "test:spark:tools": "node --import tsx --test tests/sparkSnapshot.test.ts tests/sparkLedgerImport.test.ts",
+    "test:spark:tools": "node --import tsx --test tests/sparkSnapshot.test.ts tests/sparkLedgerImport.test.ts tests/sparkLegacyLedgerCandidate.test.ts tests/sparkLegacySparkPreview.test.ts tests/sparkAccountPreflight.test.ts",
     "test:spark:restore:emulator": "npx -y firebase-tools@15.33.0 emulators:exec --project demo-lumus-snapshot --config ../firebase.json --only auth,firestore \"node --import tsx --test --test-concurrency=1 tests/sparkSnapshot.emulator.test.ts tests/sparkLedgerImport.emulator.test.ts\""
   },
   "dependencies": {

@@ -343,3 +343,45 @@ test.each<AssistantActionKind>(['create_transfer', 'create_cash_withdrawal', 'up
 test('ajuste em lote por banco não reaproveita um único registro anterior em contas diferentes', () => {
 	expect(() => expandAssistantBatch({ kind: 'upsert_balance_adjustment', payload: { recordRef: 'existing-adjustment', date: DATE, targetBalanceInCents: 100 } }, catalogFor('banks'))).toThrow(AssistantFriendlyError);
 });
+
+
+test.each(['pay_mandatory_expense','receive_mandatory_gain'] as const)('%s em lote exclui ciclo Spark já concluído', kind => {
+ const source=kind==='pay_mandatory_expense'?'mandatoryExpenses':'mandatoryGains';
+ const item=(handle:string,completedCycles:string[])=>({handle,label:handle,realId:handle,collection:'sparkRecurringPlans',data:{active:true,startCycle:'2026-01',historyFromCycle:'2026-01',cycleWindow:{fromCycle:'2026-10',throughCycle:'2028-10'},completedCycles,installmentTotal:null,installmentsCompleted:0}});
+ const result=expandAssistantBatch({kind,payload:{bankRef:'account',date:'2026-10-26'},period:'2026-10'}, {[source]:[item('paid',['2026-10']),item('pending',['2026-09'])]},new Date('2026-10-26T15:00:00Z'));
+ expect(result.excluded).toBe(1);expect(result.proposals.map(item=>item.payload.recordRef)).toEqual(['pending']);
+});
+
+
+test('lote Spark usa metadados de vencimento e não presume histórico sem cobertura', () => {
+ const item=(handle:string,patch:Record<string,unknown>={})=>({handle,label:handle,realId:handle,collection:'sparkRecurringPlans',data:{active:true,startCycle:'2026-01',historyFromCycle:'2026-01',cycleWindow:{fromCycle:'2026-10',throughCycle:'2028-10'},completedCycles:[],installmentTotal:null,installmentsCompleted:0,metadata:{dueDay:30,usesBusinessDays:false},...patch}});
+ const request={kind:'pay_mandatory_expense' as const,payload:{bankRef:'account',date:'2026-10-26'},overdue:true};
+ const result=expandAssistantBatch(request,{mandatoryExpenses:[item('future-due'),item('overdue',{metadata:{dueDay:15}}),item('unknown',{historyFromCycle:'2026-11'}),item('old-window',{cycleWindow:{fromCycle:'2026-09',throughCycle:'2026-09'}}),item('no-due',{metadata:null}),item('not-started',{startCycle:'2026-11'}),item('late',{endCycle:'2026-09'}),item('replanned',{successorPlanId:'new'})]},new Date('2026-10-26T15:00:00Z'));
+ expect(result.proposals.map(item=>item.payload.recordRef)).toEqual(['overdue','late']);expect(result.unavailableHistory).toBe(3);expect(result.excluded).toBe(3);
+});
+test('lote recorrente consulta ciclo da data explícita e recusa mês conflitante', () => {
+ const request={kind:'pay_mandatory_expense' as const,payload:{bankRef:'account',date:'2026-09-26'}};
+ const catalog={mandatoryExpenses:[{handle:'paid',label:'Contrato',realId:'plan',data:{completedCycles:{'2026-09':true}}}]};
+ expect(expandAssistantBatch(request,catalog,new Date('2026-10-26T15:00:00Z')).proposals).toHaveLength(0);
+ expect(()=>expandAssistantBatch({...request,period:'2026-10'},catalog)).toThrow('mês do lote difere');
+});
+
+
+test.each(['undo_mandatory_expense_payment','undo_mandatory_gain_receipt'] as const)('%s em lote seleciona só ciclo atual ativo e última faixa de parcelas',kind=>{
+ const source=kind==='undo_mandatory_expense_payment'?'mandatoryExpenses':'mandatoryGains';const item=(handle:string,patch:Record<string,unknown>={})=>({handle,realId:handle,label:handle,collection:'sparkRecurringPlans',data:{installmentTotal:3,installmentsCompleted:3,cycleStates:[{cycle:'2026-10',active:true,installmentsAfter:3}],...patch}});
+ const request={kind,payload:{}};const catalog={[source]:[item('active'),item('archived',{active:false}),item('none',{cycleStates:[]}),item('reversed',{cycleStates:[{cycle:'2026-10',active:false,installmentsAfter:3}]}),item('earlier',{installmentsCompleted:4}),item('replanned',{successorPlanId:'new'})]};
+ const result=expandAssistantBatch(request,catalog,new Date('2026-10-26T15:00:00Z'));expect(result.proposals.map(item=>item.payload.recordRef)).toEqual(['active','archived']);expect(result.excluded).toBe(4);
+ expect(expandAssistantBatch({...request,period:'2026-09'},catalog,new Date('2026-10-26T15:00:00Z')).proposals).toHaveLength(0);
+});
+
+
+test.each(['delete_mandatory_expense','delete_mandatory_gain'] as const)('%s em lote seleciona só planos Spark ativos sem replanejamento',kind=>{
+ const source=kind==='delete_mandatory_expense'?'mandatoryExpenses':'mandatoryGains',item=(handle:string,patch:Record<string,unknown>={})=>({handle,label:handle,realId:handle,collection:'sparkRecurringPlans',data:{active:true,...patch}});const result=expandAssistantBatch({kind,payload:{}},{[source]:[item('active'),item('archived',{active:false}),item('replanned',{successorPlanId:'next'}),item('cancelled',{replanCancelled:true})]});expect(result.proposals.map(proposal=>proposal.payload.recordRef)).toEqual(['active']);expect(result.excluded).toBe(3);
+});
+test.each(['Arquive as duas recorrências','Arquivar as duas despesas','Quero arquivar as duas recorrências'])('preserva quantidade humana para arquivamento: %s',text=>{expect(getExplicitAssistantBatchCount(text)).toBe(2);});
+
+
+test.each(['update_mandatory_expense','update_mandatory_gain'] as const)('%s seleciona somente arquivadas elegíveis na restauração em lote',kind=>{
+ const source=kind==='update_mandatory_expense'?'mandatoryExpenses':'mandatoryGains',item=(handle:string,patch:Record<string,unknown>={})=>({handle,label:handle,realId:handle,collection:'sparkRecurringPlans',data:{active:false,...patch}});
+ const result=expandAssistantBatch({kind,payload:{restoreOnly:true}},{[source]:[item('archived'),item('active',{active:true}),item('replanned',{successorPlanId:'new'}),item('cancelled',{replanCancelled:true})]});expect(result.proposals.map(proposal=>proposal.payload.recordRef)).toEqual(['archived']);expect(result.excluded).toBe(3);expect(getExplicitAssistantBatchCount('Quero reativar duas recorrências')).toBe(2);
+});

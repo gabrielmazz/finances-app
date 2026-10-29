@@ -117,6 +117,23 @@ export type AssistantDraftAction = {
 	dependsOnActionIds: string[];
 	originalSnapshot?: AssistantRecordSnapshot;
 	preparedAt: string;
+	sparkRecurringReplanUndo?: { command: import('@/functions/SparkRecurringReplanFirebase').SparkRecurringReplanUndoInput; recurringType: 'expense' | 'gain'; originalName: string; originalTotalInCents: number; originalInstallments: number; originalCompleted: number; replacementName: string; replacementTotalInCents: number; replacementInstallments: number; replacementStartCycle: string };
+	sparkRecurringReplan?: { command: import('@/functions/SparkRecurringReplanFirebase').SparkRecurringReplanInput; recurringType: 'expense' | 'gain'; originalInstallments: number; originalTotalInCents: number; completed: number };
+	sparkRecurringRestore?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput; recurringType: 'expense' | 'gain'; installmentTotal: number | null; installmentsCompleted: number };
+	sparkRecurringArchive?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput; recurringType: 'expense' | 'gain'; installmentTotal: number | null; installmentsCompleted: number };
+	sparkRecurringDefinition?: {
+		recurringType: 'expense' | 'gain';
+		definition: { action: 'create'; input: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanInput } | { action: 'update'; input: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput };
+		metadata: import('@/functions/SparkRecurringMetadataFirebase').SparkRecurringMetadataInput;
+		startCycle: string; endCycle: string | null; installmentTotal: number | null; contractTotalInCents: number | null; categoryName: string;
+	};
+	sparkRecurringReversal?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringUndoInput; recurringType: 'expense' | 'gain'; name: string; bankName: string; amountInCents: number; installmentsCount: number };
+	sparkRecurringSettlement?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringSettlementInput; recurringType: 'expense' | 'gain'; name: string; bankName: string };
+	sparkWithdrawalReversal?: { command: import('@/functions/SparkPairFormFirebase').SparkPairReversalCommand; amountInCents: number; bankName: string };
+	sparkPairCommand?: import('@/functions/SparkTransferFirebase').SparkTransferInput | import('@/functions/SparkTransferFirebase').SparkDatedTransferInput;
+	sparkPairDay?: string;
+	sparkMovementCommand?: import('@/functions/SparkMovementCommandFirebase').SparkMovementCommand;
+	sparkMovementTarget?: import('@/functions/SparkOrdinaryReadFirebase').SparkEditableMovement;
 	result?: {
 		recordHandle?: string;
 		message: string;

@@ -38,6 +38,7 @@ import type { FinanceMonthlySummaryV1 } from '../../utils/financeReadModels';
 import { createAssistantRecordFingerprint } from '../../utils/assistantRecordFingerprint';
 import { getMandatoryInstallmentValueInCents, normalizeMandatoryInstallmentTotal, resolveMandatoryInstallmentsCompleted } from '../../utils/mandatoryInstallments';
 import { enforceCallableRateLimit } from './callableRateLimit';
+import { assertFirstUseUnlocked } from './sparkFirstUseLock';
 
 if (getApps().length === 0) initializeApp();
 
@@ -916,6 +917,7 @@ export const manageFinancialMetadata = secureOnCall(async (request) => {
     if (groupId) await roleFor(transaction, groupId, actorId);
     else {
       if (domain !== 'category' || action !== 'delete') throw new HttpsError('invalid-argument', 'A financial group is required for this metadata command.');
+      await assertFirstUseUnlocked(transaction, db, [actorId]);
       const user = await transaction.get(db.doc('users/' + actorId));
       if (!user.exists || user.data()?.financialGroupId || user.data()?.financialLegacyCutoverAt) throw new HttpsError('permission-denied', 'Legacy metadata cannot be changed after financial cutover.');
       if (typeof data.assistantRequestFingerprint !== 'string') throw new HttpsError('invalid-argument', 'Legacy request fingerprint is required.');
@@ -1456,11 +1458,12 @@ async function assertMigrationMembersAuthorized(actorId: string, groupId: string
   const refs = memberIds.map(memberId => db.doc(`users/${memberId}`));
   const profiles = await db.getAll(...refs);
   const cutovers = await db.getAll(...memberIds.map(memberId => db.doc(`financialCutovers/${memberId}`)));
+  const locks = await db.getAll(...memberIds.map(memberId => db.doc(`sparkFirstUseLocks/${memberId}`)));
   const consentRefs = memberIds.filter(memberId => memberId !== actorId)
     .map(memberId => db.doc(`financialMigrationConsents/${groupId}/members/${memberId}`));
   const consents = consentRefs.length ? await db.getAll(...consentRefs) : [];
   if (profiles.some(profile => !profile.exists || profile.data()?.financialGroupId || profile.data()?.financialLegacyCutoverAt)
-    || cutovers.some(cutover => cutover.exists)) {
+    || cutovers.some(cutover => cutover.exists) || locks.some(lock => lock.exists)) {
     throw new HttpsError('failed-precondition', 'A selected member is unavailable for migration.');
   }
   if (consents.some(consent => consent.data()?.actorId !== actorId
@@ -1550,6 +1553,7 @@ export const migrateFinancialGroup = secureOnCall(async (request) => {
 
   const items = migrationItems(plan, groupId);
   const progress = await db.runTransaction(async transaction => {
+    await assertFirstUseUnlocked(transaction, db, memberIds);
     const memberRefs = memberIds.map(memberId => db.doc(`users/${memberId}`));
     const cutoverRefs = memberIds.map(memberId => db.doc(`financialCutovers/${memberId}`));
     const consentRefs = memberIds.filter(memberId => memberId !== actorId)

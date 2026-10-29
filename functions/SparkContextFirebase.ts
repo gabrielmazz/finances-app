@@ -1,5 +1,6 @@
 import { getAuth } from 'firebase/auth';
 import { doc, getDocFromServer, type Firestore } from 'firebase/firestore';
+import { initializeSparkFirstUseFirebase } from './SparkFirstUseFirebase';
 import { assertSparkDocumentId, SPARK_TRANSFER_PROOF_PROTOCOL } from './sparkFinancialProtocol';
 
 /** [[Integração Financeira Spark]]: ausência de suporte não autoriza retorno ao armazenamento legado. */
@@ -7,8 +8,19 @@ export async function getSparkContextFirebase(firestore: Firestore, actorId: str
   assertSparkDocumentId(actorId);
   const current = () => { if (getAuth(firestore.app).currentUser?.uid !== actorId) throw new Error('A sessão autenticada mudou.'); };
   current();
-  const profile = (await getDocFromServer(doc(firestore, 'users', actorId))).data();
+  let profile = (await getDocFromServer(doc(firestore, 'users', actorId))).data();
   current();
+  if (profile && !profile.financialGroupId && !profile.financialLegacyCutoverAt && profile.sparkFirstUseRequested === true) {
+    const initialized = await initializeSparkFirstUseFirebase(firestore, actorId);
+    current();
+    if (initialized.status === 'awaiting-authorization') {
+      throw new Error('A preparação financeira desta conta ainda aguarda autorização.');
+    }
+    // Outro acesso pode ter vinculado o perfil durante a transação; releia antes de decidir o caminho.
+    profile = (await getDocFromServer(doc(firestore, 'users', actorId))).data();
+    current();
+    if (!profile?.financialGroupId) throw new Error('A preparação financeira desta conta ainda não foi concluída.');
+  }
   if (!profile?.financialGroupId) {
     if (profile?.financialLegacyCutoverAt) throw new Error('O grupo financeiro precisa ser recuperado antes de continuar.');
     return null;

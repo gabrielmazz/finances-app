@@ -8,7 +8,7 @@ const normalize = (text: string) => text.trim().toLocaleLowerCase('pt-BR').norma
 export const isAssistantConfirmation = (text: string) => /^(?:sim(?:,? (?:confirmo|pode(?: fazer| registrar| executar| salvar| pagar| receber)?))?|confirmo(?: todas| o lote| este conjunto)?|pode(?: fazer| registrar| executar| salvar| pagar| receber)?|confirmar|registre|salve|execute)$/.test(normalize(text));
 export const isAssistantCancellation = (text: string) => /^(?:cancela|cancelar|cancele|pare|parar|desiste|desistir)(?:\s+(?:isso|tudo|o lote|essa (?:despesa|receita|operacao)|esse pedido))?$/.test(normalize(text));
 export const isAssistantDirectOrder = (text: string) => /^(?:registre|registrar|anote|adicione|crie|cadastrar|cadastre|salve|pague|receba|quitar)\b/.test(normalize(text)) && !/[?]/.test(text.split(/[;\n]/)[0] ?? text);
-export const requiresAssistantConfirmation = (draft: AssistantDraftAction) => !['create_expense', 'create_gain', 'create_category', 'create_mandatory_expense', 'create_mandatory_gain', 'pay_mandatory_expense', 'receive_mandatory_gain'].includes(draft.kind);
+export const requiresAssistantConfirmation = (draft: AssistantDraftAction) => Boolean(draft.sparkRecurringDefinition || draft.sparkRecurringSettlement) || !['create_expense', 'create_gain', 'create_category', 'create_mandatory_expense', 'create_mandatory_gain', 'pay_mandatory_expense', 'receive_mandatory_gain'].includes(draft.kind);
 export const canAssistantExecuteDirectly = (text: string, draft: AssistantDraftAction) => {
 	if (!isAssistantDirectOrder(text) || requiresAssistantConfirmation(draft)) return false;
 	const input = normalize(text.split(/[;\n]/)[0] ?? text);
@@ -28,7 +28,7 @@ export const canAssistantExecuteDirectly = (text: string, draft: AssistantDraftA
 // A assinatura cobre também o alvo revalidado e as dependências, não o texto do modelo.
 export const assistantActionSignature = (draft: AssistantDraftAction) => JSON.stringify({
 	 id: draft.clientActionId, kind: draft.kind, payload: draft.payload, preparedAt: draft.preparedAt,
-	 snapshot: draft.originalSnapshot, dependencies: draft.dependsOnActionIds,
+	 sparkRecurringReplanUndo: draft.sparkRecurringReplanUndo, sparkRecurringReplan: draft.sparkRecurringReplan, sparkRecurringRestore: draft.sparkRecurringRestore, sparkRecurringArchive: draft.sparkRecurringArchive, sparkRecurringDefinition: draft.sparkRecurringDefinition, sparkRecurringReversal: draft.sparkRecurringReversal, sparkRecurringSettlement: draft.sparkRecurringSettlement, sparkWithdrawalReversal: draft.sparkWithdrawalReversal, sparkPairCommand: draft.sparkPairCommand, sparkPairDay: draft.sparkPairDay, snapshot: draft.originalSnapshot, sparkMovementTarget: draft.sparkMovementTarget, sparkMovementCommand: draft.sparkMovementCommand, dependencies: draft.dependsOnActionIds,
 });
 
 export function createAssistantAuthorizationSession(uid: string) {
@@ -55,5 +55,6 @@ export function validateAssistantExecutionAuthorization(uid: string, draft: Assi
 export const isAssistantMutationIntent = (text: string) => {
 	// Nomes citados são dados; uma ordem citada no início não vira autorização.
 	const instructions = normalize(text).replace(/"[^"\n]*"|'[^'\n]*'|“[^”\n]*”|‘[^’\n]*’/g, '');
-	return !/\b(?:nao|nunca)\b/.test(instructions) && /^(?:registre|registrar|anote|adicione|crie|cadastre|salve|pague|receba|quite|edite|altere|corrija|exclua|remova|transfira|resgate|ajuste|sincronize|estorne|invista|aporte|saque|gastei|recebi|comprei|paguei|quero (?:registrar|pagar|receber|criar|editar|alterar|excluir|transferir|resgatar|ajustar|investir|sacar))\b/.test(instructions);
+	if (!/\b(?:nao|nunca)\b/.test(instructions) && /^(?:reverta|reverter|estornar|cancelar|cancele)\b.*\b(?:replanejamento|renegociacao)\b/.test(instructions)) return true;
+	return !/\b(?:nao|nunca)\b/.test(instructions) && /^(?:registre|registrar|anote|adicione|crie|cadastre|salve|pague|receba|quite|edite|altere|corrija|exclua|remova|arquive|arquivar|replaneje|replanejar|renegocie|renegociar|restaure|restaurar|reative|reativar|transfira|resgate|ajuste|sincronize|estorne|desfaca|invista|aporte|saque|gastei|recebi|comprei|paguei|quero (?:registrar|pagar|receber|criar|editar|alterar|excluir|arquivar|replanejar|renegociar|restaurar|reativar|transferir|resgatar|ajustar|investir|sacar|desfazer))\b/.test(instructions);
 };

@@ -35,9 +35,10 @@ export function prepareSparkBootstrap(snapshot: LocalSnapshot, groupId: string, 
   const inventory = inventorySnapshot(snapshot);
   if (!groupId || groupId.includes('/') || groupId.length > 160 || !Number.isFinite(asOf.valueOf()) || asOf.valueOf() < 0) throw new LocalSnapshotError('Grupo ou instante de preparação inválido.');
   const issues: Array<{ code: string; id: string; detail: string }> = [];
+  const documentsByPath = new Map(snapshot.documents.map(row => [row.path, row]));
   const issue = (code: string, id: string, detail: string) => issues.push({ code, id, detail });
   if (asOf.valueOf() > Date.parse(snapshot.capturedAt)) issue('future-cutoff', groupId, 'Instante de preparação posterior à captura.');
-  const group = snapshot.documents.find(row => row.path === `financialGroups/${groupId}`);
+  const group = documentsByPath.get(`financialGroups/${groupId}`);
   const members = group?.fields.members?.mapValue as { fields?: Fields } | undefined;
   const relatedUsers = new Set(Object.keys(members?.fields ?? {}));
   for (const row of snapshot.documents) if (/^(users|financialCutovers)\/[^/]+$/.test(row.path)
@@ -51,8 +52,8 @@ export function prepareSparkBootstrap(snapshot: LocalSnapshot, groupId: string, 
   if (group?.fields.sparkProtocol) issue('already-spark', groupId, 'Não reinicializar grupo com protocolo Spark.');
   if (!members?.fields || !Object.values(members.fields).some(role => role.stringValue === 'admin')) issue('invalid-members', groupId, 'Papéis protegidos ausentes ou sem administrador.');
   for (const [uid, role] of Object.entries(members?.fields ?? {})) {
-    const profile = snapshot.documents.find(row => row.path === `users/${uid}`);
-    const cutover = snapshot.documents.find(row => row.path === `financialCutovers/${uid}`);
+    const profile = documentsByPath.get(`users/${uid}`);
+    const cutover = documentsByPath.get(`financialCutovers/${uid}`);
     if (!['admin', 'member'].includes(role.stringValue as string) || profile?.fields.financialGroupId?.stringValue !== groupId
       || profile?.fields.financialGroupRole?.stringValue !== role.stringValue || cutover?.fields.groupId?.stringValue !== groupId) {
       issue('membership-mismatch', uid, 'Grupo, perfil, papel ou corte divergem; nenhuma correção automática.');
@@ -72,6 +73,7 @@ export function prepareSparkBootstrap(snapshot: LocalSnapshot, groupId: string, 
   if (!accounts.length) issue('missing-accounts', groupId, 'Não há contas do razão para conferir; legado não é convertido implicitamente.');
   const accountIds = new Set(accounts.map(account => account.id));
   const aliases = new Set<string>();
+  const transactionIds = new Set(transactions.map(event => event.id));
   for (const account of accounts) {
     const alias = account.kind + ':' + (account.kind === 'cash' ? 'cash' : account.legacyBankId ?? account.legacyInvestmentId ?? account.id);
     if (aliases.has(alias)) issue('duplicate-account-source', account.id, 'Duas contas representam a mesma origem.'); aliases.add(alias);
@@ -83,14 +85,14 @@ export function prepareSparkBootstrap(snapshot: LocalSnapshot, groupId: string, 
     for (const reference of event.sourceReferences ?? []) {
       if (!reference || typeof reference.collection !== 'string' || typeof reference.id !== 'string'
         || reference.collection.includes('/') || reference.id.includes('/')
-        || !snapshot.documents.some(row => row.path === `${reference.collection}/${reference.id}`)) {
+        || !documentsByPath.has(`${reference.collection}/${reference.id}`)) {
         issue('missing-source-reference', event.id, 'Referência original não encontrada no bruto.');
       }
     }
     if (event.kind === 'reconciliation_adjustment' || event.sourceReferences?.some(ref => ref?.collection === 'bankBalanceAdjustments')) {
       issue('adjustment-normalization-required', event.id, 'Ajuste editável exige preservar identidade, resolução e termos compostos antes de inicializar.');
     }
-    if (event.reversesTransactionId && !transactions.some(original => original.id === event.reversesTransactionId)) issue('missing-reversed-event', event.id, 'Evento original do estorno ausente.');
+    if (event.reversesTransactionId && !transactionIds.has(event.reversesTransactionId)) issue('missing-reversed-event', event.id, 'Evento original do estorno ausente.');
   }
   for (const opening of reconciliations) {
     if (!accountIds.has(opening.accountId)) issue('orphan-opening', opening.id, 'Reconciliação sem conta.');

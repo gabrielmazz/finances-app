@@ -203,6 +203,32 @@ export class LocalFirestore {
     return { documents: restored.length, dataSha256: dataDigest(restored), verified: true, rulesApplied: false, indexesApplied: false,
       serverMetadataPreserved: false, authIncluded: false, storageIncluded: false };
   }
+
+  /** [[Importação Financeira Local Spark]]: retoma apenas um conjunto já revisado, sem sobrescrever diferenças. */
+  async resumeDocumentSet(documents: SnapshotDocument[], onProgress?: (completed: number, total: number) => void) {
+    validateDocumentSet(documents);
+    await this.assertIsolatedEmulator();
+    const expected = new Map(documents.map(document => [document.path, document]));
+    const existing = await this.scan();
+    for (const row of existing) {
+      const target = expected.get(row.path);
+      requireThat(target && canonical(target.fields) === canonical(row.fields), 'Destino contém documento não previsto ou divergente; retomada bloqueada.');
+    }
+    const present = new Set(existing.map(row => row.path));
+    const missing = documents.filter(row => !present.has(row.path));
+    onProgress?.(present.size, documents.length);
+    for (let offset = 0; offset < missing.length; offset += 100) {
+      await this.assertIsolatedEmulator();
+      const batch = missing.slice(offset, offset + 100);
+      await this.call(':commit', 'POST', { writes: batch.map(document => ({
+        update: { name: this.prefix + '/' + document.path, fields: document.fields }, currentDocument: { exists: false },
+      })) });
+      onProgress?.(present.size + offset + batch.length, documents.length);
+    }
+    const result = await this.scan();
+    requireThat(dataDigest(result) === dataDigest(documents), 'Conferência da retomada divergiu; mantenha o destino isolado.');
+    return { documents: result.length, dataSha256: dataDigest(result), verified: true };
+  }
 }
 
 export function inventorySnapshot(snapshot: LocalSnapshot) {

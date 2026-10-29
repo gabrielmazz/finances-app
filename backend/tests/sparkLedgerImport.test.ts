@@ -274,10 +274,41 @@ for (const [name, mutate, code] of [
   ['contraparte sem par', (snapshot: any) => snapshot.documents.find((row: any) => row.path === 'gains/income').fields.bankTransferPairId = { stringValue: 'missing' }, 'orphan-transfer'],
   ['marcador de transferência sem identidade', (snapshot: any) => snapshot.documents.find((row: any) => row.path === 'gains/income').fields.isBankTransfer = { booleanValue: true }, 'unidentified-transfer-counterpart'],
   ['ajuste disfarçado de receita', (snapshot: any) => snapshot.documents.find((row: any) => row.path === 'gains/income').fields.isBalanceAdjustment = { booleanValue: true }, 'editable-adjustment-normalization-required'],
+  ['investimento da coleção antiga', (snapshot: any) => snapshot.documents.push({ path: 'investments/old', fields: { personId: { stringValue: 'owner' } } }), 'obsolete-investment-normalization-required'],
 ] as const) test(`normalização não aprova ${name}`, () => {
   const { snapshot, scope } = legacyImportFixture(); mutate(snapshot);
   const report = normalizeSparkLegacy(resealImportFixture(snapshot), scope);
   assert.equal(report.canReviewNormalization, false); assert(report.issues.some(issue => issue.code === code));
+});
+for (const collection of ['gains', 'financeInvestmentSyncs', 'investments']) {
+  test(`${collection} com titular alternativo do escopo bloqueia normalização`, () => {
+    const { snapshot, scope } = legacyImportFixture();
+    snapshot.documents.push({ path: `${collection}/ambiguous-owner`, fields: financialFields({ personId: 'outsider', userId: 'owner' }) });
+    const report = normalizeSparkLegacy(resealImportFixture(snapshot), scope);
+    assert.equal(report.canReviewNormalization, false);
+    assert(report.issues.some(issue => issue.code === 'conflicting-legacy-owner' && issue.id === `${collection}/ambiguous-owner`));
+  });
+}
+test('conflito de identidade entre terceiros não é atribuído aos membros analisados', () => {
+  const { snapshot, scope } = legacyImportFixture();
+  snapshot.documents.push({ path: 'gains/unrelated', fields: financialFields({ personId: 'outsider', userId: 'another-outsider' }) });
+  assert.equal(normalizeSparkLegacy(resealImportFixture(snapshot), scope).canReviewNormalization, true);
+});
+for (const [collection, bankField] of [['gains', 'bankId'], ['expenses', 'bankId'], ['cashRescues', 'bankId'],
+  ['financeInvestments', 'bankId'], ['financeInvestmentSyncs', 'bankId'], ['bankTransfers', 'targetBankId']] as const) {
+  test(`${collection} de pessoa fora do escopo não é omitido de banco compartilhado`, () => {
+    const { snapshot, scope } = legacyImportFixture();
+    snapshot.documents.push({ path: `${collection}/external-bank-reference`, fields: financialFields({ personId: 'outsider', [bankField]: 'bank' }) });
+    const report = normalizeSparkLegacy(resealImportFixture(snapshot), scope);
+    assert.equal(report.canReviewNormalization, false);
+    assert(report.issues.some(issue => issue.code === 'cross-scope-financial-source' && issue.id === `${collection}/external-bank-reference`));
+  });
+}
+test('fonte externa vinculada a outro banco não bloqueia o escopo analisado', () => {
+  const { snapshot, scope } = legacyImportFixture();
+  snapshot.documents.push({ path: 'gains/other-bank', fields: financialFields({ personId: 'outsider', bankId: 'other-bank' }) });
+  snapshot.documents.push({ path: 'constructor/unrelated', fields: financialFields({ personId: 'outsider' }) });
+  assert.equal(normalizeSparkLegacy(resealImportFixture(snapshot), scope).canReviewNormalization, true);
 });
 test('observação de caixa e corte não são inferidos nem arredondados', () => {
   const { snapshot, scope } = legacyImportFixture();

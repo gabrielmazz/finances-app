@@ -4,7 +4,7 @@ const { createServer } = require('node:net');
 const { resolve } = require('node:path');
 
 const mode = process.argv[2];
-if (!['web', 'mobile', 'check'].includes(mode)) throw new Error('Modo esperado: web, mobile ou check.');
+if (!['web', 'mobile', 'android', 'client', 'check'].includes(mode)) throw new Error('Modo esperado: web, mobile, android, client ou check.');
 if (process.platform === 'win32') throw new Error('Execute este comando no terminal Ubuntu/WSL em /programacao/finances-app. Veja Arquitetura/Guia de Testes Locais.md.');
 const root = resolve(__dirname, '..');
 

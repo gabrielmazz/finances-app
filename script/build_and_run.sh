@@ -17,7 +17,7 @@ Modes:
                    Start Expo and open Android
   --web, web        Start Expo for web
   --dev-client, dev-client
-                   Start the local emulators and Expo in development-client mode
+                   Start the Spark local emulators and Expo in development-client mode
   --tunnel, tunnel Start Expo using tunnel transport
   --export-web, export-web
                    Export the web build locally
@@ -53,162 +53,20 @@ run_doctor() {
   fi
 }
 
+# [[Guia de Testes Locais]]: todos os atalhos de desenvolvimento usam a mesma
+# demonstração Spark, sem reutilizar nem limpar outros emuladores.
 case "$MODE" in
+  start|run) exec node script/spark_dev.js mobile ;;
+  --web|web) exec node script/spark_dev.js web ;;
+  --android|android) exec node script/spark_dev.js android ;;
+  --dev-client|dev-client) exec node script/spark_dev.js client ;;
   --help|help|--doctor|doctor) ;;
   *) resolve_expo_cmd ;;
 esac
 
-EMULATOR_PID=""
-EXPO_PID=""
-STOP_REQUESTED=0
-
-cleanup_emulators() {
-  if [[ -n "$EMULATOR_PID" ]]; then
-    kill "$EMULATOR_PID" 2>/dev/null || true
-    wait "$EMULATOR_PID" 2>/dev/null || true
-    EMULATOR_PID=""
-  fi
-}
-
-request_local_dev_shutdown() {
-  STOP_REQUESTED=1
-  if [[ -n "$EXPO_PID" ]]; then
-    kill -TERM "$EXPO_PID" 2>/dev/null || true
-  fi
-}
-
-run_expo_with_restart() {
-  local exit_code
-
-  trap request_local_dev_shutdown INT TERM
-
-  while [[ "$STOP_REQUESTED" -eq 0 ]]; do
-    EXPO_PUBLIC_APP_ENV=development \
-      EXPO_PUBLIC_FIREBASE_TARGET=emulator \
-      EXPO_PUBLIC_FIREBASE_EMULATOR_HOST="$(firebase_client_host)" \
-      "${EXPO_CMD[@]}" "$@" <&0 &
-    EXPO_PID=$!
-
-    if wait "$EXPO_PID"; then
-      exit_code=0
-    else
-      exit_code=$?
-    fi
-    EXPO_PID=""
-
-    if [[ "$STOP_REQUESTED" -eq 1 ]]; then
-      break
-    fi
-
-    echo "Expo encerrou (código $exit_code). Tentando iniciar novamente em 2 segundos; o Firebase Emulator continuará ativo."
-    sleep 2
-  done
-}
-
-start_local_emulators() {
-  # Validate before starting/seeding the Suite; see [[Firebase Config]].
-  local expo_help
-  if ! expo_help="$("${EXPO_CMD[@]}" start --help 2>&1)" || [[ "$expo_help" != *"--go"* ]]; then
-    echo "CLI Expo incompatível ou indisponível: este projeto exige o CLI local do SDK 57 com suporte a --go. Confira a dependência expo, execute npm install e verifique EXPO_CLI, se definido." >&2
-    exit 1
-  fi
-
-  local emulator_log
-  emulator_log="${TMPDIR:-/tmp}/lumus-firebase-emulators.log"
-  EMULATOR_PID=""
-
-  port_ready() {
-    timeout 1 bash -c "</dev/tcp/127.0.0.1/$1" >/dev/null 2>&1
-  }
-
-  emulators_ready() {
-    port_ready 4400 && port_ready 9099 && port_ready 8080 && port_ready 5001
-  }
-
-  emulator_port_is_public() {
-    local port="$1"
-    ss -ltn 2>/dev/null | awk -v suffix=":$port" '$4 == "0.0.0.0" suffix || $4 == "*" suffix || $4 == "[::]" suffix { found=1 } END { exit !found }'
-  }
-
-  emulators_are_public() {
-    emulator_port_is_public 9099 && emulator_port_is_public 8080 && emulator_port_is_public 5001
-  }
-
-  # Reuse a healthy Suite only when all ports are reachable. The emulator
-  # config binds to 0.0.0.0 so physical devices can reach local services.
-  if emulators_ready; then
-    if ! emulators_are_public; then
-      echo "A Suite Firebase existente está presa em 127.0.0.1. Encerre-a com Ctrl+C e execute npm run dev:local novamente para aplicar a configuração de rede." >&2
-      exit 1
-    fi
-    echo "Firebase Emulator Suite já está disponível; reutilizando as portas 9099/8080/5001."
-  else
-    if port_ready 4400 || port_ready 9099 || port_ready 8080 || port_ready 5001; then
-      echo "Portas do Firebase Emulator parcialmente ocupadas. Encerre a Suite existente antes de tentar novamente." >&2
-      exit 1
-    fi
-
-    npx -y firebase-tools@latest emulators:start --project emulator --only auth,firestore,functions >"$emulator_log" 2>&1 &
-    EMULATOR_PID=$!
-    trap cleanup_emulators EXIT INT TERM
-
-    for _ in {1..90}; do
-      if emulators_ready; then
-        break
-      fi
-      sleep 1
-    done
-    if ! emulators_ready; then
-      cat "$emulator_log" >&2
-      exit 1
-    fi
-  fi
-
-  # The Hub can be online before Firestore finishes binding. At this point all
-  # three service ports are reachable, so the reset/seed request is safe.
-  FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-lumus-financas npm --prefix backend run seed
-  echo
-  echo "Credenciais do usuário demo local (Firebase Emulator):"
-  echo "  Email: usuario@demo.lumus.local"
-  echo "  Senha: lumus-demo-123"
-  echo
-  FIREBASE_CLIENT_HOST="127.0.0.1"
-  if command -v adb >/dev/null 2>&1; then
-    if adb reverse tcp:9099 tcp:9099 >/dev/null 2>&1 && adb reverse tcp:8080 tcp:8080 >/dev/null 2>&1 && adb reverse tcp:5001 tcp:5001 >/dev/null 2>&1; then
-      echo "Firebase Emulator: usando adb reverse (127.0.0.1 no app)."
-      return
-    fi
-  fi
-  FIREBASE_CLIENT_HOST="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}')"
-  if [[ ! "$FIREBASE_CLIENT_HOST" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.) ]]; then
-    echo "Não foi possível detectar um IP LAN privado; defina FIREBASE_CLIENT_HOST manualmente." >&2
-    exit 1
-  fi
-  echo "Firebase Emulator: usando IP LAN $FIREBASE_CLIENT_HOST."
-  return
-}
-
-firebase_client_host() { printf '%s' "${FIREBASE_CLIENT_HOST:-127.0.0.1}"; }
-
 case "$MODE" in
-  start|run)
-    start_local_emulators
-    run_expo_with_restart start --go --lan
-    ;;
   --ios|ios)
     exec "${EXPO_CMD[@]}" start --ios
-    ;;
-  --android|android)
-    start_local_emulators
-    run_expo_with_restart start --android
-    ;;
-  --web|web)
-    start_local_emulators
-    run_expo_with_restart start --web --lan
-    ;;
-  --dev-client|dev-client)
-    start_local_emulators
-    run_expo_with_restart start --dev-client
     ;;
   --tunnel|tunnel)
     exec "${EXPO_CMD[@]}" start --tunnel

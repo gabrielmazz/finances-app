@@ -181,3 +181,41 @@ Na execução Windows/UNC desta revisão, a transpilação TypeScript temporári
 O roteiro financeiro usa a conta preparada `spark@demo.lumus.local`, senha fictícia `Spark-teste-123!`. O cadastro público cria acesso/perfil, mas ainda não configura grupo, protocolo e papéis Spark de uma conta nova. Por isso não substitui a conta do seed para testar investimentos. Saia da conta criada e entre com a conta preparada na mesma sessão; não é necessário reiniciar/limpar emuladores.
 
 Na carteira, conta sem contexto nativo da demonstração recebe uma orientação explícita antes de tentar um escritor legado. A falha conserva o formulário e não envia aporte para Functions. Usuários/grupos existentes não são ativados nem migrados automaticamente. Ver [[Investimentos]] e D03 em [[Status da Implementação Spark]].
+
+
+### Entrada única da demonstração Spark — 27/10/2026
+
+`npm start`, `npm run web`, `npm run dev:local`, `npm run start:expo-go` e `npm run dev:local:web` usam o mesmo supervisor da demonstração Spark (`dev:spark` / `dev:spark:web`). Os modos `start`, `--web`, `--android` e `--dev-client` de `script/build_and_run.sh` também seguem esse supervisor. A conta `spark@demo.lumus.local` é preparada somente em Auth/Firestore locais novos; não há reinicialização automática de sessões existentes. Os emuladores e seus dados são efêmeros. O comando antigo que recriava a conta legada e limpava o emulador deixa de ser usado nesses atalhos. Outros comandos explícitos de seed legado permanecem distintos.
+
+Esta alteração de entrada não implementa bootstrap de contas reais ou migração legada, nem comprova por si só login no navegador, funcionamento completo ou deploy. Ver [[Guia de Testes Locais]] e [[Status da Implementação Spark]].
+
+Verificação de 27/10: sete testes de configuração dos atalhos passaram. Auth e Firestore iniciaram em ambiente isolado, mas a preparação da conta foi interrompida por revisão automática após tentativa de acesso a metadados da infraestrutura; login, interface e operações financeiras não foram validados nesta rodada. A execução de WSL também foi negada no ambiente do agente. Não declarar a demonstração homologada.
+
+
+### Diagnóstico de conta antes da migração — 27/10/2026
+
+`inspect-account` analisa um snapshot local validado e um UID, identificando perfil desconhecido, grupo do razão/Spark ou fontes legadas observadas por coleção. Documentos financeiros sem `personId` inequívoco, com identidade malformada ou divergente, são listados como ambíguos; a contagem não infere saldos ou titularidade de dados duvidosos. O relatório fica vinculado ao hash do snapshot e não altera a origem.
+
+Um snapshot sem documentos financeiros não comprova que uma conta seja nova: ele não inclui Auth e usa duas varreduras que não garantem instante único. Por isso `canInitialize`, `canMigrate` e `readyForCutover` permanecem falsos em todos os resultados. O diagnóstico não cria grupos, importa dados, concede permissões ou altera o banco oficial. Ainda faltam bootstrap seguro, preservação dos formatos legados, consentimentos, corte e recuperação. Ver [[Importação Financeira Local Spark]] e [[Status da Implementação Spark]].
+
+```sh
+npm run spark:snapshot -- inspect-account --input spark-backups/demo.json --uid UID_FICTICIO --output spark-backups/account-report.json
+```
+
+O comando usa exclusivamente os snapshots `demo-*` validados pelo formato local; a saída é criada de forma exclusiva e privada. Não é captura ou migração de produção.
+
+
+### Recuperação do perfil no cadastro — 27/10/2026
+
+A criação pública de acesso usa a sessão Firebase secundária. O perfil é criado por transação que verifica primeiro sua ausência, sem sobrescrever um perfil existente. Se a gravação falhar ou a resposta for incerta, a conta Auth é preservada; uma nova tentativa com o mesmo nome, e-mail e senha reautentica na sessão secundária, confere o UID e retoma a transação. Se a primeira gravação já tiver sido confirmada, o perfil não é reescrito. Nenhuma senha é armazenada nessa recuperação, e a sessão principal não é substituída.
+
+Depois que o UID é recebido, a intenção de perfil é preservada localmente, sem senha ou token, e pode ser retomada após reinício com as mesmas credenciais. Se a resposta de criação Auth for perdida ou o processo encerrar antes da gravação local do UID, a recuperação ainda não é automática. O cadastro continua sem preparar o grupo financeiro Spark; a mensagem informa essa limitação. Não houve migração legada, alteração de Rules, escrita real nem deploy. Ver [[Autenticação]] e [[Status da Implementação Spark]].
+
+
+### Primeiro uso Spark com autorização protegida — 27/10/2026
+
+O cadastro de perfil novo marca `sparkFirstUseRequested`. Na primeira leitura de contexto, `initializeSparkFirstUseFirebase` consulta a autorização protegida do mesmo UID. Quando disponível, perfil, grupo `first_{uid}`, Caixa zero e operação `first_use_cash` são criados na mesma transação. O grupo recebe somente o titular como administrador e o protocolo vigente. A transação recusa perfil já vinculado e preserva o histórico existente; um reenvio após commit reconhece o grupo e o Caixa sem repetir gravações.
+
+As Rules exigem autorização prévia em `sparkFirstUseLocks/{uid}`, emitida por autoridade confiável, vinculada ao UID, grupo determinístico, `createdAt` do perfil, ciclo do calendário protegido e expiração, e negam sua alteração pelo cliente. O documento começa em revisão e só se torna autorizado após a verificação. O calendário protegido precisa existir e cobrir o instante do servidor. As quatro escritas são verificadas conjuntamente; saldo inicial deve ser zero e a sessão atual precisa pertencer ao titular. A autorização não é uma prova gerada pelo cliente nem deve ser emitida somente por ausência de documentos.
+
+**Ainda não há emissor confiável automático dessa autorização.** Verificação de criação real do Auth, inventário completo, ausência de legado e corte de escritores precisam ser implementados antes de conceder a autorização a contas reais. Sem autorização, o cadastro financeiro continua pendente. Esta etapa não migra contas legadas e não publica Rules ou cliente. Os testes em Emulator não constituem ativação de produção. Ver [[Status da Implementação Spark]] e [[Importação Financeira Local Spark]].

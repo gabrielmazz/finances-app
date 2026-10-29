@@ -69,6 +69,13 @@ const recurringCreateShape = {
 };
 
 const recurringUpdateShape = {
+	restoreOnly: z.literal(true).optional(),
+	replanOnly: z.literal(true).optional(),
+	undoReplanOnly: z.literal(true).optional(),
+	replanTotalInCents: moneyInCents.optional(),
+	replanInstallments: z.number().int().min(1).max(360).optional(),
+	replanStartCycle: cycleKey.optional(),
+	replanReason: z.string().trim().min(1).max(800).optional(),
 	installmentTotalValueInCents: moneyInCents.optional(),
 	recordRef: opaqueRef,
 	name: shortText.optional(),
@@ -129,7 +136,7 @@ export const assistantActionSchemas = {
 	undo_cash_withdrawal: z.object({ recordRef: opaqueRef }),
 	create_mandatory_expense: z.object(recurringCreateShape),
 	update_mandatory_expense: z.object(recurringUpdateShape),
-	delete_mandatory_expense: z.object({ recordRef: opaqueRef }),
+	delete_mandatory_expense: z.object({ recordRef: opaqueRef, archiveOnly:z.literal(true).optional() }),
 	pay_mandatory_expense: z.object({
 		installmentsToAdvance: z.number().int().min(1).max(360).optional(),
 		recordRef: opaqueRef,
@@ -142,7 +149,7 @@ export const assistantActionSchemas = {
 	undo_mandatory_expense_payment: z.object({ recordRef: opaqueRef }),
 	create_mandatory_gain: z.object(recurringCreateShape),
 	update_mandatory_gain: z.object(recurringUpdateShape),
-	delete_mandatory_gain: z.object({ recordRef: opaqueRef }),
+	delete_mandatory_gain: z.object({ recordRef: opaqueRef, archiveOnly:z.literal(true).optional() }),
 	receive_mandatory_gain: z.object({
 		installmentsToAdvance: z.number().int().min(1).max(360).optional(),
 		recordRef: opaqueRef,
@@ -261,6 +268,10 @@ type FieldDefinition = {
 };
 
 const COMMON_FIELDS: Record<string, FieldDefinition> = {
+	replanTotalInCents: { label: 'Novo total', kind: 'money', question: 'Qual é o valor total negociado para o novo contrato?' },
+	replanInstallments: { label: 'Novas parcelas', kind: 'number', question: 'Em quantas parcelas deseja dividir o novo total?' },
+	replanStartCycle: { label: 'Primeiro mês', kind: 'month', question: 'Qual será o primeiro mês do novo contrato?' },
+	replanReason: { label: 'Motivo', kind: 'text', question: 'Qual é o motivo do replanejamento?' },
 	targetBalanceInCents: { label: 'Saldo conferido', kind: 'money', question: 'Qual saldo você conferiu no banco?' },
 	name: { label: 'Nome', kind: 'text', question: 'Como você quer chamar este registro?' },
 	valueInCents: { label: 'Valor', kind: 'money', question: 'Qual é o valor?' },
@@ -461,7 +472,13 @@ export const getActionValidation = (
 		proposal.payload && typeof proposal.payload === 'object' && !Array.isArray(proposal.payload)
 			? proposal.payload
 			: {};
-	const result = assistantActionSchemas[proposal.kind].safeParse(rawPayload);
+	const replanSchema = z.object({ replanOnly: z.literal(true), recordRef: opaqueRef,
+		replanTotalInCents: moneyInCents, replanInstallments: z.number().int().min(1).max(360),
+		replanStartCycle: cycleKey, replanReason: z.string().trim().min(1).max(800) }).strict();
+	const undoReplanSchema = z.object({ undoReplanOnly: z.literal(true), recordRef: opaqueRef, replanReason: z.string().trim().min(1).max(800) }).strict();
+	const isUndoReplan = rawPayload.undoReplanOnly === true && ['update_mandatory_expense', 'update_mandatory_gain'].includes(proposal.kind);
+	const isReplan = rawPayload.replanOnly === true && ['update_mandatory_expense', 'update_mandatory_gain'].includes(proposal.kind);
+	const result = (isUndoReplan ? undoReplanSchema : isReplan ? replanSchema : assistantActionSchemas[proposal.kind]).safeParse(rawPayload);
 
 	if (result.success) {
 		return {

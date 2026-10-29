@@ -1,3 +1,5 @@
+jest.mock('react-native-css-interop', () => ({ createInteropElement: require('react').createElement }));
+jest.mock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
 import React, { act, useState } from 'react';
 import { createRoot, type Root } from 'test-renderer';
 import { useAccountAccess } from '@/hooks/useAccountAccess';
@@ -55,6 +57,7 @@ it('creates only one standard account on double submit, then returns to login wi
 	await act(async () => { finish({ success: true } as never); await submission; });
 	expect(access.mode).toBe('login');
 	expect(access.feedback?.type).toBe('success');
+	expect(access.feedback?.message).toContain('preparação financeira Spark ainda está pendente');
 	expect(currentPassword).toBe('');
 });
 
@@ -68,6 +71,19 @@ it('recovers the submit controls after a Firebase failure and keeps form values 
 	expect(access.feedback?.message).toContain('Verifique sua internet');
 	await act(() => access.submit());
 	expect(access.mode).toBe('login');
+});
+
+it('mantém os mesmos dados e permite recuperar o perfil após falha incerta', async () => {
+    jest.mocked(registerUserFirebase).mockResolvedValueOnce({ success: false, error: { code: 'auth/profile-creation-pending' } });
+    await act(() => access.changeMode('register'));
+    await act(() => { access.setName('Ana'); updatePassword('secret123'); });
+    await act(() => access.submit());
+    expect(access.mode).toBe('register');
+    expect(access.feedback?.message).toContain('mesmos dados');
+    expect(currentPassword).toBe('secret123');
+    await act(() => access.submit());
+    expect(registerUserFirebase).toHaveBeenLastCalledWith({ name: 'Ana', email: 'ana@example.com', password: 'secret123' });
+    expect(access.mode).toBe('login');
 });
 
 it('requests reset without a password and prevents repeated sends to the same address, including after changing modes', async () => {

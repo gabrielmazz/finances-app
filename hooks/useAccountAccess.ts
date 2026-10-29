@@ -23,6 +23,10 @@ const messages: Record<string, string> = {
 	'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
 	'auth/network-request-failed': 'Não foi possível conectar. Verifique sua internet e tente novamente.',
 	'auth/operation-not-allowed': 'Este serviço está indisponível. Tente novamente mais tarde.',
+	'auth/profile-recovery-storage': 'Não foi possível ler a recuperação local do cadastro. Verifique o armazenamento e tente novamente.',
+	'auth/profile-recovery-storage-pending': 'A conta foi criada, mas a recuperação local não pôde ser salva. Verifique o armazenamento e tente novamente com os mesmos dados.',
+	'auth/profile-creation-pending': 'A conta foi criada, mas o perfil ainda precisa ser confirmado. Mantenha os mesmos dados e tente criar novamente nesta tela.',
+	'auth/profile-recovery-mismatch': 'Use os mesmos dados do cadastro iniciado ou procure suporte.',
 	'auth/profile-creation-incomplete': 'A conta foi criada, mas o perfil não pôde ser salvo. Entre em contato com o suporte antes de tentar novamente.',
 };
 
@@ -70,7 +74,7 @@ export function useAccountAccess({ email, password, setPassword, setEmailError, 
 				setPassword('');
 				setName('');
 				setMode('login');
-				setFeedback({ type: 'success', message: 'Conta criada. Entre com seu email e senha.' });
+				setFeedback({ type: 'success', message: 'Conta de acesso criada. Entre com seu email e senha; a preparação financeira Spark ainda está pendente para novas contas.' });
 			} else {
 				await requestPasswordResetFirebase(normalizedEmail);
 				setResetSentTo(normalizedEmail);

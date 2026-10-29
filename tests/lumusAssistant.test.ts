@@ -1,3 +1,4 @@
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
 import {
 	ASSISTANT_DEFAULT_MAX_ACTIONS,
 	ASSISTANT_MAX_INPUT_CHARACTERS,

@@ -1,7 +1,7 @@
 const { spawnSync, spawn } = require('node:child_process');
 const { resolve } = require('node:path');
 const mode = process.argv[2];
-if (!['web', 'mobile', 'check'].includes(mode)) throw new Error('Modo inválido.');
+if (!['web', 'mobile', 'android', 'client', 'check'].includes(mode)) throw new Error('Modo inválido.');
 const root = resolve(__dirname, '..');
 const env = { ...process.env, FIREBASE_PROJECT_ID: 'demo-lumus-financas', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8080',
   FIREBASE_AUTH_EMULATOR_HOST: '127.0.0.1:9099' };
@@ -23,7 +23,7 @@ if (mode === 'check') {
 const clientHost = process.env.SPARK_DEV_CLIENT_HOST || '127.0.0.1';
 if (!/^(127\.0\.0\.1|10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(clientHost)
   || clientHost.split('.').some(part => Number(part) > 255)) throw new Error('SPARK_DEV_CLIENT_HOST deve ser um endereço local/privado.');
-const child = spawn(process.execPath, [require.resolve('expo/bin/cli'), 'start', ...(mode === 'web' ? ['--web'] : ['--go']),
+const child = spawn(process.execPath, [require.resolve('expo/bin/cli'), 'start', ...(mode === 'web' ? ['--web'] : mode === 'android' ? ['--android'] : mode === 'client' ? ['--dev-client'] : ['--go']),
   '--host', mode === 'web' ? 'localhost' : 'lan', '--port', '8082', '--max-workers', '2'], { cwd: root, stdio: 'inherit',
   env: { ...env, EXPO_PUBLIC_APP_ENV: 'development', EXPO_PUBLIC_FIREBASE_TARGET: 'emulator',
     EXPO_PUBLIC_FIREBASE_EMULATOR_HOST: clientHost, EXPO_NO_DOTENV: '1', BROWSER: 'none' } });

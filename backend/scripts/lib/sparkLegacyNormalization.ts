@@ -26,12 +26,35 @@ export function normalizeSparkLegacy(snapshot: LocalSnapshot, scope: unknown) {
   }
   if (inventory.groups.some(group => group.groupId === spec.groupId)) issue('existing-destination-group', spec.groupId, 'Não reutilizar grupo existente na proposta legada.');
   const sources: Array<{ path: string; ownerId: string; actorId: string; dateField: string | null; documentSha256: string }> = [];
+  const memberIds = new Set<string>(spec.memberIds);
+  const collectionRows = new Map<string, LocalSnapshot['documents']>();
+  for (const row of snapshot.documents) {
+    const parts = row.path.split('/');
+    if (parts.length !== 2) continue;
+    const list = collectionRows.get(parts[0]) ?? [];
+    list.push(row); collectionRows.set(parts[0], list);
+  }
+  // Não descarte um documento de outro titular antes de conferir se um alias aponta ao escopo.
+  const scopedOwner = (row: LocalSnapshot['documents'][number]): string | null => {
+    const owner = row.fields.personId?.stringValue;
+    const hasAlias = Object.hasOwn(row.fields, 'userId');
+    const alias = row.fields.userId?.stringValue;
+    if (typeof owner !== 'string' || !owner) {
+      issue('unscoped-legacy-source', row.path, 'Documento sem personId explícito.');
+      return null;
+    }
+    if (hasAlias && (typeof alias !== 'string' || !alias || alias !== owner)) {
+      if (typeof alias !== 'string' || !alias || memberIds.has(owner) || memberIds.has(alias))
+        issue('conflicting-legacy-owner', row.path, 'Titulares personId e userId são divergentes ou inválidos.');
+      return null;
+    }
+    return memberIds.has(owner) ? owner : null;
+  };
   const rows = <T>(collection: string, mapper: (read: (name: string) => any, id: string, date: () => Date) => T): T[] => {
     const result: T[] = [];
-    for (const row of snapshot.documents.filter(row => row.path.split('/').length === 2 && row.path.split('/')[0] === collection)) {
-      const owner = row.fields.personId?.stringValue;
-      if (typeof owner !== 'string') { issue('unscoped-legacy-source', row.path, 'Documento sem personId explícito.'); continue; }
-      if (!spec.memberIds.includes(owner)) continue;
+    for (const row of collectionRows.get(collection) ?? []) {
+      const owner = scopedOwner(row);
+      if (owner === null) continue;
       try {
         const read = (name: string): any => Object.hasOwn(row.fields, name) ? decodeSparkFinancialValue(row.fields[name]) : undefined;
         if (row.fields.userId && read('userId') !== owner) throw new Error();
@@ -85,15 +108,35 @@ export function normalizeSparkLegacy(snapshot: LocalSnapshot, scope: unknown) {
     }),
     confirmedCashBalanceInCents: spec.confirmedCashBalanceInCents, confirmedAt,
   };
-  for (const observationId of Object.keys(observations)) if (!input.investments.some(investment => investment.id === observationId)) issue('unmatched-investment-observation', observationId, 'Observação independente aponta para investimento ausente no escopo.');
-  for (const row of snapshot.documents.filter(row => /^financeInvestmentSyncs\/[^/]+$/.test(row.path))) {
-    if (typeof row.fields.personId?.stringValue !== 'string' || spec.memberIds.includes(row.fields.personId.stringValue)) issue('investment-sync-normalization-required', row.path, 'Sincronização exige adaptador de identidade/contrapartida próprio.');
+  // Um membro não selecionado pode ter escrito numa conta compartilhada do escopo.
+  // Ignorar essa fonte poderia produzir um saldo aparentemente reconciliado, mas incompleto.
+  const scopedBankIds = new Set(input.banks.map(bank => bank.id));
+  const bankReferenceFields: Record<string, string[]> = {
+    expenses: ['bankId'], gains: ['bankId'], monthlyBalances: ['bankId'], cashRescues: ['bankId'],
+    financeInvestments: ['bankId'], financeInvestmentSyncs: ['bankId'], bankBalanceAdjustments: ['bankId'],
+    bankTransfers: ['sourceBankId', 'targetBankId'],
+  };
+  for (const row of snapshot.documents) {
+    const parts = row.path.split('/'), fields = Object.hasOwn(bankReferenceFields, parts[0]) ? bankReferenceFields[parts[0]] : undefined;
+    const owner = row.fields.personId?.stringValue;
+    if (parts.length !== 2 || !fields || typeof owner !== 'string' || memberIds.has(owner)) continue;
+    if (fields.some(name => typeof row.fields[name]?.stringValue === 'string' && scopedBankIds.has(row.fields[name].stringValue as string)))
+      issue('cross-scope-financial-source', row.path, 'Fonte de titular fora do escopo referencia banco selecionado; revise vínculos e participantes.');
+  }
+  const investmentIds = new Set(input.investments.map(investment => investment.id));
+  for (const observationId of Object.keys(observations)) if (!investmentIds.has(observationId)) issue('unmatched-investment-observation', observationId, 'Observação independente aponta para investimento ausente no escopo.');
+  for (const row of collectionRows.get('financeInvestmentSyncs') ?? []) {
+    if (scopedOwner(row) !== null) issue('investment-sync-normalization-required', row.path, 'Sincronização exige adaptador de identidade/contrapartida próprio.');
+  }
+  for (const row of collectionRows.get('investments') ?? []) {
+    if (scopedOwner(row) !== null) issue('obsolete-investment-normalization-required', row.path, 'Investimento da coleção antiga exige conversão e reconciliação específicas.');
   }
   let reconciliation: ReturnType<typeof reconcileSparkLegacySnapshot> | null = null;
   try { reconciliation = reconcileSparkLegacySnapshot({ ...input, asOf, observedInvestmentBalancesInCents: observations }); issues.push(...reconciliation.issues); }
   catch { issue('invalid-legacy-contract', spec.groupId, 'Normalização não atende ao reconciliador; não aprovar descartando documentos.'); }
+  const sourcesByPath = new Map(sources.map(source => [source.path, source]));
   for (const account of reconciliation?.accounts ?? []) for (const entry of account.entries) if (entry.kind === 'movement') {
-    const attribution = entry.sourceReferences?.map(reference => sources.find(source => source.path === `${reference.collection}/${reference.id}`)).find(Boolean);
+    const attribution = entry.sourceReferences?.map(reference => sourcesByPath.get(`${reference.collection}/${reference.id}`)).find(Boolean);
     entry.actorId = attribution?.actorId;
     if (!attribution) issue('unknown-legacy-actor', entry.id, 'Não atribuir a operação ao primeiro membro da migração.');
   }

@@ -6,7 +6,7 @@ tipo: arquitetura
 versao: 0.4.1
 spark_module: F07
 spark_progress: 80
-spark_reviewed_at: 2026-10-22
+spark_reviewed_at: 2026-10-26
 ---
 
 # Recorrências Spark
@@ -98,3 +98,34 @@ Validação: `npm run test:spark` aprovou 486 cenários, zero ignorados (53 novo
 `import-ledger` continua bloqueado e conserva templates/ciclos antigos em bruto. [[Conversão de Recorrências Spark]] converte os formatos compatíveis do razão em `sparkRecurringPlans`, com pendências explícitas para os demais; fontes especiais continuam sem permissão de resolução ordinária. Habilitar grupo sintético no harness não autoriza ativação real. Compatibilidade de todo o legado/parcelas inferidas, corte dos escritores anteriores e consentimentos continuam pendentes.
 
 Integração de formulários/listas/assistente, agendamento de notificações, demais relatórios e homologação em navegador/aparelhos permanecem pendentes. O protocolo de metadados já foi implementado em [[Conversão de Recorrências Spark]] e sua leitura foi conectada aos compromissos da Home nesta continuação. A limitação de push com todos os aplicativos fechados foi aceita explicitamente pelo proprietário. Não houve deploy, dados reais nem habilitação de cobrança nesta entrega.
+
+
+## Definições pelo Assistente - 26/10/2026
+
+Cadastro/edição conversacionais reutilizam os writers de definição e metadados descritos nesta página e em [[Conversão de Recorrências Spark]]. O adaptador captura dois comandos antes da confirmação, preserva contrato/contador e mantém receipts no reenvio. A confirmação parcial da definição atualiza leituras e deixa configuração pendente explícita. Não há transação única entre as etapas ou lançamento de saldo. Agenda falha separadamente; execução/rascunho vivem em memória. Evidências, limites e continuação em [[Assistente Lumus]] e [[Versão Usável por Telas]]; F07 mantido em 80%, sem novo writer monetário/Rules ou deploy.
+
+
+## Arquivar pelo Assistente - 26/10/2026
+
+O adaptador de [[Assistente Lumus]] usa o comando existente de atualização com `active:false`, categoria/nominal/nome preservados e revisão canônica. Não cria novo writer nem delete físico. Confirmação, idempotência e vínculo ao grupo/titular são verificados pelo adaptador/protocolo; agenda é reconciliada depois, sem repetir o arquivamento se falhar. Expressão explícita de arquivamento é recusada fora de Spark para impedir exclusão legada com outro significado. Evidências simuladas, roteiro e pendências em [[Versão Usável por Telas]]; F07 mantido em 80%, sem novo deploy ou Rules.
+
+
+## Restauração de recorrências pelo chat Spark - 26/10/2026
+
+A conversa aceita pedidos para restaurar ou reativar despesas e receitas recorrentes arquivadas. O catálogo inclui planos inativos e oferece, para restauração, somente os elegíveis. O comando Spark `updateSparkRecurringPlanFirebase` é preparado com `active:true`, revisão, titular, categoria, nominal e identidade preservados. O resumo exige confirmação e informa preservação do contrato, ciclos, contador e histórico; não movimenta saldo. Contratos substituídos/cancelados, planos já ativos, outro titular e grupos indisponíveis são recusados; alterações adicionais devem ser solicitadas separadamente.
+
+O mesmo comando e ID são reenviados após resposta incerta, sem reler o plano já alterado pelo commit. A agenda é reconciliada separadamente com o estado atual; sua falha permite retry somente do lembrete. A intenção de restauração permanece vinculada ao rascunho, inclusive em correções; não há fallback para edição legada. Lotes filtram planos inativos elegíveis e preservam a quantidade informada. Sem novo writer monetário, Rules ou deploy; a intenção continua em memória. Ver [[Assistente Lumus]], [[Despesas Fixas]], [[Receitas Fixas]] e [[Status da Implementação Spark]].
+
+
+### Replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara replanejamento individual de contrato finito Spark ativo, de titular autorizado, pedindo o total negociado em centavos, quantidade de parcelas, primeiro ciclo e motivo. Após resumo e confirmação, usa `replanSparkRecurringFirebase` com revisões e IDs capturados: o contrato anterior é preservado e substituído atomicamente, sem movimentação de saldo nem quitação implícita. Uma tentativa já enviada conserva o mesmo comando para recuperação; alteração do material exige nova intenção após resolução. Atualização dos lembretes do predecessor e sucessor é posterior e pode ser repetida sem reenviar o replanejamento. Contas legadas não recebem substituição alternativa.
+
+O desfazimento conversacional do replanejamento, a recuperação da intenção após reload e a homologação em aparelho permanecem pendentes. Os serviços simulados não comprovam Rules ou operação em produção. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
+
+
+### Desfazimento de replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara o desfazimento individual de replanejamento Spark usando a referência ao contrato anterior ou ao sucessor. Pede o motivo, confere titular, grupo, vínculos e receipt original, e apresenta os dois contratos e o efeito para confirmação. O sucessor não pode ter parcelas efetivadas nem replanejamento posterior; o serviço `undoSparkRecurringReplanFirebase` volta a validar as revisões e dependências na transação. A operação reativa o anterior, cancela o sucessor e preserva o histórico sem movimentar saldo.
+
+A tentativa conserva o comando e ID após envio; os lembretes dos dois planos são reconciliados depois do commit e podem ser repetidos separadamente. Não há fallback para alteração legada. Intenção após reload, validação em aparelho, Rules implantadas e operação em dados reais não foram verificadas nesta entrega. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
