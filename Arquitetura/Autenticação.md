@@ -65,7 +65,7 @@ sequenceDiagram
 `LoginScreen.web.tsx` e `LoginScreen.tsx` alternam entre `login`, `register` e `reset` por estado local, compartilhado pelo hook `useAccountAccess`. Nenhuma rota ou tela nova é criada. `HomeScreen.web.tsx` e `HomeTabsScreen.tsx` continuam sendo o dashboard e seu contêiner autenticado, sem campos de acesso.
 
 - **Criar conta** substitui o formulário de login por nome, email e senha. Exige nome, email válido e senha com pelo menos seis caracteres; políticas adicionais são validadas pelo Firebase. A conta pública sempre recebe `adminUser: false`.
-- O cadastro usa `secondaryAuth` e salva `users/{uid}` via `secondaryDb`, autenticado pelo mesmo app secundário. Assim a regra de criação pelo próprio UID é respeitada sem autenticar a sessão primária. Se o perfil for rejeitado, tenta remover apenas a conta Auth recém-criada; falha nessa compensação informa cadastro incompleto. O `finally` encerra a sessão secundária.
+- O cadastro usa `secondaryAuth` e salva `users/{uid}` via `secondaryDb`, autenticado pelo mesmo app secundário. Assim a regra de criação pelo próprio UID é respeitada sem autenticar a sessão primária. Se o perfil não puder ser confirmado, preserva a conta Auth e permite repetir o cadastro com os mesmos dados; a transação cria o perfil somente quando ausente, sem sobrescrever um perfil já existente. O `finally` encerra a sessão secundária.
 - Após o cadastro, o painel volta ao login, limpa a senha e mantém o email e a confirmação de sucesso. Apenas **Entrar** autentica a sessão primária e libera a Home.
 - **Esqueci minha senha** mostra somente o campo de email e envia `sendPasswordResetEmail` em português. A resposta é neutra, inclusive para `auth/user-not-found`; a nova senha é definida no link hospedado pelo Firebase. A solicitação permanece nesta tela.
 - Um envio concluído desabilita nova solicitação para o mesmo email enquanto esse for o último endereço enviado na instância montada; mudar de modo preserva esse estado. Isso evita repetições acidentais e não substitui os limites de abuso do Firebase.
@@ -169,3 +169,38 @@ Recarregar a página (F5), abrir diretamente outra tela do Lumus na mesma origem
 Voltar de outra aba dentro de 15 minutos preserva a sessão e reconsulta o Firebase. Passar 15 minutos sem atividade em nenhuma aba do Lumus, completar oito horas desde o login, sair explicitamente ou receber invalidação definitiva exige novo login. Recarregar/abrir outra tela não reinicia o prazo absoluto. A política não encerra a sessão no unload nem ao ocultar a aba.
 
 Validação adicional: 35 testes focados de contexto, atividade compartilhada, persistência/configuração Web e navegação passaram. Os novos casos reproduzem remount/restauração com login antigo e atividade recente, retorno de aba/janela dentro do prazo e preservação do limite absoluto após restauração. São testes automatizados com Firebase/DOM simulados, sem smoke test em navegador real nesta etapa.
+
+
+### Diagnóstico de conta antes da migração — 27/10/2026
+
+`inspect-account` analisa um snapshot local validado e um UID, identificando perfil desconhecido, grupo do razão/Spark ou fontes legadas observadas por coleção. Documentos financeiros sem `personId` inequívoco, com identidade malformada ou divergente, são listados como ambíguos; a contagem não infere saldos ou titularidade de dados duvidosos. O relatório fica vinculado ao hash do snapshot e não altera a origem.
+
+Um snapshot sem documentos financeiros não comprova que uma conta seja nova: ele não inclui Auth e usa duas varreduras que não garantem instante único. Por isso `canInitialize`, `canMigrate` e `readyForCutover` permanecem falsos em todos os resultados. O diagnóstico não cria grupos, importa dados, concede permissões ou altera o banco oficial. Ainda faltam bootstrap seguro, preservação dos formatos legados, consentimentos, corte e recuperação. Ver [[Importação Financeira Local Spark]] e [[Status da Implementação Spark]].
+
+```sh
+npm run spark:snapshot -- inspect-account --input spark-backups/demo.json --uid UID_FICTICIO --output spark-backups/account-report.json
+```
+
+O comando usa exclusivamente os snapshots `demo-*` validados pelo formato local; a saída é criada de forma exclusiva e privada. Não é captura ou migração de produção.
+
+
+### Recuperação do perfil no cadastro — 27/10/2026
+
+A criação pública de acesso usa a sessão Firebase secundária. O perfil é criado por transação que verifica primeiro sua ausência, sem sobrescrever um perfil existente. Se a gravação falhar ou a resposta for incerta, a conta Auth é preservada; uma nova tentativa com o mesmo nome, e-mail e senha reautentica na sessão secundária, confere o UID e retoma a transação. Se a primeira gravação já tiver sido confirmada, o perfil não é reescrito. Nenhuma senha é armazenada nessa recuperação, e a sessão principal não é substituída.
+
+Depois que o UID é recebido, a intenção de perfil é preservada localmente, sem senha ou token, e pode ser retomada após reinício com as mesmas credenciais. Se a resposta de criação Auth for perdida ou o processo encerrar antes da gravação local do UID, a recuperação ainda não é automática. O cadastro continua sem preparar o grupo financeiro Spark; a mensagem informa essa limitação. Não houve migração legada, alteração de Rules, escrita real nem deploy. Ver [[Autenticação]] e [[Status da Implementação Spark]].
+
+Validação desta etapa: 15 testes focados de cadastro e fluxo de acesso aprovados com Firebase simulado; tipagem do aplicativo e diff-check aprovados. Não houve ensaio real de Auth/Firestore, teste em aparelho ou publicação.
+
+Continuação da recuperação do cadastro — 27/10/2026: intenção local versionada preserva UID, e-mail, nome e data após confirmação do UID, sem senha ou token; usa o armazenamento de autenticação existente. Na mesma instância, acesso ao registro é serializado e conteúdo inválido não é apagado. A retomada exige autenticar novamente e confirmar o mesmo UID; criação transacional não sobrescreve perfil. Se criação Auth tiver resultado incerto antes de receber/salvar o UID, não há retomada automática; concorrência entre abas não foi homologada. 25 testes focados passaram com serviços simulados, tipagem e diff-check aprovados. Grupo financeiro Spark, Auth/Firestore reais e deploy continuam pendentes.
+
+
+### Primeiro uso Spark com autorização protegida — 27/10/2026
+
+O cadastro de perfil novo marca `sparkFirstUseRequested`. Na primeira leitura de contexto, `initializeSparkFirstUseFirebase` consulta a autorização protegida do mesmo UID. Quando disponível, perfil, grupo `first_{uid}`, Caixa zero e operação `first_use_cash` são criados na mesma transação. O grupo recebe somente o titular como administrador e o protocolo vigente. A transação recusa perfil já vinculado e preserva o histórico existente; um reenvio após commit reconhece o grupo e o Caixa sem repetir gravações.
+
+As Rules exigem autorização prévia em `sparkFirstUseLocks/{uid}`, emitida por autoridade confiável, vinculada ao UID, grupo determinístico, `createdAt` do perfil, ciclo do calendário protegido e expiração, e negam sua alteração pelo cliente. O documento começa em revisão e só se torna autorizado após a verificação. O calendário protegido precisa existir e cobrir o instante do servidor. As quatro escritas são verificadas conjuntamente; saldo inicial deve ser zero e a sessão atual precisa pertencer ao titular. A autorização não é uma prova gerada pelo cliente nem deve ser emitida somente por ausência de documentos.
+
+**Ainda não há emissor confiável automático dessa autorização.** Verificação de criação real do Auth, inventário completo, ausência de legado e corte de escritores precisam ser implementados antes de conceder a autorização a contas reais. Sem autorização, o cadastro financeiro continua pendente. Esta etapa não migra contas legadas e não publica Rules ou cliente. Os testes em Emulator não constituem ativação de produção. Ver [[Status da Implementação Spark]] e [[Importação Financeira Local Spark]].
+
+Validação local: 32 testes focados de serviço/contexto/cadastro passaram com SDK simulado; tipagens do aplicativo e das ferramentas aprovadas. Firestore Emulator aceitou o commit completo e recusou tentativas adversas, mas algumas recusas exibiram erros de avaliação das Rules: elas não são evidência conclusiva da regra específica até investigar a causa. A regressão isolada de perfil passou. Não houve teste integrado Auth/SDK, aparelho, emissor de autorização, migração real ou deploy.

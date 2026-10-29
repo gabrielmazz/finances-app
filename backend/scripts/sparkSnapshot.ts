@@ -4,6 +4,9 @@ import { canonical, inventorySnapshot, LocalFirestore, LocalSnapshotError, MAX_S
 import { parseSparkInstant, prepareSparkBootstrap } from './lib/sparkBootstrapPreflight';
 import { buildSparkLedgerImport, importSparkLedgerLocal } from './lib/sparkLedgerImport';
 import { normalizeSparkLegacy } from './lib/sparkLegacyNormalization';
+import { inspectSparkAccount } from './lib/sparkAccountPreflight';
+import { buildLegacyLedgerCandidate } from './lib/sparkLegacyLedgerCandidate';
+import { previewLegacySpark } from './lib/sparkLegacySparkPreview';
 
 function diagnostic(error: unknown) {
   if (error instanceof LocalSnapshotError) return error.message;
@@ -20,8 +23,9 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   const accepted: Record<string, string[]> = {
     capture: ['--project', '--host', '--hub', '--output'], inventory: ['--input', '--output'],
+    'inspect-account': ['--input', '--uid', '--output'],
     restore: ['--project', '--host', '--hub', '--input', '--output'], prepare: ['--input', '--group', '--as-of', '--output'],
-    'normalize-legacy': ['--input', '--scope', '--output'], 'plan-ledger': ['--input', '--group', '--as-of', '--output'],
+    'normalize-legacy': ['--input', '--scope', '--output'], 'candidate-legacy-ledger': ['--input', '--scope', '--output'], 'preview-legacy-spark': ['--input', '--scope', '--output'], 'plan-ledger': ['--input', '--group', '--as-of', '--output'],
     'import-ledger': ['--input', '--group', '--as-of', '--project', '--host', '--hub', '--plan-sha256', '--output'],
   };
   if (!Object.hasOwn(accepted, command) || args.length % 2) throw new LocalSnapshotError('Informe uma operação spark:snapshot e suas opções documentadas.');
@@ -46,11 +50,14 @@ async function main() {
       if (statSync(input).size > MAX_SNAPSHOT_BYTES) throw new LocalSnapshotError('Snapshot excede o limite local de 128 MiB.');
       const snapshot: unknown = JSON.parse(readFileSync(input, 'utf8')); validateSnapshot(snapshot);
       if (command === 'inventory') result = inventorySnapshot(snapshot);
-      else if (command === 'normalize-legacy') {
+      else if (command === 'inspect-account') result = inspectSparkAccount(snapshot, option('--uid'));
+      else if (command === 'normalize-legacy' || command === 'candidate-legacy-ledger' || command === 'preview-legacy-spark') {
         const scopePath = resolve(base, option('--scope'));
         if (statSync(scopePath).size > MAX_SNAPSHOT_BYTES) throw new LocalSnapshotError('Escopo excede o limite local.');
-        result = normalizeSparkLegacy(snapshot, JSON.parse(readFileSync(scopePath, 'utf8')));
-        if (!(result as ReturnType<typeof normalizeSparkLegacy>).canReviewNormalization) process.exitCode = 2;
+        const scope = JSON.parse(readFileSync(scopePath, 'utf8'));
+        result = command === 'normalize-legacy' ? normalizeSparkLegacy(snapshot, scope)
+          : command === 'candidate-legacy-ledger' ? buildLegacyLedgerCandidate(snapshot, scope) : previewLegacySpark(snapshot, scope);
+        if (command === 'normalize-legacy' && !(result as ReturnType<typeof normalizeSparkLegacy>).canReviewNormalization) process.exitCode = 2;
       } else if (['prepare', 'plan-ledger', 'import-ledger'].includes(command)) {
         const asOf = parseSparkInstant(option('--as-of'));
         if (command === 'prepare') {
@@ -60,7 +67,8 @@ async function main() {
           const { documents: _, ...plan } = buildSparkLedgerImport(snapshot, option('--group'), asOf); result = plan;
         } else {
           const client = new LocalFirestore(option('--project'), option('--host'), option('--hub'));
-          result = await importSparkLedgerLocal(client, snapshot, option('--group'), asOf, option('--plan-sha256'));
+          result = await importSparkLedgerLocal(client, snapshot, option('--group'), asOf, option('--plan-sha256'),
+            (completed, total) => console.log(`Importação local: ${completed}/${total} documentos.`));
         }
       } else {
         const client = new LocalFirestore(option('--project'), option('--host'), option('--hub'));
@@ -77,6 +85,6 @@ async function main() {
 }
 main().catch(error => {
   console.error(diagnostic(error));
-  console.error('Operação local interrompida. Confira opções, integridade, Hub sem Functions e destino vazio. Em restore/import-ledger, uma falha pode deixar lotes anteriores: preserve o diagnóstico e use outro emulador vazio.');
+  console.error('Operação local interrompida. Confira opções, integridade e Hub sem Functions. Restore exige destino vazio; import-ledger pode retomar o mesmo plano em destino isolado e sem alterações, usando novo arquivo de saída.');
   process.exitCode = 1;
 });

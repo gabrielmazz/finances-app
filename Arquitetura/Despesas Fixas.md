@@ -6,7 +6,7 @@ tipo: feature
 versao: 3.10.1
 spark_module: F07
 spark_progress: 80
-spark_reviewed_at: 2026-10-23
+spark_reviewed_at: 2026-10-26
 ---
 
 # Despesas Fixas
@@ -222,3 +222,52 @@ graph TD
 ### Relatório conversacional e histórico — 2026-10-04
 
 O PDF pode ser solicitado diretamente na conversa, com escolha por nome/ordinal quando necessária. Usa leitores completos próprios/relacionados/grupo e os builders existentes. Lançamentos, último ciclo e `completedCycles` são evidências de conclusão; migração para o razão sem histórico não prova ciclo pago ou pendente. Criação/início exclui ciclos anteriores ao contrato, e valores/quantidades sem evidência não entram em total confirmado. Troca de UID/sessão/privacidade durante a geração cancela a abertura e o transporte nativo limpa temporários próprios. Testes de efeitos de relatório, relação paginada e sessão/privacidade estão em `lumusAssistantExport`, `lumusAssistantTargetedReport`, `mandatoryRelationsCompleteness` e `reportExportSession`; transporte instalado permanece dependente de aparelho. Ver [[Validação Conversacional Lumus]].
+
+
+## Pagamento pelo chat Spark - 26/10/2026
+
+O [[Assistente Lumus]] efetiva ciclos pelo mesmo `settleSparkRecurringFirebase` das listas, após resumo/confirmação de valor, conta/direção, parcelas e mês civil. Contrato finito usa nominal exato e resto final; plano sem fim admite valor informado e um ciclo por lançamento. Plano/revisão e material são capturados antes da autorização; retry conserva o mesmo comando sem reler o ciclo já alterado. Liquidação finita após vigência é indicada explicitamente, com motivo; negociação de valor e banco negativo continuam na tela própria.
+
+Falha local de lembrete conserva o lançamento confirmado e oferece retry somente da agenda, sem outro efeito financeiro. Plano de outro titular, inativo, substituído/cancelado, ciclo concluído ou histórico desconhecido não autoriza pagamento/recebimento. Demais operações recorrentes pelo chat permanecem parciais. F07 permanece 80%; validação com serviços simulados, limites e roteiro em [[Versão Usável por Telas]]. Sem alteração do protocolo/Rules, deploy ou dados reais.
+
+
+## Desfazer ciclo pelo chat Spark - 26/10/2026
+
+O [[Assistente Lumus]] desfaz a efetivação do ciclo atual de São Paulo por `undoSparkRecurringFirebase`, após resumo/confirmação de valor real, conta original, direção e quantidade. Confere plano e receipt original (live/importado), replanejamento e última faixa de parcelas; plano arquivado pode ser desfeito sem reativação. Original/inverso são preservados, com data original e contador restaurado pelo protocolo existente. Retry conserva comando/ID, mesmo depois de alteração do ciclo pelo próprio commit; não há fallback legado ou autorização automática de saldo negativo.
+
+A agenda é atualizada somente depois do sucesso, com configuração Spark atual. Pode reagendar sem pedir permissão, manter supressão se houve nova efetivação ou cancelar se plano/configuração já não permitem lembrete. Falha de agenda não repete estorno; retry somente local é vinculado ao grupo/titular original. Mês histórico não é selecionável neste schema. F07 permanece 80%; evidências e limitações em [[Versão Usável por Telas]]. Sem mudança de Rules, deploy ou dado real.
+
+
+## Cadastro e edição pelo chat Spark - 26/10/2026
+
+O [[Assistente Lumus]] cria/edita definição e metadados pelos serviços Spark existentes, com resumo e confirmação do material completo antes do envio. Contrato finito conserva total/quantidade/vigência e resto exato; edição mantém parcelas concluídas, estado ativo/arquivado e campos omitidos. Alteração de contrato usa replanejamento na tela própria. Categorias são resolvidas no grupo autorizado; editar plano de outro titular é recusado.
+
+Definição e configuração são etapas separadas com receipts/IDs estáveis. Falha após definição confirmada informa parcial e atualiza leituras; retry retoma os mesmos comandos, sem criar outro plano. Argumentos ficam bloqueados após início da tentativa. Cancelamento comprovado de configuração orienta editar o registro já salvo. Cadastro/edição não geram movimento financeiro; agenda é posterior, sem pedir permissão, com retry exclusivo quando falha. F07 permanece 80%; evidências e limites em [[Versão Usável por Telas]]. Arquivamento, replanejamento conversacional, retomada após reload e homologação continuam pendentes. Sem Rules, deploy ou dado real.
+
+
+## Arquivamento pelo chat Spark - 26/10/2026
+
+O [[Assistente Lumus]] arquiva planos próprios ativos por `updateSparkRecurringPlanFirebase`, após conferir revisão e apresentar resumo/confirmação. Mantém contrato, contador, pagamentos/recebimentos, ciclos e metadados; não quita pendências nem movimenta saldo. Contrato substituído/cancelado ou de outro titular é recusado. Pedido explícito de arquivar não é encaminhado a exclusão legada quando Spark está ausente.
+
+Reenvio usa o mesmo ID/comando sem exigir plano ainda ativo. Agenda é posterior e falha separadamente, com retry somente do lembrete e leitura da configuração atual; restauração posterior pela lista é respeitada. Plano arquivado com ciclo atual efetivado continua disponível para desfazimento. Restauração pelo chat e replanejamento conversacional permanecem pendentes. F07 mantido em 80%; evidências e limites em [[Versão Usável por Telas]]. Sem novo protocolo/Rules, deploy ou dados reais.
+
+
+## Restauração de recorrências pelo chat Spark - 26/10/2026
+
+A conversa aceita pedidos para restaurar ou reativar despesas e receitas recorrentes arquivadas. O catálogo inclui planos inativos e oferece, para restauração, somente os elegíveis. O comando Spark `updateSparkRecurringPlanFirebase` é preparado com `active:true`, revisão, titular, categoria, nominal e identidade preservados. O resumo exige confirmação e informa preservação do contrato, ciclos, contador e histórico; não movimenta saldo. Contratos substituídos/cancelados, planos já ativos, outro titular e grupos indisponíveis são recusados; alterações adicionais devem ser solicitadas separadamente.
+
+O mesmo comando e ID são reenviados após resposta incerta, sem reler o plano já alterado pelo commit. A agenda é reconciliada separadamente com o estado atual; sua falha permite retry somente do lembrete. A intenção de restauração permanece vinculada ao rascunho, inclusive em correções; não há fallback para edição legada. Lotes filtram planos inativos elegíveis e preservam a quantidade informada. Sem novo writer monetário, Rules ou deploy; a intenção continua em memória. Ver [[Assistente Lumus]], [[Despesas Fixas]], [[Receitas Fixas]] e [[Status da Implementação Spark]].
+
+
+### Replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara replanejamento individual de contrato finito Spark ativo, de titular autorizado, pedindo o total negociado em centavos, quantidade de parcelas, primeiro ciclo e motivo. Após resumo e confirmação, usa `replanSparkRecurringFirebase` com revisões e IDs capturados: o contrato anterior é preservado e substituído atomicamente, sem movimentação de saldo nem quitação implícita. Uma tentativa já enviada conserva o mesmo comando para recuperação; alteração do material exige nova intenção após resolução. Atualização dos lembretes do predecessor e sucessor é posterior e pode ser repetida sem reenviar o replanejamento. Contas legadas não recebem substituição alternativa.
+
+O desfazimento conversacional do replanejamento, a recuperação da intenção após reload e a homologação em aparelho permanecem pendentes. Os serviços simulados não comprovam Rules ou operação em produção. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
+
+
+### Desfazimento de replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara o desfazimento individual de replanejamento Spark usando a referência ao contrato anterior ou ao sucessor. Pede o motivo, confere titular, grupo, vínculos e receipt original, e apresenta os dois contratos e o efeito para confirmação. O sucessor não pode ter parcelas efetivadas nem replanejamento posterior; o serviço `undoSparkRecurringReplanFirebase` volta a validar as revisões e dependências na transação. A operação reativa o anterior, cancela o sucessor e preserva o histórico sem movimentar saldo.
+
+A tentativa conserva o comando e ID após envio; os lembretes dos dois planos são reconciliados depois do commit e podem ser repetidos separadamente. Não há fallback para alteração legada. Intenção após reload, validação em aparelho, Rules implantadas e operação em dados reais não foram verificadas nesta entrega. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].

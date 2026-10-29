@@ -1,3 +1,4 @@
+jest.mock('@/functions/SparkContextFirebase', () => ({ getSparkContextFirebase: jest.fn(async () => null) }));
 jest.mock('@/FirebaseConfig', () => ({ db: {} }));
 
 import { getPendingMandatoryCatalogItems, prepareAssistantActions, updatePreparedAssistantDraft } from '@/services/lumusAssistant/assistantCatalogService';

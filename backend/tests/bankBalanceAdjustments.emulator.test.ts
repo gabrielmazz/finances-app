@@ -4,7 +4,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, signInAnonymously, type User } from 'firebase/auth';
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, getDocs, collection, query, where, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, query, where, Timestamp } from 'firebase/firestore';
 
 const projectId = process.env.FIREBASE_PROJECT_ID ?? 'demo-lumus-financas';
 const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099';
@@ -91,6 +91,10 @@ async function run() {
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', `${prefix}-client-write`), { personId: owner.uid, bankId, differenceInCents: 999 }));
 	await assertFails(setDoc(doc(ownDb, 'bankBalanceAdjustments', saved.adjustmentId), { status: 'active' }, { merge: true }));
 	await assertFails(getDoc(doc(ownDb, 'bankBalanceAdjustmentOperations', `${owner.uid}_${command.clientActionId}`)));
+	await seed({ [`sparkFirstUseLocks/${owner.uid}`]: { reason: 'test' } });
+	await denied(related, { ...command, clientActionId: `${prefix}-related-locked` }, 'failed-precondition');
+	await denied(owner, { action: 'preview', bankId, date: command.date }, 'failed-precondition');
+	await environment.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'sparkFirstUseLocks', owner.uid)); });
 	const relatedAdjustment = await call(related, { ...command, expectedPreviousBalanceInCents: 10_000,
 		clientActionId: `${prefix}-related-before-cutover` });
 	// A remains legacy; B's bank has been migrated and its old accepted link must not reopen writes.

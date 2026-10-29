@@ -54,11 +54,12 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   if (snapshot.documents.some(row => row.path.startsWith(prefix + '/spark'))) fail('Namespace Spark já ocupado; não reinicializar ou mesclar importações.');
   const group = snapshot.documents.find(row => row.path === prefix)!;
   const reversed = new Set<string>();
+  const transactionsById = new Map(preflight.normalized.transactions.map(event => [event.id, event]));
   for (const event of preflight.normalized.transactions) {
     if (typeof event.actorId !== 'string') fail('Autoria histórica deve ser UID textual válido.'); safeId(event.actorId);
     if ((event.kind === 'reversal') !== !!event.reversesTransactionId) fail('Identidade do estorno incompleta ou incompatível.');
     if (!event.reversesTransactionId) continue;
-    const original = preflight.normalized.transactions.find(row => row.id === event.reversesTransactionId);
+    const original = transactionsById.get(event.reversesTransactionId);
     if (!original || original.kind === 'reversal' || reversed.has(original.id)) fail('Original de estorno ausente, já resolvido ou sem contrato suportado.');
     reversed.add(original.id);
     if (event.legs.length !== original.legs.length || event.legs.some(leg => !original.legs.some(source => source.accountId === leg.accountId && source.deltaInCents === -leg.deltaInCents))) fail('Estorno não corresponde ao inverso exato das pernas originais.');
@@ -133,6 +134,8 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   }
   // Identidades não entram novamente na cadeia: as pernas já estão nos nós importados.
   const transactions = preflight.normalized.transactions;
+  const mappingsBySource = new Map(mappings.map(mapping => [mapping.sourceAccountId, mapping]));
+  const reconciledBySource = new Map(preflight.reconciliation.accounts.map(account => [account.sourceAccountId, account]));
   const correctionLinks = new Map<string, string>();
   const replacements = new Set<string>();
   const correctionReversals = new Set<string>();
@@ -141,9 +144,9 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   for (const row of correctionReceipts.filter(row => row.fields.result)) {
     let result: any;
     try { result = decodeSparkFinancialValue(row.fields.result); } catch { fail('Recibo de edição possui resultado incompatível.'); }
-    const reversal = transactions.find(event => event.id === result?.reversalTransactionId);
-    const replacement = transactions.find(event => event.id === result?.transactionId);
-    const original = transactions.find(event => event.id === reversal?.reversesTransactionId);
+    const reversal = transactionsById.get(result?.reversalTransactionId);
+    const replacement = transactionsById.get(result?.transactionId);
+    const original = reversal?.reversesTransactionId ? transactionsById.get(reversal.reversesTransactionId) : undefined;
     if (!reversal || reversal.kind !== 'reversal' || !replacement || !original
       || !['income', 'expense'].includes(original.kind) || replacement.kind !== original.kind
       || reversal.effectiveAt.valueOf() !== replacement.effectiveAt.valueOf()
@@ -164,15 +167,15 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   }
   for (const event of transactions) {
     const legs = event.legs.filter(leg => leg.accountId !== null);
-    const mapped = (id: string) => mappings.find(mapping => mapping.sourceAccountId === id)?.accountId ?? fail('Conta da identidade ausente.');
+    const mapped = (id: string) => mappingsBySource.get(id)?.accountId ?? fail('Conta da identidade ausente.');
     const ordinary = ['income', 'expense'].includes(event.kind) && legs.length === 1 && event.legs.length === 2
       && legs[0].deltaInCents * (event.kind === 'income' ? 1 : -1) > 0;
     const pair = ['transfer', 'investment_deposit', 'investment_redemption'].includes(event.kind) && legs.length === 2
       && event.legs.length === 2 && legs.some(leg => leg.deltaInCents < 0) && legs.some(leg => leg.deltaInCents > 0);
     if (['income', 'expense'].includes(event.kind) && !ordinary || ['transfer', 'investment_deposit', 'investment_redemption'].includes(event.kind) && !pair) fail('Pernas incompatíveis com a identidade financeira.');
     if (pair) {
-      const from = preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs.find(leg => leg.deltaInCents < 0)!.accountId)!.kind;
-      const to = preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs.find(leg => leg.deltaInCents > 0)!.accountId)!.kind;
+      const from = reconciledBySource.get(legs.find(leg => leg.deltaInCents < 0)!.accountId!)!.kind;
+      const to = reconciledBySource.get(legs.find(leg => leg.deltaInCents > 0)!.accountId!)!.kind;
       if (!(event.kind === 'transfer' ? from !== 'investment' && to !== 'investment'
         : event.kind === 'investment_deposit' ? from !== 'investment' && to === 'investment' : from === 'investment' && to !== 'investment')) fail('Tipo de investimento incompatível com as contas da identidade.');
     }
@@ -180,7 +183,7 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
     add(`${prefix}/sparkImportedIdentities/${id}`, { schemaVersion: 1, kind: event.kind, actorId: event.actorId,
       effectiveAt: event.effectiveAt, categoryId: event.categoryId ?? null, note: event.note ?? null,
       ordinaryResolutionAllowed: ordinary && !(event.sourceReferences?.length)
-        && preflight.reconciliation.accounts.find(account => account.sourceAccountId === legs[0].accountId)!.kind !== 'investment',
+        && reconciledBySource.get(legs[0].accountId!)!.kind !== 'investment',
       pairResolutionAllowed: pair && !(event.sourceReferences?.length),
       ...(ordinary ? { accountId: mapped(legs[0].accountId!), amountInCents: Math.abs(legs[0].deltaInCents) } : {}),
       ...(pair ? { fromAccountId: mapped(legs.find(leg => leg.deltaInCents < 0)!.accountId!),
@@ -213,13 +216,32 @@ export function buildSparkLedgerImport(snapshot: LocalSnapshot, groupId: string,
   return { ...plan, planSha256: digest(plan), documents };
 }
 
-export async function importSparkLedgerLocal(client: LocalFirestore, snapshot: LocalSnapshot, groupId: string, asOf: Date, expectedPlanSha256: string) {
+export async function importSparkLedgerLocal(client: LocalFirestore, snapshot: LocalSnapshot, groupId: string, asOf: Date, expectedPlanSha256: string,
+  onProgress?: (completed: number, total: number) => void) {
   const plan = buildSparkLedgerImport(snapshot, groupId, asOf);
   if (client.projectId !== snapshot.projectId) fail('Importação exige o mesmo projeto demo-* do snapshot.');
   if (plan.planSha256 !== expectedPlanSha256) fail('Plano mudou; revise o candidato reconstruído antes de importar.');
-  const restore = await client.createEmptyDocumentSet(plan.documents);
-  if (restore.dataSha256 !== plan.stagedDataSha256) fail('Dados gravados não correspondem ao plano vinculado; mantenha o grupo bloqueado.');
   const receiptPath = `financialGroups/${groupId}/sparkImportReceipts/${plan.importId}`;
+  await client.assertIsolatedEmulator();
+  const existing = await client.scan();
+  const priorReceipt = existing.find(row => row.path === receiptPath);
+  if (priorReceipt) {
+    const fields = priorReceipt.fields;
+    const keys = ['schemaVersion', 'sourceSha256', 'planSha256', 'stagedDataSha256', 'status', 'activationAllowed', 'verifiedAt'];
+    if (Object.keys(fields).length !== keys.length || keys.some(key => !Object.hasOwn(fields, key))
+      || fields.schemaVersion?.integerValue !== '1' || typeof fields.verifiedAt?.timestampValue !== 'string'
+      || !Number.isFinite(Date.parse(fields.verifiedAt.timestampValue))
+      || fields.sourceSha256?.stringValue !== snapshot.sha256 || fields.planSha256?.stringValue !== plan.planSha256
+      || fields.stagedDataSha256?.stringValue !== plan.stagedDataSha256 || fields.status?.stringValue !== 'verified-locked'
+      || fields.activationAllowed?.booleanValue !== false || dataDigest(existing.filter(row => row.path !== receiptPath)) !== plan.stagedDataSha256)
+      fail('Recibo ou destino diverge do plano; retomada bloqueada.');
+    return { schemaVersion: 1, sourceSha256: snapshot.sha256, planSha256: plan.planSha256,
+      stagedDataSha256: plan.stagedDataSha256, status: 'verified-locked', activationAllowed: false,
+      importId: plan.importId, groupId, documents: existing.length, accounts: plan.mappings.length, readyForCutover: false,
+      originalDocumentsPreservedExceptGroupLock: true, groupStatusChangedToLock: true, idempotent: true };
+  }
+  const restore = await client.resumeDocumentSet(plan.documents, onProgress);
+  if (restore.dataSha256 !== plan.stagedDataSha256) fail('Dados gravados não correspondem ao plano vinculado; mantenha o grupo bloqueado.');
   const receipt = { schemaVersion: 1, sourceSha256: snapshot.sha256, planSha256: plan.planSha256,
     stagedDataSha256: restore.dataSha256, status: 'verified-locked', activationAllowed: false, verifiedAt: new Date() };
   await client.assertIsolatedEmulator();
@@ -229,5 +251,5 @@ export async function importSparkLedgerLocal(client: LocalFirestore, snapshot: L
   const final = await client.scan();
   if (dataDigest(final) !== dataDigest([...plan.documents, { path: receiptPath, fields: financialFields(receipt) }])) fail('Conferência final divergiu; mantenha o grupo bloqueado e isole o destino.');
   return { ...receipt, importId: plan.importId, groupId, documents: final.length, accounts: plan.mappings.length, readyForCutover: false,
-    originalDocumentsPreservedExceptGroupLock: true, groupStatusChangedToLock: true };
+    originalDocumentsPreservedExceptGroupLock: true, groupStatusChangedToLock: true, idempotent: false };
 }

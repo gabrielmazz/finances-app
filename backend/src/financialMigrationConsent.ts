@@ -3,6 +3,7 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { assertClientActionId } from '../../utils/financialLedger';
 import { enforceCallableRateLimit } from './callableRateLimit';
+import { assertFirstUseUnlocked } from './sparkFirstUseLock';
 
 // [[Gerenciamento de Bancos]]: cada membro autoriza um corte específico antes de qualquer leitura legada.
 export const financialMigrationConsent = secureOnCall( async request => {
@@ -29,6 +30,7 @@ export const financialMigrationConsent = secureOnCall( async request => {
     return { approved: false, groupId };
   }
   await db.runTransaction(async transaction => {
+    await assertFirstUseUnlocked(transaction, db, [memberId, actorId]);
     const [member, actor, group, memberCutover, actorCutover] = await Promise.all([
       transaction.get(memberRef), transaction.get(actorRef), transaction.get(db.doc(`financialGroups/${groupId}`)),
       transaction.get(db.doc(`financialCutovers/${memberId}`)), transaction.get(db.doc(`financialCutovers/${actorId}`)),

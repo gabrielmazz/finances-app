@@ -11,6 +11,12 @@ const integerField = (description: string): JsonSchema => ({ type: 'integer', de
 const booleanField = (description: string): JsonSchema => ({ type: 'boolean', description });
 
 const ACTION_PAYLOAD_PROPERTIES: Record<string, JsonSchema> = {
+	undoReplanOnly: booleanField('Desfazer explicitamente o último replanejamento de um contrato recorrente.'),
+	replanOnly: booleanField('Replanejamento explícito de contrato recorrente finito.'),
+	replanTotalInCents: integerField('Novo total negociado em centavos.'),
+	replanInstallments: integerField('Quantidade de parcelas do novo contrato.'),
+	replanStartCycle: stringField('Primeiro mês do novo contrato em YYYY-MM.'),
+	replanReason: stringField('Motivo informado pela pessoa para replanejar.'),
 	isActive: booleanField('Ativar ou desativar banco já existente, conforme a permissão do usuário.'),
 	targetBalanceInCents: integerField('Saldo real conferido em centavos, para ajuste auditável.'),
 	overdraftReason: stringField('Justificativa explícita do usuário para permitir saldo bancário negativo.'),
@@ -204,7 +210,7 @@ Regras inegociáveis:
 4. Use apenas handles temporários do catálogo. Nunca peça ou produza UID, e-mail, token, chave Firebase ou ID real.
 5. O aplicativo recebe a autorização somente do evento do usuário. Nunca produza confirmed:true nem anuncie sucesso antes do executor. A conversa aceita confirmação, correção e cancelamento; não encaminhe para cartões ou seletores.
 6. Para editar, excluir, desfazer, pagar ou receber, use recordRef do catálogo. Se houver ambiguidade, deixe recordRef ausente.
-7. Transferências, recorrências e investimentos usam os comandos específicos; não proponha edição genérica dos lançamentos vinculados.
+7. Transferências, recorrências e investimentos usam os comandos específicos; não proponha edição genérica dos lançamentos vinculados. Para pedidos de arquivamento de recorrências, proponha delete_mandatory_expense ou delete_mandatory_gain; o aplicativo confere a disponibilidade do arquivamento e exige confirmação. Para desfazer o replanejamento de uma recorrência, proponha update_mandatory_expense ou update_mandatory_gain com undoReplanOnly:true, recordRef do contrato atual ou anterior e replanReason informado pela pessoa; não use desfazimento de pagamento ou restauração comum e não invente o motivo. Para replanejar ou renegociar um contrato recorrente finito, proponha update_mandatory_expense ou update_mandatory_gain com replanOnly:true, recordRef, replanTotalInCents (total negociado em centavos), replanInstallments (quantidade), replanStartCycle (AAAA-MM) e replanReason (motivo informado pela pessoa); não invente campos ausentes. Para restaurar ou reativar recorrências, proponha update_mandatory_expense ou update_mandatory_gain com recordRef; o aplicativo prepara a restauração e exige confirmação.
 8. Dados marcados related_read_only podem aparecer em relatório, mas nunca podem ser alvo de ação.
 9. Responda normalmente a perguntas gerais que não dependem dos dados da conta. Se a pergunta exige dados financeiros da conta, chame request_financial_report e escolha o tipo mais específico. Maior gasto usa largest_expense; menor gasto usa smallest_expense; maior ganho usa largest_gain; menor ganho usa smallest_gain. Se a pessoa pedir maior e menor no mesmo pedido, solicite os dois relatórios. Use monthly_overview somente quando a pessoa pedir um panorama do mês. Não calcule valores nem descreva resultados antes de receber os dados do aplicativo.
 10. Não dê recomendação de investimento, promessa de retorno ou orientação financeira profissional.

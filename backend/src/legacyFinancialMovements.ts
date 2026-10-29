@@ -8,6 +8,7 @@ import { assertClientActionId } from '../../utils/financialLedger';
 import { endOfFinancialCivilDay } from '../../utils/financialCivilDate';
 import { getInvestmentAssetType, getInvestmentValuationMethod } from '../../utils/investmentPortfolio';
 import { enforceCallableRateLimit } from './callableRateLimit';
+import { assertFirstUseUnlocked } from './sparkFirstUseLock';
 
 type RecordData = Record<string, any>;
 const actions = ['create_transfer', 'create_cash_withdrawal', 'create_investment', 'deposit_investment', 'redeem_investment', 'update_investment', 'undo_investment_redemption', 'undo_investment_deposit'] as const;
@@ -47,6 +48,7 @@ export const executeLegacyFinancialMovement = secureOnCall( async request => {
   const kind = data.kind as typeof actions[number];
   const db = getFirestore();
   return db.runTransaction(async transaction => {
+    await assertFirstUseUnlocked(transaction, db, [personId]);
     const user = await transaction.get(db.doc('users/' + personId));
     if (!user.exists || user.data()?.financialGroupId || user.data()?.financialLegacyCutoverAt) throw new HttpsError('permission-denied', 'Use the ledger after financial cutover.');
     const relatedIds: string[] = Array.isArray(user.data()?.relatedIdUsers)
@@ -76,6 +78,7 @@ export const executeLegacyFinancialMovement = secureOnCall( async request => {
       if (!snapshot.exists || !allowedIds.has(snapshot.data()!.personId)) throw new HttpsError('permission-denied', 'The bank is outside the authorized scope.');
       if (snapshot.data()?.isActive === false) denied('inactive-account', 'This bank is inactive.');
       if (snapshot.data()!.personId !== personId) {
+        await assertFirstUseUnlocked(transaction, db, [snapshot.data()!.personId]);
         const owner = await transaction.get(db.doc('users/' + snapshot.data()!.personId));
         if (owner.data()?.financialGroupId || owner.data()?.financialLegacyCutoverAt) throw new HttpsError('permission-denied', 'This bank belongs to a migrated account.');
       }

@@ -114,3 +114,8 @@ sequenceDiagram
 
 - [[Assistente Lumus]] valida banco, saldo mensal e saldo disponível antes de registrar o saque.
 - Desfazer resolve o saque por referência textual no catálogo opaco e confirma propriedade/fingerprint e efeito no chat. No legado remove somente o saque escolhido com recibo idempotente; no razão estorna o evento e preserva as duas pernas e o histórico. `transferFunds` mantém Caixa compartilhado sem saldo negativo. Ver [[Comandos Financeiros Conversacionais]].
+
+
+## Desfazimento pelo Assistente - 26/10/2026
+
+[[Assistente Lumus]] lista os saques Spark ativos e prepara o estorno do par inteiro, com confirmação de valor/direção, origem live/imported e retry do mesmo comando. Usa os preparadores/executores existentes de pares; preserva original/inverso e exclusão dos totais econômicos. Evidências e limitações em [[Versão Usável por Telas]].

@@ -2,11 +2,12 @@
 // Firebase Authentication e armazenar seus dados iniciais com nome, email
 // sem persistir a senha no Firestore.
 
-import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signOut, type User } from 'firebase/auth';
 import { auth, db, firebaseFunctions, secondaryAuth, secondaryDb } from '@/FirebaseConfig';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { loadUserRelationshipsFirebase, runUserRelationshipFirebase } from '@/functions/UserRelationshipFirebase';
+import { registrationRecoveryStorage } from '@/utils/registrationRecoveryStorage';
 
 // Define os parâmetros necessários para registrar um usuário
 interface RegisterUserParams {
@@ -17,58 +18,67 @@ interface RegisterUserParams {
 
 // =========================================== Funções de Registro ================================================== //
 
-// Função para registrar um novo usuário no Firebase
-export async function registerUserFirebase({
-    name,
-    email,
-    password,
-}: RegisterUserParams) {
+// [[Autenticação]]: somente dados não secretos ficam em memória para recuperar o mesmo UID.
+const pendingRegistrations = new Map<string, { uid: string; name: string | null; createdAt: Date }>();
 
+export async function registerUserFirebase({ name, email, password }: RegisterUserParams) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedName = typeof name === 'string' && name.trim() ? name.trim() : null;
     let shouldSignOutSecondary = false;
-    let createdUser: User | null = null;
-
+    let user: User | undefined;
     try {
-        const normalizedName = typeof name === 'string' ? name.trim() : '';
-
-        // Cria o usuário no Firebase Authentication
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-        const user = userCredential.user;
-        createdUser = user;
-        shouldSignOutSecondary = true;
-
-        // Armazena os dados iniciais do usuário no Firestore
-        // [[Autenticação]]: o perfil deve ser escrito com o UID recém-criado,
-        // inclusive quando não existe sessão primária no cadastro público.
-        await setDoc(doc(secondaryDb, 'users', user.uid), {
-            name: normalizedName.length > 0 ? normalizedName : null,
-            email,
-            createdAt: new Date(),
-            adminUser: false,
-        });
-
-        return { success: true, user };
-
-    } catch (error) {
-        if (createdUser) {
+        let pending = pendingRegistrations.get(normalizedEmail);
+        if (!pending) {
             try {
-                await deleteUser(createdUser);
-            } catch {
-                return { success: false, error: { code: 'auth/profile-creation-incomplete' } };
-            }
+                const stored = await registrationRecoveryStorage.find(normalizedEmail);
+                if (stored) pending = { uid: stored.uid, name: stored.name, createdAt: new Date(stored.createdAt) };
+            } catch { return { success: false, error: { code: 'auth/profile-recovery-storage' } }; }
         }
+        if (pending && pending.name !== normalizedName) return { success: false, error: { code: 'auth/profile-recovery-mismatch' } };
+        if (pending) {
+            const credential = await signInWithEmailAndPassword(secondaryAuth, normalizedEmail, password);
+            user = credential.user;
+            shouldSignOutSecondary = true;
+            if (user.uid !== pending.uid) return { success: false, error: { code: 'auth/profile-recovery-mismatch' } };
+        } else {
+            const credential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, password);
+            user = credential.user;
+            shouldSignOutSecondary = true;
+            pending = { uid: user.uid, name: normalizedName, createdAt: new Date() };
+            pendingRegistrations.set(normalizedEmail, pending);
+            try { await registrationRecoveryStorage.save({ ...pending, email: normalizedEmail, createdAt: pending.createdAt.toISOString() }); }
+            catch { return { success: false, error: { code: 'auth/profile-recovery-storage-pending' } }; }
+        }
+        const saved = pending;
+        try { await registrationRecoveryStorage.save({ ...saved, email: normalizedEmail, createdAt: saved.createdAt.toISOString() }); }
+        catch { return { success: false, error: { code: 'auth/profile-recovery-storage-pending' } }; }
+        const reference = doc(secondaryDb, 'users', saved.uid);
+        try {
+            // A transação cria somente se ausente; reenvio nunca sobrescreve perfil já alterado.
+            await runTransaction(secondaryDb, async transaction => {
+                const current = await transaction.get(reference);
+                if (current.exists()) {
+                    if (current.data()?.email !== normalizedEmail) throw Object.assign(new Error('Perfil incompatível.'), { code: 'auth/profile-recovery-mismatch' });
+                    return;
+                }
+                transaction.set(reference, { name: saved.name, email: normalizedEmail, createdAt: saved.createdAt, adminUser: false, sparkFirstUseRequested: true });
+            });
+        } catch (error) {
+            if ((error as { code?: string })?.code === 'auth/profile-recovery-mismatch') return { success: false, error };
+            return { success: false, error: { code: 'auth/profile-creation-pending' } };
+        }
+        try { await registrationRecoveryStorage.remove(normalizedEmail, saved.uid); }
+        catch { return { success: false, error: { code: 'auth/profile-recovery-storage-pending' } }; }
+        pendingRegistrations.delete(normalizedEmail);
+        return { success: true, user };
+    } catch (error) {
         return { success: false, error };
-        
     } finally {
-        // Garante que a sessão utilizada para criação de usuário não interfira no usuário atual
         if (shouldSignOutSecondary) {
-            try {
-                await signOut(secondaryAuth);
-            } catch (signOutError) {
-                console.warn('Erro ao encerrar sessão secundária de registro:', signOutError);
-            }
+            try { await signOut(secondaryAuth); }
+            catch (signOutError) { console.warn('Erro ao encerrar sessão secundária de registro:', signOutError); }
         }
     }
-
 }
 
 // [[Autenticação]]: resposta neutra também em projetos sem proteção contra

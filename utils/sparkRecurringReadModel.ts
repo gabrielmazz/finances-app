@@ -67,8 +67,8 @@ export function parseSparkRecurringReadModel(id: string, plan: Record<string, an
     replanOriginOperationId: plan.replanOriginOperationId ?? null, replanOperationId: plan.replanOperationId ?? null, replanCancelled: plan.replanCancelled ?? false };
 }
 
-/** [[Recorrências Spark]]: somente ciclos confirmados e contador explícito; meses decorridos não quitam parcelas. */
-export function buildSparkUpcomingMandatoryItems(plans: SparkRecurringReadModel[], asOfDate: Date): HomeMandatoryItem[] {
+/** [[Recorrências Spark]]: ciclos/contador explícitos; o limite padrão é visual da Home, relatórios pedem o conjunto completo. */
+export function buildSparkUpcomingMandatoryItems(plans: SparkRecurringReadModel[], asOfDate: Date, limitPerType = 3): HomeMandatoryItem[] {
   if (!Number.isFinite(asOfDate.getTime())) throw new Error('Data de consulta inválida.');
   const civil = toFinancialCivilDate(asOfDate), today = new Date(civil.getFullYear(), civil.getMonth(), civil.getDate());
   const items = plans.flatMap<HomeMandatoryItem>(plan => {
@@ -99,5 +99,5 @@ export function buildSparkUpcomingMandatoryItems(plans: SparkRecurringReadModel[
     return [];
   });
   return (['expense', 'gain'] as const).flatMap(type => items.filter(item => item.type === type)
-    .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime() || left.id.localeCompare(right.id)).slice(0, 3));
+    .sort((left, right) => left.dueDate.getTime() - right.dueDate.getTime() || left.id.localeCompare(right.id)).slice(0, limitPerType));
 }

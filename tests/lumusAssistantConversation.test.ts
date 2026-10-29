@@ -399,3 +399,98 @@ test('retry de lembrete após commit não repete efeito financeiro e limpa somen
  expect(conversation.snapshot().drafts[0]?.status).toBe('succeeded');expect(conversation.snapshot().drafts[0]?.result?.notificationWarning).toBeUndefined();
  await conversation.send('tente o lembrete novamente');expect(retryNotification).toHaveBeenCalledTimes(1);
 });
+
+
+test('desfazer saque apresenta valor e direção antes de exigir confirmação explícita', async () => {
+ const execute = jest.fn(async () => ({success:true,message:'Saque estornado.'}));
+ const catalog = {cashWithdrawals:[{handle:'withdrawal',realId:'original',label:'Saque em dinheiro'}]};
+ const finance: FinanceCommandService = {loadCatalog:async()=>catalog,prepareActions:async(_uid,items)=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return {...draft,sparkWithdrawalReversal:{command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,originalOperationId:'original',originalSource:'live' as const},amountInCents:123,bankName:'Banco de teste'}};})}),updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind:'undo_cash_withdrawal',payload:{recordRef:'withdrawal'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send('Desfaça o saque em dinheiro');
+ const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');
+ expect(text.replace(/\s/g,'')).toContain('devolverR$1,23doDinheiroaoBancodeteste');expect(execute).not.toHaveBeenCalled();
+ await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test.each(['pay_mandatory_expense','receive_mandatory_gain'] as const)('%s Spark mostra valor contratual, direção, parcelas e ciclo antes de confirmar', async kind => {
+ const execute=jest.fn(async()=>({success:true,message:'Ciclo registrado.'}));
+ const catalog={banks:[{handle:'account',label:'Banco de teste',realId:'bank'}],mandatoryExpenses:[{handle:'plan',label:'Contrato',realId:'plan'}],mandatoryGains:[{handle:'plan',label:'Contrato',realId:'plan'}]};
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions:async(_uid,items)=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return {...draft,sparkRecurringSettlement:{recurringType:kind==='pay_mandatory_expense'?'expense' as const:'gain' as const,name:'Contrato',bankName:'Banco de teste',command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',expectedPlanRevision:7,cycle:'2026-10',effectiveAt:{} as any,accountId:'bank',installmentsCount:2,amountInCents:667,lateSettlement:true as const}}};})}),updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind,payload:{recordRef:'plan',bankRef:'account',date:'2026-10-26',installmentsToAdvance:2}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send(kind==='pay_mandatory_expense'?'Pague o contrato':'Receba o contrato');
+ const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');
+ expect(text.replace(/\s/g,'')).toContain('R$6,67');expect(text).toContain('2 parcela(s)');expect(text).toContain('ciclo 2026-10');expect(text).toContain(kind==='pay_mandatory_expense'?'saindo de Banco de teste':'entrando em Banco de teste');expect(text).toContain('liquidação após a vigência');expect(execute).not.toHaveBeenCalled();
+ await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test.each(['undo_mandatory_expense_payment','undo_mandatory_gain_receipt'] as const)('%s confirma valor, conta, ciclo e quantidade antes de executar',async kind=>{
+ const execute=jest.fn(async()=>({success:true,message:'Ciclo desfeito.'}));const catalog={mandatoryExpenses:[{handle:'plan',label:'Contrato',realId:'plan'}],mandatoryGains:[{handle:'plan',label:'Contrato',realId:'plan'}]};
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions:async(_uid,items)=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return{...draft,sparkRecurringReversal:{name:'Contrato',bankName:'Banco de teste',recurringType:kind==='undo_mandatory_expense_payment'?'expense' as const:'gain' as const,amountInCents:667,installmentsCount:2,command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',cycle:'2026-10',expectedPlanRevision:7,settlementOperationId:'original',effectiveAt:{} as any}}};})}),updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind,payload:{recordRef:'plan'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send(kind==='undo_mandatory_expense_payment'?'Desfaça o pagamento do contrato':'Desfaça o recebimento do contrato');
+ const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text.replace(/\s/g,'')).toContain('R$6,67');expect(text).toContain(kind==='undo_mandatory_expense_payment'?'devolver à conta Banco de teste':'retirar da conta Banco de teste');expect(text).toContain('ciclo 2026-10');expect(text).toContain('restaurar 2 parcela(s)');expect(text).toContain('preservar o histórico');expect(execute).not.toHaveBeenCalled();
+ await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test.each(['create_mandatory_expense','create_mandatory_gain','update_mandatory_expense','update_mandatory_gain'] as const)('%s Spark apresenta contrato e configuração antes da confirmação',async kind=>{
+ const execute=jest.fn(async()=>({success:true,message:'Recorrência salva.'}));const catalog={mandatoryExpenses:[{handle:'plan',label:'Contrato',realId:'plan'}],mandatoryGains:[{handle:'plan',label:'Contrato',realId:'plan'}],mandatoryExpenseCategories:[{handle:'category',label:'Categoria de teste',realId:'category'}],mandatoryGainCategories:[{handle:'category',label:'Categoria de teste',realId:'category'}]};
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions:async(_uid,items)=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return{...draft,sparkRecurringDefinition:{recurringType:kind.endsWith('expense')?'expense':'gain',definition:{action:kind.startsWith('create_')?'create':'update',input:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',name:'Internet',categoryId:'category',valueInCents:333,startCycle:'2026-11',installmentTotal:3,contractTotalInCents:1000,expectedPlanRevision:4,active:true}},metadata:{groupId:'group',actorId:'synthetic-user',clientActionId:'metadata',planId:'plan',expectedMetadataRevision:null,metadata:{dueDay:25,usesBusinessDays:true,description:'Acordo de teste',reminderConfigVersion:1,reminderEnabled:true,reminderDaysBefore:2,reminderOnDueDate:true,reminderHour:19,reminderMinute:20}},startCycle:'2026-11',endCycle:'2027-01',installmentTotal:3,contractTotalInCents:1000,categoryName:'Categoria de teste'}} as AssistantDraftAction;})}),updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind,payload:kind.startsWith('create_')?{name:'Internet',valueInCents:333,dueDay:25,categoryRef:'category'}:{recordRef:'plan',name:'Internet'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send(kind.startsWith('create_')?'Cadastre uma recorrência de internet':'Edite a recorrência de internet');const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text.replace(/\s/g,'')).toContain('R$3,33');expect(text.replace(/\s/g,'')).toContain('contratoR$10,00');expect(text).toContain('3 parcelas');expect(text).toContain('2026-11 até 2027-01');expect(text).toContain('vencimento 25 em dias úteis');expect(text).toContain('19:20, 2 dia(s) antes e no vencimento');expect(text).toContain('Acordo de teste');expect(text).toContain('sem movimentar saldo');expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test.each(['recurring-configuration-pending','recurring-configuration-cancelled'])('definição confirmada com %s atualiza leituras sem repetir a ação',async errorCode=>{
+ const execute=jest.fn(async()=>({success:false,errorCode,message:'Definição confirmada; configuração não confirmada.'})),onCommit=jest.fn(async()=>{}),loadCatalog=jest.fn(async()=>({mandatoryExpenses:[{handle:'saved',label:'Internet salva',realId:'saved'}]}));
+ const finance:FinanceCommandService={loadCatalog,prepareActions:async(_uid,items)=>({actions:items.map(item=>buildAssistantDraft(item)),catalog:{}}),updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,onCommit,interpret:async()=>({text:'',actions:[{kind:'update_mandatory_expense',payload:{recordRef:'existing',name:'Internet'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send('Edite a recorrência de internet');await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);expect(onCommit).toHaveBeenCalledTimes(1);expect(conversation.snapshot().drafts[0]?.status).toBe('failed');expect(conversation.snapshot().catalog.mandatoryExpenses?.[0]?.label).toBe('Internet salva');conversation.dispose();
+});
+
+
+test.each(['delete_mandatory_expense','delete_mandatory_gain'] as const)('%s Spark apresenta arquivamento sem exclusão e exige confirmação',async kind=>{
+ const execute=jest.fn(async()=>({success:true,message:'Recorrência arquivada.'}));const catalog={mandatoryExpenses:[{handle:'plan',label:'Contrato',realId:'plan'}],mandatoryGains:[{handle:'plan',label:'Contrato',realId:'plan'}]};
+ const prepareActions=jest.fn(async(_uid:string,items:any[])=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return{...draft,sparkRecurringArchive:{recurringType:kind==='delete_mandatory_expense'?'expense' as const:'gain' as const,installmentTotal:3,installmentsCompleted:1,command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',expectedPlanRevision:5,name:'Contrato canônico',categoryId:'category',valueInCents:333,active:false}}};})}));
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions,updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind,payload:{recordRef:'plan'}}],reportRequests:[],toolCallCount:0})});await conversation.send('Arquive a recorrência do contrato');
+ const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text).toContain(kind==='delete_mandatory_expense'?'Arquivar despesa recorrente':'Arquivar receita recorrente');expect(text).toContain('Contrato canônico');expect(text).toContain('preservar contrato, ciclos e histórico');expect(text).toContain('1 de 3 parcelas concluídas');expect(text).toContain('suspender lembretes');expect(text).toContain('não quita parcelas pendentes nem movimenta saldo');expect(text).not.toContain('Excluir');expect(prepareActions.mock.calls[0]?.[1][0]?.payload.archiveOnly).toBe(true);expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+test.each(['Não arquive a recorrência','Nunca arquive a recorrência','Como arquivar uma recorrência?'])('pedido sem autorização de alteração não arquiva: %s',async text=>{
+ const {conversation,committed}=harness([{kind:'delete_mandatory_expense',payload:{recordRef:'plan'}} as any]);await conversation.send(text);await conversation.send('sim');expect(committed.size).toBe(0);conversation.dispose();
+});
+
+test('pedido de arquivar em lote marca todas as propostas e preserva quantidade humana',async()=>{
+ const execute=jest.fn(async()=>({success:true,message:'Arquivada'}));const catalog={mandatoryExpenses:[{handle:'one',realId:'one',label:'Plano um',collection:'sparkRecurringPlans',data:{active:true}},{handle:'two',realId:'two',label:'Plano dois',collection:'sparkRecurringPlans',data:{active:true}}]};const prepareActions=jest.fn(async(_uid:string,items:any[])=>({catalog,actions:items.map(item=>buildAssistantDraft(item))}));
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions,updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[],reportRequests:[],toolCallCount:0,batchRequests:[{kind:'delete_mandatory_expense',query:'Plano',payload:{}}]})});
+ await conversation.send('Arquive as duas recorrências');expect(prepareActions.mock.calls[0]?.[1].map(item=>item.payload.archiveOnly)).toEqual([true,true]);expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(2);conversation.dispose();
+});
+
+
+test('restaurar pelo chat mostra efeito e exige confirmação',async()=>{
+ const execute=jest.fn(async()=>({success:true,message:'Restaurada'})),catalog={mandatoryExpenses:[{handle:'plan',realId:'plan',label:'Contrato'}]};
+ const prepareActions=jest.fn(async(_uid:string,items:any[])=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return {...draft,sparkRecurringRestore:{recurringType:'expense' as const,installmentTotal:3,installmentsCompleted:1,command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',expectedPlanRevision:5,name:'Contrato',categoryId:'category',valueInCents:333,active:true}}};})}));
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions,updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind:'update_mandatory_expense',payload:{recordRef:'plan'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send('Restaure a recorrência Contrato');const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text).toContain('Restaurar despesa recorrente');expect(text).toContain('sem movimentar saldo');expect(prepareActions.mock.calls[0]?.[1][0]?.payload.restoreOnly).toBe(true);expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test('replanejar apresenta contrato e exige confirmação na conversa',async()=>{
+ const execute=jest.fn(async()=>({success:true,message:'Replanejada'})),catalog={mandatoryExpenses:[{handle:'plan',realId:'plan',label:'Contrato'}]};
+ const prepareActions=jest.fn(async(_uid:string,items:any[])=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return {...draft,sparkRecurringReplan:{recurringType:'expense' as const,originalInstallments:5,originalTotalInCents:1000,completed:2,command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'plan',replacementPlanId:'next',expectedPlanRevision:5,expectedMetadataRevision:1,name:'Contrato',categoryId:null,startCycle:'2026-11',installmentTotal:3,contractTotalInCents:901,reason:'Renegociação',metadata:{} as any}}};})}));
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions,updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind:'update_mandatory_expense',payload:{recordRef:'plan',replanTotalInCents:901,replanInstallments:3,replanStartCycle:'2026-11',replanReason:'Renegociação'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send('Replaneje o contrato');const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text).toContain('Replanejar despesa recorrente');expect(text).toContain('2 de 5 parcelas concluídas');expect(text).toContain('2026-11');expect(text).toContain('Renegociação');expect(text).toContain('sem movimentar saldo');expect(prepareActions.mock.calls[0]?.[1][0]?.payload.replanOnly).toBe(true);expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});
+
+
+test('desfazimento de replanejamento não vira estorno de pagamento e exige confirmação',async()=>{
+ const execute=jest.fn(async()=>({success:true,message:'Desfeito'})),catalog={mandatoryExpenses:[{handle:'plan',realId:'next',label:'Contrato'}]};
+ const prepareActions=jest.fn(async(_uid:string,items:any[])=>({catalog,actions:items.map(item=>{const draft=buildAssistantDraft(item);return {...draft,sparkRecurringReplanUndo:{recurringType:'expense' as const,originalName:'Anterior',originalTotalInCents:1000,originalInstallments:5,originalCompleted:2,replacementName:'Novo',replacementTotalInCents:900,replacementInstallments:3,replacementStartCycle:'2026-11',command:{groupId:'group',actorId:'synthetic-user',clientActionId:draft.clientActionId,planId:'old',replacementPlanId:'next',replanOperationId:'replan',expectedPlanRevision:4,expectedReplacementRevision:1,reason:'Acordo cancelado'}}};})}));
+ const finance:FinanceCommandService={loadCatalog:async()=>catalog,prepareActions,updateDraft:async(_uid,draft)=>draft,retryNotification:async()=>({success:true,message:''}),execute};
+ const {conversation}=harness([],{finance,interpret:async()=>({text:'',actions:[{kind:'undo_mandatory_expense_payment',payload:{recordRef:'plan',replanReason:'Acordo cancelado'}}],reportRequests:[],toolCallCount:0})});
+ await conversation.send('Desfaça o replanejamento do contrato');const text=conversation.snapshot().messages.map(message=>'text' in message?message.text:'').join('\n');expect(text).toContain('Desfazer replanejamento de despesa recorrente');expect(text).toContain('reativar Anterior');expect(text).toContain('cancelar o contrato sucessor');expect(text).toContain('sem movimentar saldo');expect(prepareActions.mock.calls[0]?.[1][0]).toMatchObject({kind:'update_mandatory_expense',payload:{undoReplanOnly:true}});expect(execute).not.toHaveBeenCalled();await conversation.send('confirmo');expect(execute).toHaveBeenCalledTimes(1);conversation.dispose();
+});

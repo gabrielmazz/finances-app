@@ -79,16 +79,27 @@ export function createAssistantConversation(options: Options) {
 		say(state.drafts.some(item => selected.has(item.clientActionId) && item.status === 'executing') ? 'A operação já está em andamento. Vou informar o resultado real; seus dependentes não serão iniciados.' : 'Esse pedido e suas dependências foram cancelados. Os demais pedidos permanecem.');
 	};
 	const summaries = (drafts: AssistantDraftAction[]) => drafts.slice(0, 8).map((draft, index) => {
-		const amount = getActionAmountInCents(draft.kind, draft.payload);
+		const amount = draft.sparkRecurringDefinition?.definition.input.valueInCents ?? draft.sparkRecurringReversal?.amountInCents ?? draft.sparkRecurringSettlement?.command.amountInCents ?? getActionAmountInCents(draft.kind, draft.payload);
 		const references = ['name', 'bankRef', 'sourceBankRef', 'targetBankRef', 'recordRef', 'investmentRef', 'categoryRef', 'date'].flatMap(key => {
 			const value = draft.payload[key]; if (typeof value !== 'string') return [];
 			const source = getFieldDefinition(draft.kind, key).choiceSource;
 			return [source ? state.catalog[source]?.find(item => item.handle === value)?.label ?? 'referência pendente' : value];
 		});
-		const effect = draft.kind === 'update_investment' && typeof draft.payload.initialValueInCents === 'number' ? ` · estornar o aporte inicial e registrar um novo aporte de ${formatCents(draft.payload.initialValueInCents)}`
+		const undoReplan = draft.sparkRecurringReplanUndo, replan = draft.sparkRecurringReplan, restore = draft.sparkRecurringRestore, archive = draft.sparkRecurringArchive, definition = draft.sparkRecurringDefinition, reversal = draft.sparkRecurringReversal, settlement = draft.sparkRecurringSettlement;
+		const configuration = definition?.metadata.metadata;
+		const effect = undoReplan ? ` — desfazer o replanejamento de ${undoReplan.replacementName}; cancelar o contrato sucessor de ${formatCents(undoReplan.replacementTotalInCents)} em ${undoReplan.replacementInstallments} parcelas desde ${undoReplan.replacementStartCycle}; reativar ${undoReplan.originalName}, contrato anterior de ${formatCents(undoReplan.originalTotalInCents)}, com ${undoReplan.originalCompleted} de ${undoReplan.originalInstallments} parcelas concluídas; motivo: ${undoReplan.command.reason}; preservar histórico, sem movimentar saldo`
+			: replan ? ` — replanejar ${replan.command.name}; contrato anterior ${formatCents(replan.originalTotalInCents)}, ${replan.completed} de ${replan.originalInstallments} parcelas concluídas; novo total ${formatCents(replan.command.contractTotalInCents)} em ${replan.command.installmentTotal} parcelas a partir de ${replan.command.startCycle}; motivo: ${replan.command.reason}; preservar histórico, sem movimentar saldo`
+			: restore ? ` — restaurar ${restore.command.name}; preservar contrato, ciclos e histórico${restore.installmentTotal === null ? '' : `, com ${restore.installmentsCompleted} de ${restore.installmentTotal} parcelas concluídas`}; reconciliar lembretes; sem movimentar saldo`
+			: archive ? ` — arquivar ${archive.command.name}; preservar contrato, ciclos e histórico${archive.installmentTotal === null ? '' : `, com ${archive.installmentsCompleted} de ${archive.installmentTotal} parcelas concluídas`}; suspender lembretes; não quita parcelas pendentes nem movimenta saldo`
+			: definition && configuration ? ` — ${definition.definition.action === 'create' ? 'cadastrar' : 'editar'} ${definition.definition.input.name}; categoria ${definition.categoryName}; vigência ${definition.startCycle}${definition.endCycle ? ` até ${definition.endCycle}` : ' sem prazo final'}; ${definition.installmentTotal === null ? 'recorrência sem parcelas' : `${definition.installmentTotal} parcelas, contrato ${formatCents(definition.contractTotalInCents!)}`}; vencimento ${configuration.dueDay ?? 'não definido'}${configuration.usesBusinessDays ? ' em dias úteis' : ''}; lembrete ${configuration.reminderEnabled ? `${String(configuration.reminderHour).padStart(2,'0')}:${String(configuration.reminderMinute).padStart(2,'0')}, ${configuration.reminderDaysBefore} dia(s) antes${configuration.reminderOnDueDate ? ' e no vencimento' : ''}` : 'desativado'}; descrição: ${configuration.description ?? 'sem descrição'}; sem movimentar saldo`
+			: reversal ? ` — ${reversal.recurringType === 'expense' ? 'devolver à conta' : 'retirar da conta'} ${reversal.bankName}, ciclo ${reversal.command.cycle} de ${reversal.name}; reabrir o ciclo e restaurar ${reversal.installmentsCount} parcela(s); preservar o histórico`
+			: settlement ? ` — ${settlement.recurringType === 'expense' ? 'pagar' : 'receber'} ${settlement.command.installmentsCount} parcela(s) de ${settlement.name}, ciclo ${settlement.command.cycle}, ${settlement.recurringType === 'expense' ? 'saindo de' : 'entrando em'} ${settlement.bankName}${settlement.command.lateSettlement ? '; liquidação após a vigência' : ''}`
+			: draft.kind === 'undo_cash_withdrawal' && draft.sparkWithdrawalReversal ? ` — devolver ${formatCents(draft.sparkWithdrawalReversal.amountInCents)} do Dinheiro ao ${draft.sparkWithdrawalReversal.bankName}; preservar o histórico`
+			: draft.kind === 'update_investment' && typeof draft.payload.initialValueInCents === 'number' ? ` · estornar o aporte inicial e registrar um novo aporte de ${formatCents(draft.payload.initialValueInCents)}`
 			: draft.kind === 'update_bank' && typeof draft.payload.isActive === 'boolean' ? ` · ${draft.payload.isActive?'ativar':'desativar'} o banco`
 			: draft.kind === 'upsert_balance_adjustment' && typeof draft.payload.targetBalanceInCents === 'number' ? ` · saldo conferido ${formatCents(draft.payload.targetBalanceInCents)}` : '';
-		return `${index + 1}. ${ASSISTANT_ACTION_LABELS[draft.kind]}: ${references.join(' · ')}${amount !== null ? ` · ${formatCents(amount)}` : ''}${effect}`;
+		const label = undoReplan ? `Desfazer replanejamento de ${undoReplan.recurringType === 'expense' ? 'despesa' : 'receita'} recorrente` : replan ? `Replanejar ${replan.recurringType === 'expense' ? 'despesa' : 'receita'} recorrente` : restore ? `Restaurar ${restore.recurringType === 'expense' ? 'despesa' : 'receita'} recorrente` : archive ? `Arquivar ${archive.recurringType === 'expense' ? 'despesa' : 'receita'} recorrente` : ASSISTANT_ACTION_LABELS[draft.kind];
+		return `${index + 1}. ${label}: ${references.join(' · ')}${amount !== null ? ` · ${formatCents(amount)}` : ''}${effect}`;
 	}).join('\n');
 	const ask = (ids: string[]) => {
 		const draft = state.drafts.find(item => ids.includes(item.clientActionId) && pending(item) && item.missingFields.length > 0);
@@ -139,6 +150,16 @@ export function createAssistantConversation(options: Options) {
 			if (!result.success) {
 				failures++; replace({ ...draft, status: result.errorCode === 'stale' ? 'stale' : 'failed', error: result.message });
 				if (ids.length <= 8) say(result.message, 'error');
+				// [[Assistente Lumus]]: definição confirmada já altera leituras, mesmo com configuração incerta.
+				if (['recurring-configuration-pending','recurring-configuration-cancelled'].includes(result.errorCode ?? '')) {
+					try {
+						await options.onCommit?.();
+						if (disposed || epoch !== currentEpoch) return;
+						const catalog = await options.finance.loadCatalog(options.uid);
+						if (disposed || epoch !== currentEpoch) return;
+						state.catalog = catalog; publish();
+					} catch { if (!disposed && epoch === currentEpoch) say('A definição foi salva; não consegui atualizar a lista agora. O mesmo pedido continua disponível para conferência.', 'warning'); }
+				}
 				continue;
 			}
 			done++; replace({ ...draft, status: 'succeeded', error: undefined, result });
@@ -310,7 +331,9 @@ export function createAssistantConversation(options: Options) {
 				else say('Não consegui associar o pedido local a uma operação disponível. Nenhuma alteração local foi feita.', 'warning');
 			}
 			for (const batch of response.batchRequests ?? []) {
-				const selection = expandAssistantBatch(batch, catalog);
+				if (/\b(?:replanej|renegoci)/.test(normalized(text))) { say('Replaneje cada contrato separadamente para conferir os valores e o histórico.', 'warning'); continue; }
+				const restoring = /^(?:restaure|restaurar|reative|reativar|quero restaurar|quero reativar)\b/.test(normalized(text)) && ['update_mandatory_expense','update_mandatory_gain'].includes(batch.kind);
+				const selection = expandAssistantBatch(restoring ? {...batch,payload:{...batch.payload,restoreOnly:true}} : batch, catalog);
 				say(`Filtro: ${selection.scope}. ${selection.proposals.length} elegíveis, ${selection.excluded} excluídos por data ou conclusão e ${selection.readOnly} sem permissão de escrita.${selection.unavailableHistory ? ` ${selection.unavailableHistory} sem histórico suficiente para conferir o ciclo, excluídos da execução.` : ''}`);
 				const humanCount = getExplicitAssistantBatchCount(text);
 				if (humanCount !== undefined && batch.expectedCount !== undefined && humanCount !== batch.expectedCount) {
@@ -333,14 +356,29 @@ export function createAssistantConversation(options: Options) {
 				replace(updated);
 				for (const item of state.drafts.filter(item => pending(item) && origins.get(item.clientActionId) === origins.get(draft.clientActionId))) if (!affected.includes(item.clientActionId)) affected.push(item.clientActionId);
 			}
+			const undoReplanIntent = /\b(?:desfaca|desfazer|reverter|reverta|estornar|estorne|cancelar|cancele)\b.*\b(?:replanejamento|renegociacao)\b/.test(normalized(text));
+			if (undoReplanIntent) {
+				response.actions = response.actions.filter(proposal => ['update_mandatory_expense','update_mandatory_gain','undo_mandatory_expense_payment','undo_mandatory_gain_receipt'].includes(proposal.kind));
+				for (const proposal of response.actions) {
+					proposal.kind = proposal.kind.includes('expense') ? 'update_mandatory_expense' : 'update_mandatory_gain';
+					proposal.payload = { recordRef: proposal.payload.recordRef, undoReplanOnly: true, replanReason: proposal.payload.replanReason };
+				}
+			}
 			for (const proposal of response.actions) {
+				if (/^(?:replaneje|replanejar|renegocie|renegociar|quero replanejar|quero renegociar)\b/.test(normalized(text)) && ['update_mandatory_expense','update_mandatory_gain'].includes(proposal.kind)) proposal.payload = {...proposal.payload,replanOnly:true};
+				if (/^(?:restaure|restaurar|reative|reativar|quero restaurar|quero reativar)\b/.test(normalized(text)) && ['update_mandatory_expense','update_mandatory_gain'].includes(proposal.kind)) proposal.payload = {...proposal.payload,restoreOnly:true};
+				if (/^(?:arquive|arquivar|quero arquivar)\b/.test(normalized(text)) && ['delete_mandatory_expense','delete_mandatory_gain'].includes(proposal.kind)) proposal.payload = {...proposal.payload,archiveOnly:true};
 				for (const [key, value] of Object.entries(proposal.payload)) {
 					if (!key.endsWith('Ref') || typeof value !== 'string') continue;
 					const source = getFieldDefinition(proposal.kind, key).choiceSource;
 					const selections = response.referenceCandidates?.filter(selection => selection.source === source) ?? [];
 					const exact = selections.some(selection => selection.total === 1 && selection.handles.includes(value));
 					const candidate = source ? catalog[source]?.find(item => item.handle === value) : null;
-					if (!exact && selections.some(selection => selection.total > 1 && candidate && normalized(candidate.label).includes(normalized(selection.query)))) proposal.payload[key] = undefined;
+					const uniqueUndoSuccessor = proposal.payload.undoReplanOnly === true && key === 'recordRef' && candidate?.data?.predecessorPlanId && !candidate.data?.successorPlanId && !candidate.data?.replanCancelled && selections.some(selection => {
+						const eligible = selection.handles.map(handle => catalog[source!]?.find(item => item.handle === handle)).filter(item => item?.data?.predecessorPlanId && !item.data?.successorPlanId && !item.data?.replanCancelled);
+						return selection.total === selection.handles.length && eligible.length === 1 && eligible[0]?.handle === value;
+					});
+					if (!exact && !uniqueUndoSuccessor && selections.some(selection => selection.total > 1 && candidate && normalized(candidate.label).includes(normalized(selection.query)))) proposal.payload[key] = undefined;
 				}
 			}
 			if (response.actions.length) {

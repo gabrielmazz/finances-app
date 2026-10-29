@@ -14,7 +14,7 @@ const BATCH_ACCOUNT_FIELDS: Partial<Record<AssistantActionKind, 'bankRef' | 'sou
 const BATCH_INVESTMENT_ACTIONS: readonly AssistantActionKind[] = ['deposit_investment', 'redeem_investment', 'sync_investment'];
 
 export function getExplicitAssistantBatchCount(text: string): number | undefined {
-	const count = /^(?:pague|quite|receba|exclua|remova|edite|altere|corrija|estorne|sincronize|resgate|aporte|transfira|saque|ajuste)\s+(?:[^;\n]*?\s+(?:em|de|para)\s+)?(?:(?:[oa]s|d[oa]s|tod[oa]s [oa]s)\s+)?(\d+|duas?|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:contas|despesas|gastos|receitas|ganhos|categorias|bancos|investimentos|registros|lancamentos)\b/.exec(normalize(text));
+	const count = /^(?:pague|quite|receba|exclua|remova|arquive|arquivar|restaure|restaurar|reative|reativar|edite|altere|corrija|estorne|sincronize|resgate|aporte|transfira|saque|ajuste)\s+(?:[^;\n]*?\s+(?:em|de|para)\s+)?(?:(?:[oa]s|d[oa]s|tod[oa]s [oa]s)\s+)?(\d+|duas?|dois|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:contas|despesas|gastos|receitas|ganhos|categorias|bancos|investimentos|registros|lancamentos|recorrencias)\b/.exec(normalize(text).replace(/^quero (arquivar|restaurar|reativar)\b/, '$1'));
 	if (!count) return undefined;
 	const words: Record<string, number> = {duas:2,dois:2,tres:3,quatro:4,cinco:5,seis:6,sete:7,oito:8,nove:9,dez:10};
 	const number = words[count[1]!] ?? Number(count[1]);
@@ -28,7 +28,10 @@ export function expandAssistantBatch(request: NonNullable<AssistantAiConversatio
 	if (!field) throw new AssistantFriendlyError('invalid-request', 'Essa operação não aceita seleção em lote. Dite os itens com os dados de cada um.');
 	const source = getFieldDefinition(request.kind, field).choiceSource;
 	if (!source) throw new AssistantFriendlyError('invalid-request', 'Essa operação não aceita seleção em lote. Dite os itens com os dados de cada um.');
-	const cycle = request.period ?? formatIsoDate(now).slice(0, 7);
+	const settlement = request.kind === 'pay_mandatory_expense' || request.kind === 'receive_mandatory_gain';
+	const requestedDate = settlement && typeof request.payload.date === 'string' ? request.payload.date : null;
+	if (request.period && requestedDate && request.period !== requestedDate.slice(0, 7)) throw new AssistantFriendlyError('invalid-request', 'O mês do lote difere da data do pagamento ou recebimento. Informe o mesmo ciclo.');
+	const cycle = request.period ?? requestedDate?.slice(0, 7) ?? formatIsoDate(now).slice(0, 7);
 	const query = normalize(request.query ?? '');
 	let excluded = 0;
 	let readOnly = 0;
@@ -38,16 +41,33 @@ export function expandAssistantBatch(request: NonNullable<AssistantAiConversatio
 		if (query && !normalize(item.label).includes(query)) continue;
 		if (item.ownerScope === 'related_read_only') { readOnly++; continue; }
 		const data = item.data ?? {};
+		if (request.payload.restoreOnly === true && item.collection === 'sparkRecurringPlans' && (data.active !== false || data.successorPlanId || data.replanCancelled)) {excluded++;continue;}
+		if (item.collection === 'sparkRecurringPlans' && ['delete_mandatory_expense','delete_mandatory_gain'].includes(request.kind) && (data.active !== true || data.successorPlanId || data.replanCancelled)) {excluded++;continue;}
 		if (accountField && (item.realId === null || data.kind === 'cash' || data.kind === 'investment' || data.isActive === false || data.archivedAt || request.kind === 'create_transfer' && item.handle === request.payload.targetBankRef)) { excluded++; continue; }
-		const settlement = request.kind === 'pay_mandatory_expense' || request.kind === 'receive_mandatory_gain';
-		if (settlement) {
+		if (item.collection === 'sparkRecurringPlans' && ['undo_mandatory_expense_payment', 'undo_mandatory_gain_receipt'].includes(request.kind)) {
+			const currentCycle = formatIsoDate(now).slice(0, 7);
+			if (cycle !== currentCycle) { unavailableHistory++; continue; }
+			const states = data.cycleStates as import('@/utils/sparkRecurringReadModel').SparkRecurringCycleReadModel[] | undefined;
+			if (data.successorPlanId || data.replanCancelled || !states?.some(state => state.active && state.cycle === currentCycle
+				&& (data.installmentTotal === null || state.installmentsAfter === data.installmentsCompleted))) { excluded++; continue; }
+		} else if (settlement) {
+			const native = item.collection === 'sparkRecurringPlans';
+			if (native) {
+				if (data.active !== true || data.successorPlanId || data.replanCancelled || typeof data.startCycle === 'string' && cycle < data.startCycle) { excluded++; continue; }
+				const window = data.cycleWindow as {fromCycle?: string; throughCycle?: string} | undefined;
+				if (typeof data.historyFromCycle !== 'string' || cycle < data.historyFromCycle || !window?.fromCycle || !window.throughCycle
+					|| cycle < window.fromCycle || cycle > window.throughCycle) { unavailableHistory++; continue; }
+			}
 			const completed = request.kind === 'pay_mandatory_expense' ? data.lastPaymentCycle : data.lastReceiptCycle;
 			const cycles = data.completedCycles && typeof data.completedCycles === 'object' ? data.completedCycles : {};
-			if (Object.hasOwn(cycles,cycle)) {excluded++;continue;}
+			if (Array.isArray(cycles) ? cycles.includes(cycle) : Object.hasOwn(cycles,cycle)) {excluded++;continue;}
 			if (typeof completed === 'string' && cycle < completed && data.assistantCycleHistoryComplete !== true) {unavailableHistory++;continue;}
 			if (completed === cycle || typeof data.installmentTotal === 'number' && Number(data.installmentsCompleted ?? 0) >= data.installmentTotal) { excluded++; continue; }
-			const reference = parseIsoDateAtLocalNoon(`${cycle}-15`)!;
-			const due = resolveMonthlyOccurrence({ referenceDate: reference, dueDay: Number(data.dueDay ?? 1), usesBusinessDays: data.usesBusinessDays === true }).date;
+			const configuration = native && data.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, unknown> : data;
+			if (native && request.overdue && typeof configuration.dueDay !== 'number') { unavailableHistory++; continue; }
+			const dueCycle = native && typeof data.endCycle === 'string' && data.endCycle < cycle ? data.endCycle : cycle;
+			const reference = parseIsoDateAtLocalNoon(`${dueCycle}-15`)!;
+			const due = resolveMonthlyOccurrence({ referenceDate: reference, dueDay: Number(configuration.dueDay ?? 1), usesBusinessDays: configuration.usesBusinessDays === true }).date;
 			const dueIso = formatIsoDate(due);
 			if (request.overdue && dueIso >= formatIsoDate(now)) { excluded++; continue; }
 			const start = data.installmentStartDate;

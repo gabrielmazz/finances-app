@@ -1,3 +1,13 @@
+import { replanSparkRecurringFirebase, undoSparkRecurringReplanFirebase } from '@/functions/SparkRecurringReplanFirebase';
+import { saveSparkRecurringMetadataFirebase } from '@/functions/SparkRecurringMetadataFirebase';
+import { validateSparkRecurringMetadata } from '@/utils/sparkRecurringMetadata';
+import { sparkRecurringFormRecord } from '@/functions/SparkRecurringFormFirebase';
+import { createSparkRecurringPlanFirebase, updateSparkRecurringPlanFirebase, settleSparkRecurringFirebase, undoSparkRecurringFirebase } from '@/functions/SparkRecurringFirebase';
+import { readSparkRecurringPlansFirebase } from '@/functions/SparkRecurringReadFirebase';
+import { prepareSparkPairReversalFirebase, executeSparkPairReversalFirebase } from '@/functions/SparkPairFormFirebase';
+import { SPARK_MAX_CENTS, parseSparkStoredPosition } from '@/functions/sparkFinancialProtocol';
+import { transferSparkFundsFirebase, transferSparkDatedFundsFirebase } from '@/functions/SparkTransferFirebase';
+import { readSparkOrdinaryForEditFirebase } from '@/functions/SparkOrdinaryReadFirebase';
 import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
 import { executeSparkMovementCommandFirebase } from '@/functions/SparkMovementCommandFirebase';
 import { sparkFormEffectiveAt } from '@/functions/SparkMovementFormFirebase';
@@ -29,7 +39,7 @@ import {
 	prepareAssistantActions,
 	updatePreparedAssistantDraft,
 } from '@/services/lumusAssistant/assistantCatalogService';
-import { parseIsoDateAtLocalNoon } from '@/utils/lumusAssistant';
+import { parseIsoDateAtLocalNoon, formatIsoDate } from '@/utils/lumusAssistant';
 import { getActionValidation, getFieldDefinition } from '@/utils/lumusAssistantSchemas';
 import {
 	cancelMandatoryExpenseNotification,
@@ -45,13 +55,14 @@ import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
 import { getInvestmentAssetType, getInvestmentValuationMethod } from '@/utils/investmentPortfolio';
 import { findTagIconByLabel } from '@/utils/tagIconCatalog';
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
-import { getMandatoryInstallmentValueInCents, normalizeMandatoryInstallmentTotal, resolveMandatoryInstallmentsCompleted } from '@/utils/mandatoryInstallments';
+import { MAX_MANDATORY_INSTALLMENTS, getMandatoryInstallmentValueInCents, normalizeMandatoryInstallmentTotal, resolveMandatoryInstallmentsCompleted } from '@/utils/mandatoryInstallments';
 import { MANDATORY_REMINDER_CONFIG_VERSION } from '@/utils/mandatoryReminderConfig';
 import {
 	Timestamp,
 	collection,
 	doc,
 	getDoc,
+	getDocFromServer,
 	getDocs,
 	query,
 	runTransaction,
@@ -544,6 +555,7 @@ const scheduleRecurringNotification = async (
 	personId: string,
 	templateId: string,
 	data: FirestoreRecord,
+	options: { requestPermission?: boolean; lastCompletedCycle?: string | null } = {},
 ): Promise<string | undefined> => {
 	if (!data.reminderEnabled) {
 		return undefined;
@@ -561,6 +573,7 @@ const scheduleRecurringNotification = async (
 			description: typeof data.description === 'string' ? data.description : null,
 			activeFromDate: toDate(data.installmentStartDate),
 			activeThroughDate: toDate(data.installmentEndDate),
+			...options,
 		};
 		const result = type === 'expense'
 			? await scheduleMandatoryExpenseNotification({ ...common, expenseId: templateId })
@@ -742,6 +755,52 @@ const retryRecurringNotification = async (
 		return fail('Este cartão não possui um lembrete que possa ser repetido.', 'notification-not-supported');
 	}
 	try {
+		const undoReplan = draft.sparkRecurringReplanUndo;
+		if (undoReplan) {
+			if (draft.status !== 'succeeded' || retry.operation !== 'sync' || retry.recurringType !== undoReplan.recurringType || retry.templateId !== undoReplan.command.planId) return fail('O lembrete não corresponde ao desfazimento.', 'invalid-reference');
+			await refreshReplanReminders(personId, undoReplan);
+			return { success: true, message: 'Lembretes atualizados sem repetir o desfazimento.' };
+		}
+		const replan = draft.sparkRecurringReplan;
+		if (replan) {
+			if (draft.status !== 'succeeded' || retry.operation !== 'sync' || retry.recurringType !== replan.recurringType || retry.templateId !== replan.command.planId) return fail('O lembrete não corresponde ao replanejamento.', 'invalid-reference');
+			await refreshReplanReminders(personId, replan);
+			return { success: true, message: 'Lembretes atualizados sem repetir o replanejamento.' };
+		}
+		const restore = draft.sparkRecurringRestore;
+		if (restore) {
+			if (draft.status !== 'succeeded' || retry.operation !== 'sync' || retry.recurringType !== restore.recurringType || retry.templateId !== restore.command.planId) return fail('O lembrete não corresponde à recorrência restaurada.', 'invalid-reference');
+			await refreshSparkRecurringReminder(personId,restore);
+			return {success:true,message:'Lembretes atualizados sem repetir a restauração.'};
+		}
+		const archive = draft.sparkRecurringArchive;
+		if (archive) {
+			if (draft.status!=='succeeded' || retry.operation!=='sync' || retry.recurringType!==archive.recurringType || retry.templateId!==archive.command.planId) return fail('O lembrete não corresponde à recorrência arquivada.', 'invalid-reference');
+			await refreshSparkRecurringReminder(personId,archive);
+			return {success:true,message:'Lembretes atualizados sem repetir o arquivamento.'};
+		}
+		const definition = draft.sparkRecurringDefinition;
+		if (definition) {
+			if (draft.status !== 'succeeded' || retry.operation !== 'sync' || retry.recurringType !== definition.recurringType || retry.templateId !== definition.definition.input.planId) return fail('O lembrete não corresponde à recorrência salva.', 'invalid-reference');
+			await refreshSparkRecurringReminder(personId,{recurringType:definition.recurringType,command:definition.definition.input});
+			return {success:true,message:'Lembrete atualizado sem repetir o cadastro ou a edição.'};
+		}
+		const reversal = draft.sparkRecurringReversal;
+		if (reversal) {
+			if (draft.status !== 'succeeded' || retry.operation !== 'sync' || retry.recurringType !== reversal.recurringType
+				|| retry.templateId !== reversal.command.planId || retry.cycle !== reversal.command.cycle) return fail('O lembrete não corresponde ao ciclo desfeito.', 'invalid-reference');
+			await refreshSparkRecurringReminder(personId, reversal);
+			return { success: true, message: 'Lembrete atualizado sem repetir o desfazimento financeiro.' };
+		}
+		const prepared = draft.sparkRecurringSettlement;
+		if (prepared) {
+			const current = await getSparkContextFirebase(db, personId);
+			if (auth.currentUser?.uid !== personId || prepared.command.actorId !== personId || current?.groupId !== prepared.command.groupId
+				|| draft.status !== 'succeeded' || retry.operation !== 'suppress_cycle'
+				|| retry.templateId !== prepared.command.planId || retry.cycle !== prepared.command.cycle || retry.recurringType !== prepared.recurringType) return fail('Atualize o lembrete na conta e no grupo originais.', 'invalid-reference');
+			await suppressSparkRecurringReminder(personId, prepared);
+			return { success: true, message: 'Lembrete do ciclo atualizado sem repetir o lançamento.' };
+		}
 		if (retry.operation === 'cancel') {
 			if (retry.recurringType === 'expense') {
 				await cancelMandatoryExpenseNotification(personId, retry.templateId);
@@ -1453,9 +1512,576 @@ const executeLedgerCommand = async (context: ExecuteContext, ledger: FinancialLe
 	return fail('Esta operação ainda não possui um comando seguro para o razão financeiro do grupo. Nenhum registro foi alterado.', 'capability-unavailable');
 };
 
+const submittedRecurringReplanUndos = new WeakSet<NonNullable<AssistantDraftAction['sparkRecurringReplanUndo']>>();
+
+/** [[Recorrências Spark]]: o último sucessor deve estar livre de pagamentos e replanejamentos posteriores. */
+async function prepareSparkRecurringReplanUndo(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	if (draft.sparkRecurringReplanUndo && submittedRecurringReplanUndos.has(draft.sparkRecurringReplanUndo)) return fail('Confira o envio anterior com os mesmos dados antes de alterar o pedido.', 'recurring-intent-pending');
+	draft = { ...draft, sparkRecurringReplanUndo: undefined };
+	if (draft.missingFields.length) return draft;
+	const item = resolveItem({ personId, draft, payload: draft.payload, catalog }, 'recordRef');
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) return fail('Desfazer replanejamento pelo chat exige um grupo Spark. Nenhum registro foi alterado.', 'capability-unavailable');
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId) return fail('Atualize o contrato do grupo antes de desfazer.', 'invalid-reference');
+	const preparedAt = new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido.', 'invalid-date');
+	const plans = await readSparkRecurringPlansFirebase(db, personId, spark.groupId, preparedAt);
+	const selected = plans.find(plan => plan.id === item.realId);
+	const recurringType = draft.kind === 'update_mandatory_expense' ? 'expense' : 'gain';
+	if (!selected || selected.actorId !== personId || selected.recurringType !== recurringType || selected.replanCancelled) return fail('O contrato está indisponível ou pertence a outro titular.', 'invalid-reference');
+	const original = selected.successorPlanId ? selected : plans.find(plan => plan.id === selected.predecessorPlanId);
+	const replacement = original?.successorPlanId ? plans.find(plan => plan.id === original.successorPlanId) : undefined;
+	if (!original || !replacement || original.actorId !== personId || replacement.actorId !== personId || original.recurringType !== recurringType || replacement.recurringType !== recurringType
+		|| original.active || original.replanCancelled || !original.replanOperationId || replacement.predecessorPlanId !== original.id || replacement.replanOriginOperationId !== original.replanOperationId
+		|| original.installmentTotal === null || original.contractTotalInCents === null || replacement.installmentTotal === null || replacement.contractTotalInCents === null) return fail('Não há replanejamento correspondente ao contrato selecionado.', 'invalid-reference');
+	if (replacement.successorPlanId || replacement.replanCancelled || replacement.installmentsCompleted !== 0) return fail('Desfaça primeiro os pagamentos, recebimentos e replanejamentos posteriores do contrato sucessor.', 'recurring-replan-dependencies');
+	const receipt = (await getDocFromServer(doc(db, 'financialGroups', spark.groupId, 'sparkOperations', original.replanOperationId))).data();
+	if (!receipt || receipt.kind !== 'recurring_replan' || receipt.actorId !== personId || receipt.planId !== original.id || receipt.replacementPlanId !== replacement.id) return fail('O registro original do replanejamento não corresponde aos contratos. Atualize o pedido.', 'invalid-reference');
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== spark.groupId || current.role !== spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	return { ...draft, sparkRecurringReplanUndo: { recurringType, originalName: original.name, originalTotalInCents: original.contractTotalInCents,
+		originalInstallments: original.installmentTotal, originalCompleted: original.installmentsCompleted, replacementName: replacement.name,
+		replacementTotalInCents: replacement.contractTotalInCents, replacementInstallments: replacement.installmentTotal, replacementStartCycle: replacement.startCycle,
+		command: { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, planId: original.id, replacementPlanId: replacement.id,
+			replanOperationId: original.replanOperationId, expectedPlanRevision: original.revision, expectedReplacementRevision: replacement.revision,
+			reason: getString(draft.payload, 'replanReason') } } };
+}
+
+async function executeSparkRecurringReplanUndo(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, prepared = draft.sparkRecurringReplanUndo;
+	if (!prepared || prepared.command.groupId !== spark.groupId || prepared.command.actorId !== personId || prepared.command.clientActionId !== draft.clientActionId || prepared.recurringType !== (draft.kind === 'update_mandatory_expense' ? 'expense' : 'gain')) return fail('Prepare novamente o desfazimento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.signal?.aborted || context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	submittedRecurringReplanUndos.add(prepared);
+	try { await undoSparkRecurringReplanFirebase(db, prepared.command); }
+	catch (error) {
+		if ((error as { sparkIntentCancelled?: boolean })?.sparkIntentCancelled) return { success: false, errorCode: 'recurring-replan-undo-cancelled', message: 'A tentativa foi cancelada antes da confirmação. Prepare um novo pedido.' };
+		throw error;
+	}
+	let notificationWarning: string | undefined;
+	try { await refreshReplanReminders(personId, prepared); } catch { notificationWarning = 'O replanejamento foi desfeito, mas os lembretes locais ainda precisam ser atualizados.'; }
+	return { success: true, message: 'Replanejamento desfeito: contrato anterior reativado, sucessor cancelado e histórico preservado. Nenhum saldo foi movimentado.', recordHandle: `action:${draft.clientActionId}`, notificationWarning,
+		notificationRetry: notificationWarning ? { operation: 'sync', recurringType: prepared.recurringType, templateId: prepared.command.planId } : undefined };
+}
+
+const submittedRecurringReplans = new WeakSet<NonNullable<AssistantDraftAction['sparkRecurringReplan']>>();
+
+/** [[Recorrências Spark]]: a autorização contém o contrato sucessor e as revisões anteriores. */
+async function prepareSparkRecurringReplan(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	if (draft.sparkRecurringReplan && submittedRecurringReplans.has(draft.sparkRecurringReplan)) return fail('Confira o envio anterior com os mesmos dados antes de alterar o replanejamento.', 'recurring-intent-pending');
+	draft = { ...draft, sparkRecurringReplan: undefined };
+	if (draft.missingFields.length) return draft;
+	const item = resolveItem({ personId, draft, payload: draft.payload, catalog }, 'recordRef');
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) return fail('O replanejamento pelo chat exige um grupo Spark. Nenhum registro foi alterado.', 'capability-unavailable');
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId) return fail('Atualize o plano do grupo antes de replanejar.', 'invalid-reference');
+	const preparedAt = new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido.', 'invalid-date');
+	const plan = (await readSparkRecurringPlansFirebase(db, personId, spark.groupId, preparedAt)).find(candidate => candidate.id === item.realId);
+	const recurringType = draft.kind === 'update_mandatory_expense' ? 'expense' : 'gain';
+	if (!plan || plan.actorId !== personId || plan.recurringType !== recurringType || !plan.active || plan.successorPlanId || plan.replanCancelled || plan.installmentTotal === null || plan.contractTotalInCents === null || plan.installmentsCompleted >= plan.installmentTotal || !plan.metadata) return fail('O contrato não está disponível para replanejamento ou precisa de vencimento configurado.', 'invalid-reference');
+	const total = getInteger(draft.payload, 'replanTotalInCents'), installments = getInteger(draft.payload, 'replanInstallments');
+	const startCycle = getString(draft.payload, 'replanStartCycle'), reason = getString(draft.payload, 'replanReason');
+	const end = new Date(Date.UTC(Number(startCycle.slice(0, 4)), Number(startCycle.slice(5, 7)) + installments - 2, 1));
+	if (total > SPARK_MAX_CENTS || total < installments || startCycle < getCycleKeyFromDate(toFinancialCivilDate(preparedAt)) || end.getUTCFullYear() > 2100 || startCycle < '1970-01') return fail('Confira o total, as parcelas e o primeiro mês atual ou futuro do contrato.', 'invalid-payload');
+	if (plan.cycleStates?.some(state => state.cycle === startCycle && state.active)) return fail('O primeiro mês já possui pagamento ou recebimento confirmado no contrato anterior.', 'invalid-reference');
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== spark.groupId || current.role !== spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	return { ...draft, sparkRecurringReplan: { recurringType, originalInstallments: plan.installmentTotal, originalTotalInCents: plan.contractTotalInCents, completed: plan.installmentsCompleted,
+		command: { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, planId: plan.id,
+			replacementPlanId: createDocumentId(personId, draft.clientActionId, 'recurring_replan'), expectedPlanRevision: plan.revision,
+			expectedMetadataRevision: plan.metadataRevision ?? null, name: plan.name, categoryId: plan.categoryId,
+			startCycle, installmentTotal: installments, contractTotalInCents: total, reason, metadata: { ...plan.metadata } } } };
+}
+
+async function refreshReplanReminders(personId: string, prepared: NonNullable<AssistantDraftAction['sparkRecurringReplan'] | AssistantDraftAction['sparkRecurringReplanUndo']>) {
+	const command = prepared.command;
+	await refreshSparkRecurringReminder(personId, { recurringType: prepared.recurringType, command });
+	await refreshSparkRecurringReminder(personId, { recurringType: prepared.recurringType, command: { ...command, planId: command.replacementPlanId } });
+}
+
+async function executeSparkRecurringReplan(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, prepared = draft.sparkRecurringReplan;
+	if (!prepared || prepared.command.groupId !== spark.groupId || prepared.command.actorId !== personId || prepared.command.clientActionId !== draft.clientActionId || prepared.recurringType !== (draft.kind === 'update_mandatory_expense' ? 'expense' : 'gain')) return fail('Prepare novamente o replanejamento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.signal?.aborted || context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	submittedRecurringReplans.add(prepared);
+	try { await replanSparkRecurringFirebase(db, prepared.command); }
+	catch (error) {
+		if ((error as { sparkIntentCancelled?: boolean })?.sparkIntentCancelled) return { success: false, errorCode: 'recurring-replan-cancelled', message: 'A tentativa foi cancelada antes da confirmação. Prepare um novo pedido.' };
+		throw error;
+	}
+	let notificationWarning: string | undefined;
+	try { await refreshReplanReminders(personId, prepared); } catch { notificationWarning = 'O contrato foi replanejado, mas os lembretes locais ainda precisam ser atualizados.'; }
+	return { success: true, message: 'Recorrência replanejada; histórico preservado e nenhum pagamento ou recebimento lançado.', recordHandle: `action:${draft.clientActionId}`, notificationWarning,
+		notificationRetry: notificationWarning ? { operation: 'sync', recurringType: prepared.recurringType, templateId: prepared.command.planId } : undefined };
+}
+
+/** [[Recorrências Spark]]: arquivar conserva contrato, ciclos, contador e pagamentos. */
+async function prepareSparkRecurringArchive(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	draft = {...draft,sparkRecurringArchive:undefined};
+	if (draft.missingFields.length) return draft;
+	const item=resolveItem({personId,draft,payload:draft.payload,catalog},'recordRef');
+	const spark=await getSparkContextFirebase(db,personId);
+	if (!spark) {
+		if (draft.payload.archiveOnly === true || item.collection === 'sparkRecurringPlans') return fail('O arquivamento pelo chat exige o grupo Spark disponível. Nenhum registro foi excluído.', 'capability-unavailable');
+		return draft;
+	}
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId) return fail('Atualize o plano do grupo antes de arquivar.', 'invalid-reference');
+	const preparedAt=new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido para conferir a recorrência.', 'invalid-date');
+	const plan=(await readSparkRecurringPlansFirebase(db,personId,spark.groupId,preparedAt)).find(candidate=>candidate.id===item.realId);
+	const recurringType=draft.kind==='delete_mandatory_expense'?'expense':'gain';
+	if (!plan || plan.actorId!==personId || plan.recurringType!==recurringType || plan.successorPlanId || plan.replanCancelled) return fail('O plano mudou, pertence a outro titular ou foi replanejado.', 'invalid-reference');
+	if (!plan.active) return fail('A recorrência já está arquivada. Confira a lista antes de preparar outro pedido.', 'already-archived');
+	const current=await getSparkContextFirebase(db,personId);
+	if (auth.currentUser?.uid!==personId || current?.groupId!==spark.groupId || current.role!==spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	return {...draft,sparkRecurringArchive:{recurringType,installmentTotal:plan.installmentTotal,installmentsCompleted:plan.installmentsCompleted,
+		command:{groupId:spark.groupId,actorId:personId,clientActionId:draft.clientActionId,planId:plan.id,expectedPlanRevision:plan.revision,
+			name:plan.name,categoryId:plan.categoryId,valueInCents:plan.valueInCents,active:false}}};
+}
+
+async function executeSparkRecurringArchive(context:ExecuteContext,spark:NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>):Promise<AssistantExecuteResult> {
+	const {draft,personId}=context,prepared=draft.sparkRecurringArchive;
+	if (!prepared || prepared.command.active!==false || prepared.command.groupId!==spark.groupId || prepared.command.actorId!==personId
+		|| prepared.command.clientActionId!==draft.clientActionId || prepared.recurringType!==(draft.kind==='delete_mandatory_expense'?'expense':'gain')) return fail('Prepare novamente o arquivamento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.signal?.aborted || context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	try {await updateSparkRecurringPlanFirebase(db,prepared.command);}
+	catch(error) {
+		if ((error as {sparkIntentCancelled?:boolean})?.sparkIntentCancelled) return {success:false,errorCode:'recurring-archive-cancelled',message:'A tentativa de arquivamento foi cancelada antes da confirmação. Prepare um novo pedido.'};
+		throw error;
+	}
+	let notificationWarning:string|undefined;
+	try {await refreshSparkRecurringReminder(personId,prepared);}
+	catch {notificationWarning='A recorrência foi arquivada, mas os lembretes locais ainda precisam ser atualizados.';}
+	return {success:true,message:`${prepared.recurringType==='expense'?'Despesa':'Receita'} recorrente arquivada. Contrato, pagamentos, recebimentos e histórico foram preservados.`,recordHandle:`action:${draft.clientActionId}`,notificationWarning,
+		notificationRetry:notificationWarning?{operation:'sync',recurringType:prepared.recurringType,templateId:prepared.command.planId}:undefined};
+}
+
+async function prepareSparkRecurringRestore(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	draft = {...draft,sparkRecurringRestore:undefined};
+	if (Object.entries(draft.payload).some(([key,value]) => !['recordRef','restoreOnly'].includes(key) && value !== undefined)) return fail('Restaure a recorrência e solicite outras alterações separadamente.', 'invalid-payload');
+	if (draft.missingFields.length) return draft;
+	const item=resolveItem({personId,draft,payload:draft.payload,catalog},'recordRef');
+	const spark=await getSparkContextFirebase(db,personId);
+	if (!spark) {
+		if (draft.payload.restoreOnly === true || item.collection === 'sparkRecurringPlans') return fail('A restauração pelo chat exige o grupo Spark disponível. Nenhum registro foi excluído.', 'capability-unavailable');
+		return draft;
+	}
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId) return fail('Atualize o plano do grupo antes de restaurar.', 'invalid-reference');
+	const preparedAt=new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido para conferir a recorrência.', 'invalid-date');
+	const plan=(await readSparkRecurringPlansFirebase(db,personId,spark.groupId,preparedAt)).find(candidate=>candidate.id===item.realId);
+	const recurringType=draft.kind==='update_mandatory_expense'?'expense':'gain';
+	if (!plan || plan.actorId!==personId || plan.recurringType!==recurringType || plan.successorPlanId || plan.replanCancelled) return fail('O plano mudou, pertence a outro titular ou foi replanejado.', 'invalid-reference');
+	if (plan.active) return fail('A recorrência já está ativa. Atualize a lista antes de preparar outro pedido.', 'already-active');
+	const current=await getSparkContextFirebase(db,personId);
+	if (auth.currentUser?.uid!==personId || current?.groupId!==spark.groupId || current.role!==spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	return {...draft,sparkRecurringRestore:{recurringType,installmentTotal:plan.installmentTotal,installmentsCompleted:plan.installmentsCompleted,
+		command:{groupId:spark.groupId,actorId:personId,clientActionId:draft.clientActionId,planId:plan.id,expectedPlanRevision:plan.revision,
+			name:plan.name,categoryId:plan.categoryId,valueInCents:plan.valueInCents,active:true}}};
+}
+
+async function executeSparkRecurringRestore(context:ExecuteContext,spark:NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>):Promise<AssistantExecuteResult> {
+	const {draft,personId}=context,prepared=draft.sparkRecurringRestore;
+	if (!prepared || prepared.command.active!==true || prepared.command.groupId!==spark.groupId || prepared.command.actorId!==personId
+		|| prepared.command.clientActionId!==draft.clientActionId || prepared.recurringType!==(draft.kind==='update_mandatory_expense'?'expense':'gain')) return fail('Prepare novamente a restauração antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.signal?.aborted || context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	try {await updateSparkRecurringPlanFirebase(db,prepared.command);}
+	catch(error) {
+		if ((error as {sparkIntentCancelled?:boolean})?.sparkIntentCancelled) return {success:false,errorCode:'recurring-restore-cancelled',message:'A tentativa de restauração foi cancelada antes da confirmação. Prepare um novo pedido.'};
+		throw error;
+	}
+	let notificationWarning:string|undefined;
+	try {await refreshSparkRecurringReminder(personId,prepared);}
+	catch {notificationWarning='A recorrência foi restaurada, mas os lembretes locais ainda precisam ser atualizados.';}
+	return {success:true,message:`${prepared.recurringType==='expense'?'Despesa':'Receita'} recorrente restaurada. Contrato, pagamentos, recebimentos e histórico foram preservados.`,recordHandle:`action:${draft.clientActionId}`,notificationWarning,
+		notificationRetry:notificationWarning?{operation:'sync',recurringType:prepared.recurringType,templateId:prepared.command.planId}:undefined};
+}
+
+// [[Assistente Lumus]]: depois do primeiro envio, a mesma intenção conserva material e receipts das duas fases.
+const submittedRecurringDefinitions = new WeakSet<NonNullable<AssistantDraftAction['sparkRecurringDefinition']>>();
+async function prepareSparkRecurringDefinition(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	if (draft.sparkRecurringDefinition && submittedRecurringDefinitions.has(draft.sparkRecurringDefinition)) return fail('Confira o envio anterior com os mesmos dados antes de alterar esta recorrência.', 'recurring-intent-pending');
+	draft = { ...draft, sparkRecurringDefinition: undefined };
+	if (draft.missingFields.length) return draft;
+	const context: ExecuteContext = { personId, draft, payload: draft.payload, catalog }, payload = draft.payload;
+	const creating = draft.kind.startsWith('create_'), recurringType = draft.kind.endsWith('expense') ? 'expense' : 'gain';
+	const item = creating ? null : resolveItem(context, 'recordRef');
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) {
+		if (item?.collection === 'sparkRecurringPlans') return fail('O grupo Spark não está disponível. Atualize o pedido.', 'invalid-reference');
+		return draft;
+	}
+	const preparedAt = new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido para conferir a vigência.', 'invalid-date');
+	if (item && (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId)) return fail('Atualize a recorrência do grupo antes de editar.', 'invalid-reference');
+	const target = item ? (await readSparkRecurringPlansFirebase(db, personId, spark.groupId, preparedAt)).find(plan => plan.id === item.realId) : null;
+	if (item && (!target || target.actorId !== personId || target.recurringType !== recurringType || target.successorPlanId || target.replanCancelled)) return fail('A recorrência mudou, pertence a outro titular ou foi replanejada.', 'invalid-reference');
+	const category = payload.categoryRef === undefined ? null : resolveItem(context, 'categoryRef');
+	if (category && (category.collection !== 'tags' || !category.realId || category.data?.groupId != null && category.data.groupId !== spark.groupId)) return fail('Selecione uma categoria autorizada do grupo.', 'invalid-reference');
+	const categoryId = category?.realId ?? target?.categoryId ?? null;
+	if (creating && !categoryId) return fail('Selecione uma categoria para cadastrar a recorrência.', 'invalid-reference');
+	const installmentTotal = payload.installmentTotal === undefined ? target?.installmentTotal ?? null : payload.installmentTotal as number | null;
+	const valueInCents = payload.valueInCents === undefined && target ? target.valueInCents : getInteger(payload, 'valueInCents');
+	const contractTotalInCents = target ? target.contractTotalInCents : installmentTotal === null ? null : payload.installmentTotalValueInCents === undefined ? valueInCents * installmentTotal : getInteger(payload, 'installmentTotalValueInCents');
+	const startDate = typeof payload.installmentStartDate === 'string' ? parseActionDate(payload, 'installmentStartDate') : null;
+	const startCycle = startDate ? getCycleKeyFromDate(toFinancialCivilDate(startDate)) : target?.startCycle ?? getCycleKeyFromDate(toFinancialCivilDate(preparedAt));
+	const [year, month] = startCycle.split('-').map(Number), endDate = installmentTotal === null ? null : new Date(Date.UTC(year, month + installmentTotal - 2, 1));
+	const endCycle = endDate ? `${endDate.getUTCFullYear()}-${String(endDate.getUTCMonth() + 1).padStart(2, '0')}` : null;
+	if (target && (installmentTotal !== target.installmentTotal || valueInCents !== target.valueInCents && target.installmentTotal !== null
+		|| payload.installmentTotalValueInCents !== undefined && payload.installmentTotalValueInCents !== target.contractTotalInCents
+		|| startCycle !== target.startCycle || payload.installmentStartDate === null && target.installmentTotal !== null)) return fail('O contrato de parcelas e a vigência não são editáveis. Use o replanejamento na tela da recorrência.', 'contract-immutable');
+	if (payload.installmentEndDate !== undefined && (payload.installmentEndDate === null ? endCycle !== null : getCycleKeyFromDate(toFinancialCivilDate(parseActionDate(payload, 'installmentEndDate'))) !== endCycle)) return fail('A data final deve corresponder ao contrato de parcelas.', 'invalid-payload');
+	if (installmentTotal === null && (payload.installmentStartDate != null || payload.installmentEndDate != null)) return fail('Datas de parcelas exigem um contrato parcelado. A recorrência sem parcelas conserva seu ciclo inicial.', 'invalid-payload');
+	if (installmentTotal === null && payload.installmentTotalValueInCents != null) return fail('Informe a quantidade de parcelas para definir o total do contrato.', 'invalid-payload');
+	if (!Number.isSafeInteger(valueInCents) || valueInCents <= 0 || valueInCents > SPARK_MAX_CENTS
+		|| installmentTotal !== null && (!Number.isInteger(installmentTotal) || installmentTotal < 1 || installmentTotal > MAX_MANDATORY_INSTALLMENTS
+			|| !Number.isSafeInteger(contractTotalInCents) || contractTotalInCents! <= 0 || contractTotalInCents! > SPARK_MAX_CENTS
+			|| Math.floor(contractTotalInCents! / installmentTotal) !== valueInCents)) return fail('Valor mensal, quantidade e total do contrato precisam corresponder em centavos inteiros.', 'invalid-payload');
+	const old = target?.metadata;
+	const reminderTime = payload.reminderTime === undefined && old ? {hour:old.reminderHour,minute:old.reminderMinute} : getReminderTime(payload);
+	if ((payload.reminderEnabled ?? old?.reminderEnabled) && payload.dueDay === undefined && old?.dueDay == null) return { ...draft, status:'needs_input', missingFields:[getFieldDefinition(draft.kind,'dueDay')] };
+	const metadata = validateSparkRecurringMetadata({ dueDay: payload.dueDay === undefined ? old?.dueDay ?? null : getInteger(payload, 'dueDay'),
+		usesBusinessDays: payload.usesBusinessDays === undefined ? old?.usesBusinessDays ?? false : Boolean(payload.usesBusinessDays),
+		description: payload.description === undefined ? old?.description ?? null : getOptionalString(payload, 'description'), reminderConfigVersion: 1,
+		reminderEnabled: payload.reminderEnabled === undefined ? old?.reminderEnabled ?? false : Boolean(payload.reminderEnabled),
+		reminderDaysBefore: payload.reminderDaysBefore === undefined ? old?.reminderDaysBefore ?? 1 : getInteger(payload, 'reminderDaysBefore'),
+		reminderOnDueDate: payload.reminderOnDueDate === undefined ? old?.reminderOnDueDate ?? false : Boolean(payload.reminderOnDueDate), reminderHour: reminderTime.hour, reminderMinute: reminderTime.minute });
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== spark.groupId || current.role !== spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	const planId = target?.id ?? createDocumentId(personId, draft.clientActionId, 'recurring_plan');
+	const identity = { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, planId };
+	const name = payload.name === undefined && target ? target.name : getString(payload, 'name');
+	const definition: NonNullable<AssistantDraftAction['sparkRecurringDefinition']>['definition'] = target
+		? { action: 'update', input: {...identity,expectedPlanRevision:target.revision,name,categoryId,valueInCents,active:target.active} }
+		: { action: 'create', input: {...identity,recurringType,name,categoryId,valueInCents,startCycle,installmentTotal,contractTotalInCents} };
+	return { ...draft, sparkRecurringDefinition: { recurringType, definition,
+		metadata: { ...identity, clientActionId: createDocumentId(personId, draft.clientActionId, 'recurring_metadata'), expectedMetadataRevision: target?.metadataRevision ?? null, metadata },
+		startCycle, endCycle, installmentTotal, contractTotalInCents,
+		categoryName: category?.label ?? (categoryId ? 'categoria atual' : 'sem categoria') } };
+}
+
+async function executeSparkRecurringDefinition(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const {draft,personId}=context, prepared=draft.sparkRecurringDefinition;
+	if (!prepared || prepared.definition.action !== (draft.kind.startsWith('create_') ? 'create' : 'update')
+		|| prepared.recurringType !== (draft.kind.endsWith('expense') ? 'expense' : 'gain') || prepared.definition.input.groupId !== spark.groupId
+		|| prepared.definition.input.actorId !== personId || prepared.definition.input.clientActionId !== draft.clientActionId
+		|| prepared.metadata.groupId !== spark.groupId || prepared.metadata.actorId !== personId || prepared.metadata.planId !== prepared.definition.input.planId) return fail('Prepare novamente a recorrência antes de confirmar.', 'invalid-reference');
+	const canContinue=()=>{if(context.callOptions?.signal?.aborted || context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();};
+	canContinue(); submittedRecurringDefinitions.add(prepared);
+	try {
+		if (prepared.definition.action === 'create') await createSparkRecurringPlanFirebase(db, prepared.definition.input);
+		else await updateSparkRecurringPlanFirebase(db, prepared.definition.input);
+	} catch(error) {
+		if ((error as {sparkIntentCancelled?:boolean})?.sparkIntentCancelled) return {success:false,errorCode:'recurring-intent-cancelled',message:'A tentativa de cadastro ou edição foi cancelada antes da confirmação. Prepare um novo pedido.'};
+		throw error;
+	}
+	try { canContinue(); await saveSparkRecurringMetadataFirebase(db, prepared.metadata); }
+	catch(error) {
+		if ((error as {sparkIntentCancelled?:boolean})?.sparkIntentCancelled) return {success:false,errorCode:'recurring-configuration-cancelled',message:'A definição está confirmada; a tentativa de configuração foi cancelada. Atualize a lista e edite essa recorrência para completar a configuração.'};
+		return {success:false,errorCode:'recurring-configuration-pending',message:'A definição está confirmada, mas não foi possível confirmar sua configuração. Reenvie este mesmo pedido para concluir sem cadastrar outra recorrência.'};
+	}
+	let notificationWarning:string|undefined;
+	try {await refreshSparkRecurringReminder(personId,{recurringType:prepared.recurringType,command:prepared.definition.input});}
+	catch {notificationWarning='A recorrência foi salva, mas o lembrete local ainda precisa ser atualizado.';}
+	return {success:true,message:prepared.definition.action==='create'?'Recorrência cadastrada; nenhum pagamento ou recebimento foi lançado.':'Recorrência atualizada; pagamentos e recebimentos foram preservados.',recordHandle:`action:${draft.clientActionId}`,notificationWarning,
+		notificationRetry:notificationWarning?{operation:'sync',recurringType:prepared.recurringType,templateId:prepared.definition.input.planId}:undefined};
+}
+
+/** [[Recorrências Spark]]: o estorno usa o valor efetivado, inclusive acerto negociado ou parcela final. */
+async function prepareSparkRecurringReversal(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	draft = { ...draft, sparkRecurringReversal: undefined };
+	if (draft.missingFields.length) return draft;
+	const item = resolveItem({ personId, draft, payload: draft.payload, catalog }, 'recordRef');
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) {
+		if (item.collection === 'sparkRecurringPlans') return fail('O grupo Spark não está disponível. Atualize o pedido.', 'invalid-reference');
+		return draft;
+	}
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId) return fail('Atualize o plano do grupo antes de desfazer o ciclo.', 'invalid-reference');
+	const preparedAt = new Date(draft.preparedAt);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido para conferir o ciclo.', 'invalid-date');
+	const cycle = getCycleKeyFromDate(toFinancialCivilDate(preparedAt));
+	const plan = (await readSparkRecurringPlansFirebase(db, personId, spark.groupId, preparedAt)).find(candidate => candidate.id === item.realId);
+	const recurringType = draft.kind === 'undo_mandatory_expense_payment' ? 'expense' : 'gain';
+	if (!plan || plan.actorId !== personId || plan.recurringType !== recurringType || plan.successorPlanId || plan.replanCancelled) return fail('O plano mudou, pertence a outro titular ou exige desfazer o replanejamento primeiro.', 'invalid-reference');
+	if (cycle < plan.historyFromCycle || cycle < plan.cycleWindow.fromCycle || cycle > plan.cycleWindow.throughCycle) return fail('Não há histórico confirmado para desfazer este ciclo.', 'history-unavailable');
+	const settled = plan.cycleStates?.find(state => state.cycle === cycle && state.active);
+	if (!settled) return fail('Não existe pagamento ou recebimento ativo no ciclo atual para desfazer.', 'nothing-to-undo');
+	if (plan.installmentTotal !== null && plan.installmentsCompleted !== settled.installmentsAfter) return fail('Desfaça primeiro as parcelas efetivadas depois desta.', 'installment-order');
+	const original = (await getDocFromServer(doc(db, 'financialGroups', spark.groupId, 'sparkOperations', settled.settlementOperationId))).data();
+	if (!original || !['recurring_settlement', 'imported_recurring_settlement'].includes(original.kind)
+		|| original.actorId !== personId || original.planId !== plan.id || original.cycle !== cycle || original.recurringType !== recurringType
+		|| original.accountId !== settled.accountId || original.amountInCents !== settled.amountInCents || original.installmentsCount !== settled.installmentsCount
+		|| original.differenceInCents !== (recurringType === 'expense' ? -settled.amountInCents : settled.amountInCents)
+		|| toDate(original.effectiveAt)?.getTime() !== settled.effectiveAt.getTime()
+		|| !Number.isSafeInteger(settled.amountInCents) || settled.amountInCents <= 0 || settled.amountInCents > SPARK_MAX_CENTS
+		|| settled.effectiveAt.getTime() > Date.now()) return fail('A efetivação original não corresponde ao ciclo apresentado. Atualize o histórico.', 'invalid-reference');
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== spark.groupId || current.role !== spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	const bankName = settled.accountId === 'cash' ? 'Dinheiro' : catalog.banks?.find(bank => bank.realId === settled.accountId && bank.data?.groupId === spark.groupId)?.label ?? 'conta original';
+	return { ...draft, sparkRecurringReversal: { recurringType, name: plan.name, bankName, amountInCents: settled.amountInCents, installmentsCount: settled.installmentsCount,
+		command: { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, planId: plan.id,
+			expectedPlanRevision: plan.revision, cycle, settlementOperationId: settled.settlementOperationId,
+			effectiveAt: Timestamp.fromDate(settled.effectiveAt), note: 'Desfazimento do ciclo pelo chat', overdraftReason: null } } };
+}
+
+async function refreshSparkRecurringReminder(personId: string, prepared: {recurringType:'expense'|'gain';command:{groupId:string;actorId:string;planId:string}}) {
+	const context = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || prepared.command.actorId !== personId || context?.groupId !== prepared.command.groupId) throw new AssistantOperationCancelled();
+	const now = new Date(), plan = (await readSparkRecurringPlansFirebase(db, personId, context.groupId, now)).find(candidate => candidate.id === prepared.command.planId);
+	if (!plan || plan.actorId !== personId || plan.recurringType !== prepared.recurringType) throw new Error('O plano do lembrete não está disponível.');
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== context.groupId) throw new AssistantOperationCancelled();
+	const record = sparkRecurringFormRecord(plan, now);
+	if (!plan.active || plan.successorPlanId || plan.replanCancelled || !plan.metadata?.reminderEnabled
+		|| plan.installmentTotal !== null && plan.installmentsCompleted >= plan.installmentTotal) {
+		const cancel = prepared.recurringType === 'expense' ? cancelMandatoryExpenseNotification : cancelMandatoryGainNotification;
+		await cancel(personId, plan.id);
+	} else {
+		const warning = await scheduleRecurringNotification(prepared.recurringType, personId, plan.id, record, {
+			requestPermission: false, lastCompletedCycle: record[prepared.recurringType === 'expense' ? 'lastPaymentCycle' : 'lastReceiptCycle'] ?? null,
+		});
+		if (warning) throw new Error(warning);
+	}
+}
+
+async function executeSparkRecurringReversal(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, prepared = draft.sparkRecurringReversal;
+	if (!prepared || prepared.command.groupId !== spark.groupId || prepared.command.actorId !== personId || prepared.command.clientActionId !== draft.clientActionId
+		|| prepared.recurringType !== (draft.kind === 'undo_mandatory_expense_payment' ? 'expense' : 'gain')) return fail('Prepare novamente o desfazimento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	await undoSparkRecurringFirebase(db, prepared.command);
+	let notificationWarning: string | undefined;
+	try { await refreshSparkRecurringReminder(personId, prepared); }
+	catch { notificationWarning = 'O ciclo foi desfeito, mas o lembrete local ainda precisa ser atualizado.'; }
+	return { success: true, message: prepared.recurringType === 'expense' ? 'Pagamento recorrente desfeito; valor devolvido à conta original e histórico preservado.' : 'Recebimento recorrente desfeito; valor retirado da conta original e histórico preservado.',
+		recordHandle: `action:${draft.clientActionId}`, notificationWarning,
+		notificationRetry: notificationWarning ? { operation: 'sync', recurringType: prepared.recurringType, templateId: prepared.command.planId, cycle: prepared.command.cycle } : undefined };
+}
+
+/** [[Recorrências Spark]]: capturar o contrato antes da autorização; retry reutiliza o recibo. */
+async function prepareSparkRecurringSettlement(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantDraftAction> {
+	if (draft.payload.undoReplanOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return prepareSparkRecurringReplanUndo(personId,draft,catalog);
+	if (draft.payload.replanOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return prepareSparkRecurringReplan(personId,draft,catalog);
+	if (draft.payload.restoreOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return prepareSparkRecurringRestore(personId,draft,catalog);
+	if (['delete_mandatory_expense','delete_mandatory_gain'].includes(draft.kind)) return prepareSparkRecurringArchive(personId,draft,catalog);
+	if (['create_mandatory_expense','create_mandatory_gain','update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return prepareSparkRecurringDefinition(personId,draft,catalog);
+	if (['undo_mandatory_expense_payment', 'undo_mandatory_gain_receipt'].includes(draft.kind)) return prepareSparkRecurringReversal(personId, draft, catalog);
+	if (!['pay_mandatory_expense', 'receive_mandatory_gain'].includes(draft.kind)) return draft;
+	draft = { ...draft, sparkRecurringSettlement: undefined };
+	if (draft.missingFields.length) return draft;
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) {
+		const item = findAssistantCatalogItem(catalog, draft.kind === 'pay_mandatory_expense' ? 'mandatoryExpenses' : 'mandatoryGains', draft.payload.recordRef);
+		if (item?.collection === 'sparkRecurringPlans') return fail('O grupo Spark não está disponível. Atualize o pedido.', 'invalid-reference');
+		return draft;
+	}
+	const context: ExecuteContext = { personId, draft, payload: draft.payload, catalog };
+	const item = resolveItem(context, 'recordRef'), bank = resolveItem(context, 'bankRef');
+	if (item.collection !== 'sparkRecurringPlans' || item.data?.groupId !== spark.groupId || !item.realId
+		|| bank.collection !== 'sparkPositions' || bank.data?.groupId !== spark.groupId || !bank.realId
+		|| !['bank', 'cash'].includes(String(bank.data?.kind)) || bank.data?.isActive === false
+		|| (bank.data?.kind === 'cash') !== (bank.realId === 'cash')) return fail('Atualize o plano e a conta do grupo antes de confirmar.', 'invalid-reference');
+	const preparedAt = new Date(draft.preparedAt), date = parseActionDate(draft.payload);
+	if (!Number.isFinite(preparedAt.getTime())) return fail('Prepare novamente o pedido para confirmar a data.', 'invalid-date');
+	const effectiveAt = draft.payload.time ? Timestamp.fromDate(date) : sparkFormEffectiveAt(toFinancialCivilDate(date), preparedAt);
+	if (effectiveAt.toMillis() > Date.now()) return fail('O pagamento ou recebimento não pode ter data futura.', 'invalid-date');
+	const cycle = getCycleKeyFromDate(toFinancialCivilDate(effectiveAt.toDate()));
+	const plans = await readSparkRecurringPlansFirebase(db, personId, spark.groupId, effectiveAt.toDate());
+	const plan = plans.find(candidate => candidate.id === item.realId);
+	const recurringType = draft.kind === 'pay_mandatory_expense' ? 'expense' : 'gain';
+	if (!plan || plan.actorId !== personId || plan.recurringType !== recurringType || !plan.active || plan.successorPlanId || plan.replanCancelled) return fail('O plano mudou, está inativo ou pertence a outro titular. Atualize o pedido.', 'invalid-reference');
+	if (cycle < plan.startCycle || cycle < plan.historyFromCycle || cycle < plan.cycleWindow.fromCycle || cycle > plan.cycleWindow.throughCycle) return fail('O ciclo está fora da vigência ou do histórico confirmado deste plano.', 'history-unavailable');
+	if (plan.completedCycles.includes(cycle) || plan.cycleStates?.some(state => state.cycle === cycle && state.active)) return fail('Este ciclo já foi pago ou recebido. Confira o histórico.', 'cycle-completed');
+	const installmentsCount = draft.payload.installmentsToAdvance === undefined ? 1 : getInteger(draft.payload, 'installmentsToAdvance');
+	if (installmentsCount < 1 || installmentsCount > MAX_MANDATORY_INSTALLMENTS || (plan.installmentTotal === null ? installmentsCount !== 1 : installmentsCount > plan.installmentTotal - plan.installmentsCompleted)) return fail('A quantidade excede as parcelas restantes; planos sem fim permitem um ciclo por lançamento.', 'invalid-payload');
+	const amountInCents = plan.installmentTotal === null ? draft.payload.valueInCents ?? plan.valueInCents : getMandatoryInstallmentValueInCents({
+		installmentTotal: plan.installmentTotal, installmentsCompleted: plan.installmentsCompleted, installmentsToSettle: installmentsCount,
+		installmentValueInCents: plan.valueInCents, installmentTotalValueInCents: plan.contractTotalInCents,
+	});
+	if (typeof amountInCents !== 'number' || !Number.isSafeInteger(amountInCents) || amountInCents <= 0 || amountInCents > SPARK_MAX_CENTS) return fail('O contrato não possui um valor válido em centavos.', 'invalid-payload');
+	if (draft.payload.valueInCents !== undefined && draft.payload.valueInCents !== amountInCents) return fail('O valor diverge das parcelas do contrato. Use a tela da recorrência para uma liquidação negociada.', 'invalid-payload');
+	const late = plan.endCycle !== null && cycle > plan.endCycle;
+	const current = await getSparkContextFirebase(db, personId);
+	if (auth.currentUser?.uid !== personId || current?.groupId !== spark.groupId || current.role !== spark.role) return fail('A sessão ou o grupo mudou. Prepare novamente o pedido.', 'authentication');
+	return { ...draft, sparkRecurringSettlement: { recurringType, name: plan.name, bankName: bank.label,
+		command: { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId,
+			planId: plan.id, expectedPlanRevision: plan.revision, cycle, effectiveAt, accountId: bank.realId,
+			installmentsCount, amountInCents, overdraftReason: null,
+			note: getOptionalString(draft.payload, 'explanation') ?? (late ? 'Liquidação após a vigência confirmada pelo chat' : null),
+			...(late ? { lateSettlement: true as const } : {}),
+		} } };
+}
+
+async function suppressSparkRecurringReminder(personId: string, prepared: NonNullable<AssistantDraftAction['sparkRecurringSettlement']>) {
+	const suppress = prepared.recurringType === 'expense' ? suppressMandatoryExpenseNotificationCycle : suppressMandatoryGainNotificationCycle;
+	await suppress(personId, prepared.command.planId, prepared.command.cycle);
+}
+
+async function executeSparkRecurringSettlement(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, prepared = draft.sparkRecurringSettlement;
+	if (!prepared || prepared.command.groupId !== spark.groupId || prepared.command.actorId !== personId || prepared.command.clientActionId !== draft.clientActionId
+		|| prepared.recurringType !== (draft.kind === 'pay_mandatory_expense' ? 'expense' : 'gain')) return fail('Prepare novamente o pagamento ou recebimento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	// Não reler plano/ciclo aqui: o próprio commit muda a revisão; o protocolo confere primeiro o recibo.
+	await settleSparkRecurringFirebase(db, prepared.command);
+	let notificationWarning: string | undefined;
+	try {
+		if (auth.currentUser?.uid !== personId) throw new AssistantOperationCancelled();
+		await suppressSparkRecurringReminder(personId, prepared);
+	} catch { notificationWarning = 'O lançamento foi concluído, mas o lembrete local não pôde ser atualizado.'; }
+	return { success: true, message: prepared.recurringType === 'expense' ? 'Pagamento recorrente registrado no grupo.' : 'Recebimento recorrente registrado no grupo.',
+		recordHandle: `action:${draft.clientActionId}`, notificationWarning,
+		notificationRetry: notificationWarning ? { operation: 'suppress_cycle', recurringType: prepared.recurringType, templateId: prepared.command.planId, cycle: prepared.command.cycle } : undefined };
+}
+
+async function prepareSparkWithdrawalReversal(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog) {
+	if (draft.kind !== 'undo_cash_withdrawal' || draft.missingFields.length) return draft;
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) return { ...draft, sparkWithdrawalReversal: undefined };
+	const item = resolveItem({ personId, draft, payload: draft.payload, catalog }, 'recordRef');
+	const reference = item.data?.sparkExecutionReference as import('@/utils/sparkFinancialReadModel').SparkExecutionReference | undefined;
+	if (item.data?.groupId !== spark.groupId || !reference || reference.family !== 'pair' || reference.operationId !== item.realId
+		|| item.collection !== (reference.source === 'live' ? 'sparkOperations' : reference.source === 'imported' ? 'sparkImportedIdentities' : '')) return fail('Atualize o saque antes de confirmar o estorno.', 'invalid-reference');
+	const group = doc(db, 'financialGroups', spark.groupId);
+	const original = (await getDocFromServer(doc(group, item.collection!, reference.operationId))).data();
+	if (!original || original.kind !== 'transfer' || original.toAccountId !== 'cash' || original.fromAccountId === 'cash'
+		|| original.fromAccountId !== item.data?.fromAccountId || original.amountInCents !== item.data?.valueInCents
+		|| !Number.isSafeInteger(original.amountInCents) || original.amountInCents <= 0 || original.amountInCents > SPARK_MAX_CENTS) return fail('O alvo não é o saque apresentado na confirmação.', 'invalid-reference');
+	const position = parseSparkStoredPosition((await getDocFromServer(doc(group, 'sparkPositions', original.fromAccountId))).data() ?? {});
+	if (position.kind !== 'bank') return fail('Use o fluxo próprio da operação original.', 'invalid-reference');
+	const command = await prepareSparkPairReversalFirebase(db, personId, reference, draft.clientActionId);
+	if (command.groupId !== spark.groupId || command.actorId !== personId) return fail('O grupo financeiro mudou. Prepare novamente o saque.', 'invalid-reference');
+	return { ...draft, sparkWithdrawalReversal: { command: { ...command, note: 'Estorno de saque em dinheiro' },
+		amountInCents: original.amountInCents as number, bankName: typeof item.data?.bankName === 'string' ? item.data.bankName : 'banco de origem' } };
+}
+
+async function executeSparkWithdrawalReversal(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, prepared = draft.sparkWithdrawalReversal;
+	if (!prepared || prepared.command.groupId !== spark.groupId || prepared.command.actorId !== personId || prepared.command.clientActionId !== draft.clientActionId) return fail('Prepare novamente o saque antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	await executeSparkPairReversalFirebase(db, prepared.command);
+	return { success: true, message: 'Saque estornado: dinheiro devolvido ao banco de origem, com histórico preservado.', recordHandle: `action:${draft.clientActionId}` };
+}
+
+/** [[Movimentos Datados em Par Spark]]: preparo canônico assinado antes de confirmar pelo chat. */
+async function prepareSparkPair(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog) {
+	if (!['create_transfer', 'create_cash_withdrawal'].includes(draft.kind) || draft.missingFields.length) return draft;
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark) return { ...draft, sparkPairCommand: undefined, sparkPairDay: undefined };
+	const withdrawal = draft.kind === 'create_cash_withdrawal', payload = draft.payload;
+	const context: ExecuteContext = { personId, draft, payload, catalog };
+	const source = resolveItem(context, withdrawal ? 'bankRef' : 'sourceBankRef');
+	const destination = withdrawal ? catalog.banks?.find(item => item.realId === 'cash' && item.data?.kind === 'cash') : resolveItem(context, 'targetBankRef');
+	if (source.collection !== 'sparkPositions' || source.data?.groupId !== spark.groupId || source.data?.kind !== 'bank' || !source.realId
+		|| !destination?.realId || destination.collection !== 'sparkPositions' || destination.data?.groupId !== spark.groupId
+		|| destination.data?.kind !== (withdrawal ? 'cash' : 'bank') || destination.data?.isActive === false || source.realId === destination.realId) return fail('Selecione contas ativas do grupo; saque exige o Caixa canônico.', 'invalid-reference');
+	const amount = getInteger(payload, 'valueInCents');
+	if (amount <= 0 || amount > SPARK_MAX_CENTS) return fail('Informe centavos positivos dentro do limite financeiro.', 'invalid-payload');
+	const reason = getOptionalString(payload, 'overdraftReason');
+	if (!withdrawal && reason) return fail('Transferências exigem saldo suficiente na origem.', 'insufficient-balance');
+	if (reason && (reason.length < 3 || reason.length > 500)) return fail('A justificativa deve ter de 3 a 500 caracteres.', 'invalid-payload');
+	const preparedAt = new Date(draft.preparedAt), date = parseActionDate(payload);
+	if (!Number.isFinite(preparedAt.getTime()) || formatIsoDate(date) > formatIsoDate(preparedAt)) return fail('A data não pode ser futura. Prepare novamente o pedido.', 'invalid-date');
+	const day = formatIsoDate(date), today = formatIsoDate(preparedAt);
+	const command = { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, kind: 'transfer' as const,
+		fromAccountId: source.realId, toAccountId: destination.realId, amountInCents: amount,
+		note: getOptionalString(payload, 'description') ?? (withdrawal ? 'Saque em dinheiro' : 'Transferência entre bancos'), overdraftReason: reason,
+		...(day === today && !payload.time ? {} : { effectiveAt: payload.time ? Timestamp.fromDate(date) : sparkFormEffectiveAt(toFinancialCivilDate(date), preparedAt) }) };
+	if ('effectiveAt' in command && command.effectiveAt!.toMillis() > Date.now()) return fail('O horário informado é futuro.', 'invalid-date');
+	return { ...draft, sparkPairCommand: command, sparkPairDay: day };
+}
+
+async function executeSparkPair(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, command = draft.sparkPairCommand;
+	if (!command || command.kind !== 'transfer' || command.groupId !== spark.groupId || command.actorId !== personId || command.clientActionId !== draft.clientActionId
+		|| !draft.sparkPairDay) return fail('Prepare novamente o par antes de confirmar.', 'invalid-reference');
+	const canContinue = () => { if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled(); };
+	canContinue();
+	if ('effectiveAt' in command) {
+		await transferSparkDatedFundsFirebase(db, command);
+	} else {
+		const receipt = await getDocFromServer(doc(db, 'financialGroups', spark.groupId, 'sparkOperations', command.clientActionId));
+		if (receipt.exists()) {
+			const savedAt = toDate(receipt.data()?.createdAt);
+			if (!savedAt || formatIsoDate(savedAt) !== draft.sparkPairDay) return fail('A data do recibo difere deste pedido. Confira o extrato antes de preparar outra operação.', 'idempotency-conflict');
+		} else if (draft.sparkPairDay !== formatIsoDate(new Date())) {
+			return fail('O dia mudou sem confirmação do envio anterior. Confira o extrato e prepare outro pedido.', 'day-changed');
+		}
+		canContinue();
+		await transferSparkFundsFirebase(db, command);
+	}
+	return { success: true, message: draft.kind === 'create_cash_withdrawal' ? 'Saque em dinheiro registrado no Caixa do grupo.' : 'Transferência entre bancos registrada.', recordHandle: `action:${draft.clientActionId}` };
+}
+
+async function prepareSparkOrdinaryTarget(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog) {
+	if (!['update_expense', 'update_gain', 'delete_expense', 'delete_gain'].includes(draft.kind) || draft.missingFields.length) return draft;
+	const item = findAssistantCatalogItem(catalog, draft.kind.endsWith('expense') ? 'expenses' : 'gains', draft.payload.recordRef);
+	if (!item || !['sparkOperations', 'sparkImportedIdentities'].includes(item.collection ?? '')) return { ...draft, sparkMovementTarget: undefined };
+	const spark = await getSparkContextFirebase(db, personId);
+	if (!spark || item.data?.groupId !== spark.groupId) return fail('O grupo financeiro mudou. Atualize o pedido.', 'invalid-reference');
+	const reference = item.data?.sparkExecutionReference as import('@/utils/sparkFinancialReadModel').SparkExecutionReference | undefined;
+	if (!reference || reference.operationId !== item.realId || reference.family !== 'ordinary'
+		|| reference.source !== (item.collection === 'sparkOperations' ? 'live' : 'imported')) return fail('Referência ordinária inválida.', 'invalid-reference');
+	const target = await readSparkOrdinaryForEditFirebase(db, personId, spark.groupId, reference);
+	if (target.movementKind !== (draft.kind.endsWith('expense') ? 'expense' : 'income')) return fail('O tipo do lançamento diverge do pedido.', 'invalid-reference');
+	const prepared = { ...draft, sparkMovementTarget: target };
+	return { ...prepared, sparkMovementCommand: buildSparkResolutionCommand({ personId, draft: prepared, payload: prepared.payload, catalog }, spark) };
+}
+
+function buildSparkResolutionCommand(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): import('@/functions/SparkMovementCommandFirebase').SparkMovementCommand {
+	const { draft, payload, personId } = context;
+	const target = draft.sparkMovementTarget, snapshot = draft.originalSnapshot;
+	if (!target || target.groupId !== spark.groupId || target.readerActorId !== personId || !snapshot || snapshot.recordHandle !== payload.recordRef
+		|| snapshot.collection !== (target.reference.source === 'live' ? 'sparkOperations' : 'sparkImportedIdentities')) return fail('Prepare novamente o lançamento antes de confirmar.', 'invalid-reference');
+	const movementKind = draft.kind.endsWith('expense') ? 'expense' : 'income';
+	if (target.movementKind !== movementKind) return fail('O tipo do lançamento diverge do pedido.', 'invalid-reference');
+	const common = { groupId: spark.groupId, actorId: personId, clientActionId: draft.clientActionId, movementKind: target.movementKind,
+		target: { ...target.reference }, expectedFingerprint: target.expectedFingerprint,
+		effectiveAt: Timestamp.fromDate(new Date(draft.preparedAt)), note: getOptionalString(payload, 'explanation'),
+		overdraftReason: getOptionalString(payload, 'overdraftReason'),
+		assistantRequestFingerprint: createAssistantRecordFingerprint({ kind: draft.kind, payload, preparedAt: draft.preparedAt, target, dependencies: draft.dependsOnActionIds }) };
+	if (draft.kind.startsWith('delete_')) {
+		return { ...common, action: 'reverse' };
+	} else {
+		const bank = payload.bankRef ? resolveItem(context, 'bankRef') : null;
+		if (bank && (bank.collection !== 'sparkPositions' || bank.data?.groupId !== spark.groupId || !bank.realId || !['bank','cash'].includes(String(bank.data?.kind)))) return fail('Conta inválida para correção.', 'invalid-reference');
+		const category = payload.categoryRef ? resolveItem(context, 'categoryRef') : null;
+		if (category && (category.collection !== 'tags' || !category.realId)) return fail('Categoria inválida para correção.', 'invalid-reference');
+		const date = payload.date ? parseActionDate(payload) : target.effectiveAt.toDate();
+		return { ...common, action: 'correct',
+			effectiveAt: payload.time ? Timestamp.fromDate(parseActionDate({ ...payload, date: payload.date ?? formatIsoDate(date) })) : sparkFormEffectiveAt(toFinancialCivilDate(date), new Date(draft.preparedAt), target.effectiveAt),
+			accountId: bank?.realId ?? target.accountId, categoryId: category?.realId ?? target.categoryId,
+			amountInCents: payload.valueInCents === undefined ? target.amountInCents : getInteger(payload, 'valueInCents'),
+			details: { ...target.details, name: payload.name === undefined ? target.details.name : getString(payload, 'name'),
+				explanation: Object.hasOwn(payload, 'explanation') ? getOptionalString(payload, 'explanation') : target.details.explanation,
+				moneyFormat: bank ? bank.data?.kind === 'cash' : target.details.moneyFormat },
+		};
+	}
+}
+
+async function executeSparkResolution(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
+	const { draft, personId } = context, command = draft.sparkMovementCommand;
+	if (!command || command.action !== (draft.kind.startsWith('delete_') ? 'reverse' : 'correct') || command.groupId !== spark.groupId
+		|| command.actorId !== personId || command.clientActionId !== draft.clientActionId) return fail('Prepare novamente o lançamento antes de confirmar.', 'invalid-reference');
+	if (context.callOptions?.canContinue && !context.callOptions.canContinue()) throw new AssistantOperationCancelled();
+	await executeSparkMovementCommandFirebase(db, command);
+	return { success: true, message: command.action === 'reverse' ? 'Lançamento estornado; histórico preservado.' : 'Lançamento corrigido por estorno e substituição.', recordHandle: `action:${draft.clientActionId}` };
+}
+
 /** [[Assistente Lumus]]: cada pedido conserva ID, data e argumentos no receipt Spark. */
 async function executeSparkCreateMovement(context: ExecuteContext, spark: NonNullable<Awaited<ReturnType<typeof getSparkContextFirebase>>>): Promise<AssistantExecuteResult> {
 	const { payload, draft, personId } = context;
+	if (payload.undoReplanOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringReplanUndo(context,spark);
+	if (payload.replanOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringReplan(context,spark);
+	if (payload.restoreOnly === true && ['update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringRestore(context,spark);
+	if (['delete_mandatory_expense','delete_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringArchive(context,spark);
+	if (['create_mandatory_expense','create_mandatory_gain','update_mandatory_expense','update_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringDefinition(context,spark);
+	if (['undo_mandatory_expense_payment', 'undo_mandatory_gain_receipt'].includes(draft.kind)) return executeSparkRecurringReversal(context, spark);
+	if (['pay_mandatory_expense', 'receive_mandatory_gain'].includes(draft.kind)) return executeSparkRecurringSettlement(context, spark);
+	if (draft.kind === 'undo_cash_withdrawal') return executeSparkWithdrawalReversal(context, spark);
+	if (['create_transfer', 'create_cash_withdrawal'].includes(draft.kind)) return executeSparkPair(context, spark);
+	if (['update_expense', 'update_gain', 'delete_expense', 'delete_gain'].includes(draft.kind)) return executeSparkResolution(context, spark);
 	if (!['create_expense', 'create_gain'].includes(draft.kind)) return fail('Esta operação ainda precisa do adaptador Spark no chat. Use a tela correspondente para concluir.', 'capability-unavailable');
 	const bank = resolveItem(context, 'bankRef');
 	if (bank.collection !== 'sparkPositions' || bank.data?.groupId !== spark.groupId || !bank.realId || !['bank', 'cash'].includes(String(bank.data?.kind))) return fail('Atualize as contas do grupo antes de registrar este lançamento.', 'invalid-reference');
@@ -1527,12 +2153,16 @@ export const financeCommandService: FinanceCommandService = {
 		const prepared = await prepareAssistantActions(personId, proposals, resolvedCatalog);
 		const actions: AssistantDraftAction[] = [];
 		for (let offset = 0; offset < prepared.actions.length; offset += 8) {
-			actions.push(...await Promise.all(prepared.actions.slice(offset, offset + 8).map(draft => prepareBalanceAdjustment(personId, draft, resolvedCatalog, callOptions))));
+			actions.push(...await Promise.all(prepared.actions.slice(offset, offset + 8).map(async draft => prepareSparkRecurringSettlement(personId, await prepareSparkWithdrawalReversal(personId, await prepareSparkPair(personId, await prepareSparkOrdinaryTarget(personId, await prepareBalanceAdjustment(personId, draft, resolvedCatalog, callOptions), resolvedCatalog), resolvedCatalog), resolvedCatalog), resolvedCatalog))));
 		}
 		return { ...prepared, actions };
 	},
 	async updateDraft(personId, draft, patch, catalog, options) {
-		return prepareBalanceAdjustment(personId, updatePreparedAssistantDraft(draft, patch, catalog), catalog, { ...options, canContinue: () => auth.currentUser?.uid === personId });
+		if (draft.payload.archiveOnly === true) patch = {...patch,archiveOnly:true};
+		if (draft.payload.undoReplanOnly === true) patch = {...patch,undoReplanOnly:true};
+		if (draft.payload.replanOnly === true) patch = {...patch,replanOnly:true};
+		if (draft.payload.restoreOnly === true) patch = {...patch,restoreOnly:true};
+		return prepareSparkRecurringSettlement(personId, await prepareSparkWithdrawalReversal(personId, await prepareSparkPair(personId, await prepareSparkOrdinaryTarget(personId, await prepareBalanceAdjustment(personId, updatePreparedAssistantDraft(draft, patch, catalog), catalog, { ...options, canContinue: () => auth.currentUser?.uid === personId }), catalog), catalog), catalog), catalog);
 	},
 	async execute(personId, draft, catalog, authorization, options) {
 		const callOptions = { ...options, canContinue: () => auth.currentUser?.uid === personId && validateAssistantExecutionAuthorization(personId, draft, authorization) };
@@ -1559,6 +2189,11 @@ export const financeCommandService: FinanceCommandService = {
 			}
 			const spark = await getSparkContextFirebase(db, personId);
 			if (spark) return await executeSparkCreateMovement({ personId, draft, payload: validation.payload, catalog, callOptions }, spark);
+			if (draft.sparkRecurringReplanUndo || draft.sparkRecurringReplan || draft.sparkRecurringRestore || draft.sparkRecurringArchive || draft.sparkRecurringDefinition || draft.sparkRecurringSettlement || draft.sparkRecurringReversal) return fail('O grupo Spark original não está disponível. Atualize o pedido.', 'invalid-reference');
+			if (validation.payload.undoReplanOnly === true) return fail('Desfazer replanejamento pelo chat exige um grupo Spark. Nenhum registro foi alterado.', 'capability-unavailable');
+			if (validation.payload.replanOnly === true) return fail('O replanejamento pelo chat exige um grupo Spark. Nenhum registro foi alterado.', 'capability-unavailable');
+			if (validation.payload.restoreOnly === true) return fail('A restauração pelo chat exige um grupo Spark. Nenhum registro foi alterado.', 'capability-unavailable');
+			if (validation.payload.archiveOnly === true && ['delete_mandatory_expense','delete_mandatory_gain'].includes(draft.kind)) return fail('O arquivamento pelo chat exige um grupo Spark. Nenhum registro foi excluído.', 'capability-unavailable');
 			const ledger = await getFinancialLedgerContextFirebase(personId);
 			if (auth.currentUser?.uid !== personId) return fail('A sessão mudou. Envie o pedido novamente.', 'authentication');
 			if (ledger && draft.kind !== 'upsert_balance_adjustment' && draft.kind !== 'revert_balance_adjustment') {

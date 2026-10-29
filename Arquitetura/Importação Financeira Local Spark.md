@@ -105,6 +105,10 @@ npm run spark:snapshot -- import-ledger --input spark-backups/ledger.json --grou
 
 Usar IDs, corte e hash da fixture revisada. As saídas são exclusivas; normalização com pendências retorna código 2 e falha de execução retorna 1. O snapshot legado nunca é passado ao writer como se fosse razão. Não existe opção para remover o bloqueio do grupo.
 
+O `import-ledger` local retoma o mesmo plano após interrupção: compara todos os documentos existentes com o conjunto planejado, recusa extras ou divergências e cria somente os faltantes em lotes de até 100 com pré-condição de inexistência. Imprime a contagem de documentos concluídos. Um recibo existente só é aceito após conferir seus campos e o hash do conjunto completo; o resultado repetido informa `idempotent: true`. Para repetir pela CLI, use o mesmo snapshot, grupo, corte e hash e um novo arquivo de saída, pois os relatórios são exclusivos. O Emulator deve permanecer isolado e sem escritores concorrentes durante toda a operação: a varredura não é atômica. Não existe reversão automática; preserve a cópia e use um emulador vazio para restauração quando houver divergência.
+
+Teste dirigido com Firestore Emulator e Hub simulado pelo harness local confirmou a retomada após commit com resposta perdida e o retry do recibo. Testes com transporte simulado verificam rejeição de divergências. Essa evidência aplica-se ao importador de razão e não torna o candidato legado executável nem prova recuperação de dados oficiais.
+
 ## Arquivos e validação
 
 - `backend/scripts/lib/sparkLegacyNormalization.ts`: normalizador e autoria das fontes legadas.
@@ -120,3 +124,50 @@ Continuam pendentes normalização integral dos formatos especiais, pontes de ed
 
 
 Validação final de 18/10/2026: `npm run check` passou com 75 testes locais das ferramentas (28 acrescentados neste bloco), 815 comuns e 88 condicionais ignorados. `npm run test:spark:restore` passou com sete ensaios, zero ignorados (três acrescentados neste bloco). Evidências `.expo/spark-proof-2026-10-18/financial-import/`. A suíte financeira Spark completa de 382 cenários não foi repetida, pois o protocolo cliente e suas Rules não foram alterados; a equivalência desta importação usa os oito casos autenticados descritos acima.
+
+
+### Diagnóstico de conta antes da migração — 27/10/2026
+
+`inspect-account` analisa um snapshot local validado e um UID, identificando perfil desconhecido, grupo do razão/Spark ou fontes legadas observadas por coleção. Documentos financeiros sem `personId` inequívoco, com identidade malformada ou divergente, são listados como ambíguos; a contagem não infere saldos ou titularidade de dados duvidosos. O relatório fica vinculado ao hash do snapshot e não altera a origem.
+
+Um snapshot sem documentos financeiros não comprova que uma conta seja nova: ele não inclui Auth e usa duas varreduras que não garantem instante único. Por isso `canInitialize`, `canMigrate` e `readyForCutover` permanecem falsos em todos os resultados. O diagnóstico não cria grupos, importa dados, concede permissões ou altera o banco oficial. Ainda faltam bootstrap seguro, preservação dos formatos legados, consentimentos, corte e recuperação. Ver [[Importação Financeira Local Spark]] e [[Status da Implementação Spark]].
+
+```sh
+npm run spark:snapshot -- inspect-account --input spark-backups/demo.json --uid UID_FICTICIO --output spark-backups/account-report.json
+```
+
+O comando usa exclusivamente os snapshots `demo-*` validados pelo formato local; a saída é criada de forma exclusiva e privada. Não é captura ou migração de produção.
+
+Em 28/10/2026, o diagnóstico passou a incluir também a coleção antiga `investments`. A normalização registra uma pendência para documentos dessa coleção no escopo ou sem titular identificável, pois ainda não há adaptador que preserve e reconcilie esse formato. A presença desses documentos não pode ser tratada como histórico vazio. A alteração não habilita importação nem corte de contas reais.
+
+A normalização também recusa fontes cuja identidade alternativa `userId` conflite com `personId` e possa apontar para um membro analisado, mesmo quando `personId` está fora do escopo. Fontes de outro titular que referenciem um banco selecionado geram pendência para revisão dos vínculos e participantes. Isso impede que sejam descartadas silenciosamente do candidato; não prova que o snapshot seja completo nem autoriza migração.
+
+### Candidato de razão a partir do legado
+
+`candidate-legacy-ledger` transforma as fontes reconhecidas em contas, eventos e reconciliações de razão em memória. Exige snapshot `demo-*` íntegro e normalização sem pendências; preserva o hash do snapshot e do escopo, os caminhos/hashes das fontes e a autoria comprovada. Eventos sem uma autoria única são recusados. As posições são conferidas novamente contra o reconciliador, usando as datas civis calculadas na normalização. O resultado e seu hash são determinísticos para a mesma entrada.
+
+O candidato é apenas um arquivo local de revisão: `canApply` e `readyForCutover` são sempre falsos. A conversão não inclui todos os metadados/formatos especiais, não prova completude ou consentimento, não prepara o protocolo Spark e não pode ser aplicada pelo importador de razão existente. Ajuste de Caixa sem autoria verificável permanece bloqueado. Os dados de produção não são lidos nem escritos.
+
+```sh
+npm run spark:snapshot -- candidate-legacy-ledger --input spark-backups/demo.json --scope spark-backups/scope.json --output spark-backups/ledger-candidate.json
+```
+
+### Prévia Spark a partir do legado
+
+`preview-legacy-spark` liga o candidato de razão ao planejador Spark existente em memória. Para um escopo suportado, gera posições, nós históricos, identidades e cadastro bancário com nome, cor e ícone; associa o resultado ao hash da fonte e do candidato. O grupo da prévia permanece `spark_importing`, sem protocolo ativo. O primeiro membro é usado apenas como administrador hipotético da simulação; nenhum papel é concedido.
+
+O caminho converte categorias legadas suportadas em documentos propostos `tags/{id}` com grupo, titular, `historyKnown:false` e origem integral em `sparkMetadataOrigins`. Quando há movimento histórico, gera também `sparkCategoryReferences`; os movimentos preservam o ID. Recusa titular ou grupo incompatível, referência ausente ou externa, uso incompatível, formatos nativos/desconhecidos e colisões de origem/marcador. As tags propostas substituiriam documentos existentes: somente aparecem no resultado em memória e não são aplicadas pelo writer. Recorrências legadas continuam bloqueadas nesta prévia. A proteção efetiva de exclusão após uma importação ainda requer teste integrado e procedimento de corte.
+
+O caminho rejeita investimentos, contas inativas e demais metadados não convertidos, além de colisões e dados bancários incompatíveis. Ele não altera o snapshot nem executa importação. O saldo antes da primeira abertura continua desconhecido; contas sem abertura comprovada são recusadas. `canApply` e `readyForCutover` continuam falsos. O hash `sparkPlanSha256` identifica o plano base; `previewSha256` também vincula as categorias e cadastros bancários acrescentados. Auth, consentimentos, corte dos escritores e ativação permanecem pendentes.
+
+```sh
+npm run spark:snapshot -- preview-legacy-spark --input spark-backups/demo.json --scope spark-backups/scope.json --output spark-backups/spark-preview.json
+```
+
+### Volume do ensaio local
+
+A normalização, o candidato e o planejamento reutilizam índices em memória para localizar documentos, contas e referências, evitando buscas repetidas em listas completas. Um teste sintético com 1.500 receitas adicionais conferiu contagem, autoria e saldo final; as suítes locais do candidato, da prévia e do importador passaram (83 testes), assim como a checagem de tipos das ferramentas. Isso não estabelece limite máximo de volume, consumo de memória ou tempo de execução em uma base real. A captura e a prévia continuam em memória e restritas ao ambiente de demonstração.
+
+As categorias propostas são uma conversão parcial para revisão local; recorrências, visibilidade autenticada e proteção efetiva de exclusão ainda precisam de validação integrada. Nenhuma dessas verificações autoriza ativação ou certifica completude do histórico.
+
+Validação local da prévia de categorias: 12 testes passaram, incluindo ausência, grupo externo, tipo incompatível, uso por titular externo e recusa de recorrência. A suíte do planejador de razão passou em 69 testes. A presença do marcador no plano foi conferida em memória; não foi demonstrada sua aplicação por writer nem a exclusão concorrente pelas Rules nesta etapa.

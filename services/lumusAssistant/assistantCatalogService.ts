@@ -2,7 +2,7 @@ import { getSparkContextFirebase } from '@/functions/SparkContextFirebase';
 import { readSparkAccountsFirebase } from '@/functions/SparkAccountReadFirebase';
 import { readSparkFinancialEventsFirebase } from '@/functions/SparkFinancialReadFirebase';
 import { readSparkRecurringPlansFirebase } from '@/functions/SparkRecurringReadFirebase';
-import { getSparkCurrentOrdinaryMovements } from '@/utils/sparkFinancialReadModel';
+import { getSparkCurrentOrdinaryMovements, getSparkMovementResolutionIndex } from '@/utils/sparkFinancialReadModel';
 import { db } from '@/FirebaseConfig';
 import type {
 	AssistantActionKind,
@@ -189,9 +189,18 @@ async function loadSparkAssistantCatalog(personId: string, context: NonNullable<
 		data: { personId: event.actorId, groupId, name: event.details?.name ?? event.note, date: event.effectiveAt,
 			valueInCents: Math.abs(event.deltaInCents), sparkExecutionReference: event.executionReference, source: event.originalSource },
 	})), kind, item => normalizeLabel(item.data.name, kind === 'expense' ? 'Despesa' : 'Ganho'), item => formatDateLabel(item.data.date));
-	const recurring = (type: 'expense' | 'gain') => nativeItems(plans.filter(plan => plan.active && plan.recurringType === type).map(plan => ({
+	const recurring = (type: 'expense' | 'gain') => nativeItems(plans.filter(plan => plan.recurringType === type).map(plan => ({
 		id: plan.id, collection: 'sparkRecurringPlans', data: { ...plan, personId: plan.actorId, groupId },
-	})), `mandatory_${type}`, item => normalizeLabel(item.data.name, 'Recorrência'));
+	})), `mandatory_${type}`, item => normalizeLabel(item.data.name, 'Recorrência'), item => item.data.replanCancelled ? 'Replanejamento desfeito' : item.data.successorPlanId ? 'Contrato anterior substituído' : item.data.predecessorPlanId ? 'Contrato sucessor do replanejamento' : item.data.active === false ? 'Arquivada' : 'Ativa');
+	const resolutions = getSparkMovementResolutionIndex(events);
+	const withdrawals = nativeItems(sortByRecent(events.filter(event => event.kind === 'transfer' && event.term === 'delta' && event.accountId === 'cash'
+		&& event.deltaInCents > 0 && event.executionReference?.family === 'pair' && resolutions.resolvedBy(event.executionReference) === null
+		&& accounts.some(account => account.accountId === event.counterpartyAccountId && account.position.kind === 'bank')).map(event => ({
+		id: event.originalOperationId, collection: event.originalSource === 'live' ? 'sparkOperations' : 'sparkImportedIdentities',
+		data: { groupId, personId: event.actorId, date: event.effectiveAt, valueInCents: event.deltaInCents,
+			fromAccountId: event.counterpartyAccountId, toAccountId: 'cash', sparkExecutionReference: event.executionReference,
+			bankName: accounts.find(account => account.accountId === event.counterpartyAccountId)?.catalog?.name ?? 'banco de origem' },
+	}))), 'spark_withdrawal', () => 'Saque em dinheiro', item => `${formatDateLabel(item.data.date)} — ${formatCents(item.data.valueInCents as number)}`);
 	const catalog: AssistantResolvedCatalog = {
 		banks: nativeItems(documents.filter(item => item.data.kind !== 'investment'), 'spark_account', item => item.data.name as string),
 		investments: nativeItems(documents.filter(item => item.data.kind === 'investment'), 'spark_investment', item => item.data.name as string),
@@ -199,11 +208,11 @@ async function loadSparkAssistantCatalog(personId: string, context: NonNullable<
 		mandatoryExpenseCategories: categories('expense', true), mandatoryGainCategories: categories('gain', true),
 		categories: nativeItems(tags, 'category', item => normalizeLabel(item.data.name, 'Categoria')),
 		expenses: movementItems('expense'), gains: movementItems('income'), mandatoryExpenses: recurring('expense'), mandatoryGains: recurring('gain'),
-		cashWithdrawals: [], investmentDeposits: [], investmentRedemptions: [], investmentSyncs: [], bankBalanceAdjustments: [],
+		cashWithdrawals: withdrawals, investmentDeposits: [], investmentRedemptions: [], investmentSyncs: [], bankBalanceAdjustments: [],
 	};
 	for (const items of Object.values(catalog)) for (const item of items ?? []) {
 		if (typeof item.data?.personId === 'string' && item.data.personId !== personId && item.collection === 'tags') item.ownerScope = 'related_read_only';
-		if (role !== 'admin' && ['sparkOperations', 'sparkImportedIdentities', 'sparkRecurringPlans'].includes(item.collection ?? '') && item.data?.personId !== personId) item.ownerScope = 'related_read_only';
+		if ((item.collection === 'sparkRecurringPlans' || role !== 'admin' && ['sparkOperations', 'sparkImportedIdentities'].includes(item.collection ?? '')) && item.data?.personId !== personId) item.ownerScope = 'related_read_only';
 	}
 	return catalog;
 }
@@ -428,7 +437,9 @@ export const getPendingMandatoryCatalogItems = (
 	const source = type === 'expense' ? 'mandatoryExpenses' : 'mandatoryGains';
 	const completedCycleField = type === 'expense' ? 'lastPaymentCycle' : 'lastReceiptCycle';
 	return (catalog[source] ?? []).filter(item => {
-		if (item.ownerScope === 'related_read_only' || item.data?.[completedCycleField] === cycle || (item.data?.completedCycles && typeof item.data.completedCycles === 'object' && (item.data.completedCycles as Record<string, unknown>)[cycle])) return false;
+		const completedCycles = item.data?.completedCycles;
+		const cycleCompleted = Array.isArray(completedCycles) ? completedCycles.includes(cycle) : completedCycles && typeof completedCycles === 'object' && (completedCycles as Record<string, unknown>)[cycle];
+		if (item.collection === 'sparkRecurringPlans' && item.data?.active === false || item.ownerScope === 'related_read_only' || item.data?.[completedCycleField] === cycle || cycleCompleted) return false;
 		const total = item.data?.installmentTotal;
 		const completed = item.data?.installmentsCompleted;
 		return typeof total !== 'number' || typeof completed !== 'number' || completed < total;
@@ -462,6 +473,16 @@ const withChoices = (
 	return {
 		...field,
 		choices: filtered
+			.filter(item => {
+				if (field.key !== 'recordRef' || item.collection !== 'sparkRecurringPlans') return true;
+				if (draft.payload.undoReplanOnly === true) return Boolean(item.data?.predecessorPlanId && !item.data?.successorPlanId && !item.data?.replanCancelled);
+				if (draft.payload.restoreOnly === true) return item.data?.active === false && !item.data?.successorPlanId && !item.data?.replanCancelled;
+				if (!['undo_mandatory_expense_payment', 'undo_mandatory_gain_receipt'].includes(draft.kind)) return item.data?.active !== false;
+				if (item.data?.successorPlanId || item.data?.replanCancelled) return false;
+				const states = item.data?.cycleStates as import('@/utils/sparkRecurringReadModel').SparkRecurringCycleReadModel[] | undefined;
+				return states?.some(state => state.active && state.cycle === cycle
+					&& (item.data?.installmentTotal === null || state.installmentsAfter === item.data?.installmentsCompleted)) ?? false;
+			})
 			.filter(item => (item.ownerScope !== 'related_read_only' || field.key === 'categoryRef') && (field.key === 'recordRef' || item.data?.isActive !== false))
 			.map(item => ({ value: item.handle, label: item.label, description: item.description })),
 	};
@@ -504,7 +525,11 @@ export const enrichAssistantDraft = (
 		if (!source) {
 			continue;
 		}
-		const resolved = findAssistantCatalogItem(catalog, source, currentValue);
+		let resolved = findAssistantCatalogItem(catalog, source, currentValue);
+		if (!resolved && field === 'recordRef' && draft.payload.undoReplanOnly === true && typeof currentValue === 'string') {
+			const eligible = (catalog[source] ?? []).filter(item => item.collection === 'sparkRecurringPlans' && item.data?.predecessorPlanId && !item.data?.successorPlanId && !item.data?.replanCancelled && item.label.toLocaleLowerCase('pt-BR') === currentValue.trim().toLocaleLowerCase('pt-BR'));
+			if (eligible.length === 1) resolved = eligible[0]!;
+		}
 		if (!resolved || (resolved.ownerScope === 'related_read_only' && field !== 'categoryRef')) {
 			next = addMissingField(next, field, catalog);
 			next = {

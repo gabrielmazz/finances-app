@@ -89,6 +89,52 @@ service cloud.firestore {
       return sparkProofRole(groupId) in ['admin', 'member'];
     }
 
+    // [[Autenticação]]: autorização deve ser emitida por operador confiável após verificar conta nova.
+    // O cliente não pode criar ou alterar a autorização; todos os efeitos ocorrem no mesmo commit.
+    function validSparkFirstUse(uid, groupId) {
+      let permitPath = /databases/$(database)/documents/sparkFirstUseLocks/$(uid);
+      let userPath = /databases/$(database)/documents/users/$(uid);
+      let groupPath = /databases/$(database)/documents/financialGroups/$(groupId);
+      let cashPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkPositions/cash;
+      let operationPath = /databases/$(database)/documents/financialGroups/$(groupId)/sparkOperations/first_use_cash;
+      return signedIn() && uid == request.auth.uid && groupId == 'first_' + uid
+        && exists(permitPath) && exists(userPath) && !exists(groupPath) && !exists(cashPath) && !exists(operationPath)
+        && !exists(/databases/$(database)/documents/financialCutovers/$(uid))
+        && existsAfter(groupPath) && existsAfter(cashPath) && existsAfter(operationPath)
+        && validSparkFirstUseData(uid, groupId, permitPath, userPath, groupPath, cashPath, operationPath);
+    }
+    function validSparkFirstUseData(uid, groupId, permitPath, userPath, groupPath, cashPath, operationPath) {
+      let permit = get(permitPath).data;
+      let before = get(userPath).data;
+      let profile = getAfter(userPath).data;
+      let group = getAfter(groupPath).data;
+      let cash = getAfter(cashPath).data;
+      let op = getAfter(operationPath).data;
+      return permit.keys().hasOnly(['schemaVersion', 'status', 'actorId', 'groupId', 'profileCreatedAt', 'expiresAt', 'cycle', 'lockId'])
+        && permit.schemaVersion == 1 && permit.actorId == uid && permit.groupId == groupId
+        && permit.status == 'authorized' && permit.lockId is string && permit.lockId.matches('^[A-Za-z0-9_-]{16,160}$')
+        && permit.profileCreatedAt is timestamp && permit.profileCreatedAt == before.createdAt
+        && permit.expiresAt is timestamp && request.time < permit.expiresAt
+        && permit.cycle is string && permit.cycle.matches('^(19[7-9][0-9]|20[0-9][0-9]|2100)-(0[1-9]|1[0-2])$')
+        && exists(/databases/$(database)/documents/sparkCivilMonths/$(permit.cycle))
+        && get(/databases/$(database)/documents/sparkCivilMonths/$(permit.cycle)).data.startAt <= request.time
+        && request.time < get(/databases/$(database)/documents/sparkCivilMonths/$(permit.cycle)).data.endAt
+        && before.get('sparkFirstUseRequested', false) == true
+        && before.get('financialGroupId', null) == null && before.get('financialGroupRole', null) == null
+        && before.get('financialLegacyCutoverAt', null) == null
+        && profile.diff(before).affectedKeys().hasOnly(['financialGroupId', 'financialGroupRole', 'financialLegacyCutoverAt'])
+        && profile.financialGroupId == groupId && profile.financialGroupRole == 'admin' && profile.financialLegacyCutoverAt == request.time
+        && group.keys().hasOnly(['status', 'members', 'sparkProtocol', 'firstUseActorId', 'createdAt'])
+        && group.status == 'active' && group.members is map && group.members.keys().hasOnly([uid]) && group.members.get(uid, null) == 'admin'
+        && group.sparkProtocol == 'financial-proof-v17' && group.firstUseActorId == uid && group.createdAt == request.time
+        && cash.keys().hasOnly(['schemaVersion', 'kind', 'active', 'balanceInCents', 'revision', 'lastOperationId', 'nextActivationAt', 'updatedAt'])
+        && cash.schemaVersion == 1 && cash.kind == 'cash' && cash.active == true && cash.balanceInCents == 0
+        && cash.revision == 0 && cash.lastOperationId == 'first_use_cash' && cash.nextActivationAt == null && cash.updatedAt == request.time
+        && op.keys().hasOnly(['schemaVersion', 'actorId', 'kind', 'accountId', 'accountKind', 'openingBalanceInCents', 'note', 'createdAt'])
+        && op.schemaVersion == 1 && op.actorId == uid && op.kind == 'account_opening' && op.accountId == 'cash'
+        && op.accountKind == 'cash' && op.openingBalanceInCents == 0 && op.note == null && op.createdAt == request.time;
+    }
+
     function validSparkId(id) {
       return id is string && id.size() >= 1 && id.size() <= 160 && id.matches('^[^/]+$');
     }
@@ -1839,7 +1885,8 @@ service cloud.firestore {
     function userHasCutOver() {
       // Os três guards can*Legacy validam signedIn() antes desta consulta.
       return exists(/databases/$(database)/documents/financialCutovers/$(request.auth.uid))
-        || currentUser().data.get('financialGroupId', null) is string;
+        || currentUser().data.get('financialGroupId', null) is string
+        || exists(/databases/$(database)/documents/sparkFirstUseLocks/$(request.auth.uid));
     }
 
     // =========================================================
@@ -2029,7 +2076,7 @@ service cloud.firestore {
       return history is map && history.size() <= 1200
         && optionalBoolean(data.get('assistantCycleHistoryComplete', null))
         && changed.size() <= 1
-        && (changed.size() == 0 || (cycle is string && changed.hasOnly([cycle])
+        && (changed.size() == 0 || (changed.hasOnly([cycle])
           && validRecurringCycleChange(history, previous, cycle, collectionName, templateId)));
     }
 
@@ -2236,6 +2283,11 @@ service cloud.firestore {
     match /financialCutovers/{userId} {
       allow read, write: if false;
     }
+    // Somente a autoridade pode iniciar ou cancelar o congelamento de primeiro uso.
+    match /sparkFirstUseLocks/{userId} {
+      allow get: if signedIn() && userId == request.auth.uid;
+      allow list, write: if false;
+    }
     match /callableRateLimits/{id} {
       allow read, write: if false;
     }
@@ -2286,19 +2338,10 @@ service cloud.firestore {
        * Campos de autorização não podem ser alterados
        * diretamente pelo cliente.
        */
-      allow update: if signedIn()
-        && userId == request.auth.uid
-
-        && !request.resource.data
-          .diff(resource.data)
-          .affectedKeys()
-          .hasAny([
-            'financialGroupId',
-            'financialGroupRole',
-            'financialLegacyCutoverAt',
-            'relatedIdUsers',
-            'adminUser'
-          ]);
+      allow update: if signedIn() && userId == request.auth.uid
+        && (request.resource.data.diff(resource.data).affectedKeys().hasAny(['financialGroupId', 'financialGroupRole', 'financialLegacyCutoverAt'])
+          ? validSparkFirstUse(userId, 'first_' + userId)
+          : !request.resource.data.diff(resource.data).affectedKeys().hasAny(['relatedIdUsers', 'adminUser']));
 
       allow delete: if false;
 
@@ -2345,12 +2388,17 @@ service cloud.firestore {
     // FINANCIAL GROUP
     // =========================================================
 
+    match /sparkFirstUseAuthorizations/{userId} {
+      allow get: if signedIn() && userId == request.auth.uid;
+      allow list, write: if false;
+    }
+
     match /financialGroups/{groupId} {
 
       allow read: if isMember(groupId);
 
-      // Escritas somente por backend / Admin SDK.
-      allow write: if false;
+      allow create: if signedIn() && validSparkFirstUse(request.auth.uid, groupId);
+      allow update, delete: if false;
 
       match /sparkMetadataOrigins/{originId} {
         allow get: if isSparkProofMember(groupId);
@@ -2376,7 +2424,7 @@ service cloud.firestore {
         allow update: if isSparkProofMember(groupId)
           && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
             ? validSparkPositionLifecycle(groupId, accountId) : validSparkPositionUpdate(groupId, accountId));
-        allow create: if isSparkProofMember(groupId) && validSparkPositionCreate(groupId, accountId);
+        allow create: if signedIn() && (accountId == 'cash' && !exists(/databases/$(database)/documents/financialGroups/$(groupId)) ? validSparkFirstUse(request.auth.uid, groupId) : isSparkProofMember(groupId) && validSparkPositionCreate(groupId, accountId));
         allow delete: if false;
       }
 
@@ -2413,7 +2461,7 @@ service cloud.firestore {
 
       match /sparkOperations/{operationId} {
         allow read: if isSparkProofMember(groupId);
-        allow create: if validSparkOperation(groupId, operationId);
+        allow create: if signedIn() && (operationId == 'first_use_cash' && !exists(/databases/$(database)/documents/financialGroups/$(groupId)) ? validSparkFirstUse(request.auth.uid, groupId) : validSparkOperation(groupId, operationId));
         allow update, delete: if false;
       }
       match /sparkMovementDetails/{operationId} {

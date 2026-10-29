@@ -154,3 +154,94 @@ ID da intenção, data civil, hora explícita (se informada), dados e fingerprin
 A sessão/capacidade são reconferidas antes de iniciar o comando. Uma chamada já iniciada não promete rollback por cancelamento posterior. Sem contexto Spark, o caminho anterior permanece; falha de contexto não autoriza fallback. Outras famílias com contexto nativo recebem indisponibilidade explícita do adaptador do chat, sem tentar callables antigas. Correção/estorno, pares, recorrências, investimentos, ajustes e relatórios nativos continuam pendentes nesta fatia. Não anunciar Assistente financeiro completo.
 
 Não houve mudança em UI, Rules, índices ou serviços de saldo. Percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos até integrar/homologar as demais famílias. Ver [[Operações Ordinárias Spark]], [[Assistente Lumus]] e [[Status da Implementação Spark]].
+
+
+## Correções, estornos e leitura de movimentos no chat - 26/10/2026
+
+Correção/estorno ordinários preparam o alvo pelo leitor canônico Spark antes da confirmação. O draft conserva alvo, fingerprint e comando completo (ID/data/conta/categoria/detalhes/referência live ou imported). A autorização assina esses campos. Envio valida UID/grupo/capacidade e usa o mesmo executor Spark das telas; não exclui documentos. Retry não depende de encontrar o alvo ainda ativo no catálogo: o recibo do comando identifica eventual sucesso anterior. Intenções continuam em memória e não prometem recuperação após reload. Comandos já iniciados não prometem rollback em cancelamento posterior.
+
+A leitura de movimentos do período do Assistente agora detecta Spark, lê os eventos nativos e reconfirma grupo/papel. Visão mensal e rankings usam essa fonte; consulta por movimento/banco/categoria reaproveita o leitor. Inverso conserva natureza econômica com valor assinado: estornar despesa reduz despesas em vez de criar ganho. Rankings ignoram inversos e alvos resolvidos até o fim do período. Transferências e outros efeitos não econômicos não entram nos totais. Eventos de referência sem delta não são linhas de movimentação desta projeção; não equivale ao relatório completo de avaliações. Falha nativa não lê legado nem inventa resultado vazio.
+
+Pares, recorrências, investimentos, ajustes, relatórios especializados e aceitação integrada continuam parciais. Nenhuma Rule ou serviço monetário nativo foi alterado; não houve dado real, deploy, modelo real ou teste visual/aparelho. Percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos. Ver [[Assistente Lumus]], [[Operações Ordinárias Spark]] e [[Status da Implementação Spark]].
+
+
+## Relatórios especializados Spark - 26/10/2026
+
+Pendências detectam o contexto nativo, leem planos/ciclos e metadados pelo leitor Spark, reconferem grupo/papel e reutilizam o cálculo de ocorrências/parcelas da Home. O leitor visual mantém o padrão de três itens por tipo; o chat pede o conjunto inteiro e pagina somente a apresentação em vinte itens, sem truncar os totais. Ciclo concluído, plano futuro/inativo ou parcelas encerradas não entram nas pendências atuais; última parcela conserva o resto e contratos vencidos seguem o cálculo das parcelas restantes.
+
+Metadados ou cobertura insuficientes e pendências históricas sem prova não viram zero confirmado, pagamento ou dívida inferida. O texto identifica itens desconhecidos e totais parciais. Para meses passados, ciclos comprovados como concluídos são excluídos; a ausência de evento não prova uma pendência histórica com valor/configuração atuais.
+
+A carteira continua usando a fachada Home, que já seleciona o leitor Spark. O relatório agora respeita `projectionStatus`: `confirmed_only` mostra posição confirmada, sem anunciar simulação nem ganho estimado; `projected` preserva a distinção base/projeção. CDI nativo consulta, com cursor no servidor, a curva do próprio titular no grupo; zero é taxa válida, futuro não substitui vigente e taxas de outros titulares não são misturadas como se fossem uma taxa única. Cadastro inválido interrompe o relatório. Não é consulta de cotação externa; investimentos seguem a curva do titular de cada abertura.
+
+Sem escritores novos, alterações de Rules, dados reais, modelo real, publicação ou homologação de aparelho. A02 continua parcial: outros comandos financeiros, histórico integral e relatórios de referências sem delta ainda precisam de adaptadores/aceite. Percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos.
+
+
+## Transferências e saques pelo chat - 26/10/2026
+
+`create_transfer` e `create_cash_withdrawal` preparam o par nativo antes da confirmação textual. Somente bancos ativos do mesmo grupo podem ser origem/destino de transferência; saque exige origem bancária e Caixa canônico ativo com ID `cash`. Contas distintas por handle mas com o mesmo ID são recusadas, assim como Caixa inventado ou investimento usado como banco. O comando completo e o dia civil entram na assinatura de autorização, com ID/centavos/contas/nota/justificativa/data estáveis. Retry usa os dados preparados sem exigir que o catálogo ainda contenha as contas.
+
+Hoje sem hora explícita usa o commit do servidor (`transferSparkFundsFirebase`); passado ou hora explícita usa `transferSparkDatedFundsFirebase`. Futuro é recusado no preparo. Transferência exige saldo suficiente, sem justificativa de negativo; saque aceita justificativa válida conforme o protocolo existente. Saldos, cota e atomicidade das duas posições continuam nos serviços/Rules existentes. Não há callable ou fallback antigo em contexto Spark.
+
+Em operações sem data explícita, o executor lê o recibo no servidor antes do envio: virada do dia sem recibo não inicia outro efeito, e recibo de data diferente não é anunciado como sucesso do novo dia. Um commit que cruzar a meia-noite pode exigir conferência manual do extrato. A capacidade é revalidada depois da leitura; uma chamada já iniciada não promete rollback por cancelamento. Rascunhos permanecem em memória, sem promessa de recuperação integral após reload.
+
+Saque é o par banco→Dinheiro, com mensagem/nota próprias, preservando a classificação visual dos leitores. Nenhum dos pares vira ganho/despesa. Não foram alteradas UI, Rules ou posições financeiras do banco real. Desfazimento do saque e demais famílias do Assistente continuam pendentes; percentuais A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos até integração/aceite restantes. Sem modelo real, aparelho, publicação ou deploy.
+
+
+## Desfazer saque pelo chat - 26/10/2026
+
+O catálogo Spark oferece somente a perna positiva de banco→Caixa (`cash`) com referência executável de par e sem resolução no índice canônico. Transferências entre bancos, aportes, resgates de investimento e inversos não viram saques selecionáveis. Origem live/imported é preservada; saque de outro ator permanece somente leitura para membro, com administração sujeita às mesmas Rules.
+
+`undo_cash_withdrawal` confere o original imutável, direção banco→Caixa, valor apresentado e tipo real da posição de origem, depois usa `prepareSparkPairReversalFirebase` para conferir disponibilidade/claim e ator. Comando, valor e nome do banco são capturados antes da confirmação e entram na assinatura de autorização. O resumo informa quanto voltará do Dinheiro ao banco. “Desfaça” e “quero desfazer” são reconhecidos como intenção de alteração; não concedem autorização de execução sem confirmação.
+
+A execução usa `executeSparkPairReversalFirebase`: estorno integral do par, sem apagar o saque, sem mudar ganhos/despesas e sem callable antiga. Contas/caixa/saldo, ator e claim são revalidados pelo protocolo existente. Retry mantém o mesmo ID/comando, independente de o alvo ainda estar ativo no catálogo; um novo pedido sobre saque já estornado é recusado no preparo. Intenção continua em memória; não há promessa de recuperar o comando após reload nem rollback de chamada já iniciada.
+
+Sem novo serviço monetário, Rule, estilo, deploy ou alteração de dado real. Demais famílias continuam parciais; A02 25%, assistente 38%, financeiro 78% e geral 59% mantidos. Ver [[Assistente Lumus]], [[Resgate de Caixa]] e [[Versão Usável por Telas]].
+
+
+## Efetivação recorrente Spark pelo chat - 26/10/2026
+
+Pagamentos e recebimentos recorrentes usam comando canônico preparado/assinado e `settleSparkRecurringFirebase`. Confirmação apresenta conta/direção, ciclo de São Paulo, valor e quantidade exata de parcelas; liquidação após a vigência é explícita. Titular/grupo, ciclo já efetivado, histórico coberto e parcelas restantes são conferidos; reenvio conserva ID/data/revisão/material e delega recibo ao protocolo. Ciclos Spark em lista também são excluídos da seleção de pendências/lotes. Lotes respeitam o mês da data, a janela histórica e os metadados de vencimento; conflito entre data/período é recusado. Falha posterior de agenda não desfaz sucesso nem repete lançamento: retry apenas do lembrete, com conta/grupo originais.
+
+Não inclui negociação de valor finito, autorização de saldo negativo, cadastro/edição/replanejamento nem seleção de ciclos históricos pelo chat; esses fluxos continuam nas telas próprias. Ensaios locais com executores simulados não equivalem a aceite financeiro SDK/Rules ou modelo real. Evidências e roteiro em [[Versão Usável por Telas]]; A02 e demais percentuais mantidos.
+
+
+## Desfazimento recorrente Spark pelo chat - 26/10/2026
+
+O ciclo atual de São Paulo pode ser desfeito com confirmação de valor efetivado, conta/direção e quantidade. Plano/ciclo e receipt original são conferidos antes da autorização; comando e resumo são assinados. `undoSparkRecurringFirebase` conserva histórico e restaura contador/saldo, inclusive valor negociado ou importado, recusando faixa finita anterior à última e replanejamento pendente. Planos arquivados com ciclo ativo permanecem selecionáveis; outro titular é somente leitura também para administrador. Reenvio conserva o comando capturado sem depender de catálogo ou ciclo ainda ativos, sem fallback legado.
+
+Falha da agenda posterior conserva sucesso e oferece retry exclusivo do lembrete do plano. A configuração atual e eventual nova efetivação são respeitadas, sem pedir permissão ou modificar outros lembretes. O schema não seleciona mês histórico; o resumo explicita o ciclo alvo. Sem autorização automática para banco negativo, novo writer ou Rule. Validação simulada e roteiro pendente em [[Versão Usável por Telas]]; percentuais mantidos.
+
+
+## Definições recorrentes Spark pelo chat - 26/10/2026
+
+Cadastro/edição de despesas e receitas recorrentes usam definição e metadados Spark capturados antes da confirmação. Resumo cobre nominal/total/quantidade/vigência, categoria e configuração de lembretes. Não efetivam ciclos nem movimentam dinheiro. Edição preserva campos omitidos, contador e estado; contrato parcelado exige replanejamento para mudar valores/quantidade/vigência.
+
+Duas fases com receipts estáveis, resultado parcial explícito e bloqueio de alteração após início; reenvio não relê o plano já modificado para reconstruir argumentos. Definição confirmada atualiza leituras mesmo com configuração incerta. Cancelamento comprovado de metadados pede edição do plano salvo; falha da agenda tem retry separado sem repetir as duas fases. Regra de titular/grupo e assinatura do material impede substituição da intenção. Arquivamento/restauração, replanejamento, seleção histórica e dependências dinâmicas não resolvidas continuam parciais. Evidências simuladas e roteiro em [[Versão Usável por Telas]]; percentuais mantidos.
+
+
+## Arquivamento recorrente Spark pelo chat - 26/10/2026
+
+Os tipos de exclusão de recorrência usam arquivamento no Spark: comando `active:false` canônico, preparado/assinado antes da confirmação, com titular/grupo/revisão e contrato preservados. A apresentação informa arquivamento e suspensão dos avisos, preservando pagamentos, recebimentos, ciclos, contador e metadados, sem quitação ou alteração de saldo. Retry conserva o mesmo comando sem depender do alvo ainda ativo; não aceita restauração por esse caminho.
+
+A expressão humana “arquivar” é marcada na conversa e não pode virar exclusão em conta legada; alterações do rascunho conservam essa marca. Lotes reconhecem quantidade em pedidos de arquivar e excluem planos inativos/replanejados/cancelados. Falha posterior da agenda permite retry exclusivo do lembrete, respeitando uma eventual restauração pela lista. Restauração e replanejamento conversacionais permanecem pendentes. Evidências simuladas e roteiro em [[Versão Usável por Telas]]; percentuais mantidos.
+
+
+## Restauração de recorrências pelo chat Spark - 26/10/2026
+
+A conversa aceita pedidos para restaurar ou reativar despesas e receitas recorrentes arquivadas. O catálogo inclui planos inativos e oferece, para restauração, somente os elegíveis. O comando Spark `updateSparkRecurringPlanFirebase` é preparado com `active:true`, revisão, titular, categoria, nominal e identidade preservados. O resumo exige confirmação e informa preservação do contrato, ciclos, contador e histórico; não movimenta saldo. Contratos substituídos/cancelados, planos já ativos, outro titular e grupos indisponíveis são recusados; alterações adicionais devem ser solicitadas separadamente.
+
+O mesmo comando e ID são reenviados após resposta incerta, sem reler o plano já alterado pelo commit. A agenda é reconciliada separadamente com o estado atual; sua falha permite retry somente do lembrete. A intenção de restauração permanece vinculada ao rascunho, inclusive em correções; não há fallback para edição legada. Lotes filtram planos inativos elegíveis e preservam a quantidade informada. Sem novo writer monetário, Rules ou deploy; a intenção continua em memória. Ver [[Assistente Lumus]], [[Despesas Fixas]], [[Receitas Fixas]] e [[Status da Implementação Spark]].
+
+
+### Replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara replanejamento individual de contrato finito Spark ativo, de titular autorizado, pedindo o total negociado em centavos, quantidade de parcelas, primeiro ciclo e motivo. Após resumo e confirmação, usa `replanSparkRecurringFirebase` com revisões e IDs capturados: o contrato anterior é preservado e substituído atomicamente, sem movimentação de saldo nem quitação implícita. Uma tentativa já enviada conserva o mesmo comando para recuperação; alteração do material exige nova intenção após resolução. Atualização dos lembretes do predecessor e sucessor é posterior e pode ser repetida sem reenviar o replanejamento. Contas legadas não recebem substituição alternativa.
+
+O desfazimento conversacional do replanejamento, a recuperação da intenção após reload e a homologação em aparelho permanecem pendentes. Os serviços simulados não comprovam Rules ou operação em produção. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].
+
+
+### Desfazimento de replanejamento pelo Assistente — 27/10/2026
+
+O chat prepara o desfazimento individual de replanejamento Spark usando a referência ao contrato anterior ou ao sucessor. Pede o motivo, confere titular, grupo, vínculos e receipt original, e apresenta os dois contratos e o efeito para confirmação. O sucessor não pode ter parcelas efetivadas nem replanejamento posterior; o serviço `undoSparkRecurringReplanFirebase` volta a validar as revisões e dependências na transação. A operação reativa o anterior, cancela o sucessor e preserva o histórico sem movimentar saldo.
+
+A tentativa conserva o comando e ID após envio; os lembretes dos dois planos são reconciliados depois do commit e podem ser repetidos separadamente. Não há fallback para alteração legada. Intenção após reload, validação em aparelho, Rules implantadas e operação em dados reais não foram verificadas nesta entrega. Sem deploy. Ver [[Assistente Lumus]] e [[Recorrências Spark]].

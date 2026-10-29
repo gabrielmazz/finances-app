@@ -7,6 +7,7 @@ import { calculateLegacyBankBalanceInCents } from '../../utils/monthlyBalance';
 import { calculateBankBalanceAdjustment, canChangeBankBalanceAdjustment } from '../../utils/bankBalanceAdjustment';
 import { assertClientActionId, validateLedgerTransaction, type LedgerTransaction } from '../../utils/financialLedger';
 import { enforceCallableRateLimit } from './callableRateLimit';
+import { assertFirstUseUnlocked } from './sparkFirstUseLock';
 
 function fail(message: string): never { throw new HttpsError('failed-precondition', message); }
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
@@ -122,6 +123,7 @@ export const bankBalanceAdjustment = secureOnCall( async request => {
 				throw new HttpsError('permission-denied', 'Selecione um banco ativo autorizado para sua conta.');
 			}
 			const bankOwnerId = bank.data()!.personId;
+			await assertFirstUseUnlocked(transaction, db, [personId, bankOwnerId]);
 			const [actorCutover, bankOwner, ownerCutover] = await Promise.all([
 				transaction.get(db.doc(`financialCutovers/${personId}`)),
 				transaction.get(db.doc(`users/${bankOwnerId}`)),

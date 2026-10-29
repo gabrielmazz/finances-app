@@ -299,6 +299,9 @@ async function run(): Promise<void> {
   });
   await expectDenied(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete);
   await environment.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'ledgerTransactions', foreignLinkId)); });
+  await environment.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'sparkFirstUseLocks', legacyOwner.uid), { reason: 'test' }); });
+  await expectDenied(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete, 'failed-precondition');
+  await environment.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'sparkFirstUseLocks', legacyOwner.uid)); });
   const deletedLegacyCategory = await invokeAs(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete) as { idempotent: boolean };
   const retriedLegacyCategory = await invokeAs(legacyOwner, 'manageFinancialMetadata', legacyCategoryDelete) as { idempotent: boolean };
   if (deletedLegacyCategory.idempotent || !retriedLegacyCategory.idempotent || (await getDoc(doc(environment.authenticatedContext(legacyOwner.uid, sessionClaims).firestore(), 'tags', legacyCategoryId))).exists()) throw new Error('Legacy category deletion must check all historical references and preserve its response-loss receipt.');
@@ -319,6 +322,9 @@ async function run(): Promise<void> {
     await setDoc(doc(firestore, 'financeInvestments', legacyInvestmentId), { personId: legacyMovementOwner.uid, bankId: legacyBankId, name: 'Investimento legado', currentValueInCents: 100, initialValueInCents: 100, date: new Date('2026-10-01T15:00:00Z') });
   });
   const legacyOutflow = { kind: 'create_cash_withdrawal', bankId: legacyBankId, valueInCents: 100, date: '2026-10-02T15:00:00Z', expectedActorId: legacyMovementOwner.uid, clientActionId: 'legacy_outflow_' + runId, assistantRequestFingerprint: 'current-user-version' };
+  await environment.withSecurityRulesDisabled(async context => { await setDoc(doc(context.firestore(), 'sparkFirstUseLocks', legacyMovementOwner.uid), { reason: 'test' }); });
+  await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', legacyOutflow, 'failed-precondition');
+  await environment.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'sparkFirstUseLocks', legacyMovementOwner.uid)); });
   await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', { ...legacyOutflow, expectedActorId: outsider.uid }, 'unauthenticated');
   await expectDenied(outsider, 'executeLegacyFinancialMovement', { ...legacyOutflow, expectedActorId: outsider.uid }, 'permission-denied');
   await expectDenied(legacyMovementOwner, 'executeLegacyFinancialMovement', { ...legacyOutflow, valueInCents: 0 }, 'invalid-argument');

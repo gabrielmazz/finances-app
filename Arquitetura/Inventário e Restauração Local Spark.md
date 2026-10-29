@@ -124,3 +124,16 @@ Continuam pendentes inventário/backup **reais**, captura das Rules efetivamente
 ## Referências
 
 [ListDocuments e showMissing](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/list), [ListCollectionIds](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/listCollectionIds), [Value](https://firebase.google.com/docs/firestore/reference/rest/v1/Value), [metadados de Document](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents), [precondições](https://firebase.google.com/docs/firestore/reference/rest/v1/Precondition), [Commit](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/commit), [ProtoJSON](https://protobuf.dev/programming-guides/json/), [integração com gatilhos emulados](https://firebase.google.com/docs/emulator-suite/connect_firestore), [export/import nativo local](https://firebase.google.com/docs/emulator-suite/install_and_configure).
+
+
+### Diagnóstico de conta antes da migração — 27/10/2026
+
+`inspect-account` analisa um snapshot local validado e um UID, identificando perfil desconhecido, grupo do razão/Spark ou fontes legadas observadas por coleção. Documentos financeiros sem `personId` inequívoco, com identidade malformada ou divergente, são listados como ambíguos; a contagem não infere saldos ou titularidade de dados duvidosos. O relatório fica vinculado ao hash do snapshot e não altera a origem.
+
+Um snapshot sem documentos financeiros não comprova que uma conta seja nova: ele não inclui Auth e usa duas varreduras que não garantem instante único. Por isso `canInitialize`, `canMigrate` e `readyForCutover` permanecem falsos em todos os resultados. O diagnóstico não cria grupos, importa dados, concede permissões ou altera o banco oficial. Ainda faltam bootstrap seguro, preservação dos formatos legados, consentimentos, corte e recuperação. Ver [[Importação Financeira Local Spark]] e [[Status da Implementação Spark]].
+
+```sh
+npm run spark:snapshot -- inspect-account --input spark-backups/demo.json --uid UID_FICTICIO --output spark-backups/account-report.json
+```
+
+O comando usa exclusivamente os snapshots `demo-*` validados pelo formato local; a saída é criada de forma exclusiva e privada. Não é captura ou migração de produção.
