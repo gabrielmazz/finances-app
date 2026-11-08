@@ -2002,6 +2002,17 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny(['groupId', 'financialGroupId', 'adminUser']);
     }
 
+    // Caminho equivalente para alterações de ciclo: a lista curta é subconjunto
+    // da lista completa aceita pelos documentos de recorrência.
+    function validRecurringCycleFields() {
+      return !request.resource.data.keys().hasAny(['groupId', 'financialGroupId', 'adminUser'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'updatedAt', 'installmentsCompleted', 'completedCycles', 'assistantCycleHistoryComplete',
+          'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount',
+          'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount'
+        ]);
+    }
+
     function optionalTimestamp(value) { return value == null || value is timestamp; }
     function optionalBoolean(value) { return value == null || value is bool; }
     function optionalId(value) { return value == null || (value is string && value.size() > 0 && value.size() <= 128); }
@@ -2986,7 +2997,7 @@ service cloud.firestore {
         );
 
       allow update: if canUpdateLegacy()
-        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && (validRecurringCycleFields() || validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete']))
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'expenses', id)
         && validBankReference(request.resource.data.get('bankId', null))
@@ -3020,7 +3031,7 @@ service cloud.firestore {
         );
 
       allow update: if canUpdateLegacy()
-        && validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete'])
+        && (validRecurringCycleFields() || validLegacyFields(['personId', 'name', 'description', 'explanation', 'date', 'createdAt', 'updatedAt', 'assistantActionId', 'valueInCents', 'tagId', 'bankId', 'dueDay', 'usesBusinessDays', 'reminderEnabled', 'reminderConfigVersion', 'reminderDaysBefore', 'reminderOnDueDate', 'reminderHour', 'reminderMinute', 'installmentTotal', 'installmentTotalValueInCents', 'installmentsCompleted', 'installmentStartDate', 'installmentEndDate', 'lastPaymentExpenseId', 'lastPaymentCycle', 'lastPaymentDate', 'lastPaymentInstallmentsCount', 'lastReceiptGainId', 'lastReceiptCycle', 'lastReceiptDate', 'lastReceiptInstallmentsCount', 'completedCycles', 'assistantCycleHistoryComplete']))
         && validRecurring(request.resource.data)
         && validRecurringHistory(request.resource.data, 'gains', id)
         && validBankReference(request.resource.data.get('bankId', null))

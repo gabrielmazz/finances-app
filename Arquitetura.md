@@ -282,6 +282,8 @@ GOOGLE_SERVICES_JSON=
 
 ## Active Context
 
+- Correção local do gate de recorrências, 2026-11-08: `firestore.rules` usa uma lista menor, equivalente para alterações de ciclo, reduzindo expressões sem retirar as validações de autorização e histórico. Lotes de 211 despesas e receitas e seus desfazimentos passaram no Emulator, assim como as suítes de Rules relacionadas e a integração completa (86 testes aprovados, um ignorado). O release e a homologação seguem pendentes; ver [[Processo de Release]].
+
 - Preparação 2.3.3, 2026-11-08: auditorias sem alertas altos após atualização dos lockfiles e correção da dependência de decodificação do Expo Router; Jest simula SecureStore e preserva campos internos do assistente fora da declaração do modelo. A integração detectou recusa dos lotes de recorrências com limite de expressões das Rules; o bundle Web é local e a distribuição permanece bloqueada. Ver [[Processo de Release]].
 
 - Retomada do importador de razão local - 29/10/2026: compara o conjunto previsto, retoma documentos faltantes em lotes create-only e reconhece recibo conferido; teste dirigido usou Firestore Emulator com Hub simulado. Exige isolamento sem escritores concorrentes; não implementa reversão ou ativação nem migração de legado. Ver [[Importação Financeira Local Spark]].

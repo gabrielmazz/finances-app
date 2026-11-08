@@ -11,6 +11,8 @@ spark_reviewed_at: 2026-10-24
 
 # Firebase Config
 
+Em 08/11/2026, as Rules locais ganharam um caminho de campos restrito para alterações de ciclo em recorrências legadas, subconjunto das permissões já existentes. A mudança reduz o consumo de expressões sem dispensar as verificações de proprietário, histórico, banco, categoria e valores; está pendente de publicação. Ver [[Processo de Release]].
+
 <!-- spark-progress:start -->
 ## Progresso Spark — 24/10/2026
 

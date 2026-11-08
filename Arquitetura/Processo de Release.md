@@ -19,6 +19,8 @@ O Jest simula SecureStore indisponível nos testes gerais; os campos `restoreOnl
 
 O diagnóstico de 08/11/2026 encontrou falha nos lotes de pagamento e recebimento recorrentes: 211 operações de cada família foram recusadas e o Emulator registrou esgotamento do limite de 1.000 expressões das Rules nas gravações. A integração não passou; investigar e corrigir as regras preservando suas garantias, e repetir os testes de permissão e o gate completo antes de distribuir. O bundle Web 2.3.3 foi exportado localmente, sem publicação.
 
+Correção local: as Rules reconhecem alterações de ciclo usando uma lista curta que é subconjunto da lista completa de campos autorizados; as demais edições continuam pela lista completa, e todas as validações de propriedade, histórico, referências e valores permanecem. Os lotes de despesa e receita com 211 registros, incluindo seus desfazimentos, e as suítes de Rules do assistente, razão e legado passaram no Emulator. `npm run test:integration` passou integralmente: quatro suítes do executor, 86 testes aprovados e um ignorado (803 s). A publicação exige os demais gates de release e homologação; esta alteração ainda não foi implantada.
+
 <!-- spark-progress:start -->
 ## Progresso Spark — 20/10/2026
 

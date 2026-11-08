@@ -11,6 +11,8 @@ spark_reviewed_at: 2026-10-26
 
 # Receitas Fixas
 
+As Rules locais de atualização de ciclo usam uma lista restrita de campos para manter o recebimento e seu lançamento dentro do limite de expressões; a lista completa continua válida para edições gerais. Ver [[Processo de Release]].
+
 <!-- spark-progress:start -->
 ## Progresso Spark — 23/10/2026
 
