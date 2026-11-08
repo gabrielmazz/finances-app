@@ -1,4 +1,5 @@
 export type FinancialTagUsageType = 'expense' | 'gain';
+
 export type TagUsageType = FinancialTagUsageType | 'both';
 
 type TagUsageMetadata = {
@@ -58,22 +59,4 @@ export function isTagVisibleInMandatoryUsageList(
 	targetUsage: FinancialTagUsageType,
 ) {
 	return tagSupportsUsage(tag.usageType, targetUsage) && getTagMandatoryFlag(tag, targetUsage);
-}
-
-export function getTagUsageTypeLabel(usageType: unknown) {
-	const normalizedUsageType = normalizeTagUsageType(usageType);
-
-	if (normalizedUsageType === 'expense') {
-		return 'Despesas';
-	}
-
-	if (normalizedUsageType === 'gain') {
-		return 'Ganhos';
-	}
-
-	if (normalizedUsageType === 'both') {
-		return 'Ganhos e despesas';
-	}
-
-	return 'Nao definido';
 }

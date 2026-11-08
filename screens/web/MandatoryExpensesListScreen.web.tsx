@@ -1,102 +1,70 @@
-import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
-import { toFinancialCivilDate } from '@/utils/financialCivilDate';
-import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
-import SparkRecurringContracts from '@/components/uiverse/recurring/spark-recurring-contracts';
-import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+
+import RecurringContracts from '@/components/uiverse/recurring/recurring-contracts';
+import RetainedRecurringPlans,{ type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
+
+import { useLocalSearchParams } from 'expo-router';
+import { CalendarDays,ChevronDown,ChevronUp } from 'lucide-react';
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, TextInput, View, StatusBar, Text as RNText } from 'react-native';
+import { Pressable,Text as RNText,RefreshControl,ScrollView,StatusBar,TextInput,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { Box } from '@/components/ui/box';
+import { Button,ButtonIcon,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
-import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
-import { VStack } from '@/components/ui/vstack';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import { AddIcon, CheckCircleIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, Icon } from '@/components/ui/icon';
+import { AddIcon,CheckCircleIcon,DownloadIcon,EditIcon,Icon,RepeatIcon,TrashIcon } from '@/components/ui/icon';
+import { Image } from '@/components/ui/image';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
 } from '@/components/ui/modal';
+import { Skeleton,SkeletonText } from '@/components/ui/skeleton';
+import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 
-import { auth } from '@/FirebaseConfig';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import {
-	clearMandatoryExpensePaymentFirebase,
-	deleteMandatoryExpenseFirebase,
-	getMandatoryExpensesWithRelationsFirebase,
-} from '@/functions/MandatoryExpenseFirebase';
-import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
-import {
-	cancelMandatoryExpenseNotification,
-	syncMandatoryExpenseNotifications,
-} from '@/utils/mandatoryExpenseNotifications';
-import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { deleteExpenseFirebase } from '@/functions/ExpenseFirebase';
-import {
-	formatConfiguredMonthlyDueLabel,
-	formatResolvedMonthDateLabel,
-	formatResolvedMonthDayLabel,
-	resolveMonthlyOccurrence,
+formatConfiguredMonthlyDueLabel,
+formatResolvedMonthDateLabel,
+formatResolvedMonthDayLabel
 } from '@/utils/businessCalendar';
 import {
-	formatMandatoryInstallmentDateLabel,
-	formatMandatoryInstallmentLabel,
-	getMandatoryInstallmentRemainingValueInCents,
-	getMandatoryInstallmentValueInCents,
-	isMandatoryInstallmentPlanComplete,
-	normalizeMandatoryInstallmentDate,
-	normalizeMandatoryInstallmentTotal,
-	normalizeMandatoryInstallmentsCompleted,
-	resolveMandatoryInstallmentsCompleted,
+formatMandatoryInstallmentDateLabel
 } from '@/utils/mandatoryInstallments';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
 // Importação do SVG
-import MandatoryExpensesListIllustration from '../../assets/UnDraw/mandatoryExpensesListScreen.svg';
-import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
+import DateCalendar,{ DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import MandatoryExpensePaymentBulletChart from '@/components/uiverse/recurring/mandatory-expense-payment-bullet-chart';
 import MandatoryExpensesRadarChart from '@/components/uiverse/recurring/mandatory-expenses-radar-chart';
 import MandatoryExpensesScatterChart from '@/components/uiverse/recurring/mandatory-expenses-scatter-chart';
-import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import type { TagIconFamily,TagIconStyle } from '@/hooks/useTagIcons';
+import { TagIcon } from '@/hooks/useTagIcons';
 import {
-	buildMandatoryPeriodSummaryPdfHtml,
-	type MandatoryPeriodSummaryPdfItem,
-	type MandatoryPeriodSummaryPdfMetric,
+buildMandatoryPeriodSummaryPdfHtml,
+type MandatoryPeriodSummaryPdfItem,
+type MandatoryPeriodSummaryPdfMetric,
 } from '@/utils/mandatoryPeriodSummaryPdf';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
 import { buildPdfFileName } from '@/utils/pdfFileName';
 import { exportHtmlReport } from '@/utils/reportExport';
-import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
-import {
-	formatMandatoryReminderSummary,
-	isMandatoryReminderConfigured,
-	normalizeMandatoryReminderDaysBefore,
-} from '@/utils/mandatoryReminderConfig';
-import {
-	DEFAULT_MANDATORY_REMINDER_HOUR,
-	DEFAULT_MANDATORY_REMINDER_MINUTE,
-} from '@/utils/mandatoryReminderTime';
-import { buildMandatoryExpenseReminderSyncItems } from '@/utils/mandatoryReminderAccountSync';
-import { findMandatoryExpenseRegistrationTarget } from '@/utils/mandatoryExpenseSuggestions';
+import MandatoryExpensesListIllustration from '../../assets/UnDraw/mandatoryExpensesListScreen.svg';
 
 type PendingExpenseAction =
 	| { type: 'register'; expense: MandatoryExpenseItem }
@@ -106,7 +74,7 @@ type PendingExpenseAction =
 	| { type: 'reclaim'; expense: MandatoryExpenseItem };
 
 type MandatoryExpenseItem = DateCalendarItem & {
-	sparkPlan?: boolean;
+
 	usesBusinessDays?: boolean;
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
@@ -160,57 +128,6 @@ const getDueDayColorClass = (dueDay: number, isPaidForCurrentCycle?: boolean) =>
 	}
 
 	return 'text-emerald-600 dark:text-emerald-400';
-};
-
-const normalizeDateValue = (value: unknown): Date | null => {
-	if (!value) {
-		return null;
-	}
-
-	if (value instanceof Date) {
-		return value;
-	}
-
-	if (typeof value === 'object' && value !== null) {
-		const candidate = value as { toDate?: () => Date };
-		if (typeof candidate.toDate === 'function') {
-			return candidate.toDate() ?? null;
-		}
-	}
-
-	if (typeof value === 'string' || typeof value === 'number') {
-		const parsed = new Date(value);
-		if (!Number.isNaN(parsed.getTime())) {
-			return parsed;
-		}
-	}
-
-	return null;
-};
-
-const normalizeExpenseReminderConfiguration = (source: Record<string, unknown>) => {
-	const reminderEnabled = isMandatoryReminderConfigured(source);
-	const reminderDaysBefore = normalizeMandatoryReminderDaysBefore(source.reminderDaysBefore);
-	const reminderOnDueDate = source.reminderOnDueDate === true;
-	const reminderHour =
-		typeof source.reminderHour === 'number' ? source.reminderHour : DEFAULT_MANDATORY_REMINDER_HOUR;
-	const reminderMinute =
-		typeof source.reminderMinute === 'number' ? source.reminderMinute : DEFAULT_MANDATORY_REMINDER_MINUTE;
-
-	return {
-		reminderEnabled,
-		reminderDaysBefore,
-		reminderOnDueDate,
-		reminderHour,
-		reminderMinute,
-		reminderSummary: formatMandatoryReminderSummary({
-			enabled: reminderEnabled,
-			daysBefore: reminderDaysBefore,
-			onDueDate: reminderOnDueDate,
-			hour: reminderHour,
-			minute: reminderMinute,
-		}),
-	};
 };
 
 const formatPaymentDate = (value: Date | null) => {
@@ -341,14 +258,14 @@ function MandatoryExpensesTimelineSkeleton({
 }
 
 export default function MandatoryExpensesListScreen() {
-	const { submit: submitSparkRecurringAction, isUncertain: isActionUncertain, hasPending: hasPendingAction } = useSparkRecurringAction('expense');
-	const { personId, beginRequest, cancelRequest } = useBankMovementsRequest('mandatory-expense-list');
-	const { beginRequest: beginActionRequest, cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-expense-action');
+
+	const { personId, cancelRequest } = useBankMovementsRequest('mandatory-expense-list');
+	const { cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-expense-action');
 	const actionLock = React.useRef<object | null>(null);
 	React.useEffect(() => () => { actionLock.current = null; }, []);
-	const [loadError, setLoadError] = React.useState<string | null>(null);
+	const [loadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
 	const [actionError, setActionError] = React.useState<string | null>(null);
-	const [reminderWarning, setReminderWarning] = React.useState<string | null>(null);
+	const [reminderWarning] = React.useState<string | null>(null);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -359,7 +276,6 @@ export default function MandatoryExpensesListScreen() {
 		insets,
 		compactCardClassName,
 		tintedCardClassName,
-		topSummaryCardClassName,
 		modalContentClassName,
 		skeletonBaseColor,
 		skeletonHighlightColor,
@@ -374,18 +290,12 @@ export default function MandatoryExpensesListScreen() {
 	const params = useLocalSearchParams<{
 		focusMandatoryExpenseId?: string | string[];
 	}>();
-	const focusMandatoryExpenseId = React.useMemo(() => {
-		const value = Array.isArray(params.focusMandatoryExpenseId)
-			? params.focusMandatoryExpenseId[0]
-			: params.focusMandatoryExpenseId;
-		return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-	}, [params.focusMandatoryExpenseId]);
-	const [isLoading, setIsLoading] = React.useState(true);
-	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
-	const [isRefreshing, setIsRefreshing] = React.useState(false);
-	const [expenses, setExpenses] = React.useState<MandatoryExpenseItem[]>([]);
-	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
-	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
+	const [isLoading] = React.useState(false);
+	const [retainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
+	const [isRefreshing] = React.useState(false);
+	const [expenses] = React.useState<MandatoryExpenseItem[]>([]);
+	const [tagsMap] = React.useState<Record<string, string>>({});
+	const [tagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingExpenseAction | null>(null);
 	const [settlementInstallmentCount, setSettlementInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
@@ -393,7 +303,7 @@ export default function MandatoryExpensesListScreen() {
 	const [expandedExpenseIds, setExpandedExpenseIds] = React.useState<string[]>([]);
 	const [renderedExpenseIds, setRenderedExpenseIds] = React.useState<string[]>([]);
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
-	const [hasLoadedData, setHasLoadedData] = React.useState(false);
+	const [hasLoadedData] = React.useState(false);
 	const handledFocusedExpenseIdRef = React.useRef<string | null>(null);
 
 	React.useEffect(() => { actionLock.current = null; setPendingAction(null); setIsActionProcessing(false); setActionError(null); handledFocusedExpenseIdRef.current = null; }, [personId]);
@@ -536,351 +446,19 @@ export default function MandatoryExpensesListScreen() {
 		setRenderedExpenseIds(previousState => previousState.filter(id => visibleIds.has(id)));
 	}, [expenses]);
 
-	React.useEffect(() => {
-		if (
-			!focusMandatoryExpenseId ||
-			!hasLoadedData ||
-			handledFocusedExpenseIdRef.current === focusMandatoryExpenseId
-		) {
-			return;
-		}
-
-		handledFocusedExpenseIdRef.current = focusMandatoryExpenseId;
-		const matchingExpense = expenses.find(expense => expense.id === focusMandatoryExpenseId) ?? null;
-		const targetExpense = findMandatoryExpenseRegistrationTarget(focusMandatoryExpenseId, expenses);
-
-		if (!targetExpense) {
-			if (matchingExpense) {
-				showNotifierAlert({
-					description: 'Este gasto obrigatório não está mais pendente neste ciclo.',
-					type: 'info',
-					isDarkMode,
-				});
-			}
-			return;
-		}
-
-		setExpandedExpenseIds(previousState =>
-			previousState.includes(targetExpense.id) ? previousState : [...previousState, targetExpense.id],
-		);
-		setPendingAction({ type: 'register', expense: targetExpense });
-	}, [expenses, focusMandatoryExpenseId, hasLoadedData, isDarkMode]);
-
-	const loadData = React.useCallback(async (asRefresh = false) => {
-		const isCurrent = beginRequest();
-		setExpenses([]); setRetainedPlans([]); setTagsMap({}); setTagMetadataMap({}); setExpandedExpenseIds([]);
-		setLoadError(null); setReminderWarning(null); setHasLoadedData(false);
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) { setLoadError('Entre novamente para carregar as despesas recorrentes.'); setIsLoading(false); setIsRefreshing(false); return; }
-
-		setHasLoadedData(false); setIsLoading(true);
-
-		if (asRefresh) {
-			setIsRefreshing(true);
-		} else {
-			setIsLoading(true);
-		}
-
-		try {
-			const [expensesResult, tagsResult] = await Promise.all([
-				getMandatoryExpensesWithRelationsFirebase(currentUser.uid, true),
-				getTagsWithUsersByPersonFirebase(currentUser.uid),
-			]);
-
-			if (!isCurrent()) return;
-			if (!tagsResult.success || !Array.isArray(tagsResult.data)) throw new Error('Não foi possível carregar as categorias.');
-			if (!expensesResult.success || !Array.isArray(expensesResult.data)) {
-				throw new Error('Erro ao obter os gastos obrigatórios.');
-			}
-
-			const tagsRecord: Record<string, string> = {};
-			const tagMetadataRecord: Record<string, TagMetadata> = {};
-			if (tagsResult.success && Array.isArray(tagsResult.data)) {
-				(tagsResult.data as Array<Record<string, unknown>>)
-
-					.forEach(tag => {
-						const tagIdValue = tag['id'];
-						if (typeof tagIdValue === 'string') {
-							const tagNameValue = tag['name'];
-							const label =
-								typeof tagNameValue === 'string' && tagNameValue.trim().length > 0
-									? tagNameValue.trim()
-									: 'Tag sem nome';
-							tagsRecord[tagIdValue] = label;
-							tagMetadataRecord[tagIdValue] = {
-								name: label,
-								iconFamily: typeof tag['iconFamily'] === 'string' ? tag['iconFamily'] as TagIconFamily : null,
-								iconName: typeof tag['iconName'] === 'string' ? tag['iconName'] as string : null,
-								iconStyle: typeof tag['iconStyle'] === 'string' ? tag['iconStyle'] as TagIconStyle : null,
-							};
-						}
-					});
-			}
-
-			const referenceDate = expensesResult.data.some((row: any) => row.sparkPlan === true) ? toFinancialCivilDate(new Date()) : new Date();
-			setRetainedPlans(expensesResult.data.filter((row: any) => row.sparkPlan === true && row.sparkPlanActive === false && !row.sparkSuccessorPlanId && !row.sparkReplanCancelled && row.personId === currentUser.uid)
-                .map((row: any) => ({ id: row.id, name: row.name })));
-            const activeRows = expensesResult.data.filter((row: any) => row.sparkPlan !== true || row.sparkPlanActive !== false);
-            const formattedExpenses: MandatoryExpenseItem[] = activeRows.map((expense: any) => {
-				const dueDay = typeof expense?.dueDay === 'number' ? expense.dueDay : 1;
-				const usesBusinessDays = expense?.usesBusinessDays === true;
-				const installmentTotal = normalizeMandatoryInstallmentTotal(expense?.installmentTotal);
-				const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-					expense?.installmentsCompleted,
-					installmentTotal,
-				);
-				const installmentStartDate = normalizeMandatoryInstallmentDate(expense?.installmentStartDate);
-				const installmentEndDate = normalizeMandatoryInstallmentDate(expense?.installmentEndDate);
-				const resolvedOccurrence = resolveMonthlyOccurrence({
-					referenceDate,
-					dueDay,
-					usesBusinessDays,
-				});
-				const reminderConfiguration = normalizeExpenseReminderConfiguration(expense);
-				const hasLinkedPaymentExpense = expense?.hasLinkedPaymentExpense === true;
-
-				return {
-					id: expense.id,
-					sparkPlan: expense.sparkPlan === true,
-					name: typeof expense?.name === 'string' ? expense.name : 'Gasto sem nome',
-					valueInCents: typeof expense?.valueInCents === 'number' ? expense.valueInCents : 0,
-					dueDay,
-					usesBusinessDays,
-					resolvedDueDate: resolvedOccurrence.date,
-					holidayName: resolvedOccurrence.holiday?.name ?? null,
-					tagId: typeof expense?.tagId === 'string' ? expense.tagId : '',
-					description: typeof expense?.description === 'string' ? expense.description : null,
-					...reminderConfiguration,
-					lastPaymentExpenseId:
-						hasLinkedPaymentExpense && typeof expense?.lastPaymentExpenseId === 'string'
-							? expense.lastPaymentExpenseId
-							: null,
-					lastPaymentCycle:
-						hasLinkedPaymentExpense && typeof expense?.lastPaymentCycle === 'string'
-							? expense.lastPaymentCycle
-							: null,
-					lastPaymentDate: hasLinkedPaymentExpense
-						? normalizeDateValue(expense?.lastPaymentDate ?? null)
-						: null,
-					lastPaymentValueInCents:
-						hasLinkedPaymentExpense && typeof expense?.lastPaymentValueInCents === 'number'
-							? expense.lastPaymentValueInCents
-							: null,
-					installmentTotal,
-					installmentTotalValueInCents:
-						typeof expense?.installmentTotalValueInCents === 'number' &&
-							Number.isSafeInteger(expense.installmentTotalValueInCents) &&
-							expense.installmentTotalValueInCents > 0
-							? expense.installmentTotalValueInCents
-							: null,
-					installmentsCompleted,
-					installmentStartDate,
-					installmentEndDate,
-				};
-			});
-
-			const expensesWithStatus = formattedExpenses.map(expense => {
-				const isPaidForCurrentCycle = expense.sparkPlan ? isSparkRecurringCycleCurrent(expense.lastPaymentCycle) : isCycleKeyCurrent(expense.lastPaymentCycle ?? undefined);
-				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
-					storedCompleted: expense.installmentsCompleted ?? 0,
-					explicitCompletion: expense.sparkPlan === true,
-					installmentTotal: expense.installmentTotal ?? null,
-					startDate: expense.installmentStartDate ?? null,
-					isCurrentCycleCompleted: isPaidForCurrentCycle,
-					referenceDate,
-				});
-				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
-					expense.installmentTotal ?? null,
-					resolvedInstallmentsCompleted,
-				);
-				const installmentLabel = formatMandatoryInstallmentLabel(
-					expense.installmentTotal ?? null,
-					resolvedInstallmentsCompleted,
-					isPaidForCurrentCycle,
-				);
-				const remainingValueInCents = getMandatoryInstallmentRemainingValueInCents({
-					installmentTotal: expense.installmentTotal,
-					installmentsCompleted: resolvedInstallmentsCompleted,
-					installmentValueInCents: expense.valueInCents,
-					installmentTotalValueInCents: expense.installmentTotalValueInCents,
-				});
-				const displayValueInCents =
-					isPaidForCurrentCycle &&
-						typeof expense.lastPaymentValueInCents === 'number' &&
-						!Number.isNaN(expense.lastPaymentValueInCents)
-						? expense.lastPaymentValueInCents
-						: expense.valueInCents;
-
-				return {
-					...expense,
-					installmentsCompleted: resolvedInstallmentsCompleted,
-					isPaidForCurrentCycle,
-					isInstallmentComplete,
-					installmentLabel,
-					remainingInstallments:
-						typeof expense.installmentTotal === 'number'
-							? Math.max(0, expense.installmentTotal - resolvedInstallmentsCompleted)
-							: 0,
-					remainingValueInCents,
-					displayValueInCents,
-				};
-			});
-
-			if (!isCurrent()) {
-				return;
-			}
-			setTagsMap(tagsRecord);
-			setTagMetadataMap(tagMetadataRecord);
-			setExpenses(expensesWithStatus);
-			setHasLoadedData(true);
-			try {
-			const reminderResult = await syncMandatoryExpenseNotifications(
-				currentUser.uid,
-				buildMandatoryExpenseReminderSyncItems(expensesResult.data, referenceDate),
-			);
-			if (isCurrent() && reminderResult?.failed > 0) setReminderWarning('Dados carregados. Alguns lembretes não puderam ser reconciliados neste dispositivo.');
-			} catch { if (isCurrent()) setReminderWarning('Dados carregados. Não foi possível reconciliar os lembretes neste dispositivo.'); }
-		} catch (error) {
-			if (isCurrent()) { setExpenses([]); setRetainedPlans([]); setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as despesas recorrentes.'); }
-		} finally {
-			if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); }
-		}
-	}, [personId, beginRequest]);
+	const loadData = React.useCallback(async (asRefresh = false) => { showFeatureUnavailable(); }, []);
 
 	const handleRefresh = React.useCallback(async () => {
 		await loadData(true);
 	}, [loadData]);
 
-	useFocusEffect(React.useCallback(() => {
-		void loadData();
-		return () => { cancelRequest(); cancelActionRequest(); };
-	}, [loadData, cancelRequest, cancelActionRequest]));
-
 	const handleOpenCreate = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses);
 	}, []);
 
-	const handleEdit = React.useCallback((expenseId: string) => {
-		navigateToRoute(APP_ROUTE_PATHS.addMandatoryExpenses, { expenseId });
-	}, []);
-
-	const handleRegisterExpense = React.useCallback((expense: MandatoryExpenseItem) => {
-		if (expense.isPaidForCurrentCycle) {
-			showNotifierAlert({
-				description: 'Este gasto já foi registrado como pago neste mês.',
-				type: 'warn',
-				isDarkMode,
-			});
-			return;
-		}
-
-		if (expense.isInstallmentComplete) {
-			showNotifierAlert({
-				description: 'Todas as parcelas deste gasto obrigatório já foram registradas.',
-				type: 'warn',
-				isDarkMode,
-			});
-			return;
-		}
-
-		const nextInstallmentValueInCents =
-			typeof expense.installmentTotal === 'number'
-				? getMandatoryInstallmentValueInCents({
-					installmentTotal: expense.installmentTotal,
-					installmentsCompleted: expense.installmentsCompleted ?? 0,
-					installmentsToSettle: 1,
-					installmentValueInCents: expense.valueInCents,
-					installmentTotalValueInCents: expense.installmentTotalValueInCents,
-				})
-				: null;
-
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
-			templateName: encodeURIComponent(expense.name),
-			templateValueInCents: String(nextInstallmentValueInCents ?? expense.valueInCents),
-			templateTagId: expense.tagId,
-			templateDueDay: String(expense.dueDay),
-			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
-			templateDescription: expense.description ? encodeURIComponent(expense.description) : undefined,
-			templateMandatoryExpenseId: expense.id,
-			templateTagName: tagMetadataMap[expense.tagId]?.name
-				? encodeURIComponent(tagMetadataMap[expense.tagId].name)
-				: undefined,
-			templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
-				: undefined,
-			templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
-				: undefined,
-			templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
-				: undefined,
-		});
-	}, [tagMetadataMap]);
-
-	const handleSettleExpense = React.useCallback((expense: MandatoryExpenseItem, installmentsToSettle: number, valueInCents: number) => {
-		if (typeof expense.installmentTotal !== 'number' || expense.isInstallmentComplete) {
-			showNotifierAlert({
-				description: 'A quitação antecipada só está disponível para parcelamentos ativos.',
-				type: 'warn',
-				isDarkMode,
-			});
-			return;
-		}
-
-		if (
-			!Number.isInteger(installmentsToSettle) ||
-			installmentsToSettle < 1 ||
-			installmentsToSettle > (expense.remainingInstallments ?? 0) ||
-			!Number.isSafeInteger(valueInCents) ||
-			valueInCents <= 0
-		) {
-			showNotifierAlert({
-				description: 'Informe uma quantidade válida de parcelas para quitar.',
-				type: 'warn',
-				isDarkMode,
-			});
-			return;
-		}
-
-		navigateToRoute(APP_ROUTE_PATHS.addRegisterExpenses, {
-			templateName: encodeURIComponent(expense.name),
-			templateValueInCents: String(valueInCents),
-			templateTagId: expense.tagId,
-			templateDueDay: String(expense.dueDay),
-			templateUsesBusinessDays: expense.usesBusinessDays ? '1' : undefined,
-			templateDescription: encodeURIComponent(
-				[
-					expense.description,
-					`Quitação antecipada de ${installmentsToSettle} parcela(s)${installmentsToSettle === expense.remainingInstallments ? ' restantes' : ''
-					}.`,
-				]
-					.filter(Boolean)
-					.join('\n'),
-			),
-			templateMandatoryExpenseId: expense.id,
-			templateMandatoryExpenseSettlement: '1',
-			templateMandatoryExpenseInstallmentsCount: String(installmentsToSettle),
-			templateTagName: tagMetadataMap[expense.tagId]?.name
-				? encodeURIComponent(tagMetadataMap[expense.tagId].name)
-				: undefined,
-			templateTagIconFamily: tagMetadataMap[expense.tagId]?.iconFamily
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconFamily as string)
-				: undefined,
-			templateTagIconName: tagMetadataMap[expense.tagId]?.iconName
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconName as string)
-				: undefined,
-			templateTagIconStyle: tagMetadataMap[expense.tagId]?.iconStyle
-				? encodeURIComponent(tagMetadataMap[expense.tagId].iconStyle as string)
-				: undefined,
-		});
-	}, [isDarkMode, tagMetadataMap]);
-
 	const handleCloseActionModal = React.useCallback(() => {
-		if (isActionProcessing || isActionUncertain) {
-			return;
-		}
-		setPendingAction(null);
-	}, [isActionProcessing, isActionUncertain]);
+setPendingAction(null);
+}, []);
 
 	const selectedSettlementInstallments = React.useMemo(() => {
 		if (pendingAction?.type !== 'settle') {
@@ -894,138 +472,9 @@ export default function MandatoryExpensesListScreen() {
 			: 0;
 	}, [pendingAction, settlementInstallmentCount]);
 
-	const selectedSettlementValueInCents = React.useMemo(() => {
-		if (pendingAction?.type !== 'settle' || selectedSettlementInstallments <= 0) {
-			return null;
-		}
+	const selectedSettlementValueInCents = React.useMemo<number | null>(() => null, []);
 
-		return getMandatoryInstallmentValueInCents({
-			installmentTotal: pendingAction.expense.installmentTotal,
-			installmentsCompleted: pendingAction.expense.installmentsCompleted ?? 0,
-			installmentsToSettle: selectedSettlementInstallments,
-			installmentValueInCents: pendingAction.expense.valueInCents,
-			installmentTotalValueInCents: pendingAction.expense.installmentTotalValueInCents,
-		});
-	}, [pendingAction, selectedSettlementInstallments]);
-
-	const handleConfirmAction = React.useCallback(async () => {
-		if (!pendingAction || actionLock.current || isActionProcessing || !personId || auth.currentUser?.uid !== personId || (!isActionUncertain && (isLoading || loadError || !hasLoadedData))) {
-			return;
-		}
-
-		if (pendingAction.type === 'register') {
-			handleRegisterExpense(pendingAction.expense);
-			setPendingAction(null);
-			return;
-		}
-
-		if (pendingAction.type === 'settle') {
-			if (!selectedSettlementValueInCents || selectedSettlementInstallments <= 0) {
-				return;
-			}
-			handleSettleExpense(pendingAction.expense, selectedSettlementInstallments, selectedSettlementValueInCents);
-			setPendingAction(null);
-			return;
-		}
-
-		if (pendingAction.type === 'edit') {
-			handleEdit(pendingAction.expense.id);
-			setPendingAction(null);
-			return;
-		}
-
-		const lock = {}; actionLock.current = lock; const isCurrentAction = beginActionRequest();
-		setIsActionProcessing(true); setActionError(null);
-		try {
-			if (pendingAction.expense.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
-				const result = await submitSparkRecurringAction({ planId: pendingAction.expense.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
-				if (!isCurrentAction()) return;
-				if (!result) throw new Error('O contexto financeiro mudou.');
-				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
-				await loadData();
-				return;
-			}
-
-			if (pendingAction.type === 'delete') {
-				const result = await deleteMandatoryExpenseFirebase(pendingAction.expense.id);
-				if (!isCurrentAction()) return;
-				if (result.success) {
-					const accountId = personId;
-					let reminderCleanupFailed = false;
-					if (accountId) {
-						try {
-							await cancelMandatoryExpenseNotification(accountId, pendingAction.expense.id);
-						} catch (notificationError) {
-							reminderCleanupFailed = true;
-							console.error('Erro ao remover a agenda do gasto obrigatório excluído:', notificationError);
-						}
-					}
-					showNotifierAlert({
-						description: reminderCleanupFailed
-							? 'Gasto removido, mas a agenda local será limpa na próxima reconciliação.'
-							: 'Gasto obrigatório removido com sucesso.',
-						type: reminderCleanupFailed ? 'warn' : 'success',
-						isDarkMode,
-					});
-					await loadData();
-				} else {
-					showNotifierAlert({
-						description: 'Não foi possível remover o gasto obrigatório.',
-						type: 'error',
-						isDarkMode,
-					});
-				}
-				return;
-			}
-
-			if (pendingAction.type === 'reclaim') {
-				const linkedExpenseId = pendingAction.expense.lastPaymentExpenseId;
-
-				if (linkedExpenseId) {
-					const deleteResult = await deleteExpenseFirebase(linkedExpenseId);
-					if (!isCurrentAction()) return;
-					if (!deleteResult.success) {
-						showNotifierAlert({
-							description: 'Não foi possível remover a despesa vinculada.',
-							type: 'error',
-							isDarkMode,
-						});
-						return;
-					}
-				}
-
-				const clearResult = await clearMandatoryExpensePaymentFirebase(pendingAction.expense.id);
-				if (!isCurrentAction()) return;
-				if (!clearResult.success) {
-					showNotifierAlert({
-						description: 'Não foi possível reivindicar o pagamento.',
-						type: 'error',
-						isDarkMode,
-					});
-					return;
-				}
-
-				showNotifierAlert({
-					description: 'Pagamento reivindicado. Registre novamente quando necessário.',
-					type: 'success',
-					isDarkMode,
-				});
-				await loadData();
-				return;
-			}
-		} catch (error) {
-			if (!isCurrentAction()) return;
-			setActionError(error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
-			console.error('Erro ao processar a ação do gasto obrigatório:', error);
-			showNotifierAlert({
-				description: 'Erro inesperado ao processar a ação selecionada.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); if (!hasPendingAction()) setPendingAction(null); }
-		}
-	}, [personId, isActionProcessing, isActionUncertain, isLoading, loadError, hasLoadedData, beginActionRequest, hasPendingAction, handleEdit, handleRegisterExpense, handleSettleExpense, loadData, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents, submitSparkRecurringAction]);
+	const handleConfirmAction = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
@@ -1249,16 +698,16 @@ export default function MandatoryExpensesListScreen() {
 		if (pendingAction.type === 'reclaim') {
 			return {
 				title: 'Reivindicar pagamento',
-				message: pendingAction.expense.sparkPlan ? 'O valor efetivado será estornado e o ciclo ficará pendente. O histórico será preservado.' : `Deseja cancelar o pagamento registrado para "${expenseName}"? A despesa vinculada será removida.`,
+				message: `Deseja cancelar o pagamento registrado para "${expenseName}"? A despesa vinculada será removida.`,
 				confirmLabel: 'Reivindicar',
 				action: 'secondary' as const,
 			};
 		}
 
 		return {
-			title: pendingAction.expense.sparkPlan ? 'Arquivar recorrência' : 'Excluir gasto obrigatório',
-			message: pendingAction.expense.sparkPlan ? 'O histórico e as parcelas concluídas serão preservados. Você poderá restaurar a recorrência nesta lista.' : `Tem certeza de que deseja excluir "${expenseName}"? Essa ação não pode ser desfeita.`,
-			confirmLabel: pendingAction.expense.sparkPlan ? 'Arquivar' : 'Excluir',
+			title: 'Excluir gasto obrigatório',
+			message: `Tem certeza de que deseja excluir "${expenseName}"? Essa ação não pode ser desfeita.`,
+			confirmLabel: 'Excluir',
 			action: 'negative' as const,
 		};
 	}, [formatCurrencyBRL, pendingAction, selectedSettlementInstallments, selectedSettlementValueInCents]);
@@ -1333,9 +782,9 @@ export default function MandatoryExpensesListScreen() {
 
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 {reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
-<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || isActionUncertain}><ButtonText>Atualizar despesas recorrentes</ButtonText></Button>
+<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar despesas recorrentes</ButtonText></Button>
 {!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="expense" onChanged={async () => { await loadData(); }} />}
-								{!isLoading && !loadError && <SparkRecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
+								{!isLoading && !loadError && <RecurringContracts recurringType="expense" onChanged={async () => { await loadData(); }} />}
                             {loadError ? null : isLoading ? (
 									<MandatoryExpensesTimelineSkeleton
 										compactCardClassName={compactCardClassName}
@@ -1831,7 +1280,7 @@ export default function MandatoryExpensesListScreen() {
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
 {actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
-{isActionUncertain ? <Text className={helperText} accessibilityRole="alert">Confirme a mesma ação para recuperar o resultado anterior.</Text> : null}
+{null}
 							{pendingAction?.type === 'settle' ? (
 								<VStack className="mt-4 gap-2">
 									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
@@ -1871,7 +1320,7 @@ export default function MandatoryExpensesListScreen() {
 									</>
 								) : (
 									<ButtonText className={actionConfirmButtonTextClassName}>
-										{isActionUncertain ? 'Confirmar ação anterior' : actionModalCopy.confirmLabel}
+										{actionModalCopy.confirmLabel}
 									</ButtonText>
 								)}
 							</Button>

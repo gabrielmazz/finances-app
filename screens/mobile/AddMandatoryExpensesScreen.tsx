@@ -1,104 +1,83 @@
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+
+import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-	ScrollView,
-	View,
-	StatusBar,
-	KeyboardAvoidingView,
-	Platform,
-	TextInput,
-	Pressable,
+KeyboardAvoidingView,
+Platform,
+Pressable,
+ScrollView,
+StatusBar,
+TextInput,
+View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
-import { Heading } from '@/components/ui/heading';
-import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { HStack } from '@/components/ui/hstack';
-import { Switch } from '@/components/ui/switch';
 import { Box } from '@/components/ui/box';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
+import { HStack } from '@/components/ui/hstack';
+import { Image } from '@/components/ui/image';
+import { Input,InputField } from '@/components/ui/input';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
 import {
-	Select,
-	SelectBackdrop,
-	SelectContent,
-	SelectDragIndicator,
-	SelectDragIndicatorWrapper,
-	SelectIcon,
-	SelectInput,
-	SelectItem,
-	SelectPortal,
-	SelectTrigger,
+Select,
+SelectBackdrop,
+SelectContent,
+SelectDragIndicator,
+SelectDragIndicatorWrapper,
+SelectIcon,
+SelectInput,
+SelectItem,
+SelectPortal,
+SelectTrigger,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Text } from '@/components/ui/text';
+import { Textarea,TextareaInput } from '@/components/ui/textarea';
+import { VStack } from '@/components/ui/vstack';
 
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import DatePickerField from '@/components/uiverse/shared/date-picker';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 
-import { auth } from '@/FirebaseConfig';
-import { getTagsWithUsersByPersonFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
-import {
-	addMandatoryExpenseFirebase,
-	getMandatoryExpenseFirebase,
-	updateMandatoryExpenseFirebase,
-} from '@/functions/MandatoryExpenseFirebase';
-import {
-	cancelMandatoryExpenseNotification,
-	ensureNotificationPermissionForMandatoryExpenses,
-	scheduleMandatoryExpenseNotification,
-} from '@/utils/mandatoryExpenseNotifications';
-import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
-import {
-	formatMandatoryReminderNextTrigger,
-	type MandatoryReminderScheduleResult,
-} from '@/utils/mandatoryReminderNotifications';
-import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
-import {
-	MAX_MANDATORY_INSTALLMENTS,
-	getMandatoryInstallmentEndDateFromTotal,
-	getMandatoryInstallmentTotalFromDateRange,
-	normalizeMandatoryInstallmentDate,
-	normalizeMandatoryInstallmentTotal,
-	resolveMandatoryInstallmentsCompleted,
-	sanitizeMandatoryInstallmentInput,
-} from '@/utils/mandatoryInstallments';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
+
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { MAX_MONTHLY_BUSINESS_DAY } from '@/utils/businessCalendar';
+import {
+MAX_MANDATORY_INSTALLMENTS,
+getMandatoryInstallmentEndDateFromTotal,
+getMandatoryInstallmentTotalFromDateRange,
+normalizeMandatoryInstallmentDate,
+normalizeMandatoryInstallmentTotal,
+sanitizeMandatoryInstallmentInput
+} from '@/utils/mandatoryInstallments';
 
 // Importação do SVG
-import AddMandatoryExpensesListIllustration from '../../assets/UnDraw/addMandatoryExpensesScreen.svg';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { Info } from 'lucide-react-native';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import type { TagIconFamily,TagIconStyle } from '@/hooks/useTagIcons';
 import {
-	DEFAULT_MANDATORY_REMINDER_HOUR,
-	DEFAULT_MANDATORY_REMINDER_MINUTE,
-	DEFAULT_MANDATORY_REMINDER_TIME,
-	formatMandatoryReminderTime,
-	isMandatoryReminderTimeValid,
-	parseMandatoryReminderTime,
-} from '@/utils/mandatoryReminderTime';
-import {
-	MANDATORY_REMINDER_CONFIG_VERSION,
-	formatMandatoryReminderSummary,
-	isMandatoryReminderConfigured,
-	normalizeMandatoryReminderDaysBefore,
+MANDATORY_REMINDER_CONFIG_VERSION,
+isMandatoryReminderConfigured,
+normalizeMandatoryReminderDaysBefore,
 } from '@/utils/mandatoryReminderConfig';
+import {
+DEFAULT_MANDATORY_REMINDER_HOUR,
+DEFAULT_MANDATORY_REMINDER_MINUTE,
+DEFAULT_MANDATORY_REMINDER_TIME,
+formatMandatoryReminderTime,
+isMandatoryReminderTimeValid,
+} from '@/utils/mandatoryReminderTime';
+import { Info } from 'lucide-react-native';
+import AddMandatoryExpensesListIllustration from '../../assets/UnDraw/addMandatoryExpensesScreen.svg';
 
 type TagOption = {
 	id: string;
@@ -168,7 +147,6 @@ export default function AddMandatoryExpensesScreen() {
 		insets,
 		compactCardClassName,
 		notTintedCardClassName,
-		topSummaryCardClassName,
 		infoCardStyle,
 		switchTrackColor,
 		switchThumbColor,
@@ -180,10 +158,10 @@ export default function AddMandatoryExpensesScreen() {
 		return raw && raw.trim().length > 0 ? raw : null;
 	}, [params.expenseId]);
 
-	const [tagOptions, setTagOptions] = React.useState<TagOption[]>([]);
+	const [tagOptions] = React.useState<TagOption[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
-	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
+	const [isLoadingTags] = React.useState(false);
 
 	const [expenseName, setExpenseName] = React.useState('');
 	const [valueDisplay, setValueDisplay] = React.useState('');
@@ -203,22 +181,21 @@ export default function AddMandatoryExpensesScreen() {
 	const [reminderTime, setReminderTime] = React.useState(DEFAULT_MANDATORY_REMINDER_TIME);
 	const [reminderDaysBefore, setReminderDaysBefore] = React.useState<0 | 1 | 2 | 3>(1);
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
-	const [selectedExpenseId, setSelectedExpenseId] = React.useState<string | null>(null);
+	const [, setSelectedExpenseId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-	const [lastPaymentCycle, setLastPaymentCycle] = React.useState<string | null>(null);
+	const [, setLastPaymentCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef<object | null>(null);
-	const { personId, beginRequest: beginTagsRequest, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-expense-form');
-	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, initialize, isSpark, isUncertain } = useSparkRecurringForm('expense', editingExpenseId ?? 'create');
-	const entry = useMovementFormEntry({ movementId: editingExpenseId, source: personId ?? '', initialize, loadSpark: loadSparkRecurring, loadLegacy: getMandatoryExpenseFirebase });
+	const { personId, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-expense-form');
+
+	const entry = useMovementFormEntry();
 	const isPrefilling = entry.loading;
 	const currentFormScope = JSON.stringify([personId, editingExpenseId]);
 	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
-	const [tagsError, setTagsError] = React.useState<string | null>(null);
+	const [tagsError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryExpenses');
 	const selectedTagLabel = React.useMemo(() => {
 		if (!selectedTagId) {
 			return null;
@@ -373,81 +350,16 @@ export default function AddMandatoryExpensesScreen() {
 	const isInstallmentStartDateValid = !installmentsEnabled || parsedInstallmentStartDate !== null;
 	const isInstallmentEndDateUnlocked = installmentsEnabled && normalizedInstallmentTotal !== null;
 	const isInstallmentEndDateValid = !isInstallmentEndDateUnlocked || parsedInstallmentEndDate !== null;
-	const resolvedSettledInstallmentsCount = React.useMemo(
-		() =>
-			installmentsEnabled && normalizedInstallmentTotal !== null
-				? resolveMandatoryInstallmentsCompleted({
-					storedCompleted: settledInstallmentsCount,
-					explicitCompletion: isSpark !== false,
-					installmentTotal: normalizedInstallmentTotal,
-					startDate: parsedInstallmentStartDate,
-					isCurrentCycleCompleted: false,
-				})
-				: 0,
-		[
-			installmentsEnabled,
-			normalizedInstallmentTotal,
-			parsedInstallmentStartDate,
-			settledInstallmentsCount,
-			isSpark,
-		],
-	);
+	const resolvedSettledInstallmentsCount = 0;
 	const isInstallmentTotalBelowSettled =
 		installmentsEnabled &&
 		normalizedInstallmentTotal !== null &&
 		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 
 	const fieldsLockedRef = React.useRef(true);
-	const handleReminderToggle = React.useCallback(async (value: boolean) => {
-		if (fieldsLockedRef.current) return;
-		if (!value) {
-			setReminderEnabled(false);
-			return;
-		}
-
-		if (!expenseName.trim() || valueInCents === null || valueInCents <= 0 || !isDueDayValid || !selectedTagId) {
-			showNotifierAlert({
-				title: 'Lembrete indisponível',
-				description: 'Preencha nome, valor, dia do vencimento e categoria antes de ativar o lembrete.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const permissionResult = await ensureNotificationPermissionForMandatoryExpenses();
-		if (fieldsLockedRef.current || auth.currentUser?.uid !== personId) return;
-		if (!permissionResult.granted) {
-			showNotifierAlert({
-				title: 'Lembrete indisponível',
-				description:
-					permissionResult.reason === 'unavailable'
-						? 'Lembretes agendados estão disponíveis somente na versão instalada do aplicativo Android ou iOS.'
-						: 'Ative as notificações do aplicativo nas configurações do dispositivo para receber lembretes.',
-				type: 'warn',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-		setReminderTime(currentValue =>
-			parseMandatoryReminderTime(currentValue) ? currentValue : DEFAULT_MANDATORY_REMINDER_TIME,
-		);
-		setReminderEnabled(value);
-	}, [expenseName, isDarkMode, isDueDayValid, selectedTagId, valueInCents, personId]);
+	const handleReminderToggle = React.useCallback(async (value: boolean) => { showFeatureUnavailable(); }, []);
 
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
-	const reminderSummary = React.useMemo(() => {
-		const parsedTime = parseMandatoryReminderTime(reminderTime);
-		return formatMandatoryReminderSummary({
-			enabled: reminderEnabled,
-			daysBefore: reminderDaysBefore,
-			onDueDate: reminderOnDueDate,
-			hour: parsedTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
-			minute: parsedTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
-		});
-	}, [reminderDaysBefore, reminderEnabled, reminderOnDueDate, reminderTime]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -482,7 +394,7 @@ export default function AddMandatoryExpensesScreen() {
 
 	const hasExpenseName = expenseName.trim().length > 0;
 	const hasExpenseValue = valueInCents !== null && Number.isSafeInteger(valueInCents) && valueInCents > 0;
-	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || isUncertain;
+	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || false;
 	fieldsLockedRef.current = isFormBusy;
 	const isCoreTemplateReady = hasExpenseName && hasExpenseValue && isDueDayValid;
 	const isInstallmentConfigReady =
@@ -495,7 +407,7 @@ export default function AddMandatoryExpensesScreen() {
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasExpenseName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasExpenseName || !hasExpenseValue || isFormBusy;
-	const isContractLocked = isSpark === true && !!editingExpenseId;
+	const isContractLocked = false;
 	const isInstallmentFieldDisabled = !hasExpenseName || !isDueDayValid || isFormBusy || isContractLocked;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isAddTagButtonDisabled = isFormBusy;
@@ -516,12 +428,6 @@ export default function AddMandatoryExpensesScreen() {
 	const dueDayErrorMessage = usesBusinessDays
 		? `Informe um dia útil válido entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
 		: 'Informe um dia válido entre 1 e 31.';
-	const dueDayHelperMessage = usesBusinessDays
-		? 'Use a posição do dia útil no mês. Ex.: 5 = quinto dia útil. Fins de semana e feriados nacionais do Brasil não contam.'
-		: 'Use um dia fixo do mês. Se a data coincidir com feriado nacional, o calendário destacará esse dia em roxo.';
-	const businessDayToggleHelperMessage = usesBusinessDays
-		? `Esta despesa será tratada como ${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Se o mês tiver menos dias úteis, usamos o último dia útil disponível.`
-		: 'Ative quando o vencimento seguir um dia útil do mês, como uma cobrança no 5º dia útil.';
 	const installmentHelperMessage = React.useMemo(() => {
 		if (!isCoreTemplateReady) {
 			return 'Preencha nome, valor e vencimento para liberar o parcelamento.';
@@ -562,36 +468,35 @@ export default function AddMandatoryExpensesScreen() {
 		valueInCents,
 	]);
 
-	const resetForm = React.useCallback((options?: { keepTag?: boolean; preserveSpark?: boolean }) => {
-		if (!options?.preserveSpark) resetSparkRecurring();
-		setSelectedExpenseId(null);
-		setExpenseName('');
-		setValueDisplay('');
-		setValueInCents(null);
-		setDueDay('');
-		setUsesBusinessDays(false);
-		setInstallmentsEnabled(false);
-		setInstallmentTotal('');
-		setInstallmentTotalValueDisplay('');
-		setInstallmentTotalValueInCents(null);
-		setInstallmentStartDate(formatDateToBR(new Date()));
-		setInstallmentEndDate('');
-		setSettledInstallmentsCount(0);
-		setDescription('');
-		setReminderEnabled(false);
-		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
-		setReminderDaysBefore(1);
-		setReminderOnDueDate(false);
-		setSelectedTagId(current => {
+	const resetForm = React.useCallback((options?: { keepTag?: boolean;  }) => {
+setSelectedExpenseId(null);
+setExpenseName('');
+setValueDisplay('');
+setValueInCents(null);
+setDueDay('');
+setUsesBusinessDays(false);
+setInstallmentsEnabled(false);
+setInstallmentTotal('');
+setInstallmentTotalValueDisplay('');
+setInstallmentTotalValueInCents(null);
+setInstallmentStartDate(formatDateToBR(new Date()));
+setInstallmentEndDate('');
+setSettledInstallmentsCount(0);
+setDescription('');
+setReminderEnabled(false);
+setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
+setReminderDaysBefore(1);
+setReminderOnDueDate(false);
+setSelectedTagId(current => {
 			if (options?.keepTag && current) {
 				return current;
 			}
 			return null;
 		});
-		setLastPaymentCycle(null);
-	}, []);
+setLastPaymentCycle(null);
+}, []);
 
-	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ preserveSpark: true }); setSubmitError(null); }, [personId, editingExpenseId, resetForm]);
+	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ }); setSubmitError(null); }, [personId, editingExpenseId, resetForm]);
 
 	// Segue [[Despesas Fixas]] e [[Gerenciamento de Tags]]: a categoria obrigatória pode ser criada inline e voltar já elegível neste filtro.
 	const handleOpenAddTagScreen = React.useCallback(() => {
@@ -611,114 +516,7 @@ export default function AddMandatoryExpensesScreen() {
 		setSelectedTagName(tag.name);
 	}, []);
 
-	const loadTags = React.useCallback(async () => {
-		const isCurrent = beginTagsRequest();
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) {
-			setTagOptions([]); setTagsError('Entre novamente para carregar as categorias.');
-			showNotifierAlert({
-				description: 'Usuário não autenticado. Faça login novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-			return;
-		}
-
-		setIsLoadingTags(true); setTagsError(null); setTagOptions([]);
-
-		try {
-			const tagsResponse = await getTagsWithUsersByPersonFirebase(currentUser.uid);
-			if (!isCurrent()) return;
-			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) throw new Error('Não foi possível carregar as categorias obrigatórias.');
-
-			const formattedTags: TagOption[] = tagsResponse.data
-				.filter((tag: any) => isTagVisibleInMandatoryUsageList(tag, 'expense'))
-				.map((tag: any) => ({
-					id: tag.id,
-					name: typeof tag?.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : 'Tag sem nome',
-					iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
-					iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
-					iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
-				}))
-				.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
-			const pendingCreatedTag = peekPendingCreatedTag();
-			const matchingPendingTag =
-				pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'expense')
-					? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
-					: null;
-
-			setTagOptions(formattedTags);
-			if (matchingPendingTag && !isUncertain) {
-				setSelectedTagId(matchingPendingTag.id);
-				setSelectedTagName(matchingPendingTag.name);
-				clearPendingCreatedTag(matchingPendingTag.id);
-			} else if (!isUncertain) {
-				setSelectedTagId(current =>
-					current && formattedTags.some(tag => tag.id === current) ? current : null,
-				);
-			}
-
-			if (formattedTags.length === 0) {
-				showNotifierAlert({
-					description: 'Cadastre uma tag de despesas marcada como obrigatória para utilizar esta tela.',
-					type: 'warn',
-					isDarkMode,
-				});
-			}
-		} catch (error) {
-			if (isCurrent()) { setTagOptions([]); setTagsError(error instanceof Error ? error.message : 'Não foi possível carregar as categorias.'); }
-		} finally { if (isCurrent()) setIsLoadingTags(false); }
-	}, [personId, beginTagsRequest, isUncertain, isDarkMode]);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			void loadTags();
-			return cancelTagsRequest;
-		}, [loadTags, cancelTagsRequest]),
-	);
-
-	React.useEffect(() => {
-		const matchedTag = tagOptions.find(tag => tag.id === selectedTagId);
-		if (matchedTag) {
-			setSelectedTagName(matchedTag.name);
-			return;
-		}
-
-		if (!selectedTagId) {
-			setSelectedTagName(null);
-			return;
-		}
-
-		let isMounted = true;
-
-		const fetchTagData = async () => {
-			try {
-				const tagResult = await getTagDataFirebase(selectedTagId);
-
-				if (!isMounted || auth.currentUser?.uid !== personId) {
-					return;
-				}
-
-				if (tagResult.success && tagResult.data && typeof tagResult.data.name === 'string') {
-					setSelectedTagName(tagResult.data.name);
-					return;
-				}
-
-				setSelectedTagName(null);
-			} catch (error) {
-				console.error('Erro ao buscar dados da tag obrigatória de despesa:', error);
-				if (isMounted) {
-					setSelectedTagName(null);
-				}
-			}
-		};
-
-		void fetchTagData();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [selectedTagId, tagOptions, personId]);
+	const loadTags = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
@@ -727,7 +525,7 @@ export default function AddMandatoryExpensesScreen() {
 
 	React.useEffect(() => {
 		if (!entry.ready) return;
-		if (!editingExpenseId) { resetForm({ keepTag: true, preserveSpark: true }); return; }
+		if (!editingExpenseId) { resetForm({ keepTag: true, }); return; }
 				const data = entry.record;
 				if (!data) return;
 
@@ -770,13 +568,7 @@ export default function AddMandatoryExpensesScreen() {
 							? data.installmentTotalValueInCents
 							: value * installmentTotalValue
 						: null;
-				const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
-					storedCompleted: data.installmentsCompleted,
-					explicitCompletion: data.sparkPlan === true,
-					installmentTotal: installmentTotalValue,
-					startDate: installmentStartDateValue,
-					isCurrentCycleCompleted: isCycleKeyCurrent(lastPaymentCycle),
-				});
+				const installmentsCompletedValue = (typeof data.installmentsCompleted === 'number' ? data.installmentsCompleted : 0);
 
 				setSelectedExpenseId(editingExpenseId);
 				setExpenseName(name);
@@ -800,312 +592,10 @@ export default function AddMandatoryExpensesScreen() {
 				setLastPaymentCycle(lastPaymentCycle);
 	}, [entry.ready, entry.record, editingExpenseId, resetForm]);
 
-	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || formScopeRef.current !== currentFormScope || !entry.ready || (!isUncertain && (isLoadingTags || tagsError || !tagOptions.some(tag => tag.id === selectedTagId)))) {
-			return;
-		}
-
-		const trimmedName = expenseName.trim();
-
-		if (!trimmedName) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe o nome do gasto obrigatório.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (valueInCents === null || valueInCents <= 0) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe um valor válido.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (!isDueDayValid) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: usesBusinessDays
-					? `Informe um número de dia útil entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
-					: 'Informe um dia do mês entre 1 e 31.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (!selectedTagId) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Selecione uma tag obrigatória.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (installmentsEnabled && normalizedInstallmentTotal === null) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`,
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (installmentsEnabled && !isInstallmentTotalValueValid) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe um valor total que cubra pelo menos R$ 0,01 por parcela.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (installmentsEnabled && parsedInstallmentStartDate === null) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe uma data inicial válida para as parcelas.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (installmentsEnabled && parsedInstallmentEndDate === null) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe uma data final válida para as parcelas.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		if (installmentsEnabled && isInstallmentTotalBelowSettled) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: `Este gasto já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). A quantidade total precisa ser igual ou maior.`,
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const parsedReminderTime = parseMandatoryReminderTime(reminderTime);
-		if (reminderEnabled && !parsedReminderTime) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Informe um horário válido para o lembrete no formato 24h, como 19:00.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) {
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Usuário não autenticado.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-			return;
-		}
-
-		const lock = {}; submitLockRef.current = lock; const submittedScope = formScopeRef.current;
-		setIsSubmitting(true); setSubmitError(null);
-
-		try {
-			const payloadInstallmentsCompleted =
-				installmentsEnabled && normalizedInstallmentTotal !== null
-					? resolvedSettledInstallmentsCount
-					: 0;
-			const payload = {
-				name: trimmedName,
-				valueInCents,
-				dueDay: Number(dueDay),
-				usesBusinessDays,
-				tagId: selectedTagId,
-				description: description.trim().length > 0 ? description.trim() : null,
-				reminderEnabled,
-				reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
-				reminderDaysBefore,
-				reminderOnDueDate,
-				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
-				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
-				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
-				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
-				installmentsCompleted: payloadInstallmentsCompleted,
-				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
-				installmentEndDate: installmentsEnabled ? parsedInstallmentEndDate : null,
-			};
-
-			let persistedExpenseId = selectedExpenseId;
-			const successTitle = selectedExpenseId ? 'Gasto obrigatório atualizado' : 'Gasto obrigatório registrado';
-
-			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedExpenseId });
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			if (sparkResult) {
-				persistedExpenseId = sparkResult.id;
-			} else if (selectedExpenseId) {
-				const result = await updateMandatoryExpenseFirebase({
-					expenseId: selectedExpenseId,
-					...payload,
-				});
-
-				if (!result.success) {
-					throw new Error('Erro ao atualizar o gasto obrigatório.');
-				}
-			} else {
-				const result = await addMandatoryExpenseFirebase({
-					...payload,
-					personId: currentUser.uid,
-				});
-
-				if (!result.success || !result.id) {
-					throw new Error('Erro ao registrar gasto obrigatório.');
-				}
-				persistedExpenseId = result.id;
-			}
-
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
-			let reminderOperationError: string | null = null;
-
-			if (persistedExpenseId) {
-				try {
-					if (reminderEnabled) {
-						reminderFeedback = await scheduleMandatoryExpenseNotification({
-							accountId: currentUser.uid,
-							expenseId: persistedExpenseId,
-							name: payload.name,
-							dueDay: payload.dueDay,
-							usesBusinessDays: payload.usesBusinessDays,
-							reminderHour: payload.reminderHour,
-							reminderMinute: payload.reminderMinute,
-							reminderDaysBefore: payload.reminderDaysBefore,
-							reminderOnDueDate: payload.reminderOnDueDate,
-							description: payload.description ?? undefined,
-							lastCompletedCycle: lastPaymentCycle ?? undefined,
-							activeFromDate: payload.installmentStartDate ?? undefined,
-							activeThroughDate: payload.installmentEndDate ?? undefined,
-							requestPermission: true,
-						});
-					} else {
-						await cancelMandatoryExpenseNotification(currentUser.uid, persistedExpenseId);
-					}
-				} catch (notificationError) {
-					console.error('Erro ao atualizar a agenda do gasto obrigatório salvo:', notificationError);
-					reminderOperationError = 'Não foi possível atualizar a agenda local neste dispositivo.';
-				}
-			}
-
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			const reminderFailureMessage =
-				reminderOperationError ??
-				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
-			if (reminderFailureMessage) {
-				showNotifierAlert({
-					title: successTitle,
-					description: reminderEnabled
-						? `O template foi salvo, mas o lembrete não foi agendado. ${reminderFailureMessage}`
-						: `O template foi salvo, mas a agenda anterior não pôde ser removida. ${reminderFailureMessage}`,
-					type: 'warn',
-					isDarkMode,
-					duration: 5000,
-				});
-			} else if (reminderEnabled && reminderFeedback?.success && reminderFeedback.capacityLimited) {
-				showNotifierAlert({
-					title: successTitle,
-					description: `O lembrete foi salvo com agenda reduzida pelo limite seguro do dispositivo (${reminderFeedback.scheduledCount} avisos mantidos). Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`,
-					type: 'warn',
-					isDarkMode,
-					duration: 6500,
-				});
-			} else {
-				showNotifierAlert({
-					title: successTitle,
-					description:
-						reminderEnabled && reminderFeedback?.success
-							? `Lembrete ativo. Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`
-							: 'Template salvo com lembrete mensal desativado.',
-					type: 'success',
-					isDarkMode,
-					duration: 4000,
-				});
-			}
-
-			applyPostSubmitBehavior({
-				resetForm: !editingExpenseId ? resetForm : undefined,
-				isEditing: Boolean(editingExpenseId),
-			});
-		} catch (error) {
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar a recorrência.');
-			console.error('Erro ao salvar gasto obrigatório:', error);
-			showNotifierAlert({
-				title: 'Erro ao salvar gasto obrigatório',
-				description: 'Não foi possível salvar o gasto obrigatório.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-		} finally {
-			if (submitLockRef.current === lock) { submitLockRef.current = null; if (mounted.current) setIsSubmitting(false); }
-		}
-	}, [
-		entry.ready, isUncertain, isLoadingTags, tagsError, tagOptions, personId, currentFormScope,
-		description,
-		dueDay,
-		expenseName,
-		isDarkMode,
-		isDueDayValid,
-		installmentsEnabled,
-		isInstallmentTotalBelowSettled,
-		isInstallmentTotalValueValid,
-		isSubmitting,
-		usesBusinessDays,
-		normalizedInstallmentTotal,
-		parsedInstallmentEndDate,
-		parsedInstallmentStartDate,
-		reminderEnabled,
-		reminderDaysBefore,
-		reminderOnDueDate,
-		reminderTime,
-		installmentTotalValueInCents,
-		lastPaymentCycle,
-		resolvedSettledInstallmentsCount,
-		applyPostSubmitBehavior,
-		resetForm,
-		submitSparkRecurring,
-		editingExpenseId,
-		selectedExpenseId,
-		selectedTagId,
-		valueInCents,
-	]);
+	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const isSaveDisabled =
-		!isTemplateReady || isSubmitting || !entry.ready || (!isUncertain && (isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+		!isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	// Mantém o formulário visível durante o prefill, conforme o fluxo progressivo descrito em [[Despesas Fixas]].
 	const isEditingMode = Boolean(editingExpenseId);
 	const screenTitle = isEditingMode ? 'Editar gasto obrigatório' : 'Registrar gasto obrigatório';
@@ -1153,7 +643,7 @@ export default function AddMandatoryExpensesScreen() {
 									<MovementFormStatus loading={entry.loading} error={entry.error} onRetry={entry.retry} />
 <MovementFormStatus loading={isLoadingTags} error={tagsError} onRetry={loadTags} />
 {submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
-{isUncertain ? <Text className="text-warning-600 dark:text-warning-400" accessibilityRole="alert">O cadastro anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados.</Text> : null}
+{null}
 {isContractLocked && installmentsEnabled ? <Text className={helperText}>Para mudar o valor total ou o prazo do parcelamento, use Renegociar na lista.</Text> : null}
 <VStack className="gap-2">
 										<Text className={`${LUMUS_FORM_CLASS_NAMES.inlineLabel} ml-1`}>Nome da despesa</Text>
@@ -1483,7 +973,7 @@ export default function AddMandatoryExpensesScreen() {
 												<ButtonText>{isEditingMode ? 'Atualizando' : 'Registrando'}</ButtonText>
 											</>
 										) : (
-											<ButtonText>{isUncertain ? 'Confirmar cadastro anterior' : isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
+											<ButtonText>{isEditingMode ? 'Atualizar gasto' : 'Registrar gasto'}</ButtonText>
 										)}
 									</Button>
 								</VStack>

@@ -33,7 +33,7 @@ export default function BankBalanceAdjustmentForm({ form, valueRef, descriptionR
 	return <VStack space="lg">
 		{form.submitError && <Text className={LUMUS_FORM_CLASS_NAMES.error} accessibilityRole="alert" accessibilityLiveRegion="polite">{form.submitError}</Text>}
 		{form.retryPending && <Text className={LUMUS_CLASS_NAMES.helper} accessibilityRole="alert">O ajuste anterior ainda precisa ser confirmado. Os campos ficam bloqueados para reenviar os mesmos dados.</Text>}
-		{!form.banks.length && <VStack space="sm"><Text className={LUMUS_CLASS_NAMES.helper}>Cadastre um banco ativo para ajustar o saldo.</Text><Button variant="outline" onPress={form.retry}><ButtonText>Atualizar bancos</ButtonText></Button></VStack>}
+		{!form.banks.length && <VStack space="sm"><Text className={LUMUS_CLASS_NAMES.helper}>A seleção de bancos está temporariamente indisponível.</Text><Button variant="outline" onPress={form.retry}><ButtonText>Atualizar bancos</ButtonText></Button></VStack>}
         {form.preparationProgress && <Text className={LUMUS_CLASS_NAMES.helper} accessibilityLiveRegion="polite">{form.preparationProgress}</Text>}
         {form.previewLoading && <Button onPress={form.pausePreparation}><ButtonText>Pausar preparação</ButtonText></Button>}
 

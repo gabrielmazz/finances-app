@@ -1,10 +1,8 @@
-import React from 'react';
-import { Button, ButtonText } from '@/components/ui/button';
-import { Input, InputField } from '@/components/ui/input';
+import { Button,ButtonText } from '@/components/ui/button';
+import { Input,InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { LUMUS_CLASS_NAMES, LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
-import { SPARK_MAX_CENTS } from '@/functions/sparkFinancialProtocol';
+import { LUMUS_CLASS_NAMES,LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 
 type Props = {
   valueInCents: number;
@@ -16,7 +14,7 @@ type Props = {
 
 /** [[Versão Usável por Telas]]: saldo existente na criação é referência, nunca uma receita. */
 export default function BankOpeningBalanceFields({ valueInCents, onValueChange, reason, onReasonChange, disabled }: Props) {
-  const isValid = Number.isSafeInteger(valueInCents) && Math.abs(valueInCents) <= SPARK_MAX_CENTS;
+  const isValid = Number.isSafeInteger(valueInCents) && Math.abs(valueInCents) <= Number.MAX_SAFE_INTEGER;
   const display = isValid ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valueInCents / 100) : String(valueInCents);
   return (
     <VStack className="gap-3">

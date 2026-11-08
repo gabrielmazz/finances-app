@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text,View,type StyleProp,type ViewStyle } from 'react-native';
 
 export type BankIconOption = {
 	key: string;

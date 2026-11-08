@@ -1,94 +1,72 @@
-import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { isSparkRecurringCycleCurrent } from '@/utils/sparkRecurringReadModel';
-import { toFinancialCivilDate } from '@/utils/financialCivilDate';
-import RetainedRecurringPlans, { type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
-import SparkRecurringContracts from '@/components/uiverse/recurring/spark-recurring-contracts';
-import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+
+import RecurringContracts from '@/components/uiverse/recurring/recurring-contracts';
+import RetainedRecurringPlans,{ type RetainedRecurringPlan } from '@/components/uiverse/recurring/retained-recurring-plans';
+
+import { CalendarDays,ChevronDown,ChevronUp } from 'lucide-react';
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, TextInput, View, StatusBar, Text as RNText } from 'react-native';
+import { Pressable,Text as RNText,RefreshControl,ScrollView,StatusBar,TextInput,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
-import { CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { Box } from '@/components/ui/box';
+import { Button,ButtonIcon,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
-import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
 import { HStack } from '@/components/ui/hstack';
-import { VStack } from '@/components/ui/vstack';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { Skeleton, SkeletonText } from '@/components/ui/skeleton';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import { AddIcon, DownloadIcon, EditIcon, RepeatIcon, TrashIcon, Icon } from '@/components/ui/icon';
+import { AddIcon,DownloadIcon,EditIcon,Icon,RepeatIcon,TrashIcon } from '@/components/ui/icon';
+import { Image } from '@/components/ui/image';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
 } from '@/components/ui/modal';
+import { Skeleton,SkeletonText } from '@/components/ui/skeleton';
+import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
+import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 
-import { auth } from '@/FirebaseConfig';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
+
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import {
-	clearMandatoryGainReceiptFirebase,
-	deleteMandatoryGainFirebase,
-	getMandatoryGainsWithRelationsFirebase,
-} from '@/functions/MandatoryGainFirebase';
-import { getTagsWithUsersByPersonFirebase } from '@/functions/TagFirebase';
-import {
-	cancelMandatoryGainNotification,
-	syncMandatoryGainNotifications,
-} from '@/utils/mandatoryGainNotifications';
-import { isMandatoryReminderConfigured } from '@/utils/mandatoryReminderConfig';
-import { buildMandatoryGainReminderSyncItems } from '@/utils/mandatoryReminderAccountSync';
-import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
-import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { deleteGainFirebase } from '@/functions/GainFirebase';
-import {
-	formatConfiguredMonthlyDueLabel,
-	formatResolvedMonthDateLabel,
-	formatResolvedMonthDayLabel,
-	resolveMonthlyOccurrence,
+formatConfiguredMonthlyDueLabel,
+formatResolvedMonthDateLabel,
+formatResolvedMonthDayLabel
 } from '@/utils/businessCalendar';
 import {
-	formatMandatoryInstallmentDateLabel,
-	formatMandatoryInstallmentLabel,
-	getMandatoryInstallmentValueInCents,
-	isMandatoryInstallmentPlanComplete,
-	normalizeMandatoryInstallmentDate,
-	normalizeMandatoryInstallmentTotal,
-	normalizeMandatoryInstallmentsCompleted,
-	resolveMandatoryInstallmentsCompleted,
+formatMandatoryInstallmentDateLabel
 } from '@/utils/mandatoryInstallments';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 
-import MandatoryGainListIllustration from '../../assets/UnDraw/mandatoryGainsListScreen.svg';
-import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import DateCalendar, { DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
-import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
-import {
-	buildMandatoryPeriodSummaryPdfHtml,
-	type MandatoryPeriodSummaryPdfItem,
-	type MandatoryPeriodSummaryPdfMetric,
-} from '@/utils/mandatoryPeriodSummaryPdf';
-import { buildPdfFileName } from '@/utils/pdfFileName';
-import { exportHtmlReport } from '@/utils/reportExport';
+import DateCalendar,{ DateCalendarItem } from '@/components/uiverse/recurring/date-calendar';
 import MandatoryExpensePaymentBulletChart from '@/components/uiverse/recurring/mandatory-expense-payment-bullet-chart';
 import MandatoryExpensesRadarChart from '@/components/uiverse/recurring/mandatory-expenses-radar-chart';
 import MandatoryExpensesScatterChart from '@/components/uiverse/recurring/mandatory-expenses-scatter-chart';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import type { TagIconFamily,TagIconStyle } from '@/hooks/useTagIcons';
+import { TagIcon } from '@/hooks/useTagIcons';
+import {
+buildMandatoryPeriodSummaryPdfHtml,
+type MandatoryPeriodSummaryPdfItem,
+type MandatoryPeriodSummaryPdfMetric,
+} from '@/utils/mandatoryPeriodSummaryPdf';
+import { buildPdfFileName } from '@/utils/pdfFileName';
+import { exportHtmlReport } from '@/utils/reportExport';
+import MandatoryGainListIllustration from '../../assets/UnDraw/mandatoryGainsListScreen.svg';
 
 type MandatoryGainItem = DateCalendarItem & {
-	sparkPlan?: boolean;
+
 	usesBusinessDays?: boolean;
 	resolvedDueDate?: Date | null;
 	holidayName?: string | null;
@@ -168,32 +146,6 @@ const getDueDayColorClass = (dueDay: number, isReceivedForCurrentCycle?: boolean
 	}
 
 	return 'text-gray-600 dark:text-gray-300';
-};
-
-const normalizeDateValue = (value: unknown): Date | null => {
-	if (!value) {
-		return null;
-	}
-
-	if (value instanceof Date) {
-		return value;
-	}
-
-	if (typeof value === 'object' && value !== null) {
-		const candidate = value as { toDate?: () => Date };
-		if (typeof candidate.toDate === 'function') {
-			return candidate.toDate() ?? null;
-		}
-	}
-
-	if (typeof value === 'string' || typeof value === 'number') {
-		const parsed = new Date(value);
-		if (!Number.isNaN(parsed.getTime())) {
-			return parsed;
-		}
-	}
-
-	return null;
 };
 
 const formatReceiptDate = (value: Date | null) => {
@@ -299,15 +251,15 @@ function MandatoryGainsTimelineSkeleton({
 }
 
 export default function MandatoryGainsListScreen() {
-	const { submit: submitSparkRecurringAction, isUncertain: isActionUncertain, hasPending: hasPendingAction } = useSparkRecurringAction('gain');
-	const { personId, beginRequest, cancelRequest } = useBankMovementsRequest('mandatory-gain-list');
-	const { beginRequest: beginActionRequest, cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-gain-action');
+
+	const { personId, cancelRequest } = useBankMovementsRequest('mandatory-gain-list');
+	const { cancelRequest: cancelActionRequest } = useBankMovementsRequest('mandatory-gain-action');
 	const actionLock = React.useRef<object | null>(null);
 	React.useEffect(() => () => { actionLock.current = null; }, []);
-	const [loadError, setLoadError] = React.useState<string | null>(null);
+	const [loadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
 	const [actionError, setActionError] = React.useState<string | null>(null);
-	const [reminderWarning, setReminderWarning] = React.useState<string | null>(null);
-	const [hasLoadedData, setHasLoadedData] = React.useState(false);
+	const [reminderWarning] = React.useState<string | null>(null);
+	const [hasLoadedData] = React.useState(false);
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -329,12 +281,12 @@ export default function MandatoryGainsListScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 	const webStyles = webDashboardClassNames;
-	const [isLoading, setIsLoading] = React.useState(true);
-	const [retainedPlans, setRetainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
-	const [isRefreshing, setIsRefreshing] = React.useState(false);
-	const [gains, setGains] = React.useState<MandatoryGainItem[]>([]);
-	const [tagsMap, setTagsMap] = React.useState<Record<string, string>>({});
-	const [tagMetadataMap, setTagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
+	const [isLoading] = React.useState(false);
+	const [retainedPlans] = React.useState<RetainedRecurringPlan[]>([]);
+	const [isRefreshing] = React.useState(false);
+	const [gains] = React.useState<MandatoryGainItem[]>([]);
+	const [tagsMap] = React.useState<Record<string, string>>({});
+	const [tagMetadataMap] = React.useState<Record<string, TagMetadata>>({});
 	const [pendingAction, setPendingAction] = React.useState<PendingGainAction | null>(null);
 	const [receiptInstallmentCount, setReceiptInstallmentCount] = React.useState('1');
 	const [isActionProcessing, setIsActionProcessing] = React.useState(false);
@@ -486,228 +438,16 @@ export default function MandatoryGainsListScreen() {
 		[],
 	);
 
-	const loadData = React.useCallback(async (asRefresh = false) => {
-		const isCurrent = beginRequest();
-		setGains([]); setRetainedPlans([]); setTagsMap({}); setTagMetadataMap({}); setExpandedGainIds([]);
-		setLoadError(null); setReminderWarning(null); setHasLoadedData(false);
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) { setLoadError('Entre novamente para carregar as receitas recorrentes.'); setIsLoading(false); setIsRefreshing(false); return; }
-		setIsLoading(true); if (asRefresh) setIsRefreshing(true);
-		try {
-			const [gainsResult, tagsResult] = await Promise.all([getMandatoryGainsWithRelationsFirebase(currentUser.uid, true), getTagsWithUsersByPersonFirebase(currentUser.uid)]);
-			if (!isCurrent()) return;
-			if (!tagsResult.success || !Array.isArray(tagsResult.data)) throw new Error('Não foi possível carregar as categorias.');
-			if (!gainsResult.success || !Array.isArray(gainsResult.data)) throw new Error('Erro ao obter os ganhos obrigatórios.');
-			const tagsRecord: Record<string, string> = {};
-			const tagMetadataRecord: Record<string, TagMetadata> = {};
-			if (tagsResult.success && Array.isArray(tagsResult.data)) {
-				(tagsResult.data as Array<Record<string, unknown>>)
-					.forEach(tag => {
-						const tagIdValue = tag['id'];
-						if (typeof tagIdValue === 'string') {
-							const tagNameValue = tag['name'];
-							const label =
-								typeof tagNameValue === 'string' && tagNameValue.trim().length > 0
-									? tagNameValue.trim()
-									: 'Tag sem nome';
-							tagsRecord[tagIdValue] = label;
-							tagMetadataRecord[tagIdValue] = {
-								name: label,
-								iconFamily: typeof tag['iconFamily'] === 'string' ? (tag['iconFamily'] as TagIconFamily) : null,
-								iconName: typeof tag['iconName'] === 'string' ? tag['iconName'] : null,
-								iconStyle: typeof tag['iconStyle'] === 'string' ? (tag['iconStyle'] as TagIconStyle) : null,
-							};
-						}
-					});
-			}
-
-			const referenceDate = gainsResult.data.some((row: any) => row.sparkPlan === true) ? toFinancialCivilDate(new Date()) : new Date();
-			setRetainedPlans(gainsResult.data.filter((row: any) => row.sparkPlan === true && row.sparkPlanActive === false && !row.sparkSuccessorPlanId && !row.sparkReplanCancelled && row.personId === currentUser.uid)
-                .map((row: any) => ({ id: row.id, name: row.name })));
-            const activeRows = gainsResult.data.filter((row: any) => row.sparkPlan !== true || row.sparkPlanActive !== false);
-            const formattedGains: MandatoryGainItem[] = activeRows.map((gain: any) => {
-				const dueDay = typeof gain?.dueDay === 'number' ? gain.dueDay : 1;
-				const usesBusinessDays = gain?.usesBusinessDays === true;
-				const installmentTotal = normalizeMandatoryInstallmentTotal(gain?.installmentTotal);
-				const installmentsCompleted = normalizeMandatoryInstallmentsCompleted(
-					gain?.installmentsCompleted,
-					installmentTotal,
-				);
-				const installmentStartDate = normalizeMandatoryInstallmentDate(gain?.installmentStartDate);
-				const installmentEndDate = normalizeMandatoryInstallmentDate(gain?.installmentEndDate);
-				const resolvedOccurrence = resolveMonthlyOccurrence({
-					referenceDate,
-					dueDay,
-					usesBusinessDays,
-				});
-
-				return {
-					id: gain.id,
-				sparkPlan: gain.sparkPlan === true,
-					name: typeof gain?.name === 'string' ? gain.name : 'Ganho sem nome',
-					valueInCents: typeof gain?.valueInCents === 'number' ? gain.valueInCents : 0,
-					dueDay,
-					usesBusinessDays,
-					resolvedDueDate: resolvedOccurrence.date,
-					holidayName: resolvedOccurrence.holiday?.name ?? null,
-					tagId: typeof gain?.tagId === 'string' ? gain.tagId : '',
-					description: typeof gain?.description === 'string' ? gain.description : null,
-					reminderEnabled: isMandatoryReminderConfigured(gain),
-					lastReceiptGainId: typeof gain?.lastReceiptGainId === 'string' ? gain.lastReceiptGainId : null,
-					lastReceiptCycle: typeof gain?.lastReceiptCycle === 'string' ? gain.lastReceiptCycle : null,
-					lastReceiptDate: normalizeDateValue(gain?.lastReceiptDate ?? null),
-					lastReceiptValueInCents:
-						typeof gain?.lastReceiptValueInCents === 'number' ? gain.lastReceiptValueInCents : null,
-					installmentTotal,
-					installmentTotalValueInCents:
-						typeof gain?.installmentTotalValueInCents === 'number' ? gain.installmentTotalValueInCents : null,
-					installmentsCompleted,
-					installmentStartDate,
-					installmentEndDate,
-				};
-			});
-
-			const gainsWithStatus = formattedGains.map(gain => {
-				const isReceivedForCurrentCycle = gain.sparkPlan ? isSparkRecurringCycleCurrent(gain.lastReceiptCycle) : isCycleKeyCurrent(gain.lastReceiptCycle ?? undefined);
-				const resolvedInstallmentsCompleted = resolveMandatoryInstallmentsCompleted({
-					storedCompleted: gain.installmentsCompleted ?? 0,
-				explicitCompletion: gain.sparkPlan === true,
-					installmentTotal: gain.installmentTotal ?? null,
-					startDate: gain.installmentStartDate ?? null,
-					isCurrentCycleCompleted: isReceivedForCurrentCycle,
-					referenceDate,
-				});
-				const isInstallmentComplete = isMandatoryInstallmentPlanComplete(
-					gain.installmentTotal ?? null,
-					resolvedInstallmentsCompleted,
-				);
-				const installmentLabel = formatMandatoryInstallmentLabel(
-					gain.installmentTotal ?? null,
-					resolvedInstallmentsCompleted,
-					isReceivedForCurrentCycle,
-				);
-				const displayValueInCents =
-					isReceivedForCurrentCycle &&
-						typeof gain.lastReceiptValueInCents === 'number' &&
-						!Number.isNaN(gain.lastReceiptValueInCents)
-						? gain.lastReceiptValueInCents
-						: gain.valueInCents;
-
-				return {
-					...gain,
-					installmentsCompleted: resolvedInstallmentsCompleted,
-					isReceivedForCurrentCycle,
-					isInstallmentComplete,
-					installmentLabel,
-					remainingInstallments:
-						typeof gain.installmentTotal === 'number'
-							? Math.max(0, gain.installmentTotal - resolvedInstallmentsCompleted)
-							: 0,
-					displayValueInCents,
-				};
-			});
-
-			if (!isCurrent()) {
-				return;
-			}
-			setTagsMap(tagsRecord);
-			setTagMetadataMap(tagMetadataRecord);
-			setGains(gainsWithStatus);
-			setHasLoadedData(true);
-			try {
-				const reminderResult = await syncMandatoryGainNotifications(currentUser.uid, buildMandatoryGainReminderSyncItems(gainsResult.data, referenceDate));
-				if (isCurrent() && reminderResult?.failed > 0) setReminderWarning('Dados carregados. Alguns lembretes não puderam ser reconciliados neste dispositivo.');
-			} catch { if (isCurrent()) setReminderWarning('Dados carregados. Não foi possível reconciliar os lembretes neste dispositivo.'); }
-		} catch (error) {
-			if (isCurrent()) { setGains([]); setRetainedPlans([]); setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as receitas recorrentes.'); }
-		} finally { if (isCurrent()) { setIsLoading(false); setIsRefreshing(false); } }
-	}, [personId, beginRequest]);
+	const loadData = React.useCallback(async (asRefresh = false) => { showFeatureUnavailable(); }, []);
 	const handleRefresh = React.useCallback(async () => { await loadData(true); }, [loadData]);
-	useFocusEffect(React.useCallback(() => {
-		void loadData();
-		return () => { cancelRequest(); cancelActionRequest(); };
-	}, [loadData, cancelRequest, cancelActionRequest]));
 
 	const handleOpenCreate = React.useCallback(() => {
 		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains);
 	}, []);
 
-	const handleEdit = React.useCallback((gainTemplateId: string) => {
-		navigateToRoute(APP_ROUTE_PATHS.addMandatoryGains, { gainTemplateId });
-	}, []);
-
-	const handleRegisterGain = React.useCallback(
-		(gain: MandatoryGainItem, installmentsToReceive = 1) => {
-			if (gain.isReceivedForCurrentCycle) {
-				showNotifierAlert({
-					description: 'Este ganho já foi registrado como recebido neste mês.',
-					type: 'warn',
-					isDarkMode,
-				});
-				return;
-			}
-
-			if (gain.isInstallmentComplete) {
-				showNotifierAlert({
-					description: 'Todas as parcelas deste ganho obrigatório já foram registradas.',
-					type: 'warn',
-					isDarkMode,
-				});
-				return;
-			}
-
-			const receiptValueInCents =
-				typeof gain.installmentTotal === 'number'
-					? getMandatoryInstallmentValueInCents({
-						installmentTotal: gain.installmentTotal,
-						installmentsCompleted: gain.installmentsCompleted ?? 0,
-						installmentsToSettle: installmentsToReceive,
-						installmentValueInCents: gain.valueInCents,
-						installmentTotalValueInCents: gain.installmentTotalValueInCents,
-					})
-					: gain.valueInCents;
-			if (!receiptValueInCents || receiptValueInCents <= 0) {
-				showNotifierAlert({
-					description: 'Informe uma quantidade válida de parcelas para receber.',
-					type: 'warn',
-					isDarkMode,
-				});
-				return;
-			}
-
-			navigateToRoute(APP_ROUTE_PATHS.addRegisterGain, {
-				templateName: encodeURIComponent(gain.name),
-				templateValueInCents: String(receiptValueInCents),
-				templateTagId: gain.tagId,
-				templateDueDay: String(gain.dueDay),
-				templateUsesBusinessDays: gain.usesBusinessDays ? '1' : undefined,
-				templateDescription: gain.description ? encodeURIComponent(gain.description) : undefined,
-				templateMandatoryGainId: gain.id,
-				templateMandatoryGainInstallmentsCount:
-					typeof gain.installmentTotal === 'number' ? String(installmentsToReceive) : undefined,
-				templateTagName: tagMetadataMap[gain.tagId]?.name
-					? encodeURIComponent(tagMetadataMap[gain.tagId].name)
-					: undefined,
-				templateTagIconFamily: tagMetadataMap[gain.tagId]?.iconFamily
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconFamily as string)
-					: undefined,
-				templateTagIconName: tagMetadataMap[gain.tagId]?.iconName
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconName as string)
-					: undefined,
-				templateTagIconStyle: tagMetadataMap[gain.tagId]?.iconStyle
-					? encodeURIComponent(tagMetadataMap[gain.tagId].iconStyle as string)
-					: undefined,
-			});
-		},
-		[isDarkMode, tagMetadataMap],
-	);
-
 	const handleCloseActionModal = React.useCallback(() => {
-		if (isActionProcessing || isActionUncertain) {
-			return;
-		}
-		setPendingAction(null);
-	}, [isActionProcessing, isActionUncertain]);
+setPendingAction(null);
+}, []);
 
 	const selectedReceiptInstallments = React.useMemo(() => {
 		if (pendingAction?.type !== 'register' || typeof pendingAction.gain.installmentTotal !== 'number') {
@@ -721,142 +461,9 @@ export default function MandatoryGainsListScreen() {
 			: 0;
 	}, [pendingAction, receiptInstallmentCount]);
 
-	const selectedReceiptValueInCents = React.useMemo(() => {
-		if (pendingAction?.type !== 'register' || typeof pendingAction.gain.installmentTotal !== 'number') {
-			return pendingAction?.type === 'register' ? pendingAction.gain.valueInCents : null;
-		}
+	const selectedReceiptValueInCents = React.useMemo<number | null>(() => null, []);
 
-		if (selectedReceiptInstallments <= 0) {
-			return null;
-		}
-
-		return getMandatoryInstallmentValueInCents({
-			installmentTotal: pendingAction.gain.installmentTotal,
-			installmentsCompleted: pendingAction.gain.installmentsCompleted ?? 0,
-			installmentsToSettle: selectedReceiptInstallments,
-			installmentValueInCents: pendingAction.gain.valueInCents,
-			installmentTotalValueInCents: pendingAction.gain.installmentTotalValueInCents,
-		});
-	}, [pendingAction, selectedReceiptInstallments]);
-
-	const handleConfirmAction = React.useCallback(async () => {
-		if (!pendingAction || actionLock.current || isActionProcessing || !personId || auth.currentUser?.uid !== personId || (!isActionUncertain && (isLoading || loadError || !hasLoadedData))) {
-			return;
-		}
-
-		if (pendingAction.type === 'register') {
-			if (!selectedReceiptValueInCents || selectedReceiptInstallments <= 0) {
-				return;
-			}
-			handleRegisterGain(pendingAction.gain, selectedReceiptInstallments);
-			setPendingAction(null);
-			return;
-		}
-
-		if (pendingAction.type === 'edit') {
-			handleEdit(pendingAction.gain.id);
-			setPendingAction(null);
-			return;
-		}
-
-		const lock = {}; actionLock.current = lock; const isCurrentAction = beginActionRequest();
-		setIsActionProcessing(true); setActionError(null);
-		try {
-			if (pendingAction.gain.sparkPlan && (pendingAction.type === 'delete' || pendingAction.type === 'reclaim')) {
-				const result = await submitSparkRecurringAction({ planId: pendingAction.gain.id, action: pendingAction.type === 'delete' ? 'archive' : 'reverse' });
-				if (!isCurrentAction()) return;
-				if (!result) throw new Error('O contexto financeiro mudou.');
-				showNotifierAlert({ description: pendingAction.type === 'delete' ? 'Recorrência arquivada. O histórico foi preservado.' : 'Efetivação desfeita e saldo atualizado.', type: 'success', isDarkMode });
-				await loadData();
-				return;
-			}
-
-			if (pendingAction.type === 'delete') {
-				const accountId = personId;
-				if (!accountId) {
-					showNotifierAlert({
-						description: 'Usuário não autenticado. Faça login novamente.',
-						type: 'error',
-						isDarkMode,
-					});
-					return;
-				}
-
-				const result = await deleteMandatoryGainFirebase(pendingAction.gain.id);
-				if (!isCurrentAction()) return;
-				if (result.success) {
-					let reminderCleanupFailed = false;
-					try {
-						await cancelMandatoryGainNotification(accountId, pendingAction.gain.id);
-					} catch (notificationError) {
-						reminderCleanupFailed = true;
-						console.error('Erro ao remover a agenda do ganho obrigatório excluído:', notificationError);
-					}
-					showNotifierAlert({
-						description: reminderCleanupFailed
-							? 'Ganho removido, mas a agenda local será limpa na próxima reconciliação.'
-							: 'Ganho obrigatório removido com sucesso.',
-						type: reminderCleanupFailed ? 'warn' : 'success',
-						isDarkMode,
-					});
-					await loadData();
-				} else {
-					showNotifierAlert({
-						description: 'Não foi possível remover o ganho obrigatório.',
-						type: 'error',
-						isDarkMode,
-					});
-				}
-				return;
-			}
-
-			if (pendingAction.type === 'reclaim') {
-				const linkedGainId = pendingAction.gain.lastReceiptGainId;
-
-				if (linkedGainId) {
-					const deleteResult = await deleteGainFirebase(linkedGainId);
-					if (!isCurrentAction()) return;
-					if (!deleteResult.success) {
-						showNotifierAlert({
-							description: 'Não foi possível remover o ganho registrado.',
-							type: 'error',
-							isDarkMode,
-						});
-						return;
-					}
-				}
-
-				const clearResult = await clearMandatoryGainReceiptFirebase(pendingAction.gain.id);
-				if (!isCurrentAction()) return;
-				if (!clearResult.success) {
-					showNotifierAlert({
-						description: 'Não foi possível reivindicar o recebimento.',
-						type: 'error',
-						isDarkMode,
-					});
-					return;
-				}
-
-				showNotifierAlert({
-					description: 'Recebimento reivindicado. Registre novamente quando necessário.',
-					type: 'success',
-					isDarkMode,
-				});
-				await loadData();
-			}
-		} catch (error) {
-			if (!isCurrentAction()) return;
-			setActionError(error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
-			console.error('Erro ao processar ação do ganho obrigatório:', error);
-			showNotifierAlert({
-				description: 'Erro inesperado ao processar a ação selecionada.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			if (actionLock.current === lock) { actionLock.current = null; setIsActionProcessing(false); if (!hasPendingAction()) setPendingAction(null); }
-		}
-	}, [personId, isActionProcessing, isActionUncertain, isLoading, loadError, hasLoadedData, beginActionRequest, hasPendingAction, handleEdit, handleRegisterGain, isDarkMode, loadData, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents, submitSparkRecurringAction]);
+	const handleConfirmAction = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleExportMonthlySummaryPdf = React.useCallback(async () => {
 		if (isExportingPdf || isLoading || loadError || !hasLoadedData) {
@@ -1075,20 +682,19 @@ export default function MandatoryGainsListScreen() {
 		if (pendingAction.type === 'reclaim') {
 			return {
 				title: 'Reivindicar recebimento',
-				message: pendingAction.gain.sparkPlan ? 'O valor efetivado será estornado e o ciclo ficará pendente. O histórico será preservado.' : `Deseja cancelar o recebimento registrado para “${gainName}”? O ganho vinculado será removido.`,
+				message: `Deseja cancelar o recebimento registrado para “${gainName}”? O ganho vinculado será removido.`,
 				confirmLabel: 'Reivindicar',
 				action: 'secondary' as const,
 			};
 		}
 
 		return {
-			title: pendingAction.gain.sparkPlan ? 'Arquivar recorrência' : 'Excluir ganho obrigatório',
-			message: pendingAction.gain.sparkPlan ? 'O histórico e as parcelas concluídas serão preservados. Você poderá restaurar a recorrência nesta lista.' : `Tem certeza de que deseja excluir “${gainName}”? Essa ação não pode ser desfeita.`,
-			confirmLabel: pendingAction.gain.sparkPlan ? 'Arquivar' : 'Excluir',
+			title: 'Excluir ganho obrigatório',
+			message: `Tem certeza de que deseja excluir “${gainName}”? Essa ação não pode ser desfeita.`,
+			confirmLabel: 'Excluir',
 			action: 'negative' as const,
 		};
 	}, [formatCurrencyBRL, pendingAction, selectedReceiptInstallments, selectedReceiptValueInCents]);
-
 
 	const actionConfirmButtonClassName = React.useMemo(() => {
 		if (actionModalCopy.action === 'negative') {
@@ -1158,9 +764,9 @@ export default function MandatoryGainsListScreen() {
 							<VStack className={`${webStyles.contentFrame} ${webStyles.contentPadding} justify-between pb-8`}>
 								<MovementFormStatus loading={false} error={loadError} onRetry={handleRefresh} />
 								{reminderWarning ? <Text className={helperText} accessibilityRole="alert">{reminderWarning}</Text> : null}
-								<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || isActionUncertain}><ButtonText>Atualizar receitas recorrentes</ButtonText></Button>
+								<Button variant="outline" onPress={handleRefresh} isDisabled={isLoading || isRefreshing || isActionProcessing || false}><ButtonText>Atualizar receitas recorrentes</ButtonText></Button>
 								{!isLoading && !loadError && <RetainedRecurringPlans plans={retainedPlans} recurringType="gain" onChanged={async () => { await loadData(); }} />}
-								{!isLoading && !loadError && <SparkRecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
+								{!isLoading && !loadError && <RecurringContracts recurringType="gain" onChanged={async () => { await loadData(); }} />}
                             {loadError ? null : isLoading ? (
 									<MandatoryGainsTimelineSkeleton
 										compactCardClassName={compactCardClassName}
@@ -1537,7 +1143,7 @@ export default function MandatoryGainsListScreen() {
 						<ModalBody>
 							<Text className={bodyText}>{actionModalCopy.message}</Text>
 							{actionError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{actionError}</Text> : null}
-							{isActionUncertain ? <Text className={helperText} accessibilityRole="alert">Confirme a mesma ação para recuperar o resultado anterior.</Text> : null}
+							{null}
 							{pendingAction?.type === 'register' && typeof pendingAction.gain.installmentTotal === 'number' ? (
 								<VStack className="mt-4 gap-2">
 									<Text className="text-sm font-semibold text-slate-900 dark:text-slate-100">Quantidade de parcelas</Text>
@@ -1576,7 +1182,7 @@ export default function MandatoryGainsListScreen() {
 										<ButtonText className={actionConfirmButtonTextClassName}>Processando</ButtonText>
 									</>
 								) : (
-									<ButtonText className={actionConfirmButtonTextClassName}>{isActionUncertain ? 'Confirmar ação anterior' : actionModalCopy.confirmLabel}</ButtonText>
+									<ButtonText className={actionConfirmButtonTextClassName}>{actionModalCopy.confirmLabel}</ButtonText>
 								)}
 							</Button>
 						</ModalFooter>

@@ -1,17 +1,16 @@
-import React from 'react';
-import { Image, ScrollView, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Box } from '@/components/ui/box';
-import BankBalanceAdjustmentForm from '@/components/uiverse/banks/bank-balance-adjustment-form';
-import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import { useBankBalanceAdjustmentForm } from '@/hooks/useBankBalanceAdjustmentForm';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { LUMUS_CLASS_NAMES, LUMUS_LAYOUT_TOKENS } from '@/design-system/tokens';
-import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
-import { BANK_ADJUSTMENT_HERO_IMAGE_STYLE } from '@/design-system/native-styles';
 import Wallpaper from '@/assets/Background/wallpaper01.png';
 import AdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
+import { Box } from '@/components/ui/box';
+import BankBalanceAdjustmentForm from '@/components/uiverse/banks/bank-balance-adjustment-form';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import { useAppTheme } from '@/contexts/ThemeContext';
+import { BANK_ADJUSTMENT_HERO_IMAGE_STYLE } from '@/design-system/native-styles';
+import { LUMUS_CLASS_NAMES,LUMUS_LAYOUT_TOKENS } from '@/design-system/tokens';
+import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
+import { useBankBalanceAdjustmentForm } from '@/hooks/useBankBalanceAdjustmentForm';
+import { Image,ScrollView,useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BankBalanceAdjustmentScreen() {
 	const form = useBankBalanceAdjustmentForm();

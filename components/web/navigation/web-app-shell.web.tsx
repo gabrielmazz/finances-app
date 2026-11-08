@@ -3,15 +3,15 @@ import { View } from 'react-native';
 
 import WebRouteTransition from '@/components/uiverse/navigation/web-route-transition';
 type WebAppShellProps = React.PropsWithChildren<{
-	isAuthenticated: boolean;
+	showWorkspace: boolean;
 }>;
 
 /**
  * Mantém o Stack no workspace Web sem afetar a composição nativa. O navigator
  * continua centralizando rotas e visibilidade, agora em painel sobreposto.
  */
-export default function WebAppShell({ children, isAuthenticated }: WebAppShellProps) {
-	const usesWorkspaceBackground = isAuthenticated;
+export default function WebAppShell({ children, showWorkspace }: WebAppShellProps) {
+	const usesWorkspaceBackground = showWorkspace;
 
 	return (
 		<View

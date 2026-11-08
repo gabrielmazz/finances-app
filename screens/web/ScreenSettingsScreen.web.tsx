@@ -1,60 +1,7 @@
 import React from 'react';
-import { Image as RNImage, KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, View } from 'react-native';
+import { KeyboardAvoidingView,Platform,Pressable,Image as RNImage,ScrollView,StatusBar,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-	Accordion,
-	AccordionContent,
-	AccordionHeader,
-	AccordionIcon,
-	AccordionItem,
-	AccordionTitleText,
-	AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Box } from '@/components/ui/box';
-import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
-import { Heading } from '@/components/ui/heading';
-import { HStack } from '@/components/ui/hstack';
-import { Input, InputField } from '@/components/ui/input';
-import {
-	Actionsheet,
-	ActionsheetBackdrop,
-	ActionsheetContent,
-	ActionsheetDragIndicator,
-	ActionsheetDragIndicatorWrapper,
-	ActionsheetItem,
-	ActionsheetItemText,
-	ActionsheetScrollView,
-} from '@/components/ui/actionsheet';
-import { Button, ButtonText } from '@/components/ui/button';
-import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@/components/ui/modal';
-import { Switch } from '@/components/ui/switch';
-import { Text } from '@/components/ui/text';
-import { VStack } from '@/components/ui/vstack';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import {
-	POST_SUBMIT_DESTINATION_OPTIONS,
-	type PostSubmitBehaviorMode,
-	type PostSubmitDestinationKey,
-	type PostSubmitScreenKey,
-	usePostSubmitBehaviorPreferences,
-} from '@/contexts/PostSubmitBehaviorContext';
-import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
-import {
-	getPostSubmitDestinationVisibilityKey,
-	navigateToHomeConfigurations,
-} from '@/utils/navigation';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import AddFinancialScreenIllustration from '@/assets/UnDraw/addFinancialScreen.svg';
 import AddMandatoryExpensesScreenIllustration from '@/assets/UnDraw/addMandatoryExpensesScreen.svg';
@@ -66,19 +13,72 @@ import AddRegisterMonthlyBalanceScreenIllustration from '@/assets/UnDraw/addRegi
 import AddRegisterTagScreenIllustration from '@/assets/UnDraw/addRegisterTagScreen.svg';
 import AddRescueScreenIllustration from '@/assets/UnDraw/addRescue.svg';
 import AddUserRelationScreenIllustration from '@/assets/UnDraw/addUserRelationScreen.svg';
-import AnnotationIllustration from '@/assets/UnDraw/annotationScreen.svg';
 import CategoryAnalysisScreenIllustration from '@/assets/UnDraw/analyzeGainExpensesTag.svg';
+import AnnotationIllustration from '@/assets/UnDraw/annotationScreen.svg';
+import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
+import BankMovementsIllustration from '@/assets/UnDraw/bankMovementsScreen.svg';
 import ConfigurationsScreenIllustration from '@/assets/UnDraw/configurationsScreen.svg';
 import FinancialListScreenIllustration from '@/assets/UnDraw/financialListScreen.svg';
 import HomeScreenIllustration from '@/assets/UnDraw/homeScreen.svg';
 import LumusAssistantScreenIllustration from '@/assets/UnDraw/lumusAssistantScreen.svg';
 import MandatoryExpensesListScreenIllustration from '@/assets/UnDraw/mandatoryExpensesListScreen.svg';
 import MandatoryGainsListScreenIllustration from '@/assets/UnDraw/mandatoryGainsListScreen.svg';
+import ProfileIllustration from '@/assets/UnDraw/perfilPersonScreen.svg';
 import ScreenSettingsIllustration from '@/assets/UnDraw/screenConfigurationsSettings.svg';
 import TransferScreenIllustration from '@/assets/UnDraw/transferScreen.svg';
-import BankMovementsIllustration from '@/assets/UnDraw/bankMovementsScreen.svg';
-import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
-import ProfileIllustration from '@/assets/UnDraw/perfilPersonScreen.svg';
+import {
+Accordion,
+AccordionContent,
+AccordionHeader,
+AccordionIcon,
+AccordionItem,
+AccordionTitleText,
+AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+Actionsheet,
+ActionsheetBackdrop,
+ActionsheetContent,
+ActionsheetDragIndicator,
+ActionsheetDragIndicatorWrapper,
+ActionsheetItem,
+ActionsheetItemText,
+ActionsheetScrollView,
+} from '@/components/ui/actionsheet';
+import { Box } from '@/components/ui/box';
+import { Button,ButtonText } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
+import { HStack } from '@/components/ui/hstack';
+import { ChevronDownIcon,ChevronUpIcon } from '@/components/ui/icon';
+import { Input,InputField } from '@/components/ui/input';
+import {
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
+} from '@/components/ui/modal';
+import { Switch } from '@/components/ui/switch';
+import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import {
+POST_SUBMIT_DESTINATION_OPTIONS,
+type PostSubmitBehaviorMode,
+type PostSubmitDestinationKey,
+type PostSubmitScreenKey,
+usePostSubmitBehaviorPreferences,
+} from '@/contexts/PostSubmitBehaviorContext';
+import { type RouteVisibilityKey,useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import {
+getPostSubmitDestinationVisibilityKey,
+navigateToHomeConfigurations,
+} from '@/utils/navigation';
 
 type ScreenSettingsItem = {
 	key: PostSubmitScreenKey;

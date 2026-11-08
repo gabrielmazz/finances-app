@@ -208,7 +208,7 @@ jest.doMock('@/components/uiverse/assistant/assistant-activity-trace', () => ({
 }));
 jest.doMock('@/components/uiverse/navigation/navigator', () => ({ default: () => null, __esModule: true }));
 
-jest.doMock('@/contexts/LumusAssistantContext', () => ({ useLumusAssistant: () => mockAssistant }));
+jest.doMock('@/hooks/useAssistantAvailability', () => ({ useAssistantAvailability: () => mockAssistant }));
 jest.doMock('@/contexts/ValueVisibilityContext', () => ({ useValueVisibility: () => ({ shouldHideValues: mockShouldHideValues }) }));
 jest.doMock('@/contexts/ThemeContext', () => ({ useAppTheme: () => ({ isDarkMode: false }) }));
 jest.doMock('@/hooks/useScreenStyle', () => ({
@@ -242,7 +242,6 @@ jest.doMock('@/utils/lumusAssistantAudio', () => ({
 	deleteAssistantTemporaryAudio: mockDeleteTemporaryAudio,
 	readAssistantAudioFile: mockReadAudioFile,
 }));
-jest.doMock('@/utils/firebaseRuntime', () => ({ isFirebaseEmulatorRuntime: () => false }));
 
 jest.doMock('@mantine/core', () => ({
 	MantineProvider: ({ children }: Record<string, any>) => React.createElement(React.Fragment, null, children),

@@ -1,93 +1,15 @@
 ---
-tags: [release, expo, firebase, web, android]
-relacionado: [[Firebase Config]], [[Versão Web]], [[Gerenciamento de Bancos]], [[Assistente Lumus]]
+tags: [frontend, arquitetura]
+relacionado: [[MOC - Lumus Finanças]], [[Remoção do Backend]]
 status: ativo
 tipo: arquitetura
-versao: 2.3.3
-spark_scope: release
-spark_progress: 9
-spark_reviewed_at: 2026-10-20
+versao: 3.0.0
 ---
 
 # Processo de Release
 
-## Preparação da versão 2.3.3 — 08/11/2026
+Esta etapa valida somente a base local. Os scripts de deploy, migração, seed, emuladores e release do backend anterior foram removidos.
 
-As dependências foram atualizadas dentro dos intervalos existentes. O audit passou no limite de severidade alta para aplicativo e backend; permanecem alertas moderados e baixos. O Expo Router usa `query-string` 7 com `decode-uri-component` 0.5.1 por override e patch de interoperabilidade ESM em `patches/query-string+7.1.3.patch`; `tests/queryStringCompatibility.test.ts` cobre a decodificação normal e inválida. Remover o patch e o override quando uma versão compatível do Router resolver essa dependência.
+Verificações disponíveis: `npm ci`, `npm run check`, `npm run web:export` e exports JavaScript Android/iOS. Perfis EAS preservam a identidade do frontend e não exigem configuração de serviço ou credenciais do backend anterior.
 
-O Jest simula SecureStore indisponível nos testes gerais; os campos `restoreOnly` e `archiveOnly` são atribuídos pelo aplicativo e não são expostos ao modelo. A versão 2.3.3 está preparada localmente, mas a distribuição continua condicionada aos gates de integração, revisão, homologação e transição Spark descritos nesta página. Exportação local não comprova publicação nem funcionamento em aparelho.
-
-O diagnóstico de 08/11/2026 encontrou falha nos lotes de pagamento e recebimento recorrentes: 211 operações de cada família foram recusadas e o Emulator registrou esgotamento do limite de 1.000 expressões das Rules nas gravações. A integração não passou; investigar e corrigir as regras preservando suas garantias, e repetir os testes de permissão e o gate completo antes de distribuir. O bundle Web 2.3.3 foi exportado localmente, sem publicação.
-
-Correção local: as Rules reconhecem alterações de ciclo usando uma lista curta que é subconjunto da lista completa de campos autorizados; as demais edições continuam pela lista completa, e todas as validações de propriedade, histórico, referências e valores permanecem. Os lotes de despesa e receita com 211 registros, incluindo seus desfazimentos, e as suítes de Rules do assistente, razão e legado passaram no Emulator. `npm run test:integration` passou integralmente: quatro suítes do executor, 86 testes aprovados e um ignorado (803 s). A publicação exige os demais gates de release e homologação; esta alteração ainda não foi implantada.
-
-<!-- spark-progress:start -->
-## Progresso Spark — 20/10/2026
-
-Release/homologação/operação Spark: **9% implementado / 91% restante**. Perfil de publicação Spark (R01): **0%**; homologação/transição (R02): **23%**; dependências/cotas/custo (R03): **13%**. Exports locais aprovados não implementam o perfil: `script/release.js` ainda inclui `functions,firestore`. Publicação Spark não aprovada. Ver [[Status da Implementação Spark]].
-
-As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
-<!-- spark-progress:end -->
-
-Em 20/10/2026, [[Guia de Testes Locais]] acrescenta um cenário Spark autenticado e reproduzível para os fluxos principais. `npm run dev:spark:web` usa a porta 8082 e inicia somente Auth/Firestore/Expo; a preparação é sintética e efêmera, sem ativação de conta real. `npm run test:spark:demo` ensaia nove caminhos dos serviços e um dos leitores com Functions desligadas. A regressão da entrega confirma 1.037 cenários Spark + cinco suítes existentes de Rules, e exports Web/Android aprovados. Não substitui o perfil de publicação Spark, os audits de dependências, o piloto, a reversão e a homologação em aparelhos ainda pendentes.
-
-Prova local Spark iniciada em 16/10/2026: `npm run test:spark` sobe apenas Auth/Firestore e valida o [[Protocolo Financeiro Spark]] em grupos sintéticos, seguido das cinco suítes existentes de Rules. Não substitui `test:integration`, não porta as treze famílias e não libera publicação. O perfil Spark de release continua pendente; os comandos de deploy documentados abaixo ainda incluem Functions quando aplicável.
-
-> Gate de segurança 2026-10-11: a implementação local da [[Remediação da Auditoria de Segurança]] exige backup de dados e Rules, revisão do diff, Emulator Suite e validação em homologação com contas sintéticas antes de publicar. Functions e Rules do novo protocolo de convite e consentimento devem estar ativos antes de distribuir clientes novos. Remover Analytics requer novo build nativo; export Web isolado não comprova a remoção no APK/AAB.
-
-O gate automatizado inclui `npm --prefix backend run test:app-check:emulator` e audit com `--audit-level=high` dos lockfiles pertinentes à publicação. Para uma publicação exclusiva de Functions, Rules e índices, o lockfile auditado é `backend/package-lock.json`, correspondente ao projeto independente que `firebase.json` publica. Releases que incluem Web ou Android e as verificações gerais auditam os dois lockfiles. Alertas altos/críticos no escopo verificado ou falha da auditoria, inclusive de rede, bloqueiam deploy/build; não há exceção automática. `verify-offline` omite os emuladores, mas conserva os dois audits e não publica. Primeiro publicar clientes de homologação capazes de obter atestados reais, validar chamadas autorizadas e rejeições, então ligar `LUMUS_ENFORCE_APP_CHECK=true` nas Functions desse projeto. Não ativar enforcement de Auth/Firestore por inferência: cada produto exige seu teste real. [[Validação de Segurança de Ponta a Ponta]] reúne as evidências e dependências pendentes; o preview antigo apontava para produção e não satisfaz este gate.
-
-`script/release.js` é o gate único de exportação e publicação. Ele confere a versão em `app.json`, `package.json`, `package-lock.json` e nas duas telas de login; confere o alvo Firebase, o pacote Android e a política de versionCode remoto do EAS. O gate completo executa `npm run check`, audits de dependências, build do backend, testes de integração nos emuladores e exports Android/Web. O gate exclusivo Firebase executa o audit do backend, seu build TypeScript, `npm run test:integration` e a verificação App Check nos emuladores; não executa os checks gerais nem os exports do cliente. As ações de publicação exigem uma árvore Git limpa. `npm run release:check:offline` executa as verificações sem emuladores quando só há acesso local, mas não libera uma publicação.
-
-`npm run release:production` abre um seletor para escolher Firebase, Web, APK, AAB ou tudo. É possível combinar etapas (por exemplo, `1,3` para Firebase + APK), ou passar os nomes sem interação, como `npm run release:production -- apk` e `npm run release:production -- firebase,web`. Selecionar somente **1/Firebase**, usar `npm run release:production -- firebase` ou executar `firebase:deploy:production`/`firebase:deploy:preview` aplica o gate exclusivo Firebase. Qualquer seleção com Web, APK ou AAB aplica o gate completo uma vez antes das etapas escolhidas. A execução para na primeira falha e mantém a ordem Firebase, Web, APK e AAB. O comando não submete o AAB à Play Store; a submissão continua sendo feita depois, conforme o item 5 abaixo.
-
-Correção de 2026-10-16: o release exclusivo Firebase deixou de ser bloqueado pelo audit do cliente Expo/Tailwind, cujos pacotes não são publicados em `backend/`. Os alertas do lockfile raiz continuam pendentes e bloqueiam os gates completos; essa mudança de escopo não corrige nem aceita esses alertas para releases Web/Android. A compilação e os testes do backend, inclusive o teste do executor cliente contra o Emulator incluído em `test:integration`, continuam obrigatórios antes do deploy Firebase.
-
-Os contextos autenticados simulados em `backend/tests/userRelationships.emulator.test.ts`, `backend/tests/functions.emulator.test.ts` e `backend/tests/bankBalanceAdjustments.emulator.test.ts` incluem `auth_time` recente, conforme [[Segurança de Login]]. Sem esse claim válido, uma leitura permitida pelo vínculo/grupo falhava no limite absoluto de sessão e bloqueava `test:integration`. Tanto os casos permitidos quanto os negados por escopo usam uma sessão válida, para que o teste de permissões não passe indevidamente por sessão inválida. Os testes dedicados de expiração conservam seus claims vencidos/inválidos.
-
-A execução integrada também identificou o limite de 1.000 expressões das Rules ao registrar ciclos legados do assistente. A validação agora reutiliza a leitura `getAfter` do lançamento, os valores de parcelas/ciclo e o claim de login, e executa a validação de datas uma vez em cada domínio. As condições de autorização e os campos conferidos permanecem equivalentes; os testes do schema verificam recusas de histórico adulterado nos dois tipos de recorrência. Ver [[Firebase Config]], [[Despesas Fixas]] e [[Receitas Fixas]].
-
-Validação final dessa correção em 2026-10-16: `npm run test:integration` passou em Auth/Firestore/Functions locais, incluindo todos os scripts do backend e os 68 testes do executor financeiro. `npm --prefix backend run test:app-check:emulator` passou: as 15 callables rejeitam chamadas autenticadas sem atestado e o transporte SDK rejeita tokens ausentes/falsificados antes do handler. Os emuladores usados no diagnóstico foram encerrados; nenhum deploy remoto foi executado.
-
-## Diagnóstico local de falhas — 2026-10-16
-
-Antes das auditorias, os gates validam os lockfiles do escopo com `npm ci --dry-run --ignore-scripts --no-audit --no-fund --loglevel=error`, sem substituir o ambiente instalado nem executar scripts. Uma instalação limpa real revelou `EUSAGE` no backend: faltavam 26 entradas opcionais (plataformas esbuild e `fsevents`). O lockfile foi reparado preservando as versões das dependências já travadas, e a instalação limpa passou. Testes executados sobre um `node_modules` antigo não detectavam essa falha que impediria um worker novo de instalar o backend.
-
-`npm run release:diagnose` executa as auditorias, `check`, compilação, integrações, App Check e as duas exportações, mesmo quando uma etapa anterior falha. Exibe o resultado de cada etapa e termina com código 1 se alguma falhar; nunca publica, solicita build EAS ou exige árvore limpa. Os comandos de publicação continuam parando na primeira falha. As auditorias agora precedem os testes longos, evitando repetir toda a suíte quando uma vulnerabilidade já bloqueia o release. Perfil Android incompatível é recusado antes das verificações.
-
-O preflight exige Node >=22.13.0 e confere `backend/package.json`/`firebase.json` com Node 22. O Node 20 antes configurado está descontinuado desde 30/04/2026 e tem retirada prevista para 30/10/2026 segundo o [calendário oficial](https://docs.cloud.google.com/functions/docs/runtime-support).
-
-`test:assistant:executor:emulator` preserva o nome público e chama `script/test_client_emulators.js`. O runner habilita as quatro suítes funcionais do cliente (executor legado, lotes, conversa e leitores do razão), remove filtros de famílias herdados e exige o projeto `demo-lumus-financas` e as portas locais 8080/9099/5001 antes de iniciar. Antes desta correção, o gate executava somente os 68 testes do executor; as outras três suítes ficavam ignoradas. Medições opcionais prolongadas de desempenho continuam fora do gate funcional.
-
-O `patch-package` foi atualizado de 6.0.7 para 8.0.1 e `postinstall` usa `--error-on-fail`: um patch que não aplica agora bloqueia também instalações locais. O audit do cliente caiu de 61 alertas (24 altos) para 53 (20 altos). As origens altas restantes são `braces` e `node-forge`, sem versões corrigidas publicadas na data da análise; os demais resultados altos representam a propagação no grafo. O gate permanece bloqueado. O audit do backend tem nove alertas moderados e nenhum alto/crítico. Não usar `npm audit fix --force`: as propostas observadas rebaixam Expo para SDK 44 ou migram Tailwind para 4, rompendo o conjunto validado.
-
-O log fornecido também mostra bloqueio de cobrança: o projeto `finances-app-e8685` não podia habilitar `cloudbuild.googleapis.com` sem Blaze. Emuladores e testes aprovados não comprovam que Functions podem ser publicadas. A [documentação Firebase](https://firebase.google.com/docs/functions/get-started) exige Blaze para deploy de Functions. O diagnóstico local não consulta nem altera cobrança; a habilitação do plano e sua configuração financeira dependem do titular do projeto. Hosting e Android também não ficam liberados enquanto o audit do cliente falhar.
-
-Evidências, causas, limites e pendências detalhadas em [[Auditoria do Processo de Release]].
-
-A primeira execução do gate ampliado revelou cinco famílias de lotes incompatíveis com a cota vigente das callables (120 chamadas/minuto por UID/operação), além de duas fixtures de recorrência que usavam strings onde o schema atual exige timestamps. As fixtures foram corrigidas e o executor agora aguarda a janela informada pelo servidor sem reduzir a cota nem o volume de 211 itens. Há no máximo três novas tentativas por chamada, revalidação de UID/grant e cancelamento da espera; erros de rede/resultado incerto continuam sem repetição automática. O gate inclui `test:rate-limit` do backend, e cada família tem orçamento de 600 segundos para atravessar as janelas reais. Publicar o backend com `reason=rate-limit`/`retryAfterMs` antes de distribuir o cliente. A revalidação atual fica em [[Validação de Lotes Conversacionais]] e [[Auditoria do Processo de Release]]; os bloqueios independentes de Blaze/audit continuam registrados.
-
-Revalidação após essa correção: `npm run test:integration` terminou com código 0, incluindo os scripts do backend e as quatro suítes do cliente (86 testes aprovados, um benchmark opcional ignorado, 780,74 s). A suíte de lotes passou as treze famílias de 211 itens e os dois cenários de recuperação/cancelamento. `npm run check` passou 82 suítes/788 testes e os exports Web/Android passaram novamente. As pausas por cota aumentam o tempo do gate; não interromper a execução apenas pela ausência momentânea de novas chamadas durante a espera.
-
-## Ambientes
-
-- `production` usa `finances-app-e8685`, App Check Android Play Integrity e o `google-services.json` desse projeto. O AAB vem de `npm run android:build:production`; `production-apk` produz um APK interno com a mesma configuração para inspeção em aparelho.
-- `preview` exige outro projeto Firebase. Os identificadores públicos vêm do ambiente EAS `preview`, acessado localmente com `eas env:exec preview '<comando>'`; precisam ter visibilidade Plain text ou Sensitive para o preflight local. O arquivo `GOOGLE_SERVICES_JSON` desse projeto fica como variável de arquivo secreta no EAS. A configuração Android confere `project_id` e `package_name` no worker. O preview nunca herda as credenciais de produção nem aceita o JSON local de produção como substituto.
-- No projeto de preview, habilitar Auth, Firestore, Functions, Hosting, AI Logic, Remote Config e App Check para os apps Web/Android registrados. Autorizar os domínios do Hosting no Auth e no reCAPTCHA Enterprise. Cadastrar o token App Check Debug do APK de preview no app Android desse projeto. A configuração da chave Web do reCAPTCHA é pública e deve pertencer ao mesmo projeto.
-
-## Sequência
-
-1. Sincronizar a versão com `npm run version:set -- <versão>` e revisar o diff. Fazer commit após os gates locais passarem.
-2. Criar backup/export do Firestore e guardar as regras atualmente implantadas. Para testar a migração do razão, restaurar uma cópia de dados no projeto isolado e resolver todos os `issues` do dry-run antes da execução; um dry-run com pendências bloqueia o cutover.
-3. Conferir `npm run release:check` e as variáveis/arquivo EAS dos dois ambientes. Publicar o backend isolado com `npm run firebase:deploy:preview`, depois o Hosting de preview com `npm run web:deploy:preview` e gerar o APK com `npm run android:build:preview`.
-4. Na URL de preview e no APK, validar login/cadastro, leitura e gravação de banco, saldo, transação, recorrências, regras de acesso, assistente, App Check e navegação por link direto. Confirmar que os dados aparecem apenas no projeto de preview.
-5. Após revisar o backup, os resultados e o diff das regras, executar `npm run release:production` e escolher **Tudo** para publicar o backend e o Hosting, gerar `production-apk` para inspeção e solicitar o build `production` (AAB) ao EAS. Para publicar ou compilar somente partes, selecionar apenas as etapas desejadas. A submissão do AAB à Play Store é uma etapa externa posterior.
-6. Repetir o smoke test na URL publicada e no APK de produção; registrar versão, ID do build EAS, projeto Firebase, URL e resultado. Falha de qualquer validação interrompe a sequência.
-
-`firebase:deploy:*` publica Functions, regras e índices de Firestore. O `firebase.json` recompila o backend antes do deploy. O template `remote_config.json` exige conferência e publicação própria conforme [[Assistente Lumus]]; ele não é sobrescrito automaticamente por esse comando. O Hosting é publicado separadamente para que a UI só entre depois do backend compatível.
-
-Nenhuma configuração remota ou build instalado é inferido a partir de export local: EAS, Firebase Console, URL Web e aparelho precisam de validação real antes de declarar a versão publicada funcional.
-
-## Gate de vínculos nativos - 24/10/2026
-
-Antes de publicar [[Vínculos de Usuários Spark]], implantar/conferir as Rules e o índice `sparkRelationshipPairs.participants` escopado por coleção de grupo. Endpoints antigos de vínculo, movimentos legados, ajustes e notificações que usem Admin SDK precisam estar desligados ou atualizados com as guardas de prevalência do par nativo; Rules não restringem Admin SDK. O perfil Spark não deve publicar Functions para obter essa garantia. Não liberar clientes nativos sobre um backend antigo ainda capaz de usar grants revogados. Liberação local de rota e SDK/Rules de Emulator não satisfazem esse gate. Nenhum deploy, desligamento remoto ou alteração real foi executado nesta revisão.
+Não publicar nem modificar recursos remotos como parte desta limpeza. A escolha de infraestrutura e os processos de publicação do próximo backend serão definidos posteriormente.

@@ -1,4 +1,3 @@
-import React from 'react';
 
 import { AssistantRouteBoundary } from '@/components/uiverse/assistant/assistant-route-boundary';
 import LumusAssistantScreen from '@/screens/web/LumusAssistantScreen.web';

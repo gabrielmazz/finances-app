@@ -1,200 +1,38 @@
 ---
-tags: [moc, arquitetura, expo, firebase, web, financas]
-relacionado: [[Auditoria de Design]], [[Versão Web]], [[Navegação]], [[Organização do Código]], [[Componentes UI]], [[Componentes por Sistema]], [[Firebase Config]], [[Notificações]], [[Assistente Lumus]], [[Prompt Auditoria Completa de Segurança]]
+tags: [frontend, arquitetura]
+relacionado: [[MOC - Lumus Finanças]], [[Remoção do Backend]]
 status: ativo
 tipo: arquitetura
-versao: 2.3.2
-spark_scope: projeto
-spark_progress: 59
-spark_reviewed_at: 2026-10-24
+versao: 3.0.0
 ---
 
 # MOC - Lumus Finanças
 
-Prioridade de produto em 23/10/2026: [[Versão Usável por Telas]], com liberação local gradual e marco inicial de bancos/saldo/categorias/ganhos/despesas/extrato/dashboard, preservando o Spark existente.
+O projeto está na etapa de frontend independente, descrita em [[Remoção do Backend]]. Nenhuma tecnologia para o próximo backend foi escolhida.
 
-<!-- spark-progress:start -->
-## Progresso Spark — 24/10/2026
+## Módulos visuais
+- [[Autenticação]]
+- [[Dashboard Home]]
+- [[Gerenciamento de Bancos]]
+- [[Transações de Despesas]]
+- [[Transações de Receitas]]
+- [[Despesas Fixas]]
+- [[Receitas Fixas]]
+- [[Investimentos]]
+- [[Monitoramento de Investimentos]]
+- [[Transferências]]
+- [[Resgate de Caixa]]
+- [[Balanço Mensal]]
+- [[Ajuste de Saldo]]
+- [[Análise por Categoria]]
+- [[Previsão de Fluxo de Caixa]]
+- [[Gerenciamento de Tags]]
+- [[Gerenciamento de Usuários]]
+- [[Perfil do Usuário]]
+- [[Anotações Locais]]
+- [[Assistente Lumus]]
+- [[Configurações]]
+- [[Notificações]]
 
-Acompanhamento Spark em [[Status da Implementação Spark]]: **59% do projeto geral**, **78% do financeiro completo**, **65% da integração completa**. O quadro contém os 24 módulos, os critérios/pesos e a ordem revisada. Os cartões nos módulos representam adaptação para Spark, não a completude das funcionalidades anteriores ao redesenho.
-
-As porcentagens medem entregas do escopo Spark, não tempo restante nem cobertura de testes. Esta revisão prevalece sobre listas históricas de pendências abaixo.
-<!-- spark-progress:end -->
-
-> Map of Content principal do projeto **Lumus Finanças** (v2.3.1)
-> Aplicação universal de controle financeiro pessoal/familiar, construída com Expo + Firebase para Android/iOS e navegador.
-
----
-
-Recuperação financeira entre sessões: [[Recuperação de Operações Spark]], com identificação privada e cancelamento atômico, sem persistir rascunhos ou autorizações do assistente.
-
-## Arquitetura Geral
-
-```mermaid
-graph TD
-    A[Expo Router - file-based routing] --> B[Screens - React Native components]
-    B --> C[Functions - Firebase Firestore]
-    C --> D[Firebase Auth + Firestore]
-    E[expo-router/entry] --> A
-    A --> F[app/_layout.tsx - bootstrap]
-    F --> G[components/app/app-root.tsx - Providers + guard]
-    A --> W[Expo Web export - dist]
-    W --> H[Firebase Hosting - SPA]
-```
-
----
-
-## Módulos por Domínio
-
-### Autenticação & Segurança
-- [[Autenticação]] — Login, AuthContext, Firebase Auth, sessão em memória no nativo e local entre abas Web
-- [[Segurança de Login]] — Throttling, armazenamento seguro de credenciais
-- [[Prompt Auditoria Completa de Segurança]] — Auditoria ponta a ponta de autenticação, autorização, Firebase, sessões, dados, IA e release
-- [[Gerenciamento de Usuários]] — Cadastro e relacionamento entre usuários
-- [[Perfil do Usuário]] — Dados pessoais, edição do nome e acesso aos vínculos
-- [[Vínculos de Usuários Spark]] — Convite/aceite/revogação protegidos por Rules, sem alterar membros/papéis
-
-### Financeiro
-- [[Assistente Lumus]] — Conversa por texto/voz, formulários financeiros dinâmicos e relatórios com Firebase AI Logic
-- [[Dashboard Home]] — Visão consolidada de bancos, movimentos e investimentos
-- [[Análise por Categoria]] — Comparação dinâmica de tags contra a média histórica recente
-- [[Previsão de Fluxo de Caixa]] — Cenários líquidos de 3, 6 ou 12 meses sem criar movimentos
-- [[Gerenciamento de Bancos]] — Contas bancárias, saldo, movimentos por período
-- [[Ajuste de Saldo]] — Diferença conferida no banco, com edição e estorno auditáveis
-- [[Transações de Despesas]] — Registro de saídas financeiras
-- [[Transações de Receitas]] — Registro de entradas financeiras
-- [[Transferências]] — Movimentação entre contas
-- [[Resgate de Caixa]] — Retirada de valores em espécie
-- [[Balanço Mensal]] — Snapshots mensais por banco
-
-### Recorrências
-- [[Despesas Fixas]] — Gastos mensais obrigatórios com notificações
-- [[Receitas Fixas]] — Entradas mensais obrigatórias com notificações
-
-### Investimentos
-- [[Investimentos]] — Portfólio, aportes, resgates e produtos de investimento
-- [[Monitoramento de Investimentos]] — Taxa CDI por vigência, rentabilidade, evolução e alocação
-
-### Organização
-- [[Gerenciamento de Tags]] — Categorias com ícones para transações
-- [[Anotações Locais]] — Páginas livres salvas localmente por usuário, sem Firestore
-
-### Sistema
-- [[Auditoria de Design]] — Inventário integral, matriz web/mobile, achados, migrações Tailwind, exceções, validações e riscos residuais
-- [[Navegação]] — Expo Router, fluxo de autenticação, rotas
-- [[Organização do Código]] — Fronteiras entre rotas, composição global, telas, UI, hooks, Firebase e variantes de plataforma
-- [[Firebase Config]] — Configuração dual de apps Firebase, persistência de sessão
-- [[Processo de Release]] — Gates, ambientes isolados e sequência de publicação Web/Android/Firebase
-- [[Sistema de Temas]] — Modo claro/escuro persistido via AsyncStorage
-- [[Privacidade de Valores]] — Toggle de visibilidade financeira
-- [[Comportamento Pós-Registro]] — Preferências por tela para retorno e limpeza de campos após salvar formulários
-- [[Visibilidade de Rotas]] — Preferência local que oculta telas e bloqueia suas rotas neste aparelho
-- [[Notificações]] — Push notifications locais e alertas in-app via `notifier-alert`
-- [[Componentes UI]] — Gluestack UI + contratos dos componentes customizados
-- [[Componentes por Sistema]] — Mapa físico dos componentes de domínio e da infraestrutura Web
-- [[Versão Web]] — Export estático, Firebase Hosting, shell responsivo e adaptadores Web
-- [[Hooks Customizados]] — useHomeScreenData, useScreenStyles, useTagIcons
-- [[Configurações]] — Tela de configurações do app com tabelas administrativas
-
----
-
-## Tecnologias Principais
-
-| Tecnologia | Versão | Uso |
-|---|---|---|
-| Expo | 57.0.22 | Framework mobile |
-| React Native | 0.86.3 | Runtime mobile |
-| Expo Router | 57.0.21 | Navegação file-based |
-| @expo/vector-icons | 15.1.1 | Ícones nativos usados nas telas |
-| expo-system-ui | ~57.0.4 | Aparência automática no Android |
-| React Native Web | incluído no Expo | Runtime compartilhado para navegador |
-| Firebase | 12.16 | Auth + Firestore + AI Logic web |
-| Firebase Hosting | projeto `finances-app-e8685` | Serve a SPA Web exportada em `dist/` |
-| React Native Firebase | 25.1 | AI Logic, App Check e Remote Config Android |
-| Zod | 4.4 | Validação dos comandos do assistente |
-| Expo Audio / Speech | 57.0.5 / 57.0.3 | Gravação temporária e TTS local do assistente |
-| Tailwind CSS | 3.4.18 | Fonte canônica de tokens e utilitários visuais |
-| Gluestack UI | 3.0.12 | Primitives do design system |
-| NativeWind | 4.2.1 | Integração Tailwind para React Native e Web |
-| Mantine Charts + Recharts | 8.3.18 / 3.7.0 | Gráficos de previsão e evolução de investimentos via Expo DOM |
-| react-native-webview | 13.16.1 | Ponte nativa dos Expo DOM Components |
-| React | 19.2.3 | UI layer |
-| TypeScript | 6.0.3 | Type safety (strict) |
-| Node.js | >=22.13.0 | Toolchain Expo |
-| Lucide React Native | 0.552+ | Ícones vetoriais |
-| react-native-notifier | 2.0 | Alertas in-app |
-| react-native-gifted-charts | 1.4+ | Gráficos |
-| react-native-reanimated-carousel | 4.0+ | Carrossel de bancos |
-
----
-
-## Fluxo de Dados Principal
-
-```mermaid
-graph TD
-    FA[Firebase Auth] --> AC[AuthContext]
-    AC --> RL["app-root.tsx (guard)"]
-    RL --> HS[HomeScreen]
-    HS --> UH["useHomeScreenData(personId)"]
-    UH --> HF["HomeFirebase.ts (agregação)"]
-    HF --> BF[BankFirebase]
-    HF --> EF[ExpenseFirebase]
-    HF --> GF[GainFirebase]
-    HF --> FF[FinancesFirebase]
-    HF --> MBF[MonthlyBalanceFirebase]
-```
-
----
-
-## Hierarquia de Providers
-
-```mermaid
-graph TD
-    TP[ThemeProvider] --> VVP[ValueVisibilityProvider]
-    VVP --> PSP[PostSubmitBehaviorProvider]
-    PSP --> RVP[RouteVisibilityProvider]
-    RVP --> GHRV[GestureHandlerRootView]
-    GHRV --> GUP["GluestackUIProvider(mode)"]
-    GUP --> NW[NotifierWrapper]
-    NW --> AP[AuthProvider]
-    AP --> AS["AuthenticatedStack (guard + Stack)"]
-```
-
----
-
-## Fontes Customizadas
-
-O entry ativo do app é `expo-router/entry`; inicializações obrigatórias de runtime devem partir de `app/_layout.tsx` ou de utilitários importados por ele. `App.tsx` permanece como entry alternativo para o fluxo `index.ts`.
-
-As cinco famílias abaixo continuam disponíveis por compatibilidade, mas **Arimo** é a fonte canônica de interface definida no tema Tailwind:
-
-| Fonte | Arquivo |
-|---|---|
-| Arimo | `assets/Fonts/Arimo-VariableFont_wght.ttf` |
-| IBMPlexSans | `assets/Fonts/IBMPlexSans-VariableFont_wdth,wght.ttf` |
-| Metamorphous | `assets/Fonts/Metamorphous-Regular.ttf` |
-| Obitron | `assets/Fonts/Obitron-VariableFont_wght.ttf` |
-| Raleway | `assets/Fonts/Raleway-VariableFont_wght.ttf` |
-
-As fontes ficam disponíveis via `tailwind.config.js` (`fontFamily`). Novos componentes devem usar classes e tokens tipográficos; uso direto em objetos de estilo exige exceção documentada.
-
----
-
-## Convenções do Projeto
-
-- Valores monetários armazenados em **centavos** (integers)
-- Chaves de ciclo no formato **YYYY-MM** para recorrências
-- Modo escuro e dimensões de runtime são expostos por `useScreenStyles()`; decisões visuais estáticas pertencem ao Tailwind e a `design-system/`
-- `npm run lint:styles` impede aumento de dívida visual por arquivo e bloqueia fontes de estilo proibidas
-- Dois apps Firebase: o primário usa sessão em memória no Android/iOS e local entre abas Web; o secundário usa SecureStore no Android/iOS e memória no Web para o cadastro de usuários
-- Feedback in-app exclusivamente via `notifier-alert.tsx` — sem sistemas paralelos de toast/alert
-- Ícones de tags usam três famílias: `Ionicons`, `MaterialCommunityIcons`, `FontAwesome6`
-- Nenhum estado global (Redux/Zustand) — app usa Context API + hooks locais
-- O assistente mantém conversa e rascunhos somente em memória; consentimento e leitura automática são as únicas preferências persistidas por UID
-- No navegador, sidebar a partir de 1024px substitui a barra inferior; abaixo disso, a interface mobile é preservada. Lembretes agendados continuam exclusivos de aplicativos instalados.
-
-## Publicação Web
-
-O Expo exporta a SPA com `npm run web:export`; `firebase.json` serve `dist/` com URLs limpas e rewrite para `index.html`, permitindo deep links do Expo Router. O preview usa um projeto Firebase próprio; os gates e a ordem de publicação estão em [[Processo de Release]].
-
-Antes da primeira publicação, os domínios `finances-app-e8685.web.app`, `finances-app-e8685.firebaseapp.com` e qualquer domínio próprio devem ser autorizados no Firebase Authentication e registrados no reCAPTCHA Enterprise/App Check. Veja [[Versão Web]] e [[Firebase Config]].
+## Estrutura e apresentação
+[[Organização do Código]], [[Navegação]], [[Componentes UI]], [[Componentes por Sistema]], [[Sistema de Temas]], [[Hooks Customizados]], [[Privacidade de Valores]], [[Visibilidade de Rotas]], [[Comportamento Pós-Registro]], [[Versão Web]], [[Processo de Release]] e [[Auditoria de Design]].

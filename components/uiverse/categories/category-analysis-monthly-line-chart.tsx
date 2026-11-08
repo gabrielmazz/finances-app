@@ -1,15 +1,12 @@
+import type { CategoryAnalysisMonthBucket,CategoryAnalysisMovementType } from '@/types/presentation/category-analysis';
 'use dom';
 
-import '@mantine/core/styles.css';
-import '@mantine/charts/styles.css';
+import { LUMUS_MONTH_SERIES_COLORS,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { LineChart } from '@mantine/charts';
-import { Box, MantineProvider } from '@mantine/core';
+import '@mantine/charts/styles.css';
+import { Box,MantineProvider } from '@mantine/core';
+import '@mantine/core/styles.css';
 import type { DOMProps } from 'expo/dom';
-import { LUMUS_MONTH_SERIES_COLORS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
-import type {
-	CategoryAnalysisMonthBucket,
-	CategoryAnalysisMovementType,
-} from '@/functions/CategoryAnalysisFirebase';
 
 type CategoryAnalysisMonthlyLineChartProps = {
 	months: CategoryAnalysisMonthBucket[];

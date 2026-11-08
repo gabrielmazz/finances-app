@@ -1,53 +1,51 @@
-import { useTransferFormData } from '@/hooks/useTransferFormData';
-import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { useTransferFormData } from '@/hooks/useTransferFormData';
+
+import { useFocusEffect } from 'expo-router';
 import React from 'react';
 import {
-	Image as RNImage,
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StatusBar,
-	Text,
-	useWindowDimensions,
-	View,
+KeyboardAvoidingView,
+Platform,
+Image as RNImage,
+ScrollView,
+StatusBar,
+Text,
+useWindowDimensions,
+View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { HStack } from '@/components/ui/hstack';
-import { Input, InputField } from '@/components/ui/input';
+import { Input,InputField } from '@/components/ui/input';
 import { VStack } from '@/components/ui/vstack';
 import BankActionsheetSelector from '@/components/uiverse/banks/bank-actionsheet-selector';
-import DatePickerField from '@/components/uiverse/shared/date-picker';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
+import WebSelectField from '@/components/web/shared/web-select-field';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
-import WebSelectField from '@/components/web/shared/web-select-field';
-import AddFinancialIllustration from '../../assets/UnDraw/addFinancialScreen.svg';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import {
-	LUMUS_CLASS_NAMES,
-	LUMUS_FONT_STACKS,
-	LUMUS_FORM_CLASS_NAMES,
-	LUMUS_HERO_COLORS,
-	LUMUS_LAYOUT_TOKENS,
-	LUMUS_RUNTIME_COLORS,
+LUMUS_CLASS_NAMES,
+LUMUS_FONT_STACKS,
+LUMUS_FORM_CLASS_NAMES,
+LUMUS_HERO_COLORS,
+LUMUS_LAYOUT_TOKENS,
+LUMUS_RUNTIME_COLORS,
 } from '@/design-system/tokens';
 import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
 import { WEB_EXPENSE_CLASS_NAMES } from '@/design-system/web-forms';
-import { auth } from '@/FirebaseConfig';
-import { addFinanceInvestmentFirebase } from '@/functions/FinancesFirebase';
-import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import AddFinancialIllustration from '../../assets/UnDraw/addFinancialScreen.svg';
+
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { redemptionTermLabels, type RedemptionTerm } from '@/utils/finance';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { redemptionTermLabels,type RedemptionTerm } from '@/utils/finance';
 import { parsePercentageToBasisPoints } from '@/utils/investmentPortfolio';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
 
 const redemptionOptions: ReadonlyArray<{ value: RedemptionTerm; label: string }> = [
 	{ value: 'anytime', label: redemptionTermLabels.anytime },
@@ -78,15 +76,8 @@ const parseDateFromBR = (value: string) => {
 	return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 };
 
-const mergeDateWithCurrentTime = (date: Date) => {
-	const now = new Date();
-	const result = new Date(date);
-	result.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-	return result;
-};
-
 export default function AddFinanceScreenWeb() {
-	const sparkInvestment = useSparkInvestmentForm();
+
 	const { width, height } = useWindowDimensions();
 	const compact = width < 720;
 	const isDesktop = width >= 1024;
@@ -106,7 +97,6 @@ export default function AddFinanceScreenWeb() {
 	const fieldBankContainerClassName = `${LUMUS_CLASS_NAMES.control} ${LUMUS_CLASS_NAMES.focusRing}`;
 	const submitButtonClassName = LUMUS_CLASS_NAMES.primaryButton;
 	const submitButtonTextClassName = LUMUS_CLASS_NAMES.primaryButtonText;
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addFinance');
 	const [investmentName, setInvestmentName] = React.useState('');
 	const [initialValueInput, setInitialValueInput] = React.useState('');
 	const [initialValueInCents, setInitialValueInCents] = React.useState<number | null>(null);
@@ -118,7 +108,7 @@ export default function AddFinanceScreenWeb() {
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const bankData = useTransferFormData(selectedBankId, null);
 	const { banks: bankOptions, isLoadingBanks, originBalanceInCents: currentBankBalanceInCents, isLoadingBalance: isLoadingBankBalance, reload: loadBanks } = bankData;
-	const { personId, beginRequest: beginSubmit, cancelRequest: cancelSubmit } = useBankMovementsRequest('investment-create');
+	const { personId, cancelRequest: cancelSubmit } = useBankMovementsRequest('investment-create');
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 
 	const submitLockRef = React.useRef<object | null>(null);
@@ -140,30 +130,19 @@ export default function AddFinanceScreenWeb() {
 			minBottomPadding: 32,
 		});
 
-	const showScreenAlert = React.useCallback(
-		(description: string, type: NotifierAlertType = 'error') => {
-			showNotifierAlert({ description, type, isDarkMode });
-		},
-		[isDarkMode],
-	);
 	const parsedInvestmentDate = React.useMemo(() => parseDateFromBR(investmentDate), [investmentDate]);
 	const parsedCdiInBasisPoints = React.useMemo(() => parsePercentageToBasisPoints(cdiInput), [cdiInput]);
-	const parsedCdi = React.useMemo(
-		() => (typeof parsedCdiInBasisPoints === 'number' ? parsedCdiInBasisPoints / 100 : NaN),
-		[parsedCdiInBasisPoints],
-	);
 	const hasInvestmentName = investmentName.trim().length > 0;
 	const hasInitialValue = typeof initialValueInCents === 'number' && Number.isSafeInteger(initialValueInCents) && initialValueInCents > 0;
 	const hasValidInvestmentDate = Boolean(parsedInvestmentDate);
 	const hasValidCdi = typeof parsedCdiInBasisPoints === 'number' && parsedCdiInBasisPoints > 0;
-	const isFormBusy = isSaving || sparkInvestment.fieldsLocked || isLoadingBanks || !!bankData.banksError;
+	const isFormBusy = isSaving || isLoadingBanks;
 	const isInitialValueDisabled = !hasInvestmentName || isFormBusy;
 	const isInvestmentDateDisabled = !hasInvestmentName || !hasInitialValue || isFormBusy;
 	const isCdiDisabled = !hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || isFormBusy;
 	const isRedemptionTermDisabled = !hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || !hasValidCdi || isFormBusy;
 	const isBankSelectionDisabled =
 		isLoadingBanks || bankOptions.length === 0 || !hasInvestmentName || !hasInitialValue || !hasValidInvestmentDate || !hasValidCdi || isFormBusy;
-	const isBankBalanceNegative = typeof currentBankBalanceInCents === 'number' && currentBankBalanceInCents < 0;
 	const isInitialValueAboveCurrentBalance =
 		typeof currentBankBalanceInCents === 'number' && typeof initialValueInCents === 'number' && initialValueInCents > currentBankBalanceInCents;
 	const hasValidBalance = React.useMemo(() => {
@@ -173,17 +152,16 @@ export default function AddFinanceScreenWeb() {
 	const isFormValid = hasInvestmentName && hasInitialValue && hasValidInvestmentDate && hasValidCdi && Boolean(selectedBankId) && hasValidBalance;
 
 	const resetForm = React.useCallback(() => {
-		sparkInvestment.reset();
-		setInvestmentName('');
-		setInitialValueInput('');
-		setInitialValueInCents(null);
-		setCdiInput('');
-		setInvestmentDate(formatDateToBR(new Date()));
-		setSelectedRedemptionTerm('anytime');
-		setSelectedBankId(null);
-		setSubmitError(null);
-		setHasSavedOnce(false);
-	}, []);
+setInvestmentName('');
+setInitialValueInput('');
+setInitialValueInCents(null);
+setCdiInput('');
+setInvestmentDate(formatDateToBR(new Date()));
+setSelectedRedemptionTerm('anytime');
+setSelectedBankId(null);
+setSubmitError(null);
+setHasSavedOnce(false);
+}, []);
 	const handleInitialValueChange = React.useCallback((value: string) => {
 		const digitsOnly = value.replace(/\D/g, '');
 		if (!digitsOnly) {
@@ -201,33 +179,7 @@ export default function AddFinanceScreenWeb() {
 	useFocusEffect(React.useCallback(() => { loadBanks(); return cancelSubmit; }, [loadBanks, cancelSubmit]));
 	React.useEffect(() => { submitLockRef.current = null; setIsSaving(false); resetForm(); setHasSavedOnce(false); setSubmitError(null); }, [personId, resetForm]);
 
-	const handleSaveInvestment = React.useCallback(async () => {
-		const pending = sparkInvestment.hasPending();
-		if (submitLockRef.current || isSaving || !personId || auth.currentUser?.uid !== personId) return;
-		if (!pending && (!isFormValid || bankData.error || isLoadingBanks || !bankOptions.some(bank => bank.id === selectedBankId))) return;
-		if (!pending && (!Number.isSafeInteger(initialValueInCents) || !initialValueInCents || !parsedInvestmentDate || !parsedCdiInBasisPoints || !selectedBankId)) return;
-		const lock = {}; submitLockRef.current = lock; const isCurrent = beginSubmit();
-		setIsSaving(true); setSubmitError(null);
-		try {
-			const investmentParams = {
-				name: investmentName.trim(), initialValueInCents: initialValueInCents!, currentValueInCents: initialValueInCents!,
-				cdiPercentage: parsedCdi, cdiPercentageInBasisPoints: parsedCdiInBasisPoints!, redemptionTerm: selectedRedemptionTerm,
-				bankId: selectedBankId!, personId, date: mergeDateWithCurrentTime(parsedInvestmentDate!),
-				bankNameSnapshot: bankOptions.find(bank => bank.id === selectedBankId)?.name ?? null,
-			};
-			const result = pending ? await sparkInvestment.retryPending()
-				: (await sparkInvestment.create(investmentParams)) ?? await addFinanceInvestmentFirebase(investmentParams);
-			if (!isCurrent()) return;
-			if (!result?.success) throw new Error(result && 'error' in result ? result.error : 'Não foi possível confirmar o investimento.');
-			loadBanks(); setHasSavedOnce(true);
-			showScreenAlert('Investimento salvo com sucesso!', 'success');
-			applyPostSubmitBehavior({ resetForm });
-		} catch (error) {
-			if (isCurrent()) setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar o investimento.');
-		} finally {
-			if (submitLockRef.current === lock) { submitLockRef.current = null; setIsSaving(false); }
-		}
-	}, [personId, beginSubmit, isSaving, isFormValid, bankData.error, isLoadingBanks, bankOptions, selectedBankId, initialValueInCents, parsedInvestmentDate, parsedCdiInBasisPoints, parsedCdi, selectedRedemptionTerm, investmentName, sparkInvestment, loadBanks, applyPostSubmitBehavior, resetForm, showScreenAlert]);
+	const handleSaveInvestment = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const selectedBankOption = bankOptions.find(bank => bank.id === selectedBankId) ?? null;
 	const bankBalanceDisplayValue = !selectedBankId
@@ -281,7 +233,7 @@ export default function AddFinanceScreenWeb() {
 										<MovementFormStatus loading={isLoadingBanks || isLoadingBankBalance} error={bankData.error} onRetry={loadBanks} />
 										{!isLoadingBanks && !bankData.banksError && bankOptions.length === 0 ? <Text className={helperText}>Cadastre um banco para registrar investimentos.</Text> : null}
 										{submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
-										{sparkInvestment.isPending ? <Text className={helperText} accessibilityRole="alert">Continue a mesma confirmação. Os dados ficam bloqueados até recuperar o resultado.</Text> : null}
+										{null}
 										<View className={WEB_EXPENSE_CLASS_NAMES.fieldGrid}>
 											<VStack className={fieldColumn}>
 												<Text className={`${WEB_EXPENSE_CLASS_NAMES.fieldLabel} ${bodyText}`}>Nome do investimento</Text>
@@ -312,8 +264,8 @@ export default function AddFinanceScreenWeb() {
 												<Input isDisabled className={inputClassName}><InputField accessibilityLabel="Saldo disponível do banco" value={bankBalanceDisplayValue} className={inputField} /></Input>
 											</VStack>
 										</View>
-										<Button className={`${submitButtonClassName} ${WEB_EXPENSE_CLASS_NAMES.submit}`} onPress={() => void handleSaveInvestment()} isDisabled={isSaving || (!sparkInvestment.isPending && (!isFormValid || Boolean(bankData.error) || isLoadingBanks))}>
-											{isSaving ? <><ButtonSpinner /><ButtonText className={submitButtonTextClassName}>Salvando…</ButtonText></> : <ButtonText className={submitButtonTextClassName}>{sparkInvestment.isPending ? 'Confirmar investimento anterior' : 'Salvar investimento'}</ButtonText>}
+										<Button className={`${submitButtonClassName} ${WEB_EXPENSE_CLASS_NAMES.submit}`} onPress={() => void handleSaveInvestment()} isDisabled={isSaving || ((!isFormValid || Boolean(bankData.error) || isLoadingBanks))}>
+											{isSaving ? <><ButtonSpinner /><ButtonText className={submitButtonTextClassName}>Salvando…</ButtonText></> : <ButtonText className={submitButtonTextClassName}>{'Salvar investimento'}</ButtonText>}
 										</Button>
 										{hasSavedOnce ? <HStack className="mt-4 items-center justify-between gap-3 rounded-control border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950"><Text className="flex-1 text-sm text-emerald-700 dark:text-emerald-300">Investimento salvo e disponível na sua carteira.</Text><Button variant="link" onPress={() => navigateToRoute(APP_ROUTE_PATHS.financialList)}><ButtonText>Ver carteira</ButtonText></Button></HStack> : null}
 									</View>

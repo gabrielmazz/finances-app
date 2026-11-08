@@ -1,82 +1,65 @@
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
-import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import type { MandatoryExpenseSuggestion } from '@/types/presentation/suggestion';
+
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
-import { useSparkMovementForm } from '@/hooks/useSparkMovementForm';
-import React from 'react';
-import {
-	Image as RNImage,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-	ScrollView,
-	StatusBar,
-	Text,
-	useWindowDimensions,
-	View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { HStack } from '@/components/ui/hstack';
-import { Input, InputField } from '@/components/ui/input';
-import { Radio, RadioGroup, RadioIcon, RadioIndicator, RadioLabel } from '@/components/ui/radio';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { VStack } from '@/components/ui/vstack';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
-import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@/components/ui/modal';
 import { CircleIcon } from '@/components/ui/icon';
-import DatePickerField from '@/components/uiverse/shared/date-picker';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import { Input,InputField } from '@/components/ui/input';
+import {
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
+} from '@/components/ui/modal';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
+import { Radio,RadioGroup,RadioIcon,RadioIndicator,RadioLabel } from '@/components/ui/radio';
+import { Textarea,TextareaInput } from '@/components/ui/textarea';
+import { VStack } from '@/components/ui/vstack';
+import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
-import AddExpenseIllustration from '../../assets/UnDraw/addRegisterExpanseScreen.svg';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { useLocalSearchParams } from 'expo-router';
 import { Info } from 'lucide-react';
-import { auth } from '@/FirebaseConfig';
+import React from 'react';
+import {
+KeyboardAvoidingView,
+Platform,
+Pressable,
+Image as RNImage,
+ScrollView,
+StatusBar,
+Text,
+useWindowDimensions,
+View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AddExpenseIllustration from '../../assets/UnDraw/addRegisterExpanseScreen.svg';
+
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { addExpenseFirebase, getExpenseDataFirebase, updateExpenseFirebase } from '@/functions/ExpenseFirebase';
-import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
-import {
-	getMandatoryExpensesWithRelationsFirebase,
-	registerMandatoryExpensePaymentFirebase,
-	settleMandatoryExpenseFirebase,
-} from '@/functions/MandatoryExpenseFirebase';
-import { getAllBanksFirebase, getBankDataFirebase } from '@/functions/BankFirebase';
-import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
-import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
-import { findMandatoryExpenseSuggestion, type MandatoryExpenseSuggestion } from '@/utils/mandatoryExpenseSuggestions';
+
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
+
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
-import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
-import {
-	cancelMandatoryExpenseNotification,
-	suppressMandatoryExpenseNotificationCycle,
-} from '@/utils/mandatoryExpenseNotifications';
-import {
-	isTagVisibleInRegularUsageList,
-	normalizeTagUsageType,
-	tagSupportsUsage,
-	type TagUsageType,
-} from '@/utils/tagUsage';
-import { TagIcon, type TagIconFamily, type TagIconSelection, type TagIconStyle } from '@/hooks/useTagIcons';
+
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { TagIcon,type TagIconFamily,type TagIconSelection,type TagIconStyle } from '@/hooks/useTagIcons';
+import {
+type TagUsageType
+} from '@/utils/tagUsage';
 
 type OptionItem = {
 	id: string;
@@ -107,13 +90,6 @@ const parseDateFromBR = (value: string) => {
 	if (!day || !month || !year || month > 12 || year < 1900) return null;
 	const date = new Date(year, month - 1, day);
 	return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
-};
-
-const mergeDateWithCurrentTime = (date: Date) => {
-	const now = new Date();
-	const result = new Date(date);
-	result.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-	return result;
 };
 
 const normalizeDateValue = (value: unknown): Date | null => {
@@ -174,36 +150,32 @@ export default function AddRegisterExpensesScreen() {
 		webDashboardClassNames,
 		webExpenseClassNames,
 	} = useScreenStyles();
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterExpenses');
 
 	const [expenseName, setExpenseName] = React.useState('');
 	const [expenseValueDisplay, setExpenseValueDisplay] = React.useState('');
 	const [expenseValueCents, setExpenseValueCents] = React.useState<number | null>(null);
 	const [expenseDate, setExpenseDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
-	const [tags, setTags] = React.useState<OptionItem[]>([]);
-	const [banks, setBanks] = React.useState<OptionItem[]>([]);
+	const [tags] = React.useState<OptionItem[]>([]);
+	const [banks] = React.useState<OptionItem[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
-	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isLoadingTags] = React.useState(false);
+	const [isLoadingBanks] = React.useState(false);
+	const [isSubmitting] = React.useState(false);
 	const [explanationExpense, setExplanationExpense] = React.useState<string | null>(null);
 	const [moneyFormat, setMoneyFormat] = React.useState(false);
 	const [hasAppliedTemplate, setHasAppliedTemplate] = React.useState(false);
 	const [mandatoryExpenseSuggestion, setMandatoryExpenseSuggestion] = React.useState<MandatoryExpenseSuggestion | null>(
 		null,
 	);
-	const [ignoredMandatorySuggestionKey, setIgnoredMandatorySuggestionKey] = React.useState<string | null>(null);
+	const [, setIgnoredMandatorySuggestionKey] = React.useState<string | null>(null);
 	const [valuesRadioMoneyFormat, setValuesRadioMoneyFormat] = React.useState<
 		'Pagamento em Dinheiro' | 'Pagamento em Banco'
 	>('Pagamento em Banco');
-	const { initialize: initializeSparkMovement, load: loadSparkMovement, submit: submitSparkMovement, reset: resetSparkMovement } = useSparkMovementForm('expense');
-	const { submit: submitSparkRecurring, reset: resetSparkRecurring } = useSparkRecurringAction('expense');
-	const sparkInvestment = useSparkInvestmentForm();
-	const submitLockRef = React.useRef(false);
+
 	const expenseNameInputRef = React.useRef<any>(null);
 	const expenseValueInputRef = React.useRef<any>(null);
 	const expenseExplanationInputRef = React.useRef<any>(null);
@@ -226,7 +198,7 @@ export default function AddRegisterExpensesScreen() {
 
 	const params = useLocalSearchParams<{
 		expenseId?: string | string[];
-		sparkSource?: string | string[];
+
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
 		templateTagId?: string | string[];
@@ -264,11 +236,8 @@ export default function AddRegisterExpensesScreen() {
 		const value = Array.isArray(params.expenseId) ? params.expenseId[0] : params.expenseId;
 		return value?.trim() || null;
 	}, [params.expenseId]);
-	const sparkSource = Array.isArray(params.sparkSource) ? params.sparkSource[0] : params.sparkSource;
 	const isEditing = Boolean(editingExpenseId);
-	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry({
-		movementId: editingExpenseId, source: sparkSource, initialize: initializeSparkMovement, loadSpark: loadSparkMovement, loadLegacy: getExpenseDataFirebase,
-	});
+	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry();
 	const templateData = React.useMemo(() => {
 		const name = decodeParam(params.templateName);
 		const description = decodeParam(params.templateDescription);
@@ -339,14 +308,8 @@ export default function AddRegisterExpensesScreen() {
 	]);
 
 	const linkedMandatoryExpenseId = templateData?.mandatoryExpenseId ?? null;
-	const isMandatoryExpenseSettlement = templateData?.isMandatoryExpenseSettlement === true;
-	const installmentsToSettle = templateData?.installmentsToSettle;
 	const isTemplateLocked = Boolean(linkedMandatoryExpenseId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
-	const pendingInvestmentAdjustment = React.useMemo(() => {
-		if (isEditing || !templateData?.investmentAdjustmentId || !templateData.investmentDeltaInCents) return null;
-		return { investmentId: templateData.investmentAdjustmentId, deltaInCents: templateData.investmentDeltaInCents };
-	}, [isEditing, templateData]);
 	const parsedExpenseDate = React.useMemo(() => parseDateFromBR(expenseDate), [expenseDate]);
 	const isBankSelectionRequired = !moneyFormat;
 	const isFormBusy = isLoadingExisting || isSubmitting || !isMovementReady;
@@ -380,47 +343,6 @@ export default function AddRegisterExpensesScreen() {
 		!parsedExpenseDate ||
 		(isBankSelectionRequired && !selectedBankId);
 
-	const showSuccessfulExpenseNotification = React.useCallback(
-		(isUpdating = false, isSettlement = false) => {
-			const name = expenseName.trim() || 'informada';
-			const bankName = banks.find((bank) => bank.id === selectedBankId)?.name ?? selectedMovementBankName;
-			const destination = moneyFormat
-				? 'como pagamento em dinheiro'
-				: bankName
-					? `no banco ${bankName}`
-					: 'no banco selecionado';
-			showNotifierAlert({
-				title: isSettlement ? 'Quitação registrada' : isUpdating ? 'Despesa atualizada' : 'Despesa registrada',
-				description: isSettlement
-					? `A quitação de "${name}" foi registrada com sucesso ${destination}.`
-					: `A despesa "${name}" foi ${isUpdating ? 'atualizada' : 'registrada'} com sucesso ${destination}.`,
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-		},
-		[banks, expenseName, isDarkMode, moneyFormat, selectedBankId, selectedMovementBankName],
-	);
-
-	const resetNewExpenseForm = React.useCallback(() => {
-		sparkInvestment.reset();
-		resetSparkRecurring();
-		resetSparkMovement();
-		setExpenseName('');
-		setExpenseValueDisplay('');
-		setExpenseValueCents(null);
-		setExpenseDate(formatDateToBR(toFinancialCivilDate(new Date())));
-		setSelectedTagId(null);
-		setSelectedBankId(null);
-		setSelectedMovementTagName(null);
-		setSelectedMovementTagIcon(null);
-		setSelectedMovementBankName(null);
-		setExplanationExpense(null);
-		setMoneyFormat(false);
-		setValuesRadioMoneyFormat('Pagamento em Banco');
-		setIgnoredMandatorySuggestionKey(null);
-	}, [resetSparkMovement]);
-
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
 		if (!digitsOnly) {
@@ -434,210 +356,8 @@ export default function AddRegisterExpensesScreen() {
 	}, []);
 
 	const handleSubmit = React.useCallback(
-		async (options: SubmitOptions = {}) => {
-			const notifyError = (title: string, description: string, duration = 4000) =>
-				showNotifierAlert({ title, description, type: 'error', isDarkMode, duration });
-			if (submitLockRef.current || isSubmitting || !isMovementReady) return;
-			if (!expenseName.trim()) return notifyError('Erro ao registrar despesa', 'Informe o nome da despesa.');
-			if (expenseValueCents === null) return notifyError('Erro ao registrar despesa', 'Informe o valor da despesa.');
-			if (expenseValueCents <= 0)
-				return notifyError('Erro ao registrar despesa', 'Informe um valor maior que zero para a despesa.');
-			if (!selectedTagId) return notifyError('Erro ao registrar despesa', 'Selecione uma tag.');
-			if (isBankSelectionRequired && !selectedBankId)
-				return notifyError('Erro ao registrar despesa', 'Selecione um banco.');
-			if (!parsedExpenseDate) return notifyError('Erro ao registrar despesa', 'Informe uma data válida (DD/MM/AAAA).');
-
-			const dateWithCurrentTime = mergeDateWithCurrentTime(parsedExpenseDate);
-			if (linkedMandatoryExpenseId && getCycleKeyFromDate(dateWithCurrentTime) !== getCycleKeyFromDate(new Date())) {
-				return notifyError(
-					'Data fora do ciclo atual',
-					'Registre o pagamento obrigatório com uma data deste mês para manter o ciclo correto.',
-					5000,
-				);
-			}
-			submitLockRef.current = true;
-			setIsSubmitting(true);
-			try {
-				const personId = auth.currentUser?.uid;
-				if (!personId) return notifyError('Erro ao registrar despesa', 'Não foi possível identificar o usuário atual.');
-				if (linkedMandatoryExpenseId && pendingInvestmentAdjustment) throw new Error('Selecione apenas uma origem para esta movimentação.');
-				if (pendingInvestmentAdjustment && !isEditing) {
-					const investmentResult = await sparkInvestment.moveTemplate({ ...pendingInvestmentAdjustment, amountInCents: expenseValueCents, movementKind: 'expense',
-						selectedDate: parsedExpenseDate, bankId: selectedBankId, moneyFormat });
-					if (investmentResult) {
-						if (!investmentResult.success) throw new Error(investmentResult.error);
-						showSuccessfulExpenseNotification(false);
-						applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
-						return;
-					}
-				}
-
-				if (linkedMandatoryExpenseId && !isEditing && await submitSparkRecurring({
-					action: 'settle', planId: linkedMandatoryExpenseId, selectedDate: parsedExpenseDate,
-					accountId: moneyFormat ? 'cash' : selectedBankId!, amountInCents: expenseValueCents, installmentsCount: installmentsToSettle ?? 1, note: explanationExpense?.trim() || null,
-					...(isMandatoryExpenseSettlement ? { settlementMode: 'negotiated' as const } : {}),
-				})) {
-					showSuccessfulExpenseNotification(false, isMandatoryExpenseSettlement);
-					applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
-					return;
-				}
-
-
-				const shouldCheckSuggestion =
-					!isEditing &&
-					!linkedMandatoryExpenseId &&
-					!pendingInvestmentAdjustment &&
-					getCycleKeyFromDate(dateWithCurrentTime) === getCycleKeyFromDate(toFinancialCivilDate(new Date()));
-				if (shouldCheckSuggestion) {
-					const mandatoryResult = await getMandatoryExpensesWithRelationsFirebase(personId);
-					if (!mandatoryResult.success || !Array.isArray(mandatoryResult.data))
-						return notifyError(
-							'Não foi possível validar gastos obrigatórios',
-							'A despesa não foi registrada para evitar um lançamento obrigatório fora do fluxo correto.',
-							5000,
-						);
-					const suggestion = findMandatoryExpenseSuggestion(
-						{
-							name: expenseName.trim(),
-							valueInCents: expenseValueCents,
-							tagId: selectedTagId,
-							date: dateWithCurrentTime,
-						},
-						mandatoryResult.data,
-					);
-					const bypassKey = options.bypassMandatorySuggestionKey ?? ignoredMandatorySuggestionKey;
-					if (suggestion && suggestion.matchKey !== bypassKey) {
-						setMandatoryExpenseSuggestion(suggestion);
-						return;
-					}
-				}
-
-				if (await submitSparkMovement({
-					actorId: personId, name: expenseName.trim(), amountInCents: expenseValueCents, selectedDate: parsedExpenseDate,
-					bankId: isBankSelectionRequired ? selectedBankId : null, moneyFormat, categoryId: selectedTagId,
-					explanation: explanationExpense?.trim() || null,
-					isEditing, editingReference: editingExpenseId && (sparkSource === 'live' || sparkSource === 'imported') ? { source: sparkSource, operationId: editingExpenseId, family: 'ordinary' } : null,
-					specialSource: Boolean(linkedMandatoryExpenseId || pendingInvestmentAdjustment),
-				})) {
-					showSuccessfulExpenseNotification(isEditing);
-					applyPostSubmitBehavior({ isEditing, resetForm: resetNewExpenseForm });
-					return;
-				}
-
-				if (isEditing && editingExpenseId) {
-					const result = await updateExpenseFirebase({
-						expenseId: editingExpenseId,
-						name: expenseName.trim(),
-						valueInCents: expenseValueCents,
-						tagId: selectedTagId,
-						bankId: isBankSelectionRequired ? selectedBankId : null,
-						date: dateWithCurrentTime,
-						explanation: explanationExpense?.trim() ?? null,
-						moneyFormat,
-					});
-					if (!result.success) return notifyError('Erro ao atualizar despesa', 'Tente novamente mais tarde.');
-					showSuccessfulExpenseNotification(true);
-					applyPostSubmitBehavior({ isEditing: true });
-					return;
-				}
-
-				if (linkedMandatoryExpenseId) {
-					const paymentParams = {
-						mandatoryExpenseId: linkedMandatoryExpenseId,
-						name: expenseName.trim(),
-						valueInCents: expenseValueCents,
-						tagId: selectedTagId,
-						bankId: isBankSelectionRequired ? selectedBankId : null,
-						date: dateWithCurrentTime,
-						personId,
-						explanation: explanationExpense?.trim() || null,
-						moneyFormat,
-					};
-					const result = isMandatoryExpenseSettlement
-						? await settleMandatoryExpenseFirebase({ ...paymentParams, installmentsToSettle })
-						: await registerMandatoryExpensePaymentFirebase(paymentParams);
-					if (!result.success) {
-						const description =
-							result.reason === 'installment_plan_required'
-								? 'A quitação antecipada só está disponível para gastos parcelados.'
-								: result.reason === 'no_remaining_installments' || result.reason === 'installment_plan_complete'
-									? 'Todas as parcelas deste gasto obrigatório já foram registradas.'
-									: result.reason === 'already_paid_for_cycle'
-										? 'Este gasto obrigatório já foi registrado neste ciclo. Atualize a lista para conferir o status.'
-										: result.reason === 'mandatory_expense_not_found'
-											? 'Este gasto obrigatório não foi encontrado. Volte à lista e atualize os dados.'
-											: 'Não foi possível registrar este pagamento obrigatório. Nenhuma despesa foi criada.';
-						return notifyError('Erro ao registrar gasto obrigatório', description, 5000);
-					}
-					try {
-						if (isMandatoryExpenseSettlement && result.isInstallmentPlanComplete)
-							await cancelMandatoryExpenseNotification(personId, linkedMandatoryExpenseId);
-						else
-							await suppressMandatoryExpenseNotificationCycle(
-								personId,
-								linkedMandatoryExpenseId,
-								getCycleKeyFromDate(dateWithCurrentTime),
-							);
-					} catch (notificationError) {
-						console.error('Erro ao atualizar lembretes do gasto obrigatório:', notificationError);
-					}
-				} else {
-					const result = await addExpenseFirebase({
-						name: expenseName.trim(),
-						valueInCents: expenseValueCents,
-						tagId: selectedTagId,
-						bankId: isBankSelectionRequired ? selectedBankId : null,
-						date: dateWithCurrentTime,
-						personId,
-						explanation: explanationExpense?.trim() || null,
-						moneyFormat,
-					});
-					if (!result.success) return notifyError('Erro ao registrar despesa', 'Tente novamente mais tarde.');
-				}
-
-				if (pendingInvestmentAdjustment) {
-					const result = await adjustFinanceInvestmentValueFirebase(pendingInvestmentAdjustment);
-					if (!result.success)
-						notifyError(
-							'Erro ao atualizar investimento',
-							'Despesa registrada, mas não foi possível atualizar o investimento.',
-						);
-				}
-				showSuccessfulExpenseNotification(false, isMandatoryExpenseSettlement);
-				applyPostSubmitBehavior({ resetForm: resetNewExpenseForm });
-			} catch (error) {
-				console.error('Erro ao registrar/atualizar despesa:', error);
-				notifyError('Erro ao registrar despesa', error instanceof Error ? error.message : 'Erro inesperado ao salvar a despesa.');
-			} finally {
-				submitLockRef.current = false;
-				setIsSubmitting(false);
-			}
-		},
-		[
-			applyPostSubmitBehavior,
-			editingExpenseId,
-			expenseName,
-			expenseValueCents,
-			explanationExpense,
-			ignoredMandatorySuggestionKey,
-			isBankSelectionRequired,
-			isEditing,
-			isMandatoryExpenseSettlement,
-			isSubmitting,
-			isMovementReady,
-			isDarkMode,
-			linkedMandatoryExpenseId,
-			moneyFormat,
-			parsedExpenseDate,
-			pendingInvestmentAdjustment,
-			submitSparkMovement,
-		submitSparkRecurring,
-			sparkSource,
-			resetNewExpenseForm,
-			selectedBankId,
-			selectedTagId,
-			showSuccessfulExpenseNotification,
-		],
+		async (options: SubmitOptions = {}) => { showFeatureUnavailable(); },
+		[],
 	);
 
 	const handleMoneyFormatChange = React.useCallback((nextValue: boolean) => {
@@ -677,101 +397,6 @@ export default function AddRegisterExpensesScreen() {
 	}, [isFormBusy, isTagSelectionLocked]);
 
 	React.useEffect(() => {
-		let isMounted = true;
-		const loadOptions = async () => {
-			setIsLoadingTags(true);
-			setIsLoadingBanks(true);
-			try {
-				const [tagsResult, banksResult] = await Promise.all([getAllTagsFirebase(), getAllBanksFirebase()]);
-				if (!isMounted) return;
-				if (tagsResult.success && Array.isArray(tagsResult.data)) {
-					const formattedTags = tagsResult.data
-						.filter((tag: any) => isTagVisibleInRegularUsageList(tag, 'expense', { allowUndefinedUsageType: true }))
-						.map((tag: any) => ({
-							id: tag.id,
-							name: typeof tag.name === 'string' && tag.name.trim() ? tag.name.trim() : 'Tag sem nome',
-							usageType: normalizeTagUsageType(tag.usageType),
-							iconFamily: typeof tag.iconFamily === 'string' ? tag.iconFamily : null,
-							iconName: typeof tag.iconName === 'string' ? tag.iconName : null,
-							iconStyle: typeof tag.iconStyle === 'string' ? tag.iconStyle : null,
-						}));
-					const pending = peekPendingCreatedTag();
-					const matchingPending =
-						pending && tagSupportsUsage(pending.usageType, 'expense')
-							? formattedTags.find((tag) => tag.id === pending.tagId)
-							: null;
-					setTags(formattedTags);
-					if (formattedTags.length === 0) {
-						showNotifierAlert({
-							title: 'Nenhuma categoria de despesa disponível',
-							description: 'Cadastre uma categoria marcada como despesa.',
-							type: 'error',
-							isDarkMode,
-							duration: 4000,
-						});
-					}
-					if (matchingPending) {
-						setSelectedTagId(matchingPending.id);
-						setSelectedMovementTagName(matchingPending.name);
-						setSelectedMovementTagIcon({
-							iconFamily: matchingPending.iconFamily ?? null,
-							iconName: matchingPending.iconName ?? null,
-							iconStyle: matchingPending.iconStyle ?? null,
-						});
-						clearPendingCreatedTag(matchingPending.id);
-					} else
-						setSelectedTagId((current) =>
-							current && formattedTags.some((tag) => tag.id === current)
-								? current
-								: isTagSelectionLocked && templateData?.tagId
-									? templateData.tagId
-									: null,
-						);
-				} else {
-					showNotifierAlert({
-						title: 'Erro ao carregar tags',
-						description: 'Não foi possível carregar as tags disponíveis.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-				}
-				if (banksResult.success && Array.isArray(banksResult.data)) {
-					const formattedBanks = banksResult.data.map((bank: any) => ({
-						id: bank.id,
-						name: typeof bank.name === 'string' && bank.name.trim() ? bank.name.trim() : 'Banco sem nome',
-						iconKey: typeof bank.iconKey === 'string' ? bank.iconKey : null,
-						colorHex: typeof bank.colorHex === 'string' ? bank.colorHex : null,
-					}));
-					setBanks(formattedBanks);
-					setSelectedBankId((current) =>
-						current && formattedBanks.some((bank) => bank.id === current) ? current : null,
-					);
-				} else {
-					showNotifierAlert({
-						title: 'Erro ao carregar bancos',
-						description: 'Não foi possível carregar os bancos disponíveis.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-				}
-			} catch (error) {
-				console.error('Erro ao carregar opções da despesa:', error);
-			} finally {
-				if (isMounted) {
-					setIsLoadingTags(false);
-					setIsLoadingBanks(false);
-				}
-			}
-		};
-		void loadOptions();
-		return () => {
-			isMounted = false;
-		};
-	}, [isDarkMode, isTagSelectionLocked, templateData?.tagId]);
-
-	React.useEffect(() => {
 		if (hasAppliedTemplate || isEditing || !templateData) return;
 		if (templateData.name) setExpenseName(templateData.name);
 		if (typeof templateData.valueInCents === 'number' && templateData.valueInCents > 0) {
@@ -800,75 +425,6 @@ export default function AddRegisterExpensesScreen() {
 		setExplanationExpense(typeof data.explanation === 'string' ? data.explanation : null);
 		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
 	}, [existingMovement]);
-
-	React.useEffect(() => {
-		const matched = tags.find((tag) => tag.id === selectedTagId);
-		if (matched) {
-			setSelectedMovementTagName(matched.name);
-			setSelectedMovementTagIcon({
-				iconFamily: matched.iconFamily ?? null,
-				iconName: matched.iconName ?? null,
-				iconStyle: matched.iconStyle ?? null,
-			});
-			return;
-		}
-		if (!selectedTagId) {
-			setSelectedMovementTagName(null);
-			setSelectedMovementTagIcon(null);
-			return;
-		}
-		let isMounted = true;
-		void getTagDataFirebase(selectedTagId)
-			.then((result) => {
-				if (!isMounted) return;
-				if (result.success && result.data) {
-					setSelectedMovementTagName(typeof result.data.name === 'string' ? result.data.name : null);
-					setSelectedMovementTagIcon({
-						iconFamily: typeof result.data.iconFamily === 'string' ? result.data.iconFamily : null,
-						iconName: typeof result.data.iconName === 'string' ? result.data.iconName : null,
-						iconStyle: typeof result.data.iconStyle === 'string' ? result.data.iconStyle : null,
-					});
-				} else {
-					setSelectedMovementTagName(null);
-					setSelectedMovementTagIcon(null);
-				}
-			})
-			.catch(() => {
-				if (isMounted) {
-					setSelectedMovementTagName(null);
-					setSelectedMovementTagIcon(null);
-				}
-			});
-		return () => {
-			isMounted = false;
-		};
-	}, [selectedTagId, tags]);
-
-	React.useEffect(() => {
-		const matched = banks.find((bank) => bank.id === selectedBankId);
-		if (matched) {
-			setSelectedMovementBankName(matched.name);
-			return;
-		}
-		if (!selectedBankId) {
-			setSelectedMovementBankName(null);
-			return;
-		}
-		let isMounted = true;
-		void getBankDataFirebase(selectedBankId)
-			.then((result) => {
-				if (isMounted)
-					setSelectedMovementBankName(
-						result.success && result.data && typeof result.data.name === 'string' ? result.data.name : null,
-					);
-			})
-			.catch(() => {
-				if (isMounted) setSelectedMovementBankName(null);
-			});
-		return () => {
-			isMounted = false;
-		};
-	}, [banks, selectedBankId]);
 
 	React.useEffect(() => {
 		setValuesRadioMoneyFormat(moneyFormat ? 'Pagamento em Dinheiro' : 'Pagamento em Banco');

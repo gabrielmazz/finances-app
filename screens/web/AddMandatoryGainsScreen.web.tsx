@@ -1,104 +1,88 @@
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
-import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { useSparkRecurringForm } from '@/hooks/useSparkRecurringForm';
-import React from 'react';
-import {
-	ScrollView,
-	Image as RNImage,
-	View,
-	StatusBar,
-	KeyboardAvoidingView,
-	Platform,
-	TextInput,
-	Pressable,
-	Text,
-	useWindowDimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import '@mantine/core/styles.css';
-import { MantineProvider, NumberInput } from '@mantine/core';
+import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+
 import { getMantineNumberInputClassNames } from '@/design-system/mantine';
 import { cn } from '@/lib/utils';
-
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { MantineProvider,NumberInput } from '@mantine/core';
+import '@mantine/core/styles.css';
+import { useLocalSearchParams } from 'expo-router';
+import React from 'react';
 import {
-	Accordion,
-	AccordionContent,
-	AccordionHeader,
-	AccordionIcon,
-	AccordionItem,
-	AccordionTitleText,
-	AccordionTrigger,
-} from '@/components/ui/accordion';
-import { ChevronDownIcon, ChevronUpIcon } from '@/components/ui/icon';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { HStack } from '@/components/ui/hstack';
-import { Switch } from '@/components/ui/switch';
+KeyboardAvoidingView,
+Platform,
+Pressable,
+Image as RNImage,
+ScrollView,
+StatusBar,
+Text,
+TextInput,
+View,
+useWindowDimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+Accordion,
+AccordionContent,
+AccordionHeader,
+AccordionIcon,
+AccordionItem,
+AccordionTitleText,
+AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
+import { HStack } from '@/components/ui/hstack';
+import { ChevronDownIcon,ChevronUpIcon } from '@/components/ui/icon';
+import { Input,InputField } from '@/components/ui/input';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Textarea,TextareaInput } from '@/components/ui/textarea';
+import { VStack } from '@/components/ui/vstack';
+
+import TagActionsheetSelector,{
+type TagActionsheetOption,
+} from '@/components/uiverse/categories/tag-actionsheet-selector';
 import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import DatePickerField from '@/components/uiverse/shared/date-picker';
-import WebSelectField from '@/components/web/shared/web-select-field';
-import TagActionsheetSelector, {
-	type TagActionsheetOption,
-} from '@/components/uiverse/categories/tag-actionsheet-selector';
 import TimePickerField from '@/components/uiverse/recurring/time-picker-field';
+import DatePickerField from '@/components/uiverse/shared/date-picker';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
+import WebSelectField from '@/components/web/shared/web-select-field';
 
-import { auth } from '@/FirebaseConfig';
-import { getTagsWithUsersByPersonFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { MAX_MONTHLY_BUSINESS_DAY } from '@/utils/businessCalendar';
 import {
-	addMandatoryGainFirebase,
-	getMandatoryGainFirebase,
-	updateMandatoryGainFirebase,
-} from '@/functions/MandatoryGainFirebase';
-import { cancelMandatoryGainNotification, scheduleMandatoryGainNotification } from '@/utils/mandatoryGainNotifications';
-import {
-	formatMandatoryReminderNextTrigger,
-	type MandatoryReminderScheduleResult,
-} from '@/utils/mandatoryReminderNotifications';
-import {
-	MANDATORY_REMINDER_CONFIG_VERSION,
-	formatMandatoryReminderSummary,
-	isMandatoryReminderConfigured,
-	normalizeMandatoryReminderDaysBefore,
-} from '@/utils/mandatoryReminderConfig';
-import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { isTagVisibleInMandatoryUsageList, tagSupportsUsage } from '@/utils/tagUsage';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
-import { isCycleKeyCurrent } from '@/utils/mandatoryExpenses';
-import { MAX_MONTHLY_BUSINESS_DAY, formatConfiguredMonthlyDueLabel } from '@/utils/businessCalendar';
-import {
-	MAX_MANDATORY_INSTALLMENTS,
-	getMandatoryInstallmentEndDateFromTotal,
-	getMandatoryInstallmentTotalFromDateRange,
-	normalizeMandatoryInstallmentDate,
-	normalizeMandatoryInstallmentTotal,
-	resolveMandatoryInstallmentsCompleted,
-	sanitizeMandatoryInstallmentInput,
+MAX_MANDATORY_INSTALLMENTS,
+getMandatoryInstallmentEndDateFromTotal,
+getMandatoryInstallmentTotalFromDateRange,
+normalizeMandatoryInstallmentDate,
+normalizeMandatoryInstallmentTotal,
+sanitizeMandatoryInstallmentInput
 } from '@/utils/mandatoryInstallments';
 import {
-	DEFAULT_MANDATORY_REMINDER_HOUR,
-	DEFAULT_MANDATORY_REMINDER_MINUTE,
-	DEFAULT_MANDATORY_REMINDER_TIME,
-	formatMandatoryReminderTime,
-	isMandatoryReminderTimeValid,
-	parseMandatoryReminderTime,
+MANDATORY_REMINDER_CONFIG_VERSION,
+isMandatoryReminderConfigured,
+normalizeMandatoryReminderDaysBefore
+} from '@/utils/mandatoryReminderConfig';
+import {
+DEFAULT_MANDATORY_REMINDER_HOUR,
+DEFAULT_MANDATORY_REMINDER_MINUTE,
+DEFAULT_MANDATORY_REMINDER_TIME,
+formatMandatoryReminderTime,
+isMandatoryReminderTimeValid,
+parseMandatoryReminderTime,
 } from '@/utils/mandatoryReminderTime';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { APP_ROUTE_PATHS,navigateToHomeDashboard,navigateToRoute } from '@/utils/navigation';
 
-import AddMandatoryGainListIllustration from '../../assets/UnDraw/addMandatoryGainsScreen.svg';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import type { TagIconFamily,TagIconStyle } from '@/hooks/useTagIcons';
 import { Info } from 'lucide-react-native';
+import AddMandatoryGainListIllustration from '../../assets/UnDraw/addMandatoryGainsScreen.svg';
 
 type TagOption = {
 	id: string;
@@ -107,7 +91,6 @@ type TagOption = {
 	iconName?: string | null;
 	iconStyle?: TagIconStyle | null;
 };
-
 
 type FocusableInputKey = 'gain-name' | 'gain-value' | 'due-day' | 'installments' | 'description';
 
@@ -158,7 +141,6 @@ export default function AddMandatoryGainsScreen() {
 		fieldContainerCardClassName,
 		textareaContainerClassName,
 		submitButtonClassName,
-		submitButtonCancelClassName,
 		heroHeight,
 		insets,
 		infoCardStyle,
@@ -175,10 +157,10 @@ export default function AddMandatoryGainsScreen() {
 		return raw && raw.trim().length > 0 ? raw : null;
 	}, [params.gainTemplateId]);
 
-	const [tagOptions, setTagOptions] = React.useState<TagOption[]>([]);
+	const [tagOptions] = React.useState<TagOption[]>([]);
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedTagName, setSelectedTagName] = React.useState<string | null>(null);
-	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
+	const [isLoadingTags] = React.useState(false);
 	const [gainName, setGainName] = React.useState('');
 	const [valueDisplay, setValueDisplay] = React.useState('');
 	const [valueInCents, setValueInCents] = React.useState<number | null>(null);
@@ -198,22 +180,21 @@ export default function AddMandatoryGainsScreen() {
 	const [reminderOnDueDate, setReminderOnDueDate] = React.useState(false);
 	const [openDueSection, setOpenDueSection] = React.useState<string | null>(null);
 	const [openOptionalSection, setOpenOptionalSection] = React.useState<string | null>(null);
-	const [selectedGainTemplateId, setSelectedGainTemplateId] = React.useState<string | null>(null);
+	const [, setSelectedGainTemplateId] = React.useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-	const [lastReceiptCycle, setLastReceiptCycle] = React.useState<string | null>(null);
+	const [, setLastReceiptCycle] = React.useState<string | null>(null);
 	const submitLockRef = React.useRef<object | null>(null);
-	const { personId, beginRequest: beginTagsRequest, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-gain-form');
-	const { load: loadSparkRecurring, submit: submitSparkRecurring, reset: resetSparkRecurring, initialize, isSpark, isUncertain } = useSparkRecurringForm('gain', editingGainTemplateId ?? 'create');
-	const entry = useMovementFormEntry({ movementId: editingGainTemplateId, source: personId ?? '', initialize, loadSpark: loadSparkRecurring, loadLegacy: getMandatoryGainFirebase });
+	const { personId, cancelRequest: cancelTagsRequest } = useBankMovementsRequest('mandatory-gain-form');
+
+	const entry = useMovementFormEntry();
 	const isPrefilling = entry.loading;
 	const currentFormScope = JSON.stringify([personId, editingGainTemplateId]);
 	const formScopeRef = React.useRef(currentFormScope); formScopeRef.current = currentFormScope;
-	const [tagsError, setTagsError] = React.useState<string | null>(null);
+	const [tagsError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
 	const [submitError, setSubmitError] = React.useState<string | null>(null);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addMandatoryGains');
 	const selectedTagLabel = React.useMemo(
 		() =>
 			selectedTagId ? (tagOptions.find((tag) => tag.id === selectedTagId)?.name ?? selectedTagName ?? null) : null,
@@ -362,40 +343,12 @@ export default function AddMandatoryGainsScreen() {
 	const isInstallmentStartDateValid = !installmentsEnabled || parsedInstallmentStartDate !== null;
 	const isInstallmentEndDateUnlocked = installmentsEnabled && normalizedInstallmentTotal !== null;
 	const isInstallmentEndDateValid = !isInstallmentEndDateUnlocked || parsedInstallmentEndDate !== null;
-	const resolvedSettledInstallmentsCount = React.useMemo(
-		() =>
-			installmentsEnabled && normalizedInstallmentTotal !== null
-				? resolveMandatoryInstallmentsCompleted({
-					storedCompleted: settledInstallmentsCount,
-					explicitCompletion: isSpark !== false,
-					installmentTotal: normalizedInstallmentTotal,
-					startDate: parsedInstallmentStartDate,
-					isCurrentCycleCompleted: false,
-				})
-				: 0,
-		[
-			installmentsEnabled,
-			normalizedInstallmentTotal,
-			parsedInstallmentStartDate,
-			settledInstallmentsCount,
-			isSpark,
-		],
-	);
+	const resolvedSettledInstallmentsCount = 0;
 	const isInstallmentTotalBelowSettled =
 		installmentsEnabled &&
 		normalizedInstallmentTotal !== null &&
 		normalizedInstallmentTotal < resolvedSettledInstallmentsCount;
 	const isReminderTimeValid = React.useMemo(() => isMandatoryReminderTimeValid(reminderTime), [reminderTime]);
-	const reminderSummary = React.useMemo(() => {
-		const parsedTime = parseMandatoryReminderTime(reminderTime);
-		return formatMandatoryReminderSummary({
-			enabled: reminderEnabled,
-			daysBefore: reminderDaysBefore,
-			onDueDate: reminderOnDueDate,
-			hour: parsedTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
-			minute: parsedTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
-		});
-	}, [reminderDaysBefore, reminderEnabled, reminderOnDueDate, reminderTime]);
 
 	const handleReminderToggle = React.useCallback(
 		(value: boolean) => {
@@ -434,7 +387,7 @@ export default function AddMandatoryGainsScreen() {
 
 	const hasGainName = gainName.trim().length > 0;
 	const hasGainValue = valueInCents !== null && Number.isSafeInteger(valueInCents) && valueInCents > 0;
-	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || isUncertain;
+	const isFormBusy = isSubmitting || isPrefilling || !entry.ready || false;
 	const isCoreTemplateReady = hasGainName && hasGainValue && isDueDayValid;
 	const isInstallmentConfigReady =
 		!installmentsEnabled ||
@@ -446,7 +399,7 @@ export default function AddMandatoryGainsScreen() {
 	const isTemplateReady = isCoreTemplateReady && Boolean(selectedTagId) && isInstallmentConfigReady;
 	const isValueFieldDisabled = !hasGainName || isFormBusy || installmentsEnabled;
 	const isDueDayFieldDisabled = !hasGainName || !hasGainValue || isFormBusy;
-	const isContractLocked = isSpark === true && !!editingGainTemplateId;
+	const isContractLocked = false;
 	const isInstallmentFieldDisabled = !hasGainName || !isDueDayValid || isFormBusy || isContractLocked;
 	const isTagSelectDisabled = isLoadingTags || !isCoreTemplateReady || isFormBusy;
 	const isDescriptionDisabled = !isTemplateReady || isFormBusy;
@@ -465,47 +418,6 @@ export default function AddMandatoryGainsScreen() {
 	const dueDayErrorMessage = usesBusinessDays
 		? `Informe um dia útil válido entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
 		: 'Informe um dia válido entre 1 e 31.';
-	const dueDayHelperMessage = usesBusinessDays
-		? `${formatConfiguredMonthlyDueLabel(Number(dueDay || '1'), true)}. Fins de semana e feriados nacionais não contam.`
-		: 'Use um dia fixo do mês. Se coincidir com feriado nacional, o calendário destacará a data.';
-	const installmentHelperMessage = React.useMemo(() => {
-		if (!isCoreTemplateReady) {
-			return 'Preencha nome, valor e recebimento para liberar o parcelamento.';
-		}
-		if (!installmentsEnabled) {
-			return 'Deixe desligado para um ganho fixo mensal sem limite de parcelas.';
-		}
-		if (!isInstallmentTotalValid) {
-			return `Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`;
-		}
-		if (!isInstallmentStartDateValid) {
-			return 'Informe uma data inicial válida para calcular o progresso das parcelas.';
-		}
-		if (!isInstallmentEndDateValid) {
-			return 'Escolha a data final das parcelas no calendário.';
-		}
-		if (isInstallmentTotalBelowSettled) {
-			return `Este ganho já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). Use uma quantidade igual ou maior.`;
-		}
-		if (!isInstallmentTotalValueValid) {
-			return 'O valor total do parcelamento precisa ser de pelo menos R$ 0,01 por parcela.';
-		}
-		return normalizedInstallmentTotal && installmentTotalValueInCents !== null && valueInCents !== null
-			? `Total do parcelamento: ${formatCurrencyBRL(installmentTotalValueInCents)}. Valor mensal calculado: ${formatCurrencyBRL(valueInCents)}. A última parcela recebe eventuais centavos restantes.`
-			: 'Informe o valor total do parcelamento.';
-	}, [
-		installmentsEnabled,
-		isCoreTemplateReady,
-		isInstallmentEndDateValid,
-		isInstallmentStartDateValid,
-		isInstallmentTotalBelowSettled,
-		isInstallmentTotalValid,
-		installmentTotalValueInCents,
-		isInstallmentTotalValueValid,
-		normalizedInstallmentTotal,
-		resolvedSettledInstallmentsCount,
-		valueInCents,
-	]);
 
 	const getInputRef = React.useCallback((key: FocusableInputKey) => {
 		switch (key) {
@@ -526,31 +438,30 @@ export default function AddMandatoryGainsScreen() {
 	const { scrollViewRef, contentBottomPadding, handleInputFocus, handleScroll, scrollEventThrottle } =
 		useKeyboardAwareScroll<FocusableInputKey>({ getInputRef, keyboardScrollOffset });
 
-	const resetForm = React.useCallback((options?: { keepTag?: boolean; preserveSpark?: boolean }) => {
-		if (!options?.preserveSpark) resetSparkRecurring();
-		setSelectedGainTemplateId(null);
-		setGainName('');
-		setValueDisplay('');
-		setValueInCents(null);
-		setDueDay('');
-		setUsesBusinessDays(false);
-		setInstallmentsEnabled(false);
-		setInstallmentTotal('');
-		setInstallmentTotalValueDisplay('');
-		setInstallmentTotalValueInCents(null);
-		setInstallmentStartDate(formatDateToBR(new Date()));
-		setInstallmentEndDate('');
-		setSettledInstallmentsCount(0);
-		setDescription('');
-		setReminderEnabled(false);
-		setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
-		setReminderDaysBefore(1);
-		setReminderOnDueDate(false);
-		setOpenDueSection(null);
-		setOpenOptionalSection(null);
-		setSelectedTagId((current) => (options?.keepTag && current ? current : null));
-		setLastReceiptCycle(null);
-	}, []);
+	const resetForm = React.useCallback((options?: { keepTag?: boolean;  }) => {
+setSelectedGainTemplateId(null);
+setGainName('');
+setValueDisplay('');
+setValueInCents(null);
+setDueDay('');
+setUsesBusinessDays(false);
+setInstallmentsEnabled(false);
+setInstallmentTotal('');
+setInstallmentTotalValueDisplay('');
+setInstallmentTotalValueInCents(null);
+setInstallmentStartDate(formatDateToBR(new Date()));
+setInstallmentEndDate('');
+setSettledInstallmentsCount(0);
+setDescription('');
+setReminderEnabled(false);
+setReminderTime(DEFAULT_MANDATORY_REMINDER_TIME);
+setReminderDaysBefore(1);
+setReminderOnDueDate(false);
+setOpenDueSection(null);
+setOpenOptionalSection(null);
+setSelectedTagId((current) => (options?.keepTag && current ? current : null));
+setLastReceiptCycle(null);
+}, []);
 
 	const handleOpenAddTagScreen = React.useCallback(() => {
 		if (isFormBusy) {
@@ -567,109 +478,12 @@ export default function AddMandatoryGainsScreen() {
 		setSelectedTagName(tag.name);
 	}, []);
 
-	const loadTags = React.useCallback(async () => {
-		const isCurrent = beginTagsRequest();
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) {
-			setTagOptions([]); setTagsError('Entre novamente para carregar as categorias.');
-			showNotifierAlert({
-				description: 'Usuário não autenticado. Faça login novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-			return;
-		}
+	const loadTags = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
-		setIsLoadingTags(true); setTagsError(null); setTagOptions([]);
-
-		try {
-			const tagsResponse = await getTagsWithUsersByPersonFirebase(currentUser.uid);
-			if (!isCurrent()) return;
-			if (!tagsResponse.success || !Array.isArray(tagsResponse.data)) throw new Error('Não foi possível carregar as categorias obrigatórias.');
-
-			const formattedTags: TagOption[] = tagsResponse.data
-				.filter((tag: any) => isTagVisibleInMandatoryUsageList(tag, 'gain'))
-				.map((tag: any) => ({
-					id: tag.id,
-					name: typeof tag?.name === 'string' && tag.name.trim().length > 0 ? tag.name.trim() : 'Tag sem nome',
-					iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
-					iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
-					iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
-				}))
-				.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
-			const pendingCreatedTag = peekPendingCreatedTag();
-			const matchingPendingTag =
-				pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'gain')
-					? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
-					: null;
-
-			setTagOptions(formattedTags);
-			if (matchingPendingTag && !isUncertain) {
-				setSelectedTagId(matchingPendingTag.id);
-				setSelectedTagName(matchingPendingTag.name);
-				clearPendingCreatedTag(matchingPendingTag.id);
-			} else if (!isUncertain) {
-				setSelectedTagId(current =>
-					current && formattedTags.some(tag => tag.id === current) ? current : null,
-				);
-			}
-
-			if (formattedTags.length === 0) {
-				showNotifierAlert({
-					description: 'Cadastre uma tag de ganhos marcada como obrigatória para utilizar esta tela.',
-					type: 'warn',
-					isDarkMode,
-				});
-			}
-		} catch (error) {
-			if (isCurrent()) { setTagOptions([]); setTagsError(error instanceof Error ? error.message : 'Não foi possível carregar as categorias.'); }
-		} finally { if (isCurrent()) setIsLoadingTags(false); }
-	}, [personId, beginTagsRequest, isUncertain, isDarkMode]);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			void loadTags();
-			return cancelTagsRequest;
-		}, [loadTags, cancelTagsRequest]),
-	);
-
-	React.useEffect(() => {
-		const matchedTag = tagOptions.find((tag) => tag.id === selectedTagId);
-		if (matchedTag) {
-			setSelectedTagName(matchedTag.name);
-			return;
-		}
-		if (!selectedTagId) {
-			setSelectedTagName(null);
-			return;
-		}
-
-		let isMounted = true;
-		void getTagDataFirebase(selectedTagId)
-			.then((result) => {
-				if (!isMounted) {
-					return;
-				}
-				setSelectedTagName(
-					result.success && result.data && typeof result.data.name === 'string' ? result.data.name : null,
-				);
-			})
-			.catch((error) => {
-				console.error('Erro ao buscar dados da categoria obrigatória de ganho:', error);
-				if (isMounted) {
-					setSelectedTagName(null);
-				}
-			});
-
-		return () => {
-			isMounted = false;
-		};
-	}, [selectedTagId, tagOptions, personId]);
-
-	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ preserveSpark: true }); setSubmitError(null); }, [personId, editingGainTemplateId, resetForm]);
+	React.useEffect(() => { submitLockRef.current = null; setIsSubmitting(false); resetForm({ }); setSubmitError(null); }, [personId, editingGainTemplateId, resetForm]);
 	React.useEffect(() => {
 		if (!entry.ready) return;
-		if (!editingGainTemplateId) { resetForm({ keepTag: true, preserveSpark: true }); return; }
+		if (!editingGainTemplateId) { resetForm({ keepTag: true, }); return; }
 		const data = entry.record;
 		if (!data) return;
 		const name = typeof data.name === 'string' ? data.name : '';
@@ -708,13 +522,7 @@ export default function AddMandatoryGainsScreen() {
 					? data.installmentTotalValueInCents
 					: value * installmentTotalValue
 				: null;
-		const installmentsCompletedValue = resolveMandatoryInstallmentsCompleted({
-			storedCompleted: data.installmentsCompleted,
-			explicitCompletion: data.sparkPlan === true,
-			installmentTotal: installmentTotalValue,
-			startDate: installmentStartDateValue,
-			isCurrentCycleCompleted: isCycleKeyCurrent(lastReceiptCycle),
-		});
+		const installmentsCompletedValue = (typeof data.installmentsCompleted === 'number' ? data.installmentsCompleted : 0);
 		const normalizedStartDate = installmentStartDateValue ? formatDateToBR(installmentStartDateValue) : '';
 		const normalizedEndDate = installmentEndDateValue ? formatDateToBR(installmentEndDateValue) : '';
 		const normalizedReminderTime = formatMandatoryReminderTime(reminderHour, reminderMinute);
@@ -742,203 +550,9 @@ export default function AddMandatoryGainsScreen() {
 		setLastReceiptCycle(lastReceiptCycle);
 	}, [entry.ready, entry.record, editingGainTemplateId, resetForm]);
 
-	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || formScopeRef.current !== currentFormScope || !entry.ready || (!isUncertain && (isLoadingTags || tagsError || !tagOptions.some(tag => tag.id === selectedTagId)))) {
-			return;
-		}
+	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
-		const trimmedName = gainName.trim();
-		const showValidationError = (descriptionText: string) =>
-			showNotifierAlert({
-				title: 'Erro ao salvar ganho obrigatório',
-				description: descriptionText,
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-
-		if (!trimmedName) return showValidationError('Informe o nome do ganho obrigatório.');
-		if (valueInCents === null || valueInCents <= 0) return showValidationError('Informe um valor válido.');
-		if (!isDueDayValid)
-			return showValidationError(
-				usesBusinessDays
-					? `Informe um número de dia útil entre 1 e ${MAX_MONTHLY_BUSINESS_DAY}.`
-					: 'Informe um dia do mês entre 1 e 31.',
-			);
-		if (!selectedTagId) return showValidationError('Selecione uma categoria obrigatória.');
-		if (installmentsEnabled && normalizedInstallmentTotal === null)
-			return showValidationError(`Informe uma quantidade de parcelas entre 1 e ${MAX_MANDATORY_INSTALLMENTS}.`);
-		if (installmentsEnabled && !isInstallmentTotalValueValid)
-			return showValidationError('Informe um valor total que cubra pelo menos R$ 0,01 por parcela.');
-		if (installmentsEnabled && parsedInstallmentStartDate === null)
-			return showValidationError('Informe uma data inicial válida para as parcelas.');
-		if (installmentsEnabled && parsedInstallmentEndDate === null)
-			return showValidationError('Informe uma data final válida para as parcelas.');
-		if (installmentsEnabled && isInstallmentTotalBelowSettled)
-			return showValidationError(
-				`Este ganho já tem ${resolvedSettledInstallmentsCount} parcela(s) registrada(s). A quantidade total precisa ser igual ou maior.`,
-			);
-
-		const parsedReminderTime = parseMandatoryReminderTime(reminderTime);
-		if (reminderEnabled && !parsedReminderTime)
-			return showValidationError('Informe um horário válido para o lembrete no formato 24h, como 19:00.');
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) return showValidationError('Usuário não autenticado.');
-
-		const lock = {}; submitLockRef.current = lock; const submittedScope = formScopeRef.current;
-		setIsSubmitting(true); setSubmitError(null);
-		try {
-			const payloadInstallmentsCompleted =
-				installmentsEnabled && normalizedInstallmentTotal !== null ? resolvedSettledInstallmentsCount : 0;
-			const payload = {
-				name: trimmedName,
-				valueInCents,
-				dueDay: Number(dueDay),
-				usesBusinessDays,
-				tagId: selectedTagId,
-				description: description.trim() || null,
-				reminderEnabled,
-				reminderHour: parsedReminderTime?.hour ?? DEFAULT_MANDATORY_REMINDER_HOUR,
-				reminderMinute: parsedReminderTime?.minute ?? DEFAULT_MANDATORY_REMINDER_MINUTE,
-				reminderConfigVersion: MANDATORY_REMINDER_CONFIG_VERSION,
-				reminderDaysBefore,
-				reminderOnDueDate,
-				installmentTotal: installmentsEnabled ? normalizedInstallmentTotal : null,
-				installmentTotalValueInCents: installmentsEnabled ? installmentTotalValueInCents : null,
-				installmentsCompleted: payloadInstallmentsCompleted,
-				installmentStartDate: installmentsEnabled ? parsedInstallmentStartDate : null,
-				installmentEndDate: installmentsEnabled ? parsedInstallmentEndDate : null,
-			};
-
-			let persistedId = selectedGainTemplateId;
-			const successTitle = selectedGainTemplateId ? 'Ganho obrigatório atualizado' : 'Ganho obrigatório registrado';
-			const sparkResult = await submitSparkRecurring({ ...payload, actorId: currentUser.uid, planId: selectedGainTemplateId });
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			if (sparkResult) {
-				persistedId = sparkResult.id;
-			} else if (selectedGainTemplateId) {
-				const result = await updateMandatoryGainFirebase({ gainTemplateId: selectedGainTemplateId, ...payload });
-				if (!result.success) throw new Error('Erro ao atualizar o ganho obrigatório.');
-			} else {
-				const result = await addMandatoryGainFirebase({ ...payload, personId: currentUser.uid });
-				if (!result.success || !result.id) throw new Error('Erro ao registrar ganho obrigatório.');
-				persistedId = result.id;
-			}
-
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			let reminderFeedback: MandatoryReminderScheduleResult | null = null;
-			let reminderOperationError: string | null = null;
-			if (persistedId) {
-				try {
-					if (reminderEnabled) {
-						reminderFeedback = await scheduleMandatoryGainNotification({
-							accountId: currentUser.uid,
-							gainTemplateId: persistedId,
-							name: payload.name,
-							dueDay: payload.dueDay,
-							usesBusinessDays: payload.usesBusinessDays,
-							reminderHour: payload.reminderHour,
-							reminderMinute: payload.reminderMinute,
-							reminderDaysBefore: payload.reminderDaysBefore,
-							reminderOnDueDate: payload.reminderOnDueDate,
-							description: payload.description ?? undefined,
-							lastCompletedCycle: lastReceiptCycle ?? undefined,
-							activeFromDate: payload.installmentStartDate ?? undefined,
-							activeThroughDate: payload.installmentEndDate ?? undefined,
-							requestPermission: true,
-						});
-					} else {
-						await cancelMandatoryGainNotification(currentUser.uid, persistedId);
-					}
-				} catch (notificationError) {
-					console.error('Erro ao atualizar a agenda do ganho obrigatório salvo:', notificationError);
-					reminderOperationError = 'Não foi possível atualizar a agenda local neste dispositivo.';
-				}
-			}
-
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			const reminderFailureMessage =
-				reminderOperationError ??
-				(reminderEnabled && reminderFeedback && !reminderFeedback.success ? reminderFeedback.message : null);
-			if (reminderFailureMessage) {
-				showNotifierAlert({
-					title: successTitle,
-					description: `O template foi salvo, mas o lembrete não foi agendado. ${reminderFailureMessage}`,
-					type: 'warn',
-					isDarkMode,
-					duration: 5500,
-				});
-			} else if (reminderEnabled && reminderFeedback?.success && reminderFeedback.capacityLimited) {
-				showNotifierAlert({
-					title: successTitle,
-					description: `O lembrete foi salvo com agenda reduzida (${reminderFeedback.scheduledCount} avisos mantidos). Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`,
-					type: 'warn',
-					isDarkMode,
-					duration: 6500,
-				});
-			} else {
-				showNotifierAlert({
-					title: successTitle,
-					description:
-						reminderEnabled && reminderFeedback?.success
-							? `Lembrete ativo. Próximo aviso em ${formatMandatoryReminderNextTrigger(reminderFeedback.nextTriggerAt)}.`
-							: 'Template salvo com lembrete mensal desativado.',
-					type: 'success',
-					isDarkMode,
-					duration: 4000,
-				});
-			}
-
-			applyPostSubmitBehavior({
-				resetForm: !editingGainTemplateId ? resetForm : undefined,
-				isEditing: Boolean(editingGainTemplateId),
-			});
-		} catch (error) {
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid || formScopeRef.current !== submittedScope) return;
-			setSubmitError(error instanceof Error ? error.message : 'Não foi possível salvar a recorrência.');
-			console.error('Erro ao salvar ganho obrigatório:', error);
-			showNotifierAlert({
-				title: 'Erro ao salvar ganho obrigatório',
-				description: 'Não foi possível salvar o ganho obrigatório.',
-				type: 'error',
-				isDarkMode,
-				duration: 4500,
-			});
-		} finally {
-			if (submitLockRef.current === lock) { submitLockRef.current = null; if (mounted.current) setIsSubmitting(false); }
-		}
-	}, [
-		entry.ready, isUncertain, isLoadingTags, tagsError, tagOptions, personId, currentFormScope,
-		applyPostSubmitBehavior,
-		description,
-		dueDay,
-		editingGainTemplateId,
-		gainName,
-		isDarkMode,
-		isDueDayValid,
-		isInstallmentTotalBelowSettled,
-		isInstallmentTotalValueValid,
-		isSubmitting,
-		installmentsEnabled,
-		installmentTotalValueInCents,
-		lastReceiptCycle,
-		normalizedInstallmentTotal,
-		parsedInstallmentEndDate,
-		parsedInstallmentStartDate,
-		reminderEnabled,
-		reminderDaysBefore,
-		reminderOnDueDate,
-		reminderTime,
-		resetForm,
-		submitSparkRecurring,
-		resolvedSettledInstallmentsCount,
-		selectedGainTemplateId,
-		selectedTagId,
-		usesBusinessDays,
-		valueInCents,
-	]);
-
-	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || (!isUncertain && (isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
+	const isSaveDisabled = !isTemplateReady || isSubmitting || !entry.ready || ((isLoadingTags || Boolean(tagsError) || !tagOptions.some(tag => tag.id === selectedTagId))) || (reminderEnabled && !isReminderTimeValid);
 	const isEditingMode = Boolean(editingGainTemplateId);
 	const screenTitle = isEditingMode ? 'Atualize seu ganho obrigatório' : 'Registro de ganho obrigatório';
 	const inputClassName = `${fieldContainerClassName} ${webExpenseClassNames.fieldInput}`;
@@ -1017,7 +631,7 @@ export default function AddMandatoryGainsScreen() {
 													<MovementFormStatus loading={entry.loading} error={entry.error} onRetry={entry.retry} />
 													<MovementFormStatus loading={isLoadingTags} error={tagsError} onRetry={loadTags} />
 													{submitError ? <Text className="text-error-600 dark:text-error-400" accessibilityRole="alert">{submitError}</Text> : null}
-													{isUncertain ? <Text className="text-warning-600 dark:text-warning-400" accessibilityRole="alert">O cadastro anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados.</Text> : null}
+													{null}
 													{isContractLocked && installmentsEnabled ? <Text className={helperText}>Para mudar o valor total ou o prazo do parcelamento, use Renegociar na lista.</Text> : null}
 													<VStack className={webExpenseClassNames.fieldHalf}>
 														<Text className={`${webExpenseClassNames.fieldLabel} ${bodyText}`}>Nome do ganho</Text>
@@ -1436,7 +1050,7 @@ export default function AddMandatoryGainsScreen() {
 															<ButtonText>{isEditingMode ? 'Atualizando…' : 'Registrando…'}</ButtonText>
 														</>
 													) : (
-														<ButtonText>{isUncertain ? 'Confirmar cadastro anterior' : isEditingMode ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
+														<ButtonText>{isEditingMode ? 'Atualizar ganho' : 'Registrar ganho'}</ButtonText>
 													)}
 												</Button>
 											</VStack>

@@ -1,65 +1,13 @@
 ---
-tags: [componentes, arquitetura, dominios, web, expo]
-relacionado: [[Componentes UI]], [[Organização do Código]], [[Versão Web]], [[Navegação]], [[Dashboard Home]], [[Despesas Fixas]], [[Investimentos]], [[Assistente Lumus]]
+tags: [frontend, arquitetura]
+relacionado: [[MOC - Lumus Finanças]], [[Remoção do Backend]]
 status: ativo
 tipo: arquitetura
-versao: 1.3.0
+versao: 3.0.0
 ---
 
 # Componentes por Sistema
 
-Os componentes customizados do Lumus Finanças são organizados por sistema funcional em `components/uiverse/`, com implementações de plataforma fisicamente separadas em `components/web/` e `components/mobile/`. A separação reduz imports ambíguos, mantém a fronteira entre primitives e domínio e permite localizar rapidamente o componente usado por cada tela. Os caminhos em `components/uiverse/` continuam sendo os adaptadores lógicos que preservam a resolução automática do Expo.
+`components/uiverse` conserva caminhos lógicos; `components/mobile` e `components/web` mantêm as implementações específicas. Os sistemas visuais são navigation, shared, feedback, banks, categories, recurring, dashboard, reports, investments, annotations e assistant.
 
-## Mapa de pastas
-
-| Sistema | Pasta | Telas que consomem | Regra de plataforma |
-|---|---|---|---|
-| Fundação visual | `design-system/` | todas | tokens, contratos de classe, adaptadores, exceções e baseline são compartilhados; telas não criam tokens locais |
-| Navegação | `components/uiverse/navigation/` | todas as telas autenticadas | `navigator` e os componentes de shell/hero usam resolução automática; o shell Web e a transição DOM não entram na árvore nativa |
-| Compartilhado | `components/uiverse/shared/` | bootstrap e formulários | `date-picker`, `loader` e dismiss de teclado têm arquivos Web e nativos independentes, sem compartilhar handlers de foco ou animação |
-| Feedback | `components/uiverse/feedback/` | todas as telas com feedback | o par nativo/Web do notifier mantém uma API única; não criar outro toast |
-| Bancos | `components/uiverse/banks/` e `components/shared/banks/` | Home, movimentos, registros, transferências, ajuste de saldo e resgate | selector tem pares Web/nativo; `bank-balance-attached-panel` e o card visualmente equivalente são compartilhados |
-| Categorias | `components/uiverse/categories/` | registros, análise e configurações | disponibilidade e seleção têm pares Web/nativo; `category-analysis-bank-donut-chart` encapsula o `DonutChart` Mantine em Expo DOM com props serializáveis |
-| Recorrências | `components/uiverse/recurring/` | despesas/receitas fixas | `date-calendar` tem pares Web/nativo; calendário de ciclos, horários e progresso preservam `YYYY-MM`, HH:MM e a indisponibilidade de agendamento no Web |
-| Dashboard | `components/uiverse/dashboard/` | Home | gráficos Web continuam Expo DOM e recebem somente props serializáveis |
-| Relatórios | `components/uiverse/reports/` | previsão de fluxo de caixa | o gráfico permanece Expo DOM; a tela continua responsável por dados e privacidade |
-| Investimentos | `components/uiverse/investments/` | evolução da carteira | Mantine permanece isolado no componente DOM Web |
-| Anotações | `components/uiverse/annotations/` | anotações locais | o editor continua DOM e devolve Markdown pela ponte existente |
-| Assistente | `components/uiverse/assistant/` | rota do Lumus IA | cards e boundary têm pares Web/nativo; os cards Web usam gráficos Mantine e os nativos usam `react-native-gifted-charts`, sem alterar confirmação ou escrita |
-
-## Infraestrutura Web
-
-As implementações específicas ficam organizadas por plataforma:
-
-- `components/web/motion/` — animações DOM de entrada/saída;
-- `components/web/navigation/` — navigator, shell, transição, hero e menu Web desktop;
-- `components/web/visuals/` — carrossel, gradiente e texto SVG;
-- `components/web/{banks,categories,feedback,recurring,shared,assistant}/` — seletores, calendário, feedback, inputs e cards Web;
-- `components/mobile/{banks,categories,feedback,navigation,recurring,shared,assistant}/` — equivalentes Android/iOS dos componentes que possuem divergência de plataforma.
-
-Esses componentes não recebem acesso a Firebase. Quando usados por uma tela, recebem apenas props serializáveis; CSS, APIs DOM e interações nativas permanecem no próprio módulo da plataforma.
-
-## Regras de manutenção
-
-- Primitives Gluestack ficam em `components/ui/` e não recebem componentes de domínio.
-- Toda apresentação nova parte de tokens e contratos em `tailwind.config.js` e `design-system/`; APIs externas sem `className` usam somente adaptadores registrados.
-- `npm run lint:styles` deve passar antes de integrar mudanças visuais e o baseline por arquivo só pode diminuir.
-- Uma resolução `.web.tsx` ou `.native.tsx` mantém um adaptador em `components/uiverse/<sistema>/`, enquanto a implementação real fica em `components/web/<sistema>/` ou `components/mobile/<sistema>/`. O arquivo base mantém o fallback mobile e reexporta o adaptador nativo para TypeScript/Jest.
-- As telas importam o caminho lógico sem extensão (`@/components/uiverse/.../date-picker`); não importar diretamente `.web` ou `.native`, pois isso bypassa a resolução do Expo.
-- As variantes preservam os tipos públicos, callbacks, máscaras de privacidade, formatos de data/horário, estados de seleção e ações de confirmação. A diferença de plataforma fica restrita à apresentação e às APIs de interação; não duplicar regra Firebase ou cálculo financeiro.
-- Componentes com `'use dom'` são uma exceção deliberada: gráficos e o editor de anotações continuam no Expo DOM, recebendo apenas props serializáveis e usando WebView no mobile conforme [[Anotações Locais]] e [[Versão Web]].
-- Rotas continuam em `app/` e telas ficam em `screens/mobile/` ou `screens/web/`; esta organização não cria um segundo registro de rotas nem altera a persistência.
-- Imports devem apontar diretamente para o arquivo do sistema, sem barrel global, para preservar tree-shaking e reduzir dependências implícitas.
-- Ao criar um componente, atualize esta tabela, [[Componentes UI]] e o módulo do vault da tela que o consome.
-
-## Arquivos principais
-
-- `components/uiverse/` — Componentes customizados separados por sistema
-- `components/web/` — Implementações Web, separadas por sistema funcional
-- `components/mobile/` — Implementações Android/iOS dos componentes com divergência de plataforma
-- `components/shared/banks/bank-card-surface.tsx` — Superfície bancária única para Web e Android/iOS
-- `components/uiverse/banks/bank-balance-attached-panel.tsx` — Painel compartilhado para integrar saldo abaixo do seletor de banco
-- `components/uiverse/banks/bank-current-balance-attached-panel.tsx` — Painel de saldo atual ligado ao seletor no registro mensal Web/mobile
-- `design-system/` — Fundação Tailwind, adaptadores e guardrails de estilo
-- `Arquitetura/Componentes UI.md` — Design system e contratos dos componentes
-- `Arquitetura/Organização do Código.md` — Fronteiras entre rotas, telas e componentes
+Gráficos/editor com `'use dom'` mantêm a fronteira Expo DOM e propriedades serializáveis. Componentes nativos não são convertidos para DOM. `recurring-contracts.tsx` conserva o formulário visual sem executor, consulta ou recuperação financeira. [[Componentes UI]] e [[Remoção do Backend]] descrevem os limites atuais.

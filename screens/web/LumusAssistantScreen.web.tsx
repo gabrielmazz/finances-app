@@ -1,111 +1,111 @@
 import { AssistantInitializationError } from '@/components/uiverse/assistant/assistant-initialization-error';
+import { MantineProvider,Textarea as MantineTextarea } from '@mantine/core';
+import '@mantine/core/styles.css';
+import {
+RecordingPresets,
+requestRecordingPermissionsAsync,
+setAudioModeAsync,
+useAudioRecorder,
+useAudioRecorderState,
+} from 'expo-audio';
+import {
+CircleArrowRight,
+CircleStop,
+Info,
+Lightbulb,
+Mic,
+Send,
+Settings2,
+ShieldCheck,
+ShieldOff,
+Sparkles,
+Trash2,
+TriangleAlert,
+X,
+} from 'lucide-react-native';
 import React from 'react';
 import {
-	ActivityIndicator,
-	Image as RNImage,
-	Pressable,
-	ScrollView,
-	StatusBar,
-	View,
-	useWindowDimensions,
+ActivityIndicator,
+Pressable,
+Image as RNImage,
+ScrollView,
+StatusBar,
+View,
+useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-	CircleArrowRight,
-	CircleStop,
-	Info,
-	Lightbulb,
-	Mic,
-	Send,
-	Settings2,
-	ShieldCheck,
-	ShieldOff,
-	Sparkles,
-	Trash2,
-	TriangleAlert,
-	X,
-} from 'lucide-react-native';
-import {
-	RecordingPresets,
-	requestRecordingPermissionsAsync,
-	setAudioModeAsync,
-	useAudioRecorder,
-	useAudioRecorderState,
-} from 'expo-audio';
-import '@mantine/core/styles.css';
-import { MantineProvider, Textarea as MantineTextarea } from '@mantine/core';
+import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Box } from '@/components/ui/box';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button,ButtonIcon,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import {
-	Drawer,
-	DrawerBackdrop,
-	DrawerBody,
-	DrawerCloseButton,
-	DrawerContent,
-	DrawerHeader,
+Conversation,
+ConversationContent,
+Message,
+PromptInput,
+PromptInputButton,
+PromptInputFooter,
+PromptInputProvider,
+PromptInputSubmit,
+PromptInputTools,
+} from '@/components/ui/chatAi';
+import {
+Drawer,
+DrawerBackdrop,
+DrawerBody,
+DrawerCloseButton,
+DrawerContent,
+DrawerHeader,
 } from '@/components/ui/drawer';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Icon } from '@/components/ui/icon';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
 } from '@/components/ui/modal';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import {
-	Conversation,
-	ConversationContent,
-	Message,
-	PromptInput,
-	PromptInputButton,
-	PromptInputFooter,
-	PromptInputProvider,
-	PromptInputSubmit,
-	PromptInputTools,
-} from '@/components/ui/chatAi';
-import {
-	AssistantReportCard,
-	AssistantTextBubble,
-} from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantActivityTrace } from '@/components/uiverse/assistant/assistant-activity-trace';
+import {
+AssistantReportCard,
+AssistantTextBubble,
+} from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantComposerFrame } from '@/components/uiverse/assistant/assistant-composer-frame';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
-import { orderAssistantMessagesForDisplay } from '@/utils/lumusAssistant';
 import {
-	MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES,
-	MANTINE_ASSISTANT_TEXTAREA_STYLES,
+MANTINE_ASSISTANT_TEXTAREA_CLASS_NAMES,
+MANTINE_ASSISTANT_TEXTAREA_STYLES,
 } from '@/design-system/mantine';
 import {
-	LUMUS_CLASS_NAMES,
-	LUMUS_FONT_STACKS,
-	LUMUS_HERO_COLORS,
-	LUMUS_LAYOUT_TOKENS,
-	LUMUS_RUNTIME_COLORS,
+LUMUS_CLASS_NAMES,
+LUMUS_FONT_STACKS,
+LUMUS_HERO_COLORS,
+LUMUS_LAYOUT_TOKENS,
+LUMUS_RUNTIME_COLORS,
 } from '@/design-system/tokens';
 import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
-import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
-import {
-	deleteAssistantTemporaryAudio,
-	readAssistantAudioFile,
-} from '@/utils/lumusAssistantAudio';
+import { useAssistantAvailability } from '@/hooks/useAssistantAvailability';
+import { orderAssistantMessagesForDisplay } from '@/utils/lumusAssistant';
+
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import LumusAssistantIllustration from '@/assets/UnDraw/lumusAssistantScreen.svg';
+import {
+deleteAssistantTemporaryAudio,
+readAssistantAudioFile,
+} from '@/utils/lumusAssistantAudio';
 
 const QUICK_PROMPTS = [
 	'Como foi o meu mês até agora?',
@@ -123,7 +123,7 @@ const CONSENT_ITEMS = [
 	{
 		icon: Trash2,
 		title: 'Conversa temporária',
-		description: 'Áudio e conversa não são salvos no Firestore e são limpos ao sair da conta.',
+		description: 'A transcrição e o envio de mensagens estão indisponíveis nesta etapa.',
 	},
 	{
 		icon: ShieldCheck,
@@ -214,7 +214,7 @@ export default function LumusAssistantScreenWeb() {
 	const insets = useSafeAreaInsets();
 	const { height: windowHeight } = useWindowDimensions();
 	const { shouldHideValues } = useValueVisibility();
-	const assistant = useLumusAssistant();
+	const assistant = useAssistantAvailability();
 	const audioEpochRef = React.useRef(assistant.revocationEpoch);
 	audioEpochRef.current = assistant.revocationEpoch;
 	const [composerText, setComposerText] = React.useState('');
@@ -367,7 +367,6 @@ export default function LumusAssistantScreenWeb() {
 		await assistant.revokeConsent();
 	}, [assistant]);
 
-	const isHybridDevelopment = isFirebaseEmulatorRuntime();
 	const displayMessages = React.useMemo(
 		() => orderAssistantMessagesForDisplay(assistant.messages)
 			.filter(message => message.type !== 'question' || !message.answeredAt),
@@ -476,7 +475,7 @@ export default function LumusAssistantScreenWeb() {
 							<AssistantBootstrappingView />
 						) : assistant.initializationError ? (
 							<AssistantInitializationError message={assistant.initializationError} onRetry={assistant.retryInitialization} />
-						) : !assistant.consentGranted ? (
+						) : assistant.availability?.available && !assistant.consentGranted ? (
 							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} error={assistant.consentError} />
 						) : (
 							<Conversation className="flex-1">
@@ -548,14 +547,7 @@ export default function LumusAssistantScreenWeb() {
 								scrollEventThrottle={16}
 							>
 								<VStack className={ASSISTANT_CLASS_NAMES.webConversationFrame} space="lg">
-									{isHybridDevelopment ? (
-										<HStack className={ASSISTANT_CLASS_NAMES.infoBanner}>
-											<Icon as={Info} size="md" className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-300" />
-											<Text size="sm" className="min-w-0 flex-1 leading-5 text-blue-900 dark:text-blue-100">
-												Modo híbrido: dados financeiros usam o Emulator Suite; AI Logic, App Check e Remote Config usam o projeto remoto.
-											</Text>
-										</HStack>
-									) : null}
+
 									{!assistant.availability?.available ? (
 										<HStack className={ASSISTANT_CLASS_NAMES.warningBanner}>
 											<Icon as={TriangleAlert} size="md" className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />

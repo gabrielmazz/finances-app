@@ -1,44 +1,43 @@
-import React from 'react';
-import {
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StatusBar,
-	TextInput,
-	useWindowDimensions,
-	View,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
+import { Input,InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import WebSelectField from '@/components/web/shared/web-select-field';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
-
-import { auth } from '@/FirebaseConfig';
-import AddRegisterBankScreenIllustration from '@/assets/UnDraw/addRegisterBankScreen.svg';
-import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import WebSelectField from '@/components/web/shared/web-select-field';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+import { useLocalSearchParams } from 'expo-router';
+import React from 'react';
 import {
-	LUMUS_BANK_COLOR_PRESETS,
-	LUMUS_CLASS_NAMES,
-	LUMUS_FORM_CLASS_NAMES,
-	LUMUS_LAYOUT_TOKENS,
+KeyboardAvoidingView,
+Platform,
+ScrollView,
+StatusBar,
+TextInput,
+useWindowDimensions,
+View,
+} from 'react-native';
+import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import AddRegisterBankScreenIllustration from '@/assets/UnDraw/addRegisterBankScreen.svg';
+import { useAppTheme } from '@/contexts/ThemeContext';
+import {
+LUMUS_BANK_COLOR_PRESETS,
+LUMUS_CLASS_NAMES,
+LUMUS_FORM_CLASS_NAMES,
+LUMUS_LAYOUT_TOKENS,
 } from '@/design-system/tokens';
 import { WEB_DASHBOARD_CLASS_NAMES } from '@/design-system/web-dashboard';
 import { WEB_EXPENSE_CLASS_NAMES } from '@/design-system/web-forms';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { addBankFirebase, updateBankFirebase } from '@/functions/BankFirebase';
-import { useBankIcons, type BankIconOption } from '@/hooks/useBankIcons';
+
+import { useBankIcons,type BankIconOption } from '@/hooks/useBankIcons';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { useSparkBankForm } from '@/hooks/useSparkBankForm';
+
 import BankOpeningBalanceFields from '@/components/uiverse/banks/bank-opening-balance-fields';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
@@ -85,7 +84,6 @@ export default function AddRegisterBankScreenWeb() {
 	const submitButtonClassName = LUMUS_CLASS_NAMES.primaryButton;
 	const submitButtonTextClassName = LUMUS_CLASS_NAMES.primaryButtonText;
 	const { iconOptions, defaultBankIcon } = useBankIcons();
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterBank');
 	const params = useLocalSearchParams<{
 		bankId?: string | string[];
 		bankName?: string | string[];
@@ -101,12 +99,12 @@ export default function AddRegisterBankScreenWeb() {
 		[params.bankIconKey],
 	);
 	const isEditing = Boolean(editingBankId);
-	const { initialize: initializeSparkBank, load: loadSparkBank, submit: submitSparkBank, reset: resetSparkBank } = useSparkBankForm();
-	const [loadedBankId, setLoadedBankId] = React.useState<string | null>(null);
-	const [bankLoadError, setBankLoadError] = React.useState<string | null>(null);
-	const [isSparkBank, setIsSparkBank] = React.useState(false);
-	const [isLoadingBank, setIsLoadingBank] = React.useState(true);
-	const [loadAttempt, retryBankLoad] = React.useReducer(value => value + 1, 0);
+
+	const [loadedBankId] = React.useState<string | null>(null);
+	const [bankLoadError] = React.useState<string | null>(FEATURE_UNAVAILABLE_MESSAGE);
+
+	const [isLoadingBank] = React.useState(false);
+	const [, retryBankLoad] = React.useReducer(value => value + 1, 0);
 	const [openingBalanceInCents, setOpeningBalanceInCents] = React.useState(0);
 	const [overdraftReason, setOverdraftReason] = React.useState('');
 
@@ -115,8 +113,7 @@ export default function AddRegisterBankScreenWeb() {
 	const [selectedBankIconKey, setSelectedBankIconKey] = React.useState(isEditing ? initialBankIconKey : 'outro-banco');
 	const [nameValidationError, setNameValidationError] = React.useState<string | null>(null);
 	const [lastSavedValues, setLastSavedValues] = React.useState<BankFormSnapshot | null>(null);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const submitLockRef = React.useRef(false);
+	const [isSubmitting] = React.useState(false);
 	const bankNameInputRef = React.useRef<TextInput | null>(null);
 
 	const colorOptions = React.useMemo(() => {
@@ -147,32 +144,6 @@ export default function AddRegisterBankScreenWeb() {
 		setNameValidationError(null);
 		setLastSavedValues(null);
 	}, [initialBankIconKey, initialBankName, initialColorHex, isEditing]);
-	React.useEffect(() => {
-		let cancelled = false;
-		setLoadedBankId(null); setBankLoadError(null); setIsSparkBank(false); setIsLoadingBank(true);
-		setOpeningBalanceInCents(0); setOverdraftReason('');
-		const loadBank = async () => {
-			try {
-				if (editingBankId) {
-					const catalog = await loadSparkBank(editingBankId);
-					if (cancelled) return;
-					if (catalog) {
-						setIsSparkBank(true); setNameBank(catalog.name); setSelectedColor(catalog.colorHex); setSelectedBankIconKey(catalog.iconKey ?? 'outro-banco');
-					}
-					setLoadedBankId(editingBankId);
-				} else {
-					const isSpark = await initializeSparkBank();
-					if (!cancelled) setIsSparkBank(isSpark);
-				}
-			} catch (error) {
-				if (!cancelled) setBankLoadError(error instanceof Error ? error.message : 'Não foi possível carregar o banco.');
-			} finally {
-				if (!cancelled) setIsLoadingBank(false);
-			}
-		};
-		void loadBank();
-		return () => { cancelled = true; };
-	}, [editingBankId, loadSparkBank, initializeSparkBank, loadAttempt]);
 
 	const selectedBankIcon = React.useMemo<BankIconOption>(
 		() => iconOptions.find(option => option.key === selectedBankIconKey) ?? defaultBankIcon,
@@ -225,153 +196,13 @@ export default function AddRegisterBankScreenWeb() {
 		return () => window.removeEventListener('beforeunload', handleBeforeUnload);
 	}, [isFormDirty]);
 
-	const resetBankForm = React.useCallback(() => {
-		resetSparkBank();
-        setOpeningBalanceInCents(0); setOverdraftReason('');
-		setNameBank('');
-		setSelectedColor(null);
-		setSelectedBankIconKey('outro-banco');
-		setNameValidationError(null);
-	}, [resetSparkBank]);
-
 	const handleBackToHome = React.useCallback(() => {
 		navigateToHomeDashboard();
 		return true;
 	}, []);
 
 	// Mantém retorno após edição e limpeza após criação alinhados com [[Comportamento Pós-Registro]].
-	const registerBank = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || isLoadingBank || bankLoadError) {
-			return;
-		}
-
-		const trimmedName = nameBank.trim();
-		if (!trimmedName) {
-			setNameValidationError('Informe o nome do banco antes de registrar.');
-			bankNameInputRef.current?.focus?.();
-			return;
-		}
-
-		if (trimmedName.length < 2) {
-			setNameValidationError('Informe um nome de banco com pelo menos 2 caracteres.');
-			bankNameInputRef.current?.focus?.();
-			return;
-		}
-
-		if (isFormUnchanged && !isSparkBank && loadedBankId === editingBankId) {
-			showNotifierAlert({
-				title: 'Nenhuma alteração identificada',
-				description: 'Nenhuma alteração foi identificada para este banco.',
-				type: 'info',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-
-		try {
-			if (isEditing && loadedBankId !== editingBankId) throw new Error(bankLoadError ?? 'Aguarde o carregamento do banco.');
-			const personId = auth.currentUser?.uid;
-			if (!personId) {
-				showNotifierAlert({
-					title: 'Erro ao registrar banco',
-					description: 'Não foi possível identificar o usuário atual.',
-					type: 'error',
-					isDarkMode,
-				});
-				return;
-			}
-
-			const sparkResult = await submitSparkBank({ actorId: personId, bankId: editingBankId, name: trimmedName, colorHex: selectedColor, iconKey: selectedBankIconKey, openingBalanceInCents: isEditing ? 0 : openingBalanceInCents, overdraftReason: !isEditing && openingBalanceInCents < 0 ? overdraftReason : null });
-			if (sparkResult) {
-				showNotifierAlert({ title: isEditing ? 'Banco atualizado' : 'Banco registrado', description: isEditing ? 'Cadastro atualizado com sucesso.' : 'Banco e saldo inicial registrados juntos. O saldo inicial não foi contado como receita.', type: 'success', isDarkMode, duration: 4000 });
-				setLastSavedValues({ name: trimmedName, color: selectedColor, iconKey: selectedBankIconKey });
-				applyPostSubmitBehavior({ isEditing, resetForm: resetBankForm });
-				return;
-			}
-			if (isEditing && editingBankId) {
-				const result = await updateBankFirebase({
-					bankId: editingBankId,
-					bankName: trimmedName,
-					colorHex: selectedColor,
-					iconKey: selectedBankIconKey,
-				});
-
-				if (!result.success) {
-					showNotifierAlert({
-						title: 'Erro ao atualizar banco',
-						description: 'Não foi possível atualizar este banco. Tente novamente mais tarde.',
-						type: 'error',
-						isDarkMode,
-					});
-					return;
-				}
-
-				showNotifierAlert({
-					title: 'Banco atualizado',
-					description: `O banco ${trimmedName} foi atualizado com sucesso.`,
-					type: 'success',
-					isDarkMode,
-					duration: 4000,
-				});
-				setLastSavedValues({ name: trimmedName, color: selectedColor, iconKey: selectedBankIconKey });
-				applyPostSubmitBehavior({ isEditing: true });
-				return;
-			}
-
-			const result = await addBankFirebase({
-				bankName: trimmedName,
-				personId,
-				colorHex: selectedColor,
-				iconKey: selectedBankIconKey,
-			});
-
-			if (!result.success) {
-				showNotifierAlert({
-					title: 'Erro ao registrar banco',
-					description: 'Não foi possível registrar este banco. Tente novamente mais tarde.',
-					type: 'error',
-					isDarkMode,
-				});
-				return;
-			}
-
-			showNotifierAlert({
-				title: 'Banco registrado',
-				description: `O banco ${trimmedName} foi registrado com sucesso.`,
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-			applyPostSubmitBehavior({ resetForm: resetBankForm });
-		} catch (error) {
-			console.error('Erro ao registrar banco:', error);
-			showNotifierAlert({
-				title: 'Erro inesperado ao registrar banco',
-				description: error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
-		}
-	}, [
-		applyPostSubmitBehavior,
-		editingBankId,
-		isDarkMode,
-		isEditing,
-		isFormUnchanged,
-		isSubmitting,
-		nameBank,
-		resetBankForm,
-		selectedBankIconKey,
-		selectedColor,
-		submitSparkBank, loadedBankId, bankLoadError, isSparkBank, isLoadingBank, openingBalanceInCents, overdraftReason,
-	]);
+	const registerBank = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
 	const getInputRef = React.useCallback(
@@ -495,16 +326,16 @@ export default function AddRegisterBankScreenWeb() {
 											</Button>
 										</VStack>
 									) : null}
-									{!isEditing && isSparkBank ? (
+									{!isEditing && true ? (
 										<BankOpeningBalanceFields valueInCents={openingBalanceInCents} onValueChange={setOpeningBalanceInCents}
 											reason={overdraftReason} onReasonChange={setOverdraftReason} disabled={isSubmitting} />
 									) : null}
-									{isEditing && isSparkBank ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
+									{isEditing && true ? <Text className={helperText}>Editar nome, ícone ou cor preserva o saldo e o histórico do banco.</Text> : null}
 
 									<Button
 										className={`${submitButtonClassName} web:mt-2 web:h-12`}
 										onPress={registerBank}
-										isDisabled={isSubmitting || isLoadingBank || Boolean(bankLoadError) || (!isSparkBank && isFormUnchanged) || (isEditing && loadedBankId !== editingBankId && !bankLoadError)}
+										isDisabled={isSubmitting || isLoadingBank || Boolean(bankLoadError) || (false) || (isEditing && loadedBankId !== editingBankId && !bankLoadError)}
 									>
 										{isSubmitting ? (
 											<>

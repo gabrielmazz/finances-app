@@ -1,12 +1,10 @@
-import React from 'react';
-import { useFocusEffect } from 'expo-router';
-import { Button, ButtonText } from '@/components/ui/button';
+import { Button,ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import BankBalanceAttachedPanel from '@/components/uiverse/banks/bank-balance-attached-panel';
-import { useValueVisibility, HIDDEN_VALUE_PLACEHOLDER } from '@/contexts/ValueVisibilityContext';
-import { auth } from '@/FirebaseConfig';
-import { getBankCurrentBalanceInCentsFirebase } from '@/functions/BankFirebase';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import React from 'react';
+
 import { LUMUS_CLASS_NAMES } from '@/design-system/tokens';
 
 type Props = { bankId: string };
@@ -14,38 +12,9 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', cu
 
 export default function BankCurrentBalanceAttachedPanel({ bankId }: Props) {
 	const { shouldHideValues } = useValueVisibility();
-	const [balanceInCents, setBalanceInCents] = React.useState<number | null>(null);
-	const [status, setStatus] = React.useState<'loading' | 'ready' | 'error'>('loading');
-	const [retryKey, retry] = React.useReducer(value => value + 1, 0);
-
-	useFocusEffect(React.useCallback(() => {
-		let isActive = true;
-		setStatus('loading');
-		setBalanceInCents(null);
-
-		const loadBalance = async () => {
-			const personId = auth.currentUser?.uid;
-			if (!personId) {
-				if (isActive) setStatus('error');
-				return;
-			}
-
-			try {
-				const result = await getBankCurrentBalanceInCentsFirebase(personId, bankId);
-				if (!isActive) return;
-				if (!result.success) throw result.error;
-				setBalanceInCents(typeof result.data === 'number' ? result.data : null);
-				setStatus('ready');
-			} catch (error) {
-				if (!isActive) return;
-				console.error('Erro ao carregar saldo atual do banco:', error);
-				setStatus('error');
-			}
-		};
-
-		void loadBalance();
-		return () => { isActive = false; };
-	}, [bankId, retryKey]));
+	const [balanceInCents] = React.useState<number | null>(null);
+	const [status] = React.useState<'loading' | 'ready' | 'error'>('loading');
+	const [, retry] = React.useReducer(value => value + 1, 0);
 
 	return (
 		<BankBalanceAttachedPanel>

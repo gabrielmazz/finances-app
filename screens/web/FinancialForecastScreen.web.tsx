@@ -1,36 +1,36 @@
 import { useFinancialForecastData } from '@/hooks/useFinancialForecastData';
 // Implementação Web independente da previsão financeira.
-import React from 'react';
-import { Image as RNImage, Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
+import { MantineProvider,Tabs as MantineTabs } from '@mantine/core';
 import '@mantine/core/styles.css';
-import { MantineProvider, Tabs as MantineTabs } from '@mantine/core';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ChevronDown,ChevronUp,Info,WalletCards } from 'lucide-react-native';
+import React from 'react';
+import { Pressable,RefreshControl,Image as RNImage,ScrollView,StatusBar,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
-import { Accordion, AccordionContent, AccordionHeader, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Accordion,AccordionContent,AccordionHeader,AccordionItem,AccordionTrigger } from '@/components/ui/accordion';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
-import { useAuth } from '@/contexts/AuthContext';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { getMantineTabsStyles,MANTINE_MOVEMENT_TABS_CLASS_NAMES,MANTINE_MOVEMENT_TABS_CSS_VARIABLES } from '@/design-system/mantine';
+import { LUMUS_CLASS_NAMES,LUMUS_FINANCIAL_GRADIENTS,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { getMantineTabsStyles, MANTINE_MOVEMENT_TABS_CLASS_NAMES, MANTINE_MOVEMENT_TABS_CSS_VARIABLES } from '@/design-system/mantine';
-import { LUMUS_CLASS_NAMES, LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
+import { useSession } from '@/hooks/useSession';
 import {
-	FINANCIAL_FORECAST_PERIOD_OPTIONS,
-	type FinancialForecastCommitment,
-	type FinancialForecastCommitmentKind,
-	type FinancialForecastPeriod,
+FINANCIAL_FORECAST_PERIOD_OPTIONS,
+type FinancialForecastCommitment,
+type FinancialForecastCommitmentKind,
+type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
-import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialForecastIllustration from '../../assets/UnDraw/financialForecast.svg';
@@ -126,7 +126,7 @@ const FinancialForecastSkeleton = () => (
 
 export default function FinancialForecastScreenWeb() {
 	const { shouldHideValues } = useValueVisibility();
-	const { user } = useAuth();
+	const { user } = useSession();
 	const currentUserId = user?.uid ?? null;
 	const [periodInMonths, setPeriodInMonths] = React.useState<FinancialForecastPeriod>(3);
 	const { forecast, isLoading, isRefreshing, errorMessage, loadForecast } = useFinancialForecastData(currentUserId, periodInMonths);

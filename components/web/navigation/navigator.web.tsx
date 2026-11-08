@@ -1,43 +1,43 @@
-import React from 'react';
-import { useLocalSearchParams, usePathname } from 'expo-router';
+import { useLocalSearchParams,usePathname } from 'expo-router';
 import {
-	ArrowLeftRight,
-	BanknoteArrowDown,
-	BarChart3,
-	CircleMinus,
-	CirclePlus,
-	ClipboardList,
-	FileText,
-	Home,
-	Landmark,
-	LogOut,
-	NotebookPen,
-	PiggyBank,
-	Settings2,
-	Sparkles,
-	TrendingUp,
-	UserRound,
+ArrowLeftRight,
+BanknoteArrowDown,
+BarChart3,
+CircleMinus,
+CirclePlus,
+ClipboardList,
+FileText,
+Home,
+Landmark,
+LogOut,
+NotebookPen,
+PiggyBank,
+Settings2,
+Sparkles,
+TrendingUp,
+UserRound,
 } from 'lucide-react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import React from 'react';
+import { Pressable,Text,useWindowDimensions,View } from 'react-native';
 
 import StaggeredMenu from '@/components/web/navigation/StaggeredMenu';
-import { useAuth } from '@/contexts/AuthContext';
-import { type RouteVisibilityKey, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import { useRouteVisibility,type RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
 import { useAppTheme } from '@/contexts/ThemeContext';
-import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import {
-	APP_ROUTE_PATHS,
-	HOME_TAB_INDEX,
-	navigateToHomeConfigurations,
-	navigateToHomeDashboard,
-	navigateToRoute,
-	normalizeHomeTabIndex,
-	type AppRoutePath,
-} from '@/utils/navigation';
-import { useLogoutConfirmation } from '@/hooks/useLogoutConfirmation';
+import { useSession } from '@/hooks/useSession';
+
 import { LogoutConfirmation } from '@/components/uiverse/navigation/logout-confirmation';
+import { LUMUS_NAVIGATION_CLASS_NAMES,LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
+import { useLogoutConfirmation } from '@/hooks/useLogoutConfirmation';
+import {
+APP_ROUTE_PATHS,
+HOME_TAB_INDEX,
+navigateToHomeConfigurations,
+navigateToHomeDashboard,
+navigateToRoute,
+normalizeHomeTabIndex,
+type AppRoutePath,
+} from '@/utils/navigation';
 import { isWebDesktopLayout } from '@/utils/webLayout';
-import { LUMUS_NAVIGATION_CLASS_NAMES, LUMUS_NAVIGATION_COLORS } from '@/design-system/tokens';
 
 export type NavigatorProps = {
 	defaultValue?: number;
@@ -118,35 +118,15 @@ const createGroups = (): NavigatorGroup[] => [
 export default function Navigator({ defaultValue = HOME_TAB_INDEX.dashboard, profileDisplayName }: NavigatorProps) {
 	const pathname = normalizePathname(usePathname());
 	const params = useLocalSearchParams() as RouteParams;
-	const { user } = useAuth();
+	const { user } = useSession();
 	const { isDarkMode } = useAppTheme();
 	const { isRouteVisible } = useRouteVisibility();
 	const { width } = useWindowDimensions();
 	const [openMobileGroup, setOpenMobileGroup] = React.useState<number | null>(null);
-	const [profileName, setProfileName] = React.useState(user?.displayName?.trim() || '');
+	const [profileName] = React.useState(user?.displayName?.trim() || '');
 	const { requestLogout, isOpen, isLoggingOut, cancelLogout, confirmLogout } = useLogoutConfirmation();
 	const isDesktopWeb = isWebDesktopLayout('web', width);
 	const homeTab = normalizeHomeTabIndex(params.tab, defaultValue as 0 | 1 | 2);
-
-	React.useEffect(() => {
-		let isMounted = true;
-		const fallbackName = user?.displayName?.trim() || '';
-		setProfileName(fallbackName);
-
-		if (!user?.uid) return () => { isMounted = false; };
-
-		const loadProfileName = async () => {
-			const result = await getUserDataFirebase(user.uid);
-			if (!isMounted || !result.success) return;
-			const storedName = (result.data as { name?: unknown })?.name;
-			if (typeof storedName === 'string' && storedName.trim()) {
-				setProfileName(storedName.trim());
-			}
-		};
-
-		void loadProfileName();
-		return () => { isMounted = false; };
-	}, [user?.displayName, user?.uid]);
 
 	const groups = React.useMemo(() => {
 		const visibleGroups = createGroups().map(group => ({

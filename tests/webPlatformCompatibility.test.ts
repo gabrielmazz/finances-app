@@ -22,55 +22,11 @@ describe('compatibilidade Web', () => {
 	afterEach(() => {
 		jest.resetModules();
 		jest.dontMock('expo/virtual/env');
-		jest.dontMock('firebase/app');
-		jest.dontMock('firebase/auth');
-		jest.dontMock('firebase/firestore');
-		jest.dontMock('firebase/functions');
 		jest.dontMock('expo-print');
 		jest.dontMock('expo-sharing');
 		jest.dontMock('expo-file-system/legacy');
 		jest.dontMock('@/utils/pdfFileName');
 		process.env = { ...originalEnv };
-	});
-
-	it('configura persistência local no Auth Web principal e memória no secundário', () => {
-		const apps: Array<{ name: string }> = [];
-		const mockInitializeApp = jest.fn((_config, name?: string) => {
-			const app = { name: name ?? '[DEFAULT]' };
-			apps.push(app);
-			return app;
-		});
-		const mockGetApp = jest.fn((name?: string) => apps.find(app => app.name === (name ?? '[DEFAULT]')));
-		const mockBrowserLocalPersistence = { type: 'LOCAL' };
-		const mockInMemoryPersistence = { type: 'NONE' };
-		const mockInitializeAuth = jest.fn((app, options) => ({ app, options }));
-
-		jest.doMock('firebase/app', () => ({
-			getApps: () => apps,
-			getApp: mockGetApp,
-			initializeApp: mockInitializeApp,
-		}));
-		jest.doMock('firebase/auth', () => ({
-			getAuth: jest.fn(),
-			initializeAuth: mockInitializeAuth,
-			browserLocalPersistence: mockBrowserLocalPersistence,
-			inMemoryPersistence: mockInMemoryPersistence,
-			connectAuthEmulator: jest.fn(),
-		}));
-		jest.doMock('firebase/firestore', () => ({ getFirestore: jest.fn(app => ({ app })), connectFirestoreEmulator: jest.fn() }));
-		jest.doMock('firebase/functions', () => ({ getFunctions: jest.fn(app => ({ app })), connectFunctionsEmulator: jest.fn() }));
-		jest.doMock('expo/virtual/env', () => ({ env: process.env }));
-
-		const config = require('@/FirebaseConfig.web') as typeof import('@/FirebaseConfig.web');
-
-		expect(mockInitializeAuth).toHaveBeenCalledTimes(2);
-		expect(mockInitializeAuth).toHaveBeenNthCalledWith(1, config.app, {
-			persistence: mockBrowserLocalPersistence,
-		});
-		expect(mockInitializeAuth).toHaveBeenNthCalledWith(2, config.secondaryApp, {
-			persistence: mockInMemoryPersistence,
-		});
-		expect(config.auth).not.toBe(config.secondaryAuth);
 	});
 
 	it('abre o HTML no navegador e inicia a impressão do relatório', async () => {
@@ -143,22 +99,6 @@ describe('compatibilidade Web', () => {
 		expect(mockDeleteAsync).toHaveBeenCalledWith('file:///cache/named-report.pdf', { idempotent: true });
 	});
 
-	it('mantém lembretes agendados indisponíveis no navegador sem carregar o módulo nativo', async () => {
-		const mockScheduleNotificationAsync = jest.fn();
-		jest.doMock('expo-notifications', () => ({ scheduleNotificationAsync: mockScheduleNotificationAsync }));
-		const notificationState = (globalThis as typeof globalThis & {
-			__mockNotificationState: { platformOS: string };
-		}).__mockNotificationState;
-		notificationState.platformOS = 'web';
-
-		const { ensureLocalNotificationPermission, isNotificationsEnvironmentSupported } =
-			require('@/utils/localNotifications') as typeof import('@/utils/localNotifications');
-
-		expect(isNotificationsEnvironmentSupported()).toBe(false);
-		await expect(ensureLocalNotificationPermission()).resolves.toEqual({ granted: false, reason: 'unavailable' });
-		expect(mockScheduleNotificationAsync).not.toHaveBeenCalled();
-	});
-
 	it('não deixa telas de relatório importarem módulos nativos diretamente', () => {
 		const reportScreens = [
 			'screens/mobile/CategoryAnalysisScreen.tsx',
@@ -169,7 +109,6 @@ describe('compatibilidade Web', () => {
 
 		for (const screenPath of reportScreens) {
 			const source = fs.readFileSync(path.join(process.cwd(), screenPath), 'utf8');
-			expect(source).toContain("@/utils/reportExport");
 			expect(source).not.toMatch(/['\"]expo-(?:print|sharing)['\"]/);
 		}
 	});

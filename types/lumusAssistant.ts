@@ -117,23 +117,18 @@ export type AssistantDraftAction = {
 	dependsOnActionIds: string[];
 	originalSnapshot?: AssistantRecordSnapshot;
 	preparedAt: string;
-	sparkRecurringReplanUndo?: { command: import('@/functions/SparkRecurringReplanFirebase').SparkRecurringReplanUndoInput; recurringType: 'expense' | 'gain'; originalName: string; originalTotalInCents: number; originalInstallments: number; originalCompleted: number; replacementName: string; replacementTotalInCents: number; replacementInstallments: number; replacementStartCycle: string };
-	sparkRecurringReplan?: { command: import('@/functions/SparkRecurringReplanFirebase').SparkRecurringReplanInput; recurringType: 'expense' | 'gain'; originalInstallments: number; originalTotalInCents: number; completed: number };
-	sparkRecurringRestore?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput; recurringType: 'expense' | 'gain'; installmentTotal: number | null; installmentsCompleted: number };
-	sparkRecurringArchive?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput; recurringType: 'expense' | 'gain'; installmentTotal: number | null; installmentsCompleted: number };
-	sparkRecurringDefinition?: {
-		recurringType: 'expense' | 'gain';
-		definition: { action: 'create'; input: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanInput } | { action: 'update'; input: import('@/functions/SparkRecurringFirebase').SparkRecurringPlanUpdateInput };
-		metadata: import('@/functions/SparkRecurringMetadataFirebase').SparkRecurringMetadataInput;
-		startCycle: string; endCycle: string | null; installmentTotal: number | null; contractTotalInCents: number | null; categoryName: string;
-	};
-	sparkRecurringReversal?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringUndoInput; recurringType: 'expense' | 'gain'; name: string; bankName: string; amountInCents: number; installmentsCount: number };
-	sparkRecurringSettlement?: { command: import('@/functions/SparkRecurringFirebase').SparkRecurringSettlementInput; recurringType: 'expense' | 'gain'; name: string; bankName: string };
-	sparkWithdrawalReversal?: { command: import('@/functions/SparkPairFormFirebase').SparkPairReversalCommand; amountInCents: number; bankName: string };
-	sparkPairCommand?: import('@/functions/SparkTransferFirebase').SparkTransferInput | import('@/functions/SparkTransferFirebase').SparkDatedTransferInput;
-	sparkPairDay?: string;
-	sparkMovementCommand?: import('@/functions/SparkMovementCommandFirebase').SparkMovementCommand;
-	sparkMovementTarget?: import('@/functions/SparkOrdinaryReadFirebase').SparkEditableMovement;
+
+
+
+
+
+
+
+
+
+
+
+
 	result?: {
 		recordHandle?: string;
 		message: string;
@@ -144,7 +139,7 @@ export type AssistantDraftAction = {
 };
 
 export type AssistantChoiceOption = {
-	/** Identificador opaco e temporário. IDs reais do Firestore nunca entram no prompt. */
+	/** Identificador opaco e temporário. Referência usada somente na apresentação. */
 	value: string;
 	label: string;
 	description?: string;
@@ -316,120 +311,3 @@ export type AssistantAiAvailability = {
 	model: string;
 	reason?: string;
 };
-
-export type AssistantAiConversationRequest = {
-	/** Escopo local de cota; nunca é enviado ao modelo. */
-	requestScope?: string;
-	text: string;
-	/** Busca local completa. Somente o resultado opaco e reduzido chega ao modelo. */
-	searchCatalog?(source: AssistantCatalogType | 'pending', query: string): Promise<{ items: NonNullable<AssistantModelCatalog[AssistantCatalogType]>; total: number; complete: boolean }>;
-	turns: AssistantConversationTurn[];
-	activeSummary?: string;
-	catalog: AssistantModelCatalog;
-	nowIso: string;
-	timeZone: 'America/Sao_Paulo';
-	config: AssistantAiConfig;
-	signal?: AbortSignal;
-};
-
-export type AssistantAiConversationResponse = {
-	text: string;
-	/** Propostas canônicas locais. Nunca autorizam nem executam por si mesmas. */
-	applicationCommands?: string[];
-	actions: AssistantModelActionProposal[];
-	reportRequests: AssistantReportRequest[];
-	warnings?: string[];
-	referenceCandidates?: Array<{source: AssistantCatalogType | 'pending'; query: string; handles: string[]; total: number}>;
-	toolCallCount: number;
-	fallbackModel?: string;
-	/** Propostas de alteração; nunca são evidência de autorização. */
-	draftUpdates?: Array<{ actionId: string; patch: Record<string, unknown> }>;
-	batchRequests?: Array<{ kind: AssistantActionKind; query?: string; period?: string; overdue?: boolean; expectedCount?: number; payload: Record<string, unknown> }>;
-};
-
-export type AssistantTranscriptionRequest = {
-	/** Escopo local de cota; nunca é enviado ao modelo. */
-	requestScope?: string;
-	base64Audio: string;
-	mimeType: string;
-	durationMs: number;
-	config: AssistantAiConfig;
-	signal?: AbortSignal;
-};
-
-export type AssistantReportNarrationRequest = {
-	/** Escopo local de cota; nunca é enviado ao modelo. */
-	requestScope?: string;
-	question?: string;
-	report: Pick<
-		AssistantReport,
-		'kind' | 'title' | 'periodLabel' | 'scopeLabel' | 'metrics' | 'deterministicSummary' | 'notes'
-	>;
-	config: AssistantAiConfig;
-	signal?: AbortSignal;
-};
-
-export interface AssistantAiGateway {
-	getConfig(forceRefresh?: boolean): Promise<AssistantAiConfig>;
-	getAvailability(): Promise<AssistantAiAvailability>;
-	converse(request: AssistantAiConversationRequest): Promise<AssistantAiConversationResponse>;
-	transcribe(request: AssistantTranscriptionRequest): Promise<string>;
-	narrateReport(request: AssistantReportNarrationRequest): Promise<string>;
-}
-
-export type AssistantPrepareActionsResult = {
-	actions: AssistantDraftAction[];
-	catalog: AssistantResolvedCatalog;
-};
-
-export type AssistantExecuteResult = {
-	success: boolean;
-	message: string;
-	recordHandle?: string;
-	notificationWarning?: string;
-	notificationRetry?: AssistantNotificationRetry;
-	errorCode?: string;
-};
-
-/** Token emitido somente para um evento do usuário na sessão local ativa. */
-export type AssistantExecutionAuthorization = { readonly token: string };
-
-export type AssistantOperationOptions = {
-	signal?: AbortSignal;
-	onRateLimit?(): void;
-};
-
-export interface FinanceCommandService {
-	loadCatalog(personId: string): Promise<AssistantResolvedCatalog>;
-	prepareActions(
-		personId: string,
-		proposals: AssistantModelActionProposal[],
-		catalog?: AssistantResolvedCatalog,
-		options?: AssistantOperationOptions,
-	): Promise<AssistantPrepareActionsResult>;
-	updateDraft(
-		personId: string,
-		draft: AssistantDraftAction,
-		patch: Record<string, unknown>,
-		catalog: AssistantResolvedCatalog,
-		options?: AssistantOperationOptions,
-	): Promise<AssistantDraftAction>;
-	execute(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog, authorization: AssistantExecutionAuthorization, options?: AssistantOperationOptions): Promise<AssistantExecuteResult>;
-	retryNotification(personId: string, draft: AssistantDraftAction, catalog: AssistantResolvedCatalog): Promise<AssistantExecuteResult>;
-}
-
-export interface AssistantReportService {
-	createReport(
-		personId: string,
-		request: AssistantReportRequest,
-		catalog: AssistantResolvedCatalog,
-	): Promise<AssistantReport>;
-}
-
-export interface AssistantSessionStore {
-	messages: AssistantMessage[];
-	drafts: AssistantDraftAction[];
-	consentGranted: boolean;
-	autoReadEnabled: boolean;
-	clear(): void;
-}

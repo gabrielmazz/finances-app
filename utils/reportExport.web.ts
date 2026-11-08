@@ -1,6 +1,6 @@
-import type { HtmlReportExportRequest, HtmlReportExportResult } from '@/utils/reportExport.types';
+import type { HtmlReportExportRequest,HtmlReportExportResult } from '@/utils/reportExport.types';
 
-export type { HtmlReportExportRequest, HtmlReportExportResult } from '@/utils/reportExport.types';
+export type { HtmlReportExportRequest,HtmlReportExportResult } from '@/utils/reportExport.types';
 
 export const exportHtmlReport = async ({
 	html,

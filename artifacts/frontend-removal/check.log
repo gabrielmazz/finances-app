@@ -1,0 +1,29 @@
+
+> finances-app@2.3.3 check
+> npm run lint:styles && npm run typecheck && npm run test -- --runInBand
+
+
+> finances-app@2.3.3 lint:styles
+> node script/check_style_architecture.js
+
+Style architecture metrics: {
+  inlineStyleProps: 922,
+  rawHexLiterals: 977,
+  arbitraryTailwindValues: 344,
+  useScreenStylesFiles: 52
+}
+Style architecture check passed.
+
+> finances-app@2.3.3 typecheck
+> tsc --noEmit
+
+
+> finances-app@2.3.3 test
+> jest --runInBand
+
+
+Test Suites: 16 passed, 16 total
+Tests:       87 passed, 87 total
+Snapshots:   0 total
+Time:        1.143 s, estimated 4 s
+Ran all test suites.

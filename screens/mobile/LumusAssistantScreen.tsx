@@ -1,100 +1,100 @@
 import { AssistantInitializationError } from '@/components/uiverse/assistant/assistant-initialization-error';
+import {
+RecordingPresets,
+requestRecordingPermissionsAsync,
+setAudioModeAsync,
+useAudioRecorder,
+useAudioRecorderState,
+} from 'expo-audio';
+import {
+CircleArrowRight,
+CircleStop,
+Info,
+Lightbulb,
+Mic,
+Send,
+Settings2,
+ShieldCheck,
+ShieldOff,
+Sparkles,
+Trash2,
+TriangleAlert,
+X,
+} from 'lucide-react-native';
 import React from 'react';
 import {
-	ActivityIndicator,
-	KeyboardAvoidingView,
-	Linking,
-	Platform,
-	Pressable,
-	ScrollView,
-	StatusBar,
-	type LayoutChangeEvent,
+ActivityIndicator,
+KeyboardAvoidingView,
+Linking,
+Platform,
+Pressable,
+ScrollView,
+StatusBar,
+type LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-	CircleArrowRight,
-	CircleStop,
-	Info,
-	Lightbulb,
-	Mic,
-	Send,
-	Settings2,
-	ShieldCheck,
-	ShieldOff,
-	Sparkles,
-	Trash2,
-	TriangleAlert,
-	X,
-} from 'lucide-react-native';
-import {
-	RecordingPresets,
-	requestRecordingPermissionsAsync,
-	setAudioModeAsync,
-	useAudioRecorder,
-	useAudioRecorderState,
-} from 'expo-audio';
 
 import { Box } from '@/components/ui/box';
-import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button,ButtonIcon,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import {
-	Drawer,
-	DrawerBackdrop,
-	DrawerBody,
-	DrawerCloseButton,
-	DrawerContent,
-	DrawerHeader,
+Conversation,
+ConversationContent,
+ConversationEmptyState,
+Message,
+PromptInput,
+PromptInputButton,
+PromptInputFooter,
+PromptInputProvider,
+PromptInputSubmit,
+PromptInputTextarea,
+PromptInputTools,
+} from '@/components/ui/chatAi';
+import {
+Drawer,
+DrawerBackdrop,
+DrawerBody,
+DrawerCloseButton,
+DrawerContent,
+DrawerHeader,
 } from '@/components/ui/drawer';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Icon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalHeader,
+ModalTitle,
 } from '@/components/ui/modal';
 import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
+Popover,
+PopoverBackdrop,
+PopoverBody,
+PopoverContent,
 } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import {
-	Conversation,
-	ConversationContent,
-	ConversationEmptyState,
-	Message,
-	PromptInput,
-	PromptInputButton,
-	PromptInputFooter,
-	PromptInputProvider,
-	PromptInputSubmit,
-	PromptInputTextarea,
-	PromptInputTools,
-} from '@/components/ui/chatAi';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import {
-	AssistantReportCard,
-	AssistantTextBubble,
-} from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantActivityTrace } from '@/components/uiverse/assistant/assistant-activity-trace';
+import {
+AssistantReportCard,
+AssistantTextBubble,
+} from '@/components/uiverse/assistant/assistant-cards';
 import { AssistantComposerFrame } from '@/components/uiverse/assistant/assistant-composer-frame';
-import { useLumusAssistant } from '@/contexts/LumusAssistantContext';
+import Navigator from '@/components/uiverse/navigation/navigator';
 import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { ASSISTANT_CLASS_NAMES } from '@/design-system/assistant';
+import { useAssistantAvailability } from '@/hooks/useAssistantAvailability';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { orderAssistantMessagesForDisplay } from '@/utils/lumusAssistant';
-import { isFirebaseEmulatorRuntime } from '@/utils/firebaseRuntime';
+
 import {
-	deleteAssistantTemporaryAudio,
-	readAssistantAudioFile,
+deleteAssistantTemporaryAudio,
+readAssistantAudioFile,
 } from '@/utils/lumusAssistantAudio';
 import { getLumusAssistantViewportLayout } from '@/utils/lumusAssistantLayout';
 
@@ -117,7 +117,7 @@ const CONSENT_ITEMS = [
 	{
 		icon: Trash2,
 		title: 'Áudio e conversa temporários',
-		description: 'O arquivo de áudio é apagado depois da transcrição. A conversa não é salva no Firestore e é limpa ao sair da conta.',
+		description: 'O arquivo de áudio é apagado depois da transcrição. A transcrição e o envio de mensagens estão indisponíveis nesta etapa.',
 	},
 	{
 		icon: ShieldCheck,
@@ -187,7 +187,7 @@ const ConsentView = ({
 	);
 };
 
-// [[Assistente Lumus]]: a rota já está aberta enquanto disponibilidade, preferências e Remote Config são resolvidos.
+// A estrutura visual do assistente permanece acessível sem serviços conectados.
 const AssistantBootstrappingView = () => {
 	const { headingText, helperText } = useScreenStyles();
 
@@ -230,7 +230,7 @@ export default function LumusAssistantScreen() {
 		switchIosBackgroundColor,
 	} = useScreenStyles();
 	const { shouldHideValues } = useValueVisibility();
-	const assistant = useLumusAssistant();
+	const assistant = useAssistantAvailability();
 	const audioEpochRef = React.useRef(assistant.revocationEpoch);
 	audioEpochRef.current = assistant.revocationEpoch;
 	const [composerText, setComposerText] = React.useState('');
@@ -395,7 +395,7 @@ export default function LumusAssistantScreen() {
 		setIsSettingsDrawerOpen(false);
 		await assistant.revokeConsent();
 	}, [assistant]);
-	const isHybridDevelopment = isFirebaseEmulatorRuntime();
+
 	const displayMessages = React.useMemo(
 		() => orderAssistantMessagesForDisplay(assistant.messages)
 			.filter(message => message.type !== 'question' || !message.answeredAt),
@@ -441,7 +441,7 @@ export default function LumusAssistantScreen() {
 							<AssistantBootstrappingView />
 						) : assistant.initializationError ? (
 							<AssistantInitializationError message={assistant.initializationError} onRetry={assistant.retryInitialization} />
-						) : !assistant.consentGranted ? (
+						) : assistant.availability?.available && !assistant.consentGranted ? (
 							<ConsentView onAccept={acceptConsent} isLoading={isAcceptingConsent} error={assistant.consentError} />
 						) : (
 							<>
@@ -489,16 +489,7 @@ export default function LumusAssistantScreen() {
 										keyboardDismissMode="on-drag"
 									>
 										<VStack className={ASSISTANT_CLASS_NAMES.conversationContent} space="lg">
-										{isHybridDevelopment ? (
-											<HStack className={ASSISTANT_CLASS_NAMES.infoBanner}>
-							<Icon as={Info} size="lg" className="shrink-0 text-blue-600 dark:text-blue-300" />
-								<Text size="xs" className="min-w-0 flex-1 leading-5 text-blue-900 dark:text-blue-100">
-									{assistant.availability?.runtime === 'expo-go'
-										? 'Expo Go: Auth, Firestore e Functions usam o Emulator Suite. AI Logic usa o projeto remoto com App Check Debug; o modelo e os limites usam defaults locais porque Remote Config não está disponível neste runtime.'
-										: 'Modo de desenvolvimento híbrido: Auth, Firestore e Functions usam o Emulator Suite. Somente AI Logic, App Check e Remote Config acessam o projeto Firebase na nuvem.'}
-								</Text>
-											</HStack>
-										) : null}
+
 										{!assistant.availability?.available ? (
 											<HStack className={ASSISTANT_CLASS_NAMES.warningBanner}>
 												<Icon as={TriangleAlert} size="lg" className="shrink-0 text-warning-500" />

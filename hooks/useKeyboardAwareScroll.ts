@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-	findNodeHandle,
-	Keyboard,
-	Platform,
-	ScrollView,
-	TextInput,
-	useWindowDimensions,
-	type NativeScrollEvent,
-	type NativeSyntheticEvent,
+findNodeHandle,
+Keyboard,
+Platform,
+ScrollView,
+TextInput,
+useWindowDimensions,
+type NativeScrollEvent,
+type NativeSyntheticEvent,
 } from 'react-native';
 
 type InputRef = React.RefObject<TextInput | null> | React.RefObject<any>;

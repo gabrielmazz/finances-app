@@ -1,51 +1,43 @@
-import { useSparkMonthlyBalanceForm } from '@/hooks/useSparkMonthlyBalanceForm';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
+import { useFocusEffect } from 'expo-router';
 import React from 'react';
 import {
-	BackHandler,
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StatusBar,
-	TextInput,
-	View,
-	Pressable,
+BackHandler,
+KeyboardAvoidingView,
+Platform,
+Pressable,
+ScrollView,
+StatusBar,
+TextInput,
+View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 
-import { Text } from '@/components/ui/text';
-import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { HStack } from '@/components/ui/hstack';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { Image } from '@/components/ui/image';
+import { Input,InputField } from '@/components/ui/input';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
+import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
 
+import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankCurrentBalanceAttachedPanel from '@/components/uiverse/banks/bank-current-balance-attached-panel';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
-import BankCurrentBalanceAttachedPanel from '@/components/uiverse/banks/bank-current-balance-attached-panel';
 import { navigateToHomeDashboard } from '@/utils/navigation';
-
-import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import {
-	getMonthlyBalanceFirebaseRelatedToUser,
-	upsertMonthlyBalanceFirebase,
-} from '@/functions/MonthlyBalanceFirebase';
-import { auth } from '@/FirebaseConfig';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import { Info } from 'lucide-react-native';
 
-import AddRegisterMonthlyBalanceScreenIllustration from '../../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
-import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
 import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { cn } from '@/lib/utils';
+import AddRegisterMonthlyBalanceScreenIllustration from '../../assets/UnDraw/addRegisterMonthlyBalanceScreen.svg';
 
 const formatCurrencyBRL = (valueInCents: number) =>
 	new Intl.NumberFormat('pt-BR', {
@@ -114,29 +106,22 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 	} = useScreenStyles();
 
-	const [banks, setBanks] = React.useState<OptionItem[]>([]);
+	const [banks] = React.useState<OptionItem[]>([]);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
+	const [isLoadingBanks] = React.useState(false);
 
 	const [monthReference, setMonthReference] = React.useState(() => formatMonthReference(toFinancialCivilDate(new Date())));
 	const [balanceDisplay, setBalanceDisplay] = React.useState('');
-	const [monthlyNote, setMonthlyNote] = React.useState('');
+
 	const [balanceValueInCents, setBalanceValueInCents] = React.useState<number | null>(null);
 
 	const [existingBalanceId, setExistingBalanceId] = React.useState<string | null>(null);
 	const [isLoadingExisting, setIsLoadingExisting] = React.useState(false);
-	const [balanceRefreshKey, refreshBankBalance] = React.useReducer(value => value + 1, 0);
+	const [balanceRefreshKey] = React.useReducer(value => value + 1, 0);
 	const lookupRequestRef = React.useRef(0);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
-	const submitLockRef = React.useRef(false);
+	const [isSubmitting] = React.useState(false);
 	const monthlyFocused = React.useRef(false);
 	useFocusEffect(React.useCallback(() => { monthlyFocused.current = true; return () => { monthlyFocused.current = false; }; }, []));
-    const parsedSparkMonth = parseMonthReference(monthReference);
-    const sparkMonthly = useSparkMonthlyBalanceForm(auth.currentUser && selectedBankId && parsedSparkMonth && balanceValueInCents !== null ? {
-        actorId: auth.currentUser.uid, accountId: selectedBankId, mode: 'monthly', date: `${parsedSparkMonth.year}-${String(parsedSparkMonth.month).padStart(2, '0')}`,
-        targetBalanceInCents: balanceValueInCents, note: monthlyNote.trim() || null,
-    } : null);
-
 
 	const balanceInputValue = React.useMemo(
 		() =>
@@ -150,8 +135,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 
 	const monthReferenceInputRef = React.useRef<TextInput | null>(null);
 	const balanceInputRef = React.useRef<TextInput | null>(null);
-	const lastLookupNotificationKeyRef = React.useRef<string | null>(null);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('registerMonthlyBalance');
 
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'balance' ? 140 : 120),
@@ -197,71 +180,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		}, []),
 	);
 
-	useFocusEffect(
-		React.useCallback(() => {
-			let isMounted = true;
-
-			const loadBanks = async () => {
-				setIsLoadingBanks(true);
-
-				try {
-					const banksResult = await getAllBanksFirebase();
-
-					if (!isMounted) {
-						return;
-					}
-
-					if (banksResult.success && Array.isArray(banksResult.data)) {
-						const formattedBanks = banksResult.data.map((bank: any) => ({
-							id: bank.id,
-							name:
-								typeof bank?.name === 'string' && bank.name.trim().length > 0
-									? bank.name.trim()
-									: 'Banco sem nome',
-							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-						}));
-
-						setBanks(formattedBanks);
-						setSelectedBankId(current =>
-							current && formattedBanks.some(bank => bank.id === current) ? current : null,
-						);
-					} else {
-						showNotifierAlert({
-							title: 'Não foi possível carregar os bancos disponíveis.',
-							description: 'Tente novamente mais tarde.',
-							type: 'error',
-							duration: 4000,
-							isDarkMode,
-						});
-					}
-				} catch (error) {
-					console.error('Erro ao carregar bancos:', error);
-
-					if (isMounted) {
-						showNotifierAlert({
-							title: 'Erro inesperado ao carregar os bancos.',
-							description: 'Tente novamente mais tarde.',
-							type: 'error',
-							duration: 4000,
-							isDarkMode,
-						});
-					}
-				} finally {
-					if (isMounted) {
-						setIsLoadingBanks(false);
-					}
-				}
-			};
-
-			void loadBanks();
-
-			return () => {
-				isMounted = false;
-			};
-		}, [isDarkMode]),
-	);
-
 	const handleBalanceChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
 		if (!digitsOnly) {
@@ -274,150 +192,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		setBalanceDisplay(formatCurrencyBRL(centsValue));
 		setBalanceValueInCents(centsValue);
 	}, []);
-
-	const resetMonthlyBalanceForm = React.useCallback(() => {
-		sparkMonthly.reset();
-		setMonthlyNote('');
-		setSelectedBankId(null);
-		setMonthReference(formatMonthReference(toFinancialCivilDate(new Date())));
-		setBalanceDisplay('');
-		setBalanceValueInCents(null);
-		setExistingBalanceId(null);
-	}, []);
-
-	const getBankDisplayName = React.useCallback(
-		(bankId?: string | null) =>
-			banks.find(bank => bank.id === bankId)?.name ?? 'o banco selecionado',
-		[banks],
-	);
-
-	const showExistingBalanceNotification = React.useCallback(
-		(bankId: string, reference: string) => {
-			showNotifierAlert({
-				title: 'Saldo já registrado',
-				description: `Já existe um saldo registrado para ${getBankDisplayName(bankId)} em ${reference}.`,
-				type: 'info',
-				isDarkMode,
-				duration: 4000,
-				backgroundColor: '#38BDF8',
-				statusBarColor: '#0284C7',
-				textColor: '#082F49',
-			});
-		},
-		[getBankDisplayName, isDarkMode],
-	);
-
-	const showMissingBalanceNotification = React.useCallback(
-		(bankId: string, reference: string) => {
-			showNotifierAlert({
-				title: 'Saldo não registrado',
-				description: `Nenhum saldo foi encontrado para ${getBankDisplayName(bankId)} em ${reference}.`,
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-		},
-		[getBankDisplayName, isDarkMode],
-	);
-
-	const showSuccessfulBalanceNotification = React.useCallback(
-		(bankId: string, reference: string, isUpdating: boolean) => {
-			showNotifierAlert({
-				title: isUpdating ? 'Saldo atualizado' : 'Saldo registrado',
-				description: `O saldo de ${getBankDisplayName(bankId)} para ${reference} foi salvo com sucesso.`,
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-		},
-		[getBankDisplayName, isDarkMode],
-	);
-
-	const fetchExistingBalance = React.useCallback(
-		async () => {
-			const requestId = ++lookupRequestRef.current;
-			const bankIdToUse = selectedBankId;
-
-			if (!bankIdToUse) {
-				setExistingBalanceId(null);
-				setIsLoadingExisting(false);
-				lastLookupNotificationKeyRef.current = null;
-				return;
-			}
-
-			const monthReferenceToUse = monthReference;
-			const parsedMonth = parseMonthReference(monthReferenceToUse);
-
-			if (!parsedMonth) {
-				setExistingBalanceId(null);
-				setIsLoadingExisting(false);
-				lastLookupNotificationKeyRef.current = null;
-				return;
-			}
-
-			const currentUser = auth.currentUser;
-			if (!currentUser) {
-				showNotifierAlert({
-					title: 'Usuário não autenticado.',
-					description: 'Faça login novamente.',
-					type: 'error',
-					duration: 4000,
-					isDarkMode,
-				});
-				return;
-			}
-
-			setIsLoadingExisting(true);
-
-			try {
-				const response = await getMonthlyBalanceFirebaseRelatedToUser({
-					personId: currentUser.uid,
-					bankId: bankIdToUse,
-					year: parsedMonth.year,
-					month: parsedMonth.month,
-				});
-				if (requestId !== lookupRequestRef.current || auth.currentUser?.uid !== currentUser.uid) return;
-
-				if (!response.success) throw response.error;
-				if (response.data) {
-					setExistingBalanceId(response.data.id);
-					const notificationKey = `${bankIdToUse}:${monthReferenceToUse}:registered`;
-
-					if (lastLookupNotificationKeyRef.current !== notificationKey) {
-						showExistingBalanceNotification(bankIdToUse, monthReferenceToUse);
-						lastLookupNotificationKeyRef.current = notificationKey;
-					}
-				} else {
-					setExistingBalanceId(null);
-					const notificationKey = `${bankIdToUse}:${monthReferenceToUse}:missing`;
-
-					if (lastLookupNotificationKeyRef.current !== notificationKey) {
-						showMissingBalanceNotification(bankIdToUse, monthReferenceToUse);
-						lastLookupNotificationKeyRef.current = notificationKey;
-					}
-				}
-			} catch (error) {
-				if (requestId !== lookupRequestRef.current) return;
-				console.error('Erro ao obter saldo mensal:', error);
-				showNotifierAlert({
-					title: 'Erro ao buscar saldo',
-					description: 'Erro ao buscar o saldo registrado para este mês.',
-					type: 'error',
-					duration: 4000,
-					isDarkMode,
-				});
-			} finally {
-				if (requestId === lookupRequestRef.current) setIsLoadingExisting(false);
-			}
-		},
-		[
-			isDarkMode,
-			monthReference,
-			selectedBankId,
-			showExistingBalanceNotification,
-			showMissingBalanceNotification,
-		],
-	);
 
 	const handleMonthChange = React.useCallback(
 		(value: string) => {
@@ -433,122 +207,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		[],
 	);
 
-	React.useEffect(() => {
-		void fetchExistingBalance();
-	}, [fetchExistingBalance]);
-
-	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || isLoadingExisting) {
-			return;
-		}
-
-		if (!selectedBankId) {
-			showNotifierAlert({
-				title: 'Erro ao registrar saldo',
-				description: 'Selecione um banco para registrar o saldo.',
-				type: 'error',
-				duration: 4000,
-				isDarkMode,
-			});
-			return;
-		}
-
-		const parsedMonth = parseMonthReference(monthReference);
-		if (!parsedMonth) {
-			showNotifierAlert({
-				title: 'Erro ao registrar saldo',
-				description: 'Informe um mês válido no formato MM/AAAA.',
-				type: 'error',
-				duration: 4000,
-				isDarkMode,
-			});
-			return;
-		}
-
-		if (balanceValueInCents === null) {
-			showNotifierAlert({
-				title: 'Erro ao registrar saldo',
-				description: 'Informe o saldo disponível no início do mês.',
-				type: 'error',
-				duration: 4000,
-				isDarkMode,
-			});
-			return;
-		}
-
-		const currentUser = auth.currentUser;
-		if (!currentUser) {
-			showNotifierAlert({
-				title: 'Usuário não autenticado',
-				description: 'Faça login novamente.',
-				type: 'error',
-				duration: 4000,
-				isDarkMode,
-			});
-			return;
-		}
-
-		const isUpdating = Boolean(existingBalanceId);
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-
-		try {
-			const sparkResult = await sparkMonthly.submit();
-            if (sparkResult.kind !== 'legacy') {
-                if (sparkResult.kind !== 'saved') return;
-                if (!monthlyFocused.current || auth.currentUser?.uid !== currentUser.uid) return;
-                setExistingBalanceId(sparkResult.id); refreshBankBalance();
-                showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
-                applyPostSubmitBehavior({ resetForm: isUpdating ? undefined : resetMonthlyBalanceForm, isEditing: isUpdating });
-                return;
-            }
-			const response = await upsertMonthlyBalanceFirebase({
-				personId: currentUser.uid,
-				bankId: selectedBankId,
-				year: parsedMonth.year,
-				month: parsedMonth.month,
-				valueInCents: balanceValueInCents,
-			});
-
-			if (!response.success) {
-				throw new Error('Erro ao salvar saldo.');
-			}
-
-			setExistingBalanceId(response.id);
-			refreshBankBalance();
-			lastLookupNotificationKeyRef.current = `${selectedBankId}:${monthReference}:registered`;
-			showSuccessfulBalanceNotification(selectedBankId, monthReference, isUpdating);
-			applyPostSubmitBehavior({
-				resetForm: isUpdating ? undefined : resetMonthlyBalanceForm,
-				isEditing: isUpdating,
-			});
-		} catch (error) {
-            if (!monthlyFocused.current || auth.currentUser?.uid !== currentUser.uid) return;
-			console.error('Erro ao registrar saldo mensal:', error);
-			showNotifierAlert({
-				title: 'Erro ao registrar saldo',
-				description: error instanceof Error ? error.message : 'Não foi possível registrar o saldo. Tente novamente.',
-				type: 'error',
-				duration: 4000,
-				isDarkMode,
-			});
-		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
-		}
-	}, [
-		sparkMonthly,
-		balanceValueInCents,
-		existingBalanceId,
-		isDarkMode,
-		isLoadingExisting,
-		isSubmitting,
-		monthReference,
-		selectedBankId,
-		showSuccessfulBalanceNotification,
-		applyPostSubmitBehavior,
-		resetMonthlyBalanceForm,
-	]);
+	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const hasValidMonthReference = parseMonthReference(monthReference) !== null;
 	const selectedBankLabel = React.useMemo(
@@ -567,13 +226,6 @@ export default function AddRegisterMonthlyBalanceScreen() {
 		balanceValueInCents === null ||
 		isLoadingExisting ||
 		isSubmitting;
-	const balanceStatusClassName = isLoadingExisting
-		? helperText
-		: existingBalanceId
-			? 'text-sky-600 dark:text-sky-300'
-			: selectedBankId && hasValidMonthReference
-				? 'text-red-600 dark:text-red-400'
-				: helperText;
 	const screenTitle = 'Saldo mensal por banco';
 
 	return (
@@ -658,7 +310,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 												<PopoverContent className="max-w-[260px]" style={infoCardStyle}>
 													<PopoverBody className="px-3 py-3">
 														<Text className={`${bodyText} text-xs leading-5`}>
-															Selecione o banco para o qual deseja registrar o saldo mensal. 
+															Selecione o banco para o qual deseja registrar o saldo mensal.
 															Esse saldo representa o valor disponível no início do mês, sendo a base dos calculos com despesas e ganhos.
 														</Text>
 													</PopoverBody>
@@ -782,27 +434,15 @@ export default function AddRegisterMonthlyBalanceScreen() {
 										</Input>
 									</VStack>
 
-									{sparkMonthly.progress && <Button variant="outline" action="secondary" isDisabled={isSubmitting || balanceValueInCents === null || balanceValueInCents === 0}
-                                accessibilityLabel="Alternar saldo de abertura positivo ou negativo" onPress={() => {
-                                    if (balanceValueInCents === null) return;
-                                    const signed = -balanceValueInCents;
-                                    setBalanceValueInCents(signed); setBalanceDisplay(formatCurrencyBRL(signed));
-                                }}><ButtonText>{(balanceValueInCents ?? 0) < 0 ? 'Usar saldo positivo' : 'Usar saldo negativo'}</ButtonText></Button>}
-                            {sparkMonthly.progress && <VStack className="mb-4">
-                                <Text className={LUMUS_FORM_CLASS_NAMES.label}>Motivo da conferência (opcional)</Text>
-                                <Input className={fieldContainerClassName} isDisabled={isSubmitting}>
-                                    <InputField value={monthlyNote} onChangeText={setMonthlyNote} maxLength={500} className={inputField}
-                                        accessibilityLabel="Motivo da conferência mensal" placeholder="Explique a mudança do saldo de abertura" />
-                                </Input>
-                                <Text className={helperText}>Informe um motivo se a conferência deixar o saldo atual negativo.</Text>
-                            </VStack>}
-                            {sparkMonthly.progress && <Text className={helperText} accessibilityLiveRegion="polite">{sparkMonthly.progress}</Text>}
-                            {sparkMonthly.isPreparing && <Button onPress={sparkMonthly.pause}><ButtonText>Pausar preparação</ButtonText></Button>}
+									{null}
+                            {null}
+                            {null}
+                            {false}
                             <Button
 										className={`${submitButtonClassName} web:mt-2 web:h-12`}
 										size="md"
 										onPress={handleSubmit}
-                                accessibilityLabel={sparkMonthly.ready ? 'Confirmar abertura mensal' : 'Preparar ou salvar abertura mensal'}
+                                accessibilityLabel={'Preparar ou salvar abertura mensal'}
 										isDisabled={isSaveDisabled}
 									>
 										{isSubmitting ? (
@@ -814,7 +454,7 @@ export default function AddRegisterMonthlyBalanceScreen() {
 											</>
 										) : (
 											<ButtonText>
-												{sparkMonthly.ready ? 'Confirmar saldo' : sparkMonthly.progress ? 'Continuar preparação' : existingBalanceId ? 'Atualizar saldo' : 'Registrar saldo'}
+												{existingBalanceId ? 'Atualizar saldo' : 'Registrar saldo'}
 											</ButtonText>
 										)}
 									</Button>

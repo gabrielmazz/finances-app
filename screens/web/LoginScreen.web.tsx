@@ -1,56 +1,47 @@
-import { useAccountAccess, type AccountAccessMode } from '@/hooks/useAccountAccess';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import { AUTH_CLASS_NAMES } from '@/design-system/auth';
-import { MantineProvider, UnstyledButton } from '@mantine/core';
-import { LUMUS_FORM_CLASS_NAMES, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LUMUS_FORM_CLASS_NAMES,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
+import { useAccountAccess,type AccountAccessMode } from '@/hooks/useAccountAccess';
+import { navigateToHomeDashboard } from '@/utils/navigation';
+import { MantineProvider,UnstyledButton } from '@mantine/core';
+import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import {
-	View,
-	Keyboard,
-	StatusBar,
-	KeyboardAvoidingView,
-	Platform,
-	RefreshControl,
-	ScrollView,
-	useWindowDimensions,
+KeyboardAvoidingView,
+Platform,
+RefreshControl,
+ScrollView,
+StatusBar,
+useWindowDimensions,
+View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Grainient from '../../components/web/visuals/Grainient';
 import StrokeText from '../../components/web/visuals/StrokeText';
 
-
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import {
-	FormControl,
-	FormControlError,
-	FormControlErrorText,
-	FormControlErrorIcon,
-	FormControlHelper,
-	FormControlHelperText,
+FormControl,
+FormControlError,
+FormControlErrorIcon,
+FormControlErrorText,
+FormControlHelper,
+FormControlHelperText,
 } from '@/components/ui/form-control';
-import { AlertCircleIcon, EyeIcon, EyeOffIcon } from '@/components/ui/icon';
-import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { Button, ButtonSpinner } from '@/components/ui/button';
-import { VStack } from '@/components/ui/vstack';
+import { AlertCircleIcon,EyeIcon,EyeOffIcon } from '@/components/ui/icon';
+import { Input,InputField,InputIcon,InputSlot } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { VStack } from '@/components/ui/vstack';
 
-import { auth } from '@/FirebaseConfig';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-
-import {
-	clearFailedLoginAttempts,
-	clampEmailInput,
-	clampPasswordInput,
-	formatRemainingTime,
-	getLoginThrottleStatus,
-	isEmailFormatValid,
-	mapLoginError,
-	normalizeEmailForAuth,
-	registerFailedLoginAttempt,
-} from '@/utils/loginSecurity';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
+import {
+clampEmailInput,
+clampPasswordInput,
+formatRemainingTime,
+normalizeEmailForAuth
+} from '@/utils/loginSecurity';
+
 // Canal padronizado de alertas in-app conforme [[Notificações]]
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 
 type FocusableInputKey = 'name' | 'email' | 'password';
@@ -76,7 +67,7 @@ export default function LoginScreen() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
-	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isSubmitting] = useState(false);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
 	const [clockTick, setClockTick] = useState(Date.now());
@@ -147,15 +138,7 @@ export default function LoginScreen() {
 		bottomPaddingOffset: 24,
 	});
 
-	const syncCooldownForEmail = useCallback(async (emailValue: string) => {
-		if (!emailValue) {
-			setLoginCooldownUntil(null);
-			return;
-		}
-
-		const status = await getLoginThrottleStatus(emailValue);
-		setLoginCooldownUntil(status.blockedUntil);
-	}, []);
+	const syncCooldownForEmail = useCallback(async (emailValue: string) => { showFeatureUnavailable(); }, []);
 
 	const handleEmailChange = useCallback((value: string) => {
 		setEmail(clampEmailInput(value));
@@ -171,118 +154,7 @@ export default function LoginScreen() {
 		setShowPassword((currentValue) => !currentValue);
 	}, []);
 
-	const validateCredentials = useCallback(() => {
-		const nextEmail = normalizeEmailForAuth(email);
-		let nextEmailError: string | null = null;
-		let nextPasswordError: string | null = null;
-
-		if (!nextEmail) {
-			nextEmailError = 'Informe seu email.';
-		} else if (!isEmailFormatValid(nextEmail)) {
-			nextEmailError = 'Informe um email válido.';
-		}
-
-		if (!password) {
-			nextPasswordError = 'Informe sua senha.';
-		}
-
-		setEmailError(nextEmailError);
-		setPasswordError(nextPasswordError);
-
-		return {
-			nextEmail,
-			isValid: !nextEmailError && !nextPasswordError,
-		};
-	}, [email, password]);
-
-	const signIn = useCallback(async () => {
-		if (loginPending.current || access.mode !== 'login' || access.isSubmitting) {
-			return;
-		}
-
-		const { nextEmail, isValid } = validateCredentials();
-		if (!isValid) {
-			(!isEmailFormatValid(nextEmail) ? emailInputRef : passwordInputRef).current?.focus();
-			return;
-		}
-
-		loginPending.current = true;
-		setIsSubmitting(true);
-		try {
-			const throttleStatus = await getLoginThrottleStatus(nextEmail);
-			if (throttleStatus.isBlocked) {
-				setLoginCooldownUntil(throttleStatus.blockedUntil);
-				showNotifierAlert({
-					description: `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
-						throttleStatus.remainingMs,
-					)}.`,
-					type: 'warn',
-					isDarkMode,
-				});
-				return;
-			}
-
-			Keyboard.dismiss();
-			const userCredential = await signInWithEmailAndPassword(auth, nextEmail, password);
-			await clearFailedLoginAttempts(nextEmail);
-			setLoginCooldownUntil(null);
-			await userCredential.user.reload();
-
-			// Busca o nome do usuário no Firestore (fonte primária) com fallback para displayName do Auth
-			let userName = userCredential.user.displayName?.trim() || null;
-			try {
-				const userData = await getUserDataFirebase(userCredential.user.uid);
-				if (userData.success) {
-					const storedName = (userData.data as { name?: unknown })?.name;
-					if (typeof storedName === 'string' && storedName.trim()) {
-						userName = storedName.trim().split(/\s+/)[0] ?? userName;
-					}
-				}
-			} catch {
-				// Fallback silencioso para displayName do Auth
-			}
-
-			showNotifierAlert({
-				description: userName
-					? `Login realizado. Bem-vindo, ${userName}!`
-					: 'Login realizado. Redirecionando...',
-				type: 'success',
-				isDarkMode,
-			});
-		} catch (error) {
-			const mappedError = mapLoginError(error);
-
-			if (mappedError.category === 'credentials') {
-				const nextThrottleStatus = await registerFailedLoginAttempt(nextEmail);
-				setLoginCooldownUntil(nextThrottleStatus.blockedUntil);
-
-				if (nextThrottleStatus.isBlocked) {
-					showNotifierAlert({
-						description: `Email ou senha inválidos. Tente novamente em ${formatRemainingTime(
-							nextThrottleStatus.remainingMs,
-						)}.`,
-						type: 'error',
-						isDarkMode,
-					});
-				} else {
-					showNotifierAlert({
-						description: mappedError.message,
-						type: 'error',
-						isDarkMode,
-					});
-				}
-			} else {
-				showNotifierAlert({
-					description: mappedError.message,
-					type: mappedError.category === 'verification' ? 'warn' : 'error',
-					isDarkMode,
-				});
-			}
-		} finally {
-			loginPending.current = false;
-			setIsSubmitting(false);
-		}
-	}, [access.mode, access.isSubmitting, isDarkMode, validateCredentials]);
+	const signIn = useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleRefresh = useCallback(async () => {
 		setIsRefreshing(true);
@@ -293,10 +165,6 @@ export default function LoginScreen() {
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [normalizedEmail, syncCooldownForEmail]);
-
-	useEffect(() => {
-		void syncCooldownForEmail(normalizedEmail);
 	}, [normalizedEmail, syncCooldownForEmail]);
 
 	useEffect(() => {
@@ -597,6 +465,7 @@ export default function LoginScreen() {
 												<Text className={AUTH_CLASS_NAMES.submitText}>{submitLabel}</Text>
 											)}
 										</Button>
+<Button variant="outline" action="secondary" onPress={navigateToHomeDashboard}><ButtonText>Explorar telas</ButtonText></Button>
 
 										<MantineProvider forceColorScheme={isDarkMode ? 'dark' : 'light'} withCssVariables={false} withGlobalClasses={false}>
 											<View className="mt-4 flex-row flex-wrap items-center justify-between gap-2">
