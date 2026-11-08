@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { FEATURE_UNAVAILABLE_MESSAGE, unavailableAction } from '@/utils/availability';
-import { useSession } from '@/hooks/useSession';
 
 const files = (directory: string): string[] =>
 	fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -11,14 +10,13 @@ const files = (directory: string): string[] =>
 
 describe('base visual independente', () => {
 	it('não fornece identidade fictícia nem sucesso para uma operação indisponível', () => {
-		expect(useSession().user).toBeNull();
 		expect(unavailableAction).toThrow(FEATURE_UNAVAILABLE_MESSAGE);
 	});
 
 	it('não importa implementações ou SDKs da arquitetura removida', () => {
 		const forbidden =
 			/(?:from\s*|require\s*\(|import\s*\()\s*['"](?:@\/(?:functions|services|repositories)\/|@\/FirebaseConfig|firebase(?:\/|['"])|@firebase\/|@react-native-firebase\/)/;
-		const violations = ['app', 'screens', 'components', 'hooks', 'contexts', 'utils', 'types']
+		const violations = ['app', 'screens', 'components', 'hooks', 'utils', 'types', 'domain']
 			.flatMap((directory) => files(directory))
 			.filter((file) => forbidden.test(fs.readFileSync(file, 'utf8')));
 		expect(violations).toEqual([]);
@@ -27,11 +25,15 @@ describe('base visual independente', () => {
 			'functions',
 			'services',
 			'repositories',
-			'firestore.rules',
 			'firebase.json',
 			'remote_config.json',
 		])
 			expect(fs.existsSync(obsolete)).toBe(false);
+	});
+
+	it('restringe imports Firebase aos módulos da fundação, sem APIs pagas', () => {
+		const active = ['firebase', 'application', 'contexts'].flatMap(files);
+		expect(active.filter((file) => /from ['"](?:firebase\/(?:functions|storage|ai|remote-config)|@react-native-firebase)/.test(fs.readFileSync(file, 'utf8')))).toEqual([]);
 	});
 
 	it('mantém todos os arquivos de tela e de rota inventariados antes da remoção', () => {

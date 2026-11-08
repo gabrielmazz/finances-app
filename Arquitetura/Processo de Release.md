@@ -8,8 +8,8 @@ versao: 3.0.0
 
 # Processo de Release
 
-Esta etapa valida somente a base local. Os scripts de deploy, migração, seed, emuladores e release do backend anterior foram removidos.
+Esta etapa valida somente a fundação local Firebase Spark. Os scripts da implementação anterior continuam removidos; os novos emuladores/testes usam apenas projeto demo.
 
-Verificações disponíveis: `npm ci`, `npm run check`, `npm run web:export` e exports JavaScript Android/iOS. Perfis EAS preservam a identidade do frontend e não exigem configuração de serviço ou credenciais do backend anterior.
+Verificações disponíveis: `npm ci`, `npm run check`, `npm run test:integration`, `npm run web:export:local`, teste de navegador e exports JavaScript Android/iOS em modo emulador. Perfis EAS preservam a identidade, mas builds desta etapa não estão autorizados para distribuição produtiva. Ver [[Fundação Firebase Spark]].
 
-Não publicar nem modificar recursos remotos como parte desta limpeza. A escolha de infraestrutura e os processos de publicação do próximo backend serão definidos posteriormente.
+Não publicar nem modificar recursos remotos. O novo cliente bloqueia produção: as Rules publicadas permitem acesso amplo entre autenticados e exigem revisão/transição aprovada. O protótipo local nega fluxos financeiros antigos; não publicar sem avaliar clientes em circulação e integridade dos campos de autoridade.

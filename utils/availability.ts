@@ -1,5 +1,5 @@
 export const FEATURE_UNAVAILABLE_MESSAGE =
-	'Recurso temporariamente indisponível. Você pode explorar as telas; consultas e alterações de dados estão desativadas.';
+	'Módulo financeiro temporariamente indisponível. Autenticação e perfil estão disponíveis no ambiente local; as operações financeiras serão reconstruídas nas próximas etapas.';
 
 export function unavailableAction(): never {
 	throw new Error(FEATURE_UNAVAILABLE_MESSAGE);

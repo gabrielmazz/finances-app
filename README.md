@@ -1,32 +1,40 @@
 # Lumus Finanças
 
-Frontend Expo/React Native preservado para a reconstrução independente do backend. Telas, formulários, gráficos, navegação, estilos e variantes Web/mobile continuam no projeto. Consultas, autenticação e operações de dados estão temporariamente indisponíveis.
+Frontend Expo/React Native preservado, com nova fundação Firebase compatível com Spark: autenticação, sessão e perfis testados em ambiente isolado. Os módulos financeiros permanecem indisponíveis até sua reconstrução incremental.
 
 ## Executar localmente
 
-Requer Node >=22.13.0 e npm.
+Requer Node >=22.13, Java >=21 e npm. Não exige login administrativo, faturamento ou credenciais de produção.
 
 ```bash
 npm ci
-npm start
-# Navegador:
-npm run web
+# Terminal 1:
+npm run emulators:start
+# Terminal 2:
+npm run emulators:seed
+npm run dev:local:web
+# Ou: npm run dev:local
 ```
 
-Não é necessário `.env`, Firebase, credenciais ou emuladores de serviços. No login visual, use **Explorar telas**. Nenhuma conta é criada e nenhuma operação financeira é simulada. Tema, privacidade visual e preferências de navegação permanecem locais.
+Conta sintética: `legacy@lumus.test`; senha local `Lumus-local-2026!`. Outros cenários e configuração Android estão em [Fundação Firebase Spark](Arquitetura/Funda%C3%A7%C3%A3o%20Firebase%20Spark.md). O cliente aceita somente o projeto demo dos emuladores. Sem modo local explícito, exibe indisponibilidade; não conecta automaticamente à produção.
 
-## Verificar e exportar
+## Verificar
 
 ```bash
 npm run check
-npm run web:export
+# Pare os emuladores de desenvolvimento antes deste teste isolado:
+npm run test:integration
+npm run web:export:local
 npm run web:serve
+# Com emuladores novos/seed e exportação servida:
+npx playwright install chromium
+npm run test:browser
 ```
 
-O último comando serve `dist/` em `http://127.0.0.1:4173`. Para validar bundles nativos, use `npx expo export --platform android` ou `--platform ios`; isso não equivale a instalar/testar em dispositivo.
+Exports Android/iOS validam bundles, sem substituir testes instalados em aparelhos. As 51 telas e 82 arquivos de rota da etapa 01 permanecem. Nenhum deploy, migração ou alteração de dados de produção faz parte desta entrega.
 
-## Documentação e recuperação
+## Situação de produção
 
-[Arquitetura.md](Arquitetura.md) descreve as fronteiras atuais. [Relatório da remoção](Arquitetura/Remoção%20do%20Backend.md) registra inventário, recuperação, verificações e limitações. O manifesto exato está em [docs/backend-removal-manifest.json](docs/backend-removal-manifest.json).
+A inspeção somente leitura confirmou Spark sem faturamento, mas encontrou **Rules publicadas que permitem a qualquer usuário autenticado ler/escrever todo o banco**. O protótipo restrito foi validado apenas localmente e não foi publicado. Acesso de produção permanece bloqueado neste novo cliente até revisão e transição autorizada. Não existe backup de produção validado nesta etapa.
 
-O estado anterior está na tag `recovery/backend-removal-20261108`. Há também bundle Git e cópia das configurações locais em `/programacao/finances-app-recovery-20261108`, fora do código ativo. Nenhum projeto, banco, documento, conta, credencial externa ou recurso de nuvem foi alterado.
+[Arquitetura](Arquitetura.md), [relatório da fundação](Arquitetura/Funda%C3%A7%C3%A3o%20Firebase%20Spark.md) e [evidências](artifacts/firebase-foundation/) registram compatibilidade, preservação, custos e limites. Recuperação anterior à etapa 02: `recovery/firebase-foundation-20261108`. A implementação antiga permanece em `recovery/backend-removal-20261108` e no bundle externo da etapa 01.

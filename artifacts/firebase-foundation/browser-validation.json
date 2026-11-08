@@ -1,0 +1,395 @@
+{
+  "routes": [
+    {
+      "viewport": "desktop",
+      "path": "/web/add-finance",
+      "resolvedPath": "/web/add-finance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-mandatory-expenses",
+      "resolvedPath": "/web/add-mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-mandatory-gains",
+      "resolvedPath": "/web/add-mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-bank",
+      "resolvedPath": "/web/add-register-bank",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-expenses",
+      "resolvedPath": "/web/add-register-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-gain",
+      "resolvedPath": "/web/add-register-gain",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-tag",
+      "resolvedPath": "/web/add-register-tag",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-rescue",
+      "resolvedPath": "/web/add-rescue",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-user-relation",
+      "resolvedPath": "/web/add-user-relation",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/annotations",
+      "resolvedPath": "/web/annotations",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-balance-adjustment",
+      "resolvedPath": "/web/bank-balance-adjustment",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-movements",
+      "resolvedPath": "/web/bank-movements",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-summary",
+      "resolvedPath": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/category-analysis",
+      "resolvedPath": "/web/category-analysis",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/financial-forecast",
+      "resolvedPath": "/web/financial-forecast",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/financial-list",
+      "resolvedPath": "/web/financial-list",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/home",
+      "resolvedPath": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web",
+      "resolvedPath": "/web",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/lumus-assistant",
+      "resolvedPath": "/web/lumus-assistant",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/mandatory-expenses",
+      "resolvedPath": "/web/mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/mandatory-gains",
+      "resolvedPath": "/web/mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/profile",
+      "resolvedPath": "/web/profile",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/register-monthly-balance",
+      "resolvedPath": "/web/register-monthly-balance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/screen-settings",
+      "resolvedPath": "/web/screen-settings",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/transfer-screen",
+      "resolvedPath": "/web/transfer-screen",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-finance",
+      "resolvedPath": "/web/add-finance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-mandatory-expenses",
+      "resolvedPath": "/web/add-mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-mandatory-gains",
+      "resolvedPath": "/web/add-mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-bank",
+      "resolvedPath": "/web/add-register-bank",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-expenses",
+      "resolvedPath": "/web/add-register-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-gain",
+      "resolvedPath": "/web/add-register-gain",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-tag",
+      "resolvedPath": "/web/add-register-tag",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-rescue",
+      "resolvedPath": "/web/add-rescue",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-user-relation",
+      "resolvedPath": "/web/add-user-relation",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/annotations",
+      "resolvedPath": "/web/annotations",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-balance-adjustment",
+      "resolvedPath": "/web/bank-balance-adjustment",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-movements",
+      "resolvedPath": "/web/bank-movements",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-summary",
+      "resolvedPath": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/category-analysis",
+      "resolvedPath": "/web/category-analysis",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/financial-forecast",
+      "resolvedPath": "/web/financial-forecast",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/financial-list",
+      "resolvedPath": "/web/financial-list",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/home",
+      "resolvedPath": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web",
+      "resolvedPath": "/web",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/lumus-assistant",
+      "resolvedPath": "/web/lumus-assistant",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/mandatory-expenses",
+      "resolvedPath": "/web/mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/mandatory-gains",
+      "resolvedPath": "/web/mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/profile",
+      "resolvedPath": "/web/profile",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/register-monthly-balance",
+      "resolvedPath": "/web/register-monthly-balance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/screen-settings",
+      "resolvedPath": "/web/screen-settings",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/transfer-screen",
+      "resolvedPath": "/web/transfer-screen",
+      "rendered": true,
+      "horizontalOverflow": false
+    }
+  ],
+  "flows": [
+    {
+      "viewport": "desktop",
+      "action": "guest guard, invalid login, existing UID, save profile, reload persisted session",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "action": "logout blocks deep links, password reset and new account/profile through UI",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "guest guard, invalid login, existing UID, save profile, reload persisted session",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "logout blocks deep links, password reset and new account/profile through UI",
+      "passed": true
+    }
+  ],
+  "errors": [],
+  "consoleErrors": [],
+  "expectedHttpErrors": [
+    "Auth invalid-credential HTTP 400",
+    "Auth invalid-credential HTTP 400"
+  ],
+  "externalOrigins": [],
+  "screenshots": [
+    "desktop-profile.png",
+    "desktop-add-register-expenses.png",
+    "desktop-home.png",
+    "desktop-web.png",
+    "desktop-reset.png",
+    "narrow-profile.png",
+    "narrow-add-register-expenses.png",
+    "narrow-home.png",
+    "narrow-web.png",
+    "narrow-reset.png"
+  ]
+}

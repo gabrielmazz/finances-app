@@ -144,13 +144,13 @@ export default function PerfilPersonScreen() {
 									</div>
 								</div>
 								{state.accessSummaryError && <div className="mt-3 flex flex-col items-start gap-3">
-									<p role="alert" className={ui.errorText}>Não foi possível carregar as informações da conta.</p>
+									<p role="alert" className={ui.errorText}>Resumo de permissões indisponível nesta etapa.</p>
 									<button type="button" onClick={state.reload} disabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 px-5')}>Tentar novamente</button>
 								</div>}
 							</section>
 							<section aria-labelledby="profile-sharing-heading" className={cn(ui.card, 'w-full min-w-0 p-5')}>
 								<h2 id="profile-sharing-heading" className={cn(ui.heading, 'text-lg font-bold')}>Contas vinculadas</h2>
-								{state.relatedUsersLoading ? <p role="status" className={cn(ui.helper, 'mt-2 text-sm')}>Carregando contas vinculadas…</p> : state.relatedUsersError ? <div className="mt-2 flex flex-col items-start gap-2"><p role="alert" className={ui.errorText}>Não foi possível carregar as contas vinculadas.</p><button type="button" onClick={state.reload} disabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 px-5')}>Tentar novamente</button></div> : state.relatedUsers.length ? <ul className="mt-2 space-y-2">{state.relatedUsers.map(user => <li key={user.id} className={ui.body}>{user.name}</li>)}</ul> : <p className={cn(ui.helper, 'mt-2 text-sm')}>Nenhuma pessoa vinculada.</p>}
+								{state.relatedUsersLoading ? <p role="status" className={cn(ui.helper, 'mt-2 text-sm')}>Carregando contas vinculadas…</p> : state.relatedUsersError ? <div className="mt-2 flex flex-col items-start gap-2"><p role="alert" className={ui.errorText}>Vínculos antigos preservados. O compartilhamento aguarda validação de segurança.</p><button type="button" onClick={state.reload} disabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12 px-5')}>Tentar novamente</button></div> : state.relatedUsers.length ? <ul className="mt-2 space-y-2">{state.relatedUsers.map(user => <li key={user.id} className={ui.body}>{user.name}</li>)}</ul> : <p className={cn(ui.helper, 'mt-2 text-sm')}>Nenhuma pessoa vinculada.</p>}
 								<label htmlFor="profile-id" className={cn(form.label, 'mt-6 block')}>Seu ID</label>
 								<HStack className="w-full items-center gap-3">
 									<input id="profile-id" name="id" readOnly tabIndex={-1} value={profile.uid} aria-label="Seu ID, somente leitura"

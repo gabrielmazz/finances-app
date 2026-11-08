@@ -2,7 +2,7 @@ import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 
 import type { MovementRecord } from '@/types/bankMovements';
-import { unavailableUser } from '@/types/presentation/session';
+import { useSession } from '@/hooks/useSession';
 
 import type { RecentMovementsProps } from '@/components/uiverse/banks/recent-movements-types';
 import React from 'react';
@@ -819,6 +819,7 @@ const resolveTimelineMovementToneKey = (movement: MovementRecord): TimelineMovem
 };
 
 export default function BankMovementsScreen({ recentMovements }: { recentMovements?: RecentMovementsProps } = {}) {
+	const { user } = useSession();
 	const {
 		isDarkMode,
 		surfaceBackground,
@@ -2033,7 +2034,7 @@ export default function BankMovementsScreen({ recentMovements }: { recentMovemen
 								...investmentMetadataItems,
 								...syncMetadataItems,
 							];
-							const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === unavailableUser?.uid);
+							const canChangeAdjustment = !movement.isBalanceAdjustment || (movement.adjustmentStatus === 'active' && !movement.reversesAdjustmentId && movement.personId === user?.uid);
 							const canChangeAdjustmentRecord = false;
 							const canChangeMovementRecord = false;
 							const canReverseAccountPair = false;

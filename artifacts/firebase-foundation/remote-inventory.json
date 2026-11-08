@@ -1,0 +1,658 @@
+{
+  "checkedAt": "2026-11-08T19:21:55.679Z",
+  "readOnly": true,
+  "billing": {
+    "billingEnabled": false
+  },
+  "project": {
+    "projectId": "finances-app-e8685",
+    "projectNumber": "909478123750",
+    "state": "ACTIVE"
+  },
+  "authConfig": {
+    "email": {
+      "enabled": true,
+      "passwordRequired": true
+    },
+    "multiTenant": {},
+    "subtype": "FIREBASE_AUTH"
+  },
+  "release": {
+    "name": "projects/finances-app-e8685/releases/cloud.firestore",
+    "rulesetName": "projects/finances-app-e8685/rulesets/52c726fa-754d-442a-8ac7-cf89bb593056",
+    "createTime": "2025-11-01T13:09:05.320517Z",
+    "updateTime": "2026-08-16T12:51:06.751750Z"
+  },
+  "rules": {
+    "createTime": "2026-08-16T12:51:05.664719Z",
+    "files": [
+      {
+        "name": "firestore.rules",
+        "size": 178
+      }
+    ]
+  },
+  "collections": [
+    "bankTransfers",
+    "banks",
+    "cashRescues",
+    "expenses",
+    "financeInvestmentSyncs",
+    "financeInvestments",
+    "gains",
+    "investmentCdiRates",
+    "mandatoryExpenses",
+    "mandatoryGains",
+    "monthlyBalances",
+    "tags",
+    "users"
+  ],
+  "samples": {
+    "bankTransfers": [
+      {
+        "fields": {
+          "targetBankNameSnapshot": "stringValue",
+          "expenseId": "stringValue",
+          "personId": "stringValue",
+          "updatedAt": "timestampValue",
+          "valueInCents": "integerValue",
+          "description": "stringValue",
+          "sourceBankNameSnapshot": "stringValue",
+          "targetBankId": "stringValue",
+          "createdAt": "timestampValue",
+          "sourceBankId": "stringValue",
+          "date": "timestampValue",
+          "gainId": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "valueInCents": "integerValue",
+          "date": "timestampValue",
+          "expenseId": "stringValue",
+          "updatedAt": "timestampValue",
+          "personId": "stringValue",
+          "targetBankId": "stringValue",
+          "description": "stringValue",
+          "sourceBankNameSnapshot": "stringValue",
+          "gainId": "stringValue",
+          "sourceBankId": "stringValue",
+          "targetBankNameSnapshot": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "description": "stringValue",
+          "valueInCents": "integerValue",
+          "gainId": "stringValue",
+          "date": "timestampValue",
+          "targetBankId": "stringValue",
+          "personId": "stringValue",
+          "sourceBankNameSnapshot": "stringValue",
+          "updatedAt": "timestampValue",
+          "expenseId": "stringValue",
+          "sourceBankId": "stringValue",
+          "createdAt": "timestampValue",
+          "targetBankNameSnapshot": "stringValue"
+        }
+      }
+    ],
+    "banks": [
+      {
+        "fields": {
+          "name": "stringValue",
+          "updatedAt": "timestampValue",
+          "createdAt": "timestampValue",
+          "colorHex": "stringValue",
+          "personId": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "updatedAt": "timestampValue",
+          "colorHex": "stringValue",
+          "personId": "stringValue",
+          "name": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "updatedAt": "timestampValue",
+          "name": "stringValue",
+          "personId": "stringValue",
+          "colorHex": "stringValue"
+        }
+      }
+    ],
+    "cashRescues": [
+      {
+        "fields": {
+          "personId": "stringValue",
+          "date": "timestampValue",
+          "updatedAt": "timestampValue",
+          "bankNameSnapshot": "stringValue",
+          "bankId": "stringValue",
+          "valueInCents": "integerValue",
+          "description": "nullValue",
+          "name": "stringValue",
+          "createdAt": "timestampValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "bankId": "stringValue",
+          "date": "timestampValue",
+          "valueInCents": "integerValue",
+          "personId": "stringValue",
+          "description": "stringValue",
+          "name": "stringValue",
+          "updatedAt": "timestampValue",
+          "bankNameSnapshot": "stringValue"
+        }
+      }
+    ],
+    "expenses": [
+      {
+        "fields": {
+          "bankTransferSourceBankNameSnapshot": "nullValue",
+          "bankTransferPairId": "nullValue",
+          "name": "stringValue",
+          "valueInCents": "integerValue",
+          "updatedAt": "timestampValue",
+          "bankTransferDirection": "nullValue",
+          "bankTransferGainId": "nullValue",
+          "isBankTransfer": "booleanValue",
+          "personId": "stringValue",
+          "explanation": "nullValue",
+          "bankTransferTargetBankId": "nullValue",
+          "createdAt": "timestampValue",
+          "investmentId": "nullValue",
+          "bankTransferSourceBankId": "nullValue",
+          "moneyFormat": "booleanValue",
+          "isInvestmentDeposit": "booleanValue",
+          "bankTransferExpenseId": "nullValue",
+          "tagId": "stringValue",
+          "bankTransferTargetBankNameSnapshot": "nullValue",
+          "bankId": "stringValue",
+          "date": "timestampValue",
+          "investmentNameSnapshot": "nullValue"
+        }
+      },
+      {
+        "fields": {
+          "bankTransferTargetBankId": "nullValue",
+          "bankId": "nullValue",
+          "investmentNameSnapshot": "nullValue",
+          "isInvestmentDeposit": "booleanValue",
+          "personId": "stringValue",
+          "tagId": "stringValue",
+          "moneyFormat": "booleanValue",
+          "investmentId": "nullValue",
+          "explanation": "stringValue",
+          "valueInCents": "integerValue",
+          "bankTransferDirection": "nullValue",
+          "bankTransferSourceBankNameSnapshot": "nullValue",
+          "bankTransferSourceBankId": "nullValue",
+          "date": "timestampValue",
+          "name": "stringValue",
+          "updatedAt": "timestampValue",
+          "createdAt": "timestampValue",
+          "bankTransferTargetBankNameSnapshot": "nullValue",
+          "bankTransferGainId": "nullValue",
+          "bankTransferPairId": "nullValue",
+          "bankTransferExpenseId": "nullValue",
+          "isBankTransfer": "booleanValue"
+        }
+      },
+      {
+        "fields": {
+          "investmentId": "nullValue",
+          "bankTransferExpenseId": "nullValue",
+          "updatedAt": "timestampValue",
+          "name": "stringValue",
+          "createdAt": "timestampValue",
+          "bankTransferGainId": "nullValue",
+          "bankTransferPairId": "nullValue",
+          "investmentNameSnapshot": "nullValue",
+          "bankTransferSourceBankNameSnapshot": "nullValue",
+          "valueInCents": "integerValue",
+          "bankTransferDirection": "nullValue",
+          "isInvestmentDeposit": "booleanValue",
+          "moneyFormat": "booleanValue",
+          "bankTransferSourceBankId": "nullValue",
+          "explanation": "stringValue",
+          "bankTransferTargetBankId": "nullValue",
+          "bankTransferTargetBankNameSnapshot": "nullValue",
+          "date": "timestampValue",
+          "bankId": "nullValue",
+          "isBankTransfer": "booleanValue",
+          "tagId": "stringValue",
+          "personId": "stringValue"
+        }
+      }
+    ],
+    "financeInvestmentSyncs": [
+      {
+        "fields": {
+          "bankId": "stringValue",
+          "syncedValueInCents": "integerValue",
+          "updatedAt": "timestampValue",
+          "bankNameSnapshot": "stringValue",
+          "investmentNameSnapshot": "stringValue",
+          "date": "timestampValue",
+          "previousValueInCents": "integerValue",
+          "personId": "stringValue",
+          "name": "stringValue",
+          "deltaInCents": "integerValue",
+          "createdAt": "timestampValue",
+          "investmentId": "stringValue",
+          "reason": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "investmentId": "stringValue",
+          "updatedAt": "timestampValue",
+          "bankId": "stringValue",
+          "previousValueInCents": "integerValue",
+          "name": "stringValue",
+          "deltaInCents": "integerValue",
+          "investmentNameSnapshot": "stringValue",
+          "date": "timestampValue",
+          "personId": "stringValue",
+          "bankNameSnapshot": "stringValue",
+          "reason": "stringValue",
+          "syncedValueInCents": "integerValue",
+          "createdAt": "timestampValue"
+        }
+      },
+      {
+        "fields": {
+          "updatedAt": "timestampValue",
+          "investmentNameSnapshot": "stringValue",
+          "previousValueInCents": "integerValue",
+          "deltaInCents": "integerValue",
+          "bankNameSnapshot": "stringValue",
+          "investmentId": "stringValue",
+          "name": "stringValue",
+          "reason": "stringValue",
+          "bankId": "stringValue",
+          "date": "timestampValue",
+          "syncedValueInCents": "integerValue",
+          "personId": "stringValue",
+          "createdAt": "timestampValue"
+        }
+      }
+    ],
+    "financeInvestments": [
+      {
+        "fields": {
+          "date": "timestampValue",
+          "updatedAt": "timestampValue",
+          "lastManualSyncAt": "timestampValue",
+          "initialValueInCents": "integerValue",
+          "cdiPercentage": "doubleValue",
+          "name": "stringValue",
+          "createdAt": "timestampValue",
+          "redemptionTerm": "stringValue",
+          "description": "nullValue",
+          "currentValueInCents": "integerValue",
+          "personId": "stringValue",
+          "bankId": "stringValue",
+          "bankNameSnapshot": "stringValue",
+          "lastManualSyncValueInCents": "integerValue"
+        }
+      },
+      {
+        "fields": {
+          "initialValueInCents": "integerValue",
+          "lastManualSyncValueInCents": "integerValue",
+          "lastManualSyncAt": "timestampValue",
+          "cdiPercentage": "integerValue",
+          "date": "timestampValue",
+          "updatedAt": "timestampValue",
+          "bankNameSnapshot": "stringValue",
+          "description": "nullValue",
+          "name": "stringValue",
+          "personId": "stringValue",
+          "currentValueInCents": "integerValue",
+          "bankId": "stringValue",
+          "createdAt": "timestampValue",
+          "redemptionTerm": "stringValue"
+        }
+      }
+    ],
+    "gains": [
+      {
+        "fields": {
+          "date": "timestampValue",
+          "investmentNameSnapshot": "nullValue",
+          "bankTransferTargetBankNameSnapshot": "stringValue",
+          "paymentFormats": {
+            "array": [
+              "stringValue"
+            ]
+          },
+          "name": "stringValue",
+          "bankTransferSourceBankId": "stringValue",
+          "explanation": "stringValue",
+          "bankTransferTargetBankId": "stringValue",
+          "bankTransferSourceBankNameSnapshot": "stringValue",
+          "bankId": "stringValue",
+          "bankTransferGainId": "stringValue",
+          "valueInCents": "integerValue",
+          "personId": "stringValue",
+          "isBankTransfer": "booleanValue",
+          "isInvestmentRedemption": "booleanValue",
+          "createdAt": "timestampValue",
+          "bankTransferDirection": "stringValue",
+          "investmentId": "nullValue",
+          "bankTransferExpenseId": "stringValue",
+          "updatedAt": "timestampValue",
+          "moneyFormat": "booleanValue",
+          "bankTransferPairId": "stringValue",
+          "tagId": "nullValue"
+        }
+      },
+      {
+        "fields": {
+          "explanation": "stringValue",
+          "createdAt": "timestampValue",
+          "date": "timestampValue",
+          "updatedAt": "timestampValue",
+          "paymentFormats": {
+            "array": [
+              "stringValue"
+            ]
+          },
+          "tagId": "stringValue",
+          "bankTransferGainId": "nullValue",
+          "bankTransferTargetBankId": "nullValue",
+          "name": "stringValue",
+          "bankTransferSourceBankId": "nullValue",
+          "investmentNameSnapshot": "nullValue",
+          "investmentId": "nullValue",
+          "bankTransferTargetBankNameSnapshot": "nullValue",
+          "valueInCents": "integerValue",
+          "bankTransferDirection": "nullValue",
+          "bankTransferExpenseId": "nullValue",
+          "personId": "stringValue",
+          "bankTransferSourceBankNameSnapshot": "nullValue",
+          "moneyFormat": "booleanValue",
+          "isBankTransfer": "booleanValue",
+          "bankTransferPairId": "nullValue",
+          "bankId": "stringValue",
+          "isInvestmentRedemption": "booleanValue"
+        }
+      },
+      {
+        "fields": {
+          "bankTransferExpenseId": "nullValue",
+          "tagId": "stringValue",
+          "personId": "stringValue",
+          "bankTransferSourceBankId": "nullValue",
+          "bankTransferTargetBankId": "nullValue",
+          "bankTransferDirection": "nullValue",
+          "valueInCents": "integerValue",
+          "isInvestmentRedemption": "booleanValue",
+          "bankId": "stringValue",
+          "bankTransferPairId": "nullValue",
+          "bankTransferTargetBankNameSnapshot": "nullValue",
+          "bankTransferSourceBankNameSnapshot": "nullValue",
+          "moneyFormat": "booleanValue",
+          "paymentFormats": {
+            "array": [
+              "stringValue"
+            ]
+          },
+          "updatedAt": "timestampValue",
+          "explanation": "stringValue",
+          "investmentNameSnapshot": "nullValue",
+          "date": "timestampValue",
+          "investmentId": "nullValue",
+          "createdAt": "timestampValue",
+          "name": "stringValue",
+          "isBankTransfer": "booleanValue",
+          "bankTransferGainId": "nullValue"
+        }
+      }
+    ],
+    "investmentCdiRates": [
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "personId": "stringValue",
+          "effectiveFrom": "timestampValue",
+          "updatedAt": "timestampValue",
+          "annualRateInBasisPoints": "integerValue"
+        }
+      }
+    ],
+    "mandatoryExpenses": [
+      {
+        "fields": {
+          "reminderMinute": "integerValue",
+          "installmentEndDate": "nullValue",
+          "tagId": "stringValue",
+          "lastPaymentCycle": "stringValue",
+          "updatedAt": "timestampValue",
+          "lastPaymentDate": "timestampValue",
+          "reminderConfigVersion": "integerValue",
+          "personId": "stringValue",
+          "valueInCents": "integerValue",
+          "reminderOnDueDate": "booleanValue",
+          "reminderDaysBefore": "integerValue",
+          "description": "nullValue",
+          "reminderHour": "integerValue",
+          "installmentTotal": "nullValue",
+          "createdAt": "timestampValue",
+          "name": "stringValue",
+          "reminderEnabled": "booleanValue",
+          "lastPaymentExpenseId": "stringValue",
+          "installmentsCompleted": "integerValue",
+          "installmentStartDate": "nullValue",
+          "usesBusinessDays": "booleanValue",
+          "dueDay": "integerValue"
+        }
+      },
+      {
+        "fields": {
+          "name": "stringValue",
+          "description": "nullValue",
+          "installmentTotal": "integerValue",
+          "reminderOnDueDate": "booleanValue",
+          "lastPaymentCycle": "stringValue",
+          "lastPaymentDate": "timestampValue",
+          "lastPaymentExpenseId": "stringValue",
+          "dueDay": "integerValue",
+          "reminderMinute": "integerValue",
+          "installmentStartDate": "timestampValue",
+          "installmentsCompleted": "integerValue",
+          "usesBusinessDays": "booleanValue",
+          "personId": "stringValue",
+          "installmentEndDate": "timestampValue",
+          "createdAt": "timestampValue",
+          "valueInCents": "integerValue",
+          "updatedAt": "timestampValue",
+          "reminderHour": "integerValue",
+          "reminderDaysBefore": "integerValue",
+          "tagId": "stringValue",
+          "reminderConfigVersion": "integerValue",
+          "reminderEnabled": "booleanValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "lastPaymentCycle": "stringValue",
+          "reminderMinute": "integerValue",
+          "reminderHour": "integerValue",
+          "reminderConfigVersion": "integerValue",
+          "dueDay": "integerValue",
+          "installmentTotal": "nullValue",
+          "name": "stringValue",
+          "lastPaymentDate": "timestampValue",
+          "tagId": "stringValue",
+          "valueInCents": "integerValue",
+          "reminderOnDueDate": "booleanValue",
+          "updatedAt": "timestampValue",
+          "description": "nullValue",
+          "personId": "stringValue",
+          "reminderDaysBefore": "integerValue",
+          "installmentsCompleted": "integerValue",
+          "lastPaymentExpenseId": "stringValue",
+          "installmentEndDate": "nullValue",
+          "reminderEnabled": "booleanValue",
+          "usesBusinessDays": "booleanValue",
+          "installmentStartDate": "nullValue"
+        }
+      }
+    ],
+    "mandatoryGains": [
+      {
+        "fields": {
+          "lastReceiptCycle": "stringValue",
+          "lastReceiptDate": "timestampValue",
+          "dueDay": "integerValue",
+          "personId": "stringValue",
+          "reminderMinute": "integerValue",
+          "reminderDaysBefore": "integerValue",
+          "installmentEndDate": "nullValue",
+          "reminderEnabled": "booleanValue",
+          "lastReceiptGainId": "stringValue",
+          "valueInCents": "integerValue",
+          "installmentTotal": "nullValue",
+          "updatedAt": "timestampValue",
+          "name": "stringValue",
+          "reminderOnDueDate": "booleanValue",
+          "reminderHour": "integerValue",
+          "description": "nullValue",
+          "createdAt": "timestampValue",
+          "tagId": "stringValue",
+          "installmentStartDate": "nullValue",
+          "reminderConfigVersion": "integerValue",
+          "usesBusinessDays": "booleanValue",
+          "installmentsCompleted": "integerValue"
+        }
+      }
+    ],
+    "monthlyBalances": [
+      {
+        "fields": {
+          "bankId": "stringValue",
+          "updatedAt": "timestampValue",
+          "createdAt": "timestampValue",
+          "year": "integerValue",
+          "valueInCents": "integerValue",
+          "personId": "stringValue",
+          "month": "integerValue"
+        }
+      },
+      {
+        "fields": {
+          "personId": "stringValue",
+          "month": "integerValue",
+          "updatedAt": "timestampValue",
+          "bankId": "stringValue",
+          "year": "integerValue",
+          "valueInCents": "integerValue",
+          "createdAt": "timestampValue"
+        }
+      },
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "personId": "stringValue",
+          "year": "integerValue",
+          "month": "integerValue",
+          "bankId": "stringValue",
+          "valueInCents": "integerValue",
+          "updatedAt": "timestampValue"
+        }
+      }
+    ],
+    "tags": [
+      {
+        "fields": {
+          "createdAt": "timestampValue",
+          "isMandatoryExpense": "booleanValue",
+          "isMandatoryGain": "booleanValue",
+          "updatedAt": "timestampValue",
+          "iconFamily": "stringValue",
+          "iconName": "stringValue",
+          "personId": "stringValue",
+          "iconStyle": "nullValue",
+          "name": "stringValue",
+          "usageType": "stringValue",
+          "showInBothLists": "booleanValue"
+        }
+      },
+      {
+        "fields": {
+          "isMandatoryGain": "booleanValue",
+          "createdAt": "timestampValue",
+          "updatedAt": "timestampValue",
+          "name": "stringValue",
+          "iconStyle": "nullValue",
+          "isMandatoryExpense": "booleanValue",
+          "iconName": "stringValue",
+          "personId": "stringValue",
+          "usageType": "stringValue",
+          "iconFamily": "stringValue"
+        }
+      },
+      {
+        "fields": {
+          "updatedAt": "timestampValue",
+          "createdAt": "timestampValue",
+          "showInBothLists": "booleanValue",
+          "usageType": "stringValue",
+          "iconFamily": "stringValue",
+          "isMandatoryGain": "booleanValue",
+          "personId": "stringValue",
+          "iconName": "stringValue",
+          "isMandatoryExpense": "booleanValue",
+          "name": "stringValue",
+          "iconStyle": "nullValue"
+        }
+      }
+    ],
+    "users": [
+      {
+        "fields": {
+          "email": "stringValue",
+          "relatedIdUsers": {
+            "array": [
+              "stringValue"
+            ]
+          },
+          "createdAt": "timestampValue",
+          "adminUser": "booleanValue",
+          "name": "stringValue"
+        },
+        "subcollections": [
+          "pushDevices"
+        ]
+      },
+      {
+        "fields": {
+          "email": "stringValue",
+          "adminUser": "booleanValue",
+          "relatedIdUsers": {
+            "array": [
+              "stringValue"
+            ]
+          },
+          "createdAt": "timestampValue",
+          "name": "stringValue"
+        },
+        "subcollections": []
+      }
+    ]
+  },
+  "sampledDocuments": 32
+}

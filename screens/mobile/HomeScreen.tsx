@@ -1,5 +1,4 @@
 import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
-import { unavailableUser } from '@/types/presentation/session';
 import React from 'react';
 import {
 Platform,
@@ -285,9 +284,9 @@ export default function HomeScreen() {
 	const investmentChartContainerWidth = bankCarouselWidth;
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
-	const { user } = useSession();
+	const { user, profile } = useSession();
 	const currentUserId = user?.uid ?? null;
-	const authDisplayFirstName = extractFirstName(unavailableUser?.displayName);
+	const authDisplayFirstName = extractFirstName(profile?.name || user?.displayName);
 	const { overview, movements, investments, reload } = useHomeScreenData(currentUserId);
 
 	const {

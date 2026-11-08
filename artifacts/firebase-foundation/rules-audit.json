@@ -1,0 +1,26 @@
+{
+  "production": {
+    "score": 1,
+    "summary": "Published Rules permit every authenticated user to read/write every document; unchanged by this task.",
+    "findings": [
+      {
+        "check": "Field-Level vs Identity-Level Security",
+        "severity": "critical",
+        "issue": "Global request.auth != null grants cross-user financial and profile access.",
+        "recommendation": "Review deployed clients and historical authority fields, validate restricted Rules and approve a production transition before publishing."
+      }
+    ]
+  },
+  "localPrototype": {
+    "score": 5,
+    "summary": "Restricted Stage02 scope: own profiles with immutable legacy permissions; bounded own-bank reads; pre-established group read ACL; all financial writes and other paths denied. Emulator attacks passed; this score is not a production security guarantee.",
+    "findings": [],
+    "limitations": [
+      "No production rollout approved",
+      "Existing permissive-era fields cannot be assumed trustworthy",
+      "Financial invariants for future writes are not implemented; writes remain denied",
+      "IAM/Admin SDK bypasses Rules and requires separate access governance"
+    ]
+  },
+  "validation": "Rules compiled and evaluated by Firestore Emulator; tests cover create/update bypass, foreign PII, roles, ownership, bounds, schema, timestamps, groups, queries and subcollections."
+}

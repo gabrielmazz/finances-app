@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-11-08T19:52:30.615Z",
+  "billingEnabled": false,
+  "publishedRulesUnchanged": true,
+  "publishedRulesUpdatedAt": "2026-08-16T12:51:06.751750Z",
+  "remoteMethods": [
+    "GET"
+  ],
+  "productionWrites": 0
+}

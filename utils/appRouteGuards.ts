@@ -20,10 +20,12 @@ export const APP_ROUTE_GUARD_ENTRIES = (['web', 'mobile'] as const).flatMap((gro
 export function isAppRouteAllowed(
 	entry: (typeof APP_ROUTE_GUARD_ENTRIES)[number],
 	isRouteVisible: (key: RouteVisibilityKey) => boolean,
+	isAuthenticated = false,
 ): boolean {
 	// Expo registra também os arquivos do grupo alternativo; eles não podem ficar implicitamente acessíveis.
 	if (!entry.isActivePlatform) return false;
 	if (entry.isLogin) return true;
+	if (!isAuthenticated) return false;
 	const visibilityKey = getRouteVisibilityKeyForPath(entry.pathname as AppRoutePath);
 	return !visibilityKey || isRouteVisible(visibilityKey);
 }
