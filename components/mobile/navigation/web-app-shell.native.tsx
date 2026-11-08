@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 type WebAppShellProps = React.PropsWithChildren<{
-	isAuthenticated: boolean;
+	showWorkspace: boolean;
 }>;
 
 /**

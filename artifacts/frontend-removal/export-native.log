@@ -1,0 +1,128 @@
+Starting Metro Bundler
+
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:138686) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundled 19721ms index.ts (6291 modules)
+iOS Bundled 19737ms index.ts (6204 modules)
+DOM Bundled 15937ms components/uiverse/annotations/annotation-markdown-editor.tsx (342 modules)
+DOM Bundled 15932ms components/uiverse/annotations/annotation-markdown-editor.tsx (1 module)
+DOM Bundled 19057ms components/uiverse/categories/category-analysis-bank-donut-chart.tsx (1739 modules)
+DOM Bundled 19059ms components/uiverse/categories/category-analysis-bank-donut-chart.tsx (1 module)
+DOM Bundled 19241ms components/uiverse/banks/bank-movements-daily-area-chart.tsx (1629 modules)
+DOM Bundled 19242ms components/uiverse/banks/bank-movements-daily-area-chart.tsx (1 module)
+DOM Bundled 19395ms components/uiverse/dashboard/home-investment-chart.tsx (1765 modules)
+DOM Bundled 19395ms components/uiverse/dashboard/home-investment-chart.tsx (1 module)
+DOM Bundled 19538ms components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx (1453 modules)
+DOM Bundled 19540ms components/uiverse/recurring/mandatory-expense-payment-bullet-chart.tsx (1 module)
+DOM Bundled 19713ms components/uiverse/dashboard/home-activity-heatmap.tsx (1626 modules)
+DOM Bundled 19713ms components/uiverse/dashboard/home-activity-heatmap.tsx (1 module)
+DOM Bundled 19888ms components/uiverse/investments/investment-evolution-chart.tsx (1729 modules)
+DOM Bundled 19887ms components/uiverse/investments/investment-evolution-chart.tsx (1 module)
+DOM Bundled 20038ms components/uiverse/recurring/mandatory-expenses-radar-chart.tsx (1738 modules)
+DOM Bundled 20037ms components/uiverse/recurring/mandatory-expenses-radar-chart.tsx (1 module)
+DOM Bundled 20228ms components/uiverse/dashboard/home-expense-line-chart.tsx (1573 modules)
+DOM Bundled 20228ms components/uiverse/dashboard/home-expense-line-chart.tsx (1 module)
+DOM Bundled 20393ms components/uiverse/reports/financial-forecast-chart.tsx (1574 modules)
+DOM Bundled 20390ms components/uiverse/reports/financial-forecast-chart.tsx (1 module)
+DOM Bundled 20532ms components/uiverse/recurring/mandatory-expenses-scatter-chart.tsx (1757 modules)
+DOM Bundled 20531ms components/uiverse/recurring/mandatory-expenses-scatter-chart.tsx (1 module)
+DOM Bundled 20708ms components/uiverse/dashboard/home-expense-chart.tsx (1765 modules)
+DOM Bundled 20708ms components/uiverse/dashboard/home-expense-chart.tsx (1 module)
+
+› Assets (56):
+assets/Background/wallpaper01.png (71KB)
+assets/Logo/Logo.png (99KB)
+assets/Logo/LogoWhite.png (118KB)
+node_modules/@expo-google-fonts/material-symbols/400Regular/MaterialSymbols_400Regular.ttf (971KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf (130KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf (66KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf (13KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf (56KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf (166KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf (134KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf (34KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf (203KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf (209KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf (68KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf (424KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf (314KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf (57KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf (390KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf (1.3MB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf (357KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf (69KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf (54KB)
+node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf (26KB)
+node_modules/expo-router/assets/arrow_down.png (9.5KB)
+node_modules/expo-router/assets/arrow_right.xml (307B)
+node_modules/expo-router/assets/checkmark.xml (312B)
+node_modules/expo-router/assets/error.png (469B)
+node_modules/expo-router/assets/file.png (138B)
+node_modules/expo-router/assets/forward.png (188B)
+node_modules/expo-router/assets/pkg.png (364B)
+node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.png (653B)
+node_modules/expo-router/assets/react-navigation/elements/back-icon.png (8 variations | 359B)
+node_modules/expo-router/assets/react-navigation/elements/clear-icon.png (4 variations | 425B)
+node_modules/expo-router/assets/react-navigation/elements/close-icon.png (4 variations | 235B)
+node_modules/expo-router/assets/react-navigation/elements/search-icon.png (7 variations | 592B)
+node_modules/expo-router/assets/sitemap.png (465B)
+node_modules/expo-router/assets/unmatched.png (4.8KB)
+
+› android bundles (1):
+_expo/static/js/android/index-c07630417be012ea16d94f048229dece.hbc (18MB)
+
+› ios bundles (1):
+_expo/static/js/ios/index-5697d97ab7b4daf1a3c71324fb0b522b.hbc (18MB)
+
+› Files (27):
+/www.bundle/05d4dff35ba267d15358ba15d1dd09a6.js (2.9MB)
+/www.bundle/1b0a4e5a10d6fead5d83c6a687b69930.css (231KB)
+/www.bundle/277f14f0981226cc4763c3e4c65e511b.css (12KB)
+/www.bundle/38d8d86e70622f47e17f5f27ee9040b9.js (2.9MB)
+/www.bundle/44a705de6741a9bc9bbeb67f7efc7eb9.js (2.9MB)
+/www.bundle/604a8927d445bc399593f191f5b7b488.js (2.9MB)
+/www.bundle/7d36a60d88ddf6a0070728ea72e32ccf.js (2.9MB)
+/www.bundle/7f8dbb4ef38be29a64c11fe5925036e6.js (2.9MB)
+/www.bundle/ce5d87339c42c82db5d9206498bc3f2a.js (612KB)
+/www.bundle/cf1b3d243a4c32b334acbe2e0dff0e29.js (2.9MB)
+/www.bundle/d0e75c1855a3f93cc1461a9ae3225d95.js (2.9MB)
+/www.bundle/ecb61faa961c95512c8bf5917782aacd.js (2.9MB)
+/www.bundle/f4cc14eafe8cb63f3ab5a04ec09ab434.js (2.9MB)
+/www.bundle/f95f2d8999725739f17b8add2092d180.js (2.9MB)
+metadata.json (13KB)
+www.bundle/10fb57a7937fac19d03704cbe9819a7f.html (3.1KB)
+www.bundle/325962ce97c097a29f484a7af382610d.html (3.1KB)
+www.bundle/3895cb131a1aa69a40f9180461750392.html (3.1KB)
+www.bundle/4cb2f620ae208dc96007d8e85d56e12d.html (3.1KB)
+www.bundle/557afd7f635400ce55ad3de5d582483a.html (3.1KB)
+www.bundle/624d4f3487deb78c987e50a944d3bb3c.html (2.8KB)
+www.bundle/76f4bac25698449539835b004b450f69.html (3.1KB)
+www.bundle/7b2aa24f98d1d93f62a0e9d29bff7df4.html (3.1KB)
+www.bundle/b71a93468aca10615de3d174e3a17c93.html (3.1KB)
+www.bundle/bb9b99c6e3f16b4bf2791d46391fafa1.html (3.1KB)
+www.bundle/c80827638ad570a8dc61fb29b2bfe889.html (3.1KB)
+www.bundle/f89ae346151b1ca5c1771c953ea21231.html (3.1KB)
+
+Exported: /tmp/lumus-native-delivery

@@ -147,14 +147,6 @@ export function getCategoryAvailabilityFields(
 	return { ...presetFields[preset] };
 }
 
-export function getCategoryPlacementFields(placement: CategoryPlacement): CategoryAvailabilityFields {
-	return { ...placementFields[placement] };
-}
-
-export function getCategoryPlacementOption(placement: CategoryPlacement): CategoryPlacementOption {
-	return categoryPlacementOptions.find(option => option.id === placement) ?? categoryPlacementOptions[0];
-}
-
 export function getCategoryAvailabilityPresetOption(
 	preset: CategoryAvailabilityPreset,
 ): CategoryAvailabilityPresetOption {

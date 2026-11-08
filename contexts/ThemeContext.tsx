@@ -1,6 +1,6 @@
-import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'nativewind';
+import React from 'react';
 
 type ThemeMode = 'light' | 'dark';
 

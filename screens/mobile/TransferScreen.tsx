@@ -1,38 +1,33 @@
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { useFocusEffect } from 'expo-router';
 import React from 'react';
 import {
-	BackHandler,
-	Keyboard,
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StatusBar,
-	TextInput,
-	View,
-	Pressable,
+BackHandler,
+KeyboardAvoidingView,
+Platform,
+Pressable,
+ScrollView,
+StatusBar,
+TextInput,
+View
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Text } from '@/components/ui/text';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Input,InputField } from '@/components/ui/input';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
+import { Text } from '@/components/ui/text';
+import { Textarea,TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
 
+import { HStack } from '@/components/ui/hstack';
+import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import BankBalanceAttachedPanel from '@/components/uiverse/banks/bank-balance-attached-panel';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import { showNotifierAlert, type NotifierAlertType } from '@/components/uiverse/feedback/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
-import BankBalanceAttachedPanel from '@/components/uiverse/banks/bank-balance-attached-panel';
-import { HStack } from '@/components/ui/hstack';
 import { navigateToHomeDashboard } from '@/utils/navigation';
 
-import {
-	transferBetweenBanksFirebase,
-} from '@/functions/BankFirebase';
-import { auth } from '@/FirebaseConfig';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
 
@@ -41,13 +36,12 @@ import TransferIllustration from '../../assets/UnDraw/transferScreen.svg';
 import { Info } from 'lucide-react-native';
 
 import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
-import { cn } from '@/lib/utils';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { useSparkPairForm } from '@/hooks/useSparkPairForm';
-import { useTransferFormData } from '@/hooks/useTransferFormData';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { cn } from '@/lib/utils';
+
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
+import { useTransferFormData } from '@/hooks/useTransferFormData';
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
 
 type FocusableInputKey = 'transfer-value' | 'transfer-description';
@@ -99,13 +93,6 @@ const formatDateToBR = (date: Date) => {
 	return `${day}/${month}/${year}`;
 };
 
-const mergeDateWithCurrentTime = (date: Date) => {
-	const now = new Date();
-	const dateWithTime = new Date(date);
-	dateWithTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-	return dateWithTime;
-};
-
 export default function TransferScreen() {
 
 	const {
@@ -117,7 +104,6 @@ export default function TransferScreen() {
 		inputField,
 		fieldBankContainerClassName,
 		fieldContainerClassName,
-		fieldContainerClassNameNotSpace,
 		textareaContainerClassName,
 		submitButtonClassName,
 		heroHeight,
@@ -132,45 +118,18 @@ export default function TransferScreen() {
 	const [transferValueInCents, setTransferValueInCents] = React.useState<number | null>(null);
 	const [transferDate, setTransferDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 	const [transferDescription, setTransferDescription] = React.useState<string | null>(null);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isSubmitting] = React.useState(false);
 	const { personId, banks, isLoadingBanks, banksError, originBalanceInCents, isLoadingBalance,
 		targetBalanceInCents, isLoadingTargetBalance, error: transferDataError, needsBanks, reload: reloadTransferData } = useTransferFormData(selectedSourceBankId, selectedTargetBankId);
 	const mounted = React.useRef(true);
 	React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-	const submitLockRef = React.useRef(false);
 	const transferValueInputRef = React.useRef<TextInput | null>(null);
 	const transferDescriptionInputRef = React.useRef<TextInput | null>(null);
-	const previousUnavailableBalanceRef = React.useRef(false);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('transferScreen');
-	const { submit: submitSparkPair, reset: resetSparkPair, isUncertain: isPairUncertain } = useSparkPairForm();
+
 	const keyboardScrollOffset = React.useCallback(
 		(key: FocusableInputKey) => (key === 'transfer-description' ? 180 : 120),
 		[],
 	);
-
-	const showScreenAlert = React.useCallback(
-		(description: string, type: NotifierAlertType = 'error') => {
-			showNotifierAlert({
-				description,
-				type,
-				isDarkMode,
-			});
-		},
-		[isDarkMode],
-	);
-
-	const showUnavailableBalanceNotification = React.useCallback(() => {
-		showScreenAlert('O banco selecionado não tem saldo suficiente para esta transferência.', 'error');
-	}, [showScreenAlert]);
-
-	const showSuccessfulTransferNotification = React.useCallback(() => {
-		showNotifierAlert({
-			title: 'Transferência registrada',
-			description: 'Transferência realizada com sucesso.',
-			type: 'success',
-			isDarkMode,
-		});
-	}, [isDarkMode]);
 
 	const getInputRef = React.useCallback(
 		(key: FocusableInputKey) => {
@@ -228,14 +187,13 @@ export default function TransferScreen() {
 	}, []);
 
 	const resetTransferForm = React.useCallback(() => {
-		resetSparkPair();
-		setSelectedSourceBankId(null);
-		setSelectedTargetBankId(null);
-		setTransferValueDisplay('');
-		setTransferValueInCents(null);
-		setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
-		setTransferDescription(null);
-	}, [resetSparkPair]);
+setSelectedSourceBankId(null);
+setSelectedTargetBankId(null);
+setTransferValueDisplay('');
+setTransferValueInCents(null);
+setTransferDate(formatDateToBR(toFinancialCivilDate(new Date())));
+setTransferDescription(null);
+}, []);
 
 	React.useEffect(() => { resetTransferForm(); }, [personId, resetTransferForm]);
 
@@ -270,7 +228,7 @@ export default function TransferScreen() {
 		[banks, selectedTargetBankId],
 	);
 	const hasTransferValue = transferValueInCents !== null && Number.isSafeInteger(transferValueInCents) && transferValueInCents > 0;
-	const isFormLocked = isSubmitting || isPairUncertain || isLoadingBanks || Boolean(banksError);
+	const isFormLocked = isSubmitting || false || isLoadingBanks || Boolean(banksError);
 	const isSourceBankDisabled = isFormLocked || banks.length === 0;
 	const isTargetBankDisabled =
 		isFormLocked || !selectedSourceBankId || targetBankOptions.length === 0;
@@ -290,7 +248,7 @@ export default function TransferScreen() {
 		!selectedTargetBankId ||
 		!hasTransferValue ||
 		!parsedTransferDate ||
-		(!isPairUncertain && (isLoadingBalance || isLoadingTargetBalance || Boolean(transferDataError) || hasUnavailableBalance || hasInsufficientBalance || isBalanceValidationUnavailable));
+		((isLoadingBalance || isLoadingTargetBalance || Boolean(transferDataError) || hasUnavailableBalance || hasInsufficientBalance || isBalanceValidationUnavailable));
 	const screenTitle = 'Transferência entre bancos';
 
 	React.useEffect(() => {
@@ -298,151 +256,7 @@ export default function TransferScreen() {
 		setSelectedTargetBankId(null);
 	}, [selectedSourceBankId]);
 
-	React.useEffect(() => {
-		if (
-			isPairUncertain ||
-			!selectedSourceBankId ||
-			isLoadingBalance ||
-			transferValueInCents === null ||
-			transferValueInCents <= 0
-		) {
-			previousUnavailableBalanceRef.current = false;
-			return;
-		}
-
-		const shouldShowUnavailableBalanceAlert = hasUnavailableBalance || hasInsufficientBalance;
-
-		if (shouldShowUnavailableBalanceAlert && !previousUnavailableBalanceRef.current) {
-			showUnavailableBalanceNotification();
-		}
-
-		previousUnavailableBalanceRef.current = shouldShowUnavailableBalanceAlert;
-	}, [
-		hasInsufficientBalance,
-		hasUnavailableBalance,
-		isPairUncertain,
-		isLoadingBalance,
-		selectedSourceBankId,
-		showUnavailableBalanceNotification,
-		transferValueInCents,
-	]);
-
-	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitDisabled) {
-			return;
-		}
-
-		const currentUser = auth.currentUser;
-		if (!currentUser || currentUser.uid !== personId) {
-			showScreenAlert('Nenhum usuário autenticado foi identificado.', 'error');
-			return;
-		}
-
-		if (!selectedSourceBankId) {
-			showScreenAlert('Selecione o banco de origem.', 'error');
-			return;
-		}
-
-		if (!selectedTargetBankId) {
-			showScreenAlert('Selecione o banco de destino.', 'error');
-			return;
-		}
-
-		if (selectedSourceBankId === selectedTargetBankId) {
-			showScreenAlert('Escolha bancos diferentes para realizar a transferência.', 'warn');
-			return;
-		}
-
-		if (transferValueInCents === null || transferValueInCents <= 0) {
-			showScreenAlert('Informe o valor a ser transferido.', 'error');
-			return;
-		}
-
-		if (!isPairUncertain && typeof originBalanceInCents === 'number') {
-			if (originBalanceInCents <= 0) {
-				showUnavailableBalanceNotification();
-				return;
-			}
-			if (transferValueInCents > originBalanceInCents) {
-				showUnavailableBalanceNotification();
-				return;
-			}
-		} else if (!isPairUncertain) {
-			showScreenAlert(
-				'Registre ou carregue o saldo do banco de origem antes de transferir.',
-				'warn',
-			);
-			return;
-		}
-
-		if (!parsedTransferDate) {
-			showScreenAlert('Informe uma data válida (DD/MM/AAAA).', 'error');
-			return;
-		}
-
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedTransferDate);
-		const sourceBankName =
-			banks.find(bank => bank.id === selectedSourceBankId)?.name ?? 'Banco de origem não identificado';
-		const targetBankName =
-			banks.find(bank => bank.id === selectedTargetBankId)?.name ?? 'Banco de destino não identificado';
-
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-
-		try {
-			const handled = await submitSparkPair({ actorId: currentUser.uid, mode: 'transfer', fromAccountId: selectedSourceBankId,
-				toAccountId: selectedTargetBankId, amountInCents: transferValueInCents, selectedDate: parsedTransferDate, note: transferDescription });
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
-			if (handled) {
-				reloadTransferData();
-				showSuccessfulTransferNotification();
-				applyPostSubmitBehavior({ resetForm: resetTransferForm });
-				return;
-			}
-			const result = await transferBetweenBanksFirebase({
-				personId: currentUser.uid,
-				sourceBankId: selectedSourceBankId,
-				targetBankId: selectedTargetBankId,
-				valueInCents: transferValueInCents,
-				date: dateWithCurrentTime,
-				description: transferDescription?.trim() ? transferDescription.trim() : null,
-				sourceBankNameSnapshot: sourceBankName,
-				targetBankNameSnapshot: targetBankName,
-			});
-
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
-			if (!result.success) {
-				showScreenAlert('Não foi possível registrar a transferência. Tente novamente.', 'error');
-				return;
-			}
-
-			reloadTransferData();
-			showSuccessfulTransferNotification();
-			applyPostSubmitBehavior({ resetForm: resetTransferForm });
-		} catch (error) {
-			if (!mounted.current || auth.currentUser?.uid !== currentUser.uid) return;
-			console.error('Erro ao registrar transferência:', error);
-			showScreenAlert(error instanceof Error ? error.message : 'Erro inesperado ao registrar a transferência.', 'error');
-		} finally {
-			submitLockRef.current = false;
-			if (mounted.current) setIsSubmitting(false);
-		}
-	}, [
-		banks,
-		isSubmitDisabled, personId, reloadTransferData,
-		isSubmitting,
-		originBalanceInCents,
-		showScreenAlert,
-		showSuccessfulTransferNotification,
-		showUnavailableBalanceNotification,
-		applyPostSubmitBehavior,
-		resetTransferForm,
-		selectedSourceBankId,
-		selectedTargetBankId,
-		parsedTransferDate,
-		transferDescription,
-		transferValueInCents, submitSparkPair, isPairUncertain,
-	]);
+	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	return (
 		<SafeAreaView
@@ -495,7 +309,7 @@ export default function TransferScreen() {
 							<VStack className={`mt-4 ${webDashboardClassNames.webContentFrame} ${webDashboardClassNames.webContentPadding}`}>
 								<MovementFormStatus loading={isLoadingBanks || isLoadingBalance || isLoadingTargetBalance} error={transferDataError} onRetry={reloadTransferData} />
 								{needsBanks ? <VStack className="mb-4 gap-2"><Text className={helperText}>Cadastre pelo menos dois bancos ativos para transferir entre contas.</Text><Button variant="outline" onPress={reloadTransferData}><ButtonText>Atualizar bancos</ButtonText></Button></VStack> : null}
-								{isPairUncertain ? <Text className="mb-4 text-warning-600 dark:text-warning-400" accessibilityRole="alert">O envio anterior ainda precisa ser confirmado. Reenvie os mesmos dados; os campos ficam bloqueados até a confirmação.</Text> : null}
+								{null}
 
 								<HStack className="w-full flex-col gap-4 md:flex-row">
 
@@ -701,7 +515,7 @@ export default function TransferScreen() {
 											<ButtonText>Registrando transferência</ButtonText>
 										</>
 									) : (
-										<ButtonText>{isPairUncertain ? 'Confirmar envio anterior' : 'Confirmar transferência'}</ButtonText>
+										<ButtonText>{'Confirmar transferência'}</ButtonText>
 									)}
 								</Button>
 							</VStack>

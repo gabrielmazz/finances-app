@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-08",
+  "timezone": "America/Sao_Paulo",
+  "recoveryCommit": "594f2d2e54a97907dbd291b760434b81e6e23d24",
+  "recoveryTag": "recovery/backend-removal-20261108",
+  "removedTrackedFiles": 418,
+  "preservedScreens": 51,
+  "preservedRouteFiles": 82,
+  "tests": {
+    "suites": 16,
+    "cases": 87,
+    "passed": true
+  },
+  "exports": {
+    "web": true,
+    "android": true,
+    "ios": true
+  },
+  "removedSdkPackagesStillInLockfile": [],
+  "remoteChanges": false,
+  "installedDeviceValidation": false,
+  "recoveryBundleSha256": "5bec27ef15be48bad2ec72bf71aecf2abb1e95ddb481381168886a33a7babbba"
+}

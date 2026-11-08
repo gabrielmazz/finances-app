@@ -1,0 +1,12 @@
+
+> finances-app@2.3.3 web
+> expo start --web --offline --port 8087
+
+Networking has been disabled
+Starting project at /programacao/finances-app
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+Waiting on http://localhost:8087
+
+Logs for your project will appear below.

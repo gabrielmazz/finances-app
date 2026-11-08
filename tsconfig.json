@@ -2,18 +2,16 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "types": ["jest", "node", "nativewind/types"],
+    "types": [
+      "jest",
+      "node",
+      "nativewind/types"
+    ],
     "typeRoots": [
       "./types",
       "./node_modules/@types"
     ],
     "paths": {
-      "firebase/auth": [
-        "./node_modules/@firebase/auth/dist/index.rn.d.ts"
-      ],
-      "@firebase/auth": [
-        "./node_modules/@firebase/auth/dist/index.rn.d.ts"
-      ],
       "@/*": [
         "./*"
       ],
@@ -23,7 +21,7 @@
     }
   },
   "exclude": [
-    "backend",
-    "dist"
+    "dist",
+    "node_modules"
   ]
 }

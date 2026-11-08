@@ -19,7 +19,7 @@ import type {
 	AssistantReport,
 	AssistantResolvedCatalog,
 } from '@/types/lumusAssistant';
-import { ASSISTANT_ACTION_LABELS, getFieldDefinition } from '@/utils/lumusAssistantSchemas';
+import { ASSISTANT_ACTION_LABELS, getFieldDefinition } from '@/utils/assistantFields';
 import {
 	formatCents,
 	maskFinancialValuesInText,

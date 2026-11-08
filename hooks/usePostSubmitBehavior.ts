@@ -1,20 +1,20 @@
-import React from 'react';
 import { useIsFocused } from 'expo-router';
+import React from 'react';
 
 import {
-	type PostSubmitDestinationKey,
-	type PostSubmitScreenKey,
-	usePostSubmitBehaviorPreferences,
+type PostSubmitDestinationKey,
+type PostSubmitScreenKey,
+usePostSubmitBehaviorPreferences,
 } from '@/contexts/PostSubmitBehaviorContext';
-import {
-	APP_ROUTE_PATHS,
-	getPostSubmitDestinationVisibilityKey,
-	getVisibleHomeTab,
-	HOME_TAB_INDEX,
-	redirectToHomeTab,
-	redirectToRoute,
-} from '@/utils/navigation';
 import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
+import {
+APP_ROUTE_PATHS,
+getPostSubmitDestinationVisibilityKey,
+getVisibleHomeTab,
+HOME_TAB_INDEX,
+redirectToHomeTab,
+redirectToRoute,
+} from '@/utils/navigation';
 
 type ApplyPostSubmitBehaviorOptions = {
 	resetForm?: () => void;

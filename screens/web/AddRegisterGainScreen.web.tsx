@@ -1,82 +1,70 @@
-import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
 import MovementFormStatus from '@/components/uiverse/transactions/movement-form-status';
-import { useSparkInvestmentForm } from '@/hooks/useSparkInvestmentForm';
-import { useSparkRecurringAction } from '@/hooks/useSparkRecurringForm';
+import { useMovementFormEntry } from '@/hooks/useMovementFormEntry';
+
 import { toFinancialCivilDate } from '@/utils/financialCivilDate';
-import { useSparkMovementForm } from '@/hooks/useSparkMovementForm';
+
+import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-	Image as RNImage,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-	ScrollView,
-	StatusBar,
-	Text,
-	useWindowDimensions,
-	View,
+KeyboardAvoidingView,
+Platform,
+Pressable,
+Image as RNImage,
+ScrollView,
+StatusBar,
+Text,
+useWindowDimensions,
+View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
-import { HStack } from '@/components/ui/hstack';
-import { Input, InputField } from '@/components/ui/input';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
+Checkbox,
+CheckboxIcon,
+CheckboxIndicator,
+CheckboxLabel,
+} from '@/components/ui/checkbox';
+import { HStack } from '@/components/ui/hstack';
+import { CheckIcon,CircleIcon } from '@/components/ui/icon';
+import { Input,InputField } from '@/components/ui/input';
+import {
+Popover,
+PopoverBackdrop,
+PopoverBody,
+PopoverContent,
 } from '@/components/ui/popover';
 import {
-	Radio,
-	RadioGroup,
-	RadioIndicator,
-	RadioIcon,
-	RadioLabel,
+Radio,
+RadioGroup,
+RadioIcon,
+RadioIndicator,
+RadioLabel,
 } from '@/components/ui/radio';
-import { CheckIcon, CircleIcon } from '@/components/ui/icon';
+import { Textarea,TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
-import {
-	Checkbox,
-	CheckboxIndicator,
-	CheckboxIcon,
-	CheckboxLabel,
-} from '@/components/ui/checkbox';
-import { Textarea, TextareaInput } from '@/components/ui/textarea';
+import BankActionsheetSelector,{ type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
+import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import DatePickerField from '@/components/uiverse/shared/date-picker';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import BankActionsheetSelector, { type BankActionsheetOption } from '@/components/uiverse/banks/bank-actionsheet-selector';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
-import { auth } from '@/FirebaseConfig';
+
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { getAllBanksFirebase } from '@/functions/BankFirebase';
-import { getAllTagsFirebase, getTagDataFirebase } from '@/functions/TagFirebase';
-import { addGainFirebase, getGainDataFirebase, updateGainFirebase } from '@/functions/GainFirebase';
-import { markMandatoryGainReceiptFirebase } from '@/functions/MandatoryGainFirebase';
-import { suppressMandatoryGainNotificationCycle } from '@/utils/mandatoryGainNotifications';
-import { getCycleKeyFromDate } from '@/utils/mandatoryExpenses';
-import { adjustFinanceInvestmentValueFirebase } from '@/functions/FinancesFirebase';
-import { clearPendingCreatedTag, peekPendingCreatedTag } from '@/utils/pendingCreatedTag';
-import { APP_ROUTE_PATHS, navigateToHomeDashboard, navigateToRoute } from '@/utils/navigation';
+
+import type { TagIconFamily,TagIconSelection,TagIconStyle } from '@/hooks/useTagIcons';
+import { TagIcon } from '@/hooks/useTagIcons';
 import { resolveMonthlyOccurrence } from '@/utils/businessCalendar';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
 import {
-	isTagVisibleInRegularUsageList,
-	normalizeTagUsageType,
-	tagSupportsUsage,
-	type TagUsageType,
+type TagUsageType
 } from '@/utils/tagUsage';
 import { Info } from 'lucide-react';
-import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconSelection, TagIconStyle } from '@/hooks/useTagIcons';
 
 import AnimatedContent from '@/components/web/motion/AnimatedContent';
 import Grainient from '@/components/web/visuals/Grainient';
 import StrokeText from '@/components/web/visuals/StrokeText';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
 
 import AddGainIllustration from '../../assets/UnDraw/addRegisterGainScreen.svg';
 
@@ -139,13 +127,6 @@ const parseDateFromBR = (value: string) => {
 	}
 
 	return dateInstance;
-};
-
-const mergeDateWithCurrentTime = (date: Date) => {
-	const now = new Date();
-	const dateWithTime = new Date(date);
-	dateWithTime.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-	return dateWithTime;
 };
 
 const normalizeDateValue = (value: unknown): Date | null => {
@@ -231,15 +212,15 @@ export default function AddRegisterGainScreen() {
 	const [gainValueCents, setGainValueCents] = React.useState<number | null>(null);
 	const [gainDate, setGainDate] = React.useState(formatDateToBR(toFinancialCivilDate(new Date())));
 
-	const [tags, setTags] = React.useState<OptionItem[]>([]);
-	const [banks, setBanks] = React.useState<OptionItem[]>([]);
+	const [tags] = React.useState<OptionItem[]>([]);
+	const [banks] = React.useState<OptionItem[]>([]);
 
 	const [selectedTagId, setSelectedTagId] = React.useState<string | null>(null);
 	const [selectedBankId, setSelectedBankId] = React.useState<string | null>(null);
 
-	const [isLoadingTags, setIsLoadingTags] = React.useState(false);
-	const [isLoadingBanks, setIsLoadingBanks] = React.useState(false);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isLoadingTags] = React.useState(false);
+	const [isLoadingBanks] = React.useState(false);
+	const [isSubmitting] = React.useState(false);
 
 	const [paymentFormat, setPaymentFormat] = React.useState<string[]>([]);
 	const [explanationGain, setExplanationGain] = React.useState<string | null>(null);
@@ -249,11 +230,7 @@ export default function AddRegisterGainScreen() {
 	const [selectedMovementTagName, setSelectedMovementTagName] = React.useState<string | null>(null);
 	const [selectedMovementTagIcon, setSelectedMovementTagIcon] = React.useState<TagIconSelection | null>(null);
 	const [selectedMovementBankName, setSelectedMovementBankName] = React.useState<string | null>(null);
-	const { initialize: initializeSparkMovement, load: loadSparkMovement, submit: submitSparkMovement, reset: resetSparkMovement } = useSparkMovementForm('income');
-	const { submit: submitSparkRecurring, reset: resetSparkRecurring } = useSparkRecurringAction('gain');
-	const sparkInvestment = useSparkInvestmentForm();
-	const submitLockRef = React.useRef(false);
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterGain');
+
 	const gainNameInputRef = React.useRef<any>(null);
 	const gainValueInputRef = React.useRef<any>(null);
 	const gainExplanationInputRef = React.useRef<any>(null);
@@ -292,7 +269,7 @@ export default function AddRegisterGainScreen() {
 
 	const params = useLocalSearchParams<{
 		gainId?: string | string[];
-		sparkSource?: string | string[];
+
 		templateName?: string | string[];
 		templateValueInCents?: string | string[];
 		templateTagId?: string | string[];
@@ -317,11 +294,8 @@ export default function AddRegisterGainScreen() {
 		const value = Array.isArray(params.gainId) ? params.gainId[0] : params.gainId;
 		return value && value.trim().length > 0 ? value : null;
 	}, [params.gainId]);
-	const sparkSource = Array.isArray(params.sparkSource) ? params.sparkSource[0] : params.sparkSource;
 	const isEditing = Boolean(editingGainId);
-	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry({
-		movementId: editingGainId, source: sparkSource, initialize: initializeSparkMovement, loadSpark: loadSparkMovement, loadLegacy: getGainDataFirebase,
-	});
+	const { record: existingMovement, loading: isLoadingExisting, ready: isMovementReady, error: movementLoadError, retry: retryMovementLoad } = useMovementFormEntry();
 
 	const templateData = React.useMemo(() => {
 		const decodeParam = (value?: string | string[]) => {
@@ -433,28 +407,11 @@ export default function AddRegisterGainScreen() {
 		() => (templateData?.mandatoryGainId ? templateData.mandatoryGainId : null),
 		[templateData],
 	);
-	const installmentsToAdvance = templateData?.installmentsToAdvance;
 	const templateTagDisplayName = templateData?.tagName ?? null;
 	const isTemplateLocked = Boolean(linkedMandatoryGainId && !isEditing);
 	const isTagSelectionLocked = isTemplateLocked || Boolean(templateData?.lockTag);
 	const isBankSelectionLocked = Boolean(templateData?.lockBank || templateData?.bankId);
 	const shouldShowPaymentFormatSelection = !isTemplateLocked;
-	const pendingInvestmentAdjustment = React.useMemo(() => {
-		if (isEditing) {
-			return null;
-		}
-		if (
-			templateData?.investmentAdjustmentId &&
-			typeof templateData.investmentDeltaInCents === 'number' &&
-			templateData.investmentDeltaInCents !== 0
-		) {
-			return {
-				investmentId: templateData.investmentAdjustmentId,
-				deltaInCents: templateData.investmentDeltaInCents,
-			};
-		}
-		return null;
-	}, [isEditing, templateData]);
 	const lockedBankName = React.useMemo(() => {
 		if (selectedMovementBankName) {
 			return selectedMovementBankName;
@@ -510,37 +467,11 @@ export default function AddRegisterGainScreen() {
 		isLoadingTags || isFormBusy || isTagFieldPrerequisitesIncomplete;
 	const isAddTagButtonDisabled = isFormBusy || isTagSelectionLocked;
 
-	const showSuccessfulGainNotification = React.useCallback((isUpdating = false) => {
-		const normalizedGainName = gainName.trim() || 'informado';
-		const resolvedBankName =
-			selectedMovementBankName ??
-			templateData?.bankName ??
-			banks.find(bank => bank.id === selectedBankId)?.name ??
-			null;
-		const destinationLabel = isBankSelectionRequired
-			? resolvedBankName
-				? `no banco ${resolvedBankName}`
-				: 'no banco selecionado'
-			: 'como recebimento em dinheiro';
-
-		showNotifierAlert({
-			title: isUpdating ? 'Ganho atualizado' : 'Ganho registrado',
-			description: `O ganho "${normalizedGainName}" foi ${isUpdating ? 'atualizado' : 'registrado'} com sucesso ${destinationLabel}.`,
-			type: 'success',
-			isDarkMode,
-			duration: 4000,
-		});
-	}, [banks, gainName, isBankSelectionRequired, isDarkMode, selectedBankId, selectedMovementBankName, templateData?.bankName]);
-
 	React.useEffect(() => {
 		if (!templateData) {
 			setHasAppliedTemplate(false);
 		}
 	}, [templateData]);
-
-	const handleLeaveScreen = React.useCallback(() => {
-		navigateToHomeDashboard();
-	}, []);
 
 	const handleRadioMoneyFormatChange = React.useCallback(
 		(nextValue: GainMoneyFormatRadioValue) => {
@@ -634,150 +565,6 @@ export default function AddRegisterGainScreen() {
 		setHasAppliedTemplate(true);
 	}, [hasAppliedTemplate, isEditing, templateData]);
 
-	useFocusEffect(
-		React.useCallback(() => {
-			let isMounted = true;
-
-			const loadOptions = async () => {
-				setIsLoadingTags(true);
-				setIsLoadingBanks(true);
-
-				try {
-					const [tagsResult, banksResult] = await Promise.all([
-						getAllTagsFirebase(),
-						getAllBanksFirebase(),
-					]);
-
-					if (!isMounted) {
-						return;
-					}
-
-					if (tagsResult.success && Array.isArray(tagsResult.data)) {
-						const formattedTags = tagsResult.data
-							.filter((tag: any) =>
-								isTagVisibleInRegularUsageList(tag, 'gain', {
-									allowUndefinedUsageType: true,
-								}),
-							)
-							.map((tag: any) => ({
-								id: tag.id,
-								name: tag.name,
-								usageType: normalizeTagUsageType(tag?.usageType),
-								iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
-								iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
-								iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
-							}));
-						const pendingCreatedTag = peekPendingCreatedTag();
-						const matchingPendingTag =
-							pendingCreatedTag && tagSupportsUsage(pendingCreatedTag.usageType, 'gain')
-								? formattedTags.find(tag => tag.id === pendingCreatedTag.tagId) ?? null
-								: null;
-
-						setTags(formattedTags);
-						if (matchingPendingTag) {
-							setSelectedTagId(matchingPendingTag.id);
-							setSelectedMovementTagName(matchingPendingTag.name);
-							setSelectedMovementTagIcon({
-								iconFamily: matchingPendingTag.iconFamily ?? null,
-								iconName: matchingPendingTag.iconName ?? null,
-								iconStyle: matchingPendingTag.iconStyle ?? null,
-							});
-							clearPendingCreatedTag(matchingPendingTag.id);
-						} else {
-							setSelectedTagId(current => {
-								if (current && formattedTags.some(tag => tag.id === current)) {
-									return current;
-								}
-								if ((isTemplateLocked || templateData?.lockTag) && templateData?.tagId) {
-									return templateData.tagId;
-								}
-								return null;
-							});
-						}
-
-						if (formattedTags.length === 0) {
-							showNotifierAlert({
-								title: 'Nenhuma tag de ganhos disponível',
-								description: 'Cadastre uma tag marcada como ganho.',
-								type: 'warn',
-								isDarkMode,
-								duration: 4000,
-							});
-						}
-					} else {
-						showNotifierAlert({
-							title: 'Erro ao carregar tags',
-							description: 'Não foi possível carregar as tags disponíveis.',
-							type: 'error',
-							isDarkMode,
-							duration: 4000,
-						});
-					}
-
-					if (banksResult.success && Array.isArray(banksResult.data)) {
-						const formattedBanks = banksResult.data.map((bank: any) => ({
-							id: bank.id,
-							name:
-								typeof bank?.name === 'string' && bank.name.trim().length > 0
-									? bank.name.trim()
-									: 'Banco sem nome',
-							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-						}));
-
-						setBanks(formattedBanks);
-						setSelectedBankId(current => {
-							const desiredId = current ?? templateData?.bankId ?? null;
-							if (desiredId && (formattedBanks.some(bank => bank.id === desiredId) || isBankSelectionLocked)) {
-								return desiredId;
-							}
-							return null;
-						});
-						setSelectedMovementBankName(currentName => {
-							if (currentName) {
-								return currentName;
-							}
-							if (templateData?.bankName) {
-								return templateData.bankName;
-							}
-							const desiredId = templateData?.bankId ?? null;
-							const matched = desiredId ? formattedBanks.find(bank => bank.id === desiredId) : null;
-							return matched?.name ?? null;
-						});
-					} else {
-						showNotifierAlert({
-							title: 'Erro ao carregar bancos',
-							description: 'Não foi possível carregar os bancos disponíveis.',
-							type: 'error',
-							isDarkMode,
-							duration: 4000,
-						});
-					}
-				} catch (error) {
-					console.error('Erro ao carregar opções de ganhos:', error);
-					showNotifierAlert({
-						title: 'Erro ao carregar dados',
-						description: 'Erro inesperado ao carregar dados. Tente novamente mais tarde.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-				} finally {
-					if (isMounted) {
-						setIsLoadingTags(false);
-						setIsLoadingBanks(false);
-					}
-				}
-			};
-
-			void loadOptions();
-
-			return () => {
-				isMounted = false;
-			};
-		}, [isBankSelectionLocked, isDarkMode, isTemplateLocked, templateData?.bankId, templateData?.bankName, templateData?.tagId]),
-	);
-
 	const handleValueChange = React.useCallback((input: string) => {
 		const digitsOnly = input.replace(/\D/g, '');
 		if (!digitsOnly) {
@@ -791,314 +578,7 @@ export default function AddRegisterGainScreen() {
 		setGainValueCents(centsValue);
 	}, []);
 
-	const resetNewGainForm = React.useCallback(() => {
-		sparkInvestment.reset();
-		resetSparkRecurring();
-		resetSparkMovement();
-		setGainName('');
-		setGainValueDisplay('');
-		setGainValueCents(null);
-		setGainDate(formatDateToBR(toFinancialCivilDate(new Date())));
-		setSelectedTagId(null);
-		setSelectedBankId(null);
-		setPaymentFormat([]);
-		setExplanationGain(null);
-		setMoneyFormat(false);
-		setSelectedMovementTagName(null);
-		setSelectedMovementTagIcon(null);
-		setSelectedMovementBankName(null);
-	}, [resetSparkMovement]);
-
-	const handleSubmit = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || !isMovementReady) {
-			return;
-		}
-
-		if (!gainName.trim()) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Informe o nome do ganho.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (gainValueCents === null) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Informe o valor do ganho.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (gainValueCents <= 0) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Informe um valor maior que zero para o ganho.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (shouldShowPaymentFormatSelection && paymentFormat.length === 0) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Selecione o formato do ganho antes de continuar.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (!selectedTagId) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Selecione uma tag.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (isBankSelectionRequired && !selectedBankId) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Selecione um banco.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (!gainDate) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Informe a data do ganho.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (!parsedGainDate) {
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: 'Informe uma data válida (DD/MM/AAAA).',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		const dateWithCurrentTime = mergeDateWithCurrentTime(parsedGainDate);
-
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-
-		try {
-			const personId = auth.currentUser?.uid;
-
-			if (!personId) {
-				showNotifierAlert({
-					title: 'Erro ao registrar ganho',
-					description: 'Não foi possível identificar o usuário atual.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				setIsSubmitting(false);
-				return;
-			}
-
-			if (linkedMandatoryGainId && pendingInvestmentAdjustment) throw new Error('Selecione apenas uma origem para esta movimentação.');
-			if (pendingInvestmentAdjustment && !isEditing) {
-				const investmentResult = await sparkInvestment.moveTemplate({ ...pendingInvestmentAdjustment, amountInCents: gainValueCents, movementKind: 'income',
-					selectedDate: parsedGainDate, bankId: selectedBankId, moneyFormat });
-				if (investmentResult) {
-					if (!investmentResult.success) throw new Error(investmentResult.error);
-					showSuccessfulGainNotification(false);
-					applyPostSubmitBehavior({ resetForm: resetNewGainForm });
-					return;
-				}
-			}
-
-			if (linkedMandatoryGainId && !isEditing && await submitSparkRecurring({
-				action: 'settle', planId: linkedMandatoryGainId, selectedDate: parsedGainDate,
-				accountId: moneyFormat ? 'cash' : selectedBankId!, amountInCents: gainValueCents, installmentsCount: installmentsToAdvance ?? 1, note: explanationGain?.trim() || null,
-			})) {
-				showSuccessfulGainNotification(false);
-				applyPostSubmitBehavior({ resetForm: resetNewGainForm });
-				return;
-			}
-
-			if (await submitSparkMovement({
-				actorId: personId, name: gainName.trim(), amountInCents: gainValueCents, selectedDate: parsedGainDate,
-				bankId: isBankSelectionRequired ? selectedBankId : null, moneyFormat, categoryId: selectedTagId,
-				explanation: explanationGain?.trim() || null, paymentFormats: paymentFormat,
-				isEditing, editingReference: editingGainId && (sparkSource === 'live' || sparkSource === 'imported') ? { source: sparkSource, operationId: editingGainId, family: 'ordinary' } : null,
-				specialSource: Boolean(linkedMandatoryGainId || pendingInvestmentAdjustment),
-			})) {
-				showSuccessfulGainNotification(isEditing);
-				applyPostSubmitBehavior({ isEditing, resetForm: resetNewGainForm });
-				return;
-			}
-
-			if (isEditing && editingGainId) {
-				const result = await updateGainFirebase({
-					gainId: editingGainId,
-					name: gainName.trim(),
-					valueInCents: gainValueCents,
-					paymentFormats: paymentFormat,
-					explanation: explanationGain?.trim() ? explanationGain.trim() : null,
-					moneyFormat,
-					tagId: selectedTagId ?? undefined,
-					bankId: isBankSelectionRequired ? selectedBankId ?? null : null,
-					date: dateWithCurrentTime,
-				});
-
-				if (!result.success) {
-					showNotifierAlert({
-						title: 'Erro ao atualizar ganho',
-						description: 'Tente novamente mais tarde.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-					return;
-				}
-
-				showSuccessfulGainNotification(true);
-				applyPostSubmitBehavior({ isEditing: true });
-				return;
-			}
-
-			const result = await addGainFirebase({
-				name: gainName.trim(),
-				valueInCents: gainValueCents,
-				paymentFormats: paymentFormat,
-				explanation: explanationGain?.trim() ? explanationGain.trim() : null,
-				moneyFormat,
-				tagId: selectedTagId as string,
-				bankId: isBankSelectionRequired ? selectedBankId : null,
-				date: dateWithCurrentTime,
-				personId,
-				isInvestmentRedemption:
-					(pendingInvestmentAdjustment?.deltaInCents ?? 0) < 0,
-				investmentId: pendingInvestmentAdjustment?.investmentId ?? null,
-				investmentNameSnapshot: templateData?.investmentNameSnapshot ?? null,
-			});
-
-			if (!result.success) {
-				showNotifierAlert({
-					title: 'Erro ao registrar ganho',
-					description: 'Tente novamente mais tarde.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				return;
-			}
-
-			if (linkedMandatoryGainId && result.gainId) {
-				const markResult = await markMandatoryGainReceiptFirebase({
-					gainTemplateId: linkedMandatoryGainId,
-					receiptGainId: result.gainId,
-					receiptDate: dateWithCurrentTime,
-					installmentsToAdvance,
-				});
-
-				if (!markResult.success) {
-					showNotifierAlert({
-						title: 'Atenção ao atualizar ganho obrigatório',
-						description: 'Ganho registrado, mas não foi possível atualizar o ganho obrigatório.',
-						type: 'warn',
-						isDarkMode,
-						duration: 4000,
-					});
-				} else {
-					try {
-						await suppressMandatoryGainNotificationCycle(
-							personId,
-							linkedMandatoryGainId,
-							getCycleKeyFromDate(dateWithCurrentTime),
-						);
-					} catch (error) {
-						console.error('Erro ao suprimir o lembrete do ganho obrigatório recebido:', error);
-					}
-				}
-			}
-
-			if (pendingInvestmentAdjustment) {
-				const adjustResult = await adjustFinanceInvestmentValueFirebase({
-					investmentId: pendingInvestmentAdjustment.investmentId,
-					deltaInCents: pendingInvestmentAdjustment.deltaInCents,
-				});
-
-				if (!adjustResult.success) {
-					showNotifierAlert({
-						title: 'Atenção ao atualizar investimento',
-						description: 'Ganho registrado, mas não foi possível atualizar o investimento.',
-						type: 'warn',
-						isDarkMode,
-						duration: 4000,
-					});
-				}
-			}
-
-			showSuccessfulGainNotification();
-			applyPostSubmitBehavior({ resetForm: resetNewGainForm });
-		} catch (error) {
-			console.error('Erro ao registrar/atualizar ganho:', error);
-			showNotifierAlert({
-				title: 'Erro ao registrar ganho',
-				description: error instanceof Error ? error.message : 'Erro inesperado ao salvar o ganho.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
-		}
-	}, [
-		editingGainId,
-		explanationGain,
-		gainDate,
-		gainName,
-		moneyFormat,
-		gainValueCents,
-		isEditing,
-		isSubmitting,
-		isMovementReady,
-		linkedMandatoryGainId,
-		paymentFormat,
-		selectedBankId,
-		selectedTagId,
-		pendingInvestmentAdjustment,
-		isDarkMode,
-		isBankSelectionLocked,
-		shouldShowPaymentFormatSelection,
-		templateData,
-		parsedGainDate,
-		submitSparkMovement,
-		submitSparkRecurring,
-		sparkSource,
-		resetNewGainForm,
-		applyPostSubmitBehavior,
-		showSuccessfulGainNotification,
-	]);
+	const handleSubmit = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	React.useEffect(() => {
 		if (!existingMovement) return;
@@ -1124,91 +604,6 @@ export default function AddRegisterGainScreen() {
 		setExplanationGain(typeof data.explanation === 'string' ? data.explanation : null);
 		setMoneyFormat(typeof data.moneyFormat === 'boolean' ? data.moneyFormat : false);
 	}, [existingMovement]);
-
-	React.useEffect(() => {
-		const matchedTag = tags.find(tag => tag.id === selectedTagId);
-		if (matchedTag) {
-			setSelectedMovementTagName(matchedTag.name);
-			setSelectedMovementTagIcon({
-				iconFamily: matchedTag.iconFamily ?? null,
-				iconName: matchedTag.iconName ?? null,
-				iconStyle: matchedTag.iconStyle ?? null,
-			});
-			return;
-		}
-
-		if (!selectedTagId) {
-			setSelectedMovementTagName(null);
-			setSelectedMovementTagIcon(null);
-			return;
-		}
-
-		let isMounted = true;
-
-		const fetchTagData = async () => {
-			try {
-				const tagResult = await getTagDataFirebase(selectedTagId);
-
-				if (!isMounted) {
-					return;
-				}
-
-				if (tagResult.success && tagResult.data) {
-					setSelectedMovementTagName(typeof tagResult.data.name === 'string' ? tagResult.data.name : null);
-					setSelectedMovementTagIcon({
-						iconFamily: typeof tagResult.data.iconFamily === 'string' ? tagResult.data.iconFamily : null,
-						iconName: typeof tagResult.data.iconName === 'string' ? tagResult.data.iconName : null,
-						iconStyle: typeof tagResult.data.iconStyle === 'string' ? tagResult.data.iconStyle : null,
-					});
-					return;
-				}
-
-				setSelectedMovementTagName(null);
-				setSelectedMovementTagIcon(null);
-			} catch (error) {
-				console.error('Erro ao buscar nome da tag:', error);
-				if (isMounted) {
-					setSelectedMovementTagName(null);
-					setSelectedMovementTagIcon(null);
-				}
-			}
-		};
-
-		void fetchTagData();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [selectedTagId, tags]);
-
-	React.useEffect(() => {
-		try {
-			if (!selectedBankId || selectedMovementBankName) {
-				return;
-			} else {
-				const fetchBankName = async () => {
-					const bankResult = await getAllBanksFirebase();
-
-					if (bankResult.success && Array.isArray(bankResult.data)) {
-
-						const bankData: any = bankResult.data.find((bank: any) => bank.id === selectedBankId);
-
-						if (bankData && typeof bankData.name === 'string') {
-							setSelectedMovementBankName(bankData.name);
-						} else {
-							setSelectedMovementBankName(null);
-						}
-					} else {
-						setSelectedMovementBankName(null);
-					}
-				};
-
-				void fetchBankName();
-			}
-		} catch (error) {
-			console.error('Erro ao buscar nome do banco:', error);
-		}
-	}, [selectedBankId, selectedMovementBankName]);
 
 	const selectedTagLabel = React.useMemo(() => {
 		const matchedTag = tags.find(tag => tag.id === selectedTagId);
@@ -1281,10 +676,6 @@ export default function AddRegisterGainScreen() {
 
 		return null;
 	}, [banks, selectedBankId, selectedBankLabel]);
-	const selectedTagIconColor = isDarkMode ? '#FCD34D' : '#D97706';
-	const selectedTagIconContainerClassName = isDarkMode
-		? 'border border-slate-800'
-		: 'border border-slate-200';
 
 	const fieldColumn = isDesktop ? webExpenseClassNames.fieldHalf : webExpenseClassNames.fieldFull;
 	const inputClassName = fieldContainerClassName + ' ' + webExpenseClassNames.fieldInput;

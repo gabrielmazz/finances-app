@@ -1,14 +1,14 @@
 import type { RedemptionTerm } from '@/utils/finance';
 
 export type MovementRecord = {
-	sparkAdjustmentOperationId?: string | null;
-	sparkAdjustmentResolved?: boolean;
-	isLedgerMovement?: boolean;
-	isSparkMovement?: boolean;
-	sparkEconomicKind?: 'income' | 'expense' | null;
-	sparkDeltaInCents?: number;
-	sparkExecutionReference?: import('@/utils/sparkFinancialReadModel').SparkExecutionReference | null;
-	sparkResolvedByOperationId?: string | null;
+
+
+
+
+
+
+
+
 	isBalanceAdjustment?: boolean;
 	adjustmentStatus?: 'active' | 'reversed' | 'replaced';
 	reversesAdjustmentId?: string | null;

@@ -1,6 +1,7 @@
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 import React from 'react';
 import { FlatList, StatusBar, useWindowDimensions, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
@@ -9,27 +10,19 @@ import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
-import { ArrowLeftIcon, AddIcon } from '@/components/ui/icon';
+import { AddIcon, ArrowLeftIcon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
 import { VStack } from '@/components/ui/vstack';
 import AnnotationMarkdownEditor from '@/components/uiverse/annotations/annotation-markdown-editor';
 import Navigator from '@/components/uiverse/navigation/navigator';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
-import { useAuth } from '@/contexts/AuthContext';
-import { auth } from '@/FirebaseConfig';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
+import { useSession } from '@/hooks/useSession';
+
 import { useScreenStyles } from '@/hooks/useScreenStyle';
 import type { LocalAnnotation } from '@/types/localAnnotations';
-import {
-	createLocalAnnotation,
-	getLocalAnnotationPreview,
-	getLocalAnnotationTitle,
-	loadLocalAnnotations,
-	saveLocalAnnotation,
-} from '@/utils/localAnnotations';
-import { createAssistantRecordFingerprint } from '@/utils/assistantRecordFingerprint';
+import { getLocalAnnotationPreview, getLocalAnnotationTitle } from '@/utils/localAnnotations';
 
 const updatedDateFormatter = new Intl.DateTimeFormat('pt-BR', {
 	day: '2-digit',
@@ -75,7 +68,7 @@ const AnnotationListItem = React.memo(({ annotation, onOpen }: AnnotationListIte
 AnnotationListItem.displayName = 'AnnotationListItem';
 
 export default function LocalAnnotationsScreen() {
-	const { user } = useAuth();
+	const { user } = useSession();
 	const { height: windowHeight } = useWindowDimensions();
 	const {
 		addTagButtonClassName,
@@ -90,224 +83,45 @@ export default function LocalAnnotationsScreen() {
 		submitButtonClassName,
 		submitButtonTextClassName,
 	} = useScreenStyles();
-	const [annotations, setAnnotations] = React.useState<LocalAnnotation[]>([]);
-	const [isLoading, setIsLoading] = React.useState(true);
-	const [isSaving, setIsSaving] = React.useState(false);
-	const [loadError, setLoadError] = React.useState('');
-	const [saveError, setSaveError] = React.useState('');
-	const [hasStorageConflict, setHasStorageConflict] = React.useState(false);
-	const [selectedAnnotationId, setSelectedAnnotationId] = React.useState<string | null>(null);
+	const annotations: LocalAnnotation[] = [];
+	const isLoading = false;
+	const isSaving = false;
+	const loadError = FEATURE_UNAVAILABLE_MESSAGE;
+	const hasStorageConflict = false;
+	const [isDraftOpen, setDraftOpen] = React.useState(false);
 	const [draftTitle, setDraftTitle] = React.useState('');
 	const [draftMarkdown, setDraftMarkdown] = React.useState('');
-	const loadRequestIdRef = React.useRef(0);
-	const selectedIdRef = React.useRef(selectedAnnotationId);
-	selectedIdRef.current = selectedAnnotationId;
-	const draftMarkdownRef = React.useRef('');
-	const originalAnnotationRef = React.useRef<LocalAnnotation | null>(null);
-	const saveLockRef = React.useRef(false);
-	const saveEpochRef = React.useRef(0);
-	const mountedRef = React.useRef(true);
-	const focusedRef = React.useRef(false);
-	const reloadLockRef = React.useRef(false);
-	const currentUidRef = React.useRef(user?.uid);
-	currentUidRef.current = user?.uid;
-	React.useEffect(() => {
-		mountedRef.current = true;
-		return () => { mountedRef.current = false; loadRequestIdRef.current++; saveEpochRef.current++; };
-	}, []);
-	React.useEffect(() => {
-		loadRequestIdRef.current++; setLoadError(''); setSaveError(''); reloadLockRef.current = false;
-		saveEpochRef.current++; saveLockRef.current = false; setIsSaving(false); setHasStorageConflict(false);
-		originalAnnotationRef.current = null;
-		setSelectedAnnotationId(null); setAnnotations([]); setDraftTitle(''); setDraftMarkdown(''); draftMarkdownRef.current = '';
-	}, [user?.uid]);
+	const [saveError, setSaveError] = React.useState('Rascunho não salvo. O salvamento está indisponível.');
 	const annotationEditorHeight = Math.max(340, windowHeight - insets.top - insets.bottom - 148);
-
-	const selectedAnnotation = React.useMemo(
-		() => annotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null,
-		[annotations, selectedAnnotationId],
-	);
-
-	const loadAnnotations = React.useCallback(async () => {
-		const requestId = loadRequestIdRef.current + 1;
-		loadRequestIdRef.current = requestId;
-
-		if (!user?.uid) {
-			if (requestId === loadRequestIdRef.current) {
-				setAnnotations([]);
-				setIsLoading(false);
-			}
-			return;
-		}
-
-		setIsLoading(true); setLoadError(''); setAnnotations([]);
-		try {
-			const storedAnnotations = await loadLocalAnnotations(user.uid);
-			if (mountedRef.current && focusedRef.current && requestId === loadRequestIdRef.current && currentUidRef.current === user.uid && auth.currentUser?.uid === user.uid) {
-				setAnnotations(storedAnnotations);
-			}
-		} catch (error) {
-			if (!mountedRef.current || !focusedRef.current || currentUidRef.current !== user.uid || auth.currentUser?.uid !== user.uid || requestId !== loadRequestIdRef.current) {
-				return;
-			}
-			setLoadError(error instanceof Error ? error.message : 'Não foi possível abrir as anotações.');
-			console.error('Não foi possível abrir as anotações locais:', error);
-			showNotifierAlert({
-				title: 'Não foi possível abrir as anotações',
-				description: 'Tente abrir esta tela novamente.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			if (mountedRef.current && focusedRef.current && requestId === loadRequestIdRef.current) {
-				setIsLoading(false);
-			}
-		}
-	}, [isDarkMode, user?.uid]);
-
-	useFocusEffect(
-		React.useCallback(() => {
-			focusedRef.current = true;
-			if (!selectedIdRef.current) void loadAnnotations();
-			return () => { focusedRef.current = false; loadRequestIdRef.current++; };
-		}, [loadAnnotations]),
-	);
-
-	const persistAnnotations = React.useCallback(
-		async (annotation: LocalAnnotation, expectedFingerprint: string | null) => {
-			const uid = user?.uid;
-			if (!uid) return null;
-			const isCurrent = () => mountedRef.current && focusedRef.current && currentUidRef.current === uid && auth.currentUser?.uid === uid;
-			try {
-				const result = await saveLocalAnnotation(uid, annotation, expectedFingerprint, isCurrent);
-				return isCurrent() ? result : null;
-			} catch (error) {
-				if (!isCurrent()) return null;
-				setSaveError(error instanceof Error ? error.message : 'Não foi possível salvar. Tente novamente.');
-				setHasStorageConflict(error instanceof Error && error.message.startsWith('A anotação mudou'));
-				console.error('Não foi possível salvar as anotações locais:', error);
-				showNotifierAlert({
-					title: 'Não foi possível salvar a anotação',
-					description: error instanceof Error && error.message.startsWith('A anotação mudou') ? 'A anotação mudou enquanto você editava. Seu rascunho continua aberto; confira a versão atual antes de substituir.' : 'Seu texto continua aberto. Tente salvar novamente.',
-					type: 'error',
-					isDarkMode,
-				});
-				return null;
-			}
-		},
-		[isDarkMode, user?.uid],
-	);
-
-	const handleOpenAnnotation = React.useCallback((annotation: LocalAnnotation) => {
-		if (saveLockRef.current || reloadLockRef.current || !focusedRef.current) return;
-		setSaveError('');
-		originalAnnotationRef.current = annotation;
-		setHasStorageConflict(false);
-		setSelectedAnnotationId(annotation.id);
+	const loadAnnotations = async () => showFeatureUnavailable();
+	const handleOpenAnnotation = (annotation: LocalAnnotation) => {
 		setDraftTitle(annotation.title);
 		setDraftMarkdown(annotation.markdown);
-		draftMarkdownRef.current = annotation.markdown;
-	}, []);
-
-	const handleReloadAnnotation = React.useCallback(async () => {
-		const uid = user?.uid;
-		if (!uid || !selectedAnnotationId || saveLockRef.current || reloadLockRef.current) return;
-		const reloadEpoch = ++saveEpochRef.current;
-		reloadLockRef.current = true; setIsSaving(true);
-		try {
-			const latest = await loadLocalAnnotations(uid);
-			if (!mountedRef.current || !focusedRef.current || reloadEpoch !== saveEpochRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid) return;
-			const target = latest.find(note => note.id === selectedAnnotationId);
-			if (!target) throw new Error('A anotação não está mais disponível. Seu rascunho foi preservado.');
-			setAnnotations(latest);
-			reloadLockRef.current = false;
-			handleOpenAnnotation(target);
-		} catch (error) {
-			if (mountedRef.current && focusedRef.current && reloadEpoch === saveEpochRef.current && currentUidRef.current === uid) setSaveError(error instanceof Error ? error.message : 'Não foi possível recarregar.');
-			if (mountedRef.current && focusedRef.current && reloadEpoch === saveEpochRef.current && currentUidRef.current === uid && auth.currentUser?.uid === uid) showNotifierAlert({ title: 'Não foi possível recarregar', description: 'Seu rascunho continua aberto.', type: 'error', isDarkMode });
-		} finally { if (reloadEpoch === saveEpochRef.current) { reloadLockRef.current = false; if (mountedRef.current && currentUidRef.current === uid) setIsSaving(false); } }
-	}, [handleOpenAnnotation, isDarkMode, selectedAnnotationId, user?.uid]);
-
-	const handleMarkdownChange = React.useCallback(async (markdown: string) => {
-		if (saveLockRef.current || reloadLockRef.current || !focusedRef.current || currentUidRef.current !== user?.uid || selectedIdRef.current !== selectedAnnotationId) return;
-		draftMarkdownRef.current = markdown;
-		setDraftMarkdown(markdown);
-	}, [selectedAnnotationId, user?.uid]);
-
-	const handleCreateAnnotation = React.useCallback(() => {
-		if (!user?.uid || auth.currentUser?.uid !== user.uid || !focusedRef.current || isLoading || loadError) {
-			return;
-		}
-
-		loadRequestIdRef.current += 1;
-		const annotation = createLocalAnnotation();
-		originalAnnotationRef.current = null;
-		setHasStorageConflict(false);
-		const nextAnnotations = [annotation, ...annotations];
-		setAnnotations(nextAnnotations);
-		setSelectedAnnotationId(annotation.id);
-		setDraftTitle('');
-		setDraftMarkdown('');
-		draftMarkdownRef.current = '';
-	}, [annotations, isLoading, loadError, user?.uid]);
-
-	const handleSaveAnnotation = React.useCallback(
-		async (returnToList = false) => {
-			const uid = user?.uid;
-			if (!selectedAnnotation || !uid || !focusedRef.current || reloadLockRef.current || saveLockRef.current || auth.currentUser?.uid !== uid) {
-				return;
-			}
-			saveLockRef.current = true;
-			const saveEpoch = ++saveEpochRef.current;
-			setIsSaving(true); setSaveError('');
-			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-			if (!mountedRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid || saveEpoch !== saveEpochRef.current) { if (saveEpoch === saveEpochRef.current) saveLockRef.current = false; return; }
-			const markdownToSave = draftMarkdownRef.current;
-			const updatedAnnotation: LocalAnnotation = {
-				...selectedAnnotation,
-				title: draftTitle,
-				markdown: markdownToSave,
-				updatedAtISO: new Date().toISOString(),
-			};
-			const original = originalAnnotationRef.current;
-			const saved = await persistAnnotations(updatedAnnotation, original ? createAssistantRecordFingerprint(original) : null);
-			if (saveEpoch === saveEpochRef.current) saveLockRef.current = false;
-			if (!mountedRef.current || currentUidRef.current !== uid || auth.currentUser?.uid !== uid || saveEpoch !== saveEpochRef.current) return;
-			setIsSaving(false);
-			if (!focusedRef.current) return;
-			if (!saved) {
-				return;
-			}
-			setAnnotations(saved.annotations);
-			originalAnnotationRef.current = saved.annotation;
-			setHasStorageConflict(false);
-
-			if (returnToList) {
-				setSelectedAnnotationId(null);
-				return;
-			}
-
-			showNotifierAlert({
-				title: 'Anotação salva',
-				description: 'Ela está guardada apenas neste dispositivo.',
-				type: 'success',
-				isDarkMode,
-			});
-		},
-		[draftTitle, isDarkMode, persistAnnotations, selectedAnnotation, user?.uid],
-	);
+		setDraftOpen(true);
+	};
+	const handleReloadAnnotation = async () => showFeatureUnavailable();
+	const handleMarkdownChange = async (markdown: string) => setDraftMarkdown(markdown);
+	const handleCreateAnnotation = () => setDraftOpen(true);
+	const handleSaveAnnotation = async () => {
+		setSaveError(FEATURE_UNAVAILABLE_MESSAGE);
+	};
 
 	const renderAnnotationItem = React.useCallback(
-		({ item }: { item: LocalAnnotation }) => <AnnotationListItem annotation={item} onOpen={handleOpenAnnotation} />,
+		({ item }: { item: LocalAnnotation }) => (
+			<AnnotationListItem annotation={item} onOpen={handleOpenAnnotation} />
+		),
 		[handleOpenAnnotation],
 	);
 
 	const keyExtractor = React.useCallback((annotation: LocalAnnotation) => annotation.id, []);
 
-	if (selectedAnnotation) {
+	if (isDraftOpen) {
 		return (
 			<SafeAreaView className="flex-1" style={{ backgroundColor: surfaceBackground }}>
-				<StatusBar backgroundColor={surfaceBackground} barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+				<StatusBar
+					backgroundColor={surfaceBackground}
+					barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+				/>
 				<Box className={`flex-1 px-5 pb-5 pt-3 ${cardBackground}`}>
 					<HStack space="sm" className="items-center">
 						<Button
@@ -315,9 +129,9 @@ export default function LocalAnnotationsScreen() {
 							variant="outline"
 							size="sm"
 							className={`${addTagButtonClassName} px-0`}
-							onPress={() => void handleSaveAnnotation(true)}
+							onPress={() => setDraftOpen(false)}
 							isDisabled={isSaving}
-							accessibilityLabel="Salvar e voltar para anotações"
+							accessibilityLabel="Voltar para anotações"
 						>
 							<ButtonIcon as={ArrowLeftIcon} />
 						</Button>
@@ -333,22 +147,36 @@ export default function LocalAnnotationsScreen() {
 							isDisabled={isSaving}
 						>
 							{isSaving ? <ButtonSpinner /> : null}
-							<ButtonText className={submitButtonTextClassName}>{isSaving ? 'Salvando' : 'Salvar'}</ButtonText>
+							<ButtonText className={submitButtonTextClassName}>
+								{isSaving ? 'Salvando' : 'Salvar'}
+							</ButtonText>
 						</Button>
 					</HStack>
 
 					<VStack space="sm" className="flex-1 pt-4">
-						{saveError ? <Text accessibilityRole="alert" className="text-lumus-error">{saveError}</Text> : null}
-						{hasStorageConflict ? <VStack space="sm">
-							<Text className={bodyText}>A anotação mudou. Seu rascunho continua aberto.</Text>
-							<Button action="default" variant="outline" size="md" onPress={() => void handleReloadAnnotation()} isDisabled={isSaving}>
-								<ButtonText>Descartar rascunho e recarregar</ButtonText>
-							</Button>
-						</VStack> : null}
+						{saveError ? (
+							<Text accessibilityRole="alert" className="text-lumus-error">
+								{saveError}
+							</Text>
+						) : null}
+						{hasStorageConflict ? (
+							<VStack space="sm">
+								<Text className={bodyText}>A anotação mudou. Seu rascunho continua aberto.</Text>
+								<Button
+									action="default"
+									variant="outline"
+									size="md"
+									onPress={() => void handleReloadAnnotation()}
+									isDisabled={isSaving}
+								>
+									<ButtonText>Descartar rascunho e recarregar</ButtonText>
+								</Button>
+							</VStack>
+						) : null}
 						<Input size="lg" className={LUMUS_FORM_CLASS_NAMES.input}>
 							<InputField
 								value={draftTitle}
-								onChangeText={value => { if (focusedRef.current && !saveLockRef.current && !reloadLockRef.current) setDraftTitle(value); }}
+								onChangeText={setDraftTitle}
 								editable={!isSaving}
 								placeholder="Título da anotação"
 								accessibilityLabel="Título da anotação"
@@ -358,7 +186,7 @@ export default function LocalAnnotationsScreen() {
 
 						<Box className="flex-1" style={{ height: annotationEditorHeight }}>
 							<AnnotationMarkdownEditor
-								key={`${user?.uid}:${selectedAnnotationId}`}
+								key="local-draft"
 								markdown={draftMarkdown}
 								readOnly={isSaving}
 								isDarkMode={isDarkMode}
@@ -377,8 +205,16 @@ export default function LocalAnnotationsScreen() {
 	}
 
 	return (
-		<SafeAreaView className="flex-1" edges={['left', 'right', 'bottom']} style={{ backgroundColor: surfaceBackground }}>
-			<StatusBar translucent backgroundColor="transparent" barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+		<SafeAreaView
+			className="flex-1"
+			edges={['left', 'right', 'bottom']}
+			style={{ backgroundColor: surfaceBackground }}
+		>
+			<StatusBar
+				translucent
+				backgroundColor="transparent"
+				barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+			/>
 			<View className="flex-1" style={{ backgroundColor: surfaceBackground }}>
 				<View className={`absolute left-0 right-0 top-0 ${cardBackground}`} style={{ height: heroHeight }}>
 					<Image
@@ -402,10 +238,19 @@ export default function LocalAnnotationsScreen() {
 				<View className={`flex-1 rounded-t-3xl ${cardBackground}`} style={{ marginTop: heroHeight - 64 }}>
 					<Box className="px-6 pb-4 pt-5">
 						<Text size="sm" className={bodyText}>
-							Ideias, listas e lembretes — só neste dispositivo.
+							Ideias, listas e lembretes. Explore o editor com um rascunho não salvo.
 						</Text>
-						{loadError ? <Text accessibilityRole="alert" className="text-lumus-error">{loadError}</Text> : null}
-						<Button action="default" variant="outline" onPress={() => void loadAnnotations()} isDisabled={isLoading}>
+						{loadError ? (
+							<Text accessibilityRole="alert" className="text-lumus-error">
+								{loadError}
+							</Text>
+						) : null}
+						<Button
+							action="default"
+							variant="outline"
+							onPress={() => void loadAnnotations()}
+							isDisabled={isLoading}
+						>
 							<ButtonText>{loadError ? 'Tentar novamente' : 'Atualizar anotações'}</ButtonText>
 						</Button>
 						<Button
@@ -414,7 +259,7 @@ export default function LocalAnnotationsScreen() {
 							size="md"
 							className={`mt-4 w-full ${submitButtonClassName}`}
 							onPress={() => void handleCreateAnnotation()}
-							isDisabled={isLoading || !!loadError}
+							isDisabled={isLoading}
 						>
 							<ButtonIcon as={AddIcon} />
 							<ButtonText className={submitButtonTextClassName}>
@@ -432,22 +277,24 @@ export default function LocalAnnotationsScreen() {
 						contentContainerClassName="px-6 pb-6"
 						ListEmptyComponent={
 							// FlatList injeta arrays de style: View normaliza esses props antes do Box DOM Web.
-							<View>{isLoading ? (
-								<Box className="items-center px-6 py-14">
-									<Text size="sm" className="text-typography-500">
-										Carregando suas anotações...
-									</Text>
-								</Box>
-							) : loadError ? null : (
-								<Box className="items-center rounded-3xl border border-outline-200 bg-background-0 px-6 py-8">
-									<Heading size="lg" className={`text-center ${headingText}`}>
-										Sua primeira página começa aqui
-									</Heading>
-									<Text size="sm" className={`mt-2 text-center ${bodyText}`}>
-										Crie uma anotação para registrar uma ideia, uma lista ou algo para lembrar depois.
-									</Text>
-								</Box>
-							)}</View>
+							<View>
+								{isLoading ? (
+									<Box className="items-center px-6 py-14">
+										<Text size="sm" className="text-typography-500">
+											Carregando suas anotações...
+										</Text>
+									</Box>
+								) : loadError ? null : (
+									<Box className="items-center rounded-3xl border border-outline-200 bg-background-0 px-6 py-8">
+										<Heading size="lg" className={`text-center ${headingText}`}>
+											Sua primeira página começa aqui
+										</Heading>
+										<Text size="sm" className={`mt-2 text-center ${bodyText}`}>
+											Crie uma anotação para registrar uma ideia, uma lista ou algo para lembrar depois.
+										</Text>
+									</Box>
+								)}
+							</View>
 						}
 					/>
 				</View>

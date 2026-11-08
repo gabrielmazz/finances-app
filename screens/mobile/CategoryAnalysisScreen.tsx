@@ -1,60 +1,48 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { LUMUS_FINANCIAL_GRADIENTS,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { useBankMovementsRequest } from '@/hooks/useBankMovementsRequest';
+import { useSession } from '@/hooks/useSession';
+import { cn } from '@/lib/utils';
+import type { CategoryAnalysisBankBreakdown,CategoryAnalysisMetric,CategoryAnalysisMovementType,CategoryAnalysisReport,CategoryAnalysisStatus,CategoryAnalysisTagOption } from '@/types/presentation/category-analysis';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
+import { Download,Info,TrendingDown,TrendingUp } from 'lucide-react-native';
 import React from 'react';
 import {
-	Platform,
-	Pressable,
-	RefreshControl,
-	ScrollView,
-	StatusBar,
-	View,
-	useWindowDimensions,
+Platform,
+Pressable,
+RefreshControl,
+ScrollView,
+StatusBar,
+View,
+useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { PieChart } from 'react-native-gifted-charts';
-import { Download, Info, TrendingDown, TrendingUp } from 'lucide-react-native';
-import { cn } from '@/lib/utils';
-import { LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Divider } from '@/components/ui/divider';
+import CategoryAnalysisMovementPagination from '@/components/uiverse/categories/category-analysis-movement-pagination';
+import CategoryAnalysisPeriodFields from '@/components/uiverse/categories/category-analysis-period-fields';
 import { useCategoryAnalysisData } from '@/hooks/useCategoryAnalysisData';
 import { getCategoryAnalysisMovementPage } from '@/utils/categoryAnalysis';
-import CategoryAnalysisPeriodFields from '@/components/uiverse/categories/category-analysis-period-fields';
-import CategoryAnalysisMovementPagination from '@/components/uiverse/categories/category-analysis-movement-pagination';
-import { Divider } from '@/components/ui/divider';
-import { auth } from '@/FirebaseConfig';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import TagActionsheetSelector, { type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+
 import { Box } from '@/components/ui/box';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerIcon, TabsTriggerText } from '@/components/ui/tabs';
+import { Tabs,TabsIndicator,TabsList,TabsTrigger,TabsTriggerIcon,TabsTriggerText } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
-import {
-	type CategoryAnalysisBankBreakdown,
-	type CategoryAnalysisMetric,
-	type CategoryAnalysisMovementType,
-	type CategoryAnalysisReport,
-	type CategoryAnalysisStatus,
-	type CategoryAnalysisTagOption,
-} from '@/functions/CategoryAnalysisFirebase';
-import { TagIcon, type TagIconSelection } from '@/hooks/useTagIcons';
+import TagActionsheetSelector,{ type TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
+
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import { TagIcon,type TagIconSelection } from '@/hooks/useTagIcons';
 import { isWebDesktopLayout } from '@/utils/webLayout';
-import {
-	type CategoryAnalysisPdfMetric,
-	buildCategoryAnalysisPdfHtml,
-} from '@/utils/categoryAnalysisPdf';
-import { buildPdfFileName } from '@/utils/pdfFileName';
-import { exportHtmlReport } from '@/utils/reportExport';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import CategoryAnalysisIllustration from '../../assets/UnDraw/analyzeGainExpensesTag.svg';
@@ -244,29 +232,6 @@ const formatBreakdownShareLabel = (
 	return `${formattedPercent}% do total`;
 };
 
-const formatGeneratedAtLabel = (value: Date) =>
-	new Intl.DateTimeFormat('pt-BR', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	}).format(value);
-
-const formatMovementDateLabel = (value: Date | null) => {
-	if (!value) {
-		return 'Sem data';
-	}
-
-	return new Intl.DateTimeFormat('pt-BR', {
-		day: '2-digit',
-		month: '2-digit',
-		year: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit',
-	}).format(value);
-};
-
 const CategoryAnalysisSkeleton = () => (
 	<VStack className="gap-5">
 		<Skeleton className="h-12 w-full rounded-2xl" />
@@ -284,7 +249,7 @@ export default function CategoryAnalysisScreen() {
 	const { width: windowWidth } = useWindowDimensions();
 	const isDesktopWeb = isWebDesktopLayout(Platform.OS, windowWidth);
 	const { shouldHideValues } = useValueVisibility();
-	const { user } = useAuth();
+	const { user } = useSession();
 	const currentUserId = user?.uid ?? null;
 	const { analysis, isLoading, isRefreshing, errorMessage, loadAnalysis, range, rangeError, setStartDate, setEndDate, isReady, requestKey } = useCategoryAnalysisData(currentUserId);
 	const [showAllMovements, setShowAllMovements] = React.useState(false);
@@ -293,7 +258,7 @@ export default function CategoryAnalysisScreen() {
 	const [selectedType, setSelectedType] = React.useState<CategoryAnalysisMovementType>('expense');
 	const [isExportingPdf, setIsExportingPdf] = React.useState(false);
 	const exportLock = React.useRef<object | null>(null);
-	const { beginRequest: beginExport, cancelRequest: cancelExport } = useBankMovementsRequest(`category-analysis-export:${requestKey}:${selectedTagId}:${selectedType}:${shouldHideValues}:${analysis?.generatedAt.getTime() ?? 'unavailable'}:${isReady}`);
+	const { cancelRequest: cancelExport } = useBankMovementsRequest(`category-analysis-export:${requestKey}:${selectedTagId}:${selectedType}:${shouldHideValues}:${analysis?.generatedAt.getTime() ?? 'unavailable'}:${isReady}`);
 	React.useEffect(() => { exportLock.current = null; setIsExportingPdf(false); setSelectedTagId(null); setSelectedType('expense'); }, [currentUserId]);
 	React.useEffect(() => () => { exportLock.current = null; }, []);
 	useFocusEffect(React.useCallback(() => cancelExport, [cancelExport]));
@@ -310,7 +275,6 @@ export default function CategoryAnalysisScreen() {
 		insets,
 		submitButtonClassName,
 		submitButtonTextClassName,
-		tintedCardClassName,
 		notTintedCardClassName,
 		sectionCardClassName,
 		webDashboardClassNames,
@@ -501,177 +465,7 @@ export default function CategoryAnalysisScreen() {
 			})
 			: 'Selecione uma categoria para gerar o relatório.';
 
-	const handleExportCategoryAnalysisPdf = React.useCallback(async () => {
-		if (exportLock.current || isExportingPdf || !isReady || isLoading || isRefreshing || errorMessage || rangeError || auth.currentUser?.uid !== currentUserId) {
-			return;
-		}
-
-		if (!selectedTag || !selectedReport || !metric) {
-			showNotifierAlert({
-				description: 'Selecione uma categoria antes de baixar a análise.',
-				type: 'info',
-				isDarkMode,
-			});
-			return;
-		}
-
-		const movementTone = selectedType === 'expense' ? 'expense' : 'gain';
-		const variationTone =
-			metric.deltaInCents === 0
-				? 'neutral'
-				: selectedType === 'expense'
-					? metric.deltaInCents > 0
-						? 'expense'
-						: 'gain'
-					: metric.deltaInCents > 0
-						? 'gain'
-						: 'expense';
-		const generatedAtLabel = formatGeneratedAtLabel(analysis!.generatedAt);
-		const metrics: CategoryAnalysisPdfMetric[] = [
-			{
-				label: `${getMovementTypeLabel(selectedType)} no mês`,
-				value: formatCurrencyBRL(metric.currentInCents),
-				helper: `${metric.currentCount} movimentações. ${selectedReport.currentPeriodLabel}.`,
-				tone: movementTone,
-			},
-			{
-				label: 'Média histórica',
-				value: formatCurrencyBRL(metric.historicalAverageInCents),
-				helper: `${selectedReport.comparisonLabel} ${metric.historicalCount} movimentos comparáveis.`,
-				tone: 'neutral',
-			},
-			{
-				label: 'Variação',
-				value: formatSignedCurrencyBRL(metric.deltaInCents),
-				helper: shouldHideValues ? HIDDEN_VALUE_PLACEHOLDER : formatMetricPercentLabel(metric),
-				tone: variationTone,
-			},
-		];
-
-		const pdfHtml = buildCategoryAnalysisPdfHtml({
-			title: 'Análise por Categoria',
-			categoryLabel: selectedReport.tagName,
-			categoryKindLabel: getCategoryKindLabel(selectedTag),
-			movementTypeLabel: getMovementTypeLabel(selectedType),
-			generatedAtLabel,
-			insightMessage,
-			statusLabel: getStatusLabel(metric.status),
-			primaryMetricLabel: selectedReport.currentMonthLabel,
-			primaryMetricValue: formatCurrencyBRL(metric.currentInCents),
-			primaryMetricHelper: `${selectedReport.currentPeriodLabel}. Histórico: ${selectedReport.historyPeriodLabel}. ${selectedReport.comparisonLabel}`,
-			metrics,
-			months: selectedReport.months.map(month => {
-				const monthValue = selectedType === 'expense' ? month.expenseInCents : month.gainInCents;
-				const monthCount = selectedType === 'expense' ? month.expenseCount : month.gainCount;
-
-				return {
-					label: month.isCurrentMonth ? selectedReport.currentPeriodLabel : month.label,
-					valueLabel: formatCurrencyBRL(monthValue),
-					countLabel: `${monthCount} movimento(s)`,
-					isCurrentMonth: month.isCurrentMonth,
-				};
-			}),
-			breakdown: activeBreakdown.map(item => {
-				const itemValue = selectedType === 'expense' ? item.expenseInCents : item.gainInCents;
-
-				return {
-					name: item.name,
-					valueLabel: formatCurrencyBRL(itemValue),
-					shareLabel: formatBreakdownShareLabel(
-						item,
-						itemValue,
-						breakdownTotalInCents,
-						activeBreakdown.length,
-					),
-				};
-			}),
-			movements: movementList.all.map(movement => ({
-				name: movement.name,
-				dateLabel: formatMovementDateLabel(movement.date),
-				sourceLabel: movement.bankName,
-				description:
-					movement.explanation?.trim() ||
-					`${getMovementTypeLabel(selectedType)} classificado em ${selectedReport.tagName}.`,
-				amountLabel: formatCurrencyBRL(movement.valueInCents),
-				amountTone: movementTone,
-			})),
-			emptyBreakdownLabel: 'Nenhuma movimentação deste tipo foi encontrada no mês atual para esta categoria.',
-			emptyMovementsLabel: 'Não há movimentos recentes para este recorte.',
-			privacyNotice: shouldHideValues
-				? 'Os valores foram ocultados porque a preferência de privacidade está ativa.'
-				: null,
-		});
-
-		const lock = {}; exportLock.current = lock; const isCurrentExport = beginExport();
-		if (!isCurrentExport()) { exportLock.current = null; return; }
-		setIsExportingPdf(true);
-		try {
-			// Exporta a análise seguindo [[Análise por Categoria]] e [[Privacidade de Valores]].
-			const pdfFileName = buildPdfFileName([
-				'Analise por Categoria',
-				selectedReport.tagName,
-				getMovementTypeLabel(selectedType),
-			]);
-			const exportResult = await exportHtmlReport({
-				html: pdfHtml,
-				fileName: pdfFileName,
-				dialogTitle: `Baixar análise de ${selectedReport.tagName}`,
-			});
-
-			if (!isCurrentExport()) return;
-			if (exportResult.status === 'popup-blocked') {
-				showNotifierAlert({
-					title: 'Permita pop-ups',
-					description: 'O navegador bloqueou a nova aba do relatório. Permita pop-ups para este site e tente novamente.',
-					type: 'error',
-					isDarkMode,
-				});
-				return;
-			}
-
-			if (exportResult.status === 'printed') {
-				showNotifierAlert({
-					title: 'Análise pronta',
-					description: 'A análise foi aberta para impressão. Use a opção de salvar como PDF.',
-					type: 'info',
-					isDarkMode,
-				});
-				return;
-			}
-
-			showNotifierAlert({
-				title: 'PDF pronto',
-				description: 'Análise em PDF gerada com sucesso.',
-				type: 'success',
-				isDarkMode,
-			});
-		} catch (error) {
-			if (!isCurrentExport()) return;
-			console.error('Erro ao gerar PDF da análise por categoria:', error);
-			showNotifierAlert({
-				description: 'Não foi possível gerar o PDF da análise agora.',
-				type: 'error',
-				isDarkMode,
-			});
-		} finally {
-			if (exportLock.current === lock) { exportLock.current = null; setIsExportingPdf(false); }
-		}
-	}, [
-		currentUserId, isReady, isLoading, isRefreshing, errorMessage, rangeError, analysis, beginExport,
-		activeBreakdown,
-		breakdownTotalInCents,
-		formatCurrencyBRL,
-		formatSignedCurrencyBRL,
-		insightMessage,
-		isDarkMode,
-		isExportingPdf,
-		metric,
-		selectedReport,
-		selectedTag,
-		selectedType,
-		shouldHideValues,
-		movementList.all,
-	]);
+	const handleExportCategoryAnalysisPdf = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	return (
 		<SafeAreaView

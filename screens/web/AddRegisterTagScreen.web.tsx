@@ -1,70 +1,64 @@
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-	Keyboard,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-	ScrollView,
-	StatusBar,
-	TextInput,
-	View,
+KeyboardAvoidingView,
+Platform,
+Pressable,
+ScrollView,
+StatusBar,
+TextInput,
+View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
 
 import {
-	Actionsheet,
-	ActionsheetBackdrop,
-	ActionsheetContent,
-	ActionsheetDragIndicator,
-	ActionsheetDragIndicatorWrapper,
-	ActionsheetItem,
-	ActionsheetItemText,
-	ActionsheetScrollView,
+Actionsheet,
+ActionsheetBackdrop,
+ActionsheetContent,
+ActionsheetDragIndicator,
+ActionsheetDragIndicatorWrapper,
+ActionsheetItem,
+ActionsheetItemText,
+ActionsheetScrollView,
 } from '@/components/ui/actionsheet';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
-import { Image } from '@/components/ui/image';
-import { Input, InputField } from '@/components/ui/input';
-import { Text } from '@/components/ui/text';
 import { HStack } from '@/components/ui/hstack';
+import { Image } from '@/components/ui/image';
+import { Input,InputField } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTagScreen.svg';
-import { auth } from '@/FirebaseConfig';
-import { addTagFirebase, updateTagFirebase } from '@/functions/TagFirebase';
-import { createFinancialClientActionId } from '@/functions/FinancialLedgerFirebase';
-import { createAssistantRecordFingerprint, serializeAssistantRecord } from '@/utils/assistantRecordFingerprint';
+
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
 import { useCategoryFormRecord } from '@/hooks/useCategoryFormRecord';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { TagIcon, useTagIcons } from '@/hooks/useTagIcons';
-import { usePostSubmitBehavior } from '@/hooks/usePostSubmitBehavior';
-import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
+import { TagIcon,useTagIcons } from '@/hooks/useTagIcons';
 import {
-	getCategoryAvailabilityFields,
-	getCategoryAvailabilityPreset,
-	getCategoryAvailabilityPresetOption,
-	getCategoryAvailabilitySummary,
-	isCategoryAvailabilityPreset,
-	isCategoryPlacement,
-	type CategoryAvailabilityFields,
-	type CategoryAvailabilityPreset,
-	type CategoryPlacement,
+getCategoryAvailabilityFields,
+getCategoryAvailabilityPreset,
+getCategoryAvailabilityPresetOption,
+getCategoryAvailabilitySummary,
+isCategoryAvailabilityPreset,
+isCategoryPlacement,
+type CategoryAvailabilityFields,
+type CategoryAvailabilityPreset,
+type CategoryPlacement,
 } from '@/utils/categoryAvailability';
 import {
-	APP_ROUTE_PATHS,
-	type AppRoutePath,
-	isAppRoutePath,
-	navigateToHomeDashboard,
-	redirectBackOrRoute,
+APP_ROUTE_PATHS,
+isAppRoutePath,
+navigateToHomeDashboard,
+redirectBackOrRoute,
+type AppRoutePath,
 } from '@/utils/navigation';
-import { setPendingCreatedTag } from '@/utils/pendingCreatedTag';
 import { normalizeTagUsageType } from '@/utils/tagUsage';
 
 type FocusableInputKey = 'tag-name';
@@ -113,8 +107,7 @@ export default function AddRegisterTagScreen() {
 		heroHeight,
 		insets,
 	} = useScreenStyles();
-	const { iconOptions, defaultTagIcon, resolveTagIcon, serializeTagIcon } = useTagIcons();
-	const applyPostSubmitBehavior = usePostSubmitBehavior('addRegisterTag');
+	const { iconOptions, defaultTagIcon, resolveTagIcon } = useTagIcons();
 	const params = useLocalSearchParams<{
 		tagId?: string | string[];
 		placement?: string | string[];
@@ -167,14 +160,12 @@ export default function AddRegisterTagScreen() {
 	const [savedAvailability, setSavedAvailability] = React.useState<CategoryAvailabilityFields | null>(null);
 	const { record: existingTag, isLoading: isLoadingExisting, error: categoryLoadError, reload: reloadCategory } = useCategoryFormRecord(editingTagId);
 	const isExistingTagAvailable = !editingTagId || Boolean(existingTag && !isLoadingExisting && !categoryLoadError);
-	const [isSubmitting, setIsSubmitting] = React.useState(false);
+	const [isSubmitting] = React.useState(false);
 	const [isPlacementSelectorOpen, setIsPlacementSelectorOpen] = React.useState(false);
 	const [isPresetSelectorOpen, setIsPresetSelectorOpen] = React.useState(false);
 	const [isTagIconSheetOpen, setIsTagIconSheetOpen] = React.useState(false);
 	const [tagIconSearch, setTagIconSearch] = React.useState('');
-	const submitLockRef = React.useRef(false);
 	const intentRef = React.useRef<{ signature: string; id: string } | null>(null);
-	const originalFingerprint = existingTag ? createAssistantRecordFingerprint(existingTag) : undefined;
 	const tagNameInputRef = React.useRef<TextInput | null>(null);
 	const tagIconSearchInputRef = React.useRef<TextInput | null>(null);
 	const keyboardScrollOffset = React.useCallback((_key: FocusableInputKey) => 140, []);
@@ -215,9 +206,6 @@ export default function AddRegisterTagScreen() {
 	const activeCreationPreset = routeCreationPreset ?? selectedCreationPreset;
 	const creationFields = activeCreationPreset
 		? getCategoryAvailabilityFields(activeCreationPreset)
-		: null;
-	const selectedEditFields = selectedAvailabilityPreset
-		? getCategoryAvailabilityFields(selectedAvailabilityPreset)
 		: null;
 	const currentAvailabilitySummary = selectedAvailabilityPreset
 		? getCategoryAvailabilityPresetOption(selectedAvailabilityPreset).label
@@ -295,158 +283,7 @@ export default function AddRegisterTagScreen() {
 		setIsPresetSelectorOpen(false);
 	}, []);
 
-	const saveCategory = React.useCallback(async () => {
-		if (submitLockRef.current || isSubmitting || isLoadingExisting || (isEditing && !isExistingTagAvailable)) {
-			return;
-		}
-
-		const trimmedName = tagName.trim();
-		if (!trimmedName) {
-			showNotifierAlert({
-				title: 'Informe um nome',
-				description: 'Digite o nome da categoria antes de salvar.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-			return;
-		}
-
-		if (!isEditing && !creationFields) {
-			setIsPlacementSelectorOpen(true);
-			return;
-		}
-
-		submitLockRef.current = true;
-		setIsSubmitting(true);
-		const iconPayload = serializeTagIcon(selectedTagIcon);
-		const signature = serializeAssistantRecord({ actorId: auth.currentUser?.uid, editingTagId, name: trimmedName, ...iconPayload,
-			fields: isEditing ? selectedEditFields : creationFields, expectedFingerprint: originalFingerprint });
-		if (intentRef.current?.signature !== signature) intentRef.current = { signature, id: createFinancialClientActionId('category_form') };
-		const clientActionId = intentRef.current.id;
-
-		try {
-			if (isEditing && editingTagId) {
-				const result = await updateTagFirebase({
-					clientActionId, expectedFingerprint: originalFingerprint,
-					tagId: editingTagId,
-					tagName: trimmedName,
-					...(selectedEditFields ?? {}),
-					...iconPayload,
-				});
-
-				if (!result.success) {
-					showNotifierAlert({
-						title: 'Não foi possível atualizar',
-						description: 'Tente novamente em alguns instantes.',
-						type: 'error',
-						isDarkMode,
-						duration: 4000,
-					});
-					return;
-				}
-
-				showNotifierAlert({
-					title: 'Categoria atualizada',
-					description: `A categoria “${trimmedName}” foi atualizada.`,
-					type: 'success',
-					isDarkMode,
-					duration: 4000,
-				});
-				reloadCategory();
-				applyPostSubmitBehavior({ isEditing: true });
-				return;
-			}
-
-			const personId = auth.currentUser?.uid;
-			if (!personId || !creationFields) {
-				showNotifierAlert({
-					title: 'Não foi possível salvar',
-					description: 'Não foi possível identificar o usuário ou o contexto da categoria.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				return;
-			}
-
-			const result = await addTagFirebase({
-				clientActionId,
-				tagName: trimmedName,
-				personId,
-				...creationFields,
-				...iconPayload,
-			});
-
-			if (!result.success || !result.tagId) {
-				showNotifierAlert({
-					title: 'Não foi possível salvar',
-					description: 'Tente novamente em alguns instantes.',
-					type: 'error',
-					isDarkMode,
-					duration: 4000,
-				});
-				return;
-			}
-
-			showNotifierAlert({
-				title: 'Categoria criada',
-				description: `A categoria “${trimmedName}” já está pronta para uso.`,
-				type: 'success',
-				isDarkMode,
-				duration: 4000,
-			});
-
-			if (shouldReturnAfterCreate) {
-				setPendingCreatedTag({
-					tagId: result.tagId,
-					tagName: trimmedName,
-					usageType: creationFields.usageType,
-					...iconPayload,
-				});
-				navigateBackToInlineSource();
-				return;
-			}
-
-			applyPostSubmitBehavior({
-				resetForm: () => {
-					intentRef.current = null;
-					setTagName('');
-					setSelectedTagIcon(defaultTagIcon);
-				},
-			});
-		} catch (error) {
-			console.error('Erro ao salvar categoria:', error);
-			showNotifierAlert({
-				title: 'Erro inesperado',
-				description: 'Tente novamente.',
-				type: 'error',
-				isDarkMode,
-				duration: 4000,
-			});
-		} finally {
-			submitLockRef.current = false;
-			setIsSubmitting(false);
-		}
-	}, [
-		applyPostSubmitBehavior,
-		reloadCategory,
-		originalFingerprint,
-		creationFields,
-		defaultTagIcon,
-		editingTagId,
-		isDarkMode,
-		isEditing,
-		isExistingTagAvailable,
-		isLoadingExisting,
-		isSubmitting,
-		navigateBackToInlineSource,
-		selectedEditFields,
-		selectedTagIcon,
-		serializeTagIcon,
-		shouldReturnAfterCreate,
-		tagName,
-	]);
+	const saveCategory = React.useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const screenTitle = isEditing
 		? 'Editar categoria'

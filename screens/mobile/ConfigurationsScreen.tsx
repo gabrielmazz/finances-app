@@ -1,110 +1,92 @@
-import { useSparkAccountLifecycle } from '@/hooks/useSparkAccountLifecycle';
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import type { TagReferenceSummary } from '@/types/presentation/tag';
+
 import React from 'react';
-import { ScrollView, View, StatusBar, Pressable } from 'react-native';
+import { Pressable,ScrollView,StatusBar,View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Importações relacionadas ao Gluestack UI
-import { Heading } from '@/components/ui/heading';
 import {
-	Accordion,
-	AccordionItem,
-	AccordionHeader,
-	AccordionTrigger,
-	AccordionTitleText,
-	AccordionContent,
-	AccordionContentText,
-	AccordionIcon,
+Accordion,
+AccordionContent,
+AccordionHeader,
+AccordionIcon,
+AccordionItem,
+AccordionTitleText,
+AccordionTrigger
 } from '@/components/ui/accordion';
-import { Button, ButtonText, ButtonSpinner, ButtonIcon } from '@/components/ui/button';
-import { AddIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, EditIcon, TrashIcon } from '@/components/ui/icon';
-import { Text } from '@/components/ui/text';
+import { Button,ButtonIcon,ButtonSpinner,ButtonText } from '@/components/ui/button';
+import { Heading } from '@/components/ui/heading';
+import { AddIcon,ChevronDownIcon,ChevronUpIcon,EditIcon,TrashIcon } from '@/components/ui/icon';
 import { Image } from '@/components/ui/image';
+import {
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
+} from '@/components/ui/modal';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
-} from '@/components/ui/modal';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
-import {
-	Table,
-	TableBody,
-	TableCaption,
-	TableData,
-	TableHead,
-	TableHeader,
-	TableRow,
+Table,
+TableBody,
+TableCaption,
+TableData,
+TableHead,
+TableHeader,
+TableRow,
 } from '@/components/ui/table';
+import { Text } from '@/components/ui/text';
 
 // Importações relacionadas à navegação e autenticação
-import { useFocusEffect } from 'expo-router';
-import { auth } from '@/FirebaseConfig';
 
 // Componentes do Uiverse
-import { showNotifierAlert } from '@/components/uiverse/feedback/notifier-alert';
+import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
+import type { TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
+import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
 import Navigator from '@/components/uiverse/navigation/navigator';
 import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import CategoryAvailabilitySelector from '@/components/uiverse/categories/category-availability-selector';
-import TagActionsheetSelector from '@/components/uiverse/categories/tag-actionsheet-selector';
-import type { TagActionsheetOption } from '@/components/uiverse/categories/tag-actionsheet-selector';
 
-import {
-	addBankFirebase,
-	getBanksWithUsersByPersonFirebase,
-	deleteBankFirebase,
-	updateBankStatusFirebase,
-} from '@/functions/BankFirebase';
-import {
-	deleteTagFirebase,
-	getTagsWithUsersByPersonFirebase,
-	getTagReferenceSummary,
-	type TagReferenceSummary,
-} from '@/functions/TagFirebase';
-import { Input, InputField } from '@/components/ui/input';
-import { VStack } from '@/components/ui/vstack';
-import { HStack } from '@/components/ui/hstack';
-import { Box } from '@/components/ui/box';
-import { Switch } from '@/components/ui/switch';
-import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { BankIcon } from '@/hooks/useBankIcons';
-import { TagIcon } from '@/hooks/useTagIcons';
-import type { TagIconFamily, TagIconStyle } from '@/hooks/useTagIcons';
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
-import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
-import {
-	isTagVisibleInMandatoryUsageList,
-	isTagVisibleInRegularUsageList,
-	normalizeTagUsageType,
-	type TagUsageType,
-} from '@/utils/tagUsage';
-import {
-	getCategoryAvailabilitySummary,
-	isCategoryAvailabilityPreset,
-	type CategoryAvailabilityFields,
-	type CategoryAvailabilityPreset,
-} from '@/utils/categoryAvailability';
-import { hasTagReferences } from '@/utils/categoryReferenceSummary';
+import { Box } from '@/components/ui/box';
+import { HStack } from '@/components/ui/hstack';
+import { Switch } from '@/components/ui/switch';
+import { VStack } from '@/components/ui/vstack';
+
 import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
-import { getRouteVisibilityKeyForPath } from '@/utils/navigation';
-import { useFinanceData } from '@/contexts/FinanceDataContext';
-import { APP_ROUTE_PATHS, type AppRoutePath, navigateToRoute } from '@/utils/navigation';
+import { useAppTheme } from '@/contexts/ThemeContext';
+import { useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { LUMUS_FORM_CLASS_NAMES } from '@/design-system/tokens';
+import { BankIcon } from '@/hooks/useBankIcons';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import type { TagIconFamily,TagIconStyle } from '@/hooks/useTagIcons';
+import { TagIcon } from '@/hooks/useTagIcons';
+import {
+getCategoryAvailabilitySummary,
+isCategoryAvailabilityPreset,
+type CategoryAvailabilityFields,
+type CategoryAvailabilityPreset,
+} from '@/utils/categoryAvailability';
+import { APP_ROUTE_PATHS,getRouteVisibilityKeyForPath,navigateToRoute,type AppRoutePath } from '@/utils/navigation';
+import {
+isTagVisibleInMandatoryUsageList,
+isTagVisibleInRegularUsageList,
+type TagUsageType
+} from '@/utils/tagUsage';
 
 // Importação do SVG
-import ConfigurationIllustration from '../../assets/UnDraw/configurationsScreen.svg';
-import ScreenConfigurationsSettingsIllustration from '../../assets/UnDraw/screenConfigurationsSettings.svg';
+import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
 import AddRegisterBankScreenIllustration from '../../assets/UnDraw/addRegisterBankScreen.svg';
 import AddRegisterTagScreenIllustration from '../../assets/UnDraw/addRegisterTagScreen.svg';
+import ConfigurationIllustration from '../../assets/UnDraw/configurationsScreen.svg';
 import FinancialListIllustration from '../../assets/UnDraw/financialListScreen.svg';
-import BankBalanceAdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
+import ScreenConfigurationsSettingsIllustration from '../../assets/UnDraw/screenConfigurationsSettings.svg';
 
-import { Info, Power, PowerOff } from 'lucide-react-native';
+import { Info,Power,PowerOff } from 'lucide-react-native';
 
 type AccordionItem = {
 	id: string;
@@ -242,23 +224,6 @@ const getTagReferenceMessage = (references: TagReferenceSummary) => {
 
 	return items.join(', ');
 };
-
-function isTagReferenceSummary(value: unknown): value is TagReferenceSummary {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'expenses' in value &&
-		typeof value.expenses === 'number' &&
-		'gains' in value &&
-		typeof value.gains === 'number' &&
-		'mandatoryExpenses' in value &&
-		typeof value.mandatoryExpenses === 'number' &&
-		'mandatoryGains' in value &&
-		typeof value.mandatoryGains === 'number' &&
-		'total' in value &&
-		typeof value.total === 'number'
-	);
-}
 
 function paginateTableItems<T>(items: T[], requestedPage: number): PaginatedTableResult<T> {
 	const totalItems = items.length;
@@ -810,73 +775,19 @@ function TablePaginationControls({
 
 // ================================== Relacionamento de Admin (Bancos) ============================================== //
 
-export async function handleAddBank(bankName: string) {
+export async function handleAddBank(bankName: string) { showFeatureUnavailable(); }
 
-	const personId = auth.currentUser?.uid;
+export async function handleDeleteBank(bankId: string) { showFeatureUnavailable(); }
 
-	if (!personId) {
-		console.error('Não foi possível identificar o usuário atual ao adicionar banco.');
-		return null;
-	}
+export async function handleUpdateBankStatus(bankId: string, isActive: boolean) { showFeatureUnavailable(); }
 
-	const result = await addBankFirebase({ bankName, personId, colorHex: null });
-
-	return result;
-
-}
-
-export async function handleDeleteBank(bankId: string) {
-
-	const result = await deleteBankFirebase(bankId);
-
-	return result;
-}
-
-export async function handleUpdateBankStatus(bankId: string, isActive: boolean) {
-
-	const result = await updateBankStatusFirebase({ bankId, isActive });
-
-	return result;
-}
-
-export async function fetchAllBanks(personId: string) {
-
-	const result = await getBanksWithUsersByPersonFirebase(personId, true);
-
-	if (result.success) {
-
-		return result.data;
-
-	} else {
-
-		console.error('Erro ao buscar todos os bancos:', result.error);
-		return null;
-	}
-}
+export async function fetchAllBanks(personId: string) { showFeatureUnavailable(); }
 
 // ================================== Relacionamento de Admin (Tags) =============================================== //
 
-export async function handleDeleteTag(tagId: string) {
+export async function handleDeleteTag(tagId: string) { showFeatureUnavailable(); }
 
-	const result = await deleteTagFirebase(tagId);
-
-	return result;
-}
-
-export async function fetchAllTags(personId: string) {
-
-	const result = await getTagsWithUsersByPersonFirebase(personId);
-
-	if (result.success) {
-
-		return result.data;
-
-	} else {
-
-		console.error('Erro ao buscar todas as tags:', 'error' in result ? result.error : undefined);
-		return null;
-	}
-}
+export async function fetchAllTags(personId: string) { showFeatureUnavailable(); }
 
 // ================================================================================================================= //
 
@@ -886,13 +797,12 @@ export default function ConfigurationsScreen() {
 		const key = item.action ? getRouteVisibilityKeyForPath(item.action.route) : null;
 		return !key || isRouteVisible(key);
 	});
-	const { submit: submitSparkAccountLifecycle } = useSparkAccountLifecycle();
+
 	const {
 		surfaceBackground,
 		cardBackground,
 		bodyText,
 		helperText,
-		inputField,
 		fieldContainerClassName,
 		fieldContainerCardClassName,
 		addTagButtonClassName,
@@ -913,7 +823,6 @@ export default function ConfigurationsScreen() {
 		tableCaptionClassName,
 		tableActionsHeaderClassName,
 		tableActionsCellClassName,
-		tableSingleActionColumnClassName,
 		tableDoubleActionColumnClassName,
 		tableTripleActionColumnClassName,
 		tableBanksMinWidthClassName,
@@ -938,10 +847,10 @@ export default function ConfigurationsScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 
-	const [bankData, setBankData] = React.useState<
+	const [bankData] = React.useState<
 		Array<{ id: string; name: string; colorHex?: string | null; iconKey?: string | null; isActive: boolean; archived?: boolean; financialSource?: string }>
 	>([]);
-	const [tagData, setTagData] = React.useState<
+	const [tagData] = React.useState<
 		Array<{
 			id: string;
 			name: string;
@@ -983,7 +892,7 @@ export default function ConfigurationsScreen() {
 	);
 	const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
 	const [isProcessingAction, setIsProcessingAction] = React.useState(false);
-	const [isCheckingTagUsageId, setIsCheckingTagUsageId] = React.useState<string | null>(null);
+	const [isCheckingTagUsageId] = React.useState<string | null>(null);
 	const [isCategoryPlacementSelectorOpen, setIsCategoryPlacementSelectorOpen] = React.useState(false);
 	const [openConfigurationSection, setOpenConfigurationSection] = React.useState<string | null>(null);
 	const [tablePages, setTablePages] = React.useState<Record<TablePaginationKey, number>>({
@@ -992,7 +901,9 @@ export default function ConfigurationsScreen() {
 	});
 	const { shouldHideValues, setShouldHideValues, isLoadingPreference } = useValueVisibility();
 	const { isDarkMode, setThemeMode, isLoadingTheme } = useAppTheme();
-	const { trustedDeviceCache, isCacheHydrated, setTrustedDeviceCache } = useFinanceData();
+	const trustedDeviceCache = { enabled: false };
+ const isCacheHydrated = true;
+ const setTrustedDeviceCache = (_value: boolean) => showFeatureUnavailable();
 
 	const handleToggleValueVisibility = React.useCallback(
 		(value: boolean) => {
@@ -1013,20 +924,10 @@ export default function ConfigurationsScreen() {
 
 	const themePopoverText =
 		'Aplica o modo claro ou escuro em toda a interface do app e mantém a preferência salva para as próximas sessões.';
-	const themeStatusText = isLoadingTheme
-		? 'Carregando sua preferência de tema...'
-		: isDarkMode
-			? 'Modo escuro ativado.'
-			: 'Modo claro ativado.';
 
 	// O toggle segue a padronização visual descrita em [[Configurações]] e o fluxo de [[Privacidade de Valores]].
 	const valueVisibilityPopoverText =
 		'Oculta saldos, totais e outros valores monetários nas telas do app. A preferência fica salva para as próximas sessões, mas a ocultação é apenas visual.';
-	const valueVisibilityStatusText = isLoadingPreference
-		? 'Verificando a preferência salva...'
-		: shouldHideValues
-			? 'Os valores financeiros estão ocultos.'
-			: 'Os valores financeiros estão visíveis.';
 	const trustedCacheStatusText = !isCacheHydrated
 		? 'Verificando a preferência deste dispositivo...'
 		: trustedDeviceCache?.enabled
@@ -1065,28 +966,6 @@ export default function ConfigurationsScreen() {
 	);
 
 	// Esta tela usa notifier-alert para feedback in-app, conforme [[Notificações]].
-	const showConfigurationAlert = React.useCallback(
-		({
-			title,
-			description,
-			type,
-			duration = 4000,
-		}: {
-			title: string;
-			description: string;
-			type: 'error' | 'warn' | 'info' | 'success';
-			duration?: number;
-		}) => {
-			showNotifierAlert({
-				title,
-				description,
-				type,
-				isDarkMode,
-				duration,
-			});
-		},
-		[isDarkMode],
-	);
 
 	const handleTablePageChange = React.useCallback((tableKey: TablePaginationKey, page: number) => {
 		setTablePages(previousPages =>
@@ -1133,52 +1012,13 @@ export default function ConfigurationsScreen() {
 	}, [tagFilter]);
 
 	const handleBankRemoval = React.useCallback(
-		async (bankId: string, bankName: string, archived = false) => {
-			const sparkResult = await submitSparkAccountLifecycle(bankId, archived ? 'restore' : 'archive');
-			const result = sparkResult ?? await handleDeleteBank(bankId);
-
-			if (result.success) {
-				setBankData(prev => sparkResult ? prev.map(bank => bank.id === bankId ? { ...bank, archived: !archived } : bank) : prev.filter(bank => bank.id !== bankId));
-				showConfigurationAlert({
-					title: sparkResult ? archived ? 'Banco restaurado' : 'Banco arquivado' : 'Banco removido',
-					description: sparkResult ? 'O cadastro, o saldo e o histórico foram preservados. A atividade da conta pode ser alterada separadamente.' : `Banco ${bankName || bankId} foi excluído.`,
-					type: 'success',
-				});
-			} else {
-				showConfigurationAlert({
-					title: 'Erro ao remover banco',
-					description: 'Não foi possível remover o banco. Tente novamente.',
-					type: 'error',
-				});
-			}
-		},
-		[showConfigurationAlert, submitSparkAccountLifecycle],
+		async (bankId: string, bankName: string, archived = false) => { showFeatureUnavailable(); },
+		[],
 	);
 
 	const handleBankStatusChange = React.useCallback(
-		async (bankId: string, bankName: string, isActive: boolean) => {
-			const result = (await submitSparkAccountLifecycle(bankId, 'set-active', isActive)) ?? await handleUpdateBankStatus(bankId, isActive);
-
-			if (result.success) {
-				setBankData(prev =>
-					prev.map(bank => (bank.id === bankId ? { ...bank, isActive } : bank)),
-				);
-				showConfigurationAlert({
-					title: isActive ? 'Banco reativado' : 'Banco desativado',
-					description: bankData.find(bank => bank.id === bankId)?.archived ? 'Atividade atualizada. Restaure a conta para voltar aos seletores.' : isActive
-						? `${bankName || bankId} voltou a aparecer nos seletores de banco.`
-						: `${bankName || bankId} foi mantido no cadastro, mas não aparecerá nos seletores de banco.`,
-					type: 'success',
-				});
-			} else {
-				showConfigurationAlert({
-					title: isActive ? 'Erro ao reativar banco' : 'Erro ao desativar banco',
-					description: 'Não foi possível atualizar o status do banco. Tente novamente.',
-					type: 'error',
-				});
-			}
-		},
-		[showConfigurationAlert, submitSparkAccountLifecycle, bankData],
+		async (bankId: string, bankName: string, isActive: boolean) => { showFeatureUnavailable(); },
+		[],
 	);
 
 	const handleBankEdit = React.useCallback(
@@ -1202,78 +1042,13 @@ export default function ConfigurationsScreen() {
 	);
 
 	const handleTagRemoval = React.useCallback(
-		async (tagId: string, tagName: string) => {
-			const referencesResult = await getTagReferenceSummary(tagId);
-			if (!referencesResult.success || !isTagReferenceSummary(referencesResult.data)) {
-				showConfigurationAlert({
-					title: 'Não foi possível verificar a categoria',
-					description: 'A categoria não foi excluída para preservar seus lançamentos.',
-					type: 'error',
-				});
-				return;
-			}
-
-			if (hasTagReferences(referencesResult.data)) {
-				showConfigurationAlert({
-					title: 'Categoria ainda está em uso',
-					description: referencesResult.data.permanentHistory ? 'Esta categoria pertence ao histórico financeiro e precisa ser preservada, inclusive após estornos.' : `Reclassifique ${getTagReferenceMessage(referencesResult.data)} antes de excluir esta categoria.`,
-					type: 'warn',
-				});
-				return;
-			}
-
-			const result = await handleDeleteTag(tagId);
-
-			if (result.success) {
-				setTagData(prev => prev.filter(tag => tag.id !== tagId));
-				showConfigurationAlert({
-					title: 'Categoria removida',
-					description: `Categoria ${tagName || tagId} foi excluída.`,
-					type: 'success',
-				});
-			} else {
-				showConfigurationAlert({
-					title: 'Erro ao remover categoria',
-					description: 'Não foi possível remover a categoria. Tente novamente.',
-					type: 'error',
-				});
-			}
-		},
-		[setTagData, showConfigurationAlert],
+		async (tagId: string, tagName: string) => { showFeatureUnavailable(); },
+		[],
 	);
 
 	const handleRequestTagRemoval = React.useCallback(
-		async (tagId: string, tagName: string) => {
-			if (!tagId || isCheckingTagUsageId) {
-				return;
-			}
-
-			setIsCheckingTagUsageId(tagId);
-			try {
-				const result = await getTagReferenceSummary(tagId);
-				if (!result.success || !isTagReferenceSummary(result.data)) {
-					showConfigurationAlert({
-						title: 'Não foi possível verificar a categoria',
-						description: 'Tente novamente antes de excluir.',
-						type: 'error',
-					});
-					return;
-				}
-
-				if (hasTagReferences(result.data)) {
-					setPendingAction({
-						type: 'tag-in-use',
-						payload: { tagName, references: result.data },
-					});
-					return;
-				}
-
-				setPendingAction({ type: 'delete-tag', payload: { tagId, tagName } });
-			} finally {
-				setIsCheckingTagUsageId(null);
-			}
-		},
-		[isCheckingTagUsageId, showConfigurationAlert],
+		async (tagId: string, tagName: string) => { showFeatureUnavailable(); },
+		[],
 	);
 
 	const handleCloseActionModal = React.useCallback(() => {
@@ -1338,10 +1113,10 @@ export default function ConfigurationsScreen() {
 		switch (pendingAction.type) {
 			case 'delete-bank':
 				return {
-					title: pendingAction.payload.financialSource === 'spark' ? pendingAction.payload.archived ? 'Restaurar banco' : 'Arquivar banco' : 'Excluir banco',
-					message: pendingAction.payload.financialSource === 'spark' ? `Deseja ${pendingAction.payload.archived ? 'restaurar' : 'arquivar'} o banco ${pendingAction.payload.bankName}? O histórico e a atividade serão preservados.` : `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
+					title: 'Excluir banco',
+					message: `Tem certeza de que deseja excluir o banco ${pendingAction.payload.bankName || 'selecionado'
 						}? Esta ação removerá todas as referências a ele.`,
-					confirmLabel: pendingAction.payload.financialSource === 'spark' ? pendingAction.payload.archived ? 'Restaurar' : 'Arquivar' : 'Excluir',
+					confirmLabel: 'Excluir',
 					isDestructive: true,
 				};
 			case 'toggle-bank-status':
@@ -1523,65 +1298,6 @@ export default function ConfigurationsScreen() {
 	);
 
 	// Busca bancos e categorias somente quando o accordion correspondente é aberto.
-	useFocusEffect(
-		React.useCallback(() => {
-
-			let isMounted = true;
-			const currentUserId = auth.currentUser?.uid;
-
-			if (currentUserId && openConfigurationSection) {
-				if (openConfigurationSection === 'item-2') fetchAllBanks(currentUserId).then((banks) => {
-
-					if (isMounted && banks) {
-						const formattedBanks = banks.map((bank: any) => ({
-							id: bank.id,
-							name: bank.name,
-							colorHex: typeof bank?.colorHex === 'string' ? bank.colorHex : null,
-							iconKey: typeof bank?.iconKey === 'string' ? bank.iconKey : null,
-							isActive: (bank?.lifecycleActive ?? bank?.isActive) !== false,
-						archived: bank?.archived === true,
-						financialSource: bank?.financialSource,
-						}));
-
-						setBankData(formattedBanks);
-					}
-				});
-
-				if (openConfigurationSection === 'item-3') fetchAllTags(currentUserId).then((tags) => {
-
-					if (isMounted && tags) {
-						const formattedTags = tags.map((tag: any) => ({
-							id: tag.id,
-							name: tag.name,
-							usageType: normalizeTagUsageType(tag?.usageType),
-							isMandatoryExpense: Boolean(tag?.isMandatoryExpense),
-							isMandatoryGain: Boolean(tag?.isMandatoryGain),
-							showInBothLists: Boolean(tag?.showInBothLists),
-							iconFamily: typeof tag?.iconFamily === 'string' ? tag.iconFamily : null,
-							iconName: typeof tag?.iconName === 'string' ? tag.iconName : null,
-							iconStyle: typeof tag?.iconStyle === 'string' ? tag.iconStyle : null,
-						}));
-
-						setTagData(formattedTags);
-					}
-				});
-
-
-			} else {
-
-				if (isMounted) {
-					setBankData([]);
-					setTagData([]);
-				}
-			}
-
-			return () => {
-
-				isMounted = false;
-
-			};
-		}, [openConfigurationSection]),
-	);
 
 	// ================================================================================================================= //
 
@@ -1769,7 +1485,7 @@ export default function ConfigurationsScreen() {
 																							variant="link"
 																							className={tableIconButtonClassName}
 																							action="negative"
-																							accessibilityLabel={`${bank.financialSource === 'spark' ? bank.archived ? 'Restaurar' : 'Arquivar' : 'Excluir'} banco ${bank.name}`}
+																							accessibilityLabel={`${'Excluir'} banco ${bank.name}`}
 																							onPress={() =>
 																								setPendingAction({
 																									type: 'delete-bank',
@@ -1792,7 +1508,7 @@ export default function ConfigurationsScreen() {
 																	{renderTablePagination('banks', banksTable)}
 																</Box>
 															) : (
-																renderEmptyTableState('Nenhum banco cadastrado até o momento.')
+																renderEmptyTableState('Consulta de bancos temporariamente indisponível.')
 															)}
 														</VStack>
 													) : null}
@@ -1900,7 +1616,7 @@ export default function ConfigurationsScreen() {
 																	{renderTablePagination('tags', tagsTable)}
 																</Box>
 															) : (
-																renderEmptyTableState('Nenhuma categoria encontrada para o filtro selecionado.')
+																renderEmptyTableState('Consulta de categorias temporariamente indisponível.')
 															)}
 														</VStack>
 													) : null}

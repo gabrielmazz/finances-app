@@ -1,34 +1,34 @@
 import { useFinancialForecastData } from '@/hooks/useFinancialForecastData';
-import React from 'react';
-import { Pressable, RefreshControl, ScrollView, StatusBar, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronDown, ChevronUp, Info, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
+import { ChevronDown,ChevronUp,Info,WalletCards } from 'lucide-react-native';
+import React from 'react';
+import { Pressable,RefreshControl,ScrollView,StatusBar,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
-import { Accordion, AccordionContent, AccordionHeader, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import Navigator from '@/components/uiverse/navigation/navigator';
+import { Accordion,AccordionContent,AccordionHeader,AccordionItem,AccordionTrigger } from '@/components/ui/accordion';
 import { Box } from '@/components/ui/box';
-import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
+import { Button,ButtonSpinner,ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Image } from '@/components/ui/image';
-import { Popover, PopoverBackdrop, PopoverBody, PopoverContent } from '@/components/ui/popover';
+import { Popover,PopoverBackdrop,PopoverBody,PopoverContent } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsIndicator, TabsList, TabsTrigger, TabsTriggerText } from '@/components/ui/tabs';
+import { Tabs,TabsIndicator,TabsList,TabsTrigger,TabsTriggerText } from '@/components/ui/tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
-import { useAuth } from '@/contexts/AuthContext';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import FinancialForecastChart from '@/components/uiverse/reports/financial-forecast-chart';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { LUMUS_CLASS_NAMES,LUMUS_FINANCIAL_GRADIENTS,LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { LUMUS_CLASS_NAMES, LUMUS_FINANCIAL_GRADIENTS, LUMUS_RUNTIME_COLORS } from '@/design-system/tokens';
+import { useSession } from '@/hooks/useSession';
 import {
-	FINANCIAL_FORECAST_PERIOD_OPTIONS,
-	type FinancialForecastCommitment,
-	type FinancialForecastCommitmentKind,
-	type FinancialForecastPeriod,
+FINANCIAL_FORECAST_PERIOD_OPTIONS,
+type FinancialForecastCommitment,
+type FinancialForecastCommitmentKind,
+type FinancialForecastPeriod,
 } from '@/utils/financialForecast';
-import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
 import FinancialForecastIllustration from '../../assets/UnDraw/financialForecast.svg';
@@ -124,7 +124,7 @@ const FinancialForecastSkeleton = () => (
 
 export default function FinancialForecastScreen() {
 	const { shouldHideValues } = useValueVisibility();
-	const { user } = useAuth();
+	const { user } = useSession();
 	const currentUserId = user?.uid ?? null;
 	const [periodInMonths, setPeriodInMonths] = React.useState<FinancialForecastPeriod>(3);
 	const { forecast, isLoading, isRefreshing, errorMessage, loadForecast } = useFinancialForecastData(currentUserId, periodInMonths);

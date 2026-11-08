@@ -1,69 +1,68 @@
-import BankMovementsScreen from './BankMovementsScreen';
+import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
+import { unavailableUser } from '@/types/presentation/session';
 import React from 'react';
 import {
-	Platform,
-	Pressable,
-	RefreshControl,
-	ScrollView,
-	StatusBar,
-	TouchableOpacity,
-	View,
-	type GestureResponderEvent,
-	useWindowDimensions,
+Platform,
+Pressable,
+RefreshControl,
+ScrollView,
+StatusBar,
+TouchableOpacity,
+View,
+useWindowDimensions,
+type GestureResponderEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import BankMovementsScreen from './BankMovementsScreen';
 
-import Carousel, { Pagination, type ICarouselInstance } from 'react-native-reanimated-carousel';
 import { useSharedValue } from 'react-native-reanimated';
+import Carousel,{ Pagination,type ICarouselInstance } from 'react-native-reanimated-carousel';
 
-import { auth } from '@/FirebaseConfig';
-import { type HomeBankBalanceCard, type HomeCashSummary } from '@/functions/HomeFirebase';
-import { getUserDataFirebase } from '@/functions/RegisterUserFirebase';
-import { useHomeScreenData } from '@/hooks/useHomeScreenData';
-import { useAuth } from '@/contexts/AuthContext';
 import Navigator from '@/components/uiverse/navigation/navigator';
+import { useHomeScreenData } from '@/hooks/useHomeScreenData';
+import { useSession } from '@/hooks/useSession';
 
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 
+import { Button,ButtonText } from '@/components/ui/button';
 import { Image } from '@/components/ui/image';
 import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
 } from '@/components/ui/modal';
 import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
+Popover,
+PopoverBackdrop,
+PopoverBody,
+PopoverContent,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { Button, ButtonText } from '@/components/ui/button';
 import {
-	BankCardSurface,
-	CASH_CARD_COLOR,
-	buildBankCardPalette,
-	mixHexColors,
-	normalizeHexColor,
-	type BankCardPalette,
+BankCardSurface,
+CASH_CARD_COLOR,
+buildBankCardPalette,
+mixHexColors,
+normalizeHexColor,
+type BankCardPalette,
 } from '@/components/uiverse/banks/bank-card-surface';
-import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from '@/contexts/ValueVisibilityContext';
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from '@/contexts/ValueVisibilityContext';
 import { PieChart } from 'react-native-gifted-charts';
 
 import LoginWallpaper from '@/assets/Background/wallpaper01.png';
+import { CalendarDays,Info } from 'lucide-react-native';
 import HomeScreenIllustration from '../../assets/UnDraw/homeScreen.svg';
-import { CalendarDays, Info } from 'lucide-react-native';
 
 import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { APP_ROUTE_PATHS, navigateToRoute } from '@/utils/navigation';
+import { APP_ROUTE_PATHS,navigateToRoute } from '@/utils/navigation';
 import { isWebDesktopLayout } from '@/utils/webLayout';
 
 type HomeBankCarouselItem =
@@ -286,9 +285,9 @@ export default function HomeScreen() {
 	const investmentChartContainerWidth = bankCarouselWidth;
 	const bankCarouselHeight = 176;
 	const bankCarouselItemSpacing = 16;
-	const { user } = useAuth();
+	const { user } = useSession();
 	const currentUserId = user?.uid ?? null;
-	const authDisplayFirstName = extractFirstName(auth.currentUser?.displayName);
+	const authDisplayFirstName = extractFirstName(unavailableUser?.displayName);
 	const { overview, movements, investments, reload } = useHomeScreenData(currentUserId);
 
 	const {
@@ -311,7 +310,7 @@ export default function HomeScreen() {
 
 	const [isMonthlyBalanceModalOpen, setIsMonthlyBalanceModalOpen] = React.useState(false);
 	const [dismissedMonthlyBalancePromptKey, setDismissedMonthlyBalancePromptKey] = React.useState<string | null>(null);
-	const [currentUserFirstName, setCurrentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
+	const [currentUserFirstName] = React.useState<string | null>(authDisplayFirstName);
 	const homeReadError = overview.error || movements.error || investments.error;
 	const isHomeLoading = overview.loading || movements.loading || investments.loading;
 	const [isRefreshing, setIsRefreshing] = React.useState(false);
@@ -320,39 +319,6 @@ export default function HomeScreen() {
 		anchorX: number;
 		anchorY: number;
 	} | null>(null);
-
-	React.useEffect(() => {
-		let isMounted = true;
-
-		const loadCurrentUserFirstName = async () => {
-			if (!currentUserId) {
-				if (isMounted) {
-					setCurrentUserFirstName(authDisplayFirstName);
-				}
-				return;
-			}
-
-			const result = await getUserDataFirebase(currentUserId);
-
-			if (!isMounted) {
-				return;
-			}
-
-			if (!result.success) {
-				setCurrentUserFirstName(authDisplayFirstName);
-				return;
-			}
-
-			const storedName = (result.data as { name?: unknown })?.name;
-			setCurrentUserFirstName(extractFirstName(storedName) ?? authDisplayFirstName);
-		};
-
-		void loadCurrentUserFirstName();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [authDisplayFirstName, currentUserId]);
 
 	const greetingFirstName = currentUserFirstName ?? authDisplayFirstName ?? 'Usuário';
 

@@ -1,7 +1,7 @@
-import { Keyboard, Platform } from 'react-native';
-import { router, type Href, type UnknownInputParams } from 'expo-router';
-import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
 import type { PostSubmitDestinationKey } from '@/contexts/PostSubmitBehaviorContext';
+import type { RouteVisibilityKey } from '@/contexts/RouteVisibilityContext';
+import { router,type Href,type UnknownInputParams } from 'expo-router';
+import { Keyboard,Platform } from 'react-native';
 
 type RouterNavigationOptions = Parameters<typeof router.push>[1];
 

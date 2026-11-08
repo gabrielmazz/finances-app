@@ -1,13 +1,13 @@
-import { Redirect, useLocalSearchParams } from 'expo-router';
+import { Redirect,useLocalSearchParams } from 'expo-router';
 
 import { useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import AddRegisterExpensesScreen from '@/screens/web/AddRegisterExpensesScreen.web';
 import ConfigurationsScreen from '@/screens/web/ConfigurationsScreen.web';
 import HomeScreen from '@/screens/web/HomeScreen.web';
 import {
-	createHomeHref,
-	getVisibleHomeTab,
-	normalizeHomeTabIndex,
+createHomeHref,
+getVisibleHomeTab,
+normalizeHomeTabIndex,
 } from '@/utils/navigation';
 
 const TAB_SCREENS = [HomeScreen, AddRegisterExpensesScreen, ConfigurationsScreen] as const;

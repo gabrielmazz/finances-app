@@ -8,14 +8,14 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "./script/build_and_run.sh"
+command = "npm run start:expo-go"
 
 [[actions]]
 name = "Run Dev Client"
 icon = "run"
-command = "./script/build_and_run.sh --dev-client"
+command = "npm run start -- --dev-client"
 
 [[actions]]
 name = "Expo Doctor"
 icon = "tool"
-command = "./script/build_and_run.sh --doctor"
+command = "npx expo-doctor"

@@ -1,47 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { useAuth } from '@/contexts/AuthContext';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { logoutCurrentUser } from '@/utils/secureLogout';
-
+import { APP_ROUTE_PATHS, replaceToRoute } from '@/utils/navigation';
+import { useState } from 'react';
 export function useLogoutConfirmation() {
-	const { user } = useAuth();
-	const { isDarkMode } = useAppTheme();
-	const [pendingUserId, setPendingUserId] = useState<string | null>(null);
-	const [isLoggingOut, setIsLoggingOut] = useState(false);
-	const logoutInFlight = useRef(false);
-
-	useEffect(() => {
-		setPendingUserId(null);
-	}, [user?.uid]);
-
-	const requestLogout = useCallback(() => {
-		if (user?.uid && !logoutInFlight.current) setPendingUserId(user.uid);
-	}, [user?.uid]);
-
-	const cancelLogout = useCallback(() => {
-		if (!logoutInFlight.current) setPendingUserId(null);
-	}, []);
-
-	const confirmLogout = useCallback(async () => {
-		// [[Autenticação]]: uma confirmação antiga nunca encerra a nova conta.
-		if (!pendingUserId || pendingUserId !== user?.uid || logoutInFlight.current) return;
-		logoutInFlight.current = true;
-		setIsLoggingOut(true);
-		try {
-			await logoutCurrentUser({ userId: pendingUserId, displayName: user.displayName, isDarkMode });
-		} finally {
-			logoutInFlight.current = false;
-			setIsLoggingOut(false);
-			setPendingUserId(null);
-		}
-	}, [pendingUserId, user?.uid, user?.displayName, isDarkMode]);
-
+	const [isOpen, setIsOpen] = useState(false);
 	return {
-		isOpen: pendingUserId !== null && pendingUserId === user?.uid,
-		isLoggingOut,
-		requestLogout,
-		cancelLogout,
-		confirmLogout,
+		isOpen,
+		isLoggingOut: false,
+		requestLogout: () => setIsOpen(true),
+		cancelLogout: () => setIsOpen(false),
+		confirmLogout: async () => {
+			setIsOpen(false);
+			replaceToRoute(APP_ROUTE_PATHS.login);
+		},
 	};
 }

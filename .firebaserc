@@ -1,7 +1,0 @@
-{
-  "projects": {
-    "default": "demo-lumus-financas",
-    "emulator": "demo-lumus-financas",
-    "production": "finances-app-e8685"
-  }
-}

@@ -23,7 +23,7 @@ export function LogoutConfirmation({ isOpen, isLoggingOut, onCancel, onConfirm }
 				</ModalHeader>
 				<ModalBody>
 					<Text className="text-body-sm text-typography-700">
-						Deseja realmente sair do Lumus? Você precisará entrar novamente para acessar sua conta.
+						Deseja voltar à tela inicial de acesso? Você poderá explorar as telas novamente.
 					</Text>
 				</ModalBody>
 				<ModalFooter>

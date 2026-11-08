@@ -1,10 +1,10 @@
+import { FontAwesome6,Ionicons,MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { FontAwesome6, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import type { StyleProp, TextStyle } from 'react-native';
+import type { StyleProp,TextStyle } from 'react-native';
 
-import { TAG_ICON_OPTIONS, DEFAULT_TAG_ICON, resolveTagIconSelection, serializeTagIconSelection, type TagIconSelection } from '@/utils/tagIconCatalog';
-export { TAG_ICON_OPTIONS, DEFAULT_TAG_ICON, buildTagIconKey, resolveTagIconSelection, serializeTagIconSelection } from '@/utils/tagIconCatalog';
-export type { TagIconFamily, TagIconStyle, TagIconSelection, TagIconOption } from '@/utils/tagIconCatalog';
+import { DEFAULT_TAG_ICON,resolveTagIconSelection,serializeTagIconSelection,TAG_ICON_OPTIONS,type TagIconSelection } from '@/utils/tagIconCatalog';
+export { buildTagIconKey,DEFAULT_TAG_ICON,resolveTagIconSelection,serializeTagIconSelection,TAG_ICON_OPTIONS } from '@/utils/tagIconCatalog';
+export type { TagIconFamily,TagIconOption,TagIconSelection,TagIconStyle } from '@/utils/tagIconCatalog';
 
 type TagIconProps = TagIconSelection & {
 	size?: number;

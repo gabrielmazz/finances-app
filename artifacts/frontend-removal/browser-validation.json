@@ -1,0 +1,421 @@
+{
+  "routes": [
+    {
+      "viewport": "desktop",
+      "path": "/web/add-finance",
+      "url": "/web/add-finance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-mandatory-expenses",
+      "url": "/web/add-mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-mandatory-gains",
+      "url": "/web/add-mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-bank",
+      "url": "/web/add-register-bank",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-expenses",
+      "url": "/web/add-register-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-gain",
+      "url": "/web/add-register-gain",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-register-tag",
+      "url": "/web/add-register-tag",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-rescue",
+      "url": "/web/add-rescue",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/add-user-relation",
+      "url": "/web/add-user-relation",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/annotations",
+      "url": "/web/annotations",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-balance-adjustment",
+      "url": "/web/bank-balance-adjustment",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-movements",
+      "url": "/web/bank-movements",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/bank-summary",
+      "url": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/category-analysis",
+      "url": "/web/category-analysis",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/financial-forecast",
+      "url": "/web/financial-forecast",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/financial-list",
+      "url": "/web/financial-list",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/home",
+      "url": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web",
+      "url": "/web",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/lumus-assistant",
+      "url": "/web/lumus-assistant",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/mandatory-expenses",
+      "url": "/web/mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/mandatory-gains",
+      "url": "/web/mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/profile",
+      "url": "/web/profile",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/register-monthly-balance",
+      "url": "/web/register-monthly-balance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/screen-settings",
+      "url": "/web/screen-settings",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "desktop",
+      "path": "/web/transfer-screen",
+      "url": "/web/transfer-screen",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-finance",
+      "url": "/web/add-finance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-mandatory-expenses",
+      "url": "/web/add-mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-mandatory-gains",
+      "url": "/web/add-mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-bank",
+      "url": "/web/add-register-bank",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-expenses",
+      "url": "/web/add-register-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-gain",
+      "url": "/web/add-register-gain",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-register-tag",
+      "url": "/web/add-register-tag",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-rescue",
+      "url": "/web/add-rescue",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/add-user-relation",
+      "url": "/web/add-user-relation",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/annotations",
+      "url": "/web/annotations",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-balance-adjustment",
+      "url": "/web/bank-balance-adjustment",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-movements",
+      "url": "/web/bank-movements",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/bank-summary",
+      "url": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/category-analysis",
+      "url": "/web/category-analysis",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/financial-forecast",
+      "url": "/web/financial-forecast",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/financial-list",
+      "url": "/web/financial-list",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/home",
+      "url": "/web/home",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web",
+      "url": "/web",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/lumus-assistant",
+      "url": "/web/lumus-assistant",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/mandatory-expenses",
+      "url": "/web/mandatory-expenses",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/mandatory-gains",
+      "url": "/web/mandatory-gains",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/profile",
+      "url": "/web/profile",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/register-monthly-balance",
+      "url": "/web/register-monthly-balance",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/screen-settings",
+      "url": "/web/screen-settings",
+      "rendered": true,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "narrow",
+      "path": "/web/transfer-screen",
+      "url": "/web/transfer-screen",
+      "rendered": true,
+      "horizontalOverflow": false
+    }
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "consoleErrors": [],
+  "interactions": [
+    {
+      "viewport": "desktop",
+      "action": "explore screens",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "action": "block unavailable PDF ?cashView=true",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "action": "block unavailable PDF ?bankId=unavailable",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "action": "chat visible with sending disabled",
+      "passed": true
+    },
+    {
+      "viewport": "desktop",
+      "action": "unsaved annotation draft remains editable and no storage write",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "explore screens",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "block unavailable PDF ?cashView=true",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "block unavailable PDF ?bankId=unavailable",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "chat visible with sending disabled",
+      "passed": true
+    },
+    {
+      "viewport": "narrow",
+      "action": "unsaved annotation draft remains editable and no storage write",
+      "passed": true
+    }
+  ],
+  "screenshots": [
+    "desktop-add-register-expenses.png",
+    "desktop-home.png",
+    "desktop-login.png",
+    "desktop-lumus-assistant.png",
+    "desktop-annotation-draft.png",
+    "narrow-add-register-expenses.png",
+    "narrow-home.png",
+    "narrow-login.png",
+    "narrow-lumus-assistant.png",
+    "narrow-annotation-draft.png"
+  ]
+}

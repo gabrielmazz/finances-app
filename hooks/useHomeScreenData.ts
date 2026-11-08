@@ -1,60 +1,40 @@
-import React from 'react';
-
-import {
-	EMPTY_HOME_MOVEMENTS_DATA,
-	EMPTY_HOME_OVERVIEW_DATA,
-	type HomeInvestmentsData,
-	type HomeMovementsData,
-	type HomeOverviewData,
-	createEmptyInvestmentPortfolio,
-} from '@/functions/HomeFirebase';
-import { useHomeQuery } from '@/hooks/useFinanceQueries';
-import { getHomeSnapshotFreshness } from '@/utils/homeSnapshotFreshness';
-
-type HomeSectionState<T> = {
-	data: T;
-	loading: boolean;
-	error: string | null;
-};
-
-export type HomeOverviewState = HomeSectionState<HomeOverviewData>;
-export type HomeMovementsState = HomeSectionState<HomeMovementsData>;
-export type HomeInvestmentsState = HomeSectionState<HomeInvestmentsData>;
-
-const EMPTY_INVESTMENTS_DATA: HomeInvestmentsData = {
-	portfolio: createEmptyInvestmentPortfolio(),
-};
-
-export function useHomeScreenData(personId: string | null | undefined) {
-	const query = useHomeQuery(personId);
-	const loading = query.isLoading || query.isFetching;
-	const expired = getHomeSnapshotFreshness(query.data).expired;
-	const snapshot = !personId ? undefined : query.data?.financialSource === 'spark' && (query.error || expired || loading) ? undefined : query.data;
-	const message = !personId ? 'Nenhum usuário autenticado foi identificado.' : query.error ? 'Não foi possível carregar os dados da Home.' : expired && !loading ? 'Atualize os saldos para continuar.' : null;
-	const reload = React.useCallback(async () => { await query.refetch({ cancelRefetch: false }); }, [query]);
-	const overviewResult = snapshot?.overview;
-	const movementsResult = snapshot?.movements;
-	const investmentsResult = snapshot?.investments;
-	const overview = {
-		data: overviewResult?.success ? overviewResult.data : EMPTY_HOME_OVERVIEW_DATA,
-		loading,
-		error: overviewResult ? (overviewResult.success ? null : overviewResult.error) : message,
-	};
-	const movements = {
-		data: movementsResult?.success ? movementsResult.data : EMPTY_HOME_MOVEMENTS_DATA,
-		loading,
-		error: movementsResult ? (movementsResult.success ? null : movementsResult.error) : message,
-	};
-	const investments = {
-		data: investmentsResult?.success ? investmentsResult.data : EMPTY_INVESTMENTS_DATA,
-		loading,
-		error: investmentsResult ? (investmentsResult.success ? null : investmentsResult.error) : message,
-	};
-
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import type { HomeInvestmentsData, HomeMovementsData, HomeOverviewData } from '@/types/presentation/home';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+export function useHomeScreenData(_personId?: string | null) {
 	return {
-		overview,
-		movements,
-		investments,
-		reload,
+		overview: {
+			data: {
+				bankBalances: [],
+				cashSummary: null,
+				currentMonthExpensesByBankId: {},
+				currentMonthGainsByBankId: {},
+				expenseHistoryLastThreeMonths: [],
+				activityHeatmap: { startDate: '', endDate: '', dailyActionCounts: {}, totalActions: 0 },
+				upcomingMandatoryItems: [],
+			} as HomeOverviewData,
+			loading: false,
+			error: FEATURE_UNAVAILABLE_MESSAGE,
+		},
+		movements: {
+			data: { timelineMovements: [], bankColorsById: {} } as HomeMovementsData,
+			loading: false,
+			error: FEATURE_UNAVAILABLE_MESSAGE,
+		},
+		investments: {
+			data: {
+				portfolio: {
+					items: [],
+					totalCurrentBaseInCents: 0,
+					totalInitialInCents: 0,
+					totalSimulatedInCents: 0,
+					totalEstimatedGainInCents: 0,
+					investmentCount: 0,
+				},
+			} as HomeInvestmentsData,
+			loading: false,
+			error: FEATURE_UNAVAILABLE_MESSAGE,
+		},
+		reload: async () => showFeatureUnavailable(),
 	};
 }

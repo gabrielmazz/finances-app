@@ -11,9 +11,6 @@
       "supportsTablet": true
     },
     "android": {
-      "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
-      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/lumusIcon.png",
         "backgroundColor": "#ffffff"
@@ -31,7 +28,6 @@
       "expo-asset",
       "expo-font",
       "expo-sharing",
-      "expo-secure-store",
       [
         "expo-splash-screen",
         {
@@ -42,12 +38,6 @@
         }
       ],
       "expo-status-bar",
-      [
-        "expo-notifications",
-        {
-          "defaultChannel": "payment-reminders-v1"
-        }
-      ],
       [
         "@react-native-community/datetimepicker",
         {

@@ -1,20 +1,20 @@
-import React from 'react';
-import { useLocalSearchParams } from 'expo-router';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Image } from '@/components/ui/image';
-import { Button, ButtonText } from '@/components/ui/button';
-import Navigator from '@/components/uiverse/navigation/navigator';
-import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
-import UserRelationshipsForm from '@/components/uiverse/users/user-relationships-form';
-import { useScreenStyles } from '@/hooks/useScreenStyle';
-import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
-import { LUMUS_CLASS_NAMES as ui } from '@/design-system/tokens';
-import { cn } from '@/lib/utils';
-import { APP_ROUTE_PATHS, navigateBackOrRoute, replaceToRoute } from '@/utils/navigation';
 import Wallpaper from '@/assets/Background/wallpaper01.png';
 import Illustration from '@/assets/UnDraw/addUserRelationScreen.svg';
+import { Button,ButtonText } from '@/components/ui/button';
+import { Image } from '@/components/ui/image';
+import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import { ScreenDismissKeyboard } from '@/components/uiverse/shared/screen-dismiss-keyboard';
+import UserRelationshipsForm from '@/components/uiverse/users/user-relationships-form';
+import { LUMUS_CLASS_NAMES as ui } from '@/design-system/tokens';
+import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
+import { useScreenStyles } from '@/hooks/useScreenStyle';
+import { cn } from '@/lib/utils';
+import { APP_ROUTE_PATHS,navigateBackOrRoute,replaceToRoute } from '@/utils/navigation';
+import { useLocalSearchParams } from 'expo-router';
+import React from 'react';
+import { Keyboard,KeyboardAvoidingView,Platform,ScrollView,TextInput,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddUserRelationScreen() {
   const { fromProfile } = useLocalSearchParams<{ fromProfile?: string }>();

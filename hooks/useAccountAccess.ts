@@ -1,47 +1,20 @@
-import { useRef, useState } from 'react';
-import { registerUserFirebase, requestPasswordResetFirebase } from '@/functions/RegisterUserFirebase';
-import { isEmailFormatValid, normalizeEmailForAuth } from '@/utils/loginSecurity';
-
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
+import { useState } from 'react';
 export type AccountAccessMode = 'login' | 'register' | 'reset';
-
-const RESET_SUCCESS_MESSAGE = 'Se houver uma conta com este email, você receberá um link para redefinir a senha. Confira também a pasta de spam.';
-
 type Options = {
 	email: string;
 	password: string;
-	setPassword: (value: string) => void;
-	setEmailError: (value: string | null) => void;
-	setPasswordError: (value: string | null) => void;
-	focusField: (field: 'name' | 'email' | 'password') => void;
+	setPassword(value: string): void;
+	setEmailError(value: string | null): void;
+	setPasswordError(value: string | null): void;
+	focusField(field: 'name' | 'email' | 'password'): void;
 };
-
-const messages: Record<string, string> = {
-	'auth/email-already-in-use': 'Este email já está cadastrado. Entre na sua conta ou redefina a senha.',
-	'auth/invalid-email': 'Informe um email válido.',
-	'auth/weak-password': 'Escolha uma senha mais forte, com pelo menos 6 caracteres.',
-	'auth/password-does-not-meet-requirements': 'A senha não atende aos requisitos de segurança. Use uma senha mais longa com maiúsculas, minúsculas, números e símbolos.',
-	'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
-	'auth/network-request-failed': 'Não foi possível conectar. Verifique sua internet e tente novamente.',
-	'auth/operation-not-allowed': 'Este serviço está indisponível. Tente novamente mais tarde.',
-	'auth/profile-recovery-storage': 'Não foi possível ler a recuperação local do cadastro. Verifique o armazenamento e tente novamente.',
-	'auth/profile-recovery-storage-pending': 'A conta foi criada, mas a recuperação local não pôde ser salva. Verifique o armazenamento e tente novamente com os mesmos dados.',
-	'auth/profile-creation-pending': 'A conta foi criada, mas o perfil ainda precisa ser confirmado. Mantenha os mesmos dados e tente criar novamente nesta tela.',
-	'auth/profile-recovery-mismatch': 'Use os mesmos dados do cadastro iniciado ou procure suporte.',
-	'auth/profile-creation-incomplete': 'A conta foi criada, mas o perfil não pôde ser salvo. Entre em contato com o suporte antes de tentar novamente.',
-};
-
-export function useAccountAccess({ email, password, setPassword, setEmailError, setPasswordError, focusField }: Options) {
+export function useAccountAccess({ setPassword, setEmailError, setPasswordError }: Options) {
 	const [mode, setMode] = useState<AccountAccessMode>('login');
 	const [name, setName] = useState('');
 	const [nameError, setNameError] = useState<string | null>(null);
-	const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [resetSentTo, setResetSentTo] = useState<string | null>(null);
-	const pending = useRef(false);
-	const isResetSent = mode === 'reset' && resetSentTo === normalizeEmailForAuth(email);
-
+	const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null);
 	const changeMode = (next: AccountAccessMode) => {
-		if (pending.current) return;
 		setMode(next);
 		setPassword('');
 		setEmailError(null);
@@ -49,46 +22,19 @@ export function useAccountAccess({ email, password, setPassword, setEmailError, 
 		setNameError(null);
 		setFeedback(null);
 	};
-
 	const submit = async () => {
-		if (pending.current || mode === 'login' || isResetSent) return;
-		setFeedback(null);
-		const normalizedEmail = normalizeEmailForAuth(email);
-		const invalidName = mode === 'register' && !name.trim();
-		const invalidEmail = !isEmailFormatValid(normalizedEmail);
-		const invalidPassword = mode === 'register' && password.length < 6;
-		setNameError(invalidName ? 'Informe seu nome.' : null);
-		setEmailError(invalidEmail ? 'Informe um email válido.' : null);
-		setPasswordError(invalidPassword ? 'Use pelo menos 6 caracteres na senha.' : null);
-		if (invalidName || invalidEmail || invalidPassword) {
-			focusField(invalidName ? 'name' : invalidEmail ? 'email' : 'password');
-			return;
-		}
-
-		pending.current = true;
-		setIsSubmitting(true);
-		try {
-			if (mode === 'register') {
-				const result = await registerUserFirebase({ name: name.trim(), email: normalizedEmail, password });
-				if (!result.success) throw result.error;
-				setPassword('');
-				setName('');
-				setMode('login');
-				setFeedback({ type: 'success', message: 'Conta de acesso criada. Entre com seu email e senha; a preparação financeira Spark ainda está pendente para novas contas.' });
-			} else {
-				await requestPasswordResetFirebase(normalizedEmail);
-				setResetSentTo(normalizedEmail);
-				setFeedback(null);
-			}
-		} catch (error) {
-			const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
-			setFeedback({ type: 'error', message: messages[code] ?? 'Não foi possível concluir a solicitação. Tente novamente em instantes.' });
-		} finally {
-			pending.current = false;
-			setIsSubmitting(false);
-		}
+		setFeedback({ type: 'error', message: FEATURE_UNAVAILABLE_MESSAGE });
 	};
-
-	const visibleFeedback = isResetSent ? { type: 'success' as const, message: RESET_SUCCESS_MESSAGE } : feedback;
-	return { mode, changeMode, name, setName, nameError, setNameError, feedback: visibleFeedback, isSubmitting, isResetSent, submit };
+	return {
+		mode,
+		changeMode,
+		name,
+		setName,
+		nameError,
+		setNameError,
+		feedback,
+		isSubmitting: false,
+		isResetSent: false,
+		submit,
+	};
 }

@@ -1,26 +1,26 @@
-import React from 'react';
-import {
-	BackHandler,
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StatusBar,
-	TextInput,
-	useWindowDimensions,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import Wallpaper from '@/assets/Background/wallpaper01.png';
+import AdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
 import { Box } from '@/components/ui/box';
 import { Image } from '@/components/ui/image';
 import BankBalanceAdjustmentForm from '@/components/uiverse/banks/bank-balance-adjustment-form';
-import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
 import Navigator from '@/components/uiverse/navigation/navigator';
+import WebScreenHero from '@/components/uiverse/navigation/web-screen-hero';
+import { useAppTheme } from '@/contexts/ThemeContext';
+import { LUMUS_CLASS_NAMES,LUMUS_LAYOUT_TOKENS } from '@/design-system/tokens';
 import { useBankBalanceAdjustmentForm } from '@/hooks/useBankBalanceAdjustmentForm';
 import { useKeyboardAwareScroll } from '@/hooks/useKeyboardAwareScroll';
-import { useAppTheme } from '@/contexts/ThemeContext';
-import { LUMUS_CLASS_NAMES, LUMUS_LAYOUT_TOKENS } from '@/design-system/tokens';
-import Wallpaper from '@/assets/Background/wallpaper01.png';
-import AdjustmentIllustration from '@/assets/UnDraw/bankBalanceAdjustmentScreen.svg';
+import { useFocusEffect } from 'expo-router';
+import React from 'react';
+import {
+BackHandler,
+KeyboardAvoidingView,
+Platform,
+ScrollView,
+StatusBar,
+TextInput,
+useWindowDimensions,
+} from 'react-native';
+import { SafeAreaView,useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function BankBalanceAdjustmentScreen() {
 	const form = useBankBalanceAdjustmentForm();

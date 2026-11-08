@@ -1,199 +1,34 @@
+import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import type { UserProfile } from '@/types/presentation/user-profile';
+import { FEATURE_UNAVAILABLE_MESSAGE } from '@/utils/availability';
 import React from 'react';
-import { useFocusEffect } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
-import { auth } from '@/FirebaseConfig';
-import { useAuth } from '@/contexts/AuthContext';
-import { getRelatedUsersFirebase } from '@/functions/RegisterUserFirebase';
-import { getProfileNameError, getUserProfileFirebase, getUserProfileAccessSummaryFirebase, updateUserProfileFirebase, type UserProfile } from '@/functions/UserProfileFirebase';
-
 export function useUserProfile() {
-	const { user } = useAuth();
-	const uid = user?.uid;
-	const [profile, setProfile] = React.useState<UserProfile | null>(null);
-	const [accessSummary, setAccessSummary] = React.useState<{ isAdmin: boolean; monitoredRecordsCount: number } | null>(null);
-	const [accessSummaryLoading, setAccessSummaryLoading] = React.useState(true);
-	const [accessSummaryError, setAccessSummaryError] = React.useState(false);
-	const [relatedUsers, setRelatedUsers] = React.useState<{ id: string; name: string }[]>([]);
-	const [relatedUsersLoading, setRelatedUsersLoading] = React.useState(true);
-	const [relatedUsersError, setRelatedUsersError] = React.useState(false);
-	const [name, setName] = React.useState('');
-	const [loading, setLoading] = React.useState(true);
-	const [loadError, setLoadError] = React.useState('');
-	const [nameError, setNameError] = React.useState<string | null>(null);
-	const [saving, setSaving] = React.useState(false);
-	const [feedback, setFeedback] = React.useState<{ text: string; error: boolean } | null>(null);
-	const [retry, setRetry] = React.useState(0);
-	const [stateUid, setStateUid] = React.useState(uid);
-	const uidRef = React.useRef(uid); uidRef.current = uid;
-	const readReady = React.useRef(false);
-	const lifetime = React.useRef(0);
-	const saveLock = React.useRef<object | null>(null);
-	const copyLock = React.useRef<object | null>(null);
-	const lastFocusedUid = React.useRef<string | undefined>(undefined);
-	const preserveDraftOnReload = React.useRef(false);
-	const draftRef = React.useRef({ name, profile });
-	draftRef.current = { name, profile };
-
-	const reload = React.useCallback(() => {
-		if (saveLock.current || auth.currentUser?.uid !== uid || uidRef.current !== uid) return;
-		const draft = draftRef.current;
-		preserveDraftOnReload.current = Boolean(draft.profile && draft.profile.uid === uid && draft.name.trim() !== draft.profile.name);
-		readReady.current = false;
-		setRetry(value => value + 1);
-	}, [uid]);
-	useFocusEffect(React.useCallback(() => {
-		if (lastFocusedUid.current !== uid) { lastFocusedUid.current = uid; return; }
-		reload();
-	}, [uid, reload]));
-
-	React.useEffect(() => {
-		const version = ++lifetime.current;
-		setStateUid(uid); readReady.current = false;
-		const preserveDraft = preserveDraftOnReload.current && draftRef.current.profile?.uid === uid;
-		const preservedName = draftRef.current.name;
-		preserveDraftOnReload.current = false;
-		if (!preserveDraft) setProfile(null);
-		setAccessSummary(null);
-		setAccessSummaryLoading(Boolean(uid));
-		setAccessSummaryError(false);
-		setRelatedUsers([]);
-		setRelatedUsersLoading(Boolean(uid));
-		setRelatedUsersError(false);
-		if (!preserveDraft) setName('');
-		setNameError(null);
-		setFeedback(null);
-		setLoadError('');
-		setLoading(true);
-		setSaving(false);
-		saveLock.current = null; copyLock.current = null;
-		const isCurrent = () => lifetime.current === version && uidRef.current === uid && auth.currentUser?.uid === uid;
-		if (!uid) {
-			setLoadError('Entre novamente para carregar seu perfil.');
-			setLoading(false);
-			setAccessSummaryLoading(false);
-			setRelatedUsersLoading(false);
-			return () => { lifetime.current += 1; };
-		}
-
-		const load = async () => {
-			let profileLoaded = false;
-			try {
-				const result = await getUserProfileFirebase(uid);
-				if (!isCurrent()) return;
-				setProfile(result);
-				setName(preserveDraft ? preservedName : result.name);
-				readReady.current = true;
-				setLoading(false);
-				profileLoaded = true;
-
-				void getRelatedUsersFirebase(uid).then(related => {
-					if (!isCurrent()) return;
-					if (!related.success || !related.data) setRelatedUsersError(true);
-					else setRelatedUsers(related.data.map(user => {
-						const linkedUser = user as { id: string; name?: unknown };
-						return { id: linkedUser.id, name: typeof linkedUser.name === 'string' && linkedUser.name.trim() ? linkedUser.name : 'Nome não informado' };
-					}));
-				}).catch(() => { if (isCurrent()) setRelatedUsersError(true); }).finally(() => { if (isCurrent()) setRelatedUsersLoading(false); });
-
-				const summary = await getUserProfileAccessSummaryFirebase(uid, result);
-				if (!isCurrent()) return;
-				setAccessSummary(summary);
-			} catch {
-				if (!isCurrent()) return;
-				if (!profileLoaded) setLoadError('Não foi possível carregar seu perfil. Tente novamente.');
-				else setAccessSummaryError(true);
-			} finally {
-				if (isCurrent()) {
-					setLoading(false);
-					setAccessSummaryLoading(false);
-				}
-			}
-		};
-
-		void load();
-		return () => { lifetime.current += 1; };
-	}, [uid, retry]);
-
-	const sameSession = stateUid === uid && auth.currentUser?.uid === uid;
-	const currentProfile = sameSession && profile?.uid === uid ? profile : null;
-	const dirty = Boolean(currentProfile && name.trim() !== currentProfile.name);
-	const changeName = (value: string) => {
-		if (saveLock.current || !readReady.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return;
-		setName(value);
-		setFeedback(null);
-		if (nameError) setNameError(getProfileNameError(value));
-	};
-	const reset = () => {
-		if (saveLock.current || !readReady.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return;
-		setName(currentProfile?.name ?? '');
-		setNameError(null);
-		setFeedback(null);
-	};
-	const save = async () => {
-		if (!uid || !currentProfile || saveLock.current || !readReady.current || loading || loadError || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
-		const validation = getProfileNameError(name);
-		setNameError(validation);
-		if (validation) return false;
-		if (!dirty) return true;
-		const version = lifetime.current;
-		const isCurrent = () => version === lifetime.current && uidRef.current === uid && auth.currentUser?.uid === uid;
-		const lock = {}; saveLock.current = lock;
-		const submittedName = name;
-		setSaving(true);
-		setFeedback(null);
-		try {
-			const savedName = await updateUserProfileFirebase(uid, submittedName, { expectedName: currentProfile.name, isCurrent });
-			if (!isCurrent()) return false;
-			setProfile({ ...currentProfile, name: savedName });
-			setName(savedName);
-			setFeedback({ text: 'Perfil atualizado.', error: false });
-			return true;
-		} catch (error) {
-			if (isCurrent()) setFeedback({ text: error instanceof Error && error.message.includes('Seu nome mudou') ? `${error.message} Atualize o perfil; seu rascunho será preservado.` : 'Não foi possível salvar. Suas alterações foram mantidas; tente novamente.', error: true });
-			return false;
-		} finally {
-			if (saveLock.current === lock && version === lifetime.current) {
-				saveLock.current = null;
-				setSaving(false);
-			}
-		}
-	};
-	const copyId = async () => {
-		if (!uid || !currentProfile || loading || loadError || !readReady.current || copyLock.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
-		const version = lifetime.current;
-		const lock = {}; copyLock.current = lock;
-		try {
-			const copied = await Clipboard.setStringAsync(uid);
-			if (!copied) throw new Error('clipboard/unavailable');
-			if (version !== lifetime.current || uidRef.current !== uid || auth.currentUser?.uid !== uid) return false;
-			setFeedback({ text: 'ID copiado.', error: false });
-			return true;
-		} catch {
-			if (version === lifetime.current && uidRef.current === uid && auth.currentUser?.uid === uid) setFeedback({ text: 'Não foi possível copiar o ID. Tente novamente.', error: true });
-			return false;
-		} finally {
-			if (copyLock.current === lock) copyLock.current = null;
-		}
-	};
+	const [name, changeName] = React.useState('');
 	return {
-		profile: currentProfile,
-		accessSummary: sameSession ? accessSummary : null,
-		accessSummaryLoading: !sameSession || accessSummaryLoading,
-		accessSummaryError: sameSession && accessSummaryError,
-		relatedUsers: sameSession ? relatedUsers : [],
-		relatedUsersLoading: !sameSession || relatedUsersLoading,
-		relatedUsersError: sameSession && relatedUsersError,
-		name: sameSession ? name : '',
+		profile: null as UserProfile | null,
+		accessSummary: null as { isAdmin: boolean; monitoredRecordsCount: number } | null,
+		accessSummaryLoading: false,
+		accessSummaryError: true,
+		relatedUsers: [] as { id: string; name: string }[],
+		relatedUsersLoading: false,
+		relatedUsersError: true,
+		name,
 		changeName,
-		nameError: sameSession ? nameError : null,
-		loading: !sameSession || loading,
-		loadError: sameSession ? loadError : '',
-		saving: sameSession && saving,
-		dirty,
-		feedback: sameSession ? feedback : null,
-		save,
-		reset,
-		copyId,
-		reload,
+		nameError: null as string | null,
+		loading: false,
+		loadError: FEATURE_UNAVAILABLE_MESSAGE,
+		saving: false,
+		dirty: false,
+		feedback: null as { text: string; error: boolean } | null,
+		save: async () => {
+			showFeatureUnavailable();
+			return false;
+		},
+		reset: () => changeName(''),
+		copyId: async () => {
+			showFeatureUnavailable();
+			return false;
+		},
+		reload: showFeatureUnavailable,
 	};
 }

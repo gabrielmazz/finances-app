@@ -10,7 +10,7 @@ describe('route visibility preferences', () => {
 		jest.dontMock('react-native-css-interop/jsx-runtime');
 	});
 
-	it('keeps missing routes disabled and honors explicit local choices', () => {
+	it('keeps missing routes visible and honors explicit local choices', () => {
 		const { normalizeRouteVisibility } = loadRouteVisibility();
 
 		expect(
@@ -22,20 +22,20 @@ describe('route visibility preferences', () => {
 		).toMatchObject({
 			lumusAssistant: false,
 			addRegisterExpenses: false,
-			addRegisterGain: false,
+			addRegisterGain: true,
 			annotations: false,
 		});
 	});
 
-	it('starts every functional screen disabled', () => {
+	it('starts every preserved screen visible', () => {
 		const { normalizeRouteVisibility } = loadRouteVisibility();
 
-		expect(Object.values(normalizeRouteVisibility(null)).every(value => value === false)).toBe(true);
+		expect(Object.values(normalizeRouteVisibility(null)).every(value => value === true)).toBe(true);
 		expect(normalizeRouteVisibility(null)).toMatchObject({
-			lumusAssistant: false,
-			addRegisterExpenses: false,
-			addRegisterGain: false,
-			annotations: false,
+			lumusAssistant: true,
+			addRegisterExpenses: true,
+			addRegisterGain: true,
+			annotations: true,
 		});
 	});
 

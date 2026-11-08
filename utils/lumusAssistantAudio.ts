@@ -1,5 +1,6 @@
-import { Platform } from 'react-native';
 import { File as ExpoFile } from 'expo-file-system';
+
+import { Platform } from 'react-native';
 
 export const ASSISTANT_AUDIO_MAX_BYTES = 20 * 1024 * 1024;
 

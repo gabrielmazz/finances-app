@@ -26,9 +26,9 @@ Users review monthly and annual balances, record and categorize transactions, ma
 
 - Dashboard with monthly indicators and financial charts.
 - Detailed transactions, bank movements, tags, filters, recurring income and expenses, transfers, cash rescue, and annual/monthly summaries.
-- Investment tracking, including CDI-based daily yield calculation, manual synchronization, and redemption clauses.
+- Preserved investment tracking screens and forms; calculations and data operations are currently unavailable.
 - Household user relationships for shared financial visibility.
-- Firebase Authentication and Firestore support the product data model.
+- The frontend is preserved independently; data features are unavailable while the backend is rebuilt in a later stage. No backend technology has been selected.
 - Monetary values are stored and calculated as integer cents; display conversion happens only at the presentation layer.
 - Native platforms and the web version must maintain functional parity with the established mobile experience.
 

@@ -1,61 +1,62 @@
-import BankMovementsScreen from './BankMovementsScreen.web';
-import React from "react";
-import { ArrowDownCircle, ArrowUpCircle, Info } from "lucide-react";
-import {
-	Image as RNImage,
-	Pressable,
-	RefreshControl,
-	ScrollView,
-	Text,
-	useWindowDimensions,
-	View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Carousel from "@/components/web/visuals/Carousel";
-import AnimatedContent from "@/components/web/motion/AnimatedContent";
-import Grainient from "@/components/web/visuals/Grainient";
-import StrokeText from "@/components/web/visuals/StrokeText";
+import HomeActivityHeatmap from "@/components/uiverse/dashboard/home-activity-heatmap";
 import HomeExpenseChart from "@/components/uiverse/dashboard/home-expense-chart";
 import HomeExpenseLineChart from "@/components/uiverse/dashboard/home-expense-line-chart";
-import HomeActivityHeatmap from "@/components/uiverse/dashboard/home-activity-heatmap";
 import HomeInvestmentChart from "@/components/uiverse/dashboard/home-investment-chart";
+import AnimatedContent from "@/components/web/motion/AnimatedContent";
+import Carousel from "@/components/web/visuals/Carousel";
+import Grainient from "@/components/web/visuals/Grainient";
+import StrokeText from "@/components/web/visuals/StrokeText";
+import type { HomeBankBalanceCard,HomeCashSummary } from '@/types/presentation/home';
+import { ArrowDownCircle,ArrowUpCircle,Info } from "lucide-react";
+import React from "react";
+import {
+Pressable,
+RefreshControl,
+Image as RNImage,
+ScrollView,
+Text,
+useWindowDimensions,
+View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BankMovementsScreen from './BankMovementsScreen.web';
 
-import Navigator from "@/components/uiverse/navigation/navigator";
+import { Button,ButtonText } from "@/components/ui/button";
 import {
-	BankCardSurface,
-	CASH_CARD_COLOR,
-	buildBankCardPalette,
-	type BankCardPalette,
-} from "@/components/uiverse/banks/bank-card-surface";
-import {
-	Popover,
-	PopoverBackdrop,
-	PopoverBody,
-	PopoverContent,
-} from "@/components/ui/popover";
-import {
-	Modal,
-	ModalBackdrop,
-	ModalBody,
-	ModalCloseButton,
-	ModalContent,
-	ModalFooter,
-	ModalHeader,
-	ModalTitle,
+Modal,
+ModalBackdrop,
+ModalBody,
+ModalCloseButton,
+ModalContent,
+ModalFooter,
+ModalHeader,
+ModalTitle,
 } from "@/components/ui/modal";
-import { Button, ButtonText } from "@/components/ui/button";
+import {
+Popover,
+PopoverBackdrop,
+PopoverBody,
+PopoverContent,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/contexts/AuthContext";
-import { HIDDEN_VALUE_PLACEHOLDER, useValueVisibility } from "@/contexts/ValueVisibilityContext";
-import { type HomeBankBalanceCard, type HomeCashSummary } from "@/functions/HomeFirebase";
-import { type HomeMandatoryItem } from "@/utils/homeMandatorySchedule";
+import {
+BankCardSurface,
+buildBankCardPalette,
+CASH_CARD_COLOR,
+type BankCardPalette,
+} from "@/components/uiverse/banks/bank-card-surface";
+import Navigator from "@/components/uiverse/navigation/navigator";
+import { HIDDEN_VALUE_PLACEHOLDER,useValueVisibility } from "@/contexts/ValueVisibilityContext";
+import { useSession } from "@/hooks/useSession";
+
 import { useHomeScreenData } from "@/hooks/useHomeScreenData";
+import { type HomeMandatoryItem } from "@/utils/homeMandatorySchedule";
 
 import { LUMUS_CHART_COLORS } from "@/design-system/tokens";
-import { WEB_DASHBOARD_CLASS_NAMES, WEB_DASHBOARD_DOM_STYLES } from "@/design-system/web-dashboard";
+import { WEB_DASHBOARD_CLASS_NAMES,WEB_DASHBOARD_DOM_STYLES } from "@/design-system/web-dashboard";
 import { useScreenStyles } from "@/hooks/useScreenStyle";
-import { getUserDataFirebase } from "@/functions/RegisterUserFirebase";
-import { APP_ROUTE_PATHS, navigateToRoute } from "@/utils/navigation";
+
+import { APP_ROUTE_PATHS,navigateToRoute } from "@/utils/navigation";
 import LoginWallpaper from "../../assets/Background/wallpaper01.png";
 import HomeScreenIllustration from "../../assets/UnDraw/homeScreen.svg";
 
@@ -321,8 +322,8 @@ const BankCard = ({
 
 export default function HomeScreen() {
 	const { width } = useWindowDimensions();
-	const { user } = useAuth();
-	const { shouldHideValues, toggleShouldHideValues } = useValueVisibility();
+	const { user } = useSession();
+	const { shouldHideValues } = useValueVisibility();
 	const {
 		insets,
 		surfaceBackground,
@@ -333,41 +334,10 @@ export default function HomeScreen() {
 		webDashboardPalette,
 		webDashboardClassNames,
 	} = useScreenStyles();
-	const cardBackground = surfaceBackground;
 	const currentUserId = user?.uid ?? null;
-	const [userName, setUserName] = React.useState<string | null>(null);
+	const [userName] = React.useState<string | null>(null);
 	const [bankSectionWidth, setBankSectionWidth] = React.useState<number | null>(null);
-	React.useEffect(() => {
-		let isActive = true;
-		const loadUserName = async () => {
-			if (!user) {
-				setUserName(null);
-				return;
-			}
 
-			const fallbackName = user.displayName?.trim() || null;
-			try {
-				const userData = await getUserDataFirebase(user.uid);
-				const storedName = userData.success
-					? (userData.data as { name?: unknown })?.name
-					: null;
-				if (isActive) {
-					setUserName(
-						typeof storedName === "string" && storedName.trim()
-							? storedName.trim()
-							: fallbackName,
-					);
-				}
-			} catch {
-				if (isActive) setUserName(fallbackName);
-			}
-		};
-
-		void loadUserName();
-		return () => {
-			isActive = false;
-		};
-	}, [user]);
 	const { overview, movements, investments, reload } =
 		useHomeScreenData(currentUserId);
 	const homeReadError = overview.error || movements.error || investments.error;
@@ -385,14 +355,6 @@ export default function HomeScreen() {
 	const bankCarouselWidth = Math.max(
 		Math.min(bankSectionWidth ?? requestedBankCarouselWidth, requestedBankCarouselWidth),
 		1,
-	);
-	const monthLabel = React.useMemo(
-		() =>
-			new Intl.DateTimeFormat("pt-BR", {
-				month: "long",
-				year: "numeric",
-			}).format(new Date()),
-		[],
 	);
 	const bankItems = React.useMemo<WebBankItem[]>(
 		() => [
@@ -853,7 +815,7 @@ export default function HomeScreen() {
 										</View>
 									</View>
 									<Text className={webStyles.activityHeatmapHelper} style={{ color: webDashboardPalette.secondaryText }}>
-										{activityHeatmap.totalActions} ações registradas em {new Date().getFullYear()}
+										{overview.error ? 'Atividade indisponível' : `${activityHeatmap.totalActions} ações registradas em ${new Date().getFullYear()}`}
 									</Text>
 									{overview.loading && activityHeatmap.totalActions === 0 ? (
 										<Skeleton
