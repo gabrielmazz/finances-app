@@ -1,6 +1,6 @@
 {
   "name": "finances-app",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "main": "index.ts",
   "scripts": {
     "start": "node script/spark_dev.js mobile",
@@ -168,7 +168,10 @@
     "typescript": "~6.0.3"
   },
   "overrides": {
-    "@grpc/grpc-js": "1.13.6"
+    "@grpc/grpc-js": "1.13.6",
+    "query-string": {
+      "decode-uri-component": "0.5.1"
+    }
   },
   "private": true
 }

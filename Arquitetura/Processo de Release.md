@@ -11,6 +11,14 @@ spark_reviewed_at: 2026-10-20
 
 # Processo de Release
 
+## Preparação da versão 2.3.3 — 08/11/2026
+
+As dependências foram atualizadas dentro dos intervalos existentes. O audit passou no limite de severidade alta para aplicativo e backend; permanecem alertas moderados e baixos. O Expo Router usa `query-string` 7 com `decode-uri-component` 0.5.1 por override e patch de interoperabilidade ESM em `patches/query-string+7.1.3.patch`; `tests/queryStringCompatibility.test.ts` cobre a decodificação normal e inválida. Remover o patch e o override quando uma versão compatível do Router resolver essa dependência.
+
+O Jest simula SecureStore indisponível nos testes gerais; os campos `restoreOnly` e `archiveOnly` são atribuídos pelo aplicativo e não são expostos ao modelo. A versão 2.3.3 está preparada localmente, mas a distribuição continua condicionada aos gates de integração, revisão, homologação e transição Spark descritos nesta página. Exportação local não comprova publicação nem funcionamento em aparelho.
+
+O diagnóstico de 08/11/2026 encontrou falha nos lotes de pagamento e recebimento recorrentes: 211 operações de cada família foram recusadas e o Emulator registrou esgotamento do limite de 1.000 expressões das Rules nas gravações. A integração não passou; investigar e corrigir as regras preservando suas garantias, e repetir os testes de permissão e o gate completo antes de distribuir. O bundle Web 2.3.3 foi exportado localmente, sem publicação.
+
 <!-- spark-progress:start -->
 ## Progresso Spark — 20/10/2026
 

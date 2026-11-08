@@ -130,13 +130,15 @@ describe('Lumus Assistant domain contracts', () => {
 
 		it('declares every action payload field to the model', () => {
 			const declaredFields = ASSISTANT_FUNCTION_DECLARATIONS.find(item => item.name === 'prepare_financial_actions')!.parameters.properties.actions.items.properties.payload.properties;
+			const internalFields = ['expectedPreviousBalanceInCents', 'restoreOnly', 'archiveOnly'];
+			for (const field of internalFields) expect(declaredFields).not.toHaveProperty(field);
 			for (const schema of Object.values(assistantActionSchemas)) {
 				let objectSchema: any = schema;
 				while (typeof objectSchema.innerType === 'function' || objectSchema.in) objectSchema = objectSchema.in ?? objectSchema.innerType();
 				const shape = objectSchema.shape as Record<string, unknown>;
 				for (const field of Object.keys(shape)) {
-					// Pré-condição capturada pelo aplicativo; o modelo não pode propor o saldo autorizado.
-					if (field === 'expectedPreviousBalanceInCents') continue;
+					// Campos determinados localmente pelo aplicativo, fora da proposta do modelo.
+					if (internalFields.includes(field)) continue;
 					expect(declaredFields).toHaveProperty(field);
 				}
 			}
