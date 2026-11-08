@@ -1,0 +1,41 @@
+rules_version = '2';
+// Stage 02 local prototype. Production still uses different Rules; do not deploy yet.
+// users/{uid}: legacy fields retained; clients create a minimal own profile or edit
+// their own bounded name. Permission/relationship fields cannot be changed.
+// financialGroups/{id}: externally established, immutable membership ACL, read only.
+// banks/{id}: legacy personId ownership, read only, pages <= 20. All money writes denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(uid) { return isAuthenticated() && request.auth.uid == uid; }
+    function isValidName(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.name.matches('.*[^ ].*') && !data.name.matches('.*[\\x00-\\x1F\\x7F].*');
+    }
+    function isValidUser(data) { return data.keys().hasAll(['name']) && isValidName(data); }
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUser(request.resource.data)
+        && request.resource.data.keys().hasOnly(['name', 'email', 'createdAt', 'adminUser'])
+        && request.resource.data.keys().hasAll(['email', 'createdAt', 'adminUser'])
+        && request.resource.data.email is string && request.resource.data.email.size() <= 254
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.adminUser == false
+        && request.resource.data.createdAt == request.time;
+      // Unknown legacy fields stay unchanged, including fields of incomplete profiles.
+      allow update: if isOwner(uid) && isValidUser(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time;
+    }
+    match /financialGroups/{groupId} {
+      allow get: if isAuthenticated() && resource.data.status == 'active'
+        && resource.data.members[request.auth.uid] in ['admin', 'member'];
+    }
+    match /banks/{bankId} {
+      allow get: if isAuthenticated() && resource.data.personId == request.auth.uid;
+      allow list: if isAuthenticated() && request.query.limit <= 20
+        && resource.data.personId == request.auth.uid;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

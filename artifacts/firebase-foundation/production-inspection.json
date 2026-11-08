@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-11-08T19:21:55.679Z",
+  "projectId": "finances-app-e8685",
+  "database": "(default)",
+  "databaseEdition": "STANDARD",
+  "freeTier": true,
+  "billingEnabled": false,
+  "region": "nam5",
+  "pitrEnabled": false,
+  "authSubtype": "FIREBASE_AUTH",
+  "authEmailPassword": {
+    "enabled": true,
+    "passwordRequired": true
+  },
+  "inspectedDocumentCount": 32,
+  "collectionCount": 13,
+  "publishedRulesUpdatedAt": "2026-08-16T12:51:06.751750Z",
+  "publishedRulesSHA256": "8d431eb2263a6b35a77676b230f821e08068425d0f6c55b4f5430f3b7188cd1d",
+  "writeOperations": 0,
+  "backupStatus": "No production backup taken or verified",
+  "limits": "Sample of up to three documents per root collection; no exhaustive data scan or deployed-client version identification."
+}

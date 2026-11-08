@@ -138,13 +138,13 @@ export default function PerfilPersonScreen() {
 											</View>
 										</View>
 										{state.accessSummaryError && <View className="gap-3">
-											<Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as informações da conta.</Text>
+											<Text accessibilityRole="alert" className={ui.errorText}>Resumo de permissões indisponível nesta etapa.</Text>
 											<Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, ui.focusRing, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button>
 										</View>}
 									</View>
 									<View className={cn(ui.card, 'gap-3 p-4')}>
 										<Heading size="lg" className={ui.heading}>Contas vinculadas</Heading>
-										{state.relatedUsersLoading ? <Text className={ui.helper}>Carregando contas vinculadas…</Text> : state.relatedUsersError ? <View className="gap-2"><Text accessibilityRole="alert" className={ui.errorText}>Não foi possível carregar as contas vinculadas.</Text><Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button></View> : state.relatedUsers.length ? <View className="gap-2">{state.relatedUsers.map(user => <Text key={user.id} className={ui.body}>{user.name}</Text>)}</View> : <Text className={ui.helper}>Nenhuma pessoa vinculada.</Text>}
+										{state.relatedUsersLoading ? <Text className={ui.helper}>Carregando contas vinculadas…</Text> : state.relatedUsersError ? <View className="gap-2"><Text accessibilityRole="alert" className={ui.errorText}>Vínculos antigos preservados. O compartilhamento aguarda validação de segurança.</Text><Button onPress={state.reload} isDisabled={state.loading || state.saving} className={cn(ui.secondaryButton, 'min-h-12')}><ButtonText className={ui.body}>Tentar novamente</ButtonText></Button></View> : state.relatedUsers.length ? <View className="gap-2">{state.relatedUsers.map(user => <Text key={user.id} className={ui.body}>{user.name}</Text>)}</View> : <Text className={ui.helper}>Nenhuma pessoa vinculada.</Text>}
 										<Text nativeID="profile-id-label" className={form.inlineLabel}>Seu ID</Text>
 										<HStack className="w-full items-center gap-3">
 											<Input isReadOnly className={cn(form.input, 'min-h-12 min-w-0 flex-1 opacity-40')}>

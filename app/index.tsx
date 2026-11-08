@@ -1,7 +1,9 @@
 import { Redirect } from 'expo-router';
 
 import { APP_ROUTE_PATHS } from '@/utils/navigation';
+import { useSession } from '@/hooks/useSession';
 
 export default function PlatformEntryRoute() {
-	return <Redirect href={APP_ROUTE_PATHS.login} />;
+	const { user } = useSession();
+	return <Redirect href={user ? APP_ROUTE_PATHS.home : APP_ROUTE_PATHS.login} />;
 }

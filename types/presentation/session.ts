@@ -4,4 +4,3 @@ export type UserSummary = {
 	email: string | null;
 	photoURL: string | null;
 };
-export const unavailableUser: UserSummary | null = null;

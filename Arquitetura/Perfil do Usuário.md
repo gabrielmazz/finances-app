@@ -8,7 +8,9 @@ versao: 3.0.0
 
 # Perfil do Usuário
 
-Hero, campos de identificação, edição do nome e acesso a vínculos permanecem. Perfil, ID, datas e resumo de acesso ficam indisponíveis; salvar não retorna sucesso e copiar não inventa um identificador.
+Hero, campos de identificação, edição do nome e acesso a vínculos permanecem. Nome, UID, email de Auth e data legada são lidos do perfil próprio; copiar usa o UID real. Data ausente/inválida fica sem valor. Nome é validado e salvo por transação com comparação do nome esperado, sem sobrescrever campos antigos ou repetir escrita idêntica.
+
+Perfil ausente não é criado pelo login; o usuário completa o nome explicitamente. Resumo de permissões, contagens e contas vinculadas continuam indisponíveis, sem tratar `adminUser` ou `relatedIdUsers` como autorização. Os vínculos são preservados nos documentos. Uma falha no contexto de grupo não apaga o perfil privado. Ver [[Fundação Firebase Spark]].
 
 ## Arquivos de apresentação
 

@@ -1,0 +1,73 @@
+{
+  "checkedAt": "2026-11-08T19:56:24.192Z",
+  "status": "local-foundation-validated; production-blocked",
+  "recovery": {
+    "tag": "recovery/firebase-foundation-20261108",
+    "commit": "ea9e261f97c68fb67d30f8ce15f708b65f605b5d"
+  },
+  "checks": {
+    "styles": "passed: baseline metrics unchanged",
+    "typecheck": "passed",
+    "unit": {
+      "suites": 17,
+      "tests": 92,
+      "failed": 0
+    },
+    "integration": {
+      "tests": 15,
+      "failed": 0,
+      "project": "demo-lumus-foundation",
+      "services": [
+        "auth",
+        "firestore"
+      ],
+      "evidence": "integration-tests.txt"
+    },
+    "browser": {
+      "routeViewportCombinations": 50,
+      "flows": 4,
+      "pageErrors": 0,
+      "unexpectedConsoleErrors": 0,
+      "externalRequests": 0,
+      "horizontalOverflow": false,
+      "widths": [
+        1440,
+        390
+      ],
+      "existingRedirect": "bank-summary -> home"
+    },
+    "exports": {
+      "web": "passed",
+      "androidHermes": "passed",
+      "iosHermes": "passed",
+      "finalAndroidJavaScript": "passed --no-bytecode --no-minify",
+      "finalIosJavaScript": "passed --no-bytecode --no-minify"
+    },
+    "metro": {
+      "started": true,
+      "port": 8088,
+      "loginRendered": true,
+      "pageErrors": 0
+    },
+    "gitDiffCheck": "passed"
+  },
+  "preservation": {
+    "screens": 51,
+    "routes": 82,
+    "screenInventoryUnchanged": true,
+    "assetsDesignSystemUiPrimitivesUnchanged": true,
+    "productionDocumentWrites": 0,
+    "productionDeploys": 0,
+    "publishedRulesUnchanged": true,
+    "billingEnabled": false
+  },
+  "limits": [
+    "New client deliberately accepts only isolated emulators until production Rules transition is reviewed/authorized",
+    "Published Rules still permit broad authenticated read/write; critical external risk",
+    "No production backup taken or verified; only synthetic REST snapshot round-trip validated",
+    "Production inspection sampled 32 documents; actual installed client versions and full schema not established",
+    "No installed Android/iOS/device execution: adb and xcrun unavailable",
+    "Financial operations and legacy sharing remain unavailable",
+    "Dependency audit retains 5 moderate production findings, 37 total including development tooling"
+  ]
+}

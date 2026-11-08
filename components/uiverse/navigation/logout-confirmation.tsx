@@ -17,13 +17,13 @@ export function LogoutConfirmation({ isOpen, isLoggingOut, onCancel, onConfirm }
 	return (
 		<Modal isOpen={isOpen} onClose={onCancel} size="md" initialFocusRef={cancelRef}>
 			<ModalBackdrop />
-			<ModalContent>
+			<ModalContent testID="logout-confirmation">
 				<ModalHeader>
 					<ModalTitle>Sair do Lumus?</ModalTitle>
 				</ModalHeader>
 				<ModalBody>
 					<Text className="text-body-sm text-typography-700">
-						Deseja voltar à tela inicial de acesso? Você poderá explorar as telas novamente.
+						Sua sessão será encerrada. Para acessar suas informações novamente, entre na sua conta.
 					</Text>
 				</ModalBody>
 				<ModalFooter>

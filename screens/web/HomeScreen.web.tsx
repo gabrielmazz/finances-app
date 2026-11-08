@@ -322,7 +322,7 @@ const BankCard = ({
 
 export default function HomeScreen() {
 	const { width } = useWindowDimensions();
-	const { user } = useSession();
+	const { user, profile } = useSession();
 	const { shouldHideValues } = useValueVisibility();
 	const {
 		insets,
@@ -335,7 +335,7 @@ export default function HomeScreen() {
 		webDashboardClassNames,
 	} = useScreenStyles();
 	const currentUserId = user?.uid ?? null;
-	const [userName] = React.useState<string | null>(null);
+	const userName = profile?.name || user?.displayName || null;
 	const [bankSectionWidth, setBankSectionWidth] = React.useState<number | null>(null);
 
 	const { overview, movements, investments, reload } =

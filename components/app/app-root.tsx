@@ -16,6 +16,8 @@ import { PostSubmitBehaviorProvider } from '@/contexts/PostSubmitBehaviorContext
 import { RouteVisibilityProvider, useRouteVisibility } from '@/contexts/RouteVisibilityContext';
 import { ThemeProvider, useAppTheme } from '@/contexts/ThemeContext';
 import { ValueVisibilityProvider } from '@/contexts/ValueVisibilityContext';
+import { SessionProvider } from '@/contexts/SessionContext';
+import { useSession } from '@/hooks/useSession';
 
 import { APP_ROUTE_GUARD_ENTRIES, isAppRouteAllowed } from '@/utils/appRouteGuards';
 
@@ -33,16 +35,17 @@ const PresentationStack = () => {
 	const pathname = usePathname();
 	const showWorkspace = pathname !== APP_ROUTE_PATHS.login && pathname !== '/';
 	const { isLoadingTheme } = useAppTheme();
+	const { initializing, user } = useSession();
 	const { isLoadingRouteVisibility, isRouteVisible } = useRouteVisibility();
-	if (isLoadingTheme || isLoadingRouteVisibility) return <AppBootstrapScreen />;
+	if (isLoadingTheme || isLoadingRouteVisibility || initializing) return <AppBootstrapScreen />;
 	return (
 		<View className="flex-1">
-			<FeatureUnavailableNotice showWorkspace={showWorkspace} />
+			{showWorkspace && <FeatureUnavailableNotice showWorkspace />}
 			<WebAppShell showWorkspace={showWorkspace}>
 				<Stack screenOptions={{ headerShown: false }}>
 					<Stack.Screen name="index" />
 					{APP_ROUTE_GUARD_ENTRIES.map((entry) => (
-						<Stack.Protected key={entry.name} guard={isAppRouteAllowed(entry, isRouteVisible)}>
+						<Stack.Protected key={entry.name} guard={isAppRouteAllowed(entry, isRouteVisible, !!user)}>
 							<Stack.Screen name={entry.name} />
 						</Stack.Protected>
 					))}
@@ -81,7 +84,7 @@ export default function AppRoot() {
 			<ValueVisibilityProvider>
 				<PostSubmitBehaviorProvider>
 					<RouteVisibilityProvider>
-						<LayoutWithTheme />
+						<SessionProvider><LayoutWithTheme /></SessionProvider>
 					</RouteVisibilityProvider>
 				</PostSubmitBehaviorProvider>
 			</ValueVisibilityProvider>

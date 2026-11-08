@@ -8,7 +8,7 @@ versao: 3.0.0
 
 # MOC - Lumus Finanças
 
-O projeto está na etapa de frontend independente, descrita em [[Remoção do Backend]]. Nenhuma tecnologia para o próximo backend foi escolhida.
+O frontend preservado em [[Remoção do Backend]] recebeu a [[Fundação Firebase Spark]] da etapa 02: Auth/perfis e Rules locais, sem módulos financeiros nem produção liberada.
 
 ## Módulos visuais
 - [[Autenticação]]

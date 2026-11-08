@@ -1,4 +1,4 @@
-import { showFeatureUnavailable } from '@/components/app/feature-unavailable';
+import { useSession } from '@/hooks/useSession';
 import { AUTH_CLASS_NAMES } from '@/design-system/auth';
 import { useAccountAccess,type AccountAccessMode } from '@/hooks/useAccountAccess';
 import { cn } from '@/lib/utils';
@@ -37,8 +37,6 @@ import { useScreenStyles } from '@/hooks/useScreenStyle';
 import {
 clampEmailInput,
 clampPasswordInput,
-formatRemainingTime,
-normalizeEmailForAuth
 } from '@/utils/loginSecurity';
 
 // Canal padronizado de alertas in-app conforme [[Notificações]]
@@ -86,22 +84,19 @@ export default function LoginScreen() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [emailError, setEmailError] = useState<string | null>(null);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
-	const [isSubmitting] = useState(false);
+	const session = useSession();
 	const [isRefreshing, setIsRefreshing] = useState(false);
-	const [loginCooldownUntil, setLoginCooldownUntil] = useState<number | null>(null);
-	const [clockTick, setClockTick] = useState(Date.now());
 
 	const emailInputRef = useRef<any>(null);
 	const passwordInputRef = useRef<any>(null);
 	const nameInputRef = useRef<any>(null);
-	const loginPending = useRef(false);
 	const access = useAccountAccess({
 		email, password, setPassword, setEmailError, setPasswordError,
 		focusField: field => (field === 'name' ? nameInputRef : field === 'email' ? emailInputRef : passwordInputRef).current?.focus(),
 	});
-	const isBusy = isSubmitting || access.isSubmitting;
+	const isBusy = access.isSubmitting;
 	const changeAccessMode = (mode: AccountAccessMode) => {
-		if (loginPending.current || isBusy) return;
+		if (isBusy) return;
 		setShowPassword(false);
 		access.changeMode(mode);
 	};
@@ -112,19 +107,11 @@ export default function LoginScreen() {
 			? 'Informe seu email para receber um link e escolher uma nova senha.'
 			: 'Entre para acompanhar o que importa nas suas finanças.';
 	const submitAccess = () => {
-		if (access.mode === 'login') void signIn();
-		else void access.submit();
+		void access.submit();
 	};
 	const submitLabel = access.mode === 'register' ? 'Criar conta' : access.mode === 'reset' ? (access.isResetSent ? 'Link solicitado' : 'Enviar link de recuperação') : 'Entrar';
 
-	const normalizedEmail = useMemo(() => normalizeEmailForAuth(email), [email]);
-	const loginCooldownRemainingMs = useMemo(
-		() => (loginCooldownUntil ? Math.max(0, loginCooldownUntil - clockTick) : 0),
-		[clockTick, loginCooldownUntil]
-	);
-	const isLocallyRateLimited = loginCooldownRemainingMs > 0;
-	const isLoginDisabled =
-		isBusy || access.isResetSent || (access.mode === 'login' && isLocallyRateLimited);
+	const isLoginDisabled = isBusy || access.isResetSent;
 
 	const keyboardScrollOffset = useCallback(
 		(key: FocusableInputKey) => (key === 'password' ? 180 : 140),
@@ -159,7 +146,6 @@ export default function LoginScreen() {
 		bottomPaddingOffset: 24,
 	});
 
-	const syncCooldownForEmail = useCallback(async (emailValue: string) => { showFeatureUnavailable(); }, []);
 
 	const handleEmailChange = useCallback((value: string) => {
 		setEmail(clampEmailInput(value));
@@ -177,37 +163,19 @@ export default function LoginScreen() {
 		setShowPassword(currentValue => !currentValue);
 	}, []);
 
-	const signIn = useCallback(async () => { showFeatureUnavailable(); }, []);
 
 	const handleRefresh = useCallback(async () => {
 		setIsRefreshing(true);
 		try {
 			setEmailError(null);
 			setPasswordError(null);
-			await syncCooldownForEmail(normalizedEmail);
+			await session.reload();
 		} finally {
 			setIsRefreshing(false);
 		}
-	}, [normalizedEmail, syncCooldownForEmail]);
+	}, [session.reload]);
 
-	useEffect(() => {
-		if (!loginCooldownUntil || loginCooldownUntil <= Date.now()) {
-			setClockTick(Date.now());
-			return;
-		}
 
-		const interval = setInterval(() => {
-			setClockTick(Date.now());
-		}, 1000);
-
-		return () => clearInterval(interval);
-	}, [loginCooldownUntil]);
-
-	useEffect(() => {
-		if (loginCooldownUntil && loginCooldownUntil <= Date.now()) {
-			setLoginCooldownUntil(null);
-		}
-	}, [clockTick, loginCooldownUntil]);
 
 	useEffect(() => {
 		if (access.mode !== 'login') AccessibilityInfo.announceForAccessibility(accessTitle);
@@ -222,11 +190,6 @@ export default function LoginScreen() {
 		return () => subscription.remove();
 	}, [access.mode, isBusy]);
 
-	const derivedCooldownMessage = access.mode === 'login' && isLocallyRateLimited
-		? `Muitas tentativas no dispositivo. Tente novamente em ${formatRemainingTime(
-			loginCooldownRemainingMs
-		)}.`
-		: null;
 
 	return (
 		<SafeAreaView
@@ -429,7 +392,7 @@ export default function LoginScreen() {
 										</Text>
 									)}
 								</Button>
-<Button variant="outline" action="secondary" onPress={navigateToHomeDashboard}><ButtonText>Explorar telas</ButtonText></Button>
+<Button variant="outline" action="secondary" isDisabled={!session.user} onPress={navigateToHomeDashboard}><ButtonText>{session.user ? 'Continuar no workspace' : 'Entre para acessar as telas'}</ButtonText></Button>
 
 								<View className="mt-4 flex-row flex-wrap items-center justify-between gap-2">
 									{access.mode === 'login' ? (
@@ -466,15 +429,6 @@ export default function LoginScreen() {
 									)}
 								</View>
 
-								{derivedCooldownMessage ? (
-									<FormControl className="mt-4">
-										<FormControlHelper className="mt-0">
-											<FormControlHelperText className={`${helperText} text-sm`}>
-												{derivedCooldownMessage}
-											</FormControlHelperText>
-										</FormControlHelper>
-									</FormControl>
-								) : null}
 
 								<VStack className="mt-auto items-center px-4 pb-6 pt-8">
 									<VStack className="gap-1">

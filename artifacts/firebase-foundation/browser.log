@@ -1,0 +1,6 @@
+
+> finances-app@2.3.3 test:browser
+> node tests/browser/foundation.cjs
+
+desktop: 25 routes and auth/profile flows passed
+narrow: 25 routes and auth/profile flows passed

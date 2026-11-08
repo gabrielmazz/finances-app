@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-11-08T19:47:19.170Z",
+  "production": {
+    "info": 0,
+    "low": 0,
+    "moderate": 5,
+    "high": 0,
+    "critical": 0,
+    "total": 5
+  },
+  "all": {
+    "info": 0,
+    "low": 3,
+    "moderate": 34,
+    "high": 0,
+    "critical": 0,
+    "total": 37
+  },
+  "mitigation": "@firebase/firestore override @grpc/grpc-js=1.14.7; tested with real emulator transactions",
+  "remaining": "Five moderate production findings are propagated from existing glob/minimatch/Expo tooling. No force upgrade of the preserved Expo stack."
+}

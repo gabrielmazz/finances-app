@@ -1,0 +1,39 @@
+Command: npm run test:integration
+Project: demo-lumus-foundation; Auth and Firestore emulators only.
+# Subtest: real Auth emulator: login existing UID, profile compatibility, logout and observer
+ok 1 - real Auth emulator: login existing UID, profile compatibility, logout and observer
+# Subtest: registration creates a single bounded profile with same UID; retries preserve fields
+ok 2 - registration creates a single bounded profile with same UID; retries preserve fields
+# Subtest: missing profile stays missing after login; explicit completion creates it
+ok 3 - missing profile stays missing after login; explicit completion creates it
+# Subtest: incomplete legacy profile, protected group membership and name-only transaction
+ok 4 - incomplete legacy profile, protected group membership and name-only transaction
+# Subtest: concurrent profile transactions detect stale edits and preserve legacy permission fields
+ok 5 - concurrent profile transactions detect stale edits and preserve legacy permission fields
+# Subtest: bounded own-bank query reads legacy documents; no foreign records or financial mutation
+ok 6 - bounded own-bank query reads legacy documents; no foreign records or financial mutation
+# Subtest: Auth invalid credentials and reset flow stay isolated and do not expose account existence
+ok 7 - Auth invalid credentials and reset flow stay isolated and do not expose account existence
+# Subtest: offline reads fail explicitly, keep identity and preserve stored data
+ok 8 - offline reads fail explicitly, keep identity and preserve stored data
+# Subtest: interrupted registration keeps the Auth account and resumes by explicit profile completion
+ok 9 - interrupted registration keeps the Auth account and resumes by explicit profile completion
+# Subtest: Rules: unauthenticated access, foreign PII and unbounded user enumeration denied
+ok 10 - Rules: unauthenticated access, foreign PII and unbounded user enumeration denied
+# Subtest: Rules: create schema, ownership, role, timestamps, PII and oversized payloads
+ok 11 - Rules: create schema, ownership, role, timestamps, PII and oversized payloads
+# Subtest: Rules: update validates names and forbids roles, relationships, ownership, deletion and group escalation
+ok 12 - Rules: update validates names and forbids roles, relationships, ownership, deletion and group escalation
+# Subtest: Rules: queries enforce ownership and page limits; members cannot edit group or access foreign banks
+ok 13 - Rules: queries enforce ownership and page limits; members cannot edit group or access foreign banks
+# Subtest: typed external snapshot: nested/orphan documents, checksum, create-only restore and round trip
+ok 14 - typed external snapshot: nested/orphan documents, checksum, create-only restore and round trip
+# Subtest: snapshot reserves a sibling page before recursively reading children
+ok 15 - snapshot reserves a sibling page before recursively reading children
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# duration_ms 11976.004235
