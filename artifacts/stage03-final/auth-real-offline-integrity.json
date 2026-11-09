@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-11-09T13:07:29.589Z",
+  "userCount": 3,
+  "passwordAccounts": 3,
+  "passwordHashesPresent": 3,
+  "passwordParametersPresent": true,
+  "providerRecordCount": 3,
+  "mfaRequiresSeparateReview": false,
+  "realPasswordRestoreHomologated": false,
+  "sha256": "f23b42a5a9b9dc2ec7abac4e6cfa8b65413cf570ace7850ca4630b308b059345",
+  "encrypted": true,
+  "integrityVerified": true,
+  "association": {
+    "profiles": 2,
+    "authUsersWithProfile": 2
+  },
+  "pointInTime": false,
+  "productionAccountWrites": 0,
+  "productionImportSupported": false,
+  "hashParametersLogged": false,
+  "networkIsolated": true
+}

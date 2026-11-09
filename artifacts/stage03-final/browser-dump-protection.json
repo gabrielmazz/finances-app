@@ -1,0 +1,8 @@
+{
+  "verified": true,
+  "processes": 6,
+  "synthetic": true,
+  "loginUiLoadedWithoutCredentials": true,
+  "unprotectedBrowserRejected": true,
+  "memoryContentsRead": false
+}

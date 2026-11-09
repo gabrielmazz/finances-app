@@ -10,13 +10,13 @@ export function showFeatureUnavailable() {
 		type: 'info',
 	});
 }
-export default function FeatureUnavailableNotice({ showWorkspace = false }: { showWorkspace?: boolean }) {
+export default function FeatureUnavailableNotice({ showWorkspace = false, message = FEATURE_UNAVAILABLE_MESSAGE }: { showWorkspace?: boolean; message?: string }) {
 	return (
 		<View
 			className={cn('border-b border-outline-200 bg-background-0 px-4 py-2', showWorkspace && 'web:lg:pl-20')}
 		>
 			<Text className="text-xs text-typography-700" accessibilityLiveRegion="polite">
-				{FEATURE_UNAVAILABLE_MESSAGE}
+				{message}
 			</Text>
 		</View>
 	);

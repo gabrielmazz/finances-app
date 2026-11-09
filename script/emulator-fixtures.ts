@@ -11,6 +11,15 @@ import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 
 export const LOCAL_PROJECT = 'demo-lumus-foundation';
 export const DEMO_PASSWORD = 'Lumus-local-2026!';
+export const FIXTURE_AUTHORIZATION_GENERATION = 'synthetic-authority-stage03';
+export async function setEmulatorClaims(uid: string, claims: Record<string, unknown>, project = LOCAL_PROJECT) {
+	if (!project.startsWith('demo-') || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) throw Error('Synthetic emulator identity required');
+	const response = await fetch(`http://127.0.0.1:9098/identitytoolkit.googleapis.com/v1/projects/${project}/accounts:update`, {
+		method: 'POST', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
+		body: JSON.stringify({ localId: uid, customAttributes: JSON.stringify(claims) }),
+	});
+	if (!response.ok) throw Error('Emulator claim setup failed');
+}
 export async function seedEmulatorFixtures() {
 	if (process.env.FIRESTORE_EMULATOR_HOST && process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8089')
 		throw Error('Local emulator required');
@@ -31,6 +40,8 @@ export async function seedEmulatorFixtures() {
 			});
 			users[key] = user.user.uid;
 		}
+		await setEmulatorClaims(users.incomplete, { lumusAccess: FIXTURE_AUTHORIZATION_GENERATION });
+		await setEmulatorClaims(users.legacy, { lumusAccess: FIXTURE_AUTHORIZATION_GENERATION });
 		await environment.withSecurityRulesDisabled(async (context) => {
 			const db = context.firestore();
 			const create = async (collection: string, id: string, data: Record<string, unknown>) => {
@@ -60,6 +71,8 @@ export async function seedEmulatorFixtures() {
 				status: 'active',
 				members: { [users.incomplete]: 'member', [users.legacy]: 'admin' },
 			});
+			await create('_authorizations', users.legacy, { generation: FIXTURE_AUTHORIZATION_GENERATION, enabled: true, readOwners: [], groups: { 'fixture-group': 'admin' } });
+			await create('_authorizations', users.incomplete, { generation: FIXTURE_AUTHORIZATION_GENERATION, enabled: true, readOwners: [], groups: { 'fixture-group': 'member' } });
 			await create('banks', 'fixture-legacy-bank', {
 				personId: users.legacy,
 				name: 'Banco legado',

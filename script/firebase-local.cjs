@@ -16,7 +16,7 @@ const common = [
 let args;
 if (mode === 'start') args = [cli, 'emulators:start', ...common];
 if (mode === 'test')
-	args = [cli, 'emulators:exec', ...common, 'node --import tsx --test tests/integration/*.integration.ts'];
+	args = [cli, 'emulators:exec', ...common, 'node --require ./script/integration-network.cjs --import tsx --test --test-concurrency=1 tests/integration/*.integration.ts'];
 if (mode === 'web' || mode === 'native')
 	args = [
 		path.resolve('node_modules/expo/bin/cli'),

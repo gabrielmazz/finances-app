@@ -1,0 +1,15 @@
+{
+  "status": "published-verified",
+  "projectId": "finances-app-e8685",
+  "appId": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+  "authDomain": "finances-app-e8685.firebaseapp.com",
+  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "containmentSHA256": "4a8e4d4118b77304fa0df2303fabddad901607f0653298bc8ca6604df8082251",
+  "previousRulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "verifiedAt": "2026-11-09T11:23:31.653Z",
+  "deployCommand": "npx -y firebase-tools@15.35.0 deploy --only firestore:rules --config firebase.production.json --project finances-app-e8685",
+  "containmentCommand": "npx -y firebase-tools@15.35.0 deploy --only firestore:rules --config firebase.containment.json --project finances-app-e8685",
+  "financialWritesEnabled": false,
+  "published": true,
+  "requiresSpecificApproval": true
+}

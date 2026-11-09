@@ -8,7 +8,7 @@ versao: 3.0.0
 
 # MOC - Lumus Finanças
 
-O frontend preservado em [[Remoção do Backend]] recebeu a [[Fundação Firebase Spark]] da etapa 02: Auth/perfis e Rules locais, sem módulos financeiros nem produção liberada.
+O frontend preservado em [[Remoção do Backend]] recebeu a [[Fundação Firebase Spark]] da etapa 02: Auth/perfis e Rules locais, sem módulos financeiros nem produção liberada. A etapa 03 está em [[Segurança e Preparação para Produção]]: Rules publicadas com autorização em 09/11 e recuperação isolada de cópia real Firestore comprovada; sem distribuição do novo frontend ou módulos financeiros. Finalização, homologação real, observação contínua e recuperação Auth em [[Homologação e Recuperação da Etapa 03]].
 
 ## Módulos visuais
 - [[Autenticação]]

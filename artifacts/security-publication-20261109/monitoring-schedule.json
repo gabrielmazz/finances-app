@@ -1,0 +1,21 @@
+{
+  "scheduledAt": "2026-11-09T11:27:42.674Z",
+  "requiresMachineAndUserSystemdRunning": true,
+  "checks": [
+    {
+      "label": "15m",
+      "unit": "lumus-security-20261109-after15m.timer",
+      "delaySeconds": 528,
+      "targetFromPublication": "2026-11-09T11:36:30.080Z",
+      "status": "executed-passed",
+      "checkedAt": "2026-11-09T11:36:13.576Z"
+    },
+    {
+      "label": "1h",
+      "unit": "lumus-security-20261109-after1h.timer",
+      "delaySeconds": 3228,
+      "targetFromPublication": "2026-11-09T12:21:30.080Z",
+      "status": "scheduled-not-yet-executed"
+    }
+  ]
+}

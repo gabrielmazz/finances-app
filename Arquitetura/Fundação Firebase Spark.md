@@ -8,6 +8,8 @@ versao: 1.0.0
 
 # Fundação Firebase Spark — Etapa 02
 
+Registro da etapa 02. A etapa 03 atualiza Rules, autoridade de grupos, gate de produção, criptografia/restauração e evidências em [[Segurança e Preparação para Produção]]. As descrições abaixo registram o estado e os resultados daquela entrega; o gate produtivo continua fechado e não houve deploy.
+
 ## Escopo e fronteira de produção
 
 A fundação executa Authentication por email/senha, sessão persistente, leitura de perfis existentes, conclusão explícita de perfil ausente e edição transacional do nome. Reconhece contexto pessoal ou associação de grupo previamente estabelecida. Uma consulta paginada de bancos próprios comprova a leitura legada em testes; ainda não alimenta as telas financeiras.

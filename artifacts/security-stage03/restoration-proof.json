@@ -1,0 +1,19 @@
+{
+  "equal": true,
+  "sourceCount": 26,
+  "restoredCount": 26,
+  "expectedHash": "7e5c130a137863231e0676070b26f30e416141d5b4a8808eabe2c74533553616",
+  "restoredHash": "7e5c130a137863231e0676070b26f30e416141d5b4a8808eabe2c74533553616",
+  "synthetic": true,
+  "encrypted": true,
+  "uidPreserved": true,
+  "appProfileParsed": true,
+  "pagination": [
+    20,
+    2
+  ],
+  "internalReferenceResolvedLocally": true,
+  "financialFieldsPreserved": true,
+  "pointInTime": false,
+  "productionDataUsed": false
+}

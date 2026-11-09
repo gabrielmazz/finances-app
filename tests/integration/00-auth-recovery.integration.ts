@@ -1,0 +1,52 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {randomBytes} from 'node:crypto';
+import {initializeApp,deleteApp} from 'firebase/app';
+import {getAuth,connectAuthEmulator} from 'firebase/auth';
+import {getFirestore,connectFirestoreEmulator,terminate,setLogLevel} from 'firebase/firestore';
+import {initializeTestEnvironment} from '@firebase/rules-unit-testing';
+import {chromium} from 'playwright';
+import {exportAuthSnapshot,restoreAuthToEmulator,writeAuthBackup,readAuthBackup} from '../../script/auth-snapshot.cjs';
+import {exportSnapshot,restoreToEmulator,compareSnapshots} from '../../script/firestore-snapshot.cjs';
+import {writeEncryptedBackup,readEncryptedBackup} from '../../script/snapshot-encryption.cjs';
+import {createWebServer} from '../../script/serve_web.cjs';
+import {login,logout} from '../../application/account';
+import {loadProfile} from '../../firebase/profiles';
+import {DEMO_PASSWORD,LOCAL_PROJECT} from '../../script/emulator-fixtures';
+
+test('Auth + Firestore encrypted recovery starts the actual UI and preserves UID, providers, relationships and financial fields',async()=>{
+	assert.equal(process.env.FIREBASE_AUTH_EMULATOR_HOST,'127.0.0.1:9098');setLogLevel('silent');
+	const source='demo-lumus-auth-source',target=LOCAL_PROJECT;
+	const user={localId:'recovered-auth-owner',email:'recovered-owner@lumus.test',emailVerified:true,displayName:'Pessoa recuperada',rawPassword:DEMO_PASSWORD};
+	const users=[user,{localId:'recovered-auth-related',email:'recovered-related@lumus.test',rawPassword:DEMO_PASSWORD},{localId:'recovered-auth-google',email:'recovered-google@lumus.test',providerUserInfo:[{providerId:'google.com',rawId:'synthetic-google-subject'}]},{localId:'recovered-auth-disabled',email:'recovered-disabled@lumus.test',disabled:true,rawPassword:DEMO_PASSWORD}];
+	const admin=await fetch(`http://127.0.0.1:9098/identitytoolkit.googleapis.com/v1/projects/${source}/accounts:batchCreate`,{method:'POST',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({allowOverwrite:false,users})});assert.equal(admin.status,200);
+	const root=`projects/${source}/databases/(default)/documents`;
+	const records=[...users.map(account=>({path:'users/'+account.localId,fields:{name:{stringValue:account.localId===user.localId?'Pessoa recuperada':'Pessoa sintética'},relatedIdUsers:{arrayValue:{values:[{stringValue:'recovered-auth-related'}]}},createdAt:{stringValue:'2020-01-01T00:00:00Z'}}})),{path:'banks/auth-recovery-bank',fields:{personId:{stringValue:user.localId},name:{stringValue:'Banco recuperado'}}},{path:'expenses/auth-recovery-expense',fields:{personId:{stringValue:user.localId},valueInCents:{integerValue:'12345'},bank:{referenceValue:root+'/banks/auth-recovery-bank'}}},{path:'history/missing/entries/recovered',fields:{value:{integerValue:'9007199254740991'},date:{timestampValue:'2020-01-01T00:00:00.123456Z'}}}];
+	const commit=await fetch(`http://127.0.0.1:8089/v1/${root}:commit`,{method:'POST',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({writes:records.map(record=>({update:{name:root+'/'+record.path,fields:record.fields}}))})});assert.equal(commit.status,200);
+	const directory=fs.mkdtempSync(path.join(os.tmpdir(),'lumus-auth-recovery-'));
+	const environment=await initializeTestEnvironment({projectId:target,firestore:{host:'127.0.0.1',port:8089,rules:fs.readFileSync('firestore.rules','utf8')}});
+	const app=initializeApp({apiKey:'demo-api-key',projectId:target},'integrated-auth-recovery');const client={auth:getAuth(app),db:getFirestore(app)};connectAuthEmulator(client.auth,'http://127.0.0.1:9098',{disableWarnings:true});connectFirestoreEmulator(client.db,'127.0.0.1',8089);
+	let browser;let server: ReturnType<typeof createWebServer> | undefined;let pageForDiagnostics;const failures:string[]=[];
+	try{
+		const key=path.join(directory,'key'),authFile=path.join(directory,'auth.enc'),documentsFile=path.join(directory,'firestore.enc');fs.writeFileSync(key,randomBytes(32),{mode:0o600});
+		const auth=await exportAuthSnapshot({projectId:source,local:true,maxUsers:10});assert.equal(auth.userCount,4);
+		writeAuthBackup(authFile,auth,key);assert(!fs.readFileSync(authFile,'utf8').includes(user.email));
+		const documents=await exportSnapshot({projectId:source,local:true,maxDocuments:100});writeEncryptedBackup(documentsFile,documents,key);
+		await restoreAuthToEmulator(readAuthBackup(authFile,key),target);await assert.rejects(restoreAuthToEmulator(auth,target),/empty/);
+		await assert.rejects(restoreAuthToEmulator(auth,'finances-app-e8685'),/demo/);
+		await restoreToEmulator(readEncryptedBackup(documentsFile,key),target,{remapInternalReferences:true});
+		const restored=await exportSnapshot({projectId:target,local:true,maxDocuments:100});assert(compareSnapshots(documents,restored,{remappedReferences:true}).equal);
+		const accounts=await exportAuthSnapshot({projectId:target,local:true,maxUsers:10}) as {userCount:number;users:{localId:string;providerUserInfo?:{providerId:string}[];disabled?:boolean}[]};assert.deepEqual(accounts.users.map(account=>account.localId).sort(),users.map(account=>account.localId).sort());
+		assert.equal(accounts.users.find(account=>account.localId==='recovered-auth-google')?.providerUserInfo?.[0].providerId,'google.com');assert.equal(accounts.users.find(account=>account.localId==='recovered-auth-disabled')?.disabled,true);
+		await login(client,user.email,DEMO_PASSWORD);assert.equal(client.auth.currentUser?.uid,user.localId);assert.equal((await loadProfile(client,user.localId))?.profile.createdAt?.getUTCFullYear(),2020);await logout(client);
+		await assert.rejects(login(client,'recovered-disabled@lumus.test',DEMO_PASSWORD));
+		server=createWebServer(path.resolve('dist'));await new Promise<void>(resolve=>server!.listen(0,'127.0.0.1',resolve));const address=server.address();assert(address&&typeof address==='object');
+		browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||path.join(os.homedir(),'.cache/ms-playwright/chromium-1228/chrome-linux64/chrome'),args:['--no-sandbox']});
+		const page=await browser.newPage();pageForDiagnostics=page;page.on('requestfailed',request=>{const url=new URL(request.url());failures.push(url.origin+url.pathname+' '+request.failure()?.errorText);});await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
+		const base='http://127.0.0.1:'+address.port;await page.goto(base+'/web');await page.getByLabel('Email',{exact:true}).fill(user.email);await page.getByLabel('Senha',{exact:true}).fill(DEMO_PASSWORD);await page.getByRole('button',{name:'Entrar',exact:true}).click();await page.waitForURL('**/web/home**');await page.goto(base+'/web/profile');await page.getByLabel('Nome',{exact:true}).waitFor();assert.equal(await page.locator('#profile-id').inputValue(),user.localId);assert.equal(await page.getByLabel('Nome',{exact:true}).inputValue(),'Pessoa recuperada');await page.reload();await page.getByLabel('Nome',{exact:true}).waitFor();assert.equal(await page.locator('#profile-id').inputValue(),user.localId);
+		fs.mkdirSync('artifacts/stage03-final',{recursive:true});fs.writeFileSync('artifacts/stage03-final/integrated-recovery.json',JSON.stringify({synthetic:true,expectedDocuments:7,restoredDocuments:restored.documentCount,authUsersExpected:4,authUsersRestored:accounts.userCount,documentHashesEqual:true,uidPreserved:true,providersPreserved:true,disabledAccountDenied:true,relationshipsAndFinancialValuesPreserved:true,actualFrontendStarted:true,uiLoginAndProfilePassed:true,uiSessionReloadPassed:true,productionDataUsed:false,productionPasswordHashAlgorithmValidated:false,limitation:'Auth emulator uses fake hashes; this proves emulator identity/UI recovery, not Firebase SCRYPT password verification or external OAuth login.'},null,2)+'\n');
+	}catch(error){if(pageForDiagnostics)fs.writeFileSync('/tmp/lumus-synthetic-recovery-browser.txt',await pageForDiagnostics.locator('body').innerText()+'\n'+failures.join('\n'));throw error;}finally{await browser?.close();if(server)await new Promise(resolve=>server!.close(resolve));await terminate(client.db);await deleteApp(app);await environment.clearFirestore();await environment.cleanup();fs.rmSync(directory,{recursive:true,force:true});}
+});

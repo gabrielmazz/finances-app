@@ -1,0 +1,20 @@
+{
+  "startedAt": "2026-11-09T17:08:54.178Z",
+  "manualLogoutRequested": true,
+  "steps": [
+    {
+      "name": "manual-logout-clears-authenticated-workspace",
+      "passed": true,
+      "checkedAt": "2026-11-09T17:12:46.025Z"
+    },
+    {
+      "name": "logout-persists-and-protected-deep-link-returns-to-login",
+      "passed": true,
+      "checkedAt": "2026-11-09T17:12:58.829Z"
+    }
+  ],
+  "screenshotsTaken": false,
+  "rawIdentityRecorded": false,
+  "passed": true,
+  "finishedAt": "2026-11-09T17:12:58.830Z"
+}

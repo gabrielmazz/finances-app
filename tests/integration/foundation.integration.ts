@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http2';
 import { readFileSync } from 'node:fs';
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth, onAuthStateChanged } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, onAuthStateChanged, confirmPasswordReset } from 'firebase/auth';
 import {
 	connectFirestoreEmulator,
 	getFirestore,
@@ -325,4 +325,24 @@ test('Rules: queries enforce ownership and page limits; members cannot edit grou
 	await assertSucceeds(getDocFromServer(doc(c.db, 'financialGroups', 'fixture-group')));
 	await assertFails(updateDoc(doc(c.db, 'financialGroups', 'fixture-group'), { status: 'inactive' }));
 	await assertFails(deleteDoc(doc(c.db, 'banks', 'fixture-legacy-bank')));
+});
+
+
+test('password recovery applies the emulator code, preserves UID and rejects the previous password', async () => {
+	const c = client('password-recovery');
+	const email = 'reset-roundtrip@lumus.test';
+	const user = await register(c, 'Recuperação sintética', email, DEMO_PASSWORD);
+	const uid = user.uid;
+	await logout(c);
+	await requestPasswordReset(c, email);
+	const codes = await fetch(`http://127.0.0.1:9098/emulator/v1/projects/${LOCAL_PROJECT}/oobCodes`).then(result => result.json()) as {oobCodes: {email:string;oobCode:string;requestType:string}[]};
+	const reset = codes.oobCodes.find(code => code.email === email && code.requestType === 'PASSWORD_RESET');
+	assert(reset);
+	const newPassword = 'Lumus-reset-local-2026!';
+	await confirmPasswordReset(c.auth, reset.oobCode, newPassword);
+	await login(c, email, newPassword);
+	assert.equal(c.auth.currentUser?.uid, uid);
+	assert.equal((await loadProfile(c, uid))?.profile.name, 'Recuperação sintética');
+	await logout(c);
+	await assert.rejects(login(c, email, DEMO_PASSWORD));
 });

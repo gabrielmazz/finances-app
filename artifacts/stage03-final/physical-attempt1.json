@@ -1,0 +1,17 @@
+{
+  "startedAt": "2026-11-09T16:31:55.552Z",
+  "platform": "android",
+  "model": "SM_S926B",
+  "physicalDeviceDetected": true,
+  "installedExpoGo": "57.0.9",
+  "projectSdk": 57,
+  "steps": [],
+  "applicationFlowsHomologated": false,
+  "credentialsEnteredByOperator": false,
+  "rawIdentityRecorded": false,
+  "screenshotsTaken": false,
+  "financialWrites": 0,
+  "productionAppReplaced": false,
+  "error": "Native runtime/SDK error",
+  "finishedAt": "2026-11-09T16:32:16.951Z"
+}

@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-11-09T13:05:58.906Z",
+  "windowsUsbDiagnosticsAvailable": true,
+  "candidates": [
+    {
+      "Status": "OK",
+      "Class": "WPD",
+      "Category": "Portable/MTP"
+    },
+    {
+      "Status": "OK",
+      "Class": "Modem",
+      "Category": "Android/phone candidate"
+    },
+    {
+      "Status": "OK",
+      "Class": "USB",
+      "Category": "Android/phone candidate"
+    },
+    {
+      "Status": "OK",
+      "Class": "AndroidUsbDeviceClass",
+      "Category": "ADB"
+    }
+  ],
+  "serialsRecorded": false
+}

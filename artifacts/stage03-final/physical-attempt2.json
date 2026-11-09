@@ -1,0 +1,28 @@
+{
+  "startedAt": "2026-11-09T16:33:25.469Z",
+  "platform": "android",
+  "model": "SM_S926B",
+  "physicalDeviceDetected": true,
+  "installedExpoGo": "57.0.9",
+  "projectSdk": 57,
+  "steps": [
+    {
+      "name": "native-workspace-rendered-after-manual-login",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:33:28.457Z"
+    },
+    {
+      "name": "manual-login-existing-profile-and-authorized-uid",
+      "passed": true,
+      "checkedAt": "2026-11-09T16:33:32.185Z"
+    }
+  ],
+  "applicationFlowsHomologated": false,
+  "credentialsEnteredByOperator": false,
+  "rawIdentityRecorded": false,
+  "screenshotsTaken": false,
+  "financialWrites": 0,
+  "productionAppReplaced": false,
+  "error": "Physical scenario failed; no hierarchy or identity logged",
+  "finishedAt": "2026-11-09T16:33:41.474Z"
+}

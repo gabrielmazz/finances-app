@@ -1,0 +1,128 @@
+{
+  "checkedAt": "2026-11-08T21:10:29.039Z",
+  "projectId": "finances-app-e8685",
+  "productionWrites": 0,
+  "billing": {
+    "billingEnabled": false
+  },
+  "database": {
+    "edition": "STANDARD",
+    "freeTier": true,
+    "name": "projects/finances-app-e8685/databases/(default)"
+  },
+  "auth": {
+    "subtype": "FIREBASE_AUTH",
+    "emailPasswordEnabled": true,
+    "passwordRequired": true,
+    "authorizedDomains": [
+      "localhost",
+      "finances-app-e8685.firebaseapp.com",
+      "finances-app-e8685.web.app",
+      "lumus.financas.com",
+      "finances-app-e8685--preview-d23qan5t.web.app"
+    ]
+  },
+  "release": {
+    "name": "projects/finances-app-e8685/releases/cloud.firestore",
+    "rulesetName": "projects/finances-app-e8685/rulesets/52c726fa-754d-442a-8ac7-cf89bb593056",
+    "createTime": "2025-11-01T13:09:05.320517Z",
+    "updateTime": "2026-08-16T12:51:06.751750Z"
+  },
+  "rules": {
+    "sha256": "8d431eb2263a6b35a77676b230f821e08068425d0f6c55b4f5430f3b7188cd1d",
+    "content": "rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null;\n    }\n  }\n}"
+  },
+  "hosting": [
+    {
+      "type": "DEPLOY",
+      "releaseTime": "2026-11-08T14:45:02.329Z",
+      "version": "sites/finances-app-e8685/versions/836231f2186f7f62"
+    },
+    {
+      "type": "DEPLOY",
+      "releaseTime": "2026-10-09T18:38:52.973Z",
+      "version": "sites/finances-app-e8685/versions/f01068a900154ffa"
+    },
+    {
+      "type": "DEPLOY",
+      "releaseTime": "2026-10-09T14:13:49.217Z",
+      "version": "sites/finances-app-e8685/versions/466b889b9c65af56"
+    }
+  ],
+  "apps": [
+    {
+      "appId": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+      "displayName": "finances-app",
+      "state": "ACTIVE"
+    }
+  ],
+  "collections": [
+    "bankTransfers",
+    "banks",
+    "cashRescues",
+    "expenses",
+    "financeInvestmentSyncs",
+    "financeInvestments",
+    "gains",
+    "investmentCdiRates",
+    "mandatoryExpenses",
+    "mandatoryGains",
+    "monthlyBalances",
+    "tags",
+    "users"
+  ],
+  "counts": {
+    "bankTransfers": 15,
+    "banks": 3,
+    "cashRescues": 2,
+    "expenses": 590,
+    "financeInvestmentSyncs": 39,
+    "financeInvestments": 2,
+    "gains": 246,
+    "investmentCdiRates": 1,
+    "mandatoryExpenses": 16,
+    "mandatoryGains": 1,
+    "monthlyBalances": 34,
+    "tags": 35,
+    "users": 2
+  },
+  "profileCompatibility": {
+    "sampled": 2,
+    "shapeVariants": [
+      [
+        "adminUser",
+        "createdAt",
+        "email",
+        "name",
+        "relatedIdUsers"
+      ],
+      [
+        "adminUser",
+        "createdAt",
+        "email",
+        "name",
+        "relatedIdUsers"
+      ]
+    ],
+    "subcollections": [
+      [
+        "pushDevices"
+      ],
+      []
+    ]
+  },
+  "authCompatibility": {
+    "profilesChecked": 2,
+    "matchingUids": 2,
+    "emailPasswordProviders": 2,
+    "disabledAccounts": 0,
+    "lumusAuthorityClaims": 0
+  },
+  "usage": {
+    "windowStart": "2026-11-07T21:10:46.272Z",
+    "windowEnd": "2026-11-08T21:10:46.272Z",
+    "reportedReads": 2778,
+    "series": 1,
+    "caveat": "Approximate rolling window; metric delay and concurrent clients mean no guaranteed available quota."
+  }
+}

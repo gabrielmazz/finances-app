@@ -1,0 +1,14 @@
+{
+  "startedAt": "2026-11-09T11:21:20.692Z",
+  "finishedAt": "2026-11-09T11:21:30.080Z",
+  "exitCode": 0,
+  "projectId": "finances-app-e8685",
+  "only": "firestore:rules",
+  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "financialDocumentWrites": 0,
+  "authAccountChanges": 0,
+  "hostingDeployments": 0,
+  "billingChanges": 0,
+  "verificationPending": false,
+  "verifiedAt": "2026-11-09T11:23:31.653Z"
+}

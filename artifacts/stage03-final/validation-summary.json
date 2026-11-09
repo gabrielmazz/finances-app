@@ -1,0 +1,81 @@
+{
+  "checkedAt": "2026-11-09T17:16:26.932Z",
+  "baseline": "e86a55f86754ddcda1acbf83f8accdd2932cf423",
+  "unit": {
+    "suites": 21,
+    "passed": 105,
+    "failed": 0,
+    "styles": true,
+    "types": true
+  },
+  "integration": {
+    "passed": 115,
+    "failed": 0,
+    "emulatorOnly": true
+  },
+  "browser": {
+    "routes": 50,
+    "flows": 5,
+    "errors": 0,
+    "externalOrigins": 0,
+    "synthetic": true
+  },
+  "exports": {
+    "web": true,
+    "android": true,
+    "ios": true
+  },
+  "frontendPreserved": true,
+  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "realWebScenarios": 8,
+  "realFirestoreRestored": 987,
+  "realAuthEncryptedAccounts": 3,
+  "syntheticIntegrated": {
+    "authAccounts": 4,
+    "documents": 7
+  },
+  "continuousObservationSeconds": 3608.018616484,
+  "productionWrites": 0,
+  "deploymentsThisRound": 0,
+  "spark": {
+    "billingEnabled": false,
+    "freeTier": true,
+    "verifiedAt": "2026-11-09T17:13:50.043Z"
+  },
+  "physicalDevice": {
+    "detected": true,
+    "model": "SM_S926B",
+    "platform": "android",
+    "expoGo": "57.0.9",
+    "flowsHomologated": true,
+    "scenarios": 8,
+    "assisted": true,
+    "manualLoginAndLogout": true,
+    "initialLoginTransitionAutomaticallyCaptured": false,
+    "logoutEffectsAutomaticallyVerified": true
+  },
+  "independentKeyStorage": false,
+  "ownerAcceptedCoLocation": true,
+  "productionPasswordRestoreHomologated": false,
+  "frontendCorrections": [
+    {
+      "file": "components/ui/input/index.tsx",
+      "reason": "Forward existing accessibility labels; no visual change"
+    }
+  ],
+  "presentationDirectoryDiff": "Screens, routes, assets, design-system and native navigation unchanged; one declared InputField accessibility correction",
+  "currentFrontendExports": {
+    "web": true,
+    "android": true,
+    "ios": true
+  },
+  "stage03TechnicallyPrepared": true,
+  "completionStatus": "validated-with-documented-limitations",
+  "pendingRequiredActionsWithinApprovedScope": [],
+  "limitations": [
+    "Backup and key remain on the same host/access principal by explicit owner decision; no independent off-host copy verified.",
+    "Real Firebase SCRYPT password recovery and external OAuth were not homologated on a Firebase server; encrypted material/integrity and synthetic emulator recovery verified.",
+    "Physical validation uses Expo Go Android; standalone builds and physical iOS were not homologated.",
+    "Manual login was reported by the owner; its initial transition was not automatically captured. Menu/logout required owner actions; state/persistence were automatically verified."
+  ]
+}

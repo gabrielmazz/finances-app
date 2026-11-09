@@ -1,0 +1,48 @@
+{
+  "checkedAt": "2026-11-09T11:21:12.424Z",
+  "projectId": "finances-app-e8685",
+  "database": {
+    "edition": "STANDARD",
+    "freeTier": true
+  },
+  "billingEnabled": false,
+  "publishedRules": {
+    "name": "projects/finances-app-e8685/rulesets/52c726fa-754d-442a-8ac7-cf89bb593056",
+    "updatedAt": "2026-08-16T12:51:06.751750Z",
+    "sha256": "8d431eb2263a6b35a77676b230f821e08068425d0f6c55b4f5430f3b7188cd1d",
+    "source": "rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null;\n    }\n  }\n}"
+  },
+  "auth": {
+    "subtype": "FIREBASE_AUTH",
+    "emailPasswordEnabled": true
+  },
+  "sdk": {
+    "projectMatches": true,
+    "appId": "1:909478123750:web:bfe59f4e4d9682d20a4327",
+    "authDomain": "finances-app-e8685.firebaseapp.com",
+    "apiKeyPresent": true
+  },
+  "productionWrites": 0,
+  "counts": {
+    "bankTransfers": 15,
+    "banks": 3,
+    "cashRescues": 2,
+    "expenses": 590,
+    "financeInvestmentSyncs": 39,
+    "financeInvestments": 2,
+    "gains": 246,
+    "investmentCdiRates": 1,
+    "mandatoryExpenses": 16,
+    "mandatoryGains": 1,
+    "monthlyBalances": 34,
+    "tags": 35,
+    "users": 2
+  },
+  "authCompatibility": {
+    "complete": true,
+    "profilesChecked": 2,
+    "matchingUids": 2,
+    "passwordProviders": 2,
+    "disabledAccounts": 0
+  }
+}

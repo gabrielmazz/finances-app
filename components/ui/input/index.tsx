@@ -198,6 +198,7 @@ const InputField = React.forwardRef<
     <UIInput.Input
       ref={ref as React.Ref<any>}
       {...props}
+      aria-label={props['aria-label'] ?? props.accessibilityLabel}
       className={inputFieldStyle({
         parentVariants: {
           variant: parentVariant,

@@ -6,7 +6,7 @@ export function errorMessage(error: unknown): string {
 				? error.message
 				: '';
 	if (code.startsWith('config/'))
-		return 'Ambiente indisponível. Inicie os emuladores locais; o acesso à produção está bloqueado nesta etapa.';
+		return 'Não foi possível iniciar o serviço. Entre em contato com o responsável pelo aplicativo.';
 	if (
 		[
 			'auth/invalid-credential',

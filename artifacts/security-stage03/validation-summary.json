@@ -1,0 +1,68 @@
+{
+  "checkedAt": "2026-11-09T02:32:19.640Z",
+  "recoveryTag": "recovery/security-stage03-20261108",
+  "rulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "containmentSHA256": "4a8e4d4118b77304fa0df2303fabddad901607f0653298bc8ca6604df8082251",
+  "unit": {
+    "suites": 19,
+    "passed": 98,
+    "failed": 0,
+    "styles": true,
+    "types": true
+  },
+  "integration": {
+    "passed": 114,
+    "failed": 0,
+    "emulatorOnly": true
+  },
+  "securityMatrix": {
+    "scenarios": 90,
+    "failed": 0,
+    "containmentPassed": true
+  },
+  "browser": {
+    "routes": 50,
+    "flows": 5,
+    "failed": 0,
+    "externalRequests": 0,
+    "processRestartVerified": true
+  },
+  "exports": {
+    "web": true,
+    "android": true,
+    "ios": true,
+    "nativeInstalledRuntime": false
+  },
+  "frontend": {
+    "screens": 51,
+    "routeFiles": 82,
+    "unchanged": [
+      "app",
+      "screens",
+      "assets",
+      "design-system",
+      "components/ui"
+    ]
+  },
+  "recovery": {
+    "sourceDocuments": 26,
+    "restoredDocuments": 26,
+    "hashesMatch": true,
+    "synthetic": true,
+    "realBackupValidated": false
+  },
+  "production": {
+    "inspectionAt": "2026-11-09T02:29:03.888Z",
+    "published": false,
+    "writes": 0,
+    "rulesStillPermissive": true,
+    "billingEnabled": false,
+    "realUserPasswordsUsed": false
+  },
+  "pending": [
+    "specific publication approval and verified deployment",
+    "authorized real backup and isolated recovery; Auth accounts are outside the Firestore snapshot",
+    "installed mobile versions and device homologation",
+    "non-destructive production Auth/session validation with specifically authorized identities"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-11-09T11:24:33.059Z",
+  "label": "immediate",
+  "verified": false,
+  "publishedRulesSHA256": "8673e2d0d47641cf787484013a418b642442595994bdcbcbb0e9091c5f6179c8",
+  "ruleset": "projects/finances-app-e8685/rulesets/16a9d21b-64c9-4815-87c0-5e66b6b8b930",
+  "billingEnabled": false,
+  "freeTier": true,
+  "emailPasswordEnabled": true,
+  "unauthenticatedPrivateListStatus": 400,
+  "financialDataWrites": 0,
+  "authAccountChanges": 0,
+  "authenticatedProductionUserTested": false
+}

@@ -1,0 +1,23 @@
+{
+  "equal": true,
+  "sourceCount": 4,
+  "restoredCount": 4,
+  "expectedHash": "4753d6423b71e7ceff7023817f45801fbe98903861eb86e0af5361c907c7e03e",
+  "restoredHash": "4753d6423b71e7ceff7023817f45801fbe98903861eb86e0af5361c907c7e03e",
+  "javaCoreDumpsDisabled": true,
+  "profilesInterpreted": 2,
+  "foreignProfilesDenied": 2,
+  "ownBankQueriesPassed": true,
+  "uidPathsPreserved": true,
+  "internalReferencesRemapped": true,
+  "sourceSHA256": "73c011b1f50416c02710447f71e27700f57b8ad7433f8e65fc0dc99db3d73c64",
+  "encrypted": true,
+  "pointInTime": false,
+  "privateNetwork": true,
+  "swapDisabled": true,
+  "coreDumpsDisabled": true,
+  "productionWrites": 0,
+  "authAccountsIncluded": false,
+  "synthetic": true,
+  "missingJavaGuardFailsClosed": true
+}

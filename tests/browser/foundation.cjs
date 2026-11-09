@@ -4,7 +4,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const base = 'http://127.0.0.1:4173';
 const runId = Date.now();
-const directory = 'artifacts/firebase-foundation';
+const directory = 'artifacts/security-stage03';
 const inventory = require('../../docs/backend-removal-manifest.json');
 const routes = inventory.preservedRoutes
 	.filter((file) => file.startsWith('app/web/') && !/\.(web|native)\.tsx$/.test(file))
@@ -155,6 +155,40 @@ async function run() {
 		});
 		await context.close();
 		console.log(`${viewport}: ${routes.length} routes and auth/profile flows passed`);
+	}
+	// A persistent profile verifies session recovery across real Chromium process restarts.
+	const userDataDir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'lumus-browser-restart-'));
+	let persistent;
+	let admin;
+	let revokedUid;
+	const options={headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{}),args:['--no-sandbox'],viewport:{width:1440,height:1000}};
+	async function openPersistent(){
+		persistent=await chromium.launchPersistentContext(userDataDir,options);
+		await persistent.route('**/*',route=>{const url=new URL(route.request().url());if(['http:','https:'].includes(url.protocol)&&url.hostname!=='127.0.0.1'){result.externalOrigins.push(url.origin);return route.abort();}return route.continue();});
+		const page=await persistent.newPage();page.on('pageerror',error=>result.errors.push(error.message));return page;
+	}
+	async function enter(page,email){await page.goto(base+'/web');await page.getByLabel('Email',{exact:true}).fill(email);await page.getByLabel('Senha',{exact:true}).fill('Lumus-local-2026!');await page.getByRole('button',{name:'Entrar',exact:true}).click();await page.waitForURL('**/web/home**');await page.goto(base+'/web/profile');await page.getByLabel('Nome',{exact:true}).waitFor();}
+	try{
+		let page=await openPersistent();await enter(page,'legacy@lumus.test');
+		const uid=await page.locator('#profile-id').inputValue();assert(uid);
+		await persistent.close();page=await openPersistent();
+		await page.goto(base+'/web/profile');await page.getByLabel('Nome',{exact:true}).waitFor();
+		assert.equal(await page.locator('#profile-id').inputValue(),uid);
+		await page.getByRole('button',{name:'Sair',exact:true}).first().click();
+		await page.getByTestId('logout-confirmation').getByRole('button',{name:'Sair',exact:true}).click();await page.waitForURL('**/web');
+		await persistent.close();page=await openPersistent();await page.goto(base+'/web/profile');await page.getByRole('button',{name:'Entrar',exact:true}).waitFor();
+		assert.equal(new URL(page.url()).pathname,'/web');
+		await enter(page,'incomplete@lumus.test');revokedUid=await page.locator('#profile-id').inputValue();
+		const {initializeTestEnvironment}=require('@firebase/rules-unit-testing');
+		admin=await initializeTestEnvironment({projectId:'demo-lumus-foundation',firestore:{host:'127.0.0.1',port:8089}});
+		await admin.withSecurityRulesDisabled(async c=>c.firestore().doc('_authorizations/'+revokedUid).update({enabled:false}));
+		await page.reload();await page.getByText('Você não tem permissão para acessar este recurso.',{exact:true}).first().waitFor();
+		assert(await page.getByLabel('Nome',{exact:true}).isVisible());
+		result.flows.push({action:'Chromium restart preserves UID/session; logout survives restart; revoked group shows permission error while private profile stays usable',passed:true});
+		fs.writeFileSync(path.join(directory,'session-restart.json'),JSON.stringify({browserProcessRestarted:true,uidPreserved:true,logoutPersisted:true,revokedContextVisible:true,privateProfileAvailable:true,synthetic:true},null,2)+'\n');
+	}finally{
+		if(admin&&revokedUid)await admin.withSecurityRulesDisabled(async c=>c.firestore().doc('_authorizations/'+revokedUid).update({enabled:true}));
+		await admin?.cleanup();await persistent?.close();fs.rmSync(userDataDir,{recursive:true,force:true});
 	}
 	assert.equal(result.errors.length, 0);
 	assert.equal(result.consoleErrors.length, 0);

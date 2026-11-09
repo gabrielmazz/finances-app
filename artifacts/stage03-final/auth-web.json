@@ -1,0 +1,46 @@
+{
+  "projectId": "finances-app-e8685",
+  "startedAt": "2026-11-09T12:36:25.135Z",
+  "status": "passed",
+  "steps": [
+    {
+      "name": "authorized-login-and-existing-profile-uid",
+      "passed": true
+    },
+    {
+      "name": "reload-preserves-session-without-another-signin",
+      "passed": true
+    },
+    {
+      "name": "browser-process-restart-preserves-uid-and-profile",
+      "passed": true
+    },
+    {
+      "name": "offline-profile-error-is-explicit",
+      "passed": true
+    },
+    {
+      "name": "connection-loss-keeps-identity-and-recovers",
+      "passed": true
+    },
+    {
+      "name": "logout-clears-session-and-protects-deep-link",
+      "passed": true
+    },
+    {
+      "name": "invalid-password-denied",
+      "passed": true
+    },
+    {
+      "name": "invalid-local-session-returns-to-login-without-account-revocation",
+      "passed": true
+    }
+  ],
+  "screenshotsTaken": false,
+  "rawIdentityRecorded": false,
+  "financialWrites": 0,
+  "uidUnchanged": true,
+  "authenticatedProfileLoaded": true,
+  "signinRequests": 3,
+  "finishedAt": "2026-11-09T12:36:52.868Z"
+}
